@@ -1,6 +1,11 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NO_OWNER } from './format-layout.js';
-import { editsBetween, landedThrough, NO_EDIT } from './region-edit.js';
+import { editsBetween, landedThrough, NO_EDIT, regionTouched } from './region-edit.js';
+import { NO_LINE } from './written-lines.js';
 
 /** A module of regions the callers' names are no part of: kind and lines only. */
 const module = (...lines: readonly [kind: string, start: number, end: number][]) => ({
@@ -197,5 +202,92 @@ describe('editsBetween', () => {
 
   it('has no edit when a text cannot be found', () => {
     expect(editsBetween('/nowhere', undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toBeUndefined();
+  });
+
+  describe('between texts named by git', () => {
+    const before = 'export const a = 1;\n';
+    const after = 'export const a = 1;\nexport const b = 2;\n';
+    /** A checkout whose commit holds `before` and whose working tree `after`, with git's name for each and the commit. */
+    const checkout = async (check: (root: string, names: { before: string; after: string; commit: string }) => void) => {
+      const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-edits-between-')));
+      const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' }).trim();
+      try {
+        git('init', '--quiet');
+        await writeFile(join(root, 'a.ts'), before);
+        git('add', '.');
+        git('commit', '--quiet', '-m', 'a');
+        await writeFile(join(root, 'a.ts'), after);
+        check(root, { before: `git:${git('rev-parse', 'HEAD:a.ts')}`, after: `git:${git('hash-object', 'a.ts')}`, commit: git('rev-parse', 'HEAD') });
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    };
+
+    it('reads the text a commit holds by its name there, and the checkout\'s by the name the source index gives it now', async () => {
+      await checkout((root, { before, after, commit }) => {
+        const edit = editsBetween(root, undefined, [commit], { now: (file) => (file === 'a.ts' ? after : undefined) })('a.ts', before, after);
+
+        expect(edit?.hunks).toEqual([{ oldStart: 1, oldCount: 0, newStart: 2, newCount: 1 }]);
+      });
+    });
+
+    it('has no edit for a name neither a commit nor the source index gives the file', async () => {
+      await checkout((root, { before, after, commit }) => {
+        expect(editsBetween(root, undefined, [commit], { now: () => undefined })('a.ts', before, after)).toBeUndefined();
+        expect(editsBetween(root, undefined, [], { now: () => after })('a.ts', before, after)).toBeUndefined();
+      });
+    });
+
+    it('takes a text a reader already holds by its name, reading none', () => {
+      const held = new Map([['git:one', before], ['git:two', after]]);
+      const edit = editsBetween('/nowhere', undefined, [], { inHand: (_, name) => held.get(name) })('a.ts', 'git:one', 'git:two');
+
+      expect(edit?.hunks).toEqual([{ oldStart: 1, oldCount: 0, newStart: 2, newCount: 1 }]);
+    });
+
+    it('reads each text and each edit once, however often a pair is asked', () => {
+      const held = new Map([['git:one', before], ['git:two', after], ['git:three', before]]);
+      const looked: string[] = [];
+      const edits = editsBetween('/nowhere', undefined, [], { inHand: (_, name) => (looked.push(name), held.get(name)) });
+
+      const first = edits('a.ts', 'git:one', 'git:two');
+      expect(edits('a.ts', 'git:one', 'git:two')).toBe(first);
+      edits('a.ts', 'git:two', 'git:three');
+      expect(looked).toEqual(['git:one', 'git:two', 'git:three']);
+    });
+  });
+});
+
+describe('regionTouched', () => {
+  const region = (kind: string, startLine: number, endLine: number) => ({ kind, startLine, endLine });
+  // Line 6 of a nine-line text rewritten in place.
+  const body = { oldStart: 6, oldCount: 1, newStart: 6, newCount: 1 };
+
+  it('touches the regions a hunk rewrote, and no region the edit only shifted or left alone', () => {
+    const edit = { hunks: [{ oldStart: 1, oldCount: 0, newStart: 2, newCount: 1 }, body] };
+
+    expect(regionTouched(region('function', 5, 7), [edit])).toBe(true);
+    expect(regionTouched(region('function', 2, 4), [edit])).toBe(false);
+    expect(regionTouched(region('function', 5, 7), [NO_EDIT])).toBe(false);
+  });
+
+  it('follows the region through each edit of a chain, at the lines the one before shifted it to', () => {
+    const shift = { hunks: [{ oldStart: 1, oldCount: 0, newStart: 2, newCount: 3 }] };
+
+    // 2-4 shifts to 5-7, which the rewrite of line 6 then touches.
+    expect(regionTouched(region('function', 2, 4), [shift, { hunks: [body] }])).toBe(true);
+    expect(regionTouched(region('function', 2, 4), [{ hunks: [body] }, shift])).toBe(false);
+  });
+
+  it('spares a region whose kind the reading says the edit does not reach, as a landing spares it', () => {
+    expect(regionTouched(region('module', 1, 9), [{ hunks: [body], reading: 'bodies' }])).toBe(false);
+    expect(regionTouched(region('module', 1, 9), [{ hunks: [body], reading: 'load' }])).toBe(true);
+    expect(regionTouched(region('module', 1, 9), [{ hunks: [body] }])).toBe(true);
+  });
+
+  it('leaves a region with no lines of its own where it was, whatever the edit wrote', () => {
+    const rewritten = { hunks: [{ oldStart: 1, oldCount: 9, newStart: 1, newCount: 9 }] };
+
+    expect(regionTouched(region('function', NO_LINE, NO_LINE), [rewritten, rewritten])).toBe(false);
   });
 });

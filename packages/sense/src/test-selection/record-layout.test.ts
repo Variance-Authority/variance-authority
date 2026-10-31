@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BlockKind } from '../instrument/index.js';
-import { BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_DURATION, NO_OWNER, PHASES } from './format-layout.js';
+import { BLOB, BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_BLOB, NO_DURATION, NO_OWNER, PHASES } from './format-layout.js';
 import { LAYOUT, type RecordLayout } from './record-layout.js';
 
 describe('the record layout both sides read', () => {
@@ -17,8 +17,8 @@ describe('the record layout both sides read', () => {
 
   it('is where the format constants come from', () => {
     expect(FORMAT).toBe(LAYOUT.coverage.format);
-    expect([...NAMES, DURATION, PHASES].sort()).toEqual([...LAYOUT.coverage.sections].sort());
-    expect([NO_OWNER, NO_DURATION]).toEqual([0xffff_ffff, 0xffff_ffff]);
+    expect([...NAMES, DURATION, PHASES, BLOB].sort()).toEqual([...LAYOUT.coverage.sections].sort());
+    expect([NO_OWNER, NO_DURATION, NO_BLOB]).toEqual([0xffff_ffff, 0xffff_ffff, 0xffff_ffff]);
   });
 
   it('spares every kind under an edit that changes nothing that runs, and the top level under a body edit', () => {
@@ -35,8 +35,8 @@ describe('the record layout both sides read', () => {
       codecs: { raw: true, zstd: true },
       levels: { numbers: true, text: true },
       coverage: {
-        model: true, format: true, unphased: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noLine: true,
-        sections: true, duration: true, phases: true, phaseNames: true, parts: true, blockKinds: true, spared: true,
+        model: true, format: true, unkeyed: true, unphased: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noBlob: true, noLine: true,
+        sections: true, duration: true, phases: true, blob: true, phaseNames: true, parts: true, blockKinds: true, spared: true,
       },
       sets: { list: true, bits: true, runs: true, narrow: true },
       cases: { format: true, loadedSets: true, duration: true, lines: true, linesOffsets: true },

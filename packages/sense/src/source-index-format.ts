@@ -362,6 +362,43 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   };
 }
 
+/** What one generation's record rows say of some files: the name each one it puts gives its text, and the ones it deletes. */
+export interface RecordNames {
+  /** Each asked file a row puts, with its text's name, or none when the row names no text. */
+  readonly puts: ReadonlyMap<string, Digest | undefined>;
+  readonly deletes: ReadonlySet<string>;
+}
+
+/**
+ * The record rows of `files` in one generation, read off the file, digest and
+ * deleted columns alone: {@link decodeSourceIndex} for a reader that asks a few
+ * files their names, which decodes no parse and no other row's edges. A segment
+ * of another format version throws as the whole decode does.
+ */
+export function recordNamesOf(input: Uint8Array, files: ReadonlySet<string>): RecordNames {
+  const opened = openSegment(FORMAT, VERSION, input, WHAT);
+  const strings = openStrings(opened.u8('strings.blob'), opened.u32('strings.off'), invalid).text;
+  const recordFile = opened.u32('records.file');
+  const recordDigest = opened.u32('records.digest');
+  sameLength(recordFile.length, [recordDigest]);
+  const puts = new Map<string, Digest | undefined>();
+  for (let row = 0; row < recordFile.length; row += 1) {
+    const at = recordFile[row]!;
+    if (at === NONE) throw invalid();
+    const file = strings(at);
+    if (!files.has(file)) continue;
+    const digest = recordDigest[row]!;
+    puts.set(file, digest === NONE ? undefined : strings(digest) as Digest);
+  }
+  const deletes = new Set<string>();
+  for (const at of opened.maybeU32('records.deleted')) {
+    if (at === NONE) throw invalid();
+    const file = strings(at);
+    if (files.has(file)) deletes.add(file);
+  }
+  return { puts, deletes };
+}
+
 /** Whether a later layer decided `key`, so its row is not decoded; a key two rows share is refused all the same. */
 function skips<K>(decided: ReadonlySet<K> | undefined, skipped: Set<K>, key: K): boolean {
   if (decided?.has(key) !== true) return false;

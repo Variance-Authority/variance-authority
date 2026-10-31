@@ -70,10 +70,10 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { native } from '../addon.js';
+import { blobName } from '../digest.js';
 
 /**
  * How much text one window may hold, and how many paths the first one guesses at.
@@ -172,7 +172,7 @@ export function textAtRecording(
     if (from === -1) {
       outside += 1;
       if (outside > 1 && listing === undefined) listing = listed(root, commit);
-      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? batch(root, new Map([[commit, [file]]])).get(commit)!.get(file);
+      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? batch(root, new Map([[commit, [file]]]), true).get(commit)!.get(file);
     }
     // Any other path opens a window over it and the paths after it not yet
     // answered: the selector asks a few paths ahead of the rest, so a window can
@@ -184,7 +184,7 @@ export function textAtRecording(
     // resident together.
     held = new Map();
     asked = new Set(window);
-    held = batch(root, new Map([[commit, window]])).get(commit)!;
+    held = batch(root, new Map([[commit, window]]), true).get(commit)!;
 
     let bytes = 0;
     for (const text of held.values()) bytes += text.length;
@@ -216,7 +216,17 @@ function unanswered(expected: readonly string[], from: number, width: number, an
  * `textAtRecording` would read a process per commit.
  */
 export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
-  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])));
+  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])), true);
+}
+
+/**
+ * The git blob name, `git:<sha>`, of paths at several commits, by commit and
+ * then path, leaving out a path the commit does not hold: {@link textsAt}'s
+ * read without the bodies, so a reader that only asks whether two commits hold
+ * the same text reads none. The name is git's, in the repository's own hash.
+ */
+export function blobsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
+  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])), false);
 }
 
 /**
@@ -237,9 +247,9 @@ const whole = new Set<string>();
  * the commit does not hold. Without the addon the read fetches as git does by
  * default: slower in a partial clone, and the same answers.
  */
-function batch(root: string, asked: ReadonlyMap<string, readonly string[]>): Map<string, Map<string, string>> {
+function batch(root: string, asked: ReadonlyMap<string, readonly string[]>, bodies: boolean): Map<string, Map<string, string>> {
   const fetchMissingAt = whole.has(root) ? undefined : native()?.fetchMissingAt;
-  const { texts, missing } = read(root, asked, fetchMissingAt === undefined);
+  const { texts, missing } = read(root, asked, fetchMissingAt === undefined, bodies);
   const fetched = new Map<string, string[]>();
   for (const [commit, files] of missing) {
     const answer = fetchMissingAt?.(root, commit, files);
@@ -249,14 +259,15 @@ function batch(root: string, asked: ReadonlyMap<string, readonly string[]>): Map
     }
     if (answer === true) fetched.set(commit, files);
   }
-  for (const [commit, found] of read(root, fetched, true).texts) {
+  for (const [commit, found] of read(root, fetched, true, bodies).texts) {
     for (const [file, text] of found) texts.get(commit)?.set(file, text);
   }
   return texts;
 }
 
 /**
- * `asked` from one `cat-file --batch`, with the paths it answered missing.
+ * `asked` from one `cat-file --batch`, with the paths it answered missing:
+ * each path's text, or without `bodies` its blob name from `--batch-check`.
  * Without `fetch`, an object a partial clone has not fetched is answered
  * missing too.
  *
@@ -269,6 +280,7 @@ function read(
   root: string,
   asked: ReadonlyMap<string, readonly string[]>,
   fetch: boolean,
+  bodies: boolean,
 ): { texts: Map<string, Map<string, string>>; missing: Map<string, string[]> } {
   const texts = new Map([...asked.keys()].map((commit) => [commit, new Map<string, string>()]));
   const missing = new Map<string, string[]>();
@@ -277,7 +289,7 @@ function read(
 
   let output: Buffer;
   try {
-    output = execFileSync('git', ['cat-file', '--batch'], {
+    output = execFileSync('git', ['cat-file', bodies ? '--batch' : '--batch-check'], {
       cwd: root,
       input: specs.map(({ commit, file }) => `${commit}:${file}\n`).join(''),
       maxBuffer: 1 << 30,
@@ -309,9 +321,11 @@ function read(
     }
     // Advance past the body whatever its type, so one path that is somehow not a
     // blob costs its own answer and not every answer after it.
-    if (header.endsWith(` blob ${size}`)) texts.get(commit)!.set(file, output.toString('utf8', at, at + size));
-    // The object, then the newline `--batch` writes after it.
-    at += size + 1;
+    if (header.endsWith(` blob ${size}`)) {
+      texts.get(commit)!.set(file, bodies ? output.toString('utf8', at, at + size) : `git:${header.slice(0, header.indexOf(' '))}`);
+    }
+    // The object, then the newline `--batch` writes after it; `--batch-check` writes neither.
+    if (bodies) at += size + 1;
   }
 
   return { texts, missing };
@@ -383,10 +397,3 @@ function unchangedOnDisk(root: string, listing: Listing, file: string): string |
   return undefined;
 }
 
-/** Git's name for `bytes` as a blob, in the repository's hash: a SHA-256 name is 64 digits. */
-function blobName(bytes: Buffer, digits: number): string {
-  return createHash(digits === 64 ? 'sha256' : 'sha1')
-    .update(`blob ${bytes.length}\0`)
-    .update(bytes)
-    .digest('hex');
-}

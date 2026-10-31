@@ -93,7 +93,7 @@ export function formatHandover(sections: readonly HandoverSection[]): string {
   if (unread.length > 0) lines.push(...(pointers.length === 0 ? [] : ['']), unreadLine(unread));
   for (const section of sections) {
     if ('review' in section) {
-      for (const note of [section.review.probes, section.review.runsUnread]) {
+      for (const note of [section.review.probes, section.review.notUpdated, section.review.runsUnread]) {
         if (note !== undefined) lines.push('', `${section.suite === undefined ? 'The record' : `\`${section.suite}\``}: ${note}`);
       }
     }

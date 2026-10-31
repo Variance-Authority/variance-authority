@@ -265,17 +265,17 @@ npx variance coverage --at-distance 2-
 ```
 
 ```text
-coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,204 regions run from no measured distance, in no band
-  any suite                   24,163      59.9%
-coverage at 818a2cec — 40,331 regions in 1,159 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,204 regions run from no measured distance, in no band
-  any suite                   10,100      25.0%
+coverage at d2f48eba, recorded at a7a1bd13 — 41,601 regions in 1,186 files the suites loaded, counted where the nearest test that ran the code is 0-1 import hops away; 2,235 regions run from no measured distance, in no band
+  any suite    24,998  60.1%    over this text; ran in any text 24,998 (60.1%): 0 over an older text
+coverage at d2f48eba, recorded at a7a1bd13 — 41,601 regions in 1,186 files the suites loaded, counted where the nearest test that ran the code is 2 or more import hops away; 2,235 regions run from no measured distance, in no band
+  any suite    10,438  25.1%    over this text; ran in any text 10,443 (25.1%): 5 over an older text
 ```
 
-That is Variance Authority's own suite, which runs 90.4% of what it loads
+That is Variance Authority's own suite, which runs 90.6% of what it loads
 without `--at-distance`. A quarter of it runs only from two or more imports
-away: no test within one hop reaches it. The ranges split what ran: 59.9%,
-25.0%, and the 2,204 regions (5.5%) that only a test the import walk could not
-reach ran add up to the 90.4%. A test file the import graph does not hold at
+away: no test within one hop reaches it. The ranges split what ran: 60.1%,
+25.1%, and the 2,235 regions (5.4%) that only a test the import walk could not
+reach ran add up to the 90.6%. A test file the import graph does not hold at
 all is left out of every range, never taken as near, and the heading counts it
 too. The hops are measured on the tree as it is now, so a count under a range
 is not compared with the count the suite recorded on the base branch.
@@ -327,6 +327,43 @@ region, the change-and-rerun above. A test the import walk could not place is
 never in, and what only such tests ran is counted on the last line. The
 comment `variance review --coverage` posts on a pull request carries the same
 table under **Coverage by suite**.
+
+## Ask what still holds since the code changed
+
+A coverage number counts a region as run when a test called into it, but the
+test may have run before the code changed. Edit `refund` after the suite ran
+and the record still says a test ran it, though no test has run the `refund`
+you have now. Ask `variance coverage`, or `variance coverage --packages` for
+one row per package, and it reads which version of each file every test file
+last ran over. A region counts as **over an older text** when every test that
+ran it ran an older version of the file, and an edit since then touched the
+region. A region at least one test ran in the version you have checked out
+counts as run over this text, and so does every region of a file nothing
+changed since the tests ran. That is the figure each row leads with, and what
+ran in any text is printed beside it:
+
+```text
+coverage at 277e4c8f, recorded at 0bb4c2ad — 5 regions in 2 files the suites loaded
+  any suite        2  40.0%                        over this text; ran in any text 3 (60.0%): 1 over an older text
+    unit     unit  2  40.0%  recorded at 0bb4c2ad  over this text; ran in any text 3 (60.0%): 1 over an older text
+```
+
+The heading names the commit the record was made at whenever it is not the one
+you have checked out. The same part is counted on each suite row, on the
+directory `--from` names, and on each `--packages` row, under own tests and
+under others'. An edit touches a region when it changes what runs there. An
+edit outside the region's lines only moves it, and an edit that does not reach
+the region's code, such as a comment you add inside a function, leaves it run.
+Run over this text says the region's own code is the code a test ran, not that
+its behaviour was checked: a region whose callee you changed since still counts
+as run over this text.
+When the version a test ran cannot be found, because the record does not say
+which commit each test file last ran at, or that version was neither kept nor
+committed, the region counts as **not known**, and the reason is named once
+under the table. Which version you have checked out is the
+[source index](source-index.md)'s answer. In CI the index is the one your
+pipeline published with `variance index`, brought up to the checkout first, and
+with none published every region run counts as not known.
 
 ## Ask how many test files an edit would run
 

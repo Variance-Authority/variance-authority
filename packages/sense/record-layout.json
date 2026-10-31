@@ -13,11 +13,13 @@
   },
   "coverage": {
     "model": 3,
-    "format": 11,
+    "format": 12,
+    "unkeyed": 11,
     "unphased": 10,
     "uncased": 9,
     "untimed": 8,
     "noOwner": 4294967295,
+    "noBlob": 4294967295,
     "noDuration": 4294967295,
     "noLine": 0,
     "sections": [
@@ -34,6 +36,7 @@
       "preconditions.digest",
       "modules.path",
       "modules.source",
+      "modules.blob",
       "modules.instrumented",
       "modules.blocks",
       "blocks.ordinal",
@@ -52,6 +55,7 @@
     ],
     "duration": "tests.duration",
     "phases": "tests.phases",
+    "blob": "modules.blob",
     "phaseNames": [
       "prepare",
       "environment",

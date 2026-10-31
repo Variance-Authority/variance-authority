@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { commitRunsFile, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { OperatorError } from '../exit.js';
@@ -10,6 +11,17 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { changed } from './review-fixture.js';
 import { formatReview } from './review-text.js';
 import { review } from './review.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
+// Cut so a test can refuse the update as a full disk would, whoever runs the suite: a directory's mode does not stop root.
+const update = vi.hoisted(() => ({ fails: undefined as string | undefined }));
+vi.mock('@variance-authority/sense', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@variance-authority/sense')>();
+  const updateSourceIndex: typeof original.updateSourceIndex = (...args) =>
+    update.fails === undefined ? original.updateSourceIndex(...args) : Promise.reject(new Error(update.fails));
+  return { ...original, updateSourceIndex };
+});
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -54,6 +66,26 @@ describe('a review that cannot be made', () => {
       expect(answer.motion).toBeUndefined();
       expect(answer.files.map((file) => file.file)).toContain('src/total.ts');
       expect(answer.files.every((file) => file.cases === undefined)).toBe(true);
+    });
+
+    it('says which text the record ran over is not known when the source index cannot be brought up to the checkout, and why, beside the answer', async () => {
+      const { root, first, against } = await changed();
+      await updateSourceIndex(root);
+      // Written after the index was: the update has something to write, and the disk refuses it.
+      await writeFile(join(root, 'NOTES.md'), 'notes\n');
+      update.fails = 'ENOSPC: no space left on device, write';
+      try {
+        const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
+
+        expect(answer).toMatchObject({ from: first, record: 'before', base: 'since' });
+        expect(answer.notUpdated).toMatch(
+          /^The source index at .+ could not be updated to the checkout: .*no space left on device.*, so which text the record ran over is not known, and its rows are read as the cases that stood on the changed lines\.$/su,
+        );
+        expect(formatReview(answer, 'text')).toContain(`\n\n${answer.notUpdated}\n`);
+        expect(formatReview(answer, 'markdown')).toContain(`<sub>${answer.notUpdated}</sub>`);
+      } finally {
+        update.fails = undefined;
+      }
     });
 
     it('says beside the answer that the record could not be read, and what that leaves open', async () => {

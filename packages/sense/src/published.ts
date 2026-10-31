@@ -288,27 +288,40 @@ export async function publishedSources(
   root: string,
   options: PublishedSourcesOptions,
 ): Promise<PublishedSources> {
-  const path = options.index ?? sourceIndexPath(resolve(root));
-  const read = await readPublishedSources(path);
-  if (read.state === 'published') return read;
+  return publishedThrough(root, options, readPublishedSources);
+}
 
-  const what = read.state === 'missing'
+/**
+ * What `read` answers of the published generation, under {@link publishedSources}'
+ * policy: whole, returned as read; anything else refused in CI and updated once
+ * elsewhere, then read again.
+ */
+export async function publishedThrough<Read extends { readonly state: SourceIndexState; readonly written?: number }>(
+  root: string,
+  options: PublishedSourcesOptions,
+  read: (path: string) => Promise<Read>,
+): Promise<Read> {
+  const path = options.index ?? sourceIndexPath(resolve(root));
+  const first = await read(path);
+  if (first.state === 'published') return first;
+
+  const what = first.state === 'missing'
     ? `no source index is published at ${path}`
-    : read.state === 'other-version'
-      ? `the source index at ${path} was written in format version ${String(read.written)}, ` +
+    : first.state === 'other-version'
+      ? `the source index at ${path} was written in format version ${String(first.written)}, ` +
         `and this release reads version ${String(SOURCE_INDEX_VERSION)}`
       : `the source index at ${path} is damaged, and reads only up to its first bad segment`;
   if (options.ci) {
-    throw new SourceIndexUnpublished(read.state === 'other-version'
+    throw new SourceIndexUnpublished(first.state === 'other-version'
       ? `${what}. In CI the index is a step of the pipeline: run \`${options.step}\` with this release before this command.`
       : `${what}. In CI the index is a step of the pipeline: restore the cache that holds it, ` +
         `then run \`${options.step}\` before this command.`);
   }
-  const doing = read.state === 'other-version' ? 'rebuilding' : 'updating';
+  const doing = first.state === 'other-version' ? 'rebuilding' : 'updating';
   options.announce(`${what}; ${doing} it from the checkout, which is what \`${options.step}\` does.`);
   await updateSourceIndex(root, {
     index: path,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   });
-  return readPublishedSources(path);
+  return read(path);
 }

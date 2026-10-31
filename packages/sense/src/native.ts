@@ -18,7 +18,7 @@ import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
-import { type ResolveOptions } from './resolve.js';
+import type { ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';

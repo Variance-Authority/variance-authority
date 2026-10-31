@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { layCoverage } from './format-layer.js';
 import {
+  BLOB,
   DURATION,
   FORMAT,
   NO_DURATION,
   PHASES,
+  UNKEYED_FORMAT,
   UNPHASED_FORMAT,
   UNTIMED_FORMAT,
   readableFormat,
@@ -87,14 +89,14 @@ describe('what the runner said a test file spent, phase by phase', () => {
   });
 
   it('opens a snapshot written before phases were recorded, as one whose runner reported none', () => {
-    const unphased = relaid(encodeTestCoverage(coverage([{ collect: 5 }, { collect: 6 }])), UNPHASED_FORMAT, [PHASES]);
+    const unphased = relaid(encodeTestCoverage(coverage([{ collect: 5 }, { collect: 6 }])), UNPHASED_FORMAT, [PHASES, BLOB]);
 
     expect(openTestCoverage(unphased).testPhases).toBeUndefined();
     expect(decodeTestCoverage(unphased)).toEqual(coverage([]));
   });
 
   it('layers a run over that older snapshot into the current layout, with phases only where the run reported them', () => {
-    const unphased = relaid(encodeTestCoverage(coverage([])), UNPHASED_FORMAT, [PHASES]);
+    const unphased = relaid(encodeTestCoverage(coverage([])), UNPHASED_FORMAT, [PHASES, BLOB]);
     const whole = coverage([]);
     const run: TestCoverage = { ...whole, tests: [{ ...whole.tests[1]!, phases: { setup: 3, collect: 40 } }], modules: [] };
 
@@ -119,9 +121,9 @@ describe('what the runner said a test file spent, phase by phase', () => {
   });
 
   it('is read in every layout the reader opens, and only those', () => {
-    const versions = [UNTIMED_FORMAT - 1, UNTIMED_FORMAT, UNPHASED_FORMAT, FORMAT, FORMAT + 1];
+    const versions = [UNTIMED_FORMAT - 1, UNTIMED_FORMAT, UNPHASED_FORMAT, UNKEYED_FORMAT, FORMAT, FORMAT + 1];
     const laysOver = (version: number): boolean => {
-      const without = version === FORMAT ? [] : version === UNTIMED_FORMAT ? [DURATION, PHASES] : [PHASES];
+      const without = version === FORMAT ? [] : version === UNKEYED_FORMAT ? [BLOB] : version === UNTIMED_FORMAT ? [DURATION, PHASES, BLOB] : [PHASES, BLOB];
       try {
         layCoverage(relaid(encodeTestCoverage(coverage([])), version, without), coverage([]));
         return true;
@@ -131,7 +133,7 @@ describe('what the runner said a test file spent, phase by phase', () => {
     };
 
     expect(versions.map(laysOver)).toEqual(versions.map(readableFormat));
-    expect(versions.map(laysOver)).toEqual([false, true, true, true, false]);
+    expect(versions.map(laysOver)).toEqual([false, true, true, true, true, false]);
   });
 
   it('refuses a current-layout snapshot that lacks the phases section', () => {

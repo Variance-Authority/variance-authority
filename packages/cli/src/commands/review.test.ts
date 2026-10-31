@@ -23,6 +23,9 @@ import { formatReview, REVIEW_MARKER } from './review-text.js';
 import { AFTER, DISCOUNTS, ROUNDS, block, changed, git, roundedBy } from './review-fixture.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
+
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
 }

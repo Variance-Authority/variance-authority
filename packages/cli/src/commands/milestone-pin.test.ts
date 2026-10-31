@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
@@ -24,6 +24,9 @@ import { covering } from './covering.js';
 import { BEFORE, DISCOUNTS, probedModule, ROUNDS } from './mainline-fixture.js';
 import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 /**
  * Spec 0090 item 1: the milestone under a checkout is pinned, never written,
