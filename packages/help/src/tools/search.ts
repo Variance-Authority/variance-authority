@@ -268,8 +268,8 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     const nowhere =
       own.length > 0
         ? area === undefined
-          ? `No name in this repository, nor the doc of one, writes \`${query}\` as typed. The nearest follow.`
-          : `No name in reach of that start point, nor the doc of one, writes \`${query}\` as typed — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
+          ? `No name in this repository, nor the doc of one, writes \`${query}\`. The nearest follow.`
+          : `No name in reach of that start point, nor the doc of one, writes \`${query}\` — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
         : area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;

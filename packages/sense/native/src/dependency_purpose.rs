@@ -189,14 +189,25 @@ pub(crate) fn near(query: &str, text: &str) -> u32 {
     pairs.iter().filter(|pair| writes(&said, &at, &pair[..]).is_some()).count() as u32
 }
 
-/// The first paragraph of `text` that writes the whole of `query`'s run of two
-/// stems or more, read by [`writes`]; `None` when no paragraph does.
-pub(crate) fn phrase(query: &str, text: &str) -> Option<u32> {
+/// The run [`phrase`] asks of every text for `query`, cut once: `None` when the
+/// question holds fewer than two distinct stems, which is no phrase.
+pub(crate) fn phrase_run(query: &str) -> Option<Vec<(u32, String)>> {
     let asked = asked_run(query);
-    if asked.len() < 2 { return None; }
-    let run: Vec<(u32, &str)> = asked.iter().map(|(place, stem)| (*place, stem.as_str())).collect();
+    let distinct: BTreeSet<&str> = asked.iter().map(|(_, stem)| stem.as_str()).collect();
+    (distinct.len() >= 2).then_some(asked)
+}
+
+/// The first paragraph of `text` that writes `run`, read by [`writes`]; `None` when no paragraph does.
+pub(crate) fn writes_run(run: &[(u32, String)], text: &str) -> Option<u32> {
+    let run: Vec<(u32, &str)> = run.iter().map(|(place, stem)| (*place, stem.as_str())).collect();
     let said = placed(text);
     writes(&said, &by_place(&said), &run)
+}
+
+/// The first paragraph of `text` that writes the whole of `query`'s run of two
+/// distinct stems or more, read by [`writes`]; `None` when no paragraph does.
+pub(crate) fn phrase(query: &str, text: &str) -> Option<u32> {
+    writes_run(&phrase_run(query)?, text)
 }
 
 fn sorted(mut words: Vec<String>) -> Vec<String> { words.sort_unstable(); words.dedup(); words }
@@ -295,6 +306,11 @@ mod tests {
     fn a_blank_line_in_the_question_is_no_break_in_its_run() {
         assert_eq!(phrase("the a page\n\nsink", "The page sink."), Some(0));
         assert_eq!(near("the a page\n\nsink", "The page sink."), 1);
+    }
+
+    #[test]
+    fn one_stem_asked_twice_is_no_phrase() {
+        assert_eq!(phrase("sink to sink", "The sink to sink path."), None);
     }
 
     #[test]

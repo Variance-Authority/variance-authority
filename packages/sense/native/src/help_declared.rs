@@ -22,7 +22,7 @@ use std::collections::BTreeSet;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::dependency_lexicon::purposes::{code_stems, near, phrase};
+use crate::dependency_lexicon::purposes::{code_stems, near, phrase_run, writes_run};
 
 use crate::compact::Layer;
 use crate::help_usage::kind_of;
@@ -115,7 +115,7 @@ pub(crate) enum Matching {
     Exact,
     /// The name, lowercased, contains `query`, which the caller lowercased, or
     /// the doc comment above it does, read as prose, or writes it as a phrase
-    /// by [`phrase`].
+    /// by [`crate::dependency_lexicon::purposes::phrase`]'s rule.
     Containing,
     /// The words of the name and of its doc, cut into stems as the dependency
     /// lexicon cuts a package's words, hold any of `stems` — the question's —
@@ -152,7 +152,7 @@ pub(crate) fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: u
     if start == NONE || end == NONE { (None, None) } else { (Some(start), Some(end)) }
 }
 
-/// A doc comment as written, which [`near`] and [`phrase`] read by paragraph,
+/// A doc comment as written, which [`near`] and [`writes_run`] read by paragraph,
 /// and as words, its lines joined by single spaces and lowercased, so text
 /// typed across a line break still matches.
 struct Prose { written: String, words: String }
@@ -230,6 +230,8 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
     let folded = fold(layers);
     let crossings = crossings(layers, &folded, files);
+    // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
+    let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();
     let found: Vec<FileHits> = crossings
         .par_iter()
         .map(|crossing| {
@@ -274,7 +276,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 let described = match &matching {
                     Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
                     Matching::Containing if name.to_lowercase().contains(query)
-                        || doc().is_some_and(|doc| doc.words.contains(query) || phrase(query, &doc.written).is_some()) => None,
+                        || doc().is_some_and(|doc| doc.words.contains(query) || run.as_ref().is_some_and(|run| writes_run(run, &doc.written).is_some())) => None,
                     Matching::Terms { groups } => {
                         let terms = crate::help_search::name_terms(name);
                         if !groups.iter().all(|group| group.iter().any(|term| terms.contains(term))) { continue }
