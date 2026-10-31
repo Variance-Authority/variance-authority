@@ -7,8 +7,8 @@ import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 configureResetHandler(beforeEach);
 
 // Tests that run side by side share whatever session the last `beforeEach`
-// started, so each test runs in a session of its own, through every `await`.
-// The isolator registers its reset as it loads, so it is imported once the
-// driver is installed.
+// started, so each concurrent test runs in a session of its own, through every
+// `await`. The isolator registers its reset as it loads, so it is imported once
+// the driver is installed.
 const { isolated } = await import('@variance-authority/isolator/node');
-aroundEach((runTest) => isolated(runTest));
+aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));

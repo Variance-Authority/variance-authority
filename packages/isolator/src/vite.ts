@@ -10,9 +10,9 @@
  * ```
  *
  * The setup file calls ioc's `configureResetHandler(beforeEach)` and runs each
- * test in an `isolated` session through `aroundEach`, and files that mock or
- * render into a DOM keep an isolated project: the package README, "Run it in
- * Vitest", has both.
+ * concurrent test in an `isolated` session through `aroundEach`, and files that
+ * mock or render into a DOM keep an isolated project: the package README, "Run
+ * it in Vitest", has both.
  *
  * Vitest answers which files it runs itself: a module any project calls a
  * test, by its `include` and `includeSource`, and a project's setup files stay

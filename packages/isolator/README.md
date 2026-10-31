@@ -174,11 +174,12 @@ configureResetHandler(beforeEach);
 
 const { isolated } = await import('@variance-authority/isolator/node');
 
-aroundEach((runTest) => isolated(runTest));
+aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));
 ```
 
-`aroundEach` runs every test in an `isolated` session of its own, so tests that
-run side by side under `test.concurrent` keep their own values too. The
+Tests that run side by side under `test.concurrent` share whatever the last
+`beforeEach` reset, so `aroundEach` runs each of them in an `isolated` session
+of its own. The
 isolator is imported after the driver is installed, since it registers its
 reset as it loads.
 
