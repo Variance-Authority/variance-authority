@@ -1931,11 +1931,13 @@
         "decode": "function",
         "decodePortable": "function",
         "diffImage": "function",
+        "edgeDigest": "function",
         "foreignDigest": "function",
         "foreignRaster": "function",
         "imageFormat": "function",
         "imageSize": "function",
         "isLosslessWebp": "function",
+        "pixelDigest": "function",
         "pngjsDecoder": "const",
         "refuseOversize": "function",
         "refuseUnkept": "function"
@@ -1986,6 +1988,7 @@
     },
     "names": {
       ".": {
+        "KeptImage": "interface",
         "keepImage": "function",
         "sharpDecoder": "const"
       }

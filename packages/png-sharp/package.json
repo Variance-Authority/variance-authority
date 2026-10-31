@@ -40,6 +40,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@variance-authority/core": "workspace:^",
     "@variance-authority/png": "workspace:^",
     "sharp": "^0.34.4"
   },

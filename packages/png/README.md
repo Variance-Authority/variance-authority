@@ -129,7 +129,9 @@ two images meet their colours in exactly the same places, so the pixels that
 changed changed colour only: a theme, or a design token that moved. It is
 `moved` when something changed shape, place or size, as the black square here
 did. An edge is any difference between neighbouring pixels, with no luminance
-threshold, so a recolour cannot push one across a threshold. `edges` is
+threshold, so a recolour cannot push one across a threshold: rotating the hue
+of thirteen component baselines kept the exact edges of ten, and a luminance
+threshold anywhere from 16 to 64 kept those of at most three. `edges` is
 absent when more than half the pixels of either image sit on an edge, as they
 do in a gradient or a photo: a change inside such an image leaves every edge
 where it was, and calling it colour only would be wrong. It classifies the

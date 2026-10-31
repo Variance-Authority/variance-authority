@@ -129,7 +129,7 @@ pixels changed colour only, and the sentence says so: a token moved from
 colour only: every edge is where it was`. A change that moved, reshaped or
 resized something, like the box above, carries no such clause; nor does one
 inside a gradient or a photo, whose edges cannot say. See `edges` in
-[`@variance-authority/png`](../png).
+[`@variance-authority/png`](https://variance-authority.dev/reference/packages/png).
 
 The observation carries the same cause as `signals.identity: 'machine'` and
 `signals.moved`, one entry per field that moved, before image first.

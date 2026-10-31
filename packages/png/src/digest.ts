@@ -17,6 +17,9 @@ import type { DecodedImage } from './mask.js';
  * kept baseline a WebP of the same pixels, and the two encodings share nothing.
  */
 export function pixelDigest(image: DecodedImage): Digest {
+  // Not `digestBytes`: its SHA-256 is core's portable one, slow over megabytes,
+  // and it takes one buffer, where this streams the pixels to drop the colour
+  // under transparency without copying them.
   const hash = createHash('sha256').update(`pixels\u0000${image.width}x${image.height}\u0000`);
   const { data } = image;
   let run = 0;
@@ -38,27 +41,14 @@ export function pixelDigest(image: DecodedImage): Digest {
 
 /**
  * The digest of an image's edges: where its colours meet, and nothing about
- * what they are.
+ * what they are. Each pixel contributes whether it differs from its right
+ * neighbour and from the one below, with no threshold, so a recolour that keeps
+ * two different colours different leaves it where it was, and a box that
+ * moves, a glyph that changes or two colours that become one moves it.
  *
- * Each pixel contributes whether it differs from its right neighbour and from
- * the one below it, so the digest is that of the partition of the image into
- * runs of one colour. Any recolouring that keeps two different colours
- * different — a theme, a design token moving — leaves it where it was; a box
- * that moves, a glyph that changes, a size that changes, or two colours that
- * become one moves it. No luminance threshold: the contrast an edge needs is
- * any at all, so nothing a recolour does to contrast can push an edge across
- * one. A threshold was measured and rejected: rotating the hue of a set of
- * component baselines kept the edges of ten in thirteen exactly, and kept those
- * of at most three at any threshold from 16 to 64 out of 255.
- *
- * Absent when more than half the pixels sit on an edge. A gradient, a photo or
- * noise differs from its neighbours almost everywhere, so its mask is nearly
- * all edges and a change inside it leaves the mask where it was: the digest
- * would call a change of shape a change of colour. Component baselines put an
- * edge under at most one pixel in seven.
- *
- * It classifies a difference already found, and settles nothing: two images
- * that share it may differ in every pixel.
+ * Absent when more than half the pixels sit on an edge, as in a gradient or a
+ * photo, where a change of shape would leave every edge in place. It
+ * classifies a difference already found and settles nothing.
  */
 export function edgeDigest(image: DecodedImage): Digest | undefined {
   const { width, height, data } = image;
@@ -75,6 +65,7 @@ export function edgeDigest(image: DecodedImage): Digest | undefined {
     }
   }
   if (edged * 2 > width * height) return undefined;
+  // Native for speed, as in `pixelDigest`.
   const hash = createHash('sha256').update(`edges\u0000${width}x${height}\u0000`).update(edges);
   return digestOfSha256(hash.digest('hex'));
 }
