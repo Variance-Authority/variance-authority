@@ -63,7 +63,7 @@ import { importedAsAsset } from './importers.js';
 import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksFor, hunksOf } from './patch.js';
-import type { SelectionReason } from './narrowing.js';
+import { isUnasked, type SelectionReason, type Unasked } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
 export type FileReading =
@@ -106,11 +106,11 @@ export type FileReading =
        * `exports`: a file with no row that names no export to follow, as a
        * CommonJS module's `module.exports` does not: its importers answer whole.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports' | Unasked;
     };
 
-/** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */
-export const reachesThrough = (reading: FileReading): boolean => reading.verdict !== 'none' || reading.kept === true;
+/** Whether the change may reach a test through the file: every reading but a `none` the parser decided, or no reader. */
+export const reachesThrough = (reading: FileReading): boolean => (reading.verdict === undefined ? !isUnasked(reading.unread) : reading.verdict !== 'none' || reading.kept === true);
 
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {

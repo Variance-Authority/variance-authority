@@ -3443,6 +3443,7 @@
         "wholeEntry": "const",
         "whyUnentered": "function",
         "withCaseSections": "function",
+        "withEveryReading": "function",
         "withIndexLock": "function",
         "withoutCoverage": "function",
         "withoutFiles": "function",
