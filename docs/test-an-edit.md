@@ -205,8 +205,8 @@ ways:
 - **No test runs.** The run prints `selected none of 340` and exits 0. No
   recorded test ran the code you changed, the tests that did already ran the
   text you have now, or they sit further than one import away. The lines under
-  it say which: a file left for a later leg is counted with the range that
-  runs it, `2-`, which is `VARIANCE_AUTHORITY_AT_DISTANCE=2-` in this line.
+  it say which: a file left for a later leg is counted with the setting that
+  runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
   Exit 0 here says nothing near the edit failed, not that the change is done.
 - **Some tests run.** The run prints `selected 1 of 340`, runs that file, and
   exits with its result.

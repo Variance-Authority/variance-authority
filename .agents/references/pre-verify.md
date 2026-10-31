@@ -60,11 +60,12 @@ the exact signature this project exists to tell apart from a real one.
 ## The loop between waves
 
 `yarn test:loop` is what the edit loop runs after every edit, before any wave:
-`tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1
-vitest run && node tools/needs.mjs`. That is the compiler, then the unit tests
-at distance `0-1` (the tests that entered the change and those one import
-away), measured from the text each test last ran over. The first two steps are
-the loop
+`tsc --build && VARIANCE_AUTHORITY_SINCE=
+VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run
+"$@" && node tools/needs.mjs`. That is the compiler, then the unit tests at
+distance `0-1` (the tests that entered the change and those one import away;
+`VARIANCE_AUTHORITY_AT_DISTANCE` sets another), measured from the text each
+test last ran over. The first two steps are the loop
 [`docs/test-an-edit.md`](../../docs/test-an-edit.md#the-loop-an-agent-runs-after-each-edit)
 publishes, with no script of ours in them. A type error stops it before any
 test; an edit that keeps no test exits 0 in under a second with `selected none

@@ -104,26 +104,24 @@ export function indexNames(records: readonly FileRecord[]): IndexNames {
 }
 
 /**
- * Bring the source index at `root` up to the checkout, for a reader that names
- * the checkout's texts by it and so needs it to name the texts on disk now. In
- * CI too: a published index was published at some commit, and the checkout may
- * be another, so it is updated from where it stands and pays only for what
- * differs. One CI never published is not built here: the reader refuses it, as
- * every reader in CI does. The readers that only walk the graph read the index
- * as it stands. An update that cannot be made is said on stderr and never
- * refused: the index is read as it stands, and what it names is not the
- * checkout's. The reason, or nothing when the index is up to the checkout.
+ * Bring the source index at `root` up to the checkout, paying only for what
+ * differs, for a reader that names the checkout's texts or measures its hops.
+ * `packs` false reads no installed package, as `variance index --no-git`
+ * does. Why it could not, said on stderr; nothing when it did.
  */
-export async function indexUpToCheckout(root: string, ci = isCI): Promise<string | undefined> {
+export async function indexUpToCheckout(root: string, ci = isCI, packs = true): Promise<string | undefined> {
+  // A published index may be another commit's, so CI updates it too; one CI
+  // never published is not built here, and the reader refuses it.
   if (ci && !(await isPublished(root))) return undefined;
   const path = sourceIndexPath(resolve(root));
   let refused: string | undefined;
   try {
-    refused = (await updateSourceIndex(root)).refused;
+    refused = (await updateSourceIndex(root, packs ? {} : { packs: false })).refused;
   } catch (error) {
     refused = messageOf(error);
   }
   if (refused === undefined) return undefined;
+  // Never refused: the index is read as it stands, and the caller weighs that.
   const reason = `the source index at ${path} could not be updated to the checkout: ${refused}`;
   process.stderr.write(`variance: ${reason}; reading it as it stands.\n`);
   return reason;
