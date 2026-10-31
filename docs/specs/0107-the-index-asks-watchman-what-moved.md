@@ -43,10 +43,14 @@ socket and asking `since <clock>`:
 
 The Watchman row does not grow with the checkout. Most of it is the cookie
 Watchman writes and waits for, so the answer covers every write before the
-question: the same tick git's fsmonitor IPC costs (12.6 ms, spec 0056). The
-`status` row is one of four parts the update pays; the listing, the hashing of
-the dirty set and the walk over held records are the others, and journal 0072
-puts the snapshot at 720 ms and the walk at 450 ms on a no-op update.
+question: the same tick git's fsmonitor IPC costs (12.6 ms, spec 0056). The Kibana
+clone here sets both accelerators; `docs/performance.md` measures it with
+neither in its config and an untracked cache left in its index, where the same
+`status` costs about 280 ms. The `status` row is one of four parts the update
+pays; the listing, the hashing of the dirty set and the walk over held records
+are the others. On seven copies of Material UI (288,197 paths), journal 0072
+leaves a no-op update, after its own fixes, at about 640 ms, most of it the walk
+over 194,544 held records.
 
 ## 2. One update, fed by a change source
 
@@ -57,14 +61,25 @@ update is the same code whichever source answered.
 - **Git** is the source on every host. It names what `status` reports against
   `HEAD`, the paths the generation holds where they differed from its base
   commit, and the paths `diff-tree` names between the base commit and `HEAD`.
-  This is what today's update finds, and it costs what today's update costs.
+  This finds what today's update finds, from the generation instead of the full
+  listing. A path the listing marks dirty whose stat
+  has not moved since the generation, by git's racy-clean rule, is not hashed
+  again, so the dirty set stops being paid on every update; `status` itself
+  costs what it costs today.
 - **Watchman** (§3) is the source where the repository runs it. It names what
   Watchman reports since the clock the generation carries.
 - **The caller** is a source. `ScanOptions.changed`, which `help` and `ask`
   pass as "every file changed since the last reading", is applied today over
   the commit's listing by `overlayKnownChanges`, which loses every earlier
   edit. It becomes a caller-supplied delta into this update, and
-  `overlayKnownChanges` is deleted. Spec 0056's daemon feeds the same input.
+  `overlayKnownChanges` is deleted. A caller's delta names the generation it is
+  relative to; when the generation on disk is another one, because a process
+  published in between or the reading was older, the update takes the git
+  source. Spec 0056's daemon feeds the same input on the same terms. `help`'s
+  own scan, which saves into the source index today, routes through this
+  update rather than keeping a second writer, so `--changed-file` comes to mean
+  changed since the generation the caller read; the changeset that ships the
+  update says so.
 
 The update takes the delta and:
 
@@ -77,14 +92,22 @@ The update takes the delta and:
    whose path or watched directory is in the delta.
 
 A generation with nothing to start from, a cold scan, reads every file as it
-does now.
+does now, and so does the JavaScript path `updateSourceIndex` takes when the
+native update declines or `packs` is off: both stay a full scan from the git
+source.
 
 **The generation carries its listing.** Today a generation holds records,
 parses and directory digests, and rebuilds the full listing from `ls-tree` on
-every update. Starting from the generation needs the listing in it: every path
-in the index's tree, with the blob name of every path it reads. On Kibana the
-names alone are 12.3 MB and 0.87 MB after gzip; the record growth budget
-carries it, and the spec measures it against that budget before it ships.
+every update, then hands it to the code map as `SourceUpdate.listing`. Starting
+from the generation needs the listing in it: every path in the index's tree,
+with the blob name of every path it reads, and for a path that differs from
+the base commit, its stat and both blob names. It is the one listing: the code
+map reads it from the generation, and nothing else keeps one. It sits in a
+section of its own that only the update and the code map open; a reader's
+decode does not read it. Beside it the generation carries its base commit, the
+Watchman clock and socket path, and the stats of §3, a few hundred bytes. On Kibana the names
+alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index; the spec
+measures the stored form against the index's own size before it ships.
 
 **The clock moves with a publish.** An update that changes nothing publishes
 nothing, so it does not move the clock, and the next update is told the same
@@ -99,21 +122,28 @@ generation carries. The clock is taken before the scan reads anything, so a
 write during the scan is reported again next time: a file reported twice is
 hashed twice, a file never reported is a stale index.
 
-Watchman sees files under the root. Everything else the generation depends on,
-it does not, and each is checked by the update itself:
+Watchman sees files under the root and, by default, nothing under `.git`.
+Everything else the generation depends on, it does not, and each is checked by
+the update itself. Each file git reads for the generation's answer is checked
+by a stat — size, modification time, change time and inode — recorded beside
+the clock: from the worktree's git directory, `index` and `HEAD`; from the
+common directory, the ref `HEAD` names, `packed-refs`, `info/exclude`,
+`info/attributes`, `config` and `config.worktree`; and the global, XDG and
+system config, `core.excludesFile` and `core.attributesFile`:
 
 - **Ignore rules.** Watchman does not read `.gitignore`; on Material UI an
   unknown clock reported 202,919 files against 41,171 tracked ones. A path the
   generation does not hold joins only when `git check-ignore --stdin -z` does
   not name it, so the cost follows the new paths. A reported `.gitignore` or
-  `.gitattributes`, or a moved `.git/info/exclude`, git config or
-  `core.excludesFile`, changes which paths are in and which blob name bytes
+  `.gitattributes`, or any moved file of those above except `index`, `HEAD` and
+  the refs, changes which paths are in and which blob name bytes
   hash to without touching those paths: the update takes the git source.
 - **Git's index.** `add -f` of an ignored file and `rm --cached` change what is
   tracked without a write under the root. When `.git/index` moved since the
   generation, the update asks `diff-index --cached --name-only -z HEAD` (37 ms on
-  Kibana) and joins every path whose staged state differs from the
-  generation's.
+  Kibana), and the union of that set and the one the generation recorded joins
+  the delta. Every `status`, an editor's or a prompt's included, rewrites
+  `.git/index`, so this is the usual update, not the rare one.
 - **The commit.** A commit moves `HEAD` without writing a file. When
   `.git/HEAD`, the ref it names or `packed-refs` moved since the generation, the
   update reads `HEAD` (12 ms) and records it as the base commit; the paths
@@ -130,9 +160,11 @@ whose clock is for another root, and takes the git source once.
 ## 4. Declared, not discovered
 
 The repository declares Watchman by watching it. One test, which spec 0056's
-daemon uses too: the server is running and its `watch-list` holds the
-checkout's root or a directory above it, as `watch-project` resolves it, with
-the checkout read through the answer's `relative_root`.
+daemon uses too: the server is running and watches the checkout's root or a
+directory above it, with the checkout read through `relative_root`. The update
+asks it in the same round trip as the delta: a `since` query on a root no watch
+holds fails, and that failure is the git source. A generation with no clock yet
+asks `watch-list` once to learn the watched root.
 
 - It never starts the server, adds a watch, writes a `.watchmanconfig` or sets
   `core.fsmonitor`. Starting a file-system daemon on somebody's repository is
@@ -140,8 +172,9 @@ the checkout read through the answer's `relative_root`.
   monitor.
 - It never spawns the CLI on a hot path. `watchman --no-spawn get-sockname`
   costs 103 ms, eight Watchman queries. The socket comes from `$WATCHMAN_SOCK`
-  or the path recorded with the generation; the CLI is asked only when neither
-  is there, once for a lineage of generations.
+  or the path recorded with the generation. The CLI is asked when neither is
+  there, and once more when the recorded path refuses the connection, as after
+  a restart on a new socket; only if that fails too does the git source answer.
 - There is no switch. Every source feeds one update, so which one answered is a
   cost, never an answer, and the progress line names it.
 
@@ -155,15 +188,16 @@ files moved since a clock, owned by Watchman where the repository runs it.
 
 **Why Watchman before git's own monitor.** Git's builtin monitor answers the
 same question at the same cost on macOS and Windows, and its IPC takes a token
-of our own. Watchman goes first because it is the only one on Linux, where CI
-and most remote agents run, and its clock protocol is public, where git's
-fsmonitor IPC is internal to git. Git's monitor is the next source behind this
+of our own. Watchman goes first because it is the only one on Linux and its
+clock protocol is public, where git's fsmonitor IPC is internal to git. Git's monitor is the next source behind this
 seam, and on Kibana as configured it would remove the 109 ms `status`, not the
 listing or the walk, which this seam removes for every source.
 
-**Why not a stat cache of our own.** Git's index is that cache, and `status`
-already uses it. What remains is the walk that finds the paths to stat, which a
-monitor removes and a second stat cache would not.
+**A stat cache, but only for the dirty set.** Git's index caches stat data for
+the staged blob, not for the bytes of a dirty file, so the listing keeps a stat
+beside each dirty path (§2). A stat cache of every path would not help: what
+`status` pays beyond that is the walk that finds the paths to stat, which a
+monitor removes and a second cache would not.
 
 ## 6. What will discharge this spec
 
@@ -175,8 +209,10 @@ monitor removes and a second stat cache would not.
    deleted directory, a new ignored file, a new file outside the index's scope,
    a `.gitignore` edit that ignores a held file, a `.gitattributes` edit,
    `add -f` and `rm --cached`, a commit with no file changed, a branch switch, a
-   case-only rename on macOS, a watch above the checkout, and a read-only
-   checkout where the sync cookie fails.
+   case-only rename on macOS, a watch above the checkout, a read-only
+   checkout where the sync cookie fails, a linked worktree, a global
+   `core.autocrlf` change, and a publish by another process between a caller's
+   reading and its update.
 2. On a watched checkout, an update with nothing moved runs no `ls-tree`, no
    `status`, no `hash-object` and no CLI spawn, hashes zero paths and checks
    zero records. After one edit it hashes one path and checks the records that
@@ -186,7 +222,8 @@ monitor removes and a second stat cache would not.
    reason.
 4. After an update on a host with no running server, no Watchman process
    exists. With a running server, `watch-list` is the same before and after.
-5. The listing's size is measured on Kibana against the record growth budget.
+5. The stored listing's size is measured on Kibana against the index's own size,
+   and a reader's decode there does not grow.
 6. `packages/sense/scripts/published-index.mjs` gains a Kibana corpus and a row
    per change source for `indexUpToCheckout`, end to end: nothing moved and one
    edit, against today's update with the accelerators as configured and off.

@@ -62,8 +62,8 @@ commands the owning step with those paths carried in:
   delta since its generation (spec 0107 §2), instead of asking `git status` to
   find them again. It hashes only
   those paths with `git hash-object --stdin-paths`, and reads again only the
-  records whose digest or shape moved. A `/` answer runs the update exactly as
-  `variance index` does now.
+  records whose digest or shape moved. A `/` answer takes the git source
+  (spec 0107 §2).
 - **Friends.** Any other step that publishes state derived from the checkout
   registers the same way: a name, the paths it owns, and the call that updates
   it. The daemon routes a path to every step that owns it, and runs the steps in
