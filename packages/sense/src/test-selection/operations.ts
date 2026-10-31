@@ -30,7 +30,7 @@ import type { ExecutionNarrowingOptions, SelectionCause, SelectionReason } from 
 import { selectedByRelations, type Precision } from './precision.js';
 import type { FileReading } from './reading.js';
 import type { Route } from './route.js';
-import { arrivedAt, chargeMeasured, readUnmeasured, routed, runOf, seenThrough, selectAnswered, selectDeclared, selectOwn, walked, type Run } from './stages.js';
+import { arrivedAt, chargeMeasured, readUnmeasured, routed, runOf, seenThrough, selectAnswered, selectDeclared, walked, type Run } from './stages.js';
 
 /** What one stage selected, and what it could not answer. */
 export interface OperationAnswer {
@@ -125,11 +125,9 @@ export function testsEnteringFromView(
 /**
  * Every test that declared one of each changed file's names as a
  * precondition: the declaration retires the observation whenever the file's
- * text moves, so nothing narrows it. A test's own file is its precondition
- * whether or not it declared it ({@link selectOwn}). With `sourceAt`, a test
- * that already ran the text a rowless file arrives at is not kept, as in the
- * composition; for its own file, only when it was seen whole and declared it.
- * A file no test declared and no test is is unanswered.
+ * text moves, so nothing narrows it. With `sourceAt`, a test that already ran
+ * the text a rowless file arrives at is not kept, as in the composition. A
+ * file no test declared is unanswered.
  */
 export function testsDeclaringFromView(
   coverage: TestCoverageView,
@@ -138,7 +136,6 @@ export function testsDeclaringFromView(
 ): OperationAnswer {
   const run = runOf(coverage, options, change.hunks, change.lines.keys());
   const asked = filesOf(change);
-  const own = selectOwn(run, change.lines.keys());
   // The precondition table read as the composition reads it: with nothing to walk, the walk is that one read.
   const { governed } = walked(run, {
     changed: [],
@@ -148,7 +145,7 @@ export function testsDeclaringFromView(
   });
   selectDeclared(run, governed);
   const unread = new Set(governed.unread);
-  return answer(run, asked.map(([file]) => file).filter((file) => !own.has(file) && run.knownAs(file).every((name) => unread.has(name))));
+  return answer(run, asked.map(([file]) => file).filter((file) => run.knownAs(file).every((name) => unread.has(name))));
 }
 
 /**

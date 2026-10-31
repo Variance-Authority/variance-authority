@@ -9,7 +9,7 @@ import { recordedOverKept } from './kept-texts.js';
 import { rowlessNames } from './reading.js';
 import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
-import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, selectOwn, walked } from './stages.js';
+import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
 
 /** Both halves of the question, from one pass over the same columns. */
@@ -90,10 +90,6 @@ function readDiff(
   if (byRelations(options.precision)) return withGraph(coverage, readDiff(coverage, change, { ...asked, precision: 'file-use' }), [...changed.keys()], kept.hunks, options);
   const run = runOf(coverage, options, kept.hunks);
   const { knownAs } = run;
-  // A changed test file is entered by definition, before anything is read of
-  // the record: whether it was seen whole, declared its own source, or ran
-  // this text does not decide whether an edit to it runs.
-  const own = selectOwn(run, named.keys());
   // An ignored file is cut from what selection infers, not from what a test declared: its names still govern.
   const governing = new Set<string>(ignoring.flatMap((file) => [...knownAs(file)]));
 
@@ -174,8 +170,7 @@ function readDiff(
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
   const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
-  // A test's own file was answered by being the test: nothing about it is unread.
-  const unmeasured = [...answered.unread.filter((name) => !own.has(name) && !measured(name)), ...answered.unheld].sort(codeUnitOrder);
+  const unmeasured = [...answered.unread.filter((name) => !measured(name)), ...answered.unheld].sort(codeUnitOrder);
   // A suite that declines relations never asked the graph, so nothing it
   // holds is unread: what the record did not measure was declined.
   const declining = options.unmeasured === 'nothing';

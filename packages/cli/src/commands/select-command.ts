@@ -36,6 +36,7 @@
  * that cannot be compared declines to narrow.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -232,7 +233,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // for each commit it happened at.
   const changed = [...selection.changedLines(diff).keys()];
   // Every changed file is named in the answer, whatever reading it got.
-  const given = [...changed].sort();
+  const given = [...changed].sort(codeUnitOrder);
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();

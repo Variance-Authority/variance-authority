@@ -101,17 +101,6 @@ export function findTest(coverage: TestCoverageView, file: string): number | und
   return search(coverage, coverage.testPath, decoded(coverage).tests, file);
 }
 
-/** Whether `test` declared `name` as a precondition: its own rows only, compared by interned id. */
-export function declares(coverage: TestCoverageView, test: number, name: string): boolean {
-  const id = findString(coverage, name);
-  if (id === undefined) return false;
-  const end = coverage.testPreconditions.at(test + 1);
-  for (let input = coverage.testPreconditions.at(test); input < end; input += 1) {
-    if (coverage.preconditionName.at(input) === id) return true;
-  }
-  return false;
-}
-
 /** The path a test row was recorded under, decoded once per view whoever asks for it. */
 export function testPathOf(coverage: TestCoverageView, test: number): string {
   return pathAt(coverage, coverage.testPath, decoded(coverage).tests, test);
@@ -222,8 +211,9 @@ function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number
  * `arrived` gives some names the digest of the text the caller's tree holds.
  * The digest beside a precondition is the text that test ran over, so a row
  * recording the arrived one is a test that already ran what is there now: a
- * run over a dirty tree, its edit left in place or committed since. That row
- * governs nothing, and each test is decided by its own row. A name held only by
+ * run over a dirty tree, its edit left in place or committed since. When the
+ * record saw that test whole, the row governs nothing, and each test is decided
+ * by its own row; a test the run did not finish ran none of it to the end. A name held only by
  * such rows is in `ranOver`, and is not `unread`: the record holds it.
  */
 export function testsGovernedBy(
@@ -263,21 +253,34 @@ export function testsGovernedBy(
   for (let test = 0; test < coverage.testPath.length; test += 1) {
     const start = end;
     end = preconditions.at(test + 1);
+    const whole = coverage.testComplete.at(test) === 1;
+    const own = coverage.testPath.at(test);
+    let declaredOwn = false;
     let governing: string[] | undefined;
-    for (let input = start; input < end; input += 1) {
-      const id = named.at(input);
-      const name = wanted.get(id);
-      if (name === undefined) continue;
-      matched.add(name);
-      if (ran.has(id) && digests.at(input) === ran.get(id)) {
-        over.add(name);
-        continue;
-      }
+    const govern = (name: string): void => {
       if (governing === undefined) {
         governing = [];
         tests.set(test, governing);
       }
       governing.push(name);
+    };
+    for (let input = start; input < end; input += 1) {
+      const id = named.at(input);
+      const name = wanted.get(id);
+      if (name === undefined) continue;
+      matched.add(name);
+      if (id === own) declaredOwn = true;
+      if (whole && ran.has(id) && digests.at(input) === ran.get(id)) {
+        over.add(name);
+        continue;
+      }
+      govern(name);
+    }
+    // Its own file governs a test whether or not it declared it.
+    const ownName = declaredOwn ? undefined : wanted.get(own);
+    if (ownName !== undefined) {
+      matched.add(ownName);
+      govern(ownName);
     }
   }
 

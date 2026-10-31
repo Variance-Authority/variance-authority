@@ -16,7 +16,7 @@ import { chargeAt, chargeLines, chargeLoaded, entering, selector, type Charge } 
 import { frameOf } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ImporterAnswer } from './importers.js';
-import { declares, findTest, instrumentedRows, testPathOf } from './lookup.js';
+import { instrumentedRows, testPathOf } from './lookup.js';
 import type { ExecutionNarrowingOptions, SelectionReason } from './narrowing.js';
 import { readChange, readRowless, type FileReading, type ReadingContext } from './reading.js';
 import { hunksFor } from './patch.js';
@@ -200,42 +200,9 @@ export function arrivedAt(
   return { rowless, arrived: arrivedDigests(run.coverage, rowless, run.hunks, run.knownAs, run.options.sourceAt) };
 }
 
-/**
- * Own files: every changed file the record holds as a test selects that test,
- * under each name it may be held by, as its precondition. A test file the
- * change edits is entered by definition, so its selection waits on no
- * declaration: a test that declared no precondition for its own source, or
- * that the record never saw whole, is selected all the same, at 0 hops.
- *
- * One record speaks against it: a test seen whole that declared its own file
- * with the digest of the text the change arrives at already ran that text
- * green. The declaration decides that one (`selectDeclared`), as it decides
- * any declared file, so a run over a dirty tree is not repeated on the next.
- * Returns the files that were a test's own.
- */
-export function selectOwn(run: Run, files: Iterable<string>): ReadonlySet<string> {
-  const own = new Set<string>();
-  for (const file of files) {
-    for (const name of run.knownAs(file)) {
-      const test = findTest(run.coverage, name);
-      if (test === undefined) continue;
-      own.add(file);
-      const whole = run.coverage.testComplete.at(test) === 1;
-      if (whole && declares(run.coverage, test, name)) continue;
-      if (!picked(run, test, name)) run.pick(test, { kind: 'precondition', name });
-    }
-  }
-  return own;
-}
-
 /** Preconditions: every test that declared a name, for that name. A declaration is unconditional, and nothing here narrows it. */
 export function selectDeclared(run: Run, governed: ImporterAnswer['governed']): void {
-  for (const [test, names] of governed.tests) for (const name of names) if (!picked(run, test, name)) run.pick(test, { kind: 'precondition', name });
-}
-
-/** Whether `test` is already selected by `name` as a precondition: its own file is that and a declaration both. */
-function picked(run: Run, test: number, name: string): boolean {
-  return run.selected.get(test)?.some((reason) => reason.kind === 'precondition' && reason.name === name) === true;
+  for (const [test, names] of governed.tests) for (const name of names) run.pick(test, { kind: 'precondition', name });
 }
 
 /**
