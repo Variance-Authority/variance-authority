@@ -36,7 +36,6 @@
  * that cannot be compared declines to narrow.
  */
 
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -232,8 +231,6 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // half an install, so the commit's is read whole and a note says so, one
   // for each commit it happened at.
   const changed = [...selection.changedLines(diff).keys()];
-  // Every changed file is named in the answer, whatever reading it got.
-  const given = [...changed].sort(codeUnitOrder);
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();
@@ -266,7 +263,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   for (const installed of installs.values()) {
     if (installed !== undefined && 'whole' in installed) {
       const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-      return said({ ...recorded, changed: given, ground });
+      return said({ ...recorded, ground });
     }
   }
 
@@ -283,7 +280,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
-  const rested = { ...recorded, changed: given, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
+  const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.

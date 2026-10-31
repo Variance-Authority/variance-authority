@@ -28,7 +28,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
-      readings: [],
+      readings: [{ file: 'src/rules.css', unread: 'unasked' }],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
@@ -59,7 +59,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
-      readings: [],
+      readings: [{ file: 'src/tokens.css', unread: 'unasked' }],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/tokens.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/tokens.css', 'src/decide.ts'] }] },
@@ -260,7 +260,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
-      readings: [],
+      readings: [{ file: 'src/rules.css', unread: 'unasked' }],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },

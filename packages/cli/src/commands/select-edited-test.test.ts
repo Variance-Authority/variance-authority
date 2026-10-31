@@ -84,11 +84,11 @@ describe('`variance select` over a change that edits a test file', () => {
     expect(got.err).not.toContain('records nothing about');
   });
 
-  it('names every changed file it was given', async () => {
+  it('names the edited test among the readings', async () => {
     const dir = await editedUnder(true);
     const got = await selectOutput({ cwd: dir, format: 'plain' });
-    expect(got.err).toContain('the change names 1 file: test/total.test.ts.\n');
+    expect(got.err).toContain('read test/total.test.ts: none');
     const json = JSON.parse((await selectOutput({ cwd: dir, format: 'json' })).out);
-    expect(json.changed).toEqual(['test/total.test.ts']);
+    expect(json.readings.map((reading: { file: string }) => reading.file)).toEqual(['test/total.test.ts']);
   });
 });

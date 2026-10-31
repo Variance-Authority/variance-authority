@@ -105,8 +105,11 @@ export type FileReading =
        * the verdict reads.
        * `exports`: a file with no row that names no export to follow, as a
        * CommonJS module's `module.exports` does not: its importers answer whole.
+       * `unasked`: no parser read it — its rows were charged whole or by line,
+       * or it has none and no text to read — and its rows, its preconditions
+       * or its importers answer for it.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language' | 'exports' | 'unasked';
     };
 
 /** Whether the change may reach a test through the file: every reading but a `none` the parser decided. */

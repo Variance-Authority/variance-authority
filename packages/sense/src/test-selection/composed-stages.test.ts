@@ -84,6 +84,13 @@ describe('the composition is its stages', () => {
     expect(composed.unread).not.toContain(DECLARING);
   });
 
+  it('gives a reading for every changed file, one the parser was not asked of among them', () => {
+    const { readings } = narrowByChangeFromView(view(), change, { sourceAt });
+
+    expect(readings.map((reading) => reading.file).sort()).toEqual([SOURCE, DECLARING].sort());
+    expect(readings).toContainEqual({ file: SOURCE, unread: 'unasked' });
+  });
+
   it('walks a rowless file a declaring test already ran the arrived text of, as the composition does', () => {
     const HELPER = 'src/helper.ts';
     const COMMITTED_HELPER = 'export const one = 1;\n';

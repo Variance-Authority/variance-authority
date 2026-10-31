@@ -8,17 +8,6 @@
 import { many } from './prose-counts.js';
 
 /**
- * Every file the change names, each by name. A file the record holds no row
- * for and the parser read as moving nothing — a comment added to a test — is
- * otherwise in no other note, and a change that went missing from the answer
- * is the one an operator cannot ask about.
- */
-export function changedNotes(changed: readonly string[]): readonly string[] {
-  if (changed.length === 0) return [];
-  return [`the change names ${many(changed.length, 'file')}: ${changed.join(', ')}`];
-}
-
-/**
  * The changed paths the journal records nothing about, argued at the top of
  * `select.ts`.
  *

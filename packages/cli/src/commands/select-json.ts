@@ -38,7 +38,6 @@ export function jsonOf(selection: TestSelection): object {
       ...(selection.source?.mainline === undefined ? {} : { mainline: selection.source.mainline }),
       ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
     },
-    ...(selection.changed === undefined ? {} : { changed: selection.changed }),
     unread: selection.unread,
     ...(selection.install === undefined ? {} : { install }),
     ...(selection.declined === undefined ? {} : { declined: selection.declined }),
