@@ -669,7 +669,7 @@ taken before git made it. Next time, when the same server reports no change sinc
 that clock but to paths git ignores — a tool's cache, a build's output — and none
 of git's own files changed — `HEAD`, the index, a ref, an exclude or
 configuration file — the update reads the listing it kept and runs no git at
-all. On this repository's 3,768 files that is 13 ms against 140 ms with git.
+all. On Material UI's 41,171 paths that is 22–39 ms against 157–195 ms with git.
 
 Anything else lists with git, as above: a change Watchman reports, a server
 that restarted, a checkout no server watches, a machine with no Watchman. Nothing

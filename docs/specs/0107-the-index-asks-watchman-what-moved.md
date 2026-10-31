@@ -125,8 +125,9 @@ decode does not read it. Beside it the generation carries its base commit, the
 Watchman clock with the query it answers — the socket path, the watched root
 and the `relative_root` — its ignored directories, and the stats of §3,
 a few hundred bytes. On Kibana the names
-alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index; the spec
-measures the stored form against the index's own size before it ships.
+alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index. Stored, on
+Material UI (41,171 paths) the listing is 3.28 MB — names 2.41 MB, blob names
+0.82 MB — and 0.94 MB after gzip, beside an index of about 21 MB.
 
 **The clock moves with a publish, and a renewal is a publish.** An update that
 changes no record publishes no records, so the clock stays and the next update
