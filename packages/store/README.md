@@ -32,13 +32,15 @@ npm install --save-dev @variance-authority/store
 
 Complete and runnable as written — save it as `baselines.mjs` and run
 `node baselines.mjs`. The PNG below is a real one-pixel image, so nothing has to
-be rendered first; `put` keeps it as a WebP.
+be rendered first. `keptRaster` encodes it as the lossless WebP a store keeps,
+and `put` writes that.
 
 ```js
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDurableStore } from '@variance-authority/store/durable';
+import { keptRaster } from '@variance-authority/store/keep';
 
 const root = await mkdtemp(join(tmpdir(), 'baselines-'));
 const store = createDurableStore(root);
@@ -56,7 +58,7 @@ const identity = {
 // `label` distinguishes several images of one subject — a viewport, a state.
 const key = { subject: 'components/Button/primary', label: 'wide' };
 
-await store.put(key, {
+await store.put(key, await keptRaster({
   // A hash of the rendered document, computed by whatever produced the image.
   // The store keeps it and hands it back; it never computes one itself.
   documentDigest: 'v1:9f2a41c7d0b85e36a14c7e2f8b06d735',
@@ -66,7 +68,7 @@ await store.put(key, {
   bytes:
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   missingFonts: [],
-});
+}));
 
 // The lookup that needs no image: does a baseline exist, and may this machine
 // compare against it?
@@ -236,13 +238,19 @@ Both store backends implement one contract, `RasterStore`, which is defined in
 <root>/<path>.json
 ```
 
-`put` encodes the image once, on the accept, and decodes the WebP back to check
-that every channel of every pixel survived before anything is written; a
-comparison only ever decodes. The sidecar's `image` field names the kept
+The image is encoded once, on the accept, by `keptRaster` from
+`@variance-authority/store/keep`, before `put`: sharp writes a lossless WebP and
+decodes it back to check that every pixel survived, the alpha of a fully
+transparent one and all four channels of every other. The colour under a fully
+transparent pixel is not kept; no comparison sees it. `put` only checks that it
+was handed a lossless WebP and refuses anything else, so a remote store
+receives the WebP and runs no codec, and a comparison only ever decodes. A read
+checks the image's header against the sidecar and refuses a mismatch as
+damage. The sidecar's `image` field names the kept
 format, so a lookup reads the one file it names. A baseline kept as a `.png` before stays readable
 — its sidecar has no `image` field — until its next accept replaces it with the
-WebP. A WebP holds at most 16,383 pixels on a side, so `put` refuses a taller or
-wider image with the tree as it was.
+WebP. A WebP holds at most 16,383 pixels on a side, so `keptRaster` refuses a
+taller or wider image and nothing is written.
 
 `<path>` is the `path` template rendered for the key and the engine family. The
 template's tokens:

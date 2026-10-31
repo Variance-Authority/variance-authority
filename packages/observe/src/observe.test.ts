@@ -16,6 +16,7 @@ import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { observeCaptureAgainstBaseline } from './capture.js';
 import { observeAgainstBaseline } from './observe.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * The durable mode at a scale factor other than 1.
@@ -117,7 +118,7 @@ describe('a durable observation above 1x', () => {
     const renderer = fakeRenderer();
     const document = documentAt(2);
 
-    await store.put({ subject: 's' }, await renderer.render(document));
+    await store.put({ subject: 's' }, await keptRaster(await renderer.render(document)));
 
     const observation = await observeAgainstBaseline(document, { subject: 's' }, { renderer, store });
 
@@ -131,7 +132,7 @@ describe('a durable observation above 1x', () => {
     const store = createDurableStore(root);
     const renderer = fakeRenderer();
 
-    await store.put({ subject: 's' }, await renderer.render(documentAt(1)));
+    await store.put({ subject: 's' }, await keptRaster(await renderer.render(documentAt(1))));
 
     const observation = await observeAgainstBaseline(
       documentAt(2),
@@ -158,7 +159,7 @@ describe('a durable observation above 1x', () => {
       DARK,
     );
 
-    await store.put({ subject: 's' }, await before.render(documentAt(1)));
+    await store.put({ subject: 's' }, await keptRaster(await before.render(documentAt(1))));
 
     const observation = await observeAgainstBaseline(
       documentAt(1),
@@ -211,7 +212,7 @@ describe('a durable observation above 1x', () => {
     const renderer = fakeRenderer();
     const document = documentAt(1);
     const raster = await renderer.render(document);
-    await store.put({ subject: 's' }, raster);
+    await store.put({ subject: 's' }, await keptRaster(raster));
     const artifact: CaptureArtifact = {
       artifactVersion: 1,
       subject: document.subject,
@@ -236,7 +237,7 @@ describe('a durable observation above 1x', () => {
     // the baseline all the same, and the font that moved is named as the cause.
     const store = createDurableStore(root);
     const document = documentAt(1);
-    await store.put({ subject: 's' }, await fakeRenderer().render(document));
+    await store.put({ subject: 's' }, await keptRaster(await fakeRenderer().render(document)));
     const elsewhere = await fakeRenderer({
       ...MACHINE,
       fonts: [...MACHINE.fonts, 'Roboto/400/normal/def'],
@@ -276,7 +277,7 @@ describe('a durable observation above 1x', () => {
     const store = createDurableStore(root);
     const renderer = fakeRenderer();
     const document = documentAt(1);
-    await store.put({ subject: 's' }, await renderer.render(document));
+    await store.put({ subject: 's' }, await keptRaster(await renderer.render(document)));
     const artifact: CaptureArtifact = {
       artifactVersion: 1,
       subject: document.subject,

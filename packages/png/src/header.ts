@@ -10,7 +10,7 @@
  * and a push reads twenty of them.
  *
  * The two formats this package reads: a capture is a PNG, and a kept baseline
- * is a lossless WebP (see `keepImage`).
+ * is a lossless WebP (see {@link refuseUnkept}).
  */
 
 type Size = { readonly width: number; readonly height: number };
@@ -43,6 +43,7 @@ const RIFF = 0x52494646;
 const WEBP = 0x57454250;
 const VP8L = 0x5650384c;
 const VP8X = 0x56503858;
+const VP8 = 0x56503820;
 
 /**
  * `RIFF`, a length, `WEBP`, then the first chunk: a lossless bitstream packs
@@ -69,7 +70,7 @@ function webpSize(view: DataView): Size | null {
  *
  * A capture is a PNG, because that is what a browser hands over and what the
  * comparison reads fastest. A kept baseline is a lossless WebP, encoded once
- * when a difference was accepted (see `keepImage`), and a baseline kept
+ * when a difference was accepted (see {@link refuseUnkept}), and a baseline kept
  * before that is a PNG. Both reach a comparison as bytes, and the
  * header is the format's own declaration of what they are, so nothing beside
  * the bytes has to travel with them through a wire or a bucket.
@@ -87,3 +88,61 @@ export function imageFormat(bytes: Uint8Array): ImageFormat | null {
 /** The PNG signature: `\x89PNG`, then `\r\n\x1a\n`. */
 const PNG = 0x89504e47;
 const PNG_TAIL = 0x0d0a1a0a;
+
+/**
+ * Whether a WebP carries a lossless bitstream and no lossy one.
+ *
+ * Read from the chunks, not the first one alone: an extended file opens with
+ * `VP8X`, and its bitstream comes after any metadata. A lossy `VP8 ` chunk
+ * anywhere means pixels the encoder approximated, which no store may keep.
+ */
+export function isLosslessWebp(bytes: Uint8Array): boolean {
+  if (imageFormat(bytes) !== 'webp') return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let lossless = false;
+  for (let at = 12; at + 8 <= view.byteLength; ) {
+    const chunk = view.getUint32(at);
+    if (chunk === VP8) return false;
+    if (chunk === VP8L) lossless = true;
+    // Each chunk's payload is padded to an even length.
+    const size = view.getUint32(at + 4, true);
+    at += 8 + size + (size % 2);
+  }
+  return lossless;
+}
+
+/**
+ * Refuse bytes a store must not keep: anything but a lossless WebP no wider or
+ * taller than {@link KEEP_LIMIT}. Read from the header alone, so a store checks
+ * what it is handed without a codec.
+ *
+ * Encoding is the caller's, before it hands the image over, so the store never
+ * runs a codec on a write and a remote store receives the bytes it keeps.
+ */
+export function refuseUnkept(bytes: Uint8Array): void {
+  if (!isLosslessWebp(bytes)) {
+    const format = imageFormat(bytes);
+    throw new Error(
+      `a store keeps a lossless WebP, and these ${bytes.length} bytes are ` +
+        `${format === 'webp' ? 'a lossy WebP' : format === 'png' ? 'a PNG' : 'neither a PNG nor a WebP'}.`,
+    );
+  }
+  refuseOversize(bytes);
+}
+
+/**
+ * The widest and tallest image a WebP can hold: its header spends fourteen bits
+ * on each side.
+ */
+export const KEEP_LIMIT = 16_383;
+
+/** Refuse an image larger on a side than a WebP can hold, by the size its header declares. */
+export function refuseOversize(bytes: Uint8Array): void {
+  const size = imageSize(bytes);
+  if (size !== null && (size.width > KEEP_LIMIT || size.height > KEEP_LIMIT)) {
+    throw new Error(
+      `a ${size.width}x${size.height} image cannot be kept: a WebP holds at most ` +
+        `${KEEP_LIMIT} pixels on a side. Capture a smaller viewport or clip the page.`,
+    );
+  }
+}

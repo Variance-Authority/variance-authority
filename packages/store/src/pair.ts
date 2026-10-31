@@ -3,10 +3,11 @@
 import { readFile, rm, rmdir, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
+import { imageFormat, isLosslessWebp } from '@variance-authority/png/header';
 import { REFUSAL, RasterStoreError, messageOf, sidecarFrom } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { placedForIn, type PlacedFor } from './claims.js';
-import { refuseAPointerRecord } from './lfs-pointer.js';
+import { refuseAPointerImage, refuseAPointerRecord } from './lfs-pointer.js';
 
 /**
  * One baseline on disk: an image and the record of what painted it, read and
@@ -68,8 +69,19 @@ export function imageOf(places: Places, as: KeptAs): string {
   return `${places.image}.${as}`;
 }
 
-function keptAsIn(record: unknown): KeptAs {
-  return (record as { image?: unknown }).image === 'webp' ? 'webp' : 'png';
+/**
+ * The format a sidecar records its image in: the one it names, or `png` for a
+ * sidecar written before kept images had a name. A name no store writes is
+ * damage, not a PNG: guessing would read whatever file happens to sit beside it.
+ */
+function keptAsIn(record: unknown, path: string): KeptAs {
+  const image = (record as { image?: unknown }).image;
+  if (image === undefined) return 'png';
+  if (KEPT.includes(image as KeptAs)) return image as KeptAs;
+  throw new RasterStoreError(
+    `the baseline sidecar ${path} records its image as ${JSON.stringify(image)}, a format no store ` +
+      `keeps (${KEPT.join(', ')}). ${REFUSAL}.`,
+  );
 }
 
 /**
@@ -131,10 +143,11 @@ export async function readRaster(
   const found = await readPair(places);
   if (found === null) return null;
   if (found.image === undefined) return found.record;
-  const image = found.image;
+  const { image, as = 'png' } = found;
   // Absent here as well: the image was there a moment ago, and removed since.
   const bytes = await orAbsent(() => readImage(image), image);
   if (bytes === null) throw halfAPair(places, `${places.record}.json`, image);
+  refuseMislabelled(image, as, bytes);
   return { ...found.record, bytes: bytes.toString('base64') };
 }
 
@@ -149,7 +162,7 @@ export async function readRaster(
  */
 async function readPair(
   places: Places,
-): Promise<{ record: Read<Omit<Raster, 'bytes'>>; image?: string } | null> {
+): Promise<{ record: Read<Omit<Raster, 'bytes'>>; image?: string; as?: KeptAs } | null> {
   const recordPath = `${places.record}.json`;
   const [text, images] = await Promise.all([
     orAbsent(() => readFile(recordPath, 'utf8'), recordPath),
@@ -177,7 +190,7 @@ async function readPair(
   const stray = images.find((path) => path !== image);
   if (stray !== undefined) throw unexpectedImage(places, stray);
   if (!images.includes(image)) throw halfAPair(places, recordPath, image);
-  return { record, image };
+  return { record, image, as };
 }
 
 /**
@@ -262,5 +275,23 @@ function parseSidecar(text: string, path: string): { record: Read<Omit<Raster, '
     );
   }
   const placedFor = placedForIn(parsed);
-  return { record: placedFor === undefined ? sidecar : { ...sidecar, placedFor }, as: keptAsIn(parsed) };
+  return { record: placedFor === undefined ? sidecar : { ...sidecar, placedFor }, as: keptAsIn(parsed, path) };
+}
+
+/**
+ * Refuse an image whose bytes are not what its sidecar and its name say: a
+ * `.webp` holding a PNG or a lossy picture, a `.png` holding anything else. The
+ * record decides which file is read and the header which decoder reads it, so a
+ * disagreement is caught here, on the read that has the bytes, as damage.
+ */
+function refuseMislabelled(image: string, as: KeptAs, bytes: Buffer): void {
+  const format = imageFormat(bytes);
+  if (format === as && (as !== 'webp' || isLosslessWebp(bytes))) return;
+  refuseAPointerImage(bytes, image);
+  const held =
+    format === null ? 'no image format' : format === 'png' ? 'a PNG' : isLosslessWebp(bytes) ? 'a WebP' : 'a lossy WebP';
+  throw new RasterStoreError(
+    `the baseline image ${image} holds ${held}, and its sidecar and its name say a ` +
+      `${as === 'webp' ? 'lossless WebP' : 'PNG'}. ${REFUSAL}. Delete the baseline to record the subject afresh.`,
+  );
 }

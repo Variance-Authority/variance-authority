@@ -25,6 +25,7 @@ import type { RunReport } from '@variance-authority/report';
 import { writeRunReport } from '@variance-authority/report/file';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { createDurableStore } from '@variance-authority/store/durable';
+import { keptRaster } from '@variance-authority/store/keep';
 import { PNG } from 'pngjs';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { BASELINE_VARIANT } from './pixel/protocol.js';
@@ -216,7 +217,7 @@ async function throughStoredBaseline(
     const directory = await mkdtemp(join(tmpdir(), 'va-todomvc-store-'));
     try {
       const store = createDurableStore(directory);
-      await store.put({ subject: STORY }, record);
+      await store.put({ subject: STORY }, await keptRaster(record));
       return await observeCaptureAgainstBaseline(
         {
           artifactVersion: 1,

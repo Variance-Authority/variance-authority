@@ -17,7 +17,7 @@ install.
 |---|---|---|
 | [oxc](https://oxc.rs) — `oxc-parser`, `oxc-resolver` | parses and resolves every module in the [source index](source-index.md) | prebuilt `.node` addon, chosen by a per-platform optional dependency of each package |
 | the scanner in [`@variance-authority/sense`](../packages/sense) | reads, parses, resolves and records a whole cold checkout without returning a syntax tree to JavaScript, and places the probes in every module a test run records | the same way: one optional dependency per platform, named for the platform it serves |
-| `sharp`, through [`@variance-authority/png-sharp`](../packages/png-sharp) | decodes screenshots for the raster comparison | the same way: `sharp` resolves one prebuilt libvips addon for your platform |
+| `sharp`, through [`@variance-authority/png-sharp`](../packages/png-sharp) | decodes screenshots for the raster comparison, and encodes the lossless WebP an accept keeps | the same way: `sharp` resolves one prebuilt libvips addon for your platform |
 | zstd, SHA-256 | compresses the selection index, digests documents | already in Node, as `node:zlib` and `node:crypto` |
 | Chromium | paints the pages you compare | `npx playwright install chromium`, a separate step you already run |
 
@@ -25,8 +25,10 @@ install.
 so installing the CLI installs `sharp`. What is optional per platform is the
 binary underneath it, not the package. If you depend on the comparison packages
 directly instead of the CLI, that choice is yours to make:
-`@variance-authority/png` alone needs only `Buffer` and WebAssembly, which
-reads and writes WebP without an addon, and `png-sharp` is a separate install.
+`@variance-authority/png` alone needs only `Buffer` and WebAssembly, and
+reads a kept WebP without an addon. Accepting a baseline needs `sharp`: the
+WebP it keeps is encoded natively, on the machine that accepts, and an accept
+where `sharp` does not load fails and says so.
 
 Measured on macOS arm64, the compiled addons come to roughly 25 MB — libvips is
 15 MB of it, the two oxc bindings are about 1.5 MB each, and the scanner is
@@ -35,9 +37,8 @@ Playwright's Chromium is a few hundred megabytes, far more than all of it
 combined, and it is downloaded into Playwright's own cache rather than into
 `node_modules`.
 
-The one WebAssembly module is libwebp, compiled for `@jsquash/webp`, which
-keeps an accepted baseline as a lossless WebP and reads it back wherever `sharp`
-does not load. It runs on every platform Node does, so it has no binaries to
+The one WebAssembly module is libwebp's decoder, compiled for `@jsquash/webp`,
+which reads a kept baseline back wherever `sharp` does not load. It runs on every platform Node does, so it has no binaries to
 miss. Two wasm PNG decoders were measured against the pure-JavaScript one and
 both were slower, so captures have no portable-and-fast middle option.
 

@@ -20,7 +20,8 @@ const CANDIDATE: Raster = {
   identity: IDENTITY,
   width: 100,
   height: 40,
-  bytes: Buffer.from('png').toString('base64'),
+  // A one-pixel PNG: an accept keeps a WebP of it, so the bytes must be an image.
+  bytes: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4AWP4z8DwHwAFAAH/e+m+7wAAAABJRU5ErkJggg==',
   missingFonts: [],
 };
 

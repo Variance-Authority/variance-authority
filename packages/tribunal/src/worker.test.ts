@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { keepImage } from '@variance-authority/png';
+import { keepImage } from '@variance-authority/png-sharp';
 import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {

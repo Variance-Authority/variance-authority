@@ -12,6 +12,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../png" },
+    { "path": "../png-sharp" },
     { "path": "../raster" },
     { "path": "../report" }
   ]

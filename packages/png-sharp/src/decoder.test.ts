@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
-import { compareRasters, comparePngs, keepImage, pngjsDecoder } from '@variance-authority/png';
+import { compareRasters, comparePngs, pngjsDecoder } from '@variance-authority/png';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { sharpDecoder } from './index.js';
+import { keepImage, sharpDecoder } from './index.js';
 
 /**
  * The rule that makes the decoder a speed setting instead of a verdict setting.
@@ -73,9 +73,10 @@ describe('sharp and pngjs decode identically', () => {
   });
 
   it.each(CASES)('%s, kept as a WebP', async (_name, bytes) => {
-    // A kept baseline is a lossless WebP with `exact` on. libvips reads it with
-    // its own libwebp, so the colour under a transparent pixel is the case where
-    // the two could part.
+    // A kept baseline is a lossless WebP. libvips reads it with its own libwebp
+    // and pngjsDecoder with libwebp as WebAssembly, so the two must agree byte
+    // for byte, and both see the capture: a fully transparent pixel stays
+    // transparent, and the colour under it is not kept.
     const kept = await keepImage(bytes);
     const [fast, portable, capture] = await Promise.all([
       sharpDecoder.decode(kept),
@@ -85,7 +86,7 @@ describe('sharp and pngjs decode identically', () => {
 
     expect({ width: fast.width, height: fast.height }).toEqual({ width: capture.width, height: capture.height });
     expect(Buffer.from(fast.data).equals(Buffer.from(portable.data))).toBe(true);
-    expect(Buffer.from(fast.data).equals(Buffer.from(capture.data))).toBe(true);
+    expect(seen(fast.data)).toEqual(seen(capture.data));
   });
 
   it('reaches the same comparison, including the mask', async () => {
@@ -125,3 +126,10 @@ describe('sharp and pngjs decode identically', () => {
     expect(Buffer.from(fast.mask.data).equals(Buffer.from(portable.mask.data))).toBe(true);
   });
 });
+
+/** The pixels a comparison sees: a fully transparent pixel is transparent, whatever colour it hides. */
+function seen(data: Uint8Array): number[] {
+  const pixels = [...data];
+  for (let at = 0; at < pixels.length; at += 4) if (pixels[at + 3] === 0) pixels.fill(0, at, at + 3);
+  return pixels;
+}

@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import type { DecodedImage, PngDecoder } from '@variance-authority/png';
+import { imageFormat, refuseOversize, refuseUnkept, type DecodedImage, type PngDecoder } from '@variance-authority/png';
 
 /**
  * `@variance-authority/png-sharp` — the same comparison, decoded by libvips.
@@ -48,3 +48,56 @@ export const sharpDecoder: PngDecoder = {
     return { width: info.width, height: info.height, data };
   },
 };
+
+/**
+ * The bytes a store keeps for an accepted capture: a lossless WebP at effort 2,
+ * 73% smaller than the PNG in about 170 ms a page (#860), decoded back before
+ * it is returned. It runs on the accept, never on a comparison.
+ *
+ * The check is what a comparison reads: a pixel with any opacity comes back in
+ * every channel, a transparent one comes back transparent, and the colour under
+ * it is lost, since libvips does not pass libwebp's `exact`. A lossless WebP
+ * passes through; a lossy one, or one over `KEEP_LIMIT`, is refused undecoded.
+ */
+export async function keepImage(bytes: Buffer): Promise<Buffer> {
+  const format = imageFormat(bytes);
+  if (format === 'webp') {
+    refuseUnkept(bytes);
+    return bytes;
+  }
+  if (format !== 'png') {
+    throw new Error(`these ${bytes.length} bytes are neither a PNG nor a WebP: their header declares no image format.`);
+  }
+  refuseOversize(bytes);
+
+  const kept = await sharp(bytes).webp({ lossless: true, effort: 2 }).toBuffer();
+  refuseUnkept(kept);
+  // The only proof the kept bytes are the accepted pixels: a store that kept
+  // anything else would make every later verdict about a picture nobody approved.
+  const [source, back] = await Promise.all([sharpDecoder.decode(bytes), sharpDecoder.decode(kept)]);
+  if (back.width !== source.width || back.height !== source.height || !sameToTheEye(source.data, back.data)) {
+    throw new Error(
+      `the WebP encoder returned a ${back.width}x${back.height} image that does not decode to the ` +
+        `${source.width}x${source.height} capture it was given; nothing was kept.`,
+    );
+  }
+  return kept;
+}
+
+/** Every channel of every pixel with any opacity, and the transparency of the rest. */
+function sameToTheEye(before: Uint8Array, after: Uint8Array): boolean {
+  if (before.length !== after.length) return false;
+  for (let at = 0; at < before.length; at += 4) {
+    if (before[at + 3] === 0) {
+      if (after[at + 3] !== 0) return false;
+    } else if (
+      before[at] !== after[at] ||
+      before[at + 1] !== after[at + 1] ||
+      before[at + 2] !== after[at + 2] ||
+      before[at + 3] !== after[at + 3]
+    ) {
+      return false;
+    }
+  }
+  return true;
+}

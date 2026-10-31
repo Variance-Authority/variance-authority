@@ -15,7 +15,7 @@ import {
   type RenderIdentity,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
-import { keepImage } from '@variance-authority/png';
+import { keptRaster } from '@variance-authority/store/keep';
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { OBSERVE_COMMAND } from './protocol.js';
@@ -46,7 +46,7 @@ function imageOf(level: number): string {
 
 const IMAGE = imageOf(0xff);
 /** What a durable store keeps, and hands back, for {@link IMAGE}. */
-const KEPT = (await keepImage(Buffer.from(IMAGE, 'base64'))).toString('base64');
+const KEPT = (await keptRaster({ bytes: IMAGE })).bytes;
 const DARK = imageOf(0x00);
 
 function fakeRenderer(

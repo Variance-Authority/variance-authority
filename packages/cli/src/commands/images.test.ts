@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { keepImage } from '@variance-authority/png';
+import { keepImage } from '@variance-authority/png-sharp';
 import type { RenderDocument } from '@variance-authority/core/format';
 import type { Found, RasterStore } from '@variance-authority/raster';
 import type { Observation } from '@variance-authority/observe';

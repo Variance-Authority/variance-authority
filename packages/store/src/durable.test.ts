@@ -16,7 +16,7 @@ import {
 } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
-import { BLUE, GREEN, RED, kept } from './image.fixture.js';
+import { BLUE, GREEN, RED, RED_PNG } from './image.fixture.js';
 
 /** What git-lfs leaves in the working tree when it did not smudge a file. */
 const LFS_POINTER =
@@ -99,7 +99,7 @@ describe('the durable mode', () => {
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe(await kept(RED));
+    expect(found?.raster.bytes).toBe(RED);
   });
 
   it('round-trips a subject id longer than a filename', async () => {
@@ -111,8 +111,8 @@ describe('the durable mode', () => {
     await store.put({ subject: `${stem}/first` }, rasterOf(MAC, 'v1:doc', RED));
     await store.put({ subject: `${stem}/second` }, rasterOf(MAC, 'v1:doc', GREEN));
 
-    expect((await store.find({ subject: `${stem}/first` }, MAC))?.raster.bytes).toBe(await kept(RED));
-    expect((await store.find({ subject: `${stem}/second` }, MAC))?.raster.bytes).toBe(await kept(GREEN));
+    expect((await store.find({ subject: `${stem}/first` }, MAC))?.raster.bytes).toBe(RED);
+    expect((await store.find({ subject: `${stem}/second` }, MAC))?.raster.bytes).toBe(GREEN);
   });
 
   it('round-trips browser accessibility evidence in both lookup tiers', async () => {
@@ -182,7 +182,7 @@ describe('the durable mode', () => {
 
     expect(await readdir(root)).toEqual(['s-chromium.json', 's-chromium.webp']);
     const found = await store.find({ subject: 's' }, RUNNER);
-    expect(found?.raster.bytes).toBe(await kept(BLUE));
+    expect(found?.raster.bytes).toBe(BLUE);
     expect(found?.comparable).toBe(false);
     expect(found?.storedUnder.engine).toBe('chromium@132.0.0');
   });
@@ -194,8 +194,8 @@ describe('the durable mode', () => {
     await store.put({ subject: 's' }, rasterOf(firefox, 'v1:b', GREEN));
 
     expect(await readdir(root)).toEqual(['s-chromium.json', 's-chromium.webp', 's-firefox.json', 's-firefox.webp']);
-    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(await kept(RED));
-    expect((await store.find({ subject: 's' }, firefox))?.raster.bytes).toBe(await kept(GREEN));
+    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(RED);
+    expect((await store.find({ subject: 's' }, firefox))?.raster.bytes).toBe(GREEN);
   });
 
   it('separates baselines by label, so one subject can hold several', async () => {
@@ -203,8 +203,8 @@ describe('the durable mode', () => {
     await store.put({ subject: 's', label: 'wide' }, rasterOf(MAC, 'v1:a', RED));
     await store.put({ subject: 's', label: 'narrow' }, rasterOf(MAC, 'v1:b', GREEN));
 
-    expect((await store.find({ subject: 's', label: 'wide' }, MAC))?.raster.bytes).toBe(await kept(RED));
-    expect((await store.find({ subject: 's', label: 'narrow' }, MAC))?.raster.bytes).toBe(await kept(GREEN));
+    expect((await store.find({ subject: 's', label: 'wide' }, MAC))?.raster.bytes).toBe(RED);
+    expect((await store.find({ subject: 's', label: 'narrow' }, MAC))?.raster.bytes).toBe(GREEN);
   });
 
   it('reports nothing for a subject nobody has ever rendered', async () => {
@@ -225,7 +225,7 @@ describe('the durable mode', () => {
     // unchanged identity has an image already, so a run over 300 subjects where
     // two changed pays for two images. Two stores over one root, because
     // surviving *this* process is the whole claim.
-    const painted = rasterOf(MAC, documentDigest(documentOf('<div data-va-path="0">x</div>')));
+    const painted = rasterOf(MAC, documentDigest(documentOf('<div data-va-path="0">x</div>')), RED_PNG);
 
     await createDurableStore(root).renderCache.put(painted);
 
@@ -432,7 +432,7 @@ describe('a baseline lookup that does not need the image', () => {
 describe('the render cache location', () => {
   it('lands under the baseline root when nothing says otherwise', async () => {
     const store = createDurableStore(root);
-    await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
+    await store.renderCache.put(rasterOf(MAC, 'v1:doc', RED_PNG));
 
     expect(await store.renderCache.get('v1:doc', MAC)).not.toBeNull();
     expect(await readdir(join(root, partition(MAC)))).toContain('by-document');
@@ -443,7 +443,7 @@ describe('the render cache location', () => {
     try {
       const store = createDurableStore(root, { cacheRoot: elsewhere });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
-      await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
+      await store.renderCache.put(rasterOf(MAC, 'v1:doc', RED_PNG));
 
       expect(await store.renderCache.get('v1:doc', MAC)).not.toBeNull();
       expect(await readdir(root)).toEqual(['todo--empty-chromium.json', 'todo--empty-chromium.webp']);

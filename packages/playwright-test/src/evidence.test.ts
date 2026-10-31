@@ -5,7 +5,7 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import type { Observation } from '@variance-authority/observe';
-import { keepImage } from '@variance-authority/png';
+import { keptRaster } from '@variance-authority/store/keep';
 import type { RasterStore } from '@variance-authority/raster';
 import { writeEvidence } from './evidence.js';
 
@@ -57,7 +57,7 @@ describe('the evidence of a subject that grew', () => {
 describe('the evidence against a kept baseline', () => {
   it('writes the before as the WebP the store kept, and diffs it', async () => {
     const plain = raster(3);
-    const before = { ...plain, bytes: (await keepImage(Buffer.from(plain.bytes!, 'base64'))).toString('base64') };
+    const before = await keptRaster(plain);
     const store = { find: async () => ({ raster: before }) } as unknown as RasterStore;
     const observation = { subject: 'page', verdict: 'changed' } as unknown as Observation;
 

@@ -5315,6 +5315,7 @@ __metadata:
     "@variance-authority/observe": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
     "@variance-authority/png": "workspace:*"
+    "@variance-authority/png-sharp": "workspace:*"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/report": "workspace:^"
@@ -5339,7 +5340,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/png-sharp@workspace:^, @variance-authority/png-sharp@workspace:packages/png-sharp":
+"@variance-authority/png-sharp@workspace:*, @variance-authority/png-sharp@workspace:^, @variance-authority/png-sharp@workspace:packages/png-sharp":
   version: 0.0.0-use.local
   resolution: "@variance-authority/png-sharp@workspace:packages/png-sharp"
   dependencies:
@@ -5359,6 +5360,7 @@ __metadata:
     "@variance-authority/raster": "workspace:^"
     pixelmatch: "npm:^7.2.0"
     pngjs: "npm:^7.0.0"
+    sharp: "npm:^0.34.4"
   languageName: unknown
   linkType: soft
 
@@ -5571,10 +5573,12 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/png": "workspace:^"
+    "@variance-authority/png-sharp": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/report": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     pngjs: "npm:^7.0.0"
+    sharp: "npm:^0.34.4"
   languageName: unknown
   linkType: soft
 
@@ -5615,6 +5619,7 @@ __metadata:
     "@variance-authority/history": "workspace:^"
     "@variance-authority/jsx-source": "workspace:^"
     "@variance-authority/png": "workspace:^"
+    "@variance-authority/png-sharp": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/remote": "workspace:^"
     "@variance-authority/report": "workspace:^"

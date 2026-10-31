@@ -12,10 +12,11 @@ import {
   type RenderIdentity,
 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { keepImage } from '@variance-authority/png';
+import { refuseUnkept } from '@variance-authority/png/header';
 import {
   REFUSAL,
   RasterStoreError,
+  messageOf,
   neverFails,
   type BaselineKey,
   type Described,
@@ -317,10 +318,10 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // keeps the path.
       const before = await readSidecar(places).catch(async () => ({ placedFor: placedForIn(await rawRecord(places)) }));
       occupied(before?.placedFor, key, path);
-      // Encoded here, on the accept, and nowhere a comparison runs: a run that
-      // changes nothing never calls this. Before the first write too, so an
-      // image no WebP can hold is refused with the tree as it was.
-      const kept = raster.bytes === undefined ? undefined : await keepImage(Buffer.from(raster.bytes, 'base64'));
+      // Checked, never encoded: the caller encodes before `put` (`keptRaster`),
+      // so this store runs no codec. Before the first write, so bytes it must
+      // not keep are refused with the tree as it was.
+      const kept = raster.bytes === undefined ? undefined : unkeptRefused(Buffer.from(raster.bytes, 'base64'), path);
       await mkdir(dirname(places.record), { recursive: true });
       const record = `${JSON.stringify(
         { ...raster, bytes: undefined, ...(kept === undefined ? {} : { image: KEPT_AS }), placedFor: placedForOf(key) },
@@ -450,4 +451,18 @@ async function rawRecord(places: Places): Promise<unknown> {
   } catch {
     return undefined;
   }
+}
+
+/** The bytes, once they are an image this store keeps; refused by name otherwise. */
+function unkeptRefused(bytes: Buffer, path: string): Buffer {
+  try {
+    refuseUnkept(bytes);
+  } catch (error) {
+    throw new RasterStoreError(
+      `the baseline at ${path} was not written: ${messageOf(error)} Pass the raster through ` +
+        '`keptRaster` from `@variance-authority/store/keep` before `put`.',
+      { cause: error },
+    );
+  }
+  return bytes;
 }

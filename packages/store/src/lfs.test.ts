@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
-import { RED, kept } from './image.fixture.js';
+import { RED } from './image.fixture.js';
 
 /**
  * Baselines in the repository, and the three things that can quietly go wrong.
@@ -81,7 +81,7 @@ describe('a baseline store in the repository', () => {
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe(await kept(RED));
+    expect(found?.raster.bytes).toBe(RED);
     // At the durable layout's path, not somewhere of this store's own devising.
     const path = join(root, 'todo--empty-chromium.webp');
     expect((await stat(path)).isFile()).toBe(true);
@@ -222,7 +222,7 @@ describe('a machine that cannot be asked about tracking', () => {
     const store = await createLfsStore({ root, git: absent });
     await store.put({ subject: 's' }, rasterOf(MAC, RED));
 
-    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(await kept(RED));
+    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(RED);
     expect(store.tracking.filter).toBeNull();
     expect(store.tracking.diagnostics.join('\n')).toMatch(/git could not be run/);
   });
@@ -337,7 +337,7 @@ describe('a clone without git-lfs', () => {
     const store = await createLfsStore({ root, git: WITHOUT_LFS });
     await store.put({ subject: 's' }, rasterOf(MAC, RED));
 
-    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(await kept(RED));
+    expect((await store.find({ subject: 's' }, MAC))?.raster.bytes).toBe(RED);
   });
 });
 
@@ -368,7 +368,7 @@ describe('against a real git', () => {
 
       expect((await readdir(root)).sort()).toEqual(['.gitattributes', 'todo--empty-chromium.webp']);
       expect(await readdir(records)).toEqual(['todo--empty-chromium.json']);
-      expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe(await kept(RED));
+      expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe(RED);
     } finally {
       await rm(records, { recursive: true, force: true });
     }

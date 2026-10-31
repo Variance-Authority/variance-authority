@@ -110,6 +110,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@variance-authority/jsx-source": "workspace:^",
+    "@variance-authority/png-sharp": "workspace:^",
     "@variance-authority/remote": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/storybook-collector": "workspace:^",

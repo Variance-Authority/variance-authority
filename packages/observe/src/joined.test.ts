@@ -19,6 +19,7 @@ import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { observeAgainstBaseline, observeRasters } from './observe.js';
 import { packSnapshot } from './packed.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * A control replaced by a larger element, decided against a stored baseline.
@@ -159,7 +160,7 @@ afterEach(async () => {
 
 async function againstBaseline(baseline: Raster): ReturnType<typeof observeAgainstBaseline> {
   const store = createDurableStore(root);
-  await store.put({ subject: 's' }, baseline);
+  await store.put({ subject: 's' }, await keptRaster(baseline));
   return await observeAgainstBaseline(DOCUMENT, { subject: 's' }, {
     renderer: rendererOf(AFTER_IMAGE),
     store,
@@ -241,7 +242,7 @@ describe('an unchanged baseline that kept no snapshot', () => {
 
   it('is not marked when this run collected none to record', async () => {
     const store = createDurableStore(root);
-    await store.put({ subject: 's' }, raster(AFTER_IMAGE, 'v1:before'));
+    await store.put({ subject: 's' }, await keptRaster(raster(AFTER_IMAGE, 'v1:before')));
     const observation = await observeAgainstBaseline(DOCUMENT, { subject: 's' }, {
       renderer: rendererOf(AFTER_IMAGE),
       store,

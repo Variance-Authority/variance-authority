@@ -35,8 +35,10 @@ a codec.
 Node 22 or newer. ESM only — these packages are `"type": "module"` and ship no
 CommonJS build.
 
-`pngjs` decodes PNG, `pixelmatch` compares, and `@jsquash/webp` reads and
-writes lossless WebP through libwebp compiled to WebAssembly. All three are
+`pngjs` decodes PNG, `pixelmatch` compares, and `@jsquash/webp` reads WebP
+through libwebp's decoder compiled to WebAssembly. Nothing here encodes a WebP:
+an accepted baseline is encoded natively, by `keepImage` in
+`@variance-authority/png-sharp`. All three are
 ordinary dependencies, so there is nothing to choose and nothing native to
 build. The WebP decoder is a 135 KB module compiled on the first WebP a process
 reads, so a run that reads only PNGs never loads it. The PNG decoder accepts:
@@ -248,7 +250,9 @@ the bytes arrive cannot change a verdict.
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Promise<Buffer>` |
 | `changeImages` | `(before: DecodedImage, after: DecodedImage, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
-| `keepImage` | `(bytes: Buffer) => Promise<Buffer>` |
+| `refuseUnkept` | `(bytes: Uint8Array) => void` |
+| `isLosslessWebp` | `(bytes: Uint8Array) => boolean` |
+| `refuseOversize` | `(bytes: Uint8Array) => void` |
 | `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
 | `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
@@ -310,15 +314,12 @@ each source beside its label. The text is Inter, drawn from glyphs shipped in
 `glyphs/` with no browser and no font on the machine; Inter is under the SIL
 Open Font License 1.1, in `glyphs/inter-LICENSE.txt`.
 
-`keepImage` turns an accepted capture into the bytes a baseline store keeps: a
-lossless WebP that decodes to every channel of every pixel the capture held,
-including the colour under a fully transparent pixel. Before it returns, it
-decodes its own output and compares it with the capture, and it throws rather
-than keep anything else. A WebP passes through untouched. A WebP holds at most
-16,383 pixels on a side (`KEEP_LIMIT`), so a larger capture is refused, read
-from its header before any pixel is decoded. It runs once per accepted change,
-never on a comparison: on a full-page capture it halves the PNG in about the
-time `pngjs` takes to decode it.
+`refuseUnkept` is the check a baseline store makes before it writes: it throws
+unless the bytes are a lossless WebP, naming what they are instead — a PNG, a
+lossy WebP, or neither — and refuses one over 16,383 pixels on a side
+(`KEEP_LIMIT`). `isLosslessWebp` is the same test as a boolean, read from the
+RIFF chunks without decoding, and `refuseOversize` the size half alone, read
+from the header before any pixel is.
 
 `imageFormat` reads which of the two formats the bytes declare. `imageSize`
 reads the width and height out of a PNG's or a lossless WebP's header without

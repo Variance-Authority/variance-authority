@@ -58,5 +58,8 @@
     "@variance-authority/raster": "workspace:^",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.4"
   }
 }

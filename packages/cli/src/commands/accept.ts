@@ -7,6 +7,7 @@ import { promotionOf, selectByShape, whyNotWhole } from '@variance-authority/rep
 import { OperatorError } from '../exit.js';
 import type { CliObservationRecord, CliRunReport } from './run.js';
 import { readCliRunReport } from './run-report.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * `variance accept` — record that a change became the baseline.
@@ -264,7 +265,7 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
         subject: observation.subject,
         ...observation.baselineKey,
       },
-      raster,
+      await keptRaster(raster),
     );
     if (observation.verdict === 'unchanged') restamped += 1;
     else accepted.push({ subject: observation.subject, from: after });

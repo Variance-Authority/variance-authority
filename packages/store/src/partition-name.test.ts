@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
-import { BLUE, GREEN, RED, kept } from './image.fixture.js';
+import { BLUE, BLUE_PNG, GREEN, RED, RED_PNG, asPng } from './image.fixture.js';
 
 /**
  * What an identity partition is called on disk, and the name it used to be called.
@@ -36,7 +36,7 @@ async function oldPair(holder: string, leaf: string, raster: Raster, spelling: '
   const digest = identityDigest(raster.identity);
   const directory = join(holder, spelling === 'raw' ? digest : digestFileName(digest));
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, `${leaf}.png`), Buffer.from(raster.bytes!, 'base64'));
+  await writeFile(join(directory, `${leaf}.png`), Buffer.from(asPng(raster.bytes!), 'base64'));
   await writeFile(join(directory, `${leaf}.json`), JSON.stringify({ ...raster, bytes: undefined }));
 }
 
@@ -81,7 +81,7 @@ describe('a partition named with the raw digest', () => {
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe(RED);
+    expect(found?.raster.bytes).toBe(RED_PNG);
     expect(found?.relocated).toEqual({ from: `${identityDigest(MAC)}/button`, to: 'button-chromium' });
     expect((await store.describe({ subject: 'button' }, MAC))?.comparable).toBe(true);
   });
@@ -103,7 +103,7 @@ describe('a partition named with the raw digest', () => {
 
     const found = await store.find({ subject: 'button' }, MAC);
     expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe(BLUE);
+    expect(found?.raster.bytes).toBe(BLUE_PNG);
   });
 
   it('is found under the id`s own directories, and a component directory is never mistaken for one', async () => {
@@ -123,7 +123,7 @@ describe('a partition named with the raw digest', () => {
     await store.put({ subject: 'button' }, rasterOf(MAC, 'v1:doc', GREEN));
 
     expect(await tree(root)).toEqual(['button-chromium.json', 'button-chromium.webp']);
-    expect((await store.find({ subject: 'button' }, MAC))?.raster.bytes).toBe(await kept(GREEN));
+    expect((await store.find({ subject: 'button' }, MAC))?.raster.bytes).toBe(GREEN);
   });
 
   it('keeps the subjects a `put` did not name', async () => {

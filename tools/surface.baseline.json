@@ -1935,8 +1935,10 @@
         "foreignRaster": "function",
         "imageFormat": "function",
         "imageSize": "function",
-        "keepImage": "function",
-        "pngjsDecoder": "const"
+        "isLosslessWebp": "function",
+        "pngjsDecoder": "const",
+        "refuseOversize": "function",
+        "refuseUnkept": "function"
       },
       "./difference": {
         "ObservePngDifferenceInput": "interface",
@@ -1945,8 +1947,12 @@
       },
       "./header": {
         "ImageFormat": "type",
+        "KEEP_LIMIT": "const",
         "imageFormat": "function",
-        "imageSize": "function"
+        "imageSize": "function",
+        "isLosslessWebp": "function",
+        "refuseOversize": "function",
+        "refuseUnkept": "function"
       },
       "./mask": {
         "AlignedRows": "interface",
@@ -1980,6 +1986,7 @@
     },
     "names": {
       ".": {
+        "keepImage": "function",
         "sharpDecoder": "const"
       }
     }
@@ -3803,6 +3810,10 @@
         "./changelog": {
           "types": "./dist/changelog.d.ts",
           "default": "./dist/changelog.js"
+        },
+        "./keep": {
+          "types": "./dist/keep.d.ts",
+          "default": "./dist/keep.js"
         }
       },
       "files": [
@@ -3855,6 +3866,9 @@
         "Unreadable": "interface",
         "readChangelog": "function",
         "wasRead": "function"
+      },
+      "./keep": {
+        "keptRaster": "function"
       }
     }
   },

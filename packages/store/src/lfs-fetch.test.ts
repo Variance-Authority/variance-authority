@@ -7,7 +7,7 @@ import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 import { fetchingReader } from './lfs-fetch.js';
-import { kept, RED } from './image.fixture.js';
+import { RED } from './image.fixture.js';
 import { createLfsStore, runCommand, type CommandResult, type CommandRunner } from './lfs.js';
 
 /**
@@ -333,7 +333,7 @@ describe('against a real git with git-lfs', () => {
       expect(reader.tracking.diagnostics).toEqual([]);
       const found = await reader.find({ subject: 'page--empty' }, MAC);
 
-      expect(found?.raster.bytes).toBe(await kept(IMAGE));
+      expect(found?.raster.bytes).toBe(IMAGE);
       expect(
         await readFile(join(clone, 'app/[slug]/a!b/page--full-chromium.webp'), 'utf8'),
       ).toMatch(/^version https:\/\/git-lfs/);

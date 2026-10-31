@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
-import { RED, kept } from './image.fixture.js';
+import { RED } from './image.fixture.js';
 
 const MAC: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -62,7 +62,7 @@ describe('the record location', () => {
       // And the halves are still one baseline to every reader.
       const found = await store.find({ subject: 'todo--empty' }, MAC);
       expect(found?.comparable).toBe(true);
-      expect(found?.raster.bytes).toBe(await kept(RED));
+      expect(found?.raster.bytes).toBe(RED);
       expect((await store.describe({ subject: 'todo--empty' }, MAC))?.pictured).toBe(true);
     } finally {
       await rm(records, { recursive: true, force: true });

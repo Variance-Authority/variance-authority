@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestFileName, fileNameFor, identityDigest, type Raster, type RenderIdentity } from '@variance-authority/core/format';
 import type { BaselineKey } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
-import { RED } from './image.fixture.js';
+import { RED, asPng } from './image.fixture.js';
 
 /**
  * A repository that kept its baselines under the identity partition upgrades
@@ -48,7 +48,7 @@ afterEach(async () => {
 async function legacyPair(holder: string, leaf: string, raster: Raster): Promise<string> {
   const directory = join(holder, digestFileName(identityDigest(raster.identity)));
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, `${leaf}.png`), Buffer.from(raster.bytes!, 'base64'));
+  await writeFile(join(directory, `${leaf}.png`), Buffer.from(asPng(raster.bytes!), 'base64'));
   await writeFile(join(directory, `${leaf}.json`), JSON.stringify({ ...raster, bytes: undefined }));
   return directory;
 }

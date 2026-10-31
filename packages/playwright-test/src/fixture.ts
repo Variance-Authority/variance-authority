@@ -53,6 +53,7 @@ import {
 } from './renderers.js';
 import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * The optional Playwright fixture parts, for a suite that already owns a shared
@@ -417,12 +418,15 @@ async function observeAcquired(
       ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
     });
     if (adopts(observation, run)) {
-      await store.put(key, {
-        ...candidate,
-        components: hashComponents(heldSnapshot),
-        snapshot: packSnapshot(heldSnapshot),
-        accessibility: held.accessibility,
-      });
+      await store.put(
+        key,
+        await keptRaster({
+          ...candidate,
+          components: hashComponents(heldSnapshot),
+          snapshot: packSnapshot(heldSnapshot),
+          accessibility: held.accessibility,
+        }),
+      );
       return accepted(observation);
     }
     return await withEvidence(runtime, key, observation, async () => candidate);

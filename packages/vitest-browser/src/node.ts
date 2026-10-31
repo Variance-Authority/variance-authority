@@ -17,6 +17,7 @@ import {
   sweepRenderCache,
 } from '@variance-authority/store/durable';
 import { OBSERVE_COMMAND, type Observed, type ObserveRequest } from './protocol.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * The half that runs in the Vitest process.
@@ -259,10 +260,13 @@ async function promote(
   // snapshot, which carries provenance a document does not. Promoting the
   // cached raster as-is would record a baseline with no hashes at all, and
   // every later run against it would rank regions by area.
-  await store.put(key, {
-    ...candidate,
-    ...(artifact.snapshot === undefined
-      ? {}
-      : { components: hashComponents(artifact.snapshot), snapshot: packSnapshot(artifact.snapshot) }),
-  });
+  await store.put(
+    key,
+    await keptRaster({
+      ...candidate,
+      ...(artifact.snapshot === undefined
+        ? {}
+        : { components: hashComponents(artifact.snapshot), snapshot: packSnapshot(artifact.snapshot) }),
+    }),
+  );
 }

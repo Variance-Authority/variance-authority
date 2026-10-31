@@ -85,9 +85,11 @@ which document, with which fonts missing. It stays text, and reviewable, in
 every placement. A labelled image — a second viewport or state of one subject —
 appends the label to the name after `__`.
 
-The image is a lossless WebP: every pixel you accepted, in about half the bytes
-of the PNG that was captured. It is encoded once, when you accept, and never
-while a run compares. A baseline committed as a `.png` before is read as it is,
+The image is a lossless WebP: every pixel you accepted, in about a quarter of
+the bytes of the PNG that was captured. A fully transparent pixel keeps only its
+transparency, not the colour under it, which no comparison can see. It is
+encoded once, by `sharp` on the machine that accepts, and never while a run
+compares. A baseline committed as a `.png` before is read as it is,
 and its next accept replaces it with the `.webp`. A WebP holds at most 16,383
 pixels on a side, so an accept refuses a taller page by name.
 
