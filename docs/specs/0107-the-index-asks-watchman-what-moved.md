@@ -65,7 +65,13 @@ update is the same code whichever source answered.
   listing. A path the listing marks dirty whose stat
   has not moved since the generation, by git's racy-clean rule, is not hashed
   again, so the dirty set stops being paid on every update; `status` itself
-  costs what it costs today.
+  costs what it costs today. The bytes are not the only input of a blob name:
+  `.gitattributes` and git's configuration choose the clean filter, and the
+  same CRLF bytes hash to another blob under `core.autocrlf=true` than under
+  `false`. So the skip holds only while every filter input is where the
+  generation left it — the stats of §3 and the blob name of every
+  `.gitattributes` the generation holds; when any moved, every dirty path is
+  hashed again.
 - **Watchman** (§3) is the source where the repository runs it. It names what
   Watchman reports since the clock the generation carries.
 - **The caller** is a source. `ScanOptions.changed`, which `help` and `ask`
@@ -84,7 +90,9 @@ update is the same code whichever source answered.
 The update takes the delta and:
 
 1. drops every reported path from the listing and the records, and adds back
-   those that are files on disk and in the index's scope (§4);
+   those that are files on disk, in the index's scope (§4), and either tracked
+   in git's index or not named by `git check-ignore --stdin -z`; a path that
+   fails is left out of the listing and left alone on disk;
 2. hashes those paths with `hash-object --stdin-paths`;
 3. updates the membership digest of each directory a path was added to or
    removed from;
@@ -140,9 +148,13 @@ common directory, the ref `HEAD` names, `packed-refs`, `info/exclude`,
 system config, `core.excludesFile` and `core.attributesFile`:
 
 - **Ignore rules.** Watchman does not read `.gitignore`; on Material UI an
-  unknown clock reported 202,919 files against 41,171 tracked ones. A path the
-  generation does not hold joins only when `git check-ignore --stdin -z` does
-  not name it, so the cost follows the new paths. A reported `.gitignore` or
+  unknown clock reported 202,919 files against 41,171 tracked ones. An
+  untracked path joins or stays only when `git check-ignore --stdin -z` does
+  not name it (§2, step 1), so the cost follows the reported paths. When an
+  ignore input moved — a reported `.gitignore`, `info/exclude`,
+  `core.excludesFile` or a config that names it — every untracked path the
+  generation holds joins the delta, so a file the new rule ignores leaves the
+  listing though nothing wrote it. A reported `.gitignore` or
   `.gitattributes`, or any moved file of those above except `index`, `HEAD` and
   the refs, changes which paths are in and which blob name bytes
   hash to without touching those paths: the update takes the git source.
@@ -178,8 +190,11 @@ system config, `core.excludesFile` and `core.attributesFile`:
   tree the query costs the same with it as without (0.19 ms and 0.21 ms), since
   the wait counts from the last event. An event that still arrives after the
   answer carries a tick after the clock the generation records, so the next
-  update reports it. A bulk write by something other than git may reach the
-  index one update late on macOS; it is never lost.
+  update that asks after Watchman has it reports it. FSEvents bounds neither
+  when that is nor how many updates pass first, so on macOS a bulk write by
+  something other than git reaches the index eventually, with no bound on how
+  many updates later; it is never lost while the clock holds, and a recrawl or
+  a dropped-events flag is `is_fresh_instance`, the git source.
 
 Anything Watchman cannot vouch for — a generation with no clock, a clock for
 another root or another server, `is_fresh_instance`, a recrawl, a socket error
@@ -246,7 +261,9 @@ monitor removes and a second cache would not.
    `add -f` and `rm --cached`, a commit with no file changed, a branch switch, a
    case-only rename on macOS, a watch above the checkout, a read-only
    checkout where the sync cookie fails, a linked worktree, a global
-   `core.autocrlf` change, a publish by another process between a caller's
+   `core.autocrlf` change over a dirty CRLF file whose stat does not move, an
+   untracked held file a new `.gitignore` rule ignores, which leaves the
+   listing and stays on disk, a publish by another process between a caller's
    reading and its update, a tracked file inside an `ignore_dirs` directory, a
    write that lands after an update's answer and before its publish, and a
    checkout between two commits thousands of files apart, run on macOS.
