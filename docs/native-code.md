@@ -38,7 +38,7 @@ combined, and it is downloaded into Playwright's own cache rather than into
 `node_modules`.
 
 The one WebAssembly module is libwebp's decoder, compiled for `@jsquash/webp`,
-which reads a kept baseline back wherever `sharp` does not load. It runs on every platform Node does, so it has no binaries to
+which reads a kept baseline back whenever the decoder is `pngjs`: the default, and wherever `sharp` does not load. It runs on every platform Node does, so it has no binaries to
 miss. Two wasm PNG decoders were measured against the pure-JavaScript one and
 both were slower, so captures have no portable-and-fast middle option.
 

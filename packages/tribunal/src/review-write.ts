@@ -299,6 +299,10 @@ export async function promote(
     ...snapshotField(optionalText(row, 'candidate_snapshot', 'a build subject')),
   };
 
+  // FIXME: an approval keeps the candidate as the PNG it was captured as. Every
+  // other accept keeps a lossless WebP through `keptRaster`, which needs sharp,
+  // and this Worker cannot load it; a run still reads this baseline, as a
+  // baseline kept before WebP.
   await baselines.put({ subject }, raster);
 }
 

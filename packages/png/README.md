@@ -248,11 +248,13 @@ the bytes arrive cannot change a verdict.
 | `comparePngs` | `(before: Buffer, after: Buffer, options?: CompareOptions) => RasterComparison` |
 | `comparePixels` | `(left: DecodedImage, right: DecodedImage, options?: CompareOptions) => RasterComparison` |
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
-| `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy) => Promise<Buffer>` |
+| `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy, decoder?: PngDecoder) => Promise<Buffer>` |
 | `changeImages` | `(before: DecodedImage, after: DecodedImage, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
+| `decodePortable` | `(bytes: Buffer) => Promise<DecodedImage>` |
 | `refuseUnkept` | `(bytes: Uint8Array) => void` |
 | `isLosslessWebp` | `(bytes: Uint8Array) => boolean` |
 | `refuseOversize` | `(bytes: Uint8Array) => void` |
+| `KEEP_LIMIT` | `16_383`, the widest and tallest image a WebP holds |
 | `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
 | `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |

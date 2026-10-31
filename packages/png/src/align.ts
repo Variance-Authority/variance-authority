@@ -192,11 +192,28 @@ function runsOf(rows: Float64Array): Runs {
   return { hash: hash.subarray(0, count), start, length };
 }
 
-/** The pixels as one 32-bit word each, without a copy when the bytes allow it. */
+/**
+ * The pixels as one 32-bit word each, without a copy when the bytes allow it.
+ * A fully transparent pixel reads as 0 whatever colour it carries: a kept WebP
+ * drops that colour, no comparison sees it, so neither may a row's identity.
+ * The words are little-endian, so alpha is the top byte.
+ */
 function wordsOf({ width, height, data }: DecodedImage): Uint32Array {
-  return data.byteOffset % 4 === 0
-    ? new Uint32Array(data.buffer, data.byteOffset, width * height)
-    : new Uint32Array(Uint8Array.from(data).buffer);
+  const words =
+    data.byteOffset % 4 === 0
+      ? new Uint32Array(data.buffer, data.byteOffset, width * height)
+      : new Uint32Array(Uint8Array.from(data).buffer);
+  const first = words.findIndex(hidden);
+  if (first === -1) return words;
+  // Never written over the caller's pixels: a view is copied first.
+  const cleared = words.buffer === data.buffer ? words.slice() : words;
+  for (let index = first; index < cleared.length; index += 1) if (hidden(cleared[index]!)) cleared[index] = 0;
+  return cleared;
+}
+
+/** A fully transparent pixel that still carries a colour. */
+function hidden(word: number): boolean {
+  return word !== 0 && word < 0x01000000;
 }
 
 function same(left: Uint32Array, leftRow: number, right: Uint32Array, rightRow: number, width: number): boolean {
