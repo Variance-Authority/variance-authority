@@ -110,7 +110,8 @@ against the same image with a 5×5 black square painted into it:
   after: { width: 20, height: 20 },
   changed: { default: 25, strict: 25 },
   total: 400,
-  mask: { width: 20, height: 20, changed: 25, data: Uint8Array(400) }
+  mask: { width: 20, height: 20, changed: 25, data: Uint8Array(400) },
+  alignment: { inserted: [], removed: [], shifted: [] }
 }
 ```
 
