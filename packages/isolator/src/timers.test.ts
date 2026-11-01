@@ -148,7 +148,8 @@ describe('isolateTimers', () => {
     schedule(() => void schedule(() => {}));
     endLoad();
     const leave = enterTest();
-    for (const [, fire] of [...pending]) fire();
+    const due = [...pending.values()];
+    for (const fire of due) fire();
     expect(pending.size).toBe(4);
     leave();
     expect(pending.size).toBe(2);
