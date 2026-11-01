@@ -1,5 +1,7 @@
 # Spec 0107 — the index asks Watchman what moved
 
+**Partly built.** An update over a checkout a running Watchman watches reads
+the listing it held, and runs no git, when nothing moved but paths git ignores.
 **Missing:** an update of the source index that starts from the generation it
 updates and asks what moved since it. Every `variance select` brings the index
 up to the checkout before it reads the graph, and today that update rebuilds
@@ -123,8 +125,9 @@ decode does not read it. Beside it the generation carries its base commit, the
 Watchman clock with the query it answers — the socket path, the watched root
 and the `relative_root` — its ignored directories, and the stats of §3,
 a few hundred bytes. On Kibana the names
-alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index; the spec
-measures the stored form against the index's own size before it ships.
+alone are 12.3 MB, and 0.87 MB after gzip against a 10.5 MB index. Stored, on
+Material UI (41,171 paths) the listing is 3.28 MB — names 2.41 MB, blob names
+0.82 MB — and 0.94 MB after gzip, beside an index of about 21 MB.
 
 **The clock moves with a publish, and a renewal is a publish.** An update that
 changes no record publishes no records, so the clock stays and the next update
@@ -191,6 +194,9 @@ that Watchman reports counts as moved:
   answered by the git source, a `status` scoped to those directories by
   pathspec, as members outside the root are. A reported `.watchmanconfig`
   takes the git source and a fresh `get-config`.
+  `ignore_vcs` (`.git`, `.svn` and `.hg` when unset) hides the directories
+  it names at the watched root the same way, so a listed path inside one
+  leaves the vouch to git.
 - **macOS.** FSEvents gives no ordering guarantee, and Watchman's own
   documentation says a large `git checkout` on a busy host can deliver events
   after the sync cookie. Three things bound it. What git writes in a checkout,
@@ -280,7 +286,7 @@ monitor removes and a second cache would not.
    `core.autocrlf` change over a dirty CRLF file whose stat does not move, an
    untracked held file a new `.gitignore` rule ignores, which leaves the
    listing and stays on disk, a publish by another process between a caller's
-   reading and its update, a tracked file inside an `ignore_dirs` directory, a
+   reading and its update, a tracked file inside an `ignore_dirs` or `ignore_vcs` directory, a
    write that lands after an update's answer and before its publish, and a
    checkout between two commits thousands of files apart, run on macOS.
 2. On a watched checkout, an update with nothing moved runs no `ls-tree`, no

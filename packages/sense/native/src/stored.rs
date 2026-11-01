@@ -129,6 +129,18 @@ impl<'a> Stored<'a> {
         }
     }
 
+    /// Every section as written — name, width and bytes — in the order the segment lays them out.
+    pub fn columns(&self) -> Vec<(&str, u8, &'a [u8])> {
+        let mut columns: Vec<_> = self.sections.iter().map(|(name, &(start, length, width))| (start, name.as_str(), width, &self.bytes[start..start + length])).collect();
+        columns.sort_by_key(|column| column.0);
+        columns.into_iter().map(|(_, name, width, bytes)| (name, width, bytes)).collect()
+    }
+
+    /// A one-byte column a writer may not have written.
+    pub fn maybe_u8s(&self, name: &str) -> Result<Option<&'a [u8]>, String> {
+        self.section(name, 1)
+    }
+
     pub fn u8s(&self, name: &str) -> Result<&'a [u8], String> {
         self.section(name, 1)?.ok_or_else(|| format!("no section {name}"))
     }
