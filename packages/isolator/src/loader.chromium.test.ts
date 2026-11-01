@@ -21,7 +21,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/isolator loader in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/isolator loader in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 /** Launched here: the lease in `@variance-authority/playwright` is published by no entry this package can import. */
