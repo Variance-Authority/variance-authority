@@ -304,7 +304,7 @@ describe('an object a module holds', () => {
     expect(registered()).toBe(1);
   });
 
-  it('keeps what a module put in it as it loaded in a session that already held its own copy, as that session wrote it', () => {
+  it('holds what another module put in it as that module loaded beside what a session that read it first wrote, and in every session after', () => {
     const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
       'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
     );
@@ -317,6 +317,50 @@ describe('an object a module holds', () => {
     register('own');
     load('globalThis.register("plugin");');
     expect(registered()).toBe(2);
+    nextSession();
+    expect(registered()).toBe(1);
+  });
+
+  it('holds what another module put in it as that module loaded in a session that read it before, while another session was in force', () => {
+    const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
+      'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
+    );
+    const host = globalThis as { register?: (name: string) => void };
+    host.register = register;
+    onTestFinished(() => {
+      delete host.register;
+    });
+    nextSession();
+    expect(registered()).toBe(0);
+    isolated(() => load('globalThis.register("plugin");'));
+    expect(registered()).toBe(1);
+  });
+
+  it('holds what another module put in a list, an object and a Set as that module loaded, in a session that read them first', () => {
+    const { add, read } = load<{ add: () => void; read: () => unknown }>(
+      [
+        'const list = [];',
+        'const byName = { nested: { names: [] } };',
+        'const seen = new Set();',
+        'const byKey = new Map([["k", []]]);',
+        'module.exports = {',
+        '  add: () => { list.push("p"); byName.nested.names.push("p"); byName.p = 1; seen.add("p"); byKey.get("k").push("p"); },',
+        '  read: () => [list, byName, [...seen], byKey.get("k")],',
+        '};',
+      ].join('\n'),
+    );
+    const host = globalThis as { add?: () => void };
+    host.add = add;
+    onTestFinished(() => {
+      delete host.add;
+    });
+    nextSession();
+    read();
+    load('globalThis.add();');
+    const after = [['p'], { nested: { names: ['p'] }, p: 1 }, ['p'], ['p']];
+    expect(read()).toEqual(after);
+    nextSession();
+    expect(read()).toEqual(after);
   });
 
   it('is a copy of its own in every session, as deep as arrays, plain objects and Map values go', () => {

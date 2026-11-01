@@ -89,14 +89,29 @@ export function importedNames(body: readonly Node[]): string[] {
     .map((specifier) => (specifier.local as Node).name as string);
 }
 
-/** Whether a node `test` accepts is in a value, inside its functions too only when `deep`. */
+/**
+ * Whether a node `test` accepts is in a value, inside its functions too only
+ * when `deep`. Short of `deep`, a class is entered where it runs as it is
+ * defined — what it extends, its decorators, computed keys, static fields and
+ * static blocks — and not in its methods or instance fields.
+ */
 export function reaches(value: unknown, test: (node: Node) => boolean, deep: boolean): boolean {
   if (Array.isArray(value)) return value.some((item) => reaches(item, test, deep));
   if (!isNode(value)) return false;
   if (test(value)) return true;
-  if (!deep && /^(?:Function(?:Expression|Declaration)|ArrowFunctionExpression|Class(?:Expression|Declaration))$/.test(value.type)) return false;
+  if (!deep && /^Class(?:Expression|Declaration)$/.test(value.type)) {
+    return reaches([value.superClass, value.decorators], test, deep) || ((value.body as Node).body as Node[]).some((member) => definedWith(member, test));
+  }
+  if (!deep && /^(?:Function(?:Expression|Declaration)|ArrowFunctionExpression)$/.test(value.type)) return false;
   for (const key in value) if (key !== 'type' && reaches(value[key], test, deep)) return true;
   return false;
+}
+
+/** Whether a class member runs a node `test` accepts as its class is defined. */
+function definedWith(member: Node, test: (node: Node) => boolean): boolean {
+  if (member.type === 'StaticBlock') return reaches(member.body, test, false);
+  if (reaches(member.decorators, test, false) || (member.computed === true && reaches(member.key, test, false))) return true;
+  return member.static === true && member.type !== 'MethodDefinition' && reaches(member.value, test, false);
 }
 
 /**

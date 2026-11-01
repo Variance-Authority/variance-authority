@@ -256,7 +256,16 @@ describe('isolate: the runtime it imports', () => {
   });
 
   it.each([
-    ['declarations alone', "import { a } from './a.js';\nexport function f() { a(); }\nexport class C { m() { a(); } }"],
+    ['a static block', "import { register } from './registry.js';\nclass Plugin { static { register('plugin'); } }"],
+    ['a static field', "import { register } from './registry.js';\nclass Plugin { static id = register('plugin'); }"],
+    ['a computed key', "import { key } from './registry.js';\nclass Plugin { [key()]() {} }"],
+    ['a class it extends', "import { base } from './registry.js';\nexport class Plugin extends base() {}"],
+  ])('marks a module as loading when its class runs a call as it is defined, in %s', (_, code) => {
+    expect(out(code)).toBe(`${header('{}')}${code}`);
+  });
+
+  it.each([
+    ['declarations alone', "import { a } from './a.js';\nexport function f() { a(); }\nexport class C { m() { a(); } field = a(); }"],
     ['its own exports', 'module.exports = { f: () => 1 };\nexports.g = 2;'],
     ['its own variables', 'export {};\n// @isolator-ignore\nlet a = 0;\na = 1;'],
   ])('leaves a module whose top level writes %s', (_, code) => {

@@ -83,8 +83,10 @@ The module runs each step once, as it reaches it, as it always did, and what
 it holds when its last statement has run — a `let` reassigned, a handler
 pushed, a `Map` filled — is where every session starts, the one it loaded in
 too. What it writes into another module as it loads, such as a plugin it adds
-to a registry that module holds, is kept the same way, for every session after
-it, since the module is not loaded again for them. A session copies those values the first time it reads the module: arrays, plain objects
+to a registry that module holds, lands in every session — the ones that already
+read that registry, beside what they wrote, and every one after — since the
+module is not loaded again for them. A class's static fields and static blocks
+run as it loads too. A session copies those values the first time it reads the module: arrays, plain objects
 and the values of a `Map` are copied as deep as they go, one copy per object, so
 `const y = { x }` still holds that session's `x`. A `Set`'s members, a `Map`'s
 keys, a frozen object and an instance of a class are the same objects in every

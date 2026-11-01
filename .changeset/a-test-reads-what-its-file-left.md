@@ -12,9 +12,9 @@ starts on the values its modules were loaded with, and each test runs in a
 session of its own that starts from what the file wrote while it was collected
 and in its `beforeAll` and `afterAll` hooks. What the test, its `beforeEach` and
 its `afterEach` write is dropped when it ends. What a module writes into
-another module as it loads, such as a plugin it adds to a registry, is kept for
-every session after it: a module loads once, and on a page of its own the
-registration would be there.
+another module as it loads, such as a plugin it adds to a registry, lands in
+every session, the ones that already read the registry and every one after: a
+module loads once, and on a page of its own the registration would be there.
 
 A concurrent test starts from the same file session, through
 `isolateConcurrentTests` and `isolateConcurrentEach`.
