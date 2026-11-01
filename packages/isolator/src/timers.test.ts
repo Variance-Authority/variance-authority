@@ -17,6 +17,11 @@ beforeEach(() => {
   nextSession();
 });
 
+/** Start over at setup: a realm in which no session has started yet. */
+const atSetup = () => {
+  delete (globalThis as Record<symbol, unknown>)[REALM];
+};
+
 /** Enter a test of the current file, as ioc's driver does; the returned function leaves it. */
 const enterTest = (): (() => void) => {
   const session = testSession();
@@ -81,6 +86,21 @@ describe('isolateTimers', () => {
     expect(pending.size).toBe(0);
   });
 
+  it('tells apart handles a browser numbers in separate pools', () => {
+    const timers = fakeHost();
+    const frames = fakeHost();
+    const host = { ...timers.host, requestAnimationFrame: frames.host.setTimeout, cancelAnimationFrame: frames.host.clearTimeout };
+    onTestFinished(isolateTimers(host));
+    const leave = enterTest();
+    (host.setInterval as (callback: () => void) => number)(() => {});
+    (host.requestAnimationFrame as (callback: () => void) => number)(() => {});
+    const [[handle, frame]] = [...frames.pending];
+    frames.pending.delete(handle);
+    frame!();
+    leave();
+    expect(timers.pending.size).toBe(0);
+  });
+
   it('installs nothing on a second call', () => {
     const { host } = fakeHost();
     onTestFinished(isolateTimers(host));
@@ -104,6 +124,15 @@ describe('isolateTimers', () => {
     (host.setInterval as (callback: () => void) => number)(() => {});
     endLoad();
     leave();
+    nextSession();
+    expect(pending.size).toBe(1);
+  });
+
+  it('keeps what setup schedules before any session starts', () => {
+    atSetup();
+    const { host, pending } = fakeHost();
+    onTestFinished(isolateTimers(host));
+    (host.setInterval as (callback: () => void) => number)(() => {});
     nextSession();
     expect(pending.size).toBe(1);
   });

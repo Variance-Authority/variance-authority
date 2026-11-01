@@ -5,7 +5,7 @@
  * `EventTarget.prototype`.
  */
 
-import { installOnce, realm } from './realm.js';
+import { inEverySession, installOnce, realm } from './realm.js';
 import { currentSession } from './session.js';
 
 type Listener = NonNullable<Parameters<EventTarget['addEventListener']>[1]>;
@@ -90,8 +90,10 @@ function installListeners(options: IsolateListenersOptions): () => void {
       owned = running;
       if (owned === undefined) {
         const session = currentSession();
-        owned = sessions.get(session);
-        if (owned === undefined) sessions.set(session, (owned = new Set()));
+        if (!inEverySession(session)) {
+          owned = sessions.get(session);
+          if (owned === undefined) sessions.set(session, (owned = new Set()));
+        }
       }
     }
     const once = given?.once === true;

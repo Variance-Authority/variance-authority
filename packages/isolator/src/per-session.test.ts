@@ -25,6 +25,11 @@ const enterTest = (): (() => void) => {
   return () => switchTo(realm().file, session);
 };
 
+/** Start over at setup: a realm in which no session has started yet. */
+const atSetup = () => {
+  delete (globalThis as Record<symbol, unknown>)[REALM];
+};
+
 /** Run `body` as a rewritten module's top level runs. */
 const loading = (body: () => void) => {
   startLoad();
@@ -86,6 +91,19 @@ describe('perSession', () => {
     expect(registry.items).toEqual(['file', 'loaded']);
     nextSession();
     expect(registry.items).toEqual(['loaded']);
+  });
+
+  it('keeps what setup writes before any session starts, in every session to come', () => {
+    atSetup();
+    const object: Record<string, unknown> = {};
+    const registry = perSession(object);
+    registry.setup = 'kept';
+    nextSession();
+    expect(registry.setup).toBe('kept');
+    const leave = enterTest();
+    registry.setup = 'test';
+    leave();
+    expect(registry.setup).toBe('kept');
   });
 
   it('refuses a property fixed for good, which no session could take back', () => {
@@ -196,6 +214,18 @@ describe('isolateEnv', () => {
     expect(process.env.TZ).toBe(before);
   });
 
+  it('installs nothing where there is no process, as in a browser', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'process')!;
+    Object.defineProperty(globalThis, 'process', { value: undefined, configurable: true, writable: true });
+    let undo: () => void;
+    try {
+      undo = isolateEnv();
+    } finally {
+      Object.defineProperty(globalThis, 'process', descriptor);
+    }
+    expect(undo).toBeTypeOf('function');
+  });
+
   it('installs nothing on a second call', () => {
     const undo = isolateEnv();
     onTestFinished(undo);
@@ -250,6 +280,15 @@ describe('isolateGlobals', () => {
     leave();
     nextSession();
     expect(target).toEqual({ polyfill: 'loaded' });
+  });
+
+  it('keeps what setup adds before any session starts', () => {
+    atSetup();
+    const target: Record<string, unknown> = {};
+    onTestFinished(isolateGlobals(target));
+    target.setup = 'kept';
+    nextSession();
+    expect(target).toEqual({ setup: 'kept' });
   });
 
   it('leaves a property that cannot be configured', () => {

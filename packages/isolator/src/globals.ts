@@ -16,8 +16,11 @@ import { currentSession } from './session.js';
  * `TZ` is written through to the real environment and put back as the fallback
  * session switches, since Node reads the timezone from there; a `TZ` set in a
  * session a source answers with stays in that session's `process.env`.
+ * Without a `process`, as in a browser, it installs nothing.
  */
 export function isolateEnv(): () => void {
+  // A browser has no environment to isolate, and a bundle may name `process` without defining it.
+  if (typeof process === 'undefined' || process?.env === undefined) return () => {};
   return installOnce('env', process, () => {
     const real = process.env;
     // Sessions copy from what the environment held here, not from the real one,
@@ -73,7 +76,8 @@ function installGlobals(target: object): () => void {
   const switched = (ended: object | undefined) => {
     const before = ended === undefined ? undefined : found.get(ended);
     if (before !== undefined) {
-      restore(target, before);
+      // What setup changed before any session started stays, as a load's does.
+      if (ended !== state.base) restore(target, before);
       found.delete(ended!);
     }
     const session = currentSession();

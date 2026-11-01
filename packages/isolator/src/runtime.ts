@@ -7,7 +7,7 @@
  */
 
 import { copied, copies, fanned } from './copies.js';
-import { endLoad, realm, startLoad } from './realm.js';
+import { endLoad, inEverySession, startLoad } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
@@ -72,8 +72,8 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
 
   const own = (): Copy => {
     if (loading) return base;
-    if (realm().loading > 0) return everywhere();
     const session = currentSession();
+    if (inEverySession(session)) return everywhere();
     if (session === lastSession) return lastCopy;
     const copy = held.of(session);
     lastSession = session;

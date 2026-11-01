@@ -15,6 +15,11 @@ beforeEach(() => {
   nextSession();
 });
 
+/** Start over at setup: a realm in which no session has started yet. */
+const atSetup = () => {
+  delete (globalThis as Record<symbol, unknown>)[REALM];
+};
+
 /** Enter a test of the current file, as ioc's driver does; the returned function leaves it. */
 const enterTest = (): (() => void) => {
   const session = testSession();
@@ -61,6 +66,17 @@ describe('isolateListeners', () => {
     leave();
     target.dispatchEvent(new Event('ping'));
     expect(loaded).toHaveBeenCalledOnce();
+  });
+
+  it('keeps what setup adds before any session starts', () => {
+    atSetup();
+    onTestFinished(isolateListeners());
+    const target = new EventTarget();
+    const setup = vi.fn();
+    target.addEventListener('ping', setup);
+    nextSession();
+    target.dispatchEvent(new Event('ping'));
+    expect(setup).toHaveBeenCalledOnce();
   });
 
   it('reports only what is still attached, with where it was added', () => {

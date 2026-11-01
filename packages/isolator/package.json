@@ -85,6 +85,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@rspack/core": "^2.2.6",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",

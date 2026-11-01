@@ -5239,6 +5239,7 @@ __metadata:
   resolution: "@variance-authority/isolator@workspace:packages/isolator"
   dependencies:
     "@jridgewell/remapping": "npm:^2.3.5"
+    "@playwright/test": "npm:^1.62.1"
     "@rspack/core": "npm:^2.2.6"
     "@swc/jest": "npm:^0.2.39"
     "@types/picomatch": "npm:^4.0.3"

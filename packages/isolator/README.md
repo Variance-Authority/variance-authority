@@ -233,11 +233,26 @@ export default {
 };
 
 // .storybook/preview.js
-import { nextSession } from '@variance-authority/isolator';
+import { isolateGlobals, isolateListeners, isolateTimers, nextSession } from '@variance-authority/isolator';
+import { createRoot } from 'react-dom/client';
 import { addons } from 'storybook/preview-api';
 
-addons.getChannel().on('setCurrentStory', () => nextSession());
+isolateTimers();
+isolateListeners();
+isolateGlobals();
+createRoot(document.getElementById('storybook-root')).unmount();
+
+addons.getChannel().on('currentStoryWasSet', () => nextSession());
 ```
+
+`currentStoryWasSet` fires for every story selected, the one the URL opens
+included, so the first story does not run in the session of the page's boot.
+The `isolate…` calls end what a story leaves outside its modules: its timers,
+its listeners and what it adds to `window`. What the preview does as it loads
+belongs to the boot and every story keeps it. That is why the preview makes and
+unmounts a React root: React adds its listeners to the canvas once and marks
+it, so listeners the first story's render added would end with that story while
+the mark stayed, and no click would reach the next one.
 
 Under Vite alone the plugin rewrites every module but the ones `exclude`
 names. Leave out the Storybook config and the story files: Storybook reads a
@@ -277,7 +292,9 @@ out of the rule, as the Jest transformer does: a test file's own `let` carries
 what a `beforeAll` set into the tests after it.
 
 In a browser, call `nextSession()` before every run, so each starts from the
-values its modules were loaded with.
+values its modules were loaded with. The runtime and the `isolate…` functions
+need nothing of Node, so a bundle built for the web runs them as they are;
+`isolateEnv()` installs nothing where there is no `process`.
 
 ## Run it in another tool
 
@@ -374,7 +391,9 @@ isolateListeners();
 
 What a rewritten module does as it loads — a property it defines, a timer it
 starts, a listener it adds — belongs to no session and stays, as it would on
-every fresh page that loads the module. What a timer callback schedules, or a
+every fresh page that loads the module. So does what setup does before the
+first test starts, a Storybook preview as it boots included: every session
+finds it. What a timer callback schedules, or a
 listener adds, belongs to whoever scheduled or added that callback: a chain
 `beforeAll` starts runs on through the file, whichever test it fires in.
 `perSession(object, { store, wrote })` is the proxy
@@ -456,7 +475,9 @@ nobody holds any more takes its values with it.
   called.** The isolator does not see that load. If a package first runs inside a
   test and defines a global, starts a timer or adds a listener there, the
   `isolate…` functions take it back when the test ends. The module stays cached
-  and its own flag still says it has done its setup.
+  and its own flag still says it has done its setup. React's root listeners are
+  one such setup: make and unmount a root in setup, as the Storybook preview
+  above does, so they belong to it.
 - **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
   `EventTarget` only. The test runners themselves listen on `process`.
 - **A timer started through `node:timers`.** `isolateTimers` wraps the globals.

@@ -4,19 +4,32 @@
  * never sees. Opt-in, since it wraps the globals.
  */
 
-import { installOnce, realm } from './realm.js';
+import { inEverySession, installOnce, realm } from './realm.js';
 import { currentSession } from './session.js';
 
-/** A scheduling global and the global that cancels what it returns. */
+/**
+ * A scheduling global, the global that cancels what it returns, whether it
+ * fires once, and the pool its handles are numbered in: a browser numbers
+ * timeouts and intervals together and animation frames apart, so a frame and
+ * an interval can share a number.
+ */
 const PAIRS = [
-  ['setTimeout', 'clearTimeout', true],
-  ['setInterval', 'clearInterval', false],
-  ['setImmediate', 'clearImmediate', true],
-  ['requestAnimationFrame', 'cancelAnimationFrame', true],
+  ['setTimeout', 'clearTimeout', true, 'timer'],
+  ['setInterval', 'clearInterval', false, 'timer'],
+  ['setImmediate', 'clearImmediate', true, 'immediate'],
+  ['requestAnimationFrame', 'cancelAnimationFrame', true, 'frame'],
 ] as const;
 
 type Scheduler = (callback: (...args: unknown[]) => void, ...rest: unknown[]) => unknown;
 type Canceller = (handle: unknown) => void;
+
+/** A timer still pending, with the set of its owner's pending timers. */
+interface Pending {
+  readonly handle: unknown;
+  readonly clear: Canceller;
+  readonly pool: string;
+  readonly owner: Set<Pending>;
+}
 
 /**
  * Cancel, as each session ends, every timer it scheduled that is still
@@ -33,36 +46,42 @@ export function isolateTimers(target: Record<string, unknown> = globalThis as ne
 
 function installTimers(target: Record<string, unknown>): () => void {
   const state = realm();
-  const pending = new WeakMap<object, Map<unknown, Canceller>>();
-  // Each pending handle, with its session's handles: a session nothing ends holds nothing.
-  const owners = new Map<unknown, Map<unknown, Canceller>>();
-  const forget = (handle: unknown) => {
-    owners.get(handle)?.delete(handle);
-    owners.delete(handle);
+  // What each session has pending, and each pending timer by its pool and handle.
+  const pending = new WeakMap<object, Set<Pending>>();
+  const pools = new Map<string, Map<unknown, Pending>>();
+  const forget = (timer: Pending | undefined) => {
+    if (timer === undefined) return;
+    timer.owner.delete(timer);
+    pools.get(timer.pool)?.delete(timer.handle);
   };
   // Whose callback runs now: what it schedules is its scheduler's, so a chain a
   // file or a load started is not taken by the test it fires in. `null` is a load's.
-  let running: Map<unknown, Canceller> | null | undefined;
+  let running: Set<Pending> | null | undefined;
   const undo: (() => void)[] = [];
-  for (const [schedule, cancel, once] of PAIRS) {
+  for (const [schedule, cancel, once, pool] of PAIRS) {
     const original = target[schedule] as Scheduler | undefined;
     const originalCancel = target[cancel] as Canceller | undefined;
     if (typeof original !== 'function' || typeof originalCancel !== 'function') continue;
+    const handles = pools.get(pool) ?? new Map<unknown, Pending>();
+    pools.set(pool, handles);
     const clear: Canceller = (handle) => originalCancel.call(target, handle);
     function scheduled(this: unknown, callback: (...args: unknown[]) => void, ...rest: unknown[]): unknown {
       if (typeof callback !== 'function') return Reflect.apply(original!, this, [callback, ...rest]);
-      let handles: Map<unknown, Canceller> | null;
-      if (state.loading > 0 || running === null) handles = null;
-      else if (running !== undefined) handles = running;
+      let owner: Set<Pending> | null;
+      if (state.loading > 0 || running === null) owner = null;
+      else if (running !== undefined) owner = running;
       else {
         const session = currentSession();
-        handles = pending.get(session) ?? null;
-        if (handles === null) pending.set(session, (handles = new Map()));
+        if (inEverySession(session)) owner = null;
+        else {
+          owner = pending.get(session) ?? null;
+          if (owner === null) pending.set(session, (owner = new Set()));
+        }
       }
-      const owner = handles;
+      let timer: Pending | undefined;
       const handle: unknown = Reflect.apply(original!, this, [
         function (this: unknown, ...args: unknown[]) {
-          if (once) forget(handle);
+          if (once) forget(timer);
           const outer = running;
           running = owner;
           try {
@@ -74,13 +93,14 @@ function installTimers(target: Record<string, unknown>): () => void {
         ...rest,
       ]);
       if (owner !== null) {
-        owner.set(handle, clear);
-        owners.set(handle, owner);
+        timer = { handle, clear, pool, owner };
+        owner.add(timer);
+        handles.set(handle, timer);
       }
       return handle;
     }
     function cancelled(this: unknown, handle: unknown): void {
-      forget(handle);
+      forget(handles.get(handle));
       Reflect.apply(originalCancel!, this, [handle]);
     }
     // What the original carries beyond a function's own, such as Node's
@@ -95,13 +115,14 @@ function installTimers(target: Record<string, unknown>): () => void {
     });
   }
   const switched = (ended: object | undefined) => {
-    const handles = ended === undefined ? undefined : pending.get(ended);
-    if (handles === undefined) return;
+    const timers = ended === undefined ? undefined : pending.get(ended);
+    if (timers === undefined) return;
     pending.delete(ended!);
-    for (const [handle, clear] of handles) {
-      owners.delete(handle);
-      clear(handle);
+    for (const timer of timers) {
+      pools.get(timer.pool)?.delete(timer.handle);
+      timer.clear(timer.handle);
     }
+    timers.clear();
   };
   state.switched.add(switched);
   return () => {

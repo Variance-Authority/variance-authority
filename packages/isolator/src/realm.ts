@@ -9,6 +9,8 @@ export type SessionSource = () => object | undefined;
 interface Realm {
   readonly sources: SessionSource[];
   fallback: object;
+  /** The fallback session before any was started: setup, whose writes every session starts from. */
+  base: object;
   /** The file's session: what collection and once-per-scope hooks wrote. */
   file: object;
   /** The session each test session starts from. */
@@ -32,7 +34,7 @@ export interface Loads {
 const REALM = Symbol.for('@variance-authority/isolator');
 
 /** What an older copy of this module made: only `sources` and `fallback` are sure. */
-type Optional = 'file' | 'parents' | 'loading' | 'switched' | 'loads' | 'installed';
+type Optional = 'base' | 'file' | 'parents' | 'loading' | 'switched' | 'loads' | 'installed';
 type Stored = Omit<Realm, Optional> & Partial<Pick<Realm, Optional>>;
 
 type Host = typeof globalThis & { [REALM]?: Stored };
@@ -45,6 +47,7 @@ type Host = typeof globalThis & { [REALM]?: Stored };
  */
 export const realm = (): Realm => {
   const state = ((globalThis as Host)[REALM] ??= { sources: [], fallback: {} });
+  state.base ??= state.fallback;
   state.file ??= state.fallback;
   state.parents ??= new WeakMap();
   state.loading ??= 0;
@@ -82,6 +85,16 @@ export function switchTo(session: object, ended: object | undefined): void {
   }
   if (failures.length === 1) throw failures[0];
   if (failures.length > 1) throw new AggregateError(failures, 'the ended session left more than one leak');
+}
+
+/**
+ * Whether what runs now lands in every session, as a fresh page would hold it:
+ * a rewritten module's top level, or setup — anything that runs before the
+ * first session starts, outside any source's session.
+ */
+export function inEverySession(current: object): boolean {
+  const state = realm();
+  return state.loading > 0 || current === state.base;
 }
 
 /** Count one more top level running; the first tells who listens. */

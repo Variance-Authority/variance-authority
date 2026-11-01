@@ -39,3 +39,14 @@ it("gives every Jest test what its file's collection and once-per-scope hooks wr
   ).catch((error: { stderr?: string }) => ({ stderr: error.stderr ?? '' }));
   expect(stderr).toContain('Tests:       5 passed, 5 total');
 });
+
+it('ends what a Jest test left on timers, listeners, globals and the environment, and keeps what setup left', async () => {
+  const cache = await mkdtemp(resolve(tmpdir(), 'variance-authority-isolator-'));
+  temporary.push(cache);
+  const { stderr } = await execute(
+    process.execPath,
+    [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', '--testMatch', '<rootDir>/test/leftovers/*.case.ts'],
+    { cwd: fixture, env: { ...process.env, ISOLATOR_JEST_CACHE: cache } },
+  ).catch((error: { stderr?: string }) => ({ stderr: error.stderr ?? '' }));
+  expect(stderr).toContain('Tests:       2 passed, 2 total');
+});

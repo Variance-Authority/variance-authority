@@ -119,3 +119,27 @@ live('stories switched on one page under the isolator', () => {
     }
   }, 120_000);
 });
+
+live('what a story leaves on the page, outside its modules', () => {
+  it('ends with the story, and the next story still renders and answers a click', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    try {
+      const frame = page;
+      await show(page, ['isolated-leftover--leaves']);
+      expect(await frame.evaluate(() => globalThis.leftover)).toBe('left');
+      await show(page, ['isolated-leftover--counts']);
+      await page.locator('#storybook-root button').click();
+      await expect.poll(() => page.locator('#storybook-root output').textContent()).toBe('1');
+      const left = await frame.evaluate(async () => {
+        const ticks = document.body.dataset.ticks;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        window.dispatchEvent(new Event('va-ping'));
+        return { global: globalThis.leftover, ticking: document.body.dataset.ticks !== ticks, pinged: document.body.dataset.pinged };
+      });
+      expect(left).toEqual({ global: undefined, ticking: false, pinged: undefined });
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+});

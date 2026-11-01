@@ -222,6 +222,7 @@ a fresh module graph per file does the same again. A module-scoped flag reads
 |---|---|---|
 | `@variance-authority/ioc/reset` | `registerResetHandler(handler)` | Records a reset; returns a function that unregisters it. Inert until a driver exists. |
 | `@variance-authority/ioc/reset` | `registerTestScope(scope)` | Has the driver call `scope.enterFile()` as it installs, `scope.enterTest()` before each test's handlers, and `scope.leaveTest()` after each test. Gated as a handler is. |
+| `@variance-authority/ioc/reset` | `driverInstalled()` | Whether a driver is installed: a scope registering once one exists joined a file the driver already entered. |
 | `@variance-authority/ioc/reset/setup` | `configureResetHandler(each, after)` | Installs the driver on the runner's `beforeEach` and `afterEach`. Throws if a handler or a scope registered first. |
 
 One handler that throws does not stop the others: every handler runs, and the

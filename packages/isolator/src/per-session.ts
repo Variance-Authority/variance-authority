@@ -5,7 +5,7 @@
  */
 
 import { copied, copies, fanned } from './copies.js';
-import { realm } from './realm.js';
+import { inEverySession } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How {@link perSession} writes a value. */
@@ -30,7 +30,7 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
   const store = options.store ?? ((value: unknown) => value);
   const held = copies<object>(object, (from) => snapshot(from));
   const own = (): object => held.of(currentSession());
-  const loading = () => realm().loading > 0;
+  const loading = () => inEverySession(currentSession());
   // A loading module reads what the current session holds, without making it a
   // copy, and writes, as deep as it goes, into the object and every copy.
   const read = (): object => {
