@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { endLoad, realm, startLoad, switchTo, testSession } from './realm.js';
 import { nextSession } from './session.js';
+import { isolateGlobals } from './globals.js';
 import { isolateTimers } from './timers.js';
 
 const REALM = Symbol.for('@variance-authority/isolator');
@@ -49,6 +50,33 @@ describe('isolateTimers', () => {
     leave();
     expect([...pending.keys()]).toEqual([kept]);
     nextSession();
+    expect(pending.size).toBe(0);
+  });
+
+  it('leaves a chain the file started to the file, when it reschedules inside a test', () => {
+    const { host, pending } = fakeHost();
+    onTestFinished(isolateTimers(host));
+    const schedule = host.setTimeout as (callback: () => void) => number;
+    const tick = () => void schedule(tick);
+    schedule(tick);
+    const leave = enterTest();
+    const [[handle, fire]] = [...pending];
+    pending.delete(handle);
+    fire!();
+    leave();
+    expect(pending.size).toBe(1);
+    nextSession();
+    expect(pending.size).toBe(0);
+  });
+
+  it('keeps cancelling after isolateGlobals restores the globals it found first', () => {
+    const { host, pending } = fakeHost();
+    onTestFinished(isolateGlobals(host));
+    onTestFinished(isolateTimers(host));
+    nextSession();
+    const leave = enterTest();
+    (host.setTimeout as (callback: () => void) => number)(() => {});
+    leave();
     expect(pending.size).toBe(0);
   });
 

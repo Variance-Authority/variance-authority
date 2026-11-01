@@ -369,7 +369,10 @@ isolateListeners();
 
 What a rewritten module does as it loads — a property it defines, a timer it
 starts, a listener it adds — belongs to no session and stays, as it would on
-every fresh page that loads the module. `perSession(object, { store, wrote })` is the proxy
+every fresh page that loads the module. What a timer callback schedules, or a
+listener adds, belongs to whoever scheduled or added that callback: a chain
+`beforeAll` starts runs on through the file, whichever test it fires in.
+`perSession(object, { store, wrote })` is the proxy
 `isolateEnv` is built on, for any other object a session should hold its own
 copy of: `store` turns a written value into what the object would hold, as
 `String` does for the environment, and `wrote` is told of each key a session
@@ -451,6 +454,10 @@ nobody holds any more takes its values with it.
 - **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
   `EventTarget` only. The test runners themselves listen on `process`.
 - **A timer started through `node:timers`.** `isolateTimers` wraps the globals.
+- **A write inside a global object, for `isolateGlobals`.** It puts back the
+  properties of `globalThis` itself: `globalThis.config = {}` is undone,
+  `globalThis.config.debug = true` is not. Hold such an object with
+  `perSession`.
 
 ## License
 

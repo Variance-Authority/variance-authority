@@ -88,7 +88,7 @@ describe('isolateListeners', () => {
     expect(loaded).toHaveBeenCalledOnce();
   });
 
-  it('removes every listener left, and still ends the session, when report throws', () => {
+  it('removes every listener left, tells each one, and still ends the session, when report throws', () => {
     const others = vi.fn();
     realm().switched.add(others);
     onTestFinished(() => void realm().switched.delete(others));
@@ -105,12 +105,44 @@ describe('isolateListeners', () => {
     const leave = enterTest();
     target.addEventListener('first', first);
     target.addEventListener('second', second);
-    expect(leave).toThrow('left first');
+    let thrown: unknown;
+    try {
+      leave();
+    } catch (failure) {
+      thrown = failure;
+    }
+    expect((thrown as AggregateError).errors.map((error: Error) => error.message)).toEqual(['left first', 'left second']);
     target.dispatchEvent(new Event('first'));
     target.dispatchEvent(new Event('second'));
     expect(first).not.toHaveBeenCalled();
     expect(second).not.toHaveBeenCalled();
     expect(others).toHaveBeenCalled();
+  });
+
+  it('keeps what a listener the file added adds while a test runs, and leaves it to the file', () => {
+    onTestFinished(isolateListeners());
+    const target = new EventTarget();
+    const chained = vi.fn();
+    target.addEventListener('ping', () => target.addEventListener('chained', chained), { once: true });
+    const leave = enterTest();
+    target.dispatchEvent(new Event('ping'));
+    leave();
+    target.dispatchEvent(new Event('chained'));
+    expect(chained).toHaveBeenCalledOnce();
+    nextSession();
+    target.dispatchEvent(new Event('chained'));
+    expect(chained).toHaveBeenCalledOnce();
+  });
+
+  it('reports no once listener the target dropped, even one that stopped the event', () => {
+    const report = vi.fn<(left: LeftListener) => void>();
+    onTestFinished(isolateListeners({ report }));
+    const target = new EventTarget();
+    const leave = enterTest();
+    target.addEventListener('ping', (event) => event.stopImmediatePropagation(), { once: true });
+    target.dispatchEvent(new Event('ping'));
+    leave();
+    expect(report).not.toHaveBeenCalled();
   });
 
   it('installs nothing on a second call', () => {

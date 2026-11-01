@@ -37,7 +37,10 @@ export function isolateEnv(): () => void {
     switched.add(syncTimezone);
     return () => {
       switched.delete(syncTimezone);
-      if (process.env === env) process.env = real;
+      if (process.env !== env) return;
+      process.env = real;
+      if (base.TZ === undefined) delete real.TZ;
+      else real.TZ = base.TZ;
     };
   });
 }

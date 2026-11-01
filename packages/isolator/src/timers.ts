@@ -40,6 +40,9 @@ function installTimers(target: Record<string, unknown>): () => void {
     owners.get(handle)?.delete(handle);
     owners.delete(handle);
   };
+  // Whose callback runs now: what it schedules is its scheduler's, so a chain a
+  // file or a load started is not taken by the test it fires in. `null` is a load's.
+  let running: Map<unknown, Canceller> | null | undefined;
   const undo: (() => void)[] = [];
   for (const [schedule, cancel, once] of PAIRS) {
     const original = target[schedule] as Scheduler | undefined;
@@ -47,21 +50,33 @@ function installTimers(target: Record<string, unknown>): () => void {
     if (typeof original !== 'function' || typeof originalCancel !== 'function') continue;
     const clear: Canceller = (handle) => originalCancel.call(target, handle);
     function scheduled(this: unknown, callback: (...args: unknown[]) => void, ...rest: unknown[]): unknown {
-      if (typeof callback !== 'function' || state.loading > 0) return Reflect.apply(original!, this, [callback, ...rest]);
-      const session = currentSession();
+      if (typeof callback !== 'function') return Reflect.apply(original!, this, [callback, ...rest]);
+      let handles: Map<unknown, Canceller> | null;
+      if (state.loading > 0 || running === null) handles = null;
+      else if (running !== undefined) handles = running;
+      else {
+        const session = currentSession();
+        handles = pending.get(session) ?? null;
+        if (handles === null) pending.set(session, (handles = new Map()));
+      }
+      const owner = handles;
       const handle: unknown = Reflect.apply(original!, this, [
-        once
-          ? function (this: unknown, ...args: unknown[]) {
-              forget(handle);
-              return Reflect.apply(callback, this, args);
-            }
-          : callback,
+        function (this: unknown, ...args: unknown[]) {
+          if (once) forget(handle);
+          const outer = running;
+          running = owner;
+          try {
+            return Reflect.apply(callback, this, args);
+          } finally {
+            running = outer;
+          }
+        },
         ...rest,
       ]);
-      let handles = pending.get(session);
-      if (handles === undefined) pending.set(session, (handles = new Map()));
-      handles.set(handle, clear);
-      owners.set(handle, handles);
+      if (owner !== null) {
+        owner.set(handle, clear);
+        owners.set(handle, owner);
+      }
       return handle;
     }
     function cancelled(this: unknown, handle: unknown): void {

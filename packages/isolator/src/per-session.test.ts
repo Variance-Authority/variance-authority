@@ -88,6 +88,12 @@ describe('perSession', () => {
     expect(registry.items).toEqual(['loaded']);
   });
 
+  it('refuses a property fixed for good, which no session could take back', () => {
+    const registry = perSession<Record<string, unknown>>({});
+    expect(() => Object.defineProperty(registry, 'fixed', { value: 1, configurable: false })).toThrow(TypeError);
+    expect('fixed' in registry).toBe(false);
+  });
+
   it('stores a value as the object would store it', () => {
     const registry = perSession<Record<string, unknown>>({}, { store: String });
     registry.port = 3000;
@@ -152,6 +158,18 @@ describe('isolateEnv', () => {
     expect(process.env).toBe(isolated);
     again();
     expect(process.env).toBe(isolated);
+  });
+
+  it('puts TZ back as it found it when undone', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    const undo = isolateEnv();
+    process.env.TZ = 'Asia/Tokyo';
+    undo();
+    expect(process.env.TZ).toBe(before);
   });
 
   it('puts the environment object back when undone', () => {

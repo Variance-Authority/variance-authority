@@ -54,6 +54,8 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
       return true;
     },
     defineProperty(_, key, descriptor) {
+      // A key fixed on the proxy would have to be fixed on its own target, which holds none.
+      if (descriptor.configurable === false) return false;
       if (loading()) {
         const { first, rest } = held.loading(currentSession());
         for (const copy of [first, ...rest]) Reflect.defineProperty(copy, key, copy === object ? descriptor : { ...descriptor, configurable: true });

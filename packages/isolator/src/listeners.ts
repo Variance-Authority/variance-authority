@@ -33,8 +33,10 @@ export interface IsolateListenersOptions {
 /** One attached listener; `owned` is its session's set, absent for one added as a module loaded. */
 interface Entry extends LeftListener {
   readonly listener: Listener;
+  /** What is attached in its place, which runs it under its owner. */
+  readonly attached: (this: EventTarget, event: Event) => void;
   readonly owned: Set<Entry> | undefined;
-  /** Detaches what watches for the target dropping it by itself. */
+  /** Detaches what watches for its signal to abort. */
   unwatch?: (() => void) | undefined;
 }
 
@@ -57,19 +59,22 @@ function installListeners(options: IsolateListenersOptions): () => void {
   const remove = prototype.removeEventListener;
   const index = new WeakMap<EventTarget, Map<string, Map<Listener, Entry>>>();
   const sessions = new WeakMap<object, Set<Entry>>();
-  const forget = (target: EventTarget, key: string, listener: Listener) => {
-    const listeners = index.get(target)?.get(key);
-    const entry = listeners?.get(listener);
-    if (entry === undefined) return;
-    listeners!.delete(listener);
+  // Whose listener runs now: what it adds is its adder's, so a listener a file or
+  // a load added does not hand what it adds to the test it runs in. `null` is a load's.
+  let running: Set<Entry> | null | undefined;
+  const find = (target: EventTarget, key: string, listener: Listener) => index.get(target)?.get(key)?.get(listener);
+  const forget = (entry: Entry) => {
+    index.get(entry.target)?.get(`${entry.capture}:${entry.type}`)?.delete(entry.listener);
     entry.owned?.delete(entry);
     entry.unwatch?.();
   };
 
   const added: Add = function (this: EventTarget, type, listener, settings) {
-    Reflect.apply(add, this, [type, listener, settings]);
     // An aborted signal attaches nothing.
-    if (listener == null || (typeof settings === 'object' && settings.signal?.aborted === true)) return;
+    if (listener == null || (typeof settings === 'object' && settings.signal?.aborted === true)) {
+      Reflect.apply(add, this, [type, listener, settings]);
+      return;
+    }
     const capture = typeof settings === 'boolean' ? settings : settings?.capture === true;
     const key = `${capture}:${type}`;
     let byKey = index.get(this);
@@ -79,33 +84,57 @@ function installListeners(options: IsolateListenersOptions): () => void {
     // Adding what is attached already attaches nothing, whoever added it.
     if (listeners.has(listener)) return;
     let owned: Set<Entry> | undefined;
-    if (state.loading === 0) {
-      const session = currentSession();
-      owned = sessions.get(session);
-      if (owned === undefined) sessions.set(session, (owned = new Set()));
+    if (state.loading === 0 && running !== null) {
+      owned = running;
+      if (owned === undefined) {
+        const session = currentSession();
+        owned = sessions.get(session);
+        if (owned === undefined) sessions.set(session, (owned = new Set()));
+      }
     }
-    const added = options.report === undefined || owned === undefined ? '' : (new Error().stack ?? '');
-    const entry: Entry = { target: this, type, capture, added, listener, owned };
+    const once = typeof settings === 'object' && settings.once === true;
+    const owner = owned ?? null;
+    const entry: Entry = {
+      target: this,
+      type,
+      capture,
+      added: options.report === undefined || owned === undefined ? '' : (new Error().stack ?? ''),
+      listener,
+      attached(event) {
+        // The target dropped a `once` listener as it dispatched it.
+        if (once) forget(entry);
+        const outer = running;
+        running = owner;
+        try {
+          if (typeof listener === 'function') listener.call(this, event);
+          else listener.handleEvent(event);
+        } finally {
+          running = outer;
+        }
+      },
+      owned,
+    };
+    Reflect.apply(add, this, [type, entry.attached, settings]);
     listeners.set(listener, entry);
     owned?.add(entry);
-    if (typeof settings !== 'object') return;
-    // What the target drops by itself is no longer anyone's to remove.
-    const dropped = () => forget(this, key, listener);
-    const { once, signal } = settings;
-    if (once === true) Reflect.apply(add, this, [type, dropped, { capture, once: true }]);
-    if (signal != null) Reflect.apply(add, signal, ['abort', dropped, { once: true }]);
-    if (once === true || signal != null) {
-      entry.unwatch = () => {
-        if (once === true) Reflect.apply(remove, this, [type, dropped, { capture }]);
-        if (signal != null) Reflect.apply(remove, signal, ['abort', dropped]);
-      };
+    const signal = typeof settings === 'object' ? settings.signal : undefined;
+    if (signal != null) {
+      // What the target drops by itself is no longer anyone's to remove.
+      const dropped = () => forget(entry);
+      Reflect.apply(add, signal, ['abort', dropped, { once: true }]);
+      entry.unwatch = () => Reflect.apply(remove, signal, ['abort', dropped]);
     }
   };
   const removed: Remove = function (this: EventTarget, type, listener, settings) {
-    Reflect.apply(remove, this, [type, listener, settings]);
-    if (listener == null) return;
     const capture = typeof settings === 'boolean' ? settings : settings?.capture === true;
-    forget(this, `${capture}:${type}`, listener);
+    const entry = listener == null ? undefined : find(this, `${capture}:${type}`, listener);
+    if (entry === undefined) {
+      Reflect.apply(remove, this, [type, listener, settings]);
+      return;
+    }
+    forget(entry);
+    // Node reads `capture` only from an options object.
+    Reflect.apply(remove, this, [type, entry.attached, { capture }]);
   };
   prototype.addEventListener = added;
   prototype.removeEventListener = removed;
@@ -116,11 +145,21 @@ function installListeners(options: IsolateListenersOptions): () => void {
     sessions.delete(ended!);
     const left = [...owned];
     for (const entry of left) {
-      // Node reads `capture` only from an options object.
-      Reflect.apply(remove, entry.target, [entry.type, entry.listener, { capture: entry.capture }]);
-      forget(entry.target, `${entry.capture}:${entry.type}`, entry.listener);
+      forget(entry);
+      Reflect.apply(remove, entry.target, [entry.type, entry.attached, { capture: entry.capture }]);
     }
-    if (options.report !== undefined) for (const { target, type, capture, added } of left) options.report({ target, type, capture, added });
+    if (options.report === undefined) return;
+    // Every leftover is told, even when telling one throws.
+    const failures: unknown[] = [];
+    for (const { target, type, capture, added } of left) {
+      try {
+        options.report({ target, type, capture, added });
+      } catch (failure) {
+        failures.push(failure);
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, 'the ended session left more than one listener');
   };
   state.switched.add(switched);
   return () => {

@@ -117,11 +117,22 @@ export function installOnce(kind: string, subject: object, install: () => () => 
   let kinds = installed.get(subject);
   if (kinds === undefined) installed.set(subject, (kinds = new Map()));
   if (kinds.has(kind)) return () => {};
-  const undo = install();
+  // What an isolation puts in place is there on every fresh page, as what a
+  // module does as it loads is: no session's end takes it away.
+  const undo = asLoad(install);
   kinds.set(kind, undo);
   return () => {
     if (kinds.get(kind) !== undo) return;
     kinds.delete(kind);
-    undo();
+    asLoad(undo);
   };
+}
+
+function asLoad<T>(body: () => T): T {
+  startLoad();
+  try {
+    return body();
+  } finally {
+    endLoad();
+  }
 }
