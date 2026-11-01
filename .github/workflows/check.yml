@@ -1198,6 +1198,9 @@ jobs:
 
       - uses: ./.github/actions/build
 
+      # The unit slice holds `docs_grep`'s tests, as at the same step in `suite`.
+      - uses: ./.github/actions/ripgrep
+
       - name: run the unit slice on shared modules
         shell: bash
         run: yarn test:shared
