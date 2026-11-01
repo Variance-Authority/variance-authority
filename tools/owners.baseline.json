@@ -670,6 +670,11 @@
     "count": 1
   },
   {
+    "idiom": "timer",
+    "at": "packages/isolator/src/timers.test.ts",
+    "count": 2
+  },
+  {
     "idiom": "fresh-page",
     "at": "packages/playwright-test/src/arranged.chromium.test.ts",
     "count": 2

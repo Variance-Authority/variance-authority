@@ -84,6 +84,7 @@ describe('isolateTimers', () => {
     const fired = vi.fn();
     const late = vi.fn();
     const leave = enterTest();
+    // The timers are the subject here, on fake time: nothing waits on them.
     setTimeout(fired, 0);
     vi.advanceTimersByTime(1);
     setTimeout(late, 0);
