@@ -12,28 +12,21 @@
 // stories, shown the same way on one page, skip the reset: the gap between them
 // and the isolated stories is what the isolator costs per switch. Reports the median of `runs` (5 by
 // default) per story; a time is one machine's.
-import { createServer } from 'node:http';
-import { existsSync, readFileSync } from 'node:fs';
-import { extname, join, normalize } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { collectStories } from '@variance-authority/storybook';
+import { serveStatic } from './serve.mjs';
 
 const ROOT = fileURLToPath(new URL('../storybook-isolated', import.meta.url));
 const STORIES = Number(process.argv[2] ?? 40);
 const RUNS = Number(process.argv[3] ?? 5);
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css' };
 
 if (!existsSync(join(ROOT, 'index.json'))) throw new Error('No isolated build: yarn workspace @variance-authority/case-storybook build-storybook:isolated');
 
-const server = createServer((request, response) => {
-  const path = decodeURIComponent((request.url ?? '/').split('?')[0]);
-  const resolved = join(ROOT, normalize(path === '/' ? '/index.html' : path));
-  if (!resolved.startsWith(ROOT) || !existsSync(resolved)) return response.writeHead(404).end();
-  response.writeHead(200, { 'content-type': TYPES[extname(resolved)] ?? 'application/octet-stream' }).end(readFileSync(resolved));
-});
-await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const baseUrl = `http://127.0.0.1:${server.address().port}`;
+const server = await serveStatic(ROOT);
+const { baseUrl } = server;
 const alternate = (first, second) => Array.from({ length: STORIES }, (_, index) => (index % 2 === 0 ? first : second));
 const ids = alternate('isolated-tally--first', 'isolated-tally--second');
 const shared = alternate('isolated-tally--shared-first', 'isolated-tally--shared-second');
@@ -92,5 +85,5 @@ try {
   }
 } finally {
   await browser.close();
-  server.close();
+  await server.close();
 }

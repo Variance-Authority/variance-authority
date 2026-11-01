@@ -284,8 +284,8 @@ loads once. Built without the plugin, the test fails.
 new page per story, checks that every story read 1, and prints the median time
 per story. It shows the two shared stories on one page too, so the gap between
 the shared and the isolated stories is what the reset costs per switch. On an
-M4 Max: 6.1 ms per story on one page with the reset, 6.2 ms without it, and
-123 ms on a page per story.
+M4 Max: 6.1 ms per story on one page, with the reset or without it, and 114 ms
+on a page per story.
 
 ## Driving the CLI end to end
 
