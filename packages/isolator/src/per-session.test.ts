@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 import { isolateEnv, isolateGlobals } from './globals.js';
 import { perSession } from './per-session.js';
+import { isolateTimers } from './timers.js';
 import { endLoad, realm, startLoad, switchTo, testSession } from './realm.js';
 import { nextSession } from './session.js';
 
@@ -194,6 +195,17 @@ describe('isolateGlobals', () => {
     Object.defineProperty(target, 'fixed', { value: 1, enumerable: true });
     leave();
     expect(target.fixed).toBe(1);
+  });
+
+  it('installs nothing on a second call, and keeps apart what isolates the same object', () => {
+    const target: Record<string, unknown> = {};
+    onTestFinished(isolateGlobals(target));
+    onTestFinished(isolateGlobals(target));
+    onTestFinished(isolateTimers(target as never));
+    const leave = enterTest();
+    target.added = true;
+    leave();
+    expect('added' in target).toBe(false);
   });
 
   it('stops when undone', () => {

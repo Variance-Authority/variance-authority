@@ -17,7 +17,7 @@ import { currentSession } from './session.js';
  * switch, since Node reads the timezone from there.
  */
 export function isolateEnv(): () => void {
-  return installOnce(process, () => {
+  return installOnce('env', process, () => {
     const real = process.env;
     // Sessions copy from what the environment held here, not from the real one,
     // which carries the `TZ` of whichever session wrote it last.
@@ -53,7 +53,7 @@ type Snapshot = Map<PropertyKey, PropertyDescriptor>;
  * that cannot be configured is left as it is.
  */
 export function isolateGlobals(target: object = globalThis): () => void {
-  return installOnce(target, () => installGlobals(target));
+  return installOnce('globals', target, () => installGlobals(target));
 }
 
 function installGlobals(target: object): () => void {

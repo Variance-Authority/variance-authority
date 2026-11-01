@@ -28,7 +28,7 @@ type Canceller = (handle: unknown) => void;
  * @returns a function that puts the globals back; timers still pending stay.
  */
 export function isolateTimers(target: Record<string, unknown> = globalThis as never): () => void {
-  return installOnce(target.setTimeout as object, () => installTimers(target));
+  return installOnce('timers', target, () => installTimers(target));
 }
 
 function installTimers(target: Record<string, unknown>): () => void {

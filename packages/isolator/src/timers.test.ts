@@ -52,6 +52,14 @@ describe('isolateTimers', () => {
     expect(pending.size).toBe(0);
   });
 
+  it('installs nothing on a second call', () => {
+    const { host } = fakeHost();
+    onTestFinished(isolateTimers(host));
+    const wrapped = host.setTimeout;
+    onTestFinished(isolateTimers(host));
+    expect(host.setTimeout).toBe(wrapped);
+  });
+
   it('keeps what a module schedules as it loads', () => {
     const { host, pending } = fakeHost();
     onTestFinished(isolateTimers(host));

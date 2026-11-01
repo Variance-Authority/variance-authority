@@ -113,6 +113,13 @@ describe('isolateListeners', () => {
     expect(others).toHaveBeenCalled();
   });
 
+  it('installs nothing on a second call', () => {
+    onTestFinished(isolateListeners());
+    const wrapped = EventTarget.prototype.addEventListener;
+    onTestFinished(isolateListeners());
+    expect(EventTarget.prototype.addEventListener).toBe(wrapped);
+  });
+
   it('puts the prototype back when undone', () => {
     const add = EventTarget.prototype.addEventListener;
     isolateListeners()();

@@ -47,7 +47,7 @@ interface Entry extends LeftListener {
  */
 export function isolateListeners(options: IsolateListenersOptions = {}): () => void {
   if (typeof EventTarget !== 'function') return () => {};
-  return installOnce(EventTarget.prototype, () => installListeners(options));
+  return installOnce('listeners', EventTarget.prototype, () => installListeners(options));
 }
 
 function installListeners(options: IsolateListenersOptions): () => void {

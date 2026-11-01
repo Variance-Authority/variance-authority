@@ -19,8 +19,8 @@ interface Realm {
   switched: Set<(ended: object | undefined) => void>;
   /** Told as the first rewritten module starts its top level and as the last one ends. */
   loads: Set<Loads>;
-  /** What an `isolate…` function installed, by what it isolates: a second call installs nothing. */
-  installed: WeakMap<object, () => void>;
+  /** What each `isolate…` function installed, by what it isolates and by function: a second call installs nothing. */
+  installed: WeakMap<object, Map<string, () => void>>;
 }
 
 /** Hears when rewritten modules start and stop running their top levels. */
@@ -107,19 +107,21 @@ export function endLoad(): void {
 }
 
 /**
- * Install what isolates `subject` once per realm: a setup file that runs again
+ * Install the `kind` of isolation for `subject` once per realm: a setup file that runs again
  * for every file in one worker gets the installation already there.
  *
  * @returns what undoes the installation, or nothing for a call that installed nothing.
  */
-export function installOnce(subject: object, install: () => () => void): () => void {
+export function installOnce(kind: string, subject: object, install: () => () => void): () => void {
   const { installed } = realm();
-  if (installed.has(subject)) return () => {};
+  let kinds = installed.get(subject);
+  if (kinds === undefined) installed.set(subject, (kinds = new Map()));
+  if (kinds.has(kind)) return () => {};
   const undo = install();
-  installed.set(subject, undo);
+  kinds.set(kind, undo);
   return () => {
-    if (installed.get(subject) !== undo) return;
-    installed.delete(subject);
+    if (kinds.get(kind) !== undo) return;
+    kinds.delete(kind);
     undo();
   };
 }
