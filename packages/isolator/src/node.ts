@@ -8,6 +8,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { realm } from './realm.js';
 import { addSessionSource } from './session.js';
 
 const STORAGE = Symbol.for('@variance-authority/isolator/node');
@@ -37,6 +38,13 @@ export function isolated<T>(fn: () => T): T {
   return storage.run({}, fn);
 }
 
+/** Run a test's `fn` in a session of its own that starts from what its file wrote outside tests. */
+function isolatedTest<T>(fn: () => T): T {
+  const session = {};
+  realm().parents.set(session, realm().file);
+  return storage.run(session, fn);
+}
+
 /** A test registrar such as Jest's `test.concurrent`, with its variants hung on it. */
 export type Registrar = ((name: unknown, fn?: unknown, ...rest: unknown[]) => unknown) & { [variant: string | symbol]: unknown };
 
@@ -46,7 +54,7 @@ export type Registrar = ((name: unknown, fn?: unknown, ...rest: unknown[]) => un
  *
  * A concurrent test runs no `beforeEach`, and its body interleaves with the
  * others', so no reset between tests can separate them: each body starts
- * through {@link isolated} instead. The variants hung on `test.concurrent` —
+ * in a session of its own, from what its file wrote outside tests. The variants hung on `test.concurrent` —
  * `only`, `skip`, `failing`, `each` — are wrapped too. In Jest `it` is the
  * same object as `test`.
  */
@@ -66,12 +74,12 @@ export type AroundEach = (hook: (runTest: () => unknown, context: { readonly tas
  * session around it would win over that reset.
  */
 export function isolateConcurrentEach(aroundEach: AroundEach): void {
-  aroundEach((runTest, { task }) => (task.concurrent === true ? isolated(runTest) : runTest()));
+  aroundEach((runTest, { task }) => (task.concurrent === true ? isolatedTest(runTest) : runTest()));
 }
 
 function isolating(register: Registrar): Registrar {
   const wrapped = ((name: unknown, fn?: unknown, ...rest: unknown[]) =>
-    register(name, typeof fn === 'function' ? (...args: unknown[]) => isolated(() => fn(...args)) : fn, ...rest)) as Registrar;
+    register(name, typeof fn === 'function' ? (...args: unknown[]) => isolatedTest(() => fn(...args)) : fn, ...rest)) as Registrar;
   for (const [variant, value] of Object.entries(register)) {
     if (typeof value !== 'function') wrapped[variant] = value;
     else if (variant === 'each') wrapped[variant] = (...table: unknown[]) => isolating(value(...table) as Registrar);

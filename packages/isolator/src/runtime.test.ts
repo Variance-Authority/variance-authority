@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
-import { isolated } from './node.js';
+import { isolateConcurrentEach, isolated } from './node.js';
 import * as runtime from './runtime.js';
 import { addSessionSource, nextSession } from './session.js';
 import { isolate } from './transform.js';
@@ -76,7 +76,10 @@ describe('a variable', () => {
     });
     delete (globalThis as Record<symbol, unknown>)[IOC];
     const hooks: Array<() => void> = [];
-    configureResetHandler((run) => hooks.push(run));
+    configureResetHandler(
+      (run) => hooks.push(run),
+      () => {},
+    );
     vi.resetModules();
     await import('./session.js');
     const { next, peek } = counter();
@@ -115,8 +118,33 @@ describe('a variable', () => {
     next();
     expect(test(peek)).toBe(2);
     // The next file's setup installs the driver again, before the file is collected.
-    configureResetHandler(() => {});
+    configureResetHandler(
+      () => {},
+      () => {},
+    );
     expect(peek()).toBe(0);
+  });
+
+  it('starts a concurrent test from what its file wrote outside tests, as it starts every other test', async () => {
+    const IOC = Symbol.for('@variance-authority/ioc/reset');
+    const realm = (globalThis as Record<symbol, unknown>)[IOC];
+    onTestFinished(() => {
+      (globalThis as Record<symbol, unknown>)[IOC] = realm;
+    });
+    delete (globalThis as Record<symbol, unknown>)[IOC];
+    configureResetHandler(
+      () => {},
+      () => {},
+    );
+    vi.resetModules();
+    await import('./session.js');
+    const { next, peek } = counter();
+    let around: ((runTest: () => number, context: { task: { concurrent?: boolean } }) => number) | undefined;
+    isolateConcurrentEach((hook) => (around = hook as typeof around));
+    // A `beforeAll` writes outside any test: a concurrent test reads it and keeps its own writes.
+    next();
+    const concurrent = { task: { concurrent: true } };
+    expect([around!(() => (next(), peek()), concurrent), around!(peek, concurrent)]).toEqual([2, 1]);
   });
 
   it('answers with the first source that has a session', () => {

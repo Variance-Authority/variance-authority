@@ -68,10 +68,10 @@ npm install --save-dev @variance-authority/ioc vitest
 
 ```ts
 // vitest.setup.reset.ts
-import { beforeEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 ```
 
 ```ts
@@ -83,14 +83,13 @@ export default defineConfig({
 });
 ```
 
-Hand it the runner's own per-test hook. `configureResetHandler` types that
-argument as the shape Vitest, Jest, Mocha and Playwright hooks share and imports
+Hand it the runner's own per-test hooks. `configureResetHandler` types both
+arguments as the shape Vitest, Jest, Mocha and Playwright hooks share and imports
 none of them, so Jest and Mocha take the same call from their own setup file.
 Playwright is the one that needs a different shape around it, below.
 
-Hand it the runner's `afterEach` as well, `configureResetHandler(beforeEach,
-afterEach)`, when a party keeps state per test rather than resetting it, as
-[the isolator](https://variance-authority.dev/reference/packages/isolator)
+The `afterEach` serves a party that keeps state per test rather than resetting
+it, as [the isolator](https://variance-authority.dev/reference/packages/isolator)
 does: the driver tells it a file started when the setup runs, a test started
 before the handlers run, and a test ended after the `afterEach` hooks.
 
@@ -142,16 +141,23 @@ import { test as base } from '@playwright/test';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
 let resetModules = (): void => {};
+let endTest = (): void => {};
 
-configureResetHandler((run) => {
-  resetModules = run;
-});
+configureResetHandler(
+  (run) => {
+    resetModules = run;
+  },
+  (run) => {
+    endTest = run;
+  },
+);
 
 export const test = base.extend<{ moduleState: void }>({
   moduleState: [
     async ({}, use) => {
       resetModules();
       await use();
+      endTest();
     },
     { auto: true },
   ],
@@ -216,7 +222,7 @@ a fresh module graph per file does the same again. A module-scoped flag reads
 |---|---|---|
 | `@variance-authority/ioc/reset` | `registerResetHandler(handler)` | Records a reset; returns a function that unregisters it. Inert until a driver exists. |
 | `@variance-authority/ioc/reset` | `registerTestScope(scope)` | Has the driver call `scope.enterFile()` as it installs, `scope.enterTest()` before each test's handlers, and `scope.leaveTest()` after each test. Gated as a handler is. |
-| `@variance-authority/ioc/reset/setup` | `configureResetHandler(each, after?)` | Installs the driver on a per-test hook, and on the runner's `afterEach` when given one. Throws if a handler or a scope registered first. |
+| `@variance-authority/ioc/reset/setup` | `configureResetHandler(each, after)` | Installs the driver on the runner's `beforeEach` and `afterEach`. Throws if a handler or a scope registered first. |
 
 One handler that throws does not stop the others: every handler runs, and the
 failures are reported together. Skipping the rest would leave exactly the

@@ -665,10 +665,10 @@ registerResetHandler(() => {
 
 ```ts
 // the first entry in setupFiles
-import { beforeEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 ```
 
 `beforeEach` and not `afterEach`. A failing test does run its `afterEach` — that
@@ -695,7 +695,7 @@ time instead: its Jest transformer and its loader for Rspack and webpack give
 every module-level `let` the module writes and does not export, and every object
 it keeps to itself,
 one value per test, and the
-same driver, handed `afterEach` too, starts each test on a copy of what its
+same driver starts each test on a copy of what its
 file left there while it was collected and in its `beforeAll` hooks. A declaration marked
 `@isolator-ignore` stays shared.
 

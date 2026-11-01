@@ -61,10 +61,15 @@ const entering = (state: ResetRealm, member: 'enterFile' | 'enterTest' | 'leaveT
  * runs on the way in is in the package README.
  *
  * @throws if a handler or a scope registered before this call, naming the first.
+ * @throws a `TypeError` without `after`: a driver that never hears a test end
+ *   would leave a nested `describe`'s `beforeAll` writing into the test before it.
  */
-export const configureResetHandler = (each: EachHook, after?: EachHook): void => {
+export const configureResetHandler = (each: EachHook, after: EachHook): void => {
   const state = realm();
 
+  if (typeof after !== 'function') {
+    throw new TypeError("configureResetHandler takes the runner's afterEach as its second argument: configureResetHandler(beforeEach, afterEach).");
+  }
   if (state.earlyCount > 0) throw misordered(state);
 
   state.configured = true;
@@ -73,9 +78,8 @@ export const configureResetHandler = (each: EachHook, after?: EachHook): void =>
   each(() => {
     runAll([...entering(state, 'enterTest'), ...state.handlers]);
   });
-  // Without `after` no scope hears a test end, and a nested `describe`'s `beforeAll` writes into the test before it.
   // FIXME: Jest runs a test file's top-level `afterEach` after this one, so a scope hears the test end before that hook writes.
-  after?.(() => {
+  after(() => {
     runAll(entering(state, 'leaveTest'));
   });
 };
