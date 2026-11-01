@@ -6,7 +6,8 @@
  * installed.
  */
 
-import { parentSession, realm } from './realm.js';
+import { copies } from './copies.js';
+import { realm } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
@@ -59,49 +60,18 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
   // rewritten: one that threw before `loaded()` stops counting at the next.
   if (state.loading++ === 0) queueMicrotask(() => (state.loading = 0));
   const base = create(kinds, undefined);
-  const copies = new WeakMap<object, Copy>();
-  /** Every copy a session still holds, for what another module writes as it loads. */
-  const live = new Set<WeakRef<Copy>>();
-  let sweepAt = 64;
-  const sweep = () => {
-    for (const ref of live) if (ref.deref() === undefined) live.delete(ref);
-  };
+  const held = copies(base, (from) => create(kinds, from.raw));
   let loading = true;
   let lastSession: object | undefined;
   let lastCopy: Copy = base;
-
-  // A test's session copies its file's session, which copies the load.
-  const copyOf = (session: object): Copy => {
-    let copy = copies.get(session);
-    if (copy === undefined) {
-      const parent = parentSession(session);
-      copies.set(session, (copy = create(kinds, parent === undefined ? base.raw : copyOf(parent).raw)));
-      live.add(new WeakRef(copy));
-      // A session that ended leaves its reference behind: drop them as they pile up.
-      if (live.size > sweepAt) {
-        sweep();
-        sweepAt = Math.max(64, live.size * 2);
-      }
-    }
-    return copy;
-  };
-
-  // The nearest copy the session or a session it starts from already holds.
-  const held = (session: object): Copy | undefined => {
-    const copy = copies.get(session);
-    if (copy !== undefined) return copy;
-    const parent = parentSession(session);
-    return parent === undefined ? undefined : held(parent);
-  };
 
   // Another module running its top level writes into every session, the load
   // and each copy already made, as it would on every fresh page that loads it;
   // it reads what the current session holds.
   const everywhere = (): Copy => {
-    const first = held(currentSession()) ?? base;
+    const first = held.nearest(currentSession()) ?? base;
     const rest: Copy[] = first === base ? [] : [base];
-    sweep();
-    for (const ref of live) if (ref.deref() !== first) rest.push(ref.deref()!);
+    for (const copy of held.live()) if (copy !== first) rest.push(copy);
     return { raw: first.raw, values: fanned(first.values, rest.map((copy) => copy.raw)), init: first.init };
   };
 
@@ -110,7 +80,7 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     if (realm().loading > 0) return everywhere();
     const session = currentSession();
     if (session === lastSession) return lastCopy;
-    const copy = copyOf(session);
+    const copy = held.of(session);
     lastSession = session;
     lastCopy = copy;
     return copy;
