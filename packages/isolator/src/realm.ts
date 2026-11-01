@@ -15,12 +15,23 @@ interface Realm {
   parents: WeakMap<object, object>;
   /** How many rewritten modules are running their top level now. */
   loading: number;
+  /** Told after the fallback session changes, with the session that ended, if one did. */
+  switched: Set<(ended: object | undefined) => void>;
+  /** Told as the first rewritten module starts its top level and as the last one ends. */
+  loads: Set<Loads>;
+}
+
+/** Hears when rewritten modules start and stop running their top levels. */
+export interface Loads {
+  start(): void;
+  end(): void;
 }
 
 const REALM = Symbol.for('@variance-authority/isolator');
 
-/** A realm an older copy of this module made has neither `file`, `parents` nor `loading`. */
-type Stored = Omit<Realm, 'file' | 'parents' | 'loading'> & Partial<Pick<Realm, 'file' | 'parents' | 'loading'>>;
+/** What an older copy of this module made: only `sources` and `fallback` are sure. */
+type Optional = 'file' | 'parents' | 'loading' | 'switched' | 'loads';
+type Stored = Omit<Realm, Optional> & Partial<Pick<Realm, Optional>>;
 
 type Host = typeof globalThis & { [REALM]?: Stored };
 
@@ -35,6 +46,8 @@ export const realm = (): Realm => {
   state.file ??= state.fallback;
   state.parents ??= new WeakMap();
   state.loading ??= 0;
+  state.switched ??= new Set();
+  state.loads ??= new Set();
   return state as Realm;
 };
 
@@ -49,4 +62,33 @@ export function testSession(): object {
 /** The session `session` starts from, when it is a test's; `undefined` when it starts from the load. */
 export function parentSession(session: object): object | undefined {
   return realm().parents.get(session);
+}
+
+/** Make `session` the fallback and tell who listens which session ended. */
+export function switchTo(session: object, ended: object | undefined): void {
+  const state = realm();
+  state.fallback = session;
+  for (const listener of state.switched) listener(ended);
+}
+
+/** Count one more top level running; the first tells who listens. */
+export function startLoad(): void {
+  const state = realm();
+  if (state.loading++ !== 0) return;
+  for (const listener of state.loads) listener.start();
+  // A top level runs to its end in one turn, since a module that awaits is never
+  // rewritten: one that threw before `endLoad()` stops counting at the next.
+  queueMicrotask(() => {
+    if (state.loading !== 0) {
+      state.loading = 0;
+      for (const listener of state.loads) listener.end();
+    }
+  });
+}
+
+/** Count one top level finished; the last tells who listens. */
+export function endLoad(): void {
+  const state = realm();
+  if (state.loading === 0) return;
+  if (--state.loading === 0) for (const listener of state.loads) listener.end();
 }

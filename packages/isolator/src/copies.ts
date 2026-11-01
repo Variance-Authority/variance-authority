@@ -53,3 +53,38 @@ export function copies<C extends object>(base: C, make: (from: C) => C): Copies<
     },
   };
 }
+
+/**
+ * `value` for another session: a plain object, an array, a `Map` and a `Set`
+ * are copied, their members as deep as they go; a `Map`'s keys, a `Set`'s
+ * members and every other object are shared.
+ */
+export function copied(value: unknown, seen: Map<object, unknown>): unknown {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
+  if (seen.has(value)) return seen.get(value);
+  const prototype = Object.getPrototypeOf(value) as object | null;
+  if (prototype === Map.prototype) {
+    const map = new Map<unknown, unknown>();
+    seen.set(value, map);
+    for (const [key, entry] of value as Map<unknown, unknown>) map.set(key, copied(entry, seen));
+    return map;
+  }
+  if (prototype === Set.prototype) {
+    const set = new Set(value as Set<unknown>);
+    seen.set(value, set);
+    return set;
+  }
+  if (prototype === Array.prototype || prototype === Object.prototype || prototype === null) {
+    const object = (prototype === Array.prototype ? [] : Object.create(prototype)) as object;
+    seen.set(value, object);
+    // Every own key, symbols and an array's `length` among them, as it is described.
+    for (const key of Reflect.ownKeys(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
+      if ('value' in descriptor) descriptor.value = copied(descriptor.value, seen);
+      Object.defineProperty(object, key, descriptor);
+    }
+    if (!Object.isExtensible(value)) Object.preventExtensions(object);
+    return object;
+  }
+  return value;
+}

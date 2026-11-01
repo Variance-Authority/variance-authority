@@ -6,8 +6,8 @@
  * installed.
  */
 
-import { copies } from './copies.js';
-import { realm } from './realm.js';
+import { copied, copies } from './copies.js';
+import { endLoad, realm, startLoad } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
@@ -55,10 +55,7 @@ const UNSET = Symbol('unset');
  * writes as it loads lands in that and in every copy already made.
  */
 export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
-  const state = realm();
-  // A top level runs to its end in one turn, since a module that awaits is never
-  // rewritten: one that threw before `loaded()` stops counting at the next.
-  if (state.loading++ === 0) queueMicrotask(() => (state.loading = 0));
+  startLoad();
   const base = create(kinds, undefined);
   const held = copies(base, (from) => create(kinds, from.raw));
   let loading = true;
@@ -98,7 +95,7 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     },
     loaded() {
       loading = false;
-      state.loading = Math.max(0, state.loading - 1);
+      endLoad();
     },
   };
 }
@@ -200,35 +197,4 @@ function fanned<T extends object>(first: T, rest: readonly unknown[]): T {
 
 function isFanned(value: unknown): value is { [TARGET]: unknown } {
   return typeof value === 'object' && value !== null && (value as { [TARGET]?: unknown })[TARGET] !== undefined;
-}
-
-/** `value` for another session: see {@link frame} for what is copied and what is shared. */
-function copied(value: unknown, seen: Map<object, unknown>): unknown {
-  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
-  if (seen.has(value)) return seen.get(value);
-  const prototype = Object.getPrototypeOf(value) as object | null;
-  if (prototype === Map.prototype) {
-    const map = new Map<unknown, unknown>();
-    seen.set(value, map);
-    for (const [key, entry] of value as Map<unknown, unknown>) map.set(key, copied(entry, seen));
-    return map;
-  }
-  if (prototype === Set.prototype) {
-    const set = new Set(value as Set<unknown>);
-    seen.set(value, set);
-    return set;
-  }
-  if (prototype === Array.prototype || prototype === Object.prototype || prototype === null) {
-    const object = (prototype === Array.prototype ? [] : Object.create(prototype)) as object;
-    seen.set(value, object);
-    // Every own key, symbols and an array's `length` among them, as it is described.
-    for (const key of Reflect.ownKeys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
-      if ('value' in descriptor) descriptor.value = copied(descriptor.value, seen);
-      Object.defineProperty(object, key, descriptor);
-    }
-    if (!Object.isExtensible(value)) Object.preventExtensions(object);
-    return object;
-  }
-  return value;
 }
