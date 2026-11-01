@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
-import { isolateConcurrentEach, isolated } from './node.js';
+import { isolateConcurrentEach, isolateConcurrentTests, isolated, type Registrar } from './node.js';
 import * as runtime from './runtime.js';
 import { addSessionSource, nextSession } from './session.js';
 import { isolate } from './transform.js';
@@ -145,6 +145,29 @@ describe('a variable', () => {
     next();
     const concurrent = { task: { concurrent: true } };
     expect([around!(() => (next(), peek()), concurrent), around!(peek, concurrent)]).toEqual([2, 1]);
+  });
+
+  it("starts a Jest concurrent test from what its file wrote outside tests", async () => {
+    const IOC = Symbol.for('@variance-authority/ioc/reset');
+    const realm = (globalThis as Record<symbol, unknown>)[IOC];
+    onTestFinished(() => {
+      (globalThis as Record<symbol, unknown>)[IOC] = realm;
+    });
+    delete (globalThis as Record<symbol, unknown>)[IOC];
+    configureResetHandler(
+      () => {},
+      () => {},
+    );
+    vi.resetModules();
+    await import('./session.js');
+    const { next, peek } = counter();
+    const bodies: Array<() => number> = [];
+    const test = { concurrent: ((_name: unknown, fn?: unknown) => bodies.push(fn as () => number)) as Registrar };
+    isolateConcurrentTests(test);
+    test.concurrent('writes', () => (next(), peek()));
+    test.concurrent('reads', peek);
+    next();
+    expect(bodies.map((body) => body())).toEqual([2, 1]);
   });
 
   it('answers with the first source that has a session', () => {
