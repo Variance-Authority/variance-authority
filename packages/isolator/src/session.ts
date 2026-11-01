@@ -56,7 +56,6 @@ export function nextSession(): void {
 }
 
 registerTestScope({
-  // FIXME: under Vitest `isolate: false` a module loads once, so what it registered as it loaded is lost to every later file.
   enterFile: nextSession,
   enterTest() {
     realm().fallback = testSession();

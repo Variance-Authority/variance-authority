@@ -225,7 +225,9 @@ function isolateParsed(
     }
   }
   const moved = new Set(declarators.filter(({ role }) => role === 'step').flatMap(({ names }) => names));
-  if (moved.size === 0) return unchanged(left);
+  // A module with no variable to move still marks that it is loading when its
+  // top level can reach another module: what that writes is where every session starts.
+  if (moved.size === 0 && !reachesOut(body)) return unchanged(left);
 
   const ns = fresh(code, '__isolator');
   const frame = fresh(code, '__frame');
@@ -420,6 +422,31 @@ function reaches(value: unknown, test: (node: Node) => boolean, deep: boolean): 
   if (!deep && /^(?:Function(?:Expression|Declaration)|ArrowFunctionExpression|Class(?:Expression|Declaration))$/.test(value.type)) return false;
   for (const key in value) if (key !== 'type' && reaches(value[key], test, deep)) return true;
   return false;
+}
+
+/**
+ * Whether a top level, outside the functions and classes it declares, can write
+ * into another module as it runs: a call, a `new`, a tag, or a write to a member
+ * other than this module's own exports.
+ */
+function reachesOut(body: readonly Node[]): boolean {
+  const ownExports = (target: Node): boolean => {
+    let object = target;
+    while (object.type === 'MemberExpression') object = object.object as Node;
+    return object.type === 'Identifier' && (object.name === 'module' || object.name === 'exports');
+  };
+  const member = (target: unknown): boolean => isNode(target) && target.type === 'MemberExpression' && !ownExports(target);
+  return reaches(
+    body,
+    (node) =>
+      node.type === 'CallExpression' ||
+      node.type === 'NewExpression' ||
+      node.type === 'TaggedTemplateExpression' ||
+      (node.type === 'AssignmentExpression' && member(node.left)) ||
+      (node.type === 'UpdateExpression' && member(node.argument)) ||
+      (node.type === 'UnaryExpression' && node.operator === 'delete'),
+    false,
+  );
 }
 
 /** ES module syntax, or an extension that says so; anything else is CommonJS. */

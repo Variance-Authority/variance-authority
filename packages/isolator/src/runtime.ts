@@ -6,7 +6,7 @@
  * installed.
  */
 
-import { parentSession } from './realm.js';
+import { parentSession, realm } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
@@ -61,6 +61,10 @@ const UNSET = Symbol('unset');
  * the same objects in every session.
  */
 export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
+  const state = realm();
+  // A top level runs to its end in one turn, since a module that awaits is never
+  // rewritten: one that threw before `loaded()` stops counting at the next.
+  if (state.loading++ === 0) queueMicrotask(() => (state.loading = 0));
   const base = create(kinds, undefined);
   const copies = new WeakMap<object, Copy>();
   let loading = true;
@@ -77,9 +81,21 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     return copy;
   };
 
+  // The nearest copy the session or a session it starts from already holds.
+  const held = (session: object): Copy | undefined => {
+    const copy = copies.get(session);
+    if (copy !== undefined) return copy;
+    const parent = parentSession(session);
+    return parent === undefined ? undefined : held(parent);
+  };
+
   const own = (): Copy => {
     if (loading) return base;
     const session = currentSession();
+    // Another module running its top level writes what every session after it
+    // starts from, as it would on every fresh page that loads it, but into the
+    // copy a session already holds.
+    if (realm().loading > 0) return held(session) ?? base;
     if (session === lastSession) return lastCopy;
     const copy = copyOf(session);
     lastSession = session;
@@ -99,6 +115,7 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     },
     loaded() {
       loading = false;
+      state.loading = Math.max(0, state.loading - 1);
     },
   };
 }

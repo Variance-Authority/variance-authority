@@ -287,6 +287,38 @@ describe('an object a module holds', () => {
     expect(registry().get('a')).toEqual({ n: 0 });
   });
 
+  it('holds what another module put in it as that module loaded, in every session after', () => {
+    const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
+      'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
+    );
+    const host = globalThis as { register?: (name: string) => void };
+    host.register = register;
+    onTestFinished(() => {
+      delete host.register;
+    });
+    nextSession();
+    // A module that registers itself as it loads, as a plugin or a route does, and holds no variable of its own.
+    load('globalThis.register("plugin");');
+    expect(registered()).toBe(1);
+    nextSession();
+    expect(registered()).toBe(1);
+  });
+
+  it('keeps what a module put in it as it loaded in a session that already held its own copy, as that session wrote it', () => {
+    const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
+      'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
+    );
+    const host = globalThis as { register?: (name: string) => void };
+    host.register = register;
+    onTestFinished(() => {
+      delete host.register;
+    });
+    nextSession();
+    register('own');
+    load('globalThis.register("plugin");');
+    expect(registered()).toBe(2);
+  });
+
   it('is a copy of its own in every session, as deep as arrays, plain objects and Map values go', () => {
     const { handlers, registry, config } = store();
     nextSession();

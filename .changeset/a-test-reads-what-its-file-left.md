@@ -11,7 +11,10 @@ file was collected against whatever the files before it left. Now a file
 starts on the values its modules were loaded with, and each test runs in a
 session of its own that starts from what the file wrote while it was collected
 and in its `beforeAll` and `afterAll` hooks. What the test, its `beforeEach` and
-its `afterEach` write is dropped when it ends.
+its `afterEach` write is dropped when it ends. What a module writes into
+another module as it loads, such as a plugin it adds to a registry, is kept for
+every session after it: a module loads once, and on a page of its own the
+registration would be there.
 
 A concurrent test starts from the same file session, through
 `isolateConcurrentTests` and `isolateConcurrentEach`.

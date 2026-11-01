@@ -13,12 +13,14 @@ interface Realm {
   file: object;
   /** The session each test session starts from. */
   parents: WeakMap<object, object>;
+  /** How many rewritten modules are running their top level now. */
+  loading: number;
 }
 
 const REALM = Symbol.for('@variance-authority/isolator');
 
-/** A realm an older copy of this module made has neither `file` nor `parents`. */
-type Stored = Omit<Realm, 'file' | 'parents'> & Partial<Pick<Realm, 'file' | 'parents'>>;
+/** A realm an older copy of this module made has neither `file`, `parents` nor `loading`. */
+type Stored = Omit<Realm, 'file' | 'parents' | 'loading'> & Partial<Pick<Realm, 'file' | 'parents' | 'loading'>>;
 
 type Host = typeof globalThis & { [REALM]?: Stored };
 
@@ -32,6 +34,7 @@ export const realm = (): Realm => {
   const state = ((globalThis as Host)[REALM] ??= { sources: [], fallback: {} });
   state.file ??= state.fallback;
   state.parents ??= new WeakMap();
+  state.loading ??= 0;
   return state as Realm;
 };
 
