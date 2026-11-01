@@ -11,18 +11,12 @@ isolateTimers();
 isolateListeners();
 isolateGlobals();
 
-// React listens on the canvas once, and marks it: listeners the first story's
-// render added would end with that story while the mark stayed, and no click
-// would reach the next one. A root made and unmounted at boot adds them here,
-// where every story keeps them.
+// React listens on the canvas once: a root made at boot adds those listeners
+// here, where every story keeps them, not in the first story.
 createRoot(document.getElementById('storybook-root')).unmount();
 
-// Storybook imports the next story's file before it tears the last story down
-// and runs any loader, so the reset answers the selection itself: the story
-// file, every module it loads for the first time, and every loader, decorator,
-// render and play function read the session it starts, as on a fresh page. A
-// story chosen by the URL is selected too, so the first story does not run in
-// the boot's session, whose writes every story keeps.
+// The reset answers the selection, before Storybook imports the story's file,
+// and the story the URL opens is selected too.
 addons.getChannel().on('currentStoryWasSet', ({ storyId }) => {
   if (!SHARED.has(storyId)) nextSession();
 });

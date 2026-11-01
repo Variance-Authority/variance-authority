@@ -1255,6 +1255,7 @@
       "./reset": {
         "ResetHandler": "type",
         "TestScope": "interface",
+        "driverInstalled": "const",
         "registerResetHandler": "const",
         "registerTestScope": "const"
       },

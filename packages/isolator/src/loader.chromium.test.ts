@@ -20,8 +20,11 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
-if (!BROWSER_AVAILABLE) console.warn('\npackages/isolator loader in a browser: skipped.\n  no browser — npx playwright install chromium\n');
+if (!BROWSER_AVAILABLE) {
+  console.warn('\npackages/isolator loader in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
+}
 
+/** Launched here: the lease in `@variance-authority/playwright` is published by no entry this package can import. */
 let browser: Browser;
 let output: string;
 
@@ -56,12 +59,14 @@ const build = (): Promise<Stats> =>
 it.runIf(BROWSER_AVAILABLE)('ends in a browser what a session left, from a bundle that needs nothing of Node', async () => {
   const stats = await build();
   expect(stats.toJson({ errors: true }).errors?.map((error) => error.message)).toEqual([]);
+  // One page, the one the bundle loads on: its sessions are what is under test.
   const page = await browser.newPage();
   await page.addScriptTag({ content: await readFile(resolve(output, 'page.js'), 'utf8') });
   const after = await page.evaluate(async () => {
     const { next, nextSession } = (window as unknown as { page: { next: () => number; nextSession: () => void } }).page;
     const host = window as unknown as Record<string, unknown>;
     nextSession();
+    // The timers are the subject: what a session left must not fire after it.
     const counted = [next(), next()];
     let ticks = 0;
     let heard = 0;
