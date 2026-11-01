@@ -1,5 +1,37 @@
 # @variance-authority/isolator
 
+## 0.22.0
+
+### Minor Changes
+
+- c7bd5ff: A test reads what its file left before it
+
+  The isolator started every test on the values its modules were loaded with, so
+  what a `beforeAll` wrote was gone by the first test. Under Vitest's `isolate: false`, a
+  file was collected against whatever the files before it left. Now a file
+  starts on the values its modules were loaded with, and each test runs in a
+  session of its own that starts from what the file wrote while it was collected
+  and in its `beforeAll` and `afterAll` hooks. What the test, its `beforeEach` and
+  its `afterEach` write is dropped when it ends. What a module writes into
+  another module as it loads, such as a plugin it adds to a registry, lands in
+  every session, the ones that already read the registry and every one after: a
+  module loads once, and on a page of its own the registration would be there.
+
+  A concurrent test starts from the same file session, through
+  `isolateConcurrentTests` and `isolateConcurrentEach`.
+
+  `configureResetHandler` now takes the runner's `afterEach` as a required second
+  argument: `configureResetHandler(beforeEach, afterEach)`. A driver that never
+  hears a test end would leave what a nested `describe`'s `beforeAll` writes in
+  the test before it, so a call without it throws. ioc also gains
+  `registerTestScope(scope)`, which the isolator registers in place of a reset
+  handler.
+- c41fe54: The Vite plugin runs under Vite alone, as in Storybook: it takes its root from Vite's resolved config and rewrites every module but the ones `exclude` names. With `nextSession()` called on Storybook's `setCurrentStory`, before the next story's file is imported, each story switched to on one preview page reads its modules as a page of its own would. The README's "Run it in Storybook" has the setup.
+
+### Patch Changes
+
+- b2cfa37: The isolator runs in Vitest 5 through `@variance-authority/isolator/vite`, so a suite under `isolate: false` keeps its modules loaded across files while every test, concurrent ones included through `isolateConcurrentEach(aroundEach)`, reads the values they were loaded with.
+
 ## 0.21.0
 
 ### Patch Changes
