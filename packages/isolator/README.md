@@ -364,7 +364,7 @@ isolateListeners();
   `setInterval`, `setImmediate` and `requestAnimationFrame` it left pending.
 - **`isolateListeners({ report })`** removes, as each session ends, the
   listeners it added to any `EventTarget` and left attached. `report` is told
-  of each one, with the stack that added it, before it goes: throw from it to
+  of each one, with the stack that added it, once all are gone: throw from it to
   have every leak fixed where it starts.
 
 What a rewritten module does as it loads — a property it defines, a timer it
@@ -443,10 +443,14 @@ nobody holds any more takes its values with it.
   and nothing announces the end of a session a source answers with.
 - **Promises and `queueMicrotask`.** Neither can be cancelled, so a callback
   queued at the end of a test still runs in the next one.
-- **What a package you do not build does as it loads, for `isolateGlobals`.**
-  Its load is not one the isolator sees, so a global it defines on first
-  import, inside a test, is taken back when the test ends while the module
-  stays cached.
+- **What a package you do not build does as it loads, or the first time it is
+  called.** The isolator does not see that load. If a package first runs inside a
+  test and defines a global, starts a timer or adds a listener there, the
+  `isolate…` functions take it back when the test ends. The module stays cached
+  and its own flag still says it has done its setup.
+- **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
+  `EventTarget` only. The test runners themselves listen on `process`.
+- **A timer started through `node:timers`.** `isolateTimers` wraps the globals.
 
 ## License
 

@@ -73,6 +73,45 @@ describe('isolateListeners', () => {
     expect(report.mock.calls[0]![0].added).toContain('listeners.test.ts');
   });
 
+  it('keeps a listener a module added as it loaded, when a test adds it again', () => {
+    onTestFinished(isolateListeners());
+    const target = new EventTarget();
+    const loaded = vi.fn();
+    startLoad();
+    target.addEventListener('ping', loaded);
+    endLoad();
+    const leave = enterTest();
+    target.addEventListener('ping', loaded);
+    leave();
+    target.dispatchEvent(new Event('ping'));
+    expect(loaded).toHaveBeenCalledOnce();
+  });
+
+  it('removes every listener left, and still ends the session, when report throws', () => {
+    const others = vi.fn();
+    realm().switched.add(others);
+    onTestFinished(() => void realm().switched.delete(others));
+    onTestFinished(
+      isolateListeners({
+        report: ({ type }) => {
+          throw new Error(`left ${type}`);
+        },
+      }),
+    );
+    const target = new EventTarget();
+    const first = vi.fn();
+    const second = vi.fn();
+    const leave = enterTest();
+    target.addEventListener('first', first);
+    target.addEventListener('second', second);
+    expect(leave).toThrow('left first');
+    target.dispatchEvent(new Event('first'));
+    target.dispatchEvent(new Event('second'));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+    expect(others).toHaveBeenCalled();
+  });
+
   it('puts the prototype back when undone', () => {
     const add = EventTarget.prototype.addEventListener;
     isolateListeners()();

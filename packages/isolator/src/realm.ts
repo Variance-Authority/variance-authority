@@ -68,7 +68,17 @@ export function parentSession(session: object): object | undefined {
 export function switchTo(session: object, ended: object | undefined): void {
   const state = realm();
   state.fallback = session;
-  for (const listener of state.switched) listener(ended);
+  // Every listener cleans up after the ended session, even when one before it throws.
+  const failures: unknown[] = [];
+  for (const listener of state.switched) {
+    try {
+      listener(ended);
+    } catch (failure) {
+      failures.push(failure);
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, 'the ended session left more than one leak');
 }
 
 /** Count one more top level running; the first tells who listens. */

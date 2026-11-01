@@ -29,9 +29,12 @@ type Canceller = (handle: unknown) => void;
  */
 export function isolateTimers(target: Record<string, unknown> = globalThis as never): () => void {
   const state = realm();
-  const pending = new Map<object, Map<unknown, Canceller>>();
+  const pending = new WeakMap<object, Map<unknown, Canceller>>();
+  // Each pending handle, with its session's handles: a session nothing ends holds nothing.
+  const owners = new Map<unknown, Map<unknown, Canceller>>();
   const forget = (handle: unknown) => {
-    for (const [session, handles] of pending) if (handles.delete(handle) && handles.size === 0) pending.delete(session);
+    owners.get(handle)?.delete(handle);
+    owners.delete(handle);
   };
   const undo: (() => void)[] = [];
   for (const [schedule, cancel, once] of PAIRS) {
@@ -54,6 +57,7 @@ export function isolateTimers(target: Record<string, unknown> = globalThis as ne
       let handles = pending.get(session);
       if (handles === undefined) pending.set(session, (handles = new Map()));
       handles.set(handle, clear);
+      owners.set(handle, handles);
       return handle;
     }
     function cancelled(this: unknown, handle: unknown): void {
@@ -71,7 +75,10 @@ export function isolateTimers(target: Record<string, unknown> = globalThis as ne
     const handles = ended === undefined ? undefined : pending.get(ended);
     if (handles === undefined) return;
     pending.delete(ended!);
-    for (const [handle, clear] of handles) clear(handle);
+    for (const [handle, clear] of handles) {
+      owners.delete(handle);
+      clear(handle);
+    }
   };
   state.switched.add(switched);
   return () => {
