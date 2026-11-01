@@ -1,4 +1,4 @@
-import { aroundEach, beforeEach } from 'vitest';
+import { afterEach, aroundEach, beforeEach } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
 /**
@@ -6,7 +6,7 @@ import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
  * back to the values it loaded with before the test starts, and every concurrent
  * test runs in a session of its own, as the isolator README's Vitest setup does.
  */
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 
 const { isolateConcurrentEach } = await import('@variance-authority/isolator/node');
 isolateConcurrentEach(aroundEach);

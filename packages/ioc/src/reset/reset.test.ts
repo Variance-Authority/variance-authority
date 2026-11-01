@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { registerResetHandler } from './index.js';
+import { registerResetHandler, registerTestScope } from './index.js';
 import { configureResetHandler } from './setup.js';
 
 const REALM = Symbol.for('@variance-authority/ioc/reset');
@@ -162,5 +162,44 @@ describe('configureResetHandler', () => {
     // guessing that the second call is a duplicate, and dropping every reset
     // for a test file whose setup legitimately ran again.
     expect(runs).toBe(2);
+  });
+});
+
+describe('registerTestScope', () => {
+  /** A scope that writes down what the driver told it, in order. */
+  const recording = (heard: string[], name = '') => ({
+    enterFile: () => heard.push(`${name}file`),
+    enterTest: () => heard.push(`${name}test`),
+    leaveTest: () => heard.push(`${name}tested`),
+  });
+
+  it('enters a file when the driver installs, each test before its handlers, and leaves it after', () => {
+    const heard: string[] = [];
+    const before = capture();
+    const after = capture();
+    configureResetHandler(before.each);
+    registerTestScope(recording(heard));
+    registerResetHandler(() => heard.push('handler'));
+    configureResetHandler(before.each, after.each);
+
+    before.run();
+    after.run();
+    // The first driver was installed before the scope existed, so only the
+    // second one entered a file; both entered the test.
+    expect(heard).toEqual(['file', 'test', 'handler', 'test', 'handler', 'tested']);
+  });
+
+  it('refuses the driver after a scope registered early, as a handler is refused', () => {
+    registerTestScope(recording([]));
+    expect(() => configureResetHandler(capture().each)).toThrow('1 handler(s) registered before this setup ran');
+  });
+
+  it('stops entering a scope once it is unregistered', () => {
+    const heard: string[] = [];
+    const driver = capture();
+    configureResetHandler(driver.each);
+    registerTestScope(recording(heard))();
+    driver.run();
+    expect(heard).toEqual([]);
   });
 });

@@ -1254,7 +1254,9 @@
     "names": {
       "./reset": {
         "ResetHandler": "type",
-        "registerResetHandler": "const"
+        "TestScope": "interface",
+        "registerResetHandler": "const",
+        "registerTestScope": "const"
       },
       "./reset/setup": {
         "EachHook": "type",
@@ -1314,7 +1316,8 @@
         "SessionSource": "type",
         "addSessionSource": "function",
         "currentSession": "function",
-        "nextSession": "function"
+        "nextSession": "function",
+        "parentSession": "function"
       },
       "./runtime": {
         "Frame": "interface",

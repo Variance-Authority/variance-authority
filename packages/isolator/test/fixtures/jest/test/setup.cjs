@@ -1,7 +1,7 @@
 // The reset driver goes first: a module imported before it would register too early.
 const { configureResetHandler } = require('@variance-authority/ioc/reset/setup');
 
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 
 const { isolateConcurrentTests } = require('@variance-authority/isolator/node');
 

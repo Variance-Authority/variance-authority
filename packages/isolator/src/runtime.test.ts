@@ -86,6 +86,39 @@ describe('a variable', () => {
     expect(peek()).toBe(0);
   });
 
+  it("starts every test from what its file wrote outside tests, and drops the test's own writes when it ends", async () => {
+    const IOC = Symbol.for('@variance-authority/ioc/reset');
+    const realm = (globalThis as Record<symbol, unknown>)[IOC];
+    onTestFinished(() => {
+      (globalThis as Record<symbol, unknown>)[IOC] = realm;
+    });
+    delete (globalThis as Record<symbol, unknown>)[IOC];
+    const before: Array<() => void> = [];
+    const after: Array<() => void> = [];
+    configureResetHandler(
+      (run) => before.push(run),
+      (run) => after.push(run),
+    );
+    vi.resetModules();
+    await import('./session.js');
+    const { next, peek } = counter();
+    const test = (body: () => number): number => {
+      before.forEach((run) => run());
+      const read = body();
+      after.forEach((run) => run());
+      return read;
+    };
+    // Collection and a `beforeAll` write outside any test: every test after reads it.
+    next();
+    expect(test(() => (next(), peek()))).toBe(2);
+    expect(test(peek)).toBe(1);
+    next();
+    expect(test(peek)).toBe(2);
+    // The next file's setup installs the driver again, before the file is collected.
+    configureResetHandler(() => {});
+    expect(peek()).toBe(0);
+  });
+
   it('answers with the first source that has a session', () => {
     const { next, peek } = counter();
     const session = {};

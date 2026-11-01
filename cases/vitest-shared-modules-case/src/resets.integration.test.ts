@@ -137,7 +137,7 @@ describe('tests that run side by side under a kept module graph', () => {
 });
 
 describe('a test file under the isolator, as a fresh file would run', () => {
-  it('collects against its modules as they were loaded, and gives each test what its beforeAll hooks seeded', async () => {
+  it('collects against its modules as they were loaded, and gives each test what collection and once-per-scope hooks wrote', async () => {
     const { output, named } = await run('lifecycle', { FIXTURE_RESETS: 'isolator', FIXTURE_LIFECYCLE: 'true' });
 
     expect(named, output).toEqual([
@@ -147,9 +147,12 @@ describe('a test file under the isolator, as a fresh file would run', () => {
       'collect-two.lifecycle.ts > collected the module as it was loaded: passed',
       'collect-two.lifecycle.ts > counts from one again, whatever the test before it left: passed',
       'collect-two.lifecycle.ts > counts from one: passed',
+      'registered.lifecycle.ts > sees it again in the next test: passed',
+      'registered.lifecycle.ts > sees what a module registered as the file loaded it: passed',
       'seeded.lifecycle.ts > reads both again, whatever the test before it wrote: passed',
       'seeded.lifecycle.ts > reads it again, whatever the test before it wrote: passed',
       'seeded.lifecycle.ts > reads what both beforeAll hooks seeded: passed',
+      'seeded.lifecycle.ts > reads what the describe seeded, after it, as a fresh file does: passed',
       "seeded.lifecycle.ts > reads what the file's beforeAll seeded: passed",
     ]);
   });

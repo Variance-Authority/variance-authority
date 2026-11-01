@@ -29,3 +29,7 @@ describe('a describe that seeds more', () => {
     expect(read()).toBe('seeded+more');
   });
 });
+
+it('reads what the describe seeded, after it, as a fresh file does', () => {
+  expect(read()).toBe('seeded+more');
+});

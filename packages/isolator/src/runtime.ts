@@ -6,7 +6,7 @@
  * installed.
  */
 
-import { currentSession } from './session.js';
+import { currentSession, parentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
 export type Kind = 'let' | 'const' | 'var';
@@ -66,12 +66,21 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
   let lastSession: object | undefined;
   let lastCopy: Copy = base;
 
+  // A test's session copies its file's session, which copies the load.
+  const copyOf = (session: object): Copy => {
+    let copy = copies.get(session);
+    if (copy === undefined) {
+      const parent = parentSession(session);
+      copies.set(session, (copy = create(kinds, parent === undefined ? base.raw : copyOf(parent).raw)));
+    }
+    return copy;
+  };
+
   const own = (): Copy => {
     if (loading) return base;
     const session = currentSession();
     if (session === lastSession) return lastCopy;
-    let copy = copies.get(session);
-    if (copy === undefined) copies.set(session, (copy = create(kinds, base.raw)));
+    const copy = copyOf(session);
     lastSession = session;
     lastCopy = copy;
     return copy;
