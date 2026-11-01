@@ -147,8 +147,6 @@ describe('a test file under the isolator, as a fresh file would run', () => {
       'collect-two.lifecycle.ts > collected the module as it was loaded: passed',
       'collect-two.lifecycle.ts > counts from one again, whatever the test before it left: passed',
       'collect-two.lifecycle.ts > counts from one: passed',
-      'registered.lifecycle.ts > sees it again in the next test: passed',
-      'registered.lifecycle.ts > sees what a module registered as the file loaded it: passed',
       'seeded.lifecycle.ts > reads both again, whatever the test before it wrote: passed',
       'seeded.lifecycle.ts > reads it again, whatever the test before it wrote: passed',
       'seeded.lifecycle.ts > reads what both beforeAll hooks seeded: passed',

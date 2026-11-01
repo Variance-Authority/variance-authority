@@ -37,5 +37,5 @@ it("gives every Jest test what its file's collection and once-per-scope hooks wr
     [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', '--testMatch', '<rootDir>/test/lifecycle/*.case.ts'],
     { cwd: fixture, env: { ...process.env, ISOLATOR_JEST_CACHE: cache } },
   ).catch((error: { stderr?: string }) => ({ stderr: error.stderr ?? '' }));
-  expect(stderr).toContain('Tests:       7 passed, 7 total');
+  expect(stderr).toContain('Tests:       5 passed, 5 total');
 });

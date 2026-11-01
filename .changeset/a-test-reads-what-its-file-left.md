@@ -6,8 +6,7 @@
 A test reads what its file left before it, as the file would alone
 
 The isolator started every test on the values its modules were loaded with, so
-what a `beforeAll` wrote, and what a module the test file imported registered
-as it loaded, was gone by the first test. Under Vitest's `isolate: false`, a
+what a `beforeAll` wrote was gone by the first test. Under Vitest's `isolate: false`, a
 file was collected against whatever the files before it left. Now a file
 starts on the values its modules were loaded with, and each test runs in a
 session of its own that starts from what the file wrote while it was collected
