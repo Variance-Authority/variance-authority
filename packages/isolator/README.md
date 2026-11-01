@@ -335,6 +335,44 @@ give one; the loader reads them from the build's context:
 { loader: '@variance-authority/isolator/loader', options: { exclude: ['src/legacy/**'] } }
 ```
 
+## Isolate what no module owns
+
+Some state lives on objects the transform never sees: `process.env`, a
+property a test puts on `globalThis`, a timer still pending when its test
+ends, a listener left on `document`. Each has a function that isolates it per
+session from that call on, and returns a function that stops it. Call the ones
+you want once per file, before any test runs — in Jest from a
+`setupFilesAfterEnv` file, in Vitest from a `setupFiles` file:
+
+```ts
+import { isolateEnv, isolateGlobals, isolateListeners, isolateTimers } from '@variance-authority/isolator';
+
+isolateEnv();
+isolateGlobals();
+isolateTimers();
+isolateListeners();
+```
+
+- **`isolateEnv()`** gives every session its own `process.env`, started from
+  its parent's: a test reads what its file set, and what it sets itself ends
+  with it. `TZ` is written through to the real environment and put back as
+  sessions switch, since Node reads the timezone from there.
+- **`isolateGlobals(target = globalThis)`** puts `target`'s own properties
+  back as each session found them: what a test added is deleted, and what it
+  replaced or deleted is back. A property that cannot be configured stays.
+- **`isolateTimers()`** cancels, as each session ends, the `setTimeout`,
+  `setInterval`, `setImmediate` and `requestAnimationFrame` it left pending.
+- **`isolateListeners({ report })`** removes, as each session ends, the
+  listeners it added to any `EventTarget` and left attached. `report` is told
+  of each one, with the stack that added it, before it goes: throw from it to
+  have every leak fixed where it starts.
+
+What a rewritten module does as it loads — a property it defines, a timer it
+starts, a listener it adds — belongs to no session and stays, as it would on
+every fresh page that loads the module. `perSession(object)` is the proxy
+`isolateEnv` is built on, for any other object a session should hold its own
+copy of.
+
 ## What it leaves, and tells you
 
 Anything it cannot rewrite safely, it leaves shared and names, as a Jest
@@ -374,7 +412,7 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 
 | Entry point | What it does |
 |---|---|
-| `@variance-authority/isolator` | `nextSession()` starts a new fallback session from the values every module was loaded with; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. |
+| `@variance-authority/isolator` | `nextSession()` starts a new fallback session from the values every module was loaded with; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. The `isolate…` functions and `perSession` isolate what no module owns. |
 | `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts; `isolateConcurrentTests(test)` and `isolateConcurrentEach(aroundEach)` give each concurrent test one, started from its file's session. Every copy of this entry in a process shares one store, so an inner `isolated` always wins. |
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
@@ -398,6 +436,15 @@ nobody holds any more takes its values with it.
   every session.
 - **State inside a package you do not build.** `node_modules` is never
   rewritten.
+- **A session `isolated(fn)` or React starts, for the `isolate…` functions.**
+  They act as the fallback session ends — a test, a file, `nextSession()` —
+  and nothing announces the end of a session a source answers with.
+- **Promises and `queueMicrotask`.** Neither can be cancelled, so a callback
+  queued at the end of a test still runs in the next one.
+- **What a package you do not build does as it loads, for `isolateGlobals`.**
+  Its load is not one the isolator sees, so a global it defines on first
+  import, inside a test, is taken back when the test ends while the module
+  stays cached.
 
 ## License
 

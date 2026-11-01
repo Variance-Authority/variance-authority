@@ -28,8 +28,8 @@
   "sideEffects": true,
   "exports": {
     ".": {
-      "types": "./dist/session.d.ts",
-      "default": "./dist/session.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./runtime": {
       "types": "./dist/runtime.d.ts",
