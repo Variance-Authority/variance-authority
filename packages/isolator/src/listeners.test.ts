@@ -79,6 +79,27 @@ describe('isolateListeners', () => {
     expect(setup).toHaveBeenCalledOnce();
   });
 
+  it('removes what a setup or load listener adds while a test runs, as the test ends', () => {
+    atSetup();
+    onTestFinished(isolateListeners());
+    const root = new EventTarget();
+    const loadedRoot = new EventTarget();
+    const other = new EventTarget();
+    const added = vi.fn();
+    const attach = () => other.addEventListener('ping', added);
+    root.addEventListener('click', attach);
+    nextSession();
+    startLoad();
+    loadedRoot.addEventListener('click', () => other.addEventListener('ping', added, true));
+    endLoad();
+    const leave = enterTest();
+    root.dispatchEvent(new Event('click'));
+    loadedRoot.dispatchEvent(new Event('click'));
+    leave();
+    other.dispatchEvent(new Event('ping'));
+    expect(added).not.toHaveBeenCalled();
+  });
+
   it('reports only what is still attached, with where it was added', () => {
     const report = vi.fn<(left: LeftListener) => void>();
     onTestFinished(isolateListeners({ report }));

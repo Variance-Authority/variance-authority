@@ -393,9 +393,13 @@ What a rewritten module does as it loads — a property it defines, a timer it
 starts, a listener it adds — belongs to no session and stays, as it would on
 every fresh page that loads the module. So does what setup does before the
 first test starts, a Storybook preview as it boots included: every session
-finds it. What a timer callback schedules, or a
-listener adds, belongs to whoever scheduled or added that callback: a chain
-`beforeAll` starts runs on through the file, whichever test it fires in.
+finds it. In Jest, setup files run again for every test file, so what they do
+belongs to that file and is done again for the next. What a timer callback
+schedules, or a listener adds, belongs to whoever scheduled or added that
+callback: a chain `beforeAll` starts runs on through the file, whichever test
+it fires in. A callback that a load or setup added runs in every session, so
+what it adds belongs to the session it runs in: a story's click reaches its
+handlers through React's root listener, and what they add ends with the story.
 `perSession(object, { store, wrote })` is the proxy
 `isolateEnv` is built on, for any other object a session should hold its own
 copy of: `store` turns a written value into what the object would hold, as
@@ -477,7 +481,10 @@ nobody holds any more takes its values with it.
   `isolate…` functions take it back when the test ends. The module stays cached
   and its own flag still says it has done its setup. React's root listeners are
   one such setup: make and unmount a root in setup, as the Storybook preview
-  above does, so they belong to it.
+  above does, so they belong to it. A portal is another: the container it
+  first renders into, often `document.body`, gets React's listeners in that
+  session and loses them when it ends, while React's mark stays, so later
+  portals there stop answering events.
 - **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
   `EventTarget` only. The test runners themselves listen on `process`.
 - **A timer started through `node:timers`.** `isolateTimers` wraps the globals.

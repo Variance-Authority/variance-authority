@@ -59,9 +59,10 @@ function installListeners(options: IsolateListenersOptions): () => void {
   const remove = prototype.removeEventListener;
   const index = new WeakMap<EventTarget, Map<string, Map<Listener, Entry>>>();
   const sessions = new WeakMap<object, Set<Entry>>();
-  // Whose listener runs now: what it adds is its adder's, so a listener a file or
-  // a load added does not hand what it adds to the test it runs in. `null` is a load's.
-  let running: Set<Entry> | null | undefined;
+  // Whose listener runs now: what it adds is its adder's, so a listener a file
+  // added does not hand what it adds to the test it runs in. A load's or setup's
+  // listener runs in every session, so what it adds is the current session's.
+  let running: Set<Entry> | undefined;
   const find = (target: EventTarget, key: string, listener: Listener) => index.get(target)?.get(key)?.get(listener);
   const forget = (entry: Entry) => {
     index.get(entry.target)?.get(`${entry.capture}:${entry.type}`)?.delete(entry.listener);
@@ -86,7 +87,7 @@ function installListeners(options: IsolateListenersOptions): () => void {
     // Adding what is attached already attaches nothing, whoever added it.
     if (listeners.has(listener)) return;
     let owned: Set<Entry> | undefined;
-    if (state.loading === 0 && running !== null) {
+    if (state.loading === 0) {
       owned = running;
       if (owned === undefined) {
         const session = currentSession();
@@ -97,7 +98,7 @@ function installListeners(options: IsolateListenersOptions): () => void {
       }
     }
     const once = given?.once === true;
-    const owner = owned ?? null;
+    const owner = owned;
     const entry: Entry = {
       target: this,
       type,

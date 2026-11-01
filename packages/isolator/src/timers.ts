@@ -55,8 +55,9 @@ function installTimers(target: Record<string, unknown>): () => void {
     pools.get(timer.pool)?.delete(timer.handle);
   };
   // Whose callback runs now: what it schedules is its scheduler's, so a chain a
-  // file or a load started is not taken by the test it fires in. `null` is a load's.
-  let running: Set<Pending> | null | undefined;
+  // file started is not taken by the test it fires in. A load's or setup's
+  // callback runs in every session, so what it schedules is the current session's.
+  let running: Set<Pending> | undefined;
   const undo: (() => void)[] = [];
   for (const [schedule, cancel, once, pool] of PAIRS) {
     const original = target[schedule] as Scheduler | undefined;
@@ -68,7 +69,7 @@ function installTimers(target: Record<string, unknown>): () => void {
     function scheduled(this: unknown, callback: (...args: unknown[]) => void, ...rest: unknown[]): unknown {
       if (typeof callback !== 'function') return Reflect.apply(original!, this, [callback, ...rest]);
       let owner: Set<Pending> | null;
-      if (state.loading > 0 || running === null) owner = null;
+      if (state.loading > 0) owner = null;
       else if (running !== undefined) owner = running;
       else {
         const session = currentSession();
@@ -83,7 +84,7 @@ function installTimers(target: Record<string, unknown>): () => void {
         function (this: unknown, ...args: unknown[]) {
           if (once) forget(timer);
           const outer = running;
-          running = owner;
+          running = owner ?? undefined;
           try {
             return Reflect.apply(callback, this, args);
           } finally {

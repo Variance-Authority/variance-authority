@@ -137,6 +137,23 @@ describe('isolateTimers', () => {
     expect(pending.size).toBe(1);
   });
 
+  it('cancels what a setup or load timer schedules while a test runs, as the test ends', () => {
+    atSetup();
+    const { host, pending } = fakeHost();
+    onTestFinished(isolateTimers(host));
+    const schedule = host.setInterval as (callback: () => void) => number;
+    schedule(() => void schedule(() => {}));
+    nextSession();
+    startLoad();
+    schedule(() => void schedule(() => {}));
+    endLoad();
+    const leave = enterTest();
+    for (const [, fire] of [...pending]) fire();
+    expect(pending.size).toBe(4);
+    leave();
+    expect(pending.size).toBe(2);
+  });
+
   it('stops tracking a timer that was cleared', () => {
     const { host, pending } = fakeHost();
     onTestFinished(isolateTimers(host));
