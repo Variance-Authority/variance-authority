@@ -227,8 +227,15 @@ names. Leave out the Storybook config and the story files: Storybook reads a
 story file's exports once for the page. Put the reset first among the project
 loaders, not in `beforeEach`, because Storybook runs every loader before any
 `beforeEach`, and a story's own loader that reads module state would read the
-story before it. Each story switched to on the same page then starts from the
-values its modules were loaded with.
+state the previous story left. Each story switched to on the same page then
+starts from the values its modules were loaded with.
+
+Three things stay shared. State a story file declares itself, since the story
+files are excluded. Work the previous story left running, such as a timer or a
+pending promise, which writes into the next story's session when it lands. And
+anything in `node_modules` or in a package that declares side effects. The
+plugin has no build mode of its own: add it to a Storybook config, not to an
+app's production build.
 
 ## Run it in Rspack or webpack
 

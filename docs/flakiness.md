@@ -695,7 +695,9 @@ time instead: its Jest transformer and its loader for Rspack and webpack give
 every module-level `let` the module writes and does not export, and every object
 it keeps to itself,
 one value per test, and the
-same driver starts each test on a copy of what the module held once it loaded. A declaration marked
+same driver starts each test on a copy of what the module held once it loaded. Its Vite plugin does
+the same under Vitest, and in a Storybook build, where the first project loader
+starts each story switched to on one page from the same copy. A declaration marked
 `@isolator-ignore` stays shared.
 
 What this does not cover is a memoized value inside a package you do not author.

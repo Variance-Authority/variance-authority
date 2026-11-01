@@ -47,6 +47,13 @@ describe('the isolator under Vitest', () => {
     expect(warnings).toEqual([`isolator: count.ts:1 \`count\` stays shared: an exported \`let\` is read by its importers as a live binding, which no getter can stand in for`]);
   });
 
+  it("reads the globs from Vitest's root, though Vite resolved a project's own root first", () => {
+    const plugin = isolator({ exclude: ['fixtures/**'] });
+    plugin.configResolved({ root: join(root, 'project') });
+    plugin.configureVitest({ project: project([]), vitest: { config: { root } } });
+    expect(plugin.transform.call({ warn: () => {} }, STATE, join(root, 'fixtures/state.ts'))).toBeUndefined();
+  });
+
   it('refuses a module before Vite resolved its config', () => {
     const plugin = isolator();
     expect(() => plugin.transform.call({ warn: () => {} }, STATE, join(root, 'state.ts'))).toThrow('before Vite resolved its config');

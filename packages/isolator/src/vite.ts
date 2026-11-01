@@ -14,7 +14,7 @@ import { skipper } from './skips.js';
 
 /** What the plugin may be handed. */
 export interface IsolatorPluginOptions {
-  /** Globs, relative to Vitest's root, of modules whose state stays shared. */
+  /** Globs, relative to Vitest's root, or Vite's under Vite alone, of modules whose state stays shared. */
   readonly exclude?: readonly string[];
 }
 
@@ -60,8 +60,9 @@ export function isolator(options: IsolatorPluginOptions = {}): IsolatorPlugin {
     configureVitest({ project, vitest }) {
       projects.push(project);
       for (const file of project.config.setupFiles) setupFiles.add(file);
+      // Vite resolved each project's own root first; Vitest's is the one `exclude` is read from.
+      if (root !== vitest.config.root) skipped = skipper(vitest.config.root, options.exclude);
       root = vitest.config.root;
-      skipped ??= skipper(root, options.exclude);
     },
     transform(code, id) {
       const path = id.split('?')[0]!;
