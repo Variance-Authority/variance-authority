@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { vi } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import type { FixturePackage } from './invented-packages.js';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
@@ -11,12 +12,13 @@ import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 /**
  * A checkout of INVENTED packages: a checkout whose one workspace declares `declared` and whose `node_modules`
  * holds each of `packages` as it publishes itself, indexed and refreshed the way
- * `variance index` does. Points the cache at a directory of its own. `own` adds
+ * `variance index` does. Points the cache at a directory of its own, until
+ * `vi.unstubAllEnvs()`. `own` adds
  * source files of the checkout's own, by path.
  */
 export async function inventedWorkspace(packages: readonly FixturePackage[], declared: readonly string[],
   own: Readonly<Record<string, string>> = {}): Promise<string> {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-jobs-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-jobs-cache-')));
   const root = mkdtempSync(join(tmpdir(), 'va-jobs-fixture-'));
   execFileSync('git', ['init', '--quiet', root]);
   const files: Record<string, string> = {

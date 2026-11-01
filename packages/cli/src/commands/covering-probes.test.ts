@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   cacheRootFor,
@@ -104,6 +104,10 @@ async function checkout(suites?: Record<string, object>): Promise<{ root: string
 }
 
 describe('a record cut under probes this build does not place', () => {
+  // `changed` works from inside the checkout it lays down.
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
   it('answers which cases ran the file, and names both probes and the question the difference leaves open', async () => {
     const execution = await recorded(RETIRED);
 

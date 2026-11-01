@@ -39,7 +39,7 @@ Node 22.15 or newer, on macOS (Apple silicon), Linux (glibc, x64 or arm64) or
 Windows (x64): which modules declare side effects is read by
 [Sense](https://variance-authority.dev/reference/packages/sense)'s native reader. React 19 only for the React entry. The transform is one
 function, `isolate(code, file)`; Jest 30, Rspack 2 and webpack 5 get a seam
-that calls it, and any other build tool calls it itself.
+that calls it, Vitest 5 a plugin, and any other build tool calls it itself.
 
 ## What it rewrites
 
@@ -137,6 +137,71 @@ Test files are not rewritten. A test file's own `let` carries what a
 `beforeAll` set into the tests after it, which is what a test file means by it.
 Neither is anything under `node_modules`, nor a module its package lists in
 `sideEffects`.
+
+## Run it in Vitest
+
+Vitest's `isolate: false` keeps each worker's modules loaded from one test file
+to the next, which saves loading them again for every file, and lets every
+file see what the files before it left in them. The isolator takes the second
+part away: each test reads the values its modules were loaded with.
+
+```ts
+// vitest.config.ts
+import { isolator } from '@variance-authority/isolator/vite';
+import { defineConfig } from 'vitest/config';
+
+// Every file that calls `vi.mock` or renders into a DOM; one these globs miss runs shared.
+const isolated = ['src/**/*.dom.test.tsx', 'src/**/*.mocked.test.ts'];
+
+export default defineConfig({
+  plugins: [isolator()],
+  test: {
+    setupFiles: ['./reset.setup.ts'],
+    projects: [
+      { extends: true, test: { name: 'shared', isolate: false, exclude: isolated } },
+      { extends: true, test: { name: 'isolated', include: isolated } },
+    ],
+  },
+});
+```
+
+```ts
+// reset.setup.ts
+import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
+import { aroundEach, beforeEach } from 'vitest';
+
+configureResetHandler(beforeEach);
+
+const { isolateConcurrentEach } = await import('@variance-authority/isolator/node');
+
+isolateConcurrentEach(aroundEach);
+```
+
+Tests that run side by side under `test.concurrent` share whatever the last
+`beforeEach` reset, so `isolateConcurrentEach` runs each of them in an
+`isolated` session of its own. The isolator is imported after the driver is
+installed, since it registers its reset as it loads.
+
+The plugin asks Vitest which files are tests, by every project's `include`
+and `includeSource`, and leaves them and the setup files as they are. It leaves
+what the Jest transformer and the loader leave: anything under `node_modules`,
+what `sideEffects` lists, and the `exclude` globs it is handed, relative to
+Vitest's root. Keep `include` off the root config: a project that extends it
+adds its own `include` to the root's, and `isolated` would run every file.
+
+The isolator resets what modules hold, not what the process holds: the working
+directory after `process.chdir`, `process.env` and a global carry into the next
+file. Change the last two through `vi.stubEnv` and `vi.stubGlobal` with
+Vitest's `unstubEnvs` and `unstubGlobals` on, and restore the working directory
+in the file that changed it. Nor does it load a module
+again. A `vi.mock` reaches only the modules loaded after it, and a renderer
+binds the DOM and the React DevTools hook it finds when it loads, so a file
+that mocks or renders into a DOM keeps a worker of its own, in the `isolated`
+project.
+
+Record coverage with isolation on. A worker that keeps a module credits it to
+the first file that loaded it, so a record made shared says the files after
+never entered it ([a record needs a module graph per test file](https://variance-authority.dev/docs/selecting#a-record-needs-a-module-graph-per-test-file)).
 
 ## Run it in Rspack or webpack
 
@@ -259,6 +324,7 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
 | `@variance-authority/isolator/loader` | The loader for Rspack and webpack. |
+| `@variance-authority/isolator/vite` | The plugin for Vitest. |
 | `@variance-authority/isolator/transform` | `isolate(code, file)`, the transform itself, for any other tool. |
 | `@variance-authority/isolator/runtime` | `frame`, which rewritten modules import. |
 
@@ -273,7 +339,6 @@ nobody holds any more takes its values with it.
   as `function setup() { register(handlers); } setup();` does. The transform
   reads what the module does at its top level, not inside the functions it
   calls; mark the declaration `@isolator-ignore`.
-- **Vitest.** There is no Vite plugin yet.
 - **A class's static fields.** They live on the class, which is one object for
   every session.
 - **State inside a package you do not build.** `node_modules` is never

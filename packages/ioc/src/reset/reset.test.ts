@@ -1,17 +1,21 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { registerResetHandler } from './index.js';
 import { configureResetHandler } from './setup.js';
 
 const REALM = Symbol.for('@variance-authority/ioc/reset');
 
 /**
- * The registry is realm state, so these tests share one with each other.
- *
- * A runner gives each test file its own realm and never asks for a second, so
- * this is the one thing here that is not a fair model of a real suite.
+ * The registry is realm state, so these tests share one with each other, and
+ * the realm's own registry is put back when the file ends: a worker that keeps
+ * its realm across files hands the next one the registry its setup configured,
+ * not one holding the handlers these tests register.
  */
+const realm = (globalThis as Record<symbol, unknown>)[REALM];
 beforeEach(() => {
   delete (globalThis as Record<symbol, unknown>)[REALM];
+});
+afterAll(() => {
+  (globalThis as Record<symbol, unknown>)[REALM] = realm;
 });
 
 /** A registrar that records the driver instead of installing it in a runner. */

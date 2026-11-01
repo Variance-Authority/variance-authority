@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
@@ -28,12 +28,12 @@ const PACKAGE = fileURLToPath(new URL('../..', import.meta.url));
 // The machine's index turn sits in the temporary directory, which the suite's
 // setup (`tools/temporary-per-test.ts`) gives each test of its own.
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-index-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 /** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
@@ -426,7 +426,7 @@ describe('variance index', () => {
     const root = checkout();
     const cache = join(mkdtempSync(join(tmpdir(), 'va-index-unwritable-')), 'cache');
     writeFileSync(cache, 'not a directory\n');
-    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
 
     const refused = await run(['index']);
 
