@@ -361,7 +361,7 @@ describe('two tokens, and what each one may do', () => {
 
   it('names the format each image declares, so a kept WebP is not served as a PNG', async () => {
     const after = build.images['story:a']!.after!;
-    const kept = (await keepImage(Buffer.from(BYTES, 'base64'))).bytes.toString('base64');
+    const kept = (await keepImage(Buffer.from(BYTES, 'base64'))).toString('base64');
     await call('/review/builds', {
       token: INGEST,
       body: { ...build, images: { 'story:a': { after, before: { ...after, bytes: kept } } } },

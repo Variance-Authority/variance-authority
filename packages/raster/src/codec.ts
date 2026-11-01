@@ -2,7 +2,6 @@ import {
   accessibilitySnapshot,
   type AccessibilitySnapshot,
   type ComponentHash,
-  type Digest,
   type Raster,
   type Rect,
 } from '@variance-authority/core/format';
@@ -41,15 +40,11 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
   const snapshot = typeof sidecar.snapshot === 'string' ? sidecar.snapshot : undefined;
   const accessibility = accessibilityFrom(sidecar.accessibility);
   if (sidecar.accessibility !== undefined && accessibility === null) return null;
-  // Dropped when it is not text, never refused: it only lets a comparison skip
-  // decoding the image, and a comparison without it decodes and decides the same.
-  const pixels = sized && typeof sidecar.pixels === 'string' ? (sidecar.pixels as Digest) : undefined;
 
   return {
     documentDigest: sidecar.documentDigest,
     identity,
     ...(sized ? { width: sidecar.width as number, height: sidecar.height as number } : {}),
-    ...(pixels === undefined ? {} : { pixels }),
     missingFonts,
     ...(accessibility === null ? {} : { accessibility }),
     ...(components !== undefined ? { components } : {}),

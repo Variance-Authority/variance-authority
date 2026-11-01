@@ -302,6 +302,20 @@ describe('two equal captures', () => {
       shrunk: [],
     });
   });
+
+  it('compare as the comparison of nothing', () => {
+    const before = column([1, 1, 2, 3, 3, 3]);
+    const after = column([1, 1, 2, 3, 3, 3]);
+
+    const comparison = comparePixels(before, after);
+
+    expect([comparison.changed, comparison.dimensionsChanged, comparison.mask.changed]).toEqual([
+      { default: 0, strict: 0 },
+      false,
+      0,
+    ]);
+    expect(comparison.alignment).toEqual({ inserted: [], removed: [], shifted: [] });
+  });
 });
 
 describe('the codec-free half', () => {

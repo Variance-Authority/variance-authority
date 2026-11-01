@@ -89,7 +89,7 @@ async function writtenFor(
 
 describe('which verdicts get a pair', () => {
   it('names the before by the format the store kept it in', async () => {
-    const kept = (await keepImage(Buffer.from(BLACK, 'base64'))).bytes.toString('base64');
+    const kept = (await keepImage(Buffer.from(BLACK, 'base64'))).toString('base64');
     const { written, record } = await writtenFor('changed', { kept });
     expect(written).toEqual([
       '/repo/out/images/fixture%3Aa.after.png',

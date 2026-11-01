@@ -229,14 +229,6 @@ describe('the cheap lookup and the full one agree', () => {
     expect((await store().describe({ subject: 'old' }, MAC))?.keepsSnapshot).toBe(false);
   });
 
-  it('finds the digest of the kept pixels it was given', async () => {
-    // It lets the comparison skip decoding this image; a store that dropped it
-    // costs every unchanged run here a decode the file-backed store saves.
-    await store().put({ subject: 's' }, { ...raster(MAC), pixels: 'v1:p' });
-
-    expect((await store().find({ subject: 's' }, MAC))?.raster.pixels).toBe('v1:p');
-  });
-
   it('describes without moving the image', async () => {
     await store().put({ subject: 's' }, raster(MAC));
 

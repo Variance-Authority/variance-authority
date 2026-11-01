@@ -259,7 +259,6 @@ the bytes arrive cannot change a verdict.
 | `imageFormat` | `(bytes: Uint8Array) => 'png' \| 'webp' \| null` |
 | `imageSize` | `(bytes: Uint8Array) => { width, height } \| null` |
 | `decode` | `(base64: string) => Buffer` |
-| `pixelDigest` | `(image: DecodedImage) => Digest` |
 
 `comparePixels` takes RGBA somebody else already decoded and does no decoding of
 its own. A `DecodedImage` is `{ width, height, data }` where `data` is a `Buffer`
@@ -283,22 +282,6 @@ seam is why it is the async one: decoding is about 90% of a comparison, and a
 threadpool decoder makes a pair of images cost roughly what one costs. The
 default decoder is `pngjs` for a PNG and WebAssembly libwebp for a WebP, so
 this package still requires nothing native.
-
-When the `before` record carries `pixels`, the digest of its decoded pixels,
-`compareRasters` decodes the capture first and hashes it. If the two digests
-are equal, the baseline is never decoded, and the comparison is the one equal
-pixels produce. If they differ, the baseline is decoded and compared as usual.
-`keepImage` in `@variance-authority/png-sharp` records the digest when it keeps
-a baseline. A record without one is decoded on both sides.
-
-`pixelDigest` hashes the width, the height and the RGBA, with the colour under
-a fully transparent pixel taken as zero, since a comparison does not read it.
-It hashes decoded pixels and never encoded bytes: a capture is a PNG and a kept
-baseline a WebP of the same pixels, and the two encodings share nothing.
-
-The rows two images share at the top and the bottom are found by comparing
-each pair of rows word by word, so two equal images, however they were found
-equal, cost one such scan before the pixel comparison.
 
 `diffImage` resolves to an encoded PNG — the after image dimmed with changed pixels
 in red — for the person who does want to look. It is derived from the same bytes

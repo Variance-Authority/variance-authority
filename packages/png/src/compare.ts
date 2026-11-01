@@ -10,7 +10,6 @@ import {
 } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
-import { pixelDigest } from './digest.js';
 import { decodePortable } from './format.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
@@ -88,17 +87,9 @@ export async function compareRasters(
   // and could see that one carries no image.
   const left0 = picture(before, 'before');
   const right0 = picture(after, 'after');
-  // A side that recorded the digest of its pixels is decoded only when the
-  // other side's pixels differ from them: equal digests are equal pixels, so the
-  // capture compared with itself is the comparison the baseline would give. The
-  // price is that a pair that differs decodes one side after the other.
-  const [left, right] = await timeOn(options.steps, 'decode', async () => {
-    if (left0.pixels === undefined) {
-      return Promise.all([decoder.decode(decode(left0.bytes)), decoder.decode(decode(right0.bytes))]);
-    }
-    const right = await decoder.decode(decode(right0.bytes));
-    return [pixelDigest(right) === left0.pixels ? right : await decoder.decode(decode(left0.bytes)), right] as const;
-  });
+  const [left, right] = await timeOn(options.steps, 'decode', async () =>
+    Promise.all([decoder.decode(decode(left0.bytes)), decoder.decode(decode(right0.bytes))]),
+  );
 
   return timeOn(options.steps, 'compare', () => comparePixels(left, right, options));
 }

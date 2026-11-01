@@ -202,14 +202,4 @@ export const LATER_MIGRATIONS: readonly (readonly string[])[] = [
     `ALTER TABLE baselines ADD COLUMN snapshot TEXT`,
     `UPDATE schema_version SET version = 21`,
   ],
-  // 21 → 22: the digest of a baseline's kept pixels.
-  [
-    // `Raster.pixels`, written by the accept that kept the image. A run whose
-    // capture decodes to the same digest compares without decoding this image.
-    //
-    // Null is *not recorded*: a baseline approved before this column. A run
-    // decodes it there and decides the same.
-    `ALTER TABLE baselines ADD COLUMN pixels TEXT`,
-    `UPDATE schema_version SET version = 22`,
-  ],
 ];

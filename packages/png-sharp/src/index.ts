@@ -1,12 +1,5 @@
 import sharp from 'sharp';
-import {
-  imageFormat,
-  pixelDigest,
-  refuseOversize,
-  refuseUnkept,
-  type DecodedImage,
-  type PngDecoder,
-} from '@variance-authority/png';
+import { imageFormat, refuseOversize, refuseUnkept, type DecodedImage, type PngDecoder } from '@variance-authority/png';
 
 /**
  * `@variance-authority/png-sharp` — the same comparison, decoded by libvips.
@@ -65,14 +58,12 @@ export const sharpDecoder: PngDecoder = {
  * every channel, a transparent one comes back transparent, and the colour under
  * it is lost, since libvips does not pass libwebp's `exact`. A lossless WebP
  * passes through; a lossy one, or one over `KEEP_LIMIT`, is refused undecoded.
- * The pixels decoded back are the ones digested, so the digest is of what was
- * kept.
  */
-export async function keepImage(bytes: Buffer): Promise<{ readonly bytes: Buffer; readonly pixels: ReturnType<typeof pixelDigest> }> {
+export async function keepImage(bytes: Buffer): Promise<Buffer> {
   const format = imageFormat(bytes);
   if (format === 'webp') {
     refuseUnkept(bytes);
-    return { bytes, pixels: pixelDigest(await sharpDecoder.decode(bytes)) };
+    return bytes;
   }
   if (format !== 'png') {
     throw new Error(`these ${bytes.length} bytes are neither a PNG nor a WebP: their header declares no image format.`);
@@ -90,7 +81,7 @@ export async function keepImage(bytes: Buffer): Promise<{ readonly bytes: Buffer
         `${source.width}x${source.height} capture it was given; nothing was kept.`,
     );
   }
-  return { bytes: kept, pixels: pixelDigest(back) };
+  return kept;
 }
 
 /** Every channel of every pixel with any opacity, and the transparency of the rest. */

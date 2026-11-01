@@ -196,8 +196,8 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               `INSERT INTO baselines
                  (project, identity_digest, subject, label, identity, document_digest,
                   width, height, missing_fonts, accessibility, components, finding_marks,
-                  snapshot, pixels, object_key, at, at_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  snapshot, object_key, at, at_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (project, identity_digest, subject, label) DO UPDATE SET
                  identity = excluded.identity,
                  document_digest = excluded.document_digest,
@@ -208,7 +208,6 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
                  components = excluded.components,
                  finding_marks = excluded.finding_marks,
                  snapshot = excluded.snapshot,
-                 pixels = excluded.pixels,
                  object_key = excluded.object_key,
                  at = excluded.at,
                  at_ms = excluded.at_ms`,
@@ -232,7 +231,6 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               raster.components === undefined ? null : JSON.stringify(raster.components),
               raster.findingMarks === undefined ? null : JSON.stringify(raster.findingMarks),
               raster.snapshot ?? null,
-              raster.pixels ?? null,
               objectKey,
               at,
               Date.parse(at),
@@ -349,7 +347,7 @@ async function locate(
       db
         .prepare(
           `SELECT identity, document_digest, width, height, missing_fonts, accessibility,
-                  components, finding_marks, snapshot, pixels, object_key, identity_digest
+                  components, finding_marks, snapshot, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
             ORDER BY (CASE WHEN instr(${engine}, '@') = 0 THEN ${engine}

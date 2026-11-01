@@ -5,7 +5,7 @@ import { PNG } from 'pngjs';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { decodePortable, imageFormat, KEEP_LIMIT, pixelDigest } from '@variance-authority/png';
+import { decodePortable, imageFormat, KEEP_LIMIT } from '@variance-authority/png';
 import { createDurableStore } from './durable.js';
 import { keptRaster } from './keep.js';
 
@@ -72,16 +72,6 @@ describe('an accepted baseline', () => {
     await store.put(KEY, kept);
     expect((await store.find(KEY, CHROMIUM))?.raster.bytes).toBe(kept.bytes);
     expect(await store.describe(KEY, CHROMIUM)).toMatchObject({ pictured: true });
-  });
-
-  it('records the digest of its pixels, and is found carrying it', async () => {
-    const store = createDurableStore(root);
-    const accepted = capture(6, 4);
-    const kept = await keptOf(accepted);
-    await store.put(KEY, kept);
-
-    expect(kept.pixels).toBe(pixelDigest(PNG.sync.read(accepted)));
-    expect((await store.find(KEY, CHROMIUM))?.raster.pixels).toBe(kept.pixels);
   });
 
   it('replaces a baseline kept as a PNG, leaving one image beside the record', async () => {

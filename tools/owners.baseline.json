@@ -320,11 +320,6 @@
     "count": 1
   },
   {
-    "idiom": "digest",
-    "at": "packages/png/src/digest.ts",
-    "count": 1
-  },
-  {
     "idiom": "code-unit-order",
     "at": "packages/presentation/src/compare.ts",
     "count": 1
