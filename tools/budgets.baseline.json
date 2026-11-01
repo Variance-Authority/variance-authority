@@ -1585,9 +1585,6 @@
   "packages/ioc/src/reset/index.ts docblock": [
     31
   ],
-  "packages/ioc/src/reset/setup.ts docblock": [
-    24
-  ],
   "packages/ioc/src/reset/state.ts docblock": [
     13
   ],

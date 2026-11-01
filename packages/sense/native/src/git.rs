@@ -49,9 +49,11 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         // for the reason `working-tree-changes.ts` gives: they are what make this
         // call cheap, and overriding either way spends a user's configuration on
         // their behalf. The shape of the question is `untracked_question`'s.
+        // A reader never writes the index: its refresh would race the user's
+        // own git for `index.lock`, and move the stamp a held listing stands on.
         let status = scope.spawn(|| {
             let settings = untracked_settings(root);
-            let mut args = vec!["status", "--porcelain=v1", "-z"];
+            let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
             args.extend(untracked_question(prefix, settings));
             git(root, &args, None)
         });

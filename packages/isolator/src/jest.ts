@@ -5,7 +5,7 @@
  * // reset.setup.cjs: the driver loads before any isolated module.
  * const { configureResetHandler } = require('@variance-authority/ioc/reset/setup');
  *
- * configureResetHandler(beforeEach);
+ * configureResetHandler(beforeEach, afterEach);
  * ```
  *
  * ```js

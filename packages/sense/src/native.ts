@@ -25,9 +25,7 @@ import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-g
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
-  NativeJourneyModule,
-  NativeJourneyStitch,
-  NativeJourneyStitchResult,
+  NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeDistill } from './native-distill.js';
@@ -53,6 +51,8 @@ import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
   readonly size: number;
+  /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
+  readonly vouched: boolean;
   seeds(): string[];
   has(path: string): boolean;
   digest(path: string): string | null;
@@ -165,6 +165,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /** The machine's index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
+  /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
+  changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
   /**

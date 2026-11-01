@@ -35,12 +35,12 @@ const misordered = (state: ResetRealm): Error =>
  * The snapshot is taken because a handler may import a module, and a module may
  * register.
  */
-const runAll = (state: ResetRealm): void => {
+const runAll = (calls: Iterable<() => void>): void => {
   const failures: unknown[] = [];
 
-  for (const handler of Array.from(state.handlers)) {
+  for (const call of Array.from(calls)) {
     try {
-      handler();
+      call();
     } catch (failure) {
       failures.push(failure);
     }
@@ -50,45 +50,39 @@ const runAll = (state: ResetRealm): void => {
   if (failures.length > 1) throw new AggregateError(failures, `${failures.length} reset handlers failed`);
 };
 
+/** Every scope's `member`, as calls, read when the driver runs. */
+const entering = (state: ResetRealm, member: 'enterFile' | 'enterTest' | 'leaveTest'): Array<() => void> =>
+  Array.from(state.scopes, (scope) => () => scope[member]());
+
 /**
- * Install the driver that runs every registered handler before each test.
+ * Install the driver on the runner's `beforeEach`, and on its `afterEach` as
+ * `after`: `configureResetHandler(beforeEach, afterEach)`. It is the only thing
+ * that makes [`registerResetHandler`](./index.ts) do anything. Why the reset
+ * runs on the way in is in the package README.
  *
- * Hand it the runner's own per-test hook. This is the only thing that makes
- * [`registerResetHandler`](./index.ts) do anything, which is what keeps the
- * registration side free to ship.
- *
- * ```ts
- * import { beforeEach } from 'vitest';
- * import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
- *
- * configureResetHandler(beforeEach);
- * ```
- *
- * **`beforeEach`, not `afterEach`.** A failing test does run its `afterEach`;
- * that is the hook's contract. Resetting on the way in instead buys two things.
- * The state a failure left behind is still there when a reporter or a snapshot
- * serializer reads it, rather than being erased between the failure and the
- * report. And a reset on entry does not depend on the previous test having
- * finished — a worker that died on an unhandled rejection, or a run somebody
- * stopped, skips its teardown and leaves the next file to inherit whatever was
- * set.
- *
- * What it does not give you is a clean slate *between files*: a module that
- * reads state while it is being imported is running before any hook, and sees
- * whatever the previous file left.
- *
- * @throws if any handler registered before this call — see the message, which
- * names the first one. The check is unconditional and has no opt-out: a handler
- * that registered early is not installed, and a suite that silently does not
- * reset is the failure this package was added to remove.
+ * @throws if a handler or a scope registered before this call, naming the first.
+ * @throws a `TypeError` without `after`: a driver that never hears a test end
+ *   would leave a nested `describe`'s `beforeAll` writing into the test before it.
  */
-export const configureResetHandler = (each: EachHook): void => {
+export const configureResetHandler = (each: EachHook, after: EachHook): void => {
   const state = realm();
 
+  if (typeof after !== 'function') {
+    throw new TypeError("configureResetHandler takes the runner's afterEach as its second argument: configureResetHandler(beforeEach, afterEach).");
+  }
   if (state.earlyCount > 0) throw misordered(state);
 
   state.configured = true;
+  // A setup file runs again for every test file, before the file is collected: a file starts here.
+  runAll(entering(state, 'enterFile'));
   each(() => {
-    runAll(state);
+    runAll([...entering(state, 'enterTest'), ...state.handlers]);
+  });
+  // FIXME: Jest runs a test file's top-level `afterEach` after this one, so a scope hears the test end before that hook writes.
+  // A custom `testEnvironment` hears `test_done` after every hook; it would be a second thing every Jest setup installs.
+  // FIXME: Vitest runs `beforeEach` cleanups and fixture teardown after this hook, so what they write lands in the file.
+  // FIXME: under Vitest `sequence.hooks: 'list'` or `'parallel'` this hook no longer runs last, with the same effect.
+  after(() => {
+    runAll(entering(state, 'leaveTest'));
   });
 };
