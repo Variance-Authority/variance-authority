@@ -247,7 +247,9 @@ runs any loader, so a story file that reads module state as it loads, or a
 module it loads for the first time that registers itself somewhere, would meet
 the previous story's state, and a reset after it would erase the registration.
 Each story switched to on the same page then reads its modules as a page of its
-own would.
+own would, and a story shown again still holds what its modules registered when
+they first loaded. A story that never imports such a module holds that
+registration too, once a story before it has loaded the module.
 
 Two things stay shared. Work the previous story left behind: a timer or a
 pending promise that lands later, and its unmount, which Storybook runs after

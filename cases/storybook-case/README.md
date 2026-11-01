@@ -279,16 +279,17 @@ on every `setCurrentStory`, before Storybook imports the next story's file.
 `Isolated/Tally` counts in a module variable from its loader, and
 `Isolated/Reader`, a second story file, reads that count as it loads while a
 module it imports registers itself in another. The test shows each story on a
-page of its own, then all of them in turn on one page, which loads once. On
-both, `First` and `Second` read 1 and `Reader` reads `0/1`: no count, one
-registration. `Shared first` and `Shared second` skip the reset, so on one page
+page of its own, then all of them in turn on one page, which loads once, with
+`Reader` shown again after `First`. On both, `First` and `Second` read 1 and
+`Reader` reads `0/1` each time: no count, one registration, kept although its
+modules do not load again. `Shared first` and `Shared second` skip the reset, so on one page
 they read 2 and 3. Built without the plugin, the test fails.
 
 `bench:switch` shows the two isolated stories 40 times, on one page and on a
 new page per story, checks that every story read 1, and prints the median time
 per story. It shows the two shared stories on one page too, so the gap between
 the shared and the isolated stories is what the reset costs per switch. On an
-M4 Max: 6.1 ms per story on one page, with the reset or without it, and 114 ms
+M4 Max: 5.9 ms per story on one page, with the reset or without it, and 108 ms
 on a page per story.
 
 ## Driving the CLI end to end
