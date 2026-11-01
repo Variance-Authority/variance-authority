@@ -6,7 +6,8 @@
  * installed.
  */
 
-import { currentSession, parentSession } from './session.js';
+import { parentSession } from './realm.js';
+import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
 export type Kind = 'let' | 'const' | 'var';

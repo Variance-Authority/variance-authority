@@ -1316,8 +1316,7 @@
         "SessionSource": "type",
         "addSessionSource": "function",
         "currentSession": "function",
-        "nextSession": "function",
-        "parentSession": "function"
+        "nextSession": "function"
       },
       "./runtime": {
         "Frame": "interface",
