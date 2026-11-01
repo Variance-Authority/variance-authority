@@ -49,12 +49,12 @@ describe('a leg read from a real record and a real graph', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-leg-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-leg-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('cuts the selection by the hops the change travelled, as test:since does', async () => {

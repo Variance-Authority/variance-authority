@@ -18,12 +18,12 @@ let home: string;
 
 beforeEach(async () => {
   home = await realpath(await mkdtemp(join(tmpdir(), 'variance-land-busy-')));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cache'));
 });
 
 afterEach(async () => {
   vi.useRealTimers();
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
 import {
   cacheRootFor,
@@ -40,7 +40,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -48,7 +48,7 @@ afterEach(async () => {
 async function laptop(origin: string) {
   const dir = join(home, 'clone');
   await git(home, 'clone', '--quiet', origin, dir);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   const declared = declaredSuites(dir)?.find((one) => one.name === 'unit');
   const readRoot = mainlineReadRoot(cacheRootFor(dir), 'unit');
   const base = (now: number) => mainlineBase(dir, declared, { env: LOCAL, now });
@@ -67,12 +67,12 @@ async function pushed(ci: string): Promise<string> {
 async function publishedNext(ci: string): Promise<string> {
   const commit = await pushed(ci);
   const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), commit);
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
-  if (reader === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
-  else process.env['VARIANCE_AUTHORITY_CACHE'] = reader;
+  if (reader === undefined) vi.unstubAllEnvs();
+  else vi.stubEnv('VARIANCE_AUTHORITY_CACHE', reader);
   expect(done).toMatchObject({ published: { written: [suiteEntry('unit')] } });
   return commit;
 }
@@ -112,9 +112,9 @@ describe('a line that gave no record a moment ago', () => {
     if (missed === undefined || !('miss' in missed)) throw new Error(`expected a miss, read ${JSON.stringify(missed)}`);
     expect(missed.miss.kind).toBe('absent');
     const laptopCache = process.env['VARIANCE_AUTHORITY_CACHE'];
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
     const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
-    process.env['VARIANCE_AUTHORITY_CACHE'] = laptopCache;
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', laptopCache);
     expect(done).toMatchObject({ published: { written: [suiteEntry('unit')] } });
     // The git cell holds its own answer for a minute of the wall clock; this
     // read is minutes later on the reader's clock, so that one is gone.

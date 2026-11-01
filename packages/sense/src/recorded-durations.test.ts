@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileCases, recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
 import { withCaseSections } from './test-selection/case-record.js';
 import { encodeExecutionIndex } from './test-selection/execution-format.js';
@@ -51,13 +51,13 @@ function coverage(
 let root: string;
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-durations-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-durations-cache-')));
   root = mkdtempSync(join(tmpdir(), 'va-durations-'));
   execFileSync('git', ['init', '--quiet', root]);
 });
 
 afterEach(() => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 function record(snapshot: TestCoverage, cases?: ExecutionIndex): string {

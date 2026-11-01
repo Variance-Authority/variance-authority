@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
@@ -16,12 +16,12 @@ import { checkout, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-symbol-within-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-symbol-within-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 /** Five files of `@acme/lib` that import `greet` from its declaration, beside the one import from `@acme/app`. */

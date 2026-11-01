@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commitRunsFile, landRun, readCommitRuns, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
@@ -20,7 +20,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 

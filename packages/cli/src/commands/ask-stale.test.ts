@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages-fixture.js';
 
@@ -16,12 +16,12 @@ import { checkout, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-stale-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-stale-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 function write(root: string, files: Readonly<Record<string, string>>): void {

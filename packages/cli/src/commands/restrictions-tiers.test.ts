@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeF
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 
@@ -12,12 +12,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-tiers-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-tiers-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];

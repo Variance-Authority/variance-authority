@@ -43,14 +43,14 @@ vi.mock('./source-graph.js', async (original) => {
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-gap-selection-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-gap-selection-cache-')));
 });
 
 afterEach(() => {
   framed = undefined;
   unreadable = false;
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const RECORDED: Readonly<Record<string, string>> = {

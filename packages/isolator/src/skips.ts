@@ -12,8 +12,6 @@
  * test selection asks too, so a pattern naming built output leaves its source.
  */
 
-// TODO: Vitest has no seam yet; it needs a Vite plugin that calls `skipper` and `isolate`.
-
 import { relative } from 'node:path';
 import { declaresSideEffects } from '@variance-authority/sense/side-effects';
 import picomatch from 'picomatch';
