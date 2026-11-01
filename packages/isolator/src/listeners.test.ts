@@ -40,6 +40,16 @@ describe('isolateListeners', () => {
     expect(file).toHaveBeenCalledOnce();
   });
 
+  it('takes null for options, as the target does', () => {
+    onTestFinished(isolateListeners());
+    const target = new EventTarget();
+    const listener = vi.fn();
+    target.addEventListener('ping', listener, null as never);
+    target.dispatchEvent(new Event('ping'));
+    expect(listener).toHaveBeenCalledOnce();
+    target.removeEventListener('ping', listener, null as never);
+  });
+
   it('keeps what a module adds as it loads', () => {
     onTestFinished(isolateListeners());
     const target = new EventTarget();

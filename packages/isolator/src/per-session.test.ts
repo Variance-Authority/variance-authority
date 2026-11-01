@@ -3,7 +3,7 @@ import { isolateEnv, isolateGlobals } from './globals.js';
 import { perSession } from './per-session.js';
 import { isolateTimers } from './timers.js';
 import { endLoad, realm, startLoad, switchTo, testSession } from './realm.js';
-import { nextSession } from './session.js';
+import { addSessionSource, nextSession } from './session.js';
 
 const REALM = Symbol.for('@variance-authority/isolator');
 
@@ -110,6 +110,17 @@ describe('perSession', () => {
     expect(object.loaded).toBe(1);
   });
 
+  it('keeps one object one object in a session, however many properties hold it', () => {
+    const shared = { count: 0 };
+    const registry = perSession({ first: shared, second: shared });
+    const leave = enterTest();
+    registry.first.count = 1;
+    expect(registry.second).toBe(registry.first);
+    expect(registry.second.count).toBe(1);
+    leave();
+    expect(registry.second.count).toBe(0);
+  });
+
   it('stores a value as the object would store it', () => {
     const registry = perSession<Record<string, unknown>>({}, { store: String });
     registry.port = 3000;
@@ -150,6 +161,25 @@ describe('isolateEnv', () => {
     leave();
     expect(process.env.TZ).toBe(before);
     process.env.TZ = 'UTC';
+    expect(new Date(0).getTimezoneOffset()).toBe(0);
+  });
+
+  it('leaves the timezone Node reads to the fallback session, while a source answers with a session of its own', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    onTestFinished(isolateEnv());
+    process.env.TZ = 'UTC';
+    let inside = false;
+    const own = {};
+    onTestFinished(addSessionSource(() => (inside ? own : undefined)));
+    inside = true;
+    process.env.TZ = 'Asia/Tokyo';
+    expect(process.env.TZ).toBe('Asia/Tokyo');
+    inside = false;
+    expect(process.env.TZ).toBe('UTC');
     expect(new Date(0).getTimezoneOffset()).toBe(0);
   });
 

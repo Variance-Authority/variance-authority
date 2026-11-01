@@ -70,8 +70,10 @@ function installListeners(options: IsolateListenersOptions): () => void {
   };
 
   const added: Add = function (this: EventTarget, type, listener, settings) {
+    // The target takes `null` for no options, as it takes `undefined`.
+    const given = typeof settings === 'object' && settings !== null ? settings : undefined;
     // An aborted signal attaches nothing.
-    if (listener == null || (typeof settings === 'object' && settings.signal?.aborted === true)) {
+    if (listener == null || given?.signal?.aborted === true) {
       Reflect.apply(add, this, [type, listener, settings]);
       return;
     }
@@ -92,7 +94,7 @@ function installListeners(options: IsolateListenersOptions): () => void {
         if (owned === undefined) sessions.set(session, (owned = new Set()));
       }
     }
-    const once = typeof settings === 'object' && settings.once === true;
+    const once = given?.once === true;
     const owner = owned ?? null;
     const entry: Entry = {
       target: this,
@@ -117,7 +119,7 @@ function installListeners(options: IsolateListenersOptions): () => void {
     Reflect.apply(add, this, [type, entry.attached, settings]);
     listeners.set(listener, entry);
     owned?.add(entry);
-    const signal = typeof settings === 'object' ? settings.signal : undefined;
+    const signal = given?.signal;
     if (signal != null) {
       // What the target drops by itself is no longer anyone's to remove.
       const dropped = () => forget(entry);

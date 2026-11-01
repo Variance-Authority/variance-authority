@@ -13,8 +13,9 @@ import { currentSession } from './session.js';
  * test reads what its file set, and what it sets itself ends with it. A file
  * starts from the environment as it was when this was called, and what a
  * module sets as it loads. Values are stored as strings, as Node stores them.
- * `TZ` is written through to the real environment and put back as sessions
- * switch, since Node reads the timezone from there.
+ * `TZ` is written through to the real environment and put back as the fallback
+ * session switches, since Node reads the timezone from there; a `TZ` set in a
+ * session a source answers with stays in that session's `process.env`.
  */
 export function isolateEnv(): () => void {
   return installOnce('env', process, () => {
@@ -22,7 +23,11 @@ export function isolateEnv(): () => void {
     // Sessions copy from what the environment held here, not from the real one,
     // which carries the `TZ` of whichever session wrote it last.
     const base = { ...real };
+    // Node holds one timezone for the process, so it follows the fallback session
+    // alone: a session a source answers with, `isolated(fn)` or a concurrent
+    // test's, reads its own `TZ`, and nothing announces its end to put it back.
     const syncTimezone = () => {
+      if (currentSession() !== realm().fallback) return;
       const zone = env.TZ;
       if (zone === real.TZ) return;
       if (zone === undefined) delete real.TZ;

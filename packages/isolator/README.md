@@ -358,7 +358,10 @@ isolateListeners();
 - **`isolateEnv()`** gives every session its own `process.env`, started from
   its parent's: a test reads what its file set, and what it sets itself ends
   with it. `TZ` is written through to the real environment and put back as
-  sessions switch, since Node reads the timezone from there.
+  the fallback session switches — a test, a file, `nextSession()` — since Node
+  reads the timezone from there. Node holds one timezone per process, so a
+  `TZ` set in a session `isolated(fn)` or a concurrent test starts stays in
+  that session's `process.env` and leaves Node's timezone as it was.
 - **`isolateGlobals(target = globalThis)`** puts `target`'s own properties
   back as each session found them: what a test added is deleted, and what it
   replaced or deleted is back. A property that cannot be configured stays.

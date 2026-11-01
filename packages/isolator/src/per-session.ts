@@ -71,12 +71,14 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
   });
 }
 
-/** Every own property of `from`, each value copied, on a plain object. */
+/** Every own property of `from`, each value copied, on a plain object, shared references and cycles kept. */
 function snapshot(from: object): object {
   const into = Object.create(null) as Record<PropertyKey, unknown>;
+  // One map for the whole object: what two properties share, their copies share.
+  const seen = new Map<object, unknown>([[from, into]]);
   for (const key of Reflect.ownKeys(from)) {
     const descriptor = Reflect.getOwnPropertyDescriptor(from, key)!;
-    if ('value' in descriptor) descriptor.value = copied(descriptor.value, new Map());
+    if ('value' in descriptor) descriptor.value = copied(descriptor.value, seen);
     Reflect.defineProperty(into, key, { ...descriptor, configurable: true });
   }
   return into;
