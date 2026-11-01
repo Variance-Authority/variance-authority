@@ -696,7 +696,9 @@ every module-level `let` the module writes and does not export, and every object
 it keeps to itself,
 one value per test, and the
 same driver starts each test on a copy of what its
-file left there while it was collected and in its `beforeAll` hooks. A declaration marked
+file left there while it was collected and in its `beforeAll` hooks. Its Vite plugin does
+the same under Vitest, and in a Storybook build, where each switch to a story,
+before its file is imported, starts it on one page from what every module held once it loaded. A declaration marked
 `@isolator-ignore` stays shared.
 
 What this does not cover is a memoized value inside a package you do not author.

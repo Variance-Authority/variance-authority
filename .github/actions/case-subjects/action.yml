@@ -21,6 +21,7 @@ runs:
         yarn workspace @variance-authority/case-storybook build-storybook
         yarn workspace @variance-authority/case-storybook build-storybook:changed
         yarn workspace @variance-authority/case-storybook build-storybook:a11y
+        yarn workspace @variance-authority/case-storybook build-storybook:isolated
 
     - name: record the incumbent
       shell: bash
