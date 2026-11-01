@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { differencePixels } from './mask.js';
 import { comparePixels } from './compare.js';
 import { alignRows } from './align.js';
@@ -301,5 +301,18 @@ describe('two equal captures', () => {
       grown: [],
       shrunk: [],
     });
+  });
+});
+
+describe('the codec-free half', () => {
+  it('reads no Node global, so a browser computes the same mask', () => {
+    const before = column([1, 2, 3, 4, 5]);
+    const after = column([1, 9, 2, 3, 4, 5]);
+    vi.stubGlobal('Buffer', undefined);
+    try {
+      expect(differencePixels(before, after, undefined, { diffMask: true }).changed).toBe(WIDTH);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

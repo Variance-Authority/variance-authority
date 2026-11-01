@@ -223,15 +223,12 @@ function hidden(word: number): boolean {
   return word !== 0 && word < 0x01000000;
 }
 
-/** Whether two rows hold the same words, compared natively rather than word by word. */
+// A plain loop, not `Buffer.compare`: this half runs in the browser too.
 function same(left: Uint32Array, leftRow: number, right: Uint32Array, rightRow: number, width: number): boolean {
-  const bytes = width * 4;
-  return (
-    Buffer.compare(
-      Buffer.from(left.buffer, left.byteOffset + leftRow * bytes, bytes),
-      Buffer.from(right.buffer, right.byteOffset + rightRow * bytes, bytes),
-    ) === 0
-  );
+  const from = leftRow * width;
+  const to = rightRow * width;
+  for (let x = 0; x < width; x += 1) if (left[from + x] !== right[to + x]) return false;
+  return true;
 }
 
 /**
