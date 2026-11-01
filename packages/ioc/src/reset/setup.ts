@@ -79,6 +79,9 @@ export const configureResetHandler = (each: EachHook, after: EachHook): void => 
     runAll([...entering(state, 'enterTest'), ...state.handlers]);
   });
   // FIXME: Jest runs a test file's top-level `afterEach` after this one, so a scope hears the test end before that hook writes.
+  // A custom `testEnvironment` hears `test_done` after every hook; it would be a second thing every Jest setup installs.
+  // FIXME: Vitest runs `beforeEach` cleanups and fixture teardown after this hook, so what they write lands in the file.
+  // FIXME: under Vitest `sequence.hooks: 'list'` or `'parallel'` this hook no longer runs last, with the same effect.
   after(() => {
     runAll(entering(state, 'leaveTest'));
   });

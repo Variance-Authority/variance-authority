@@ -35,6 +35,14 @@ export const realm = (): Realm => {
   return state as Realm;
 };
 
+/** A new test session: it starts from what its file wrote outside tests. */
+export function testSession(): object {
+  const state = realm();
+  const session = {};
+  state.parents.set(session, state.file);
+  return session;
+}
+
 /** The session `session` starts from, when it is a test's; `undefined` when it starts from the load. */
 export function parentSession(session: object): object | undefined {
   return realm().parents.get(session);

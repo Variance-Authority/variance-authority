@@ -17,7 +17,7 @@
  */
 
 import { registerTestScope } from '@variance-authority/ioc/reset';
-import { realm, type SessionSource } from './realm.js';
+import { realm, testSession, type SessionSource } from './realm.js';
 
 export type { SessionSource } from './realm.js';
 
@@ -56,12 +56,10 @@ export function nextSession(): void {
 }
 
 registerTestScope({
+  // FIXME: under Vitest `isolate: false` a module loads once, so what it registered as it loaded is lost to every later file.
   enterFile: nextSession,
   enterTest() {
-    const state = realm();
-    const test = {};
-    state.parents.set(test, state.file);
-    state.fallback = test;
+    realm().fallback = testSession();
   },
   leaveTest() {
     const state = realm();

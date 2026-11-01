@@ -8,7 +8,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { realm } from './realm.js';
+import { testSession } from './realm.js';
 import { addSessionSource } from './session.js';
 
 const STORAGE = Symbol.for('@variance-authority/isolator/node');
@@ -40,9 +40,7 @@ export function isolated<T>(fn: () => T): T {
 
 /** Run a test's `fn` in a session of its own that starts from what its file wrote outside tests. */
 function isolatedTest<T>(fn: () => T): T {
-  const session = {};
-  realm().parents.set(session, realm().file);
-  return storage.run(session, fn);
+  return storage.run(testSession(), fn);
 }
 
 /** A test registrar such as Jest's `test.concurrent`, with its variants hung on it. */

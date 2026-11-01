@@ -26,7 +26,7 @@ export interface TestScope {
   enterFile(): void;
   /** A test starts, before its `beforeEach` hooks. */
   enterTest(): void;
-  /** A test ended, after its `afterEach` hooks. Called only when the driver was handed the runner's `afterEach`. */
+  /** A test ended, after its `afterEach` hooks. */
   leaveTest(): void;
 }
 
