@@ -20,7 +20,7 @@ import { READABLE } from './language.js';
 import { stepped, type Progress } from './progress.js';
 import type { ResolveOptions } from './resolve.js';
 import { configOf } from './reuse.js';
-import { gitTreeOf } from './tree.js';
+import { changeTreeOf } from './tree.js';
 import { withDeclaredTsconfig } from './typescript.js';
 
 /** `UpdateOptions` in `native/src/source_update.rs`. */
@@ -58,8 +58,9 @@ export async function updateNatively(
   progress?: Progress,
   dirs: readonly string[] = ['.'],
 ): Promise<NativelyUpdated | undefined> {
-  const tree = await stepped(progress, `listing ${root} with git`, () => gitTreeOf(root, dirs));
+  const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const held = tree?.native;
+  if (held?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
   if (tree === undefined || held?.updateIndex === undefined) return undefined;
   // The scan this update stands in for reads the same setting, so the digest
   // it compares against the chain is the one that scan wrote.

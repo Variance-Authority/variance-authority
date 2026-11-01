@@ -203,12 +203,15 @@ function wordsOf({ width, height, data }: DecodedImage): Uint32Array {
     data.byteOffset % 4 === 0
       ? new Uint32Array(data.buffer, data.byteOffset, width * height)
       : new Uint32Array(Uint8Array.from(data).buffer);
-  const first = words.findIndex(hidden);
-  if (first === -1) return words;
-  // Never written over the caller's pixels: a view is copied first.
-  const cleared = words.buffer === data.buffer ? words.slice() : words;
-  for (let index = first; index < cleared.length; index += 1) if (hidden(cleared[index]!)) cleared[index] = 0;
-  return cleared;
+  // A loop rather than `findIndex`: a callback per pixel was most of the cost.
+  let cleared: Uint32Array | undefined;
+  for (let index = 0; index < words.length; index += 1) {
+    if (!hidden(words[index]!)) continue;
+    // Never written over the caller's pixels: a view is copied first.
+    cleared ??= words.buffer === data.buffer ? words.slice() : words;
+    cleared[index] = 0;
+  }
+  return cleared ?? words;
 }
 
 /** A fully transparent pixel that still carries a colour. */

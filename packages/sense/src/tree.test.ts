@@ -3,7 +3,7 @@ import { chmod, mkdir, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { gitDigests } from './tree.js';
 
 /**
@@ -280,6 +280,34 @@ describe('digests read out of git', () => {
     // correct and merely slower, so this is a saving that did not apply and not
     // a repository that is misconfigured.
     expect(await gitDigests(root)).toBeUndefined();
+  });
+});
+
+describe('the change tree without the addon', () => {
+  // Cut at the addon: no held listing and no Watchman, so the tree is git's as the JavaScript reads it.
+  afterEach(() => {
+    vi.doUnmock('./addon.js');
+    vi.resetModules();
+  });
+
+  it("answers git's tree", async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-tree-'));
+    try {
+      await write(root, 'src/Button.tsx', 'export function Button() { return null }\n');
+      await write(root, 'docs/readme.md', 'one\n');
+      await git(root, ['init', '--quiet']);
+      await git(root, ['add', '-A']);
+      await git(root, ['commit', '--quiet', '-m', 'one']);
+      vi.resetModules();
+      vi.doMock('./addon.js', () => ({ native: () => undefined }));
+      const { changeTreeOf } = await import('./tree.js');
+
+      const tree = await changeTreeOf(root, join(root, 'index.bin'), ['src']);
+      expect(tree?.get('src/Button.tsx')).toBe(await onDisk(root, 'src/Button.tsx'));
+      expect(tree?.get('docs/readme.md')).toBe(await onDisk(root, 'docs/readme.md'));
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

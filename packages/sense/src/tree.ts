@@ -301,6 +301,18 @@ export async function gitTreeOf(
   return digests === undefined ? undefined : treeOf(digests);
 }
 
+/**
+ * The tree an update of the index at `index` over `dirs` is made against: the
+ * listing the index carries when Watchman reports nothing moved since it was
+ * taken, else git's (spec 0107). `undefined` where {@link gitTreeOf} answers it.
+ */
+export async function changeTreeOf(root: string, index: string, dirs: readonly string[]): Promise<Tree | undefined> {
+  const addon = native();
+  if (addon === undefined) return gitTreeOf(root, dirs);
+  const held = addon.changeTree(root, index, [...dirs]);
+  return held === null ? undefined : nativeTree(held);
+}
+
 /** A tree over digests somebody else computed — a caller's own map, or the one `gitDigests` read. */
 export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
   let sorted: readonly string[] | undefined;
