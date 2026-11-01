@@ -35,8 +35,9 @@ const BROWSER_AVAILABLE = (() => {
 
 let server;
 /**
- * One browser for the file and one page for the test, never one per story: the
- * page is the session whose module state the stories would share.
+ * One browser for the file, not leased: its pages are the sessions under test.
+ * A page per story is the reference, what each story reads with modules of its
+ * own, and one page for every story is the session they would share.
  */
 let browser;
 let baseUrl = '';
