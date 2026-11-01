@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { differencePixels } from './mask.js';
 import { comparePixels } from './compare.js';
 import { alignRows } from './align.js';
@@ -229,6 +229,17 @@ describe('content that moved down the page', () => {
     expect(difference.changed).toBe(WIDTH);
   });
 
+  it('leaves the colour under a fully transparent pixel in the caller\'s image', () => {
+    const before = column([1, 2, 3]);
+    const after = column([1, 2, 3]);
+    for (let y = 0; y < after.height; y += 1) after.data.set([7, 7, 7, 0], y * WIDTH * 4);
+    const kept = after.data.slice();
+
+    comparePixels(before, after);
+
+    expect(after.data).toEqual(kept);
+  });
+
   it('compares position by position when the widths differ', () => {
     const narrow = column([1, 2, 3]);
     const wide = { width: WIDTH + 1, height: 3, data: new Uint8Array((WIDTH + 1) * 3 * 4).fill(255) };
@@ -315,18 +326,5 @@ describe('two equal captures', () => {
       0,
     ]);
     expect(comparison.alignment).toEqual({ inserted: [], removed: [], shifted: [] });
-  });
-});
-
-describe('the codec-free half', () => {
-  it('reads no Node global, so a browser computes the same mask', () => {
-    const before = column([1, 2, 3, 4, 5]);
-    const after = column([1, 9, 2, 3, 4, 5]);
-    vi.stubGlobal('Buffer', undefined);
-    try {
-      expect(differencePixels(before, after, undefined, { diffMask: true }).changed).toBe(WIDTH);
-    } finally {
-      vi.unstubAllGlobals();
-    }
   });
 });

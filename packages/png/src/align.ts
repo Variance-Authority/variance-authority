@@ -219,7 +219,6 @@ function hidden(word: number): boolean {
   return word !== 0 && word < 0x01000000;
 }
 
-// A plain loop, not `Buffer.compare`: this half runs in the browser too.
 function same(left: Uint32Array, leftRow: number, right: Uint32Array, rightRow: number, width: number): boolean {
   const from = leftRow * width;
   const to = rightRow * width;
