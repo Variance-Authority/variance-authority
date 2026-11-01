@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
-import { isolated } from './node.js';
+import { isolated, type Registrar } from './node.js';
 import * as runtime from './runtime.js';
 import { addSessionSource, nextSession } from './session.js';
 import { isolate } from './transform.js';
@@ -22,6 +22,27 @@ const counter = () =>
   );
 
 afterEach(() => nextSession());
+
+/**
+ * Give the running test ioc's, the isolator's and the Node entry's state of
+ * its own, put back when it finishes: under a suite that runs this file through
+ * the isolator, they already hold the suite's file and test sessions. A test
+ * that starts sessions imports the Node entry again, after `vi.resetModules`.
+ */
+const ownRealms = () => {
+  const host = globalThis as Record<symbol, unknown>;
+  for (const key of [
+    Symbol.for('@variance-authority/ioc/reset'),
+    Symbol.for('@variance-authority/isolator'),
+    Symbol.for('@variance-authority/isolator/node'),
+  ]) {
+    const kept = host[key];
+    onTestFinished(() => {
+      host[key] = kept;
+    });
+    delete host[key];
+  }
+};
 
 describe('a variable', () => {
   it('starts every new session from the value the module was loaded with', () => {
@@ -76,7 +97,10 @@ describe('a variable', () => {
     });
     delete (globalThis as Record<symbol, unknown>)[IOC];
     const hooks: Array<() => void> = [];
-    configureResetHandler((run) => hooks.push(run));
+    configureResetHandler(
+      (run) => hooks.push(run),
+      () => {},
+    );
     vi.resetModules();
     await import('./session.js');
     const { next, peek } = counter();
@@ -84,6 +108,74 @@ describe('a variable', () => {
     next();
     hooks.forEach((run) => run());
     expect(peek()).toBe(0);
+  });
+
+  it("starts every test from what its file wrote outside tests, and drops the test's own writes when it ends", async () => {
+    ownRealms();
+    const before: Array<() => void> = [];
+    const after: Array<() => void> = [];
+    configureResetHandler(
+      (run) => before.push(run),
+      (run) => after.push(run),
+    );
+    vi.resetModules();
+    await import('./session.js');
+    const { next, peek } = counter();
+    const test = (body: () => number): number => {
+      before.forEach((run) => run());
+      const read = body();
+      after.forEach((run) => run());
+      return read;
+    };
+    // Collection and a `beforeAll` write outside any test: every test after reads it.
+    next();
+    expect(test(() => (next(), peek()))).toBe(2);
+    expect(test(peek)).toBe(1);
+    next();
+    expect(test(peek)).toBe(2);
+    // The next file's setup installs the driver again, before the file is collected.
+    configureResetHandler(
+      () => {},
+      () => {},
+    );
+    expect(peek()).toBe(0);
+  });
+
+  it('starts a concurrent test from what its file wrote outside tests, as it starts every other test', async () => {
+    ownRealms();
+    configureResetHandler(
+      () => {},
+      () => {},
+    );
+    vi.resetModules();
+    await import('./session.js');
+    const { isolateConcurrentEach } = await import('./node.js');
+    const { next, peek } = counter();
+    let around: ((runTest: () => number, context: { task: { concurrent?: boolean } }) => number) | undefined;
+    isolateConcurrentEach((hook) => (around = hook as typeof around));
+    // A `beforeAll` writes outside any test: a concurrent test reads it and keeps its own writes.
+    next();
+    const concurrent = { task: { concurrent: true } };
+    expect([around!(() => (next(), peek()), concurrent), around!(peek, concurrent)]).toEqual([2, 1]);
+  });
+
+  it("starts a Jest concurrent test from what its file wrote outside tests", async () => {
+    ownRealms();
+    configureResetHandler(
+      () => {},
+      () => {},
+    );
+    vi.resetModules();
+    await import('./session.js');
+    const { isolateConcurrentTests } = await import('./node.js');
+    const { next, peek } = counter();
+    const bodies: Array<() => number> = [];
+    const test = { concurrent: ((_name: unknown, fn?: unknown) => bodies.push(fn as () => number)) as Registrar };
+    isolateConcurrentTests(test);
+    test.concurrent('writes', () => (next(), peek()));
+    test.concurrent('reads', peek);
+    next();
+    expect(bodies.map((body) => body())).toEqual([2, 1]);
   });
 
   it('answers with the first source that has a session', () => {
@@ -193,6 +285,82 @@ describe('an object a module holds', () => {
     nextSession();
     expect(handlers()).toEqual(['loaded']);
     expect(registry().get('a')).toEqual({ n: 0 });
+  });
+
+  it('holds what another module put in it as that module loaded, in every session after', () => {
+    const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
+      'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
+    );
+    const host = globalThis as { register?: (name: string) => void };
+    host.register = register;
+    onTestFinished(() => {
+      delete host.register;
+    });
+    nextSession();
+    // A module that registers itself as it loads, as a plugin or a route does, and holds no variable of its own.
+    load('globalThis.register("plugin");');
+    expect(registered()).toBe(1);
+    nextSession();
+    expect(registered()).toBe(1);
+  });
+
+  it('holds what another module put in it as that module loaded beside what a session that read it first wrote, and in every session after', () => {
+    const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
+      'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
+    );
+    const host = globalThis as { register?: (name: string) => void };
+    host.register = register;
+    onTestFinished(() => {
+      delete host.register;
+    });
+    nextSession();
+    register('own');
+    load('globalThis.register("plugin");');
+    expect(registered()).toBe(2);
+    nextSession();
+    expect(registered()).toBe(1);
+  });
+
+  it('holds what another module put in it as that module loaded in a session that read it before, while another session was in force', () => {
+    const { register, registered } = load<{ register: (name: string) => void; registered: () => number }>(
+      'const entries = new Map();\nmodule.exports = { register: (name) => entries.set(name, true), registered: () => entries.size };',
+    );
+    const host = globalThis as { register?: (name: string) => void };
+    host.register = register;
+    onTestFinished(() => {
+      delete host.register;
+    });
+    nextSession();
+    expect(registered()).toBe(0);
+    isolated(() => load('globalThis.register("plugin");'));
+    expect(registered()).toBe(1);
+  });
+
+  it('holds what another module put in a list, an object and a Set as that module loaded, in a session that read them first', () => {
+    const { add, read } = load<{ add: () => void; read: () => unknown }>(
+      [
+        'const list = [];',
+        'const byName = { nested: { names: [] } };',
+        'const seen = new Set();',
+        'const byKey = new Map([["k", []]]);',
+        'module.exports = {',
+        '  add: () => { list.push("p"); byName.nested.names.push("p"); byName.p = 1; seen.add("p"); byKey.get("k").push("p"); },',
+        '  read: () => [list, byName, [...seen], byKey.get("k")],',
+        '};',
+      ].join('\n'),
+    );
+    const host = globalThis as { add?: () => void };
+    host.add = add;
+    onTestFinished(() => {
+      delete host.add;
+    });
+    nextSession();
+    read();
+    load('globalThis.add();');
+    const after = [['p'], { nested: { names: ['p'] }, p: 1 }, ['p'], ['p']];
+    expect(read()).toEqual(after);
+    nextSession();
+    expect(read()).toEqual(after);
   });
 
   it('is a copy of its own in every session, as deep as arrays, plain objects and Map values go', () => {

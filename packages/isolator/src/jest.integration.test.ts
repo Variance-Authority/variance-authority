@@ -28,3 +28,14 @@ it('gives every Jest test the module state it was loaded with, and names what it
   expect(stderr).toContain('Tests:       5 passed, 5 total');
   expect(stderr).toContain('isolator: src/mode.ts:1 `mode` stays shared');
 });
+
+it("gives every Jest test what its file's collection and once-per-scope hooks wrote, as a fresh file would", async () => {
+  const cache = await mkdtemp(resolve(tmpdir(), 'variance-authority-isolator-'));
+  temporary.push(cache);
+  const { stderr } = await execute(
+    process.execPath,
+    [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', '--testMatch', '<rootDir>/test/lifecycle/*.case.ts'],
+    { cwd: fixture, env: { ...process.env, ISOLATOR_JEST_CACHE: cache } },
+  ).catch((error: { stderr?: string }) => ({ stderr: error.stderr ?? '' }));
+  expect(stderr).toContain('Tests:       5 passed, 5 total');
+});

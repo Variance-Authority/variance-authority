@@ -6,6 +6,7 @@
  * installed.
  */
 
+import { parentSession, realm } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
@@ -48,30 +49,68 @@ const UNSET = Symbol('unset');
 
 /**
  * The frame of one module. `kinds` names every variable it owns, so a read
- * before its declaration runs answers as the module would: a `let` or `const`
- * throws, a `var` is `undefined`.
- *
- * Every declaration runs once, as the module loads, and what the module holds
- * when it has loaded is kept as it is. Every session, the one it loaded in
- * too, takes a copy of that the first time it reads the module: arrays, plain
- * objects and the values of a `Map` are copied as deep as they go, one copy
- * per object, so two names for one object stay two names for one copy. What a
- * `Set` holds, a `Map`'s keys, a frozen object and an instance of a class are
- * the same objects in every session.
+ * before its declaration runs answers as the module would. Every session copies
+ * what the module held once it loaded (see {@link copied}); what another module
+ * writes as it loads lands in that and in every copy already made.
  */
 export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
+  const state = realm();
+  // A top level runs to its end in one turn, since a module that awaits is never
+  // rewritten: one that threw before `loaded()` stops counting at the next.
+  if (state.loading++ === 0) queueMicrotask(() => (state.loading = 0));
   const base = create(kinds, undefined);
   const copies = new WeakMap<object, Copy>();
+  /** Every copy a session still holds, for what another module writes as it loads. */
+  const live = new Set<WeakRef<Copy>>();
+  let sweepAt = 64;
+  const sweep = () => {
+    for (const ref of live) if (ref.deref() === undefined) live.delete(ref);
+  };
   let loading = true;
   let lastSession: object | undefined;
   let lastCopy: Copy = base;
 
+  // A test's session copies its file's session, which copies the load.
+  const copyOf = (session: object): Copy => {
+    let copy = copies.get(session);
+    if (copy === undefined) {
+      const parent = parentSession(session);
+      copies.set(session, (copy = create(kinds, parent === undefined ? base.raw : copyOf(parent).raw)));
+      live.add(new WeakRef(copy));
+      // A session that ended leaves its reference behind: drop them as they pile up.
+      if (live.size > sweepAt) {
+        sweep();
+        sweepAt = Math.max(64, live.size * 2);
+      }
+    }
+    return copy;
+  };
+
+  // The nearest copy the session or a session it starts from already holds.
+  const held = (session: object): Copy | undefined => {
+    const copy = copies.get(session);
+    if (copy !== undefined) return copy;
+    const parent = parentSession(session);
+    return parent === undefined ? undefined : held(parent);
+  };
+
+  // Another module running its top level writes into every session, the load
+  // and each copy already made, as it would on every fresh page that loads it;
+  // it reads what the current session holds.
+  const everywhere = (): Copy => {
+    const first = held(currentSession()) ?? base;
+    const rest: Copy[] = first === base ? [] : [base];
+    sweep();
+    for (const ref of live) if (ref.deref() !== first) rest.push(ref.deref()!);
+    return { raw: first.raw, values: fanned(first.values, rest.map((copy) => copy.raw)), init: first.init };
+  };
+
   const own = (): Copy => {
     if (loading) return base;
+    if (realm().loading > 0) return everywhere();
     const session = currentSession();
     if (session === lastSession) return lastCopy;
-    let copy = copies.get(session);
-    if (copy === undefined) copies.set(session, (copy = create(kinds, base.raw)));
+    const copy = copyOf(session);
     lastSession = session;
     lastCopy = copy;
     return copy;
@@ -89,6 +128,7 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     },
     loaded() {
       loading = false;
+      state.loading = Math.max(0, state.loading - 1);
     },
   };
 }
@@ -120,6 +160,76 @@ function create(kinds: Readonly<Record<string, Kind>>, from: Readonly<Record<str
     });
   }
   return copy;
+}
+
+/** What changes an array, a `Map` or a `Set` in place, through a method of its own. */
+const MUTATORS = new Map<object, ReadonlySet<PropertyKey>>([
+  [Array.prototype, new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin'])],
+  [Map.prototype, new Set(['set', 'delete', 'clear'])],
+  [Set.prototype, new Set(['add', 'delete', 'clear'])],
+]);
+
+const TARGET = Symbol('fanned');
+
+/** An object a session copies, which a write through {@link fanned} reaches in every copy. */
+function copyable(value: unknown): value is object {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return false;
+  const prototype = Object.getPrototypeOf(value) as object | null;
+  return prototype === null || prototype === Object.prototype || MUTATORS.has(prototype);
+}
+
+/**
+ * `first` as a module that is loading reaches it: reads answer from `first`,
+ * and a write lands in `first` and in the same place in each of `rest`, which
+ * gets a copy of what is written. A `Map`'s keys and a `Set`'s members are
+ * the same objects in every copy, as a copy keeps them.
+ */
+function fanned<T extends object>(first: T, rest: readonly unknown[]): T {
+  const into = (value: unknown, at: number): unknown => {
+    const own = isFanned(value) ? value[TARGET] : value;
+    return at === 0 ? own : copied(own, new Map());
+  };
+  return new Proxy(first, {
+    get(target, key) {
+      if (key === TARGET) return target;
+      const value: unknown = Reflect.get(target, key);
+      const prototype = Object.getPrototypeOf(target) as object | null;
+      if (typeof value === 'function' && prototype !== null && MUTATORS.has(prototype) && value === Reflect.get(prototype, key)) {
+        const others = rest.filter((other): other is object => copyable(other) && Object.getPrototypeOf(other) === prototype);
+        const method = value as (...args: unknown[]) => unknown;
+        if (MUTATORS.get(prototype)!.has(key)) {
+          return (...args: unknown[]) => {
+            const copiedArgs = (at: number) =>
+              args.map((arg, index) => (prototype === Set.prototype || (prototype === Map.prototype && index === 0) ? into(arg, 0) : into(arg, at)));
+            for (const other of others) method.apply(other, copiedArgs(1));
+            return method.apply(target, copiedArgs(0));
+          };
+        }
+        if (prototype === Map.prototype && key === 'get') {
+          return (entry: unknown) => {
+            const found = (target as Map<unknown, unknown>).get(entry);
+            return copyable(found) ? fanned(found, others.map((other) => (other as Map<unknown, unknown>).get(entry))) : found;
+          };
+        }
+        return method.bind(target);
+      }
+      if (typeof value === 'function' && prototype !== null && MUTATORS.has(prototype)) return value;
+      return copyable(value) ? fanned(value, rest.map((other) => (copyable(other) ? Reflect.get(other, key) : undefined))) : value;
+    },
+    set(target, key, value: unknown) {
+      if (!Reflect.set(target, key, into(value, 0))) return false;
+      for (const other of rest) if (copyable(other)) Reflect.set(other, key, into(value, 1));
+      return true;
+    },
+    deleteProperty(target, key) {
+      for (const other of rest) if (copyable(other)) Reflect.deleteProperty(other, key);
+      return Reflect.deleteProperty(target, key);
+    },
+  });
+}
+
+function isFanned(value: unknown): value is { [TARGET]: unknown } {
+  return typeof value === 'object' && value !== null && (value as { [TARGET]?: unknown })[TARGET] !== undefined;
 }
 
 /** `value` for another session: see {@link frame} for what is copied and what is shared. */

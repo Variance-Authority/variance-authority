@@ -21,8 +21,8 @@ This package writes the handler for you, at build time. It moves each
 module-level variable into a frame that keeps one set of values per *session*,
 and lets the environment say what the session is:
 
-- **In a test run**, ioc's per-test driver starts a new session before each
-  test, so every test reads the values the module was evaluated with.
+- **In a test run**, ioc's driver gives each test a session of its own that
+  starts from what its file wrote outside tests.
 - **In Node**, `isolated(fn)` runs `fn` in its own session, carried through
   every `await` by `AsyncLocalStorage`.
 - **In React Server Components**, the request is the session, through React's
@@ -82,7 +82,11 @@ variable, and it is left alone. Nothing the module exports is touched:
 The module runs each step once, as it reaches it, as it always did, and what
 it holds when its last statement has run — a `let` reassigned, a handler
 pushed, a `Map` filled — is where every session starts, the one it loaded in
-too. A session copies those values the first time it reads the module: arrays, plain objects
+too. What it writes into another module as it loads, such as a plugin it adds
+to a registry that module holds, lands in every session — the ones that already
+read that registry, beside what they wrote, and every one after — since the
+module is not loaded again for them. A class's static fields and static blocks
+run as it loads too. A session copies those values the first time it reads the module: arrays, plain objects
 and the values of a `Map` are copied as deep as they go, one copy per object, so
 `const y = { x }` still holds that session's `x`. A `Set`'s members, a `Map`'s
 keys, a frozen object and an instance of a class are the same objects in every
@@ -111,7 +115,7 @@ export default {
 // reset.setup.cjs
 const { configureResetHandler } = require('@variance-authority/ioc/reset/setup');
 
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 
 const { isolateConcurrentTests } = require('@variance-authority/isolator/node');
 
@@ -124,14 +128,22 @@ configuration would: a name, or a name and its options. It runs on
 the rewritten text, and its source map is composed with this one, so a stack
 trace and a coverage report still name the line on disk.
 
+Each test reads what its file wrote while it was collected and in its
+`beforeAll` and `afterAll` hooks, as it would in a worker of its own; what the
+test, its `beforeEach` and its `afterEach` write is gone before the next test,
+which a worker of its own would keep. Jest runs
+an `afterEach` at a test file's top level after the setup's, so what that one
+writes stays for the tests after it.
+
 The setup has to load before any rewritten module, for the reason
 [ioc](https://variance-authority.dev/reference/packages/ioc#install-the-driver-in-the-test-setup) gives: the runtime registers
-its reset when it is imported, and ioc refuses one that registered first.
+with the driver when it is imported, and ioc refuses one that registered first.
 
 `test.concurrent` runs its tests side by side, and Jest gives them no
 `beforeEach` of their own. `isolateConcurrentTests(test)` runs the body of
-every `test.concurrent`, `.only`, `.each` and `.failing` in its own `isolated`
-session instead.
+every `test.concurrent`, `.only`, `.each` and `.failing` in a session of its
+own instead, which starts from what its file wrote outside tests, as every
+other test does.
 
 Test files are not rewritten. A test file's own `let` carries what a
 `beforeAll` set into the tests after it, which is what a test file means by it.
@@ -143,7 +155,10 @@ Neither is anything under `node_modules`, nor a module its package lists in
 Vitest's `isolate: false` keeps each worker's modules loaded from one test file
 to the next, which saves loading them again for every file, and lets every
 file see what the files before it left in them. The isolator takes the second
-part away: each test reads the values its modules were loaded with.
+part away: each file is collected against the values its modules were loaded
+with, and each test reads what its file wrote while it was collected and in
+its `beforeAll` and `afterAll` hooks, while what the test and its `beforeEach`
+and `afterEach` write is gone before the next test.
 
 ```ts
 // vitest.config.ts
@@ -168,9 +183,9 @@ export default defineConfig({
 ```ts
 // reset.setup.ts
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
-import { aroundEach, beforeEach } from 'vitest';
+import { afterEach, aroundEach, beforeEach } from 'vitest';
 
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 
 const { isolateConcurrentEach } = await import('@variance-authority/isolator/node');
 
@@ -178,9 +193,10 @@ isolateConcurrentEach(aroundEach);
 ```
 
 Tests that run side by side under `test.concurrent` share whatever the last
-`beforeEach` reset, so `isolateConcurrentEach` runs each of them in an
-`isolated` session of its own. The isolator is imported after the driver is
-installed, since it registers its reset as it loads.
+`beforeEach` reset, so `isolateConcurrentEach` runs each of them in a session
+of its own, which starts from what its file wrote outside tests, as every other
+test does. The isolator is imported after the driver is installed, since it
+registers with the driver as it loads.
 
 The plugin asks Vitest which files are tests, by every project's `include`
 and `includeSource`, and leaves them and the setup files as they are. It leaves
@@ -319,8 +335,8 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 
 | Entry point | What it does |
 |---|---|
-| `@variance-authority/isolator` | `nextSession()` starts a new fallback session; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. |
-| `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts; `isolateConcurrentTests(test)` gives each concurrent Jest test one. Every copy of this entry in a process shares one store, so an inner `isolated` always wins. |
+| `@variance-authority/isolator` | `nextSession()` starts a new fallback session from the values every module was loaded with; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. |
+| `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts; `isolateConcurrentTests(test)` and `isolateConcurrentEach(aroundEach)` give each concurrent test one, started from its file's session. Every copy of this entry in a process shares one store, so an inner `isolated` always wins. |
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
 | `@variance-authority/isolator/loader` | The loader for Rspack and webpack. |

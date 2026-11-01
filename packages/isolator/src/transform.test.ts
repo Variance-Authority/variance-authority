@@ -153,7 +153,9 @@ describe('isolate: a const', () => {
 
   it('leaves a value built by a call, without a word', () => {
     const code = 'export const get = memoize(fn), n = 1, f = () => {};';
-    expect(isolate(code, 'a.mjs')).toEqual({ code, map: undefined, left: [] });
+    const result = isolate(code, 'a.mjs');
+    expect(result.code).toBe(`${header('{}')}${code}; __frame.loaded();`);
+    expect(result.left).toEqual([]);
   });
 });
 
@@ -245,6 +247,29 @@ describe('isolate: the runtime it imports', () => {
 
   it('imports nothing into a module it does not rewrite', () => {
     expect(isolate('export const n = 1;', 'a.mjs').map).toBeUndefined();
+  });
+
+  it('marks a module with no variable of its own as loading, when its top level can write into another', () => {
+    expect(out("import { register } from './registry.js';\nregister('plugin');")).toBe(
+      `${header('{}')}import { register } from './registry.js';\nregister('plugin');`,
+    );
+  });
+
+  it.each([
+    ['a static block', "import { register } from './registry.js';\nclass Plugin { static { register('plugin'); } }"],
+    ['a static field', "import { register } from './registry.js';\nclass Plugin { static id = register('plugin'); }"],
+    ['a computed key', "import { key } from './registry.js';\nclass Plugin { [key()]() {} }"],
+    ['a class it extends', "import { base } from './registry.js';\nexport class Plugin extends base() {}"],
+  ])('marks a module as loading when its class runs a call as it is defined, in %s', (_, code) => {
+    expect(out(code)).toBe(`${header('{}')}${code}`);
+  });
+
+  it.each([
+    ['declarations alone', "import { a } from './a.js';\nexport function f() { a(); }\nexport class C { m() { a(); } field = a(); }"],
+    ['its own exports', 'module.exports = { f: () => 1 };\nexports.g = 2;'],
+    ['its own variables', 'export {};\n// @isolator-ignore\nlet a = 0;\na = 1;'],
+  ])('leaves a module whose top level writes %s', (_, code) => {
+    expect(isolate(code, 'a.js').code).toBe(code);
   });
 
   it('maps every rewritten line to the line it came from', () => {
