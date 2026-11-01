@@ -424,7 +424,7 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
         #[cfg(unix)]
-        let carry = match change_tree::carry(&self.change, &options.config) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
+        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
         source_update::update(
             options,
             source_update::Tree {

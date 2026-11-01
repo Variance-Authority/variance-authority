@@ -59,8 +59,8 @@ pub(crate) struct Meta {
 
 /// How a tree was come by, for the update made against it.
 pub(crate) enum Change {
-    /// Read back from the chain: Watchman reports nothing since its clock.
-    Vouched(Meta),
+    /// Read back from the chain whose manifest is `.1`: Watchman reports nothing since its clock.
+    Vouched(Meta, Vec<u8>),
     /// Listed by git under a watch, to be carried by what the update writes.
     Listed(Meta),
 }
@@ -113,9 +113,10 @@ fn stamped(inputs: &[PathBuf]) -> Vec<(String, Option<Stamp>)> {
     inputs.iter().map(|input| (input.to_string_lossy().into_owned(), stamp(input))).collect()
 }
 
-/// The listing the newest segment of the chain at `index` holds, and when it stands.
-fn held(index: &str) -> Option<(Snapshot, Meta)> {
-    let (digests, _) = crate::index_chain::manifest_digests(index)?;
+/// The listing the newest segment of the chain at `index` holds, when it stands, and the manifest it was read under.
+fn held(index: &str) -> Option<(Snapshot, Meta, Vec<u8>)> {
+    let manifest = std::fs::read(index).ok()?;
+    let (digests, _) = crate::index_chain::manifest_digests_of(&manifest)?;
     let newest = crate::index_chain::read_tail(index, &digests, digests.len().checked_sub(1)?)?.pop()?;
     let stored = Stored::open(&newest).ok()?;
     let meta: Meta = serde_json::from_slice(stored.maybe_u8s(META).ok()??).ok()?;
@@ -128,7 +129,7 @@ fn held(index: &str) -> Option<(Snapshot, Meta)> {
     let oids: Vec<Oid> = stored.u8s(OIDS).ok()?.chunks_exact(20).map(|oid| oid.try_into().unwrap_or([0; 20])).collect();
     let regular: Vec<bool> = stored.u8s(REGULAR).ok()?.iter().map(|byte| *byte == 1).collect();
     let unhashed = strings(UNHASHED)?;
-    (oids.len() == paths.len() && regular.len() == paths.len()).then_some((Snapshot { paths, oids, regular, unhashed }, meta))
+    (oids.len() == paths.len() && regular.len() == paths.len()).then_some((Snapshot { paths, oids, regular, unhashed }, meta, manifest))
 }
 
 /// Git ignores every one of `paths` under `root`, so none of them is in a listing.
@@ -145,11 +146,25 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 }
 
 /// Whether a held listing can still be vouched for, before Watchman is asked:
-/// the same checkout, server and roots, a watch that hides nothing, and git's inputs as they were.
-fn stands(meta: &Meta, root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
+/// the same checkout, server and roots, a watch that hides none of its paths, and git's inputs as they were.
+fn stands(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
     // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
     let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
-    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+}
+
+/// Whether the watch's `ignore_vcs` directories, which Watchman never reports into,
+/// hold a path of the listing. Each names a directory at the watched root.
+fn hides(watch: &Watch, paths: &[String]) -> bool {
+    watch.vcs.iter().any(|dir| {
+        let below = match &watch.relative {
+            None => Some(dir.as_str()),
+            Some(relative) => dir.strip_prefix(relative.as_str()).and_then(|rest| rest.strip_prefix('/')),
+        };
+        // A directory above the checkout's root, or beside it, holds nothing of it; one that is the root holds all of it.
+        let covers = watch.relative.as_ref().is_some_and(|relative| relative == dir || relative.starts_with(&format!("{dir}/")));
+        covers || below.is_some_and(|below| paths.iter().any(|path| path.strip_prefix(below).is_some_and(|rest| rest.starts_with('/'))))
+    })
 }
 
 /// The tree under `root` for an update of the index at `index`: the held one when
@@ -160,11 +175,11 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     // What the update writes, and what git writes as it answers, are left out of what Watchman is asked.
     let below = |dir: &Path| dir.strip_prefix(root).ok().map(|dir| dir.to_string_lossy().into_owned()).filter(|dir| !dir.is_empty());
     let index_dir = Path::new(index).parent().and_then(below);
-    if let (Some(socket), Some((snapshot, meta))) = (&socket, held) {
+    if let (Some(socket), Some((snapshot, meta, manifest))) = (&socket, held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
-        let stands = stands(&meta, root, socket, dirs, |input| stamp(Path::new(input)));
+        let stands = stands(&meta, &snapshot.paths, root, socket, dirs, |input| stamp(Path::new(input)));
         if stands && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files)) {
-            return Some((snapshot, Some(Change::Vouched(meta))));
+            return Some((snapshot, Some(Change::Vouched(meta, manifest))));
         }
     }
     // The clock and the stamps are taken before git lists, so whatever moves while it does is after them.

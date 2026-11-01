@@ -28,6 +28,8 @@ pub(crate) struct Watch {
     pub clock: String,
     /// `ignore_dirs` in the watch's configuration: paths Watchman never reports on.
     pub ignored: Vec<String>,
+    /// `ignore_vcs`: directories at the watched root Watchman never reports into.
+    pub vcs: Vec<String>,
 }
 
 /// What Watchman says moved since a clock.
@@ -123,12 +125,14 @@ pub(crate) fn watch(socket: &str, root: &str) -> Option<Watch> {
     let relative = root.strip_prefix(&watched).map(|rest| rest.trim_start_matches('/')).filter(|rest| !rest.is_empty()).map(str::to_owned);
     // No answer is not an empty list: a watch whose configuration is unknown vouches for nothing.
     let config = ask(socket, &json!(["get-config", watched]))?;
-    let ignored = config
-        .pointer("/config/ignore_dirs")
-        .and_then(|dirs| dirs.as_array().map(|dirs| dirs.iter().filter_map(Value::as_str).map(str::to_owned).collect()))
-        .unwrap_or_default();
+    let named = |key: &str| -> Option<Vec<String>> {
+        Some(config.pointer(&format!("/config/{key}"))?.as_array()?.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+    };
+    let ignored = named("ignore_dirs").unwrap_or_default();
+    // Unset is Watchman's default.
+    let vcs = named("ignore_vcs").unwrap_or_else(|| [".git", ".svn", ".hg"].map(str::to_owned).to_vec());
     let clock = ask(socket, &json!(["clock", watched, { "sync_timeout": 10_000 }]))?.get("clock")?.as_str()?.to_owned();
-    Some(Watch { socket: socket.to_owned(), watched, relative, clock, ignored })
+    Some(Watch { socket: socket.to_owned(), watched, relative, clock, ignored, vcs })
 }
 
 /// What moved below the watch's root since its clock, leaving out `excluded`:

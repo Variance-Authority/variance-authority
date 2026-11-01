@@ -32,7 +32,7 @@ impl GitTree {
     #[napi(getter)]
     pub fn vouched(&self) -> bool {
         #[cfg(unix)]
-        return matches!(self.change, Some(crate::held_listing::Change::Vouched(_)));
+        return matches!(self.change, Some(crate::held_listing::Change::Vouched(..)));
         #[cfg(not(unix))]
         false
     }
@@ -40,15 +40,17 @@ impl GitTree {
 
 /// The listing an update under `config` carries forward, or, when the update
 /// that carried it was made against this tree under the same configuration,
-/// that update's answer, with nothing to do.
+/// and the index at `index` is still the chain it was read from, that update's
+/// answer, with nothing to do. A chain another writer replaced since is updated
+/// as any other, against the tree Watchman vouched for.
 #[cfg(unix)]
-pub(crate) fn carry(change: &Option<crate::held_listing::Change>, config: &str) -> Result<Option<crate::held_listing::Meta>, crate::source_update::Updated> {
+pub(crate) fn carry(change: &Option<crate::held_listing::Change>, config: &str, index: &str) -> Result<Option<crate::held_listing::Meta>, crate::source_update::Updated> {
     use crate::held_listing::Change;
     match change {
-        Some(Change::Vouched(meta)) if meta.config.as_deref() == Some(config) => {
+        Some(Change::Vouched(meta, manifest)) if meta.config.as_deref() == Some(config) && std::fs::read(index).is_ok_and(|now| now == *manifest) => {
             Err(crate::source_update::Updated { files: meta.files, reread: 0, published: false, refused: None })
         }
-        Some(Change::Vouched(meta) | Change::Listed(meta)) => Ok(Some(meta.clone())),
+        Some(Change::Vouched(meta, _) | Change::Listed(meta)) => Ok(Some(meta.clone())),
         None => Ok(None),
     }
 }

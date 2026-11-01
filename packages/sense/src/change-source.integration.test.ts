@@ -1,4 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { copyFileSync, cpSync } from 'node:fs';
 import { chmod, mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -27,7 +28,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
   const answers = () => join(wire, 'answers.json');
   const asked = () => join(wire, 'git.log');
 
-  async function tell(told: { roots?: string[]; clock?: string; fresh?: boolean; files?: unknown[] }): Promise<void> {
+  async function tell(told: { roots?: string[]; clock?: string; fresh?: boolean; files?: unknown[]; config?: unknown }): Promise<void> {
     await writeFile(answers(), JSON.stringify({ roots: [root], clock: 'c:1:1', ...told }));
   }
 
@@ -227,6 +228,52 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
       expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
     } finally {
       await rm(other, { recursive: true, force: true });
+    }
+  });
+
+  it('updates the index another writer replaced after the listing was vouched for', async () => {
+    // An index made while the file read otherwise, standing in for a writer beside this one.
+    const other = join(dirname(index), 'other.bin');
+    await write('lib/unit.ts', 'export const unit = 2;\n', 30_000);
+    await updateSourceIndex(root, { index: other });
+    await write('lib/unit.ts', 'export const unit = 1;\n');
+    await updateNatively(root, index);
+    await gitRan();
+
+    await tell({ clock: 'c:11:1' });
+    const updated = await updateNatively(root, index, (step) => {
+      if (step.startsWith('reading the files')) {
+        cpSync(`${other}.segments`, `${index}.segments`, { recursive: true });
+        copyFileSync(other, index);
+      }
+      return () => {};
+    });
+    expect(updated?.listing.vouched).toBe(true);
+    expect(updated?.reread).toBe(1);
+  });
+
+  it('asks git when the watch leaves out a directory the checkout tracks files in', async () => {
+    await write('.hg/kept.ts', 'export const kept = 1;\n');
+    await write('vendor/kept.ts', 'export const kept = 1;\n');
+    git('add', '.hg/kept.ts', 'vendor/kept.ts');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'vcs');
+    try {
+      // Watchman's default `ignore_vcs` is `.git`, `.svn` and `.hg`: what moves in them is never reported.
+      await updateNatively(root, index);
+      await gitRan();
+      await tell({ clock: 'c:12:1' });
+      await updateNatively(root, index);
+      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+
+      await tell({ clock: 'c:12:2', config: { ignore_vcs: ['vendor'] } });
+      await updateNatively(root, index);
+      await gitRan();
+      await tell({ clock: 'c:12:3', config: { ignore_vcs: ['vendor'] } });
+      await updateNatively(root, index);
+      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    } finally {
+      git('rm', '--quiet', '.hg/kept.ts', 'vendor/kept.ts');
+      git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'no vcs');
     }
   });
 

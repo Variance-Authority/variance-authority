@@ -20,7 +20,8 @@ the excludes file, HEAD.
 ## How it breaks
 
 A restarted server has no history back to an old clock and says so as a fresh
-instance; `ignore_dirs` hides paths from every answer; no server listens. Each
+instance; `ignore_dirs` hides paths from every answer, and `ignore_vcs` hides
+the directories it names at the watched root; no server listens. Each
 is no answer, and the update lists with git as it would without Watchman.
 
 ## How you talk to it

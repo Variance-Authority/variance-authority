@@ -194,6 +194,9 @@ that Watchman reports counts as moved:
   answered by the git source, a `status` scoped to those directories by
   pathspec, as members outside the root are. A reported `.watchmanconfig`
   takes the git source and a fresh `get-config`.
+  `ignore_vcs` (`.git`, `.svn` and `.hg` when unset) hides the directories
+  it names at the watched root the same way, so a listed path inside one
+  leaves the vouch to git.
 - **macOS.** FSEvents gives no ordering guarantee, and Watchman's own
   documentation says a large `git checkout` on a busy host can deliver events
   after the sync cookie. Three things bound it. What git writes in a checkout,
@@ -283,7 +286,7 @@ monitor removes and a second cache would not.
    `core.autocrlf` change over a dirty CRLF file whose stat does not move, an
    untracked held file a new `.gitignore` rule ignores, which leaves the
    listing and stays on disk, a publish by another process between a caller's
-   reading and its update, a tracked file inside an `ignore_dirs` directory, a
+   reading and its update, a tracked file inside an `ignore_dirs` or `ignore_vcs` directory, a
    write that lands after an update's answer and before its publish, and a
    checkout between two commits thousands of files apart, run on macOS.
 2. On a watched checkout, an update with nothing moved runs no `ls-tree`, no
