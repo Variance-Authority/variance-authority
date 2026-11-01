@@ -1,3 +1,4 @@
+import { promisify } from 'node:util';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { endLoad, realm, startLoad, switchTo, testSession } from './realm.js';
 import { nextSession } from './session.js';
@@ -86,6 +87,13 @@ describe('isolateTimers', () => {
     const wrapped = host.setTimeout;
     onTestFinished(isolateTimers(host));
     expect(host.setTimeout).toBe(wrapped);
+  });
+
+  it('keeps what promisify answers for the scheduler it wraps', async () => {
+    const host: Record<string, unknown> = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
+    onTestFinished(isolateTimers(host));
+    const sleep = promisify(host.setTimeout as typeof setTimeout);
+    await expect(sleep(1, 'woke')).resolves.toBe('woke');
   });
 
   it('keeps what a module schedules as it loads', () => {

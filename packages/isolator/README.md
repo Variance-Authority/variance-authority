@@ -341,8 +341,10 @@ Some state lives on objects the transform never sees: `process.env`, a
 property a test puts on `globalThis`, a timer still pending when its test
 ends, a listener left on `document`. Each has a function that isolates it per
 session from that call on, and returns a function that stops it. Call the ones
-you want once per file, before any test runs — in Jest from a
-`setupFilesAfterEnv` file, in Vitest from a `setupFiles` file:
+you want once per file, before any test runs, from a setup file listed after
+the one that calls `configureResetHandler`. The isolator registers with the
+reset driver as it is imported, and `configureResetHandler` throws when
+something registered first:
 
 ```ts
 import { isolateEnv, isolateGlobals, isolateListeners, isolateTimers } from '@variance-authority/isolator';
@@ -441,7 +443,8 @@ nobody holds any more takes its values with it.
   every session.
 - **State inside a package you do not build.** `node_modules` is never
   rewritten.
-- **A session `isolated(fn)` or React starts, for the `isolate…` functions.**
+- **A session `isolated(fn)`, `isolateConcurrentTests`, `isolateConcurrentEach`
+  or React starts, for the `isolate…` functions.**
   They act as the fallback session ends — a test, a file, `nextSession()` —
   and nothing announces the end of a session a source answers with.
 - **Promises and `queueMicrotask`.** Neither can be cancelled, so a callback

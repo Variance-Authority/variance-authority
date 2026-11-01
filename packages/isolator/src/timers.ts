@@ -83,6 +83,10 @@ function installTimers(target: Record<string, unknown>): () => void {
       forget(handle);
       Reflect.apply(originalCancel!, this, [handle]);
     }
+    // What the original carries beyond a function's own, such as Node's
+    // `util.promisify.custom`, answers for the wrapper too.
+    carry(original, scheduled);
+    carry(originalCancel, cancelled);
     target[schedule] = scheduled;
     target[cancel] = cancelled;
     undo.push(() => {
@@ -104,4 +108,10 @@ function installTimers(target: Record<string, unknown>): () => void {
     state.switched.delete(switched);
     for (const step of undo) step();
   };
+}
+
+function carry(from: object, to: object): void {
+  for (const key of Reflect.ownKeys(from)) {
+    if (!Object.hasOwn(to, key)) Reflect.defineProperty(to, key, Reflect.getOwnPropertyDescriptor(from, key)!);
+  }
 }
