@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
-import { isolateConcurrentEach, isolateConcurrentTests, isolated, type Registrar } from './node.js';
+import { isolated, type Registrar } from './node.js';
 import * as runtime from './runtime.js';
 import { addSessionSource, nextSession } from './session.js';
 import { isolate } from './transform.js';
@@ -22,6 +22,27 @@ const counter = () =>
   );
 
 afterEach(() => nextSession());
+
+/**
+ * Give the running test ioc's, the isolator's and the Node entry's state of
+ * its own, put back when it finishes: under a suite that runs this file through
+ * the isolator, they already hold the suite's file and test sessions. A test
+ * that starts sessions imports the Node entry again, after `vi.resetModules`.
+ */
+const ownRealms = () => {
+  const host = globalThis as Record<symbol, unknown>;
+  for (const key of [
+    Symbol.for('@variance-authority/ioc/reset'),
+    Symbol.for('@variance-authority/isolator'),
+    Symbol.for('@variance-authority/isolator/node'),
+  ]) {
+    const kept = host[key];
+    onTestFinished(() => {
+      host[key] = kept;
+    });
+    delete host[key];
+  }
+};
 
 describe('a variable', () => {
   it('starts every new session from the value the module was loaded with', () => {
@@ -90,12 +111,7 @@ describe('a variable', () => {
   });
 
   it("starts every test from what its file wrote outside tests, and drops the test's own writes when it ends", async () => {
-    const IOC = Symbol.for('@variance-authority/ioc/reset');
-    const realm = (globalThis as Record<symbol, unknown>)[IOC];
-    onTestFinished(() => {
-      (globalThis as Record<symbol, unknown>)[IOC] = realm;
-    });
-    delete (globalThis as Record<symbol, unknown>)[IOC];
+    ownRealms();
     const before: Array<() => void> = [];
     const after: Array<() => void> = [];
     configureResetHandler(
@@ -126,18 +142,14 @@ describe('a variable', () => {
   });
 
   it('starts a concurrent test from what its file wrote outside tests, as it starts every other test', async () => {
-    const IOC = Symbol.for('@variance-authority/ioc/reset');
-    const realm = (globalThis as Record<symbol, unknown>)[IOC];
-    onTestFinished(() => {
-      (globalThis as Record<symbol, unknown>)[IOC] = realm;
-    });
-    delete (globalThis as Record<symbol, unknown>)[IOC];
+    ownRealms();
     configureResetHandler(
       () => {},
       () => {},
     );
     vi.resetModules();
     await import('./session.js');
+    const { isolateConcurrentEach } = await import('./node.js');
     const { next, peek } = counter();
     let around: ((runTest: () => number, context: { task: { concurrent?: boolean } }) => number) | undefined;
     isolateConcurrentEach((hook) => (around = hook as typeof around));
@@ -148,18 +160,14 @@ describe('a variable', () => {
   });
 
   it("starts a Jest concurrent test from what its file wrote outside tests", async () => {
-    const IOC = Symbol.for('@variance-authority/ioc/reset');
-    const realm = (globalThis as Record<symbol, unknown>)[IOC];
-    onTestFinished(() => {
-      (globalThis as Record<symbol, unknown>)[IOC] = realm;
-    });
-    delete (globalThis as Record<symbol, unknown>)[IOC];
+    ownRealms();
     configureResetHandler(
       () => {},
       () => {},
     );
     vi.resetModules();
     await import('./session.js');
+    const { isolateConcurrentTests } = await import('./node.js');
     const { next, peek } = counter();
     const bodies: Array<() => number> = [];
     const test = { concurrent: ((_name: unknown, fn?: unknown) => bodies.push(fn as () => number)) as Registrar };
