@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readWorkspace } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
@@ -35,7 +35,7 @@ describe('selecting from a journey file', () => {
   let root: string;
 
   beforeEach(async () => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-')));
     root = project();
     process.chdir(root);
     await indexOutput({ cwd: root, noGit: true });
@@ -43,7 +43,7 @@ describe('selecting from a journey file', () => {
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('skips the test file that never entered the changed function', async () => {

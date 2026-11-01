@@ -1,18 +1,18 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../bin.js';
 import { shardsOutput } from './shards-command.js';
 
 describe('variance shards', () => {
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-shards-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-shards-cache-')));
   });
 
   afterEach(() => {
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('counts the shards from the record every shard places its files by', async () => {

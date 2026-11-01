@@ -3,7 +3,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
   caseSectionsAt,
@@ -41,7 +41,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -73,7 +73,7 @@ async function worktreeAtPublished(): Promise<{ first: string; head: string; wor
 
   const primary = join(home, 'clone');
   await git(home, 'clone', '--quiet', origin, primary);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   await recordIn(primary, head, ['test/other.test.ts'], [DISCOUNTS]);
   const worktree = join(home, 'feature');
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
@@ -171,7 +171,7 @@ describe('a mainline record whose run instrumented nothing', () => {
 
     const primary = join(home, 'clone');
     await git(home, 'clone', '--quiet', origin, primary);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     const worktree = join(home, 'feature');
     await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: head } });

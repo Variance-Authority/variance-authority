@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { publishLine } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
@@ -164,7 +165,7 @@ export async function gitPublished(
   await git(ci, 'push', '--quiet', 'origin', 'main');
   await git(ci, 'fetch', '--quiet', 'origin');
 
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));

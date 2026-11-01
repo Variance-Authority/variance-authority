@@ -1,10 +1,15 @@
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { SkippedFiles, fileSelection, keptFiles, selectFiles } from './file-selection.js';
 
 describe('the testIgnore pattern a selection drops by', () => {
   const root = resolve('/repo');
   const read = async () => ({ whole: new Set(['tests/a.spec.ts', 'tests/b.spec.ts']), skip: new Set(['tests/b.spec.ts']), notes: [] });
+
+  // The selection lives on `globalThis`, which outlasts the file in a worker that keeps its modules.
+  afterEach(() => {
+    delete (globalThis as Record<symbol, unknown>)[Symbol.for('variance-authority:playwright-selection')];
+  });
 
   it('drops nothing before the selection is read, as under --list', () => {
     selectFiles(root, read);

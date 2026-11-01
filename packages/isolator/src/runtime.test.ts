@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 import { isolated } from './node.js';
 import * as runtime from './runtime.js';
@@ -69,6 +69,11 @@ describe('a variable', () => {
   it('starts again for every test once ioc drives resets', async () => {
     // A runner evaluates its setup before the modules a test imports: so here.
     const IOC = Symbol.for('@variance-authority/ioc/reset');
+    const realm = (globalThis as Record<symbol, unknown>)[IOC];
+    // The worker may keep its realm for the next file: hand it back the registry its setup made.
+    onTestFinished(() => {
+      (globalThis as Record<symbol, unknown>)[IOC] = realm;
+    });
     delete (globalThis as Record<symbol, unknown>)[IOC];
     const hooks: Array<() => void> = [];
     configureResetHandler((run) => hooks.push(run));
