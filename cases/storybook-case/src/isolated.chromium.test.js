@@ -15,14 +15,24 @@ import { serveStatic } from '../scripts/serve.mjs';
  * story before it wrote. The isolated build rewrites the module and starts a
  * new session on every switch, before Storybook imports the next story's file;
  * the two shared stories skip the reset and show the leak it prevents.
- * `Isolated/Reader`, a second story file, reads the count as it loads.
+ * `Isolated/Reader`, a second story file, reads the count as it loads, and a
+ * module it imports registers itself as it loads; it is shown again after
+ * another story, when its modules are not loaded again.
  *
  * Skipped, loudly, when the build is missing. Run:
  *   yarn workspace @variance-authority/case-storybook build-storybook:isolated
  */
 
 const STATIC_DIR = join(process.cwd(), 'cases', 'storybook-case', 'storybook-isolated');
-const STORIES = ['isolated-tally--first', 'isolated-tally--second', 'isolated-tally--shared-first', 'isolated-tally--shared-second', 'isolated-reader--initial'];
+const STORIES = [
+  'isolated-tally--first',
+  'isolated-tally--second',
+  'isolated-tally--shared-first',
+  'isolated-tally--shared-second',
+  'isolated-reader--initial',
+  'isolated-tally--first',
+  'isolated-reader--initial',
+];
 
 const BUILT = existsSync(join(STATIC_DIR, 'index.json'));
 const BROWSER_AVAILABLE = (() => {
@@ -98,10 +108,11 @@ live('stories switched on one page under the isolator', () => {
     });
     try {
       const shown = await show(page, STORIES);
-      expect(alone).toEqual(['1', '1', '1', '1', '0/1']);
+      expect(alone).toEqual(['1', '1', '1', '1', '0/1', '1', '0/1']);
       // The shared stories read the two before them; `Isolated/Reader`, imported
-      // after they wrote 3, reads its modules as its own page does.
-      expect(shown).toEqual(['1', '1', '2', '3', '0/1']);
+      // after they wrote 3, reads its modules as its own page does, and still
+      // holds the registration its import made when it is shown again.
+      expect(shown).toEqual(['1', '1', '2', '3', '0/1', '1', '0/1']);
       expect(loads).toBe(1);
     } finally {
       await page.close();

@@ -34,12 +34,16 @@ const browser = await chromium.launch({ headless: true });
 
 async function show(page, stories) {
   const shown = [];
-  await collectStories(page, stories, {
+  const outcomes = await collectStories(page, stories, {
     baseUrl,
     // No globals to send: sending them re-renders the first story on the page.
     globals: {},
     observe: async () => shown.push(await page.locator('#storybook-root output').textContent()),
   });
+  // A story that did not render is a time with no work in it.
+  const failed = outcomes.filter((outcome) => outcome.status !== 'rendered');
+  if (failed.length > 0 || shown.length !== stories.length)
+    throw new Error(`${failed.length} of ${stories.length} stories did not render, ${shown.length} observed: ${failed.map((outcome) => outcome.status).join(' ')}`);
   return shown;
 }
 
@@ -80,6 +84,7 @@ try {
       const started = performance.now();
       const shown = await run();
       times.push((performance.now() - started) / STORIES);
+      if (shown.length !== STORIES) throw new Error(`${way}: ${shown.length} of ${STORIES} stories observed`);
       if (checked && shown.some((value) => value !== '1')) throw new Error(`${way}: a story read another's count: ${shown.join(' ')}`);
     }
     times.sort((a, b) => a - b);
