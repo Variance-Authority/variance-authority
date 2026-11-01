@@ -1,5 +1,83 @@
 # @variance-authority/mcp
 
+## 0.22.0
+
+### Minor Changes
+
+- f606d7d: A hint names what you can type where you asked
+
+  An answer's hints were spelled for one surface and printed on both. Each is
+  now spelled for the surface that asked:
+
+  - From a shell, `variance ask` and `variance-authority-help` name an input as
+    its flag (`--limit`, `--query`, `--from`), a tool as the command that runs it
+    (`variance ask symbol`), and a whole question, such as the `grep` that finds
+    an underscored name, as the command line that asks it.
+  - Over MCP, the same hints use the wire's names: the input `limit`, the tool
+    `docs_symbol`, and a question as the tool with its inputs. This covers the
+    `search` and `grep` hints, the `--package` refusal, the operands an
+    `intersection` names, and the line every listing (`costs`, `run_signals`
+    among them) adds for the rows it left out. A `limit` refused from a shell
+    names `--limit`, and over MCP names `limit`.
+
+  The lexicon line of `symbol` names `variance index` as the command that
+  publishes the dependency lexicon, on both surfaces.
+
+  A tool invocation carries the shell it was asked from as `shell`.
+  `@variance-authority/mcp/tools` exports the one spelling every surface uses:
+  `spellingOf`, `verbOf`, `flagOf` and the `Spelling` type. `limitOf` and
+  `notShown` take a `Spelling`. The CLI's `questionOf` is removed; `verbOf`
+  replaces it.
+
+  `Spelling` and `verbOf` take a declared tool — its name, description and input
+  schema — so a hint cannot be spelled from a tool name written as a string, and
+  renaming a tool fails the build of every hint that names it.
+- 9e1e684: Which tests covered a place is asked one way
+
+  `@variance-authority/mcp` no longer serves `variance_source_tests` and
+  `variance_changed_tests`. It no longer exports the `SOURCE_TEST_TOOLS` set,
+  `sourceTestToolByName` or the `SOURCE_TESTS` served set, `OBSERVABILITY` no
+  longer carries the two tools, and `Tree` no longer holds `relations`, which only
+  `variance_changed_tests` read. The pair answered `variance covering`'s question
+  with a copy of their own that read the record without the commit it was written
+  at and without asking whether each test file ran over the file as it is now, so
+  one place could be answered two ways. `variance covering` is the answer, with
+  `--file`, `--line`, `--function` and `--since`. `variance_distill` still reads
+  the execution index over MCP. The skill's MCP, covering and producers
+  references, and the `mcp` and `sense` READMEs, send a reader to `variance
+  covering`.
+- 1c40704: `ask uses` names the files whose imports the source index resolved to no file when one could take the name, since a use there is not listed. For a name no file here declares but a file imports from a package outside the workspace or a runtime module, the answer names each source and the `discover --imports <source>#<name>` question that lists the files; over MCP it names the command to run in the checkout, since `docs_discover` there refuses the question. A path alias such as `@/lib`, a `paths` or `baseUrl` mapping a `tsconfig` or `jsconfig` declares, and a package of this workspace are never named as outside sources; an unresolved one of them, or a `#` subpath import, is named among the files that could take the name. `@variance-authority/sense` publishes `outsideSourcesOf(root, name, index?)`, and `importersOf` carries `unresolved`. `@variance-authority/mcp/tools` publishes `conjoined`, which joins words as `a, b and c`.
+
+### Patch Changes
+
+- 76db46b: The whole-file answer names the region no case entered
+
+  `variance covering --file <path>` painted a function's cases over every line of
+  it, so a one-line branch no case took read as walked: its only line also charges
+  the function, and the range folded into its neighbours. The range now stands on
+  its own and says no case entered the branch, with its state — `unwalked`, or a
+  hole naming the stopped case. `--format json` carries the regions under the
+  range's `unentered`, `--format refs` adds `; unentered <kind> <lines>` to the
+  range's line, and the MCP file answer says the same sentence, with the state.
+  The opening line of a longer branch no case entered says it too.
+
+  It holds in an answer `--in-package` or `--at-distance` narrowed, and on a file
+  edited since the run, where the region is named at the line it stands on now
+  and left out when the edit removed it. `coveringTestsInFile` takes `keep`, the
+  cases it names, and folds its ranges over what is left.
+  `@variance-authority/sense/test-selection` exports `unenteredSentence`,
+  `whyUnentered` and the `Unentered` type, the sentence both surfaces print.
+- 84f98e4: `@variance-authority/mcp/tools` exports `rarity(population, holders)`, the integer from 0 to 1000 that `locate`, `orient` and the place line already ranked words by, so another word search ranks by the same count. `heldWeight(held, rarityOf, fieldOf)` sums each held word's rarity times the weight of the field it is held in, the weight `locate` ranks subjects by.
+- 9e1e684: The source tree reads the mocks, as `variance covering --since` does
+
+  The source tree `readTree` reads, which `variance ask`, the `docs_*` tools and
+  an MCP host walk, now reads `vi.mock`, `jest.mock` and `sb.mock` calls off what
+  the parse recorded: a mock subtracts its target from the test file's edges, and
+  a real module its factory loads adds one. `@variance-authority/sense` exports
+  `runGraphOf`, the one fold that graph and `variance covering --since` are both
+  built by: the mocks, then the taints you pass, and the records folded with
+  their shadows.
+
 ## 0.21.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

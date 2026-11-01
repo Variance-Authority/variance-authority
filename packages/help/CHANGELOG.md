@@ -1,5 +1,159 @@
 # @variance-authority/help
 
+## 0.22.0
+
+### Minor Changes
+
+- 31cd46d: A journey no longer places a call by its name. A method call on an object the source does not trace, and a `new` the source does not resolve, used to be drawn to the one function the case ran under that name, or to the first constructor it ran of a class so named. Both were namesakes, not targets: they now have no place, and `name-match` and `new` are gone from the ways a call is known. Journeys prepared before this are prepared again.
+- 6b72cd6: `ask search` now prints, beside each published name, the places that import it and the packages those places sit in, counted as `ask uses` counts them: `imported in 5 places in 2 packages`, or `imported nowhere`. Before, it printed `2 packages, 3 imports`. That number counted only imports by a published path from other packages, but it read as every import. The rows a page shows are ordered by the count they print. Search counts only the rows it shows, and opens the Help value only when one of them is a published name.
+
+  Without the Help value, and in `entrypoint`'s rows, the narrower count is printed under its own name: `3 imports by published path from 2 other packages`, or `no other package imports it by its published path`.
+
+  JSON changes:
+
+  - A published match carries `importedIn: { places, packages }`.
+  - Its `packages` and `imports` fields are renamed `otherPackages` and `otherImports`.
+  - The answer carries `importsUnread` when the source index did not read, so imports by file path were not counted.
+
+  When the Help value is published but does not open, an answer that shows a published name says so beside the index counts it prints instead.
+
+  Breaking for code that builds a `SearchReading` itself: it now requires `value`, a thunk that reads the Help value on demand. `countingShown` calls it.
+- cbf1820: `ask search` weighs and shows a name through one of its rows
+
+  A word in a doc weighs at most two thirds of the same word in a name, however short the doc.
+
+  A name's weight is multiplied by how much of the question it writes, each word counted by its rarity, so a long doc that writes every word can sort before a short one that writes most of them.
+
+  A word's rarity is counted once per name, declaration and file found, a name writing it when any of its rows does, and the mean doc length over the doc of every row found, so no name's weight depends on the row another name is shown through.
+
+  A name published by more than one package or exported from more than one file is weighed and shown through one row, never several rows' docs added up: the row its words weigh most through, then the one whose doc writes more of the question's adjacent word pairs, then the first one the published or exported section would show.
+
+  A name stays in the described section only when the row it is weighed through writes at least half the question's words; a name whose rows write that many only together is listed in the loose section, when every word finds it there.
+
+  A name published anywhere is shown in the published section through a published row, whatever its exported rows write, and the described section weighs a name's rows before it asks whether they are published.
+
+  The published and exported sections settle a tie between one name's rows by the doc's text, then what a published row declares or the line an exported row is declared on, then the file, where they used to settle it by where the index wrote each row, which follows package and file names.
+
+  A published row has no line, so the file settles two published declarations of one kind under one doc.
+
+  The exported section used to show a name through its first row by kind, then the first one written, even when another of its rows was the one whose doc opens with the question and ranked it; it now shows that row.
+
+  With `from` or `to`, a name is counted, weighed, ordered and shown only through the rows of the area: a published row a file of the area imports, or an exported row of a file in the area.
+
+  The published `SearchIndex` type no longer declares `publishedFile`, the file id of a published row.
+- af1b275: `ask uses` lists the imports inside the declaring package apart, with the lines that use them, and the classes that implement a member
+
+  The first line of `variance ask uses` counted every import of a name as one
+  number, and the list mixed the imports inside the package that declares it
+  with the ones from other packages. Both are now counted apart, `imported in 2
+  places: 1 from another package and 1 inside @acme/lib`, and listed under
+  `Source, inside @acme/lib:` and `Source, from other packages:`, and the same
+  for tests and stories. `ask symbol` counts its places the same way. Each
+  import ends with the lines its file uses what it binds on, `; used on lines
+  4, 5`.
+
+  A member of an interface now lists the member of each class that writes
+  `implements` of it as an `implement`. An object that takes the interface from
+  where it goes, such as `run({ deps: { readJourney } })`, writes no type on its
+  line: the answer says so and names the declaration to ask TypeScript's
+  go-to-implementation about.
+
+  The source index moves to format 38: it holds the lines a file uses each
+  import's binding on, and the `implement` members. The first command after the
+  upgrade reads every file again.
+- 1c40704: `ask uses` names the files whose imports the source index resolved to no file when one could take the name, since a use there is not listed. For a name no file here declares but a file imports from a package outside the workspace or a runtime module, the answer names each source and the `discover --imports <source>#<name>` question that lists the files; over MCP it names the command to run in the checkout, since `docs_discover` there refuses the question. A path alias such as `@/lib`, a `paths` or `baseUrl` mapping a `tsconfig` or `jsconfig` declares, and a package of this workspace are never named as outside sources; an unresolved one of them, or a `#` subpath import, is named among the files that could take the name. `@variance-authority/sense` publishes `outsideSourcesOf(root, name, index?)`, and `importersOf` carries `unresolved`. `@variance-authority/mcp/tools` publishes `conjoined`, which joins words as `a, b and c`.
+
+### Patch Changes
+
+- 9b5e111: A word a doc writes in a code span is found by that word
+
+  The search file split a doc on spaces and punctuation. A backtick is neither,
+  so a doc that wrote `@testOnly` in a code span held the word with its
+  backtick still attached, and `variance ask search --query "testonly production"`
+  never reached the name that doc describes. A backtick now ends a word in a
+  doc, in a name and in a query, so that doc holds `testonly` and `production`.
+
+  The search file moves to version 4. The first question after the upgrade
+  names the earlier file as unopened, answers from the published value, and
+  writes the search again beside it.
+- 45ea59c: A default export is answered by a name, never by `default`. `export default function Badge` is `Badge`. An anonymous `export default function ()` takes the local name of the import nearest its file, so `import shout from './anon.js'` makes it `shout`, with every importer's own spelling listed beside its site, and every local name an import gives it answers it; when nothing imports it, the nearest export that passes it on under a name, `export { default as Thing }`, names it. A local name of a default says the declaration it imports, `imports shout (its default) as far`, and an export passing a default on says the name it passes on. Asked for `default`, `ask symbol` and `ask uses` answer only the default exports nothing names, never one passed on from a named default, and no longer list a default export's declaration as declared but not exported. The source index binds an anonymous default to its declaration, so its kind and signature are read like any other's; the index moves to version 39 and an older one is read again. Every export the package stage reads now carries `bound`, the name it binds in its own file (`default` for an anonymous default, none for `export … from`), so a declaration is keyed without reading the source index again; the help snapshot moves to version 10 and an older one is read again. The skill's workspace reference says how a declaration, and a default, is named.
+- d2cc975: Seven docs say what their declaration does in the words it is asked for
+
+  `ask search` now shows these among its rows: `snapshotValue` writes a test case's value as a snapshot file, `locateSites` turns a stack frame into its source line, `BlockKind` names the construct behind each region kind, and the Playwright Locator recording in eyes is documented. The lead of `testSelectionProbes` now says it is the Vite plugin whose `transform` hook instruments each module. The tool-order doc of `@variance-authority/help` sits on the tool list rather than on the wrapper that dates each answer.
+- 15d7975: `ask search` reads a doc as writing a question of two distinct stems or more when one of its paragraphs holds them in order by stem, each as many words after the last as in the question, so `page sink` finds `eventCollectorSource`, whose doc installs "the page's sink", and a name declared without being exported is read by the same rule. A function word such as `of`, or a word under three letters, holds its place, so "a page and its sink" no longer writes `page sink`, either as a match or in how near the described names sort. `phraseOfNative` answers the phrase, and `nearOfNative` counts a doc's pairs by the same rule. When nothing matches, the answer says no name or doc writes the question, no longer "as typed".
+- b6347b7: `ask symbol` and `ask uses` answer a name written as `Container.member` with the member that container declares, where they refused it as undeclared. A name a file also declares at its top level lists its members beside that declaration, where the declaration hid them.
+
+  So does a name imported by the path of its file, and a published one. The first five member declarations are listed and the rest counted. When no interface, type alias or class body read declares the member, the answer names where the container is declared, or says no file declares it at its top level, since a namespace an import binds is not read as one. An inherited member is left to the go-to-definition of the container's language's type checker, and so is a member of an enum, a namespace or an object literal, whose bodies the source index does not read.
+
+  A member a type alias declares in a literal its intersection or union joins, `type Options = Base & { index: string }`, is named a member of `Options`, where it was named a member of a type literal.
+- f606d7d: A hint names what you can type where you asked
+
+  An answer's hints were spelled for one surface and printed on both. Each is
+  now spelled for the surface that asked:
+
+  - From a shell, `variance ask` and `variance-authority-help` name an input as
+    its flag (`--limit`, `--query`, `--from`), a tool as the command that runs it
+    (`variance ask symbol`), and a whole question, such as the `grep` that finds
+    an underscored name, as the command line that asks it.
+  - Over MCP, the same hints use the wire's names: the input `limit`, the tool
+    `docs_symbol`, and a question as the tool with its inputs. This covers the
+    `search` and `grep` hints, the `--package` refusal, the operands an
+    `intersection` names, and the line every listing (`costs`, `run_signals`
+    among them) adds for the rows it left out. A `limit` refused from a shell
+    names `--limit`, and over MCP names `limit`.
+
+  The lexicon line of `symbol` names `variance index` as the command that
+  publishes the dependency lexicon, on both surfaces.
+
+  A tool invocation carries the shell it was asked from as `shell`.
+  `@variance-authority/mcp/tools` exports the one spelling every surface uses:
+  `spellingOf`, `verbOf`, `flagOf` and the `Spelling` type. `limitOf` and
+  `notShown` take a `Spelling`. The CLI's `questionOf` is removed; `verbOf`
+  replaces it.
+
+  `Spelling` and `verbOf` take a declared tool — its name, description and input
+  schema — so a hint cannot be spelled from a tool name written as a string, and
+  renaming a tool fails the build of every hint that names it.
+- 11b87d2: `variance ask uses` follows a module held whole, `import * as ns` or `const ns = await import(…)`, into a function the same file declares when the module is handed to it, `f(ns)`, and lists the names that function reads off its parameter at the lines that read them. Such a call no longer marks every name of the module "passed on whole: may read it". That mark now names the line where the module leaves the file's sight, which may be inside the function. A read off the parameter is no longer called type-only because the parameter's type is `typeof import(…)`. The source index format moves to 36, so the next scan reads every file again.
+- d65dce0: `ask symbol` and `ask uses` answer each declaration of a name apart. A declaration is the file that declares it and the name that file exports it under, so two published declarations that share a name are two answers, each with the import that reaches it and its own count, and so are an entry's `export { greet as salute }` and the file's own `salute`. "Also published by" lists only the other entries of the same declaration, and a declaration published or declared under another name than the one asked says that name. One binding its file exports under two names, `export default greet` beside `export { greet }`, is one declaration keyed by its named spelling, never `default`, and its importers under either name are its uses. Snapshots written before this read again.
+- cc06d2e: Journeys read the recorded commit, or say why git could not
+
+  On git 2.43, the version Ubuntu 24.04 and the Playwright images ship, the
+  journeys walk could not read the files that had changed since the recorded
+  commit in a partial clone. Asking `cat-file` with `GIT_NO_LAZY_FETCH=1` makes
+  that git exit 128 at the first object it lacks, instead of answering
+  `missing`. The walk then parsed those files as the working tree had them.
+  Now the walk lists the changed files' objects with `diff --raw`, fetches them
+  from the promisor remote in one request, and reads them by object name. When
+  git cannot serve one, the journeys are not prepared, and `variance index`
+  prints git's own reason. A recording that names no commit is not walked.
+
+  A call whose import resolves to no function is no longer placed on a function
+  the case ran because that function is exported under the imported name. Such a
+  call has no place.
+
+  The `variance index` journeys line names the unit of each count. Functions
+  entered are counted once per case that entered each, and calls and package
+  flows are distinct. A recording kept inside the checkout is named by its
+  checkout path, and one in a shared cache by its own path.
+- e2a0cac: `variance ask uses` lists a name a package passes on as `export * as ns` where a file imports `ns` by name and reads the name off it, `ns.name` or `const { name } = ns`, marked `(namespace, line <n>)` with the line of the import. The source index records the names read off each named import, so an index written by an earlier version is read again.
+- ca268fa: `variance ask uses --file <path>` answers for the declaration in that file alone when several files declare the name. Without it, the answer names each file that exports the name without publishing it, and a `--file` that declares nothing by the name is answered with the files that do.
+- 535b042: `ask symbol` answers a function or an arrow function declared inside another function's body, with the function that holds it — by its name, or by the line it is written at when it has none — and the members of the name beside it, and an export no entry publishes beside a published namesake. It writes out the declarations of the name nearest `--from` first and counts the rest. `ask search` weighs each word of a description by how rare it is among everything the description reached, an integer counted three times over in a name and twice in a doc of the mean length, more in a shorter doc and less in a longer one, never more than in a name, so a name holding the rare words is no longer outranked by every doc that also says a common one; it reads no declaration inside a function. The source index format moves to version 35, and the next scan rebuilds it.
+- 9e1e684: The source tree reads the mocks, as `variance covering --since` does
+
+  The source tree `readTree` reads, which `variance ask`, the `docs_*` tools and
+  an MCP host walk, now reads `vi.mock`, `jest.mock` and `sb.mock` calls off what
+  the parse recorded: a mock subtracts its target from the test file's edges, and
+  a real module its factory loads adds one. `@variance-authority/sense` exports
+  `runGraphOf`, the one fold that graph and `variance covering --since` are both
+  built by: the mocks, then the taints you pass, and the records folded with
+  their shadows.
+- bfe6e32: `ask search` puts a name that is the question first — as written, then the same name in another case — ahead of names that only hold the word and however few packages import it. `ask symbol` answers a name a file exports and no entry publishes the way it answers a published one: with its kind, its signature and its doc, read off the declaration the export binds — under another name, or through any `export … from` that passes it on — not the raw line it is written on. `@variance-authority/sense` exports `declarationExported`, that declaration with its kind and the spans of its signature and doc, in place of `declarationPassedOn`.
+- c0e7621: `ask symbol` counts the imports of a name inside its own package, so its count agrees with the places `ask uses` lists. The closing line names the total and splits it in two: the imports from other packages, and those inside the package that declares the name, even when a package that re-exports it is the one most imported. The places that may read the name, off the module's `default` or with the module passed on whole, are counted as no import, as `ask uses` counts them, and the header names them once, from the same sites `ask uses` lists, including the ones inside the name's own package. The header's count now says it counts imports by published path only. A name that only its own package imports no longer reads as unused. When the source index does not read, the closing line says so and gives the reason instead of leaving the inside count out.
+- fde69ec: `variance ask uses` follows a namespace destructured off a namespace import, `const { ns } = lib` and then `ns.name`, and `const { ns: { name } } = lib`, as it follows `lib.ns.name`. A binding destructured off a module the file holds is that module's value under a local name, as an import binds one, so it is no longer listed as a `[const]` declaration of its own beside the name it takes.
+- 446dbe6: A namespace a file imports and exports by its local name, `import * as ns from './x.js'; export { ns }`, is read as the `export * as ns from './x.js'` it is: `variance ask uses` lists `ns.name` read off it in a file that imports `{ ns }`, and `lib.ns.name` off `import * as lib`, and no longer lists the barrel itself as a place that may read the name.
+- 72c045c: `variance ask uses` follows a name through a namespace inside a namespace, `lib.ns.name`, and through a namespace passed on as `default`, and says a name an entry publishes only inside `export * as ns` is published as `ns.name`. Every declaration of a name is answered with its own imports, kept apart; and `--file` naming a file that only passes the name on answers for the declaration it reaches.
+
 ## 0.21.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
