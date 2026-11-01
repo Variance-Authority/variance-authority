@@ -66,6 +66,7 @@ describe('isolateListeners', () => {
     const controller = new AbortController();
     target.addEventListener('aborted', () => {}, { signal: controller.signal });
     controller.abort();
+    target.addEventListener('signalled', () => {}, { signal: controller.signal });
     target.addEventListener('left', () => {});
     leave();
     expect(report).toHaveBeenCalledOnce();

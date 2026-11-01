@@ -4,7 +4,7 @@
  * never sees. Opt-in, since it wraps the globals.
  */
 
-import { realm } from './realm.js';
+import { installOnce, realm } from './realm.js';
 import { currentSession } from './session.js';
 
 /** A scheduling global and the global that cancels what it returns. */
@@ -28,6 +28,10 @@ type Canceller = (handle: unknown) => void;
  * @returns a function that puts the globals back; timers still pending stay.
  */
 export function isolateTimers(target: Record<string, unknown> = globalThis as never): () => void {
+  return installOnce(target.setTimeout as object, () => installTimers(target));
+}
+
+function installTimers(target: Record<string, unknown>): () => void {
   const state = realm();
   const pending = new WeakMap<object, Map<unknown, Canceller>>();
   // Each pending handle, with its session's handles: a session nothing ends holds nothing.

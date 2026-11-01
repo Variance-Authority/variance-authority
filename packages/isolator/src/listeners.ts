@@ -5,7 +5,7 @@
  * `EventTarget.prototype`.
  */
 
-import { realm } from './realm.js';
+import { installOnce, realm } from './realm.js';
 import { currentSession } from './session.js';
 
 type Listener = NonNullable<Parameters<EventTarget['addEventListener']>[1]>;
@@ -47,6 +47,10 @@ interface Entry extends LeftListener {
  */
 export function isolateListeners(options: IsolateListenersOptions = {}): () => void {
   if (typeof EventTarget !== 'function') return () => {};
+  return installOnce(EventTarget.prototype, () => installListeners(options));
+}
+
+function installListeners(options: IsolateListenersOptions): () => void {
   const state = realm();
   const prototype = EventTarget.prototype;
   const add = prototype.addEventListener;
@@ -64,7 +68,8 @@ export function isolateListeners(options: IsolateListenersOptions = {}): () => v
 
   const added: Add = function (this: EventTarget, type, listener, settings) {
     Reflect.apply(add, this, [type, listener, settings]);
-    if (listener == null) return;
+    // An aborted signal attaches nothing.
+    if (listener == null || (typeof settings === 'object' && settings.signal?.aborted === true)) return;
     const capture = typeof settings === 'boolean' ? settings : settings?.capture === true;
     const key = `${capture}:${type}`;
     let byKey = index.get(this);

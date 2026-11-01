@@ -4,7 +4,7 @@
  * any object no transform reaches.
  */
 
-import { copied, copies } from './copies.js';
+import { copied, copies, fanned } from './copies.js';
 import { realm } from './realm.js';
 import { currentSession } from './session.js';
 
@@ -12,7 +12,7 @@ import { currentSession } from './session.js';
 export interface PerSessionOptions {
   /** What a write stores, as the object itself would store it: `String` for `process.env`. */
   readonly store?: (value: unknown) => unknown;
-  /** Told after the current session's copy writes or deletes `key`: a write the host has to see too. */
+  /** Told after a write or a delete of `key` lands: a write the host has to see too. */
   readonly wrote?: (key: PropertyKey) => void;
 }
 
@@ -31,8 +31,13 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
   const held = copies<object>(object, (from) => snapshot(from));
   const own = (): object => held.of(currentSession());
   const loading = () => realm().loading > 0;
-  // A loading module reads what the current session holds, without making it a copy.
-  const read = (): object => (loading() ? (held.nearest(currentSession()) ?? object) : own());
+  // A loading module reads what the current session holds, without making it a
+  // copy, and writes, as deep as it goes, into the object and every copy.
+  const read = (): object => {
+    if (!loading()) return own();
+    const { first, rest } = held.loading(currentSession());
+    return fanned(first, rest);
+  };
   return new Proxy(Object.create(Object.getPrototypeOf(object) as object | null) as T, {
     get: (_, key) => Reflect.get(read(), key),
     has: (_, key) => Reflect.has(read(), key),
@@ -44,30 +49,20 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
     },
     set(_, key, value: unknown) {
       const stored = store(value);
-      if (loading()) {
-        Reflect.set(object, key, stored);
-        for (const copy of held.live()) Reflect.set(copy, key, copied(stored, new Map()));
-        return true;
-      }
-      Reflect.set(own(), key, stored);
+      Reflect.set(read(), key, stored);
       options.wrote?.(key);
       return true;
     },
     defineProperty(_, key, descriptor) {
       if (loading()) {
-        Reflect.defineProperty(object, key, descriptor);
-        for (const copy of held.live()) Reflect.defineProperty(copy, key, descriptor);
+        const { first, rest } = held.loading(currentSession());
+        for (const copy of [first, ...rest]) Reflect.defineProperty(copy, key, copy === object ? descriptor : { ...descriptor, configurable: true });
         return true;
       }
       return Reflect.defineProperty(own(), key, { ...descriptor, configurable: true });
     },
     deleteProperty(_, key) {
-      if (loading()) {
-        Reflect.deleteProperty(object, key);
-        for (const copy of held.live()) Reflect.deleteProperty(copy, key);
-        return true;
-      }
-      const deleted = Reflect.deleteProperty(own(), key);
+      const deleted = Reflect.deleteProperty(read(), key);
       options.wrote?.(key);
       return deleted;
     },

@@ -73,6 +73,20 @@ describe('perSession', () => {
     expect(object.loaded).toEqual({ count: 1 });
   });
 
+  it('lands what a module pushes into a held array as it loads in every session alive', () => {
+    const registry = perSession<{ items: string[] }>({ items: [] });
+    registry.items.push('file');
+    const leave = enterTest();
+    loading(() => {
+      registry.items.push('loaded');
+    });
+    expect(registry.items).toEqual(['file', 'loaded']);
+    leave();
+    expect(registry.items).toEqual(['file', 'loaded']);
+    nextSession();
+    expect(registry.items).toEqual(['loaded']);
+  });
+
   it('stores a value as the object would store it', () => {
     const registry = perSession<Record<string, unknown>>({}, { store: String });
     registry.port = 3000;
@@ -114,6 +128,29 @@ describe('isolateEnv', () => {
     expect(process.env.TZ).toBe(before);
     process.env.TZ = 'UTC';
     expect(new Date(0).getTimezoneOffset()).toBe(0);
+  });
+
+  it('starts the next file from the TZ the environment held before the first', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    const undo = isolateEnv();
+    onTestFinished(undo);
+    process.env.TZ = 'Asia/Tokyo';
+    nextSession();
+    expect(process.env.TZ).toBe(before);
+  });
+
+  it('installs nothing on a second call', () => {
+    const undo = isolateEnv();
+    onTestFinished(undo);
+    const isolated = process.env;
+    const again = isolateEnv();
+    expect(process.env).toBe(isolated);
+    again();
+    expect(process.env).toBe(isolated);
   });
 
   it('puts the environment object back when undone', () => {

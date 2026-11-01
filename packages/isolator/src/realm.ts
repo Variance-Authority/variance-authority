@@ -19,6 +19,8 @@ interface Realm {
   switched: Set<(ended: object | undefined) => void>;
   /** Told as the first rewritten module starts its top level and as the last one ends. */
   loads: Set<Loads>;
+  /** What an `isolate…` function installed, by what it isolates: a second call installs nothing. */
+  installed: WeakMap<object, () => void>;
 }
 
 /** Hears when rewritten modules start and stop running their top levels. */
@@ -30,7 +32,7 @@ export interface Loads {
 const REALM = Symbol.for('@variance-authority/isolator');
 
 /** What an older copy of this module made: only `sources` and `fallback` are sure. */
-type Optional = 'file' | 'parents' | 'loading' | 'switched' | 'loads';
+type Optional = 'file' | 'parents' | 'loading' | 'switched' | 'loads' | 'installed';
 type Stored = Omit<Realm, Optional> & Partial<Pick<Realm, Optional>>;
 
 type Host = typeof globalThis & { [REALM]?: Stored };
@@ -48,6 +50,7 @@ export const realm = (): Realm => {
   state.loading ??= 0;
   state.switched ??= new Set();
   state.loads ??= new Set();
+  state.installed ??= new WeakMap();
   return state as Realm;
 };
 
@@ -101,4 +104,22 @@ export function endLoad(): void {
   const state = realm();
   if (state.loading === 0) return;
   if (--state.loading === 0) for (const listener of state.loads) listener.end();
+}
+
+/**
+ * Install what isolates `subject` once per realm: a setup file that runs again
+ * for every file in one worker gets the installation already there.
+ *
+ * @returns what undoes the installation, or nothing for a call that installed nothing.
+ */
+export function installOnce(subject: object, install: () => () => void): () => void {
+  const { installed } = realm();
+  if (installed.has(subject)) return () => {};
+  const undo = install();
+  installed.set(subject, undo);
+  return () => {
+    if (installed.get(subject) !== undo) return;
+    installed.delete(subject);
+    undo();
+  };
 }

@@ -5,43 +5,41 @@
  */
 
 import { perSession } from './per-session.js';
-import { realm } from './realm.js';
+import { installOnce, realm } from './realm.js';
 import { currentSession } from './session.js';
-
-const ENV = Symbol.for('@variance-authority/isolator/env');
-
-type EnvHost = { env: NodeJS.ProcessEnv; [ENV]?: NodeJS.ProcessEnv };
 
 /**
  * Give every session its own `process.env`, which starts from its parent's: a
- * test reads what its file set, and what it sets itself ends with it. Values
- * are stored as strings, as Node stores them. `TZ` is written through to the
- * real environment and put back as sessions switch, since Node reads the
- * timezone from there.
+ * test reads what its file set, and what it sets itself ends with it. A file
+ * starts from the environment as it was when this was called, and what a
+ * module sets as it loads. Values are stored as strings, as Node stores them.
+ * `TZ` is written through to the real environment and put back as sessions
+ * switch, since Node reads the timezone from there.
  */
 export function isolateEnv(): () => void {
-  const host = process as unknown as EnvHost;
-  if (host[ENV] !== undefined) return () => {};
-  const real = host.env;
-  const syncTimezone = () => {
-    const zone = env.TZ;
-    if (zone === real.TZ) return;
-    if (zone === undefined) delete real.TZ;
-    else real.TZ = zone;
-  };
-  const env = perSession(real, {
-    store: String,
-    wrote: (key) => key === 'TZ' && syncTimezone(),
+  return installOnce(process, () => {
+    const real = process.env;
+    // Sessions copy from what the environment held here, not from the real one,
+    // which carries the `TZ` of whichever session wrote it last.
+    const base = { ...real };
+    const syncTimezone = () => {
+      const zone = env.TZ;
+      if (zone === real.TZ) return;
+      if (zone === undefined) delete real.TZ;
+      else real.TZ = zone;
+    };
+    const env = perSession(base, {
+      store: String,
+      wrote: (key) => key === 'TZ' && syncTimezone(),
+    });
+    process.env = env;
+    const { switched } = realm();
+    switched.add(syncTimezone);
+    return () => {
+      switched.delete(syncTimezone);
+      if (process.env === env) process.env = real;
+    };
   });
-  host[ENV] = real;
-  host.env = env;
-  const { switched } = realm();
-  switched.add(syncTimezone);
-  return () => {
-    switched.delete(syncTimezone);
-    host.env = real;
-    delete host[ENV];
-  };
 }
 
 /** The own properties of an object, as one session found them. */
@@ -55,6 +53,10 @@ type Snapshot = Map<PropertyKey, PropertyDescriptor>;
  * that cannot be configured is left as it is.
  */
 export function isolateGlobals(target: object = globalThis): () => void {
+  return installOnce(target, () => installGlobals(target));
+}
+
+function installGlobals(target: object): () => void {
   const state = realm();
   const found = new Map<object, Snapshot>();
   const take = (): Snapshot => new Map(Reflect.ownKeys(target).map((key) => [key, Reflect.getOwnPropertyDescriptor(target, key)!]));

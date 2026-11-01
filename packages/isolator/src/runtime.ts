@@ -6,7 +6,7 @@
  * installed.
  */
 
-import { copied, copies } from './copies.js';
+import { copied, copies, fanned } from './copies.js';
 import { endLoad, realm, startLoad } from './realm.js';
 import { currentSession } from './session.js';
 
@@ -66,9 +66,7 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
   // and each copy already made, as it would on every fresh page that loads it;
   // it reads what the current session holds.
   const everywhere = (): Copy => {
-    const first = held.nearest(currentSession()) ?? base;
-    const rest: Copy[] = first === base ? [] : [base];
-    for (const copy of held.live()) if (copy !== first) rest.push(copy);
+    const { first, rest } = held.loading(currentSession());
     return { raw: first.raw, values: fanned(first.values, rest.map((copy) => copy.raw)), init: first.init };
   };
 
@@ -127,74 +125,4 @@ function create(kinds: Readonly<Record<string, Kind>>, from: Readonly<Record<str
     });
   }
   return copy;
-}
-
-/** What changes an array, a `Map` or a `Set` in place, through a method of its own. */
-const MUTATORS = new Map<object, ReadonlySet<PropertyKey>>([
-  [Array.prototype, new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin'])],
-  [Map.prototype, new Set(['set', 'delete', 'clear'])],
-  [Set.prototype, new Set(['add', 'delete', 'clear'])],
-]);
-
-const TARGET = Symbol('fanned');
-
-/** An object a session copies, which a write through {@link fanned} reaches in every copy. */
-function copyable(value: unknown): value is object {
-  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return false;
-  const prototype = Object.getPrototypeOf(value) as object | null;
-  return prototype === null || prototype === Object.prototype || MUTATORS.has(prototype);
-}
-
-/**
- * `first` as a module that is loading reaches it: reads answer from `first`,
- * and a write lands in `first` and in the same place in each of `rest`, which
- * gets a copy of what is written. A `Map`'s keys and a `Set`'s members are
- * the same objects in every copy, as a copy keeps them.
- */
-function fanned<T extends object>(first: T, rest: readonly unknown[]): T {
-  const into = (value: unknown, at: number): unknown => {
-    const own = isFanned(value) ? value[TARGET] : value;
-    return at === 0 ? own : copied(own, new Map());
-  };
-  return new Proxy(first, {
-    get(target, key) {
-      if (key === TARGET) return target;
-      const value: unknown = Reflect.get(target, key);
-      const prototype = Object.getPrototypeOf(target) as object | null;
-      if (typeof value === 'function' && prototype !== null && MUTATORS.has(prototype) && value === Reflect.get(prototype, key)) {
-        const others = rest.filter((other): other is object => copyable(other) && Object.getPrototypeOf(other) === prototype);
-        const method = value as (...args: unknown[]) => unknown;
-        if (MUTATORS.get(prototype)!.has(key)) {
-          return (...args: unknown[]) => {
-            const copiedArgs = (at: number) =>
-              args.map((arg, index) => (prototype === Set.prototype || (prototype === Map.prototype && index === 0) ? into(arg, 0) : into(arg, at)));
-            for (const other of others) method.apply(other, copiedArgs(1));
-            return method.apply(target, copiedArgs(0));
-          };
-        }
-        if (prototype === Map.prototype && key === 'get') {
-          return (entry: unknown) => {
-            const found = (target as Map<unknown, unknown>).get(entry);
-            return copyable(found) ? fanned(found, others.map((other) => (other as Map<unknown, unknown>).get(entry))) : found;
-          };
-        }
-        return method.bind(target);
-      }
-      if (typeof value === 'function' && prototype !== null && MUTATORS.has(prototype)) return value;
-      return copyable(value) ? fanned(value, rest.map((other) => (copyable(other) ? Reflect.get(other, key) : undefined))) : value;
-    },
-    set(target, key, value: unknown) {
-      if (!Reflect.set(target, key, into(value, 0))) return false;
-      for (const other of rest) if (copyable(other)) Reflect.set(other, key, into(value, 1));
-      return true;
-    },
-    deleteProperty(target, key) {
-      for (const other of rest) if (copyable(other)) Reflect.deleteProperty(other, key);
-      return Reflect.deleteProperty(target, key);
-    },
-  });
-}
-
-function isFanned(value: unknown): value is { [TARGET]: unknown } {
-  return typeof value === 'object' && value !== null && (value as { [TARGET]?: unknown })[TARGET] !== undefined;
 }
