@@ -94,6 +94,22 @@ describe('perSession', () => {
     expect('fixed' in registry).toBe(false);
   });
 
+  it('defines what a module defines as it loads in every session alive, and leaves a session free to redefine it', () => {
+    const object: Record<string, unknown> = {};
+    const registry = perSession(object);
+    const leave = enterTest();
+    loading(() => {
+      Object.defineProperty(registry, 'loaded', { value: 1, enumerable: true, writable: true, configurable: true });
+    });
+    expect(registry.loaded).toBe(1);
+    Object.defineProperty(registry, 'loaded', { value: 2, enumerable: true, configurable: true });
+    leave();
+    expect(registry.loaded).toBe(1);
+    nextSession();
+    expect(registry.loaded).toBe(1);
+    expect(object.loaded).toBe(1);
+  });
+
   it('stores a value as the object would store it', () => {
     const registry = perSession<Record<string, unknown>>({}, { store: String });
     registry.port = 3000;

@@ -119,6 +119,20 @@ describe('isolateListeners', () => {
     expect(others).toHaveBeenCalled();
   });
 
+  it('throws what report threw, when one listener was left', () => {
+    const failure = new Error('left one');
+    onTestFinished(
+      isolateListeners({
+        report: () => {
+          throw failure;
+        },
+      }),
+    );
+    const leave = enterTest();
+    new EventTarget().addEventListener('one', () => {});
+    expect(leave).toThrow(failure);
+  });
+
   it('keeps what a listener the file added adds while a test runs, and leaves it to the file', () => {
     onTestFinished(isolateListeners());
     const target = new EventTarget();
