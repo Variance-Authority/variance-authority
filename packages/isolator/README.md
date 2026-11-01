@@ -218,21 +218,24 @@ export default {
 
 // .storybook/preview.js
 import { nextSession } from '@variance-authority/isolator';
+import { addons } from 'storybook/preview-api';
 
-export default { loaders: [() => (nextSession(), {})] };
+addons.getChannel().on('setCurrentStory', () => nextSession());
 ```
 
 Under Vite alone the plugin rewrites every module but the ones `exclude`
 names. Leave out the Storybook config and the story files: Storybook reads a
-story file's exports once for the page. Put the reset first among the project
-loaders, not in `beforeEach`, because Storybook runs every loader before any
-`beforeEach`, and a story's own loader that reads module state would read the
-state the previous story left. Each story switched to on the same page then
-starts from the values its modules were loaded with.
+story file's exports once for the page. The reset answers the switch itself,
+not a loader or `beforeEach`: Storybook imports the next story's file before it
+runs any loader, so a story file that reads module state as it loads, or a
+module it loads for the first time that registers itself somewhere, would meet
+the previous story's state, and a reset after it would erase the registration.
+Each story switched to on the same page then reads its modules as a page of its
+own would.
 
-Three things stay shared. State a story file declares itself, since the story
-files are excluded. Work the previous story left running, such as a timer or a
-pending promise, which writes into the next story's session when it lands. And
+Two things stay shared. Work the previous story left behind: a timer or a
+pending promise that lands later, and its unmount, which Storybook runs after
+it has imported the next story, all write into the next story's session. And
 anything in `node_modules` or in a package that declares side effects. The
 plugin has no build mode of its own: add it to a Storybook config, not to an
 app's production build.

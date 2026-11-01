@@ -12,5 +12,5 @@ export default {
 
 export const First = {};
 export const Second = {};
-export const SharedFirst = { parameters: { sharedModules: true } };
-export const SharedSecond = { parameters: { sharedModules: true } };
+export const SharedFirst = {};
+export const SharedSecond = {};

@@ -12,16 +12,17 @@ import { serveStatic } from '../scripts/serve.mjs';
  *
  * `Isolated/Tally` counts in a module variable from its loader. On one document
  * the module loads once, so every story after the first would read what the
- * story before it wrote. The isolated build rewrites the module and its first
- * project loader starts a new session per story; the two stories marked
- * `sharedModules` skip that loader and show the leak the reset prevents.
+ * story before it wrote. The isolated build rewrites the module and starts a
+ * new session on every switch, before Storybook imports the next story's file;
+ * the two shared stories skip the reset and show the leak it prevents.
+ * `Isolated/Reader`, a second story file, reads the count as it loads.
  *
  * Skipped, loudly, when the build is missing. Run:
  *   yarn workspace @variance-authority/case-storybook build-storybook:isolated
  */
 
 const STATIC_DIR = join(process.cwd(), 'cases', 'storybook-case', 'storybook-isolated');
-const STORIES = ['isolated-tally--first', 'isolated-tally--second', 'isolated-tally--shared-first', 'isolated-tally--shared-second'];
+const STORIES = ['isolated-tally--first', 'isolated-tally--second', 'isolated-tally--shared-first', 'isolated-tally--shared-second', 'isolated-reader--initial'];
 
 const BUILT = existsSync(join(STATIC_DIR, 'index.json'));
 const BROWSER_AVAILABLE = (() => {
@@ -63,25 +64,43 @@ if (!BUILT || !BROWSER_AVAILABLE) {
   );
 }
 
+/** No globals to send: sending them re-renders the first story on its page, in the same session. */
+const show = async (page, ids) => {
+  const shown = [];
+  const outcomes = await collectStories(page, ids, {
+    baseUrl,
+    globals: {},
+    observe: async () => {
+      shown.push(await page.locator('#storybook-root output').textContent());
+    },
+  });
+  expect(outcomes.map((outcome) => outcome.status)).toEqual(ids.map(() => 'rendered'));
+  return shown;
+};
+
 live('stories switched on one page under the isolator', () => {
-  it('starts every story from the module as it loaded, and only the stories that opt out read the one before', async () => {
+  it('shows every story as a page of its own would, and only the stories that opt out read the one before', async () => {
+    const alone = [];
+    for (const id of STORIES) {
+      const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+      try {
+        alone.push(...(await show(page, [id])));
+      } finally {
+        await page.close();
+      }
+    }
+
     const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
     let loads = 0;
     page.on('load', () => {
       loads += 1;
     });
-    const shown = [];
-
     try {
-      const outcomes = await collectStories(page, STORIES, {
-        baseUrl,
-        observe: async () => {
-          shown.push(await page.locator('#storybook-root output').textContent());
-        },
-      });
-
-      expect(outcomes.map((outcome) => outcome.status)).toEqual(STORIES.map(() => 'rendered'));
-      expect(shown).toEqual(['1', '1', '2', '3']);
+      const shown = await show(page, STORIES);
+      expect(alone).toEqual(['1', '1', '1', '1', '0/1']);
+      // The shared stories read the two before them; `Isolated/Reader`, imported
+      // after they wrote 3, reads its modules as its own page does.
+      expect(shown).toEqual(['1', '1', '2', '3', '0/1']);
       expect(loads).toBe(1);
     } finally {
       await page.close();

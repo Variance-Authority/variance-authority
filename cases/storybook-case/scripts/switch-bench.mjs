@@ -5,10 +5,10 @@
 //   yarn workspace @variance-authority/case-storybook bench:switch [stories] [runs]
 //
 // Shows the two isolated `Isolated/Tally` stories in turn, `stories` times (40
-// by default), once on one page whose first project loader starts a new
-// isolator session per story, and once with a new page per story. Each of those
+// by default), once on one page that starts a new isolator session on
+// every switch, and once with a new page per story. Each of those
 // stories is checked to read the count it would read on a page of its own, so
-// the one page is only faster if it is also right. The two `sharedModules`
+// the one page is only faster if it is also right. The two shared
 // stories, shown the same way on one page, skip the reset: the gap between them
 // and the isolated stories is what the isolator costs per switch. Reports the median of `runs` (5 by
 // default) per story; a time is one machine's.
@@ -36,6 +36,8 @@ async function show(page, stories) {
   const shown = [];
   await collectStories(page, stories, {
     baseUrl,
+    // No globals to send: sending them re-renders the first story on the page.
+    globals: {},
     observe: async () => shown.push(await page.locator('#storybook-root output').textContent()),
   });
   return shown;

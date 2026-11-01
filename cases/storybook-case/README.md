@@ -275,10 +275,14 @@ yarn workspace @variance-authority/case-storybook bench:switch
 
 `build-storybook:isolated` builds `isolated/` with `.storybook-isolated/`, into
 `storybook-isolated/`: the isolator plugin in `viteFinal`, and `nextSession()`
-as the first project loader. `Isolated/Tally` counts in a module variable from
-its loader. Shown in turn on one page, `First` and `Second` both read 1;
-`Shared first` and `Shared second` skip the reset and read 2 and 3. The page
-loads once. Built without the plugin, the test fails.
+on every `setCurrentStory`, before Storybook imports the next story's file.
+`Isolated/Tally` counts in a module variable from its loader, and
+`Isolated/Reader`, a second story file, reads that count as it loads while a
+module it imports registers itself in another. The test shows each story on a
+page of its own, then all of them in turn on one page, which loads once. On
+both, `First` and `Second` read 1 and `Reader` reads `0/1`: no count, one
+registration. `Shared first` and `Shared second` skip the reset, so on one page
+they read 2 and 3. Built without the plugin, the test fails.
 
 `bench:switch` shows the two isolated stories 40 times, on one page and on a
 new page per story, checks that every story read 1, and prints the median time
