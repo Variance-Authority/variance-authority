@@ -34,7 +34,10 @@ interface Report {
  * One run of the fixture: what each test did, in the order the files ran, as
  * `file > title: status`, and how many times the worker evaluated `counter.ts`.
  */
-async function run(name: string, env: { readonly FIXTURE_RESETS: string; readonly FIXTURE_ISOLATE?: string; readonly FIXTURE_CONCURRENT?: string }) {
+async function run(
+  name: string,
+  env: { readonly FIXTURE_RESETS: string; readonly FIXTURE_ISOLATE?: string; readonly FIXTURE_CONCURRENT?: string; readonly FIXTURE_LIFECYCLE?: string },
+) {
   const report = resolve(directory, `${name}.json`);
   const loads = resolve(directory, `${name}.loads`);
   const { output } = await execute(process.execPath, [vitest, 'run', '--reporter=json', `--outputFile=${report}`], {
@@ -52,7 +55,10 @@ async function run(name: string, env: { readonly FIXTURE_RESETS: string; readonl
   const tests = [...parsed.testResults].sort((left, right) => left.startTime - right.startTime).flatMap((file, index) =>
     file.assertionResults.map((test) => `${index === 0 ? 'first' : 'second'} file > ${test.title}: ${test.status}`),
   );
-  return { output, tests, loads: loadCount };
+  const named = parsed.testResults
+    .flatMap((file) => file.assertionResults.map((test) => `${file.name.slice(fixture.length + 1)} > ${test.title}: ${test.status}`))
+    .sort();
+  return { output, tests, named, loads: loadCount };
 }
 
 describe('a Vitest run that keeps its module graph across files', () => {
@@ -126,6 +132,25 @@ describe('tests that run side by side under a kept module graph', () => {
     expect(tests, output).toEqual([
       'first file > counts from one beside another test: passed',
       'first file > counts from one beside the first test: passed',
+    ]);
+  });
+});
+
+describe('a test file under the isolator, as a fresh file would run', () => {
+  it('collects against its modules as they were loaded, and gives each test what its beforeAll hooks seeded', async () => {
+    const { output, named } = await run('lifecycle', { FIXTURE_RESETS: 'isolator', FIXTURE_LIFECYCLE: 'true' });
+
+    expect(named, output).toEqual([
+      'collect-one.lifecycle.ts > collected the module as it was loaded: passed',
+      'collect-one.lifecycle.ts > counts from one again, whatever the test before it left: passed',
+      'collect-one.lifecycle.ts > counts from one: passed',
+      'collect-two.lifecycle.ts > collected the module as it was loaded: passed',
+      'collect-two.lifecycle.ts > counts from one again, whatever the test before it left: passed',
+      'collect-two.lifecycle.ts > counts from one: passed',
+      'seeded.lifecycle.ts > reads both again, whatever the test before it wrote: passed',
+      'seeded.lifecycle.ts > reads it again, whatever the test before it wrote: passed',
+      'seeded.lifecycle.ts > reads what both beforeAll hooks seeded: passed',
+      "seeded.lifecycle.ts > reads what the file's beforeAll seeded: passed",
     ]);
   });
 });
