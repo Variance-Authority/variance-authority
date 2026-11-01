@@ -74,16 +74,21 @@ describe('isolateTimers', () => {
     expect(pending.size).toBe(0);
   });
 
-  it('runs a real timeout that fires in time, and cancels one that does not', async () => {
-    onTestFinished(isolateTimers());
+  it('runs a timeout that fires within its test, and cancels one that would fire after it', () => {
+    vi.useFakeTimers();
+    const undo = isolateTimers();
+    onTestFinished(() => {
+      undo();
+      vi.useRealTimers();
+    });
     const fired = vi.fn();
     const late = vi.fn();
     const leave = enterTest();
     setTimeout(fired, 0);
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    vi.advanceTimersByTime(1);
     setTimeout(late, 0);
     leave();
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    vi.runAllTimers();
     expect(fired).toHaveBeenCalledOnce();
     expect(late).not.toHaveBeenCalled();
   });

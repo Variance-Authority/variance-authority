@@ -369,9 +369,11 @@ isolateListeners();
 
 What a rewritten module does as it loads — a property it defines, a timer it
 starts, a listener it adds — belongs to no session and stays, as it would on
-every fresh page that loads the module. `perSession(object)` is the proxy
+every fresh page that loads the module. `perSession(object, { store, wrote })` is the proxy
 `isolateEnv` is built on, for any other object a session should hold its own
-copy of.
+copy of: `store` turns a written value into what the object would hold, as
+`String` does for the environment, and `wrote` is told of each key a session
+wrote, for a host that has to see the write too.
 
 ## What it leaves, and tells you
 
