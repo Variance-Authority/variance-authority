@@ -6,6 +6,12 @@
  * library adds once, as React does on its root.
  */
 
+/** Where a module stays as it is, as the transform's skip rule reads a path. */
+const UNREWRITTEN = /[\\/]node_modules[\\/]/;
+
+/** The file of a stack line, in V8's `at fn (file:1:2)` or Firefox's and Safari's `fn@file:1:2`. */
+const fileOf = (line: string): string | undefined => /([^\s(@]+):\d+:\d+\)?$/.exec(line)?.[1];
+
 import { inEverySession, installOnce, realm } from './realm.js';
 import { currentSession } from './session.js';
 
@@ -64,6 +70,9 @@ function installListeners(options: IsolateListenersOptions): () => void {
   // added does not hand what it adds to the test it runs in. A load's or setup's
   // listener runs in every session, so what it adds is the current session's.
   let running: Set<Entry> | undefined;
+  // The adder is the first frame outside this file, which a stack taken here names.
+  const self = fileOf(new Error().stack?.split('\n').find((line) => fileOf(line) !== undefined) ?? '');
+  const adder = (stack: string) => stack.split('\n').find((line) => { const file = fileOf(line); return file !== undefined && file !== self; });
   const find = (target: EventTarget, key: string, listener: Listener) => index.get(target)?.get(key)?.get(listener);
   const forget = (entry: Entry) => {
     index.get(entry.target)?.get(`${entry.capture}:${entry.type}`)?.delete(entry.listener);
@@ -98,13 +107,19 @@ function installListeners(options: IsolateListenersOptions): () => void {
         }
       }
     }
+    let stack = '';
+    if (owned !== undefined) {
+      stack = new Error().stack ?? '';
+      // A package marks where it added a listener and never adds it again, as React marks a container: it stays.
+      if (UNREWRITTEN.test(adder(stack) ?? '')) owned = undefined;
+    }
     const once = given?.once === true;
     const owner = owned;
     const entry: Entry = {
       target: this,
       type,
       capture,
-      added: options.report === undefined || owned === undefined ? '' : (new Error().stack ?? ''),
+      added: options.report === undefined || owned === undefined ? '' : stack,
       listener,
       attached(event) {
         // The target dropped a `once` listener as it dispatched it.

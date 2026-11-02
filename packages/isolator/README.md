@@ -384,9 +384,10 @@ isolateListeners();
   of each one, with the stack that added it, once all are gone: throw from it to
   have every leak fixed where it starts. It is for unit tests, where the DOM is
   emptied between tests and what outlives it sits on `window` and `document`.
-  On a page, as in Storybook, a library adds listeners once and marks where it
-  did — React on its root and on a portal's container — and removing them
-  would leave the mark with nothing behind it.
+  A listener a package under `node_modules` adds itself stays: a library adds
+  listeners once and marks where it did, as React does on a portal's container,
+  and removing them would leave the mark with nothing behind it. On a page, as
+  in Storybook, a bundle hides which package added a listener, so leave it out.
 
 What a rewritten module does as it loads — a property it defines, a timer it
 starts, a listener it adds — belongs to no session and stays, as it would on
@@ -477,11 +478,10 @@ nobody holds any more takes its values with it.
   called.** The isolator does not see that load. If a package first runs inside a
   test and defines a global, starts a timer or adds a listener there, the
   `isolate…` functions take it back when the test ends. The module stays cached
-  and its own flag still says it has done its setup. A React portal rendered
-  into `document.body` is one: React adds its listeners there once, in the
-  first test that opens one, and `isolateListeners` removes them as that test
-  ends while React's mark stays, so a later portal in the same file stops
-  answering events.
+  and its own flag still says it has done its setup. `isolateListeners` keeps
+  what a package under `node_modules` adds, judged by the frame that called
+  `addEventListener`: a listener a helper package leaks for your test stays
+  too, and one a file your `exclude` names adds is removed.
 - **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
   `EventTarget` only. The test runners themselves listen on `process`.
 - **A timer started through `node:timers`.** `isolateTimers` wraps the globals.

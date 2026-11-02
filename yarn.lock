@@ -5244,6 +5244,7 @@ __metadata:
     "@swc/jest": "npm:^0.2.39"
     "@types/picomatch": "npm:^4.0.3"
     "@types/react": "npm:^19.2.14"
+    "@types/react-dom": "npm:^19.0.0"
     "@variance-authority/ioc": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     jest: "npm:^30.5.1"
@@ -5251,6 +5252,7 @@ __metadata:
     oxc-parser: "npm:^0.144.0"
     picomatch: "npm:^4.0.7"
     react: "npm:^19.2.8"
+    react-dom: "npm:^19.2.8"
     react-server-dom-parcel: "npm:^19.3.1"
   peerDependencies:
     react: ">=19"
@@ -10908,6 +10910,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-dom@npm:^19.2.8":
+  version: 19.3.1
+  resolution: "react-dom@npm:19.3.1"
+  dependencies:
+    scheduler: "npm:^0.28.0"
+  peerDependencies:
+    react: ^19.3.1
+  checksum: 10c0/382700916313b2ebc46acee80642f300bb8601eac6a9e7fefade5b8b30e66b05bf3aaa56a3c964589fcd578d27b486e847470c2697d879264e766661ff49fac7
+  languageName: node
+  linkType: hard
+
 "react-focus-lock@npm:^2.13.7":
   version: 2.13.7
   resolution: "react-focus-lock@npm:2.13.7"
@@ -11449,6 +11462,13 @@ __metadata:
   version: 0.27.0
   resolution: "scheduler@npm:0.27.0"
   checksum: 10c0/4f03048cb05a3c8fddc45813052251eca00688f413a3cee236d984a161da28db28ba71bd11e7a3dd02f7af84ab28d39fb311431d3b3772fed557945beb00c452
+  languageName: node
+  linkType: hard
+
+"scheduler@npm:^0.28.0":
+  version: 0.28.0
+  resolution: "scheduler@npm:0.28.0"
+  checksum: 10c0/783c8e5ce89d41273a02ed6dc0e3d24bd60e05c9e8f7e3adfc6c82e7c69935500d90e343f1ee26d592fc7504e8a2532573c6368def3e93bfe812391fa53efaf4
   languageName: node
   linkType: hard
 
