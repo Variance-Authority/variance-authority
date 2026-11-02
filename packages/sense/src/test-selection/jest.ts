@@ -275,6 +275,9 @@ export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY
  */
 const PROJECT_GLOBAL = 'variance-authority.project';
 
+/** Where our runtime reads its options; mirrors `OPTIONS` in `jest-runtime.cts`. */
+const RUNTIME_GLOBAL = 'variance-authority.runtime';
+
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
 
@@ -412,13 +415,13 @@ function selecting(config: JestConfig, root: string, rootDir: string, trace: str
   const runtime = named === undefined
     ? undefined
     : configuredPath(named, rootDir)[0] ?? createRequire(resolve(rootDir, 'package.json')).resolve(named);
-  const options = (config['testEnvironmentOptions'] ?? {}) as Record<string, unknown>;
   return {
     ...config,
     runtime: SELECTION_RUNTIME,
-    testEnvironmentOptions: {
-      ...options,
-      varianceAuthority: {
+    // `globals`, the one key Jest merges with a preset rather than replacing it.
+    globals: {
+      ...(config['globals'] as object | undefined),
+      [RUNTIME_GLOBAL]: {
         root,
         ...(runtime === undefined ? {} : { runtime }),
         ...(trace === undefined ? {} : { trace }),

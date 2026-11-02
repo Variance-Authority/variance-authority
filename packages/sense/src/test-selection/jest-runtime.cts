@@ -27,8 +27,8 @@ import type { JourneyTrace } from './journey.js';
 /** Where the sandbox finds the trace; mirrors `TRACE` in `collectors.cts`. */
 const TRACE = Symbol.for('variance-authority.test-selection.trace');
 
-/** The key the Jest wrappers put this runtime's options under in `testEnvironmentOptions`. */
-const OPTIONS = 'varianceAuthority';
+/** The key the Jest wrappers put this runtime's options under in `globals`, which Jest merges with a preset. */
+const OPTIONS = 'variance-authority.runtime';
 
 interface Options {
   /** The checkout environment inputs are named against. */
@@ -43,7 +43,7 @@ type Environment = { constructor: unknown; global: { __VA__?: unknown; [key: sym
 interface ProjectConfig {
   readonly rootDir: string;
   readonly testEnvironment: string;
-  readonly testEnvironmentOptions: { readonly [OPTIONS]?: Options };
+  readonly globals: { readonly [OPTIONS]?: Options };
 }
 type RuntimeClass = new (config: ProjectConfig, environment: Environment, ...rest: unknown[]) => object;
 type Mark = (root: string, file: string) => ModuleId | undefined;
@@ -101,10 +101,13 @@ function markOnce(root: string, file: string): ModuleId | undefined {
 }
 
 /** The jest-runner that required this runtime, which resolves the way Jest just resolved. */
+let jestRunner: NodeJS.Require | undefined;
 function runner(): NodeJS.Require {
+  if (jestRunner !== undefined) return jestRunner;
   const parent = Object.values(require.cache).find((cached) => cached?.children.includes(module) && /[\\/]jest-runner[\\/]/u.test(cached.filename));
   if (parent === undefined) throw new Error('variance-authority: the Jest runtime was not required by jest-runner');
-  return nodeModule.createRequire(parent.filename);
+  jestRunner = nodeModule.createRequire(parent.filename);
+  return jestRunner;
 }
 
 /**
@@ -115,7 +118,8 @@ function runner(): NodeJS.Require {
 function environmentOf(jest: NodeJS.Require, config: ProjectConfig, source: string, environment: Environment): NodeJS.Module {
   const docblock = jest('jest-docblock') as { parse(text: string): Record<string, unknown>; extract(text: string): string };
   const named = docblock.parse(docblock.extract(source))['jest-environment'];
-  const file = typeof named === 'string'
+  // An empty pragma is Jest's falsy: the project's environment.
+  const file = typeof named === 'string' && named !== ''
     ? (jest('jest-resolve') as { resolveTestEnvironment(options: object): string }).resolveTestEnvironment({
       ...config,
       requireResolveFunction: (name: string) => jest.resolve(name),
@@ -163,7 +167,7 @@ function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
 
 /** Construct the project's runtime, then hand its environment the inputs and the trace. */
 function SelectionRuntime(config: ProjectConfig, environment: Environment, ...rest: unknown[]): object {
-  const options = config.testEnvironmentOptions[OPTIONS];
+  const options = config.globals[OPTIONS];
   if (options === undefined) throw new Error('variance-authority: the Jest runtime is named without its options');
   const jest = runner();
   const Base = interop(options.runtime === undefined ? jest('jest-runtime') : require(options.runtime)) as RuntimeClass;

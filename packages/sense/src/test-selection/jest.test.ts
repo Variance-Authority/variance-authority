@@ -74,9 +74,9 @@ describe('withJourneyCoverage for Jest', () => {
     // The environment is Jest's to choose per file; only the runtime is ours.
     expect(configured.testEnvironment).toBe('jsdom');
     expect(configured['runtime']).toBe(SELECTION_RUNTIME);
-    expect(configured.testEnvironmentOptions).toEqual({
-      customExportConditions: ['node'],
-      varianceAuthority: { root: expect.any(String), trace: resolve(rootDir, 'test/sentry.cjs') },
+    expect(configured.testEnvironmentOptions).toEqual({ customExportConditions: ['node'] });
+    expect(configured.globals).toEqual({
+      'variance-authority.runtime': { root: expect.any(String), trace: resolve(rootDir, 'test/sentry.cjs') },
     });
     expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
       .toThrow(/is not a path/);
@@ -90,9 +90,16 @@ describe('withJourneyCoverage for Jest', () => {
     );
 
     expect(configured['runtime']).toBe(SELECTION_RUNTIME);
-    expect(configured.testEnvironmentOptions).toEqual({
-      varianceAuthority: { root: expect.any(String), runtime: resolve(rootDir, 'test/runtime.cjs') },
+    expect(configured.globals).toEqual({
+      'variance-authority.runtime': { root: expect.any(String), runtime: resolve(rootDir, 'test/runtime.cjs') },
     });
+  });
+
+  it("leaves a preset's environment options to the preset", () => {
+    // Jest merges `globals` with a preset, and spreads every other key over it.
+    const configured = withJourneyCoverage({ rootDir: '/repo', preset: 'ts-jest' }, { journeyFile: 'journeys.bin' });
+
+    expect(configured).not.toHaveProperty('testEnvironmentOptions');
   });
 
   it.todo('marks the modules `unprobed` names as loaded, as withTestSelection does — needs `unprobed` on JestJourneyCoverageOptions');
@@ -229,25 +236,22 @@ describe('withTestSelection for Jest', () => {
         rootDir: '/repo/packages/node',
         transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: 'babel-jest' }] },
         // The sandbox learns its project's name from here, for the case ids.
-        globals: { 'variance-authority.project': 'node' },
+        globals: { 'variance-authority.project': 'node', 'variance-authority.runtime': { root: '/repo' } },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
         unmockedModulePathPatterns: [expect.any(String)],
         runtime: SELECTION_RUNTIME,
-        // Inputs are named against the run's repository, not the project's root.
-        testEnvironmentOptions: { varianceAuthority: { root: '/repo' } },
       },
       {
         displayName: 'dom',
         testEnvironment: 'jsdom',
         rootDir: '/repo',
         transform: { '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: '@swc/jest' }] },
-        globals: { 'variance-authority.project': 'dom' },
+        globals: { 'variance-authority.project': 'dom', 'variance-authority.runtime': { root: '/repo' } },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
         unmockedModulePathPatterns: [expect.any(String)],
         runtime: SELECTION_RUNTIME,
-        testEnvironmentOptions: { varianceAuthority: { root: '/repo' } },
       },
     ]);
     expect(configured.reporters).toEqual([
