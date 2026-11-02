@@ -56,6 +56,14 @@ describe('a variable', () => {
     expect(next()).toBe(1);
   });
 
+  it('keeps what setup writes before any session starts, in every session to come', () => {
+    ownRealms();
+    const { next, peek } = counter();
+    next();
+    nextSession();
+    expect(peek()).toBe(1);
+  });
+
   it('reads the value its own session wrote, while another session runs concurrently', async () => {
     const { next, peek } = counter();
     const tick = () => Promise.resolve();

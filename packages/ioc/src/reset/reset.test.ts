@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { registerResetHandler, registerTestScope } from './index.js';
+import { driverInstalled, registerResetHandler, registerTestScope } from './index.js';
 import { configureResetHandler } from './setup.js';
 
 const REALM = Symbol.for('@variance-authority/ioc/reset');
@@ -198,6 +198,12 @@ describe('registerTestScope', () => {
     // A driver that never heard a test end would leave a nested `describe`'s `beforeAll` writing into the test before it.
     // @ts-expect-error the runner's `afterEach` is required
     expect(() => configureResetHandler(capture().each)).toThrow(TypeError);
+  });
+
+  it('tells a scope registering whether a driver is installed, since none tells it the file it joined has started', () => {
+    expect(driverInstalled()).toBe(false);
+    configureResetHandler(capture().each, () => {});
+    expect(driverInstalled()).toBe(true);
   });
 
   it('stops entering a scope once it is unregistered', () => {

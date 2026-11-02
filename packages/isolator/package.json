@@ -28,8 +28,8 @@
   "sideEffects": true,
   "exports": {
     ".": {
-      "types": "./dist/session.d.ts",
-      "default": "./dist/session.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./runtime": {
       "types": "./dist/runtime.d.ts",
@@ -85,12 +85,15 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@rspack/core": "^2.2.6",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",
     "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.0.0",
     "jest": "^30.5.1",
     "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-server-dom-parcel": "^19.3.1"
   }
 }

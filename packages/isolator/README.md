@@ -233,11 +233,21 @@ export default {
 };
 
 // .storybook/preview.js
-import { nextSession } from '@variance-authority/isolator';
+import { isolateGlobals, isolateTimers, nextSession } from '@variance-authority/isolator';
 import { addons } from 'storybook/preview-api';
 
-addons.getChannel().on('setCurrentStory', () => nextSession());
+isolateTimers();
+isolateGlobals();
+
+addons.getChannel().on('currentStoryWasSet', () => nextSession());
 ```
+
+`currentStoryWasSet` fires for every story selected, the one the URL opens
+included, so the first story does not run in the session of the page's boot.
+The `isolate…` calls end what a story leaves outside its modules: its timers
+and what it adds to `window`. What the preview does as it loads belongs to the
+boot and every story keeps it. Leave `isolateListeners()` out of a page: it is
+for unit tests, as its entry below says.
 
 Under Vite alone the plugin rewrites every module but the ones `exclude`
 names. Leave out the Storybook config and the story files: Storybook reads a
@@ -277,7 +287,9 @@ out of the rule, as the Jest transformer does: a test file's own `let` carries
 what a `beforeAll` set into the tests after it.
 
 In a browser, call `nextSession()` before every run, so each starts from the
-values its modules were loaded with.
+values its modules were loaded with. The runtime, `isolateTimers()` and
+`isolateGlobals()` need nothing of Node, so a bundle built for the web runs
+them as they are; `isolateEnv()` installs nothing where there is no `process`.
 
 ## Run it in another tool
 
@@ -335,6 +347,64 @@ give one; the loader reads them from the build's context:
 { loader: '@variance-authority/isolator/loader', options: { exclude: ['src/legacy/**'] } }
 ```
 
+## Isolate what no module owns
+
+Some state lives on objects the transform never sees: `process.env`, a
+property a test puts on `globalThis`, a timer still pending when its test
+ends, a listener left on `document`. Each has a function that isolates it per
+session from that call on, and returns a function that stops it. Call the ones
+you want once per file, before any test runs, from a setup file listed after
+the one that calls `configureResetHandler`. The isolator registers with the
+reset driver as it is imported, and `configureResetHandler` throws when
+something registered first:
+
+```ts
+import { isolateEnv, isolateGlobals, isolateListeners, isolateTimers } from '@variance-authority/isolator';
+
+isolateEnv();
+isolateGlobals();
+isolateTimers();
+isolateListeners();
+```
+
+- **`isolateEnv()`** gives every session its own `process.env`, started from
+  its parent's: a test reads what its file set, and what it sets itself ends
+  with it. `TZ` is written through to the real environment and put back as
+  the fallback session switches — a test, a file, `nextSession()` — since Node
+  reads the timezone from there. Node holds one timezone per process, so a
+  `TZ` set in a session `isolated(fn)` or a concurrent test starts stays in
+  that session's `process.env` and leaves Node's timezone as it was.
+- **`isolateGlobals(target = globalThis)`** puts `target`'s own properties
+  back as each session found them: what a test added is deleted, and what it
+  replaced or deleted is back. A property that cannot be configured stays.
+- **`isolateTimers()`** cancels, as each session ends, the `setTimeout`,
+  `setInterval`, `setImmediate` and `requestAnimationFrame` it left pending.
+- **`isolateListeners({ report })`** removes, as each session ends, the
+  listeners it added to any `EventTarget` and left attached. `report` is told
+  of each one, with the stack that added it, once all are gone: throw from it to
+  have every leak fixed where it starts. It is for unit tests, where the DOM is
+  emptied between tests and what outlives it sits on `window` and `document`.
+  A listener a package under `node_modules` adds itself stays: a library adds
+  listeners once and marks where it did, as React does on a portal's container,
+  and removing them would leave the mark with nothing behind it. On a page, as
+  in Storybook, a bundle hides which package added a listener, so leave it out.
+
+What a rewritten module does as it loads — a property it defines, a timer it
+starts, a listener it adds — belongs to no session and stays, as it would on
+every fresh page that loads the module. So does what setup does before the
+first test starts, a Storybook preview as it boots included: every session
+finds it. In Jest, setup files run again for every test file, so what they do
+belongs to that file and is done again for the next. What a timer callback
+schedules, or a listener adds, belongs to whoever scheduled or added that
+callback: a chain `beforeAll` starts runs on through the file, whichever test
+it fires in. A callback that a load or setup added runs in every session, so
+what it adds belongs to the session it runs in.
+`perSession(object, { store, wrote })` is the proxy
+`isolateEnv` is built on, for any other object a session should hold its own
+copy of: `store` turns a written value into what the object would hold, as
+`String` does for the environment, and `wrote` is told of each key a session
+wrote, for a host that has to see the write too.
+
 ## What it leaves, and tells you
 
 Anything it cannot rewrite safely, it leaves shared and names, as a Jest
@@ -374,7 +444,7 @@ isolator: src/mode.ts:1 `mode` stays shared: an exported `let` is read by its im
 
 | Entry point | What it does |
 |---|---|
-| `@variance-authority/isolator` | `nextSession()` starts a new fallback session from the values every module was loaded with; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. |
+| `@variance-authority/isolator` | `nextSession()` starts a new fallback session from the values every module was loaded with; `currentSession()` answers with the session in force; `addSessionSource(source)` adds a source, asked before any added after it. The `isolate…` functions and `perSession` isolate what no module owns. |
 | `@variance-authority/isolator/node` | `isolated(fn)` runs `fn` in a new session, through every `await` it starts; `isolateConcurrentTests(test)` and `isolateConcurrentEach(aroundEach)` give each concurrent test one, started from its file's session. Every copy of this entry in a process shares one store, so an inner `isolated` always wins. |
 | `@variance-authority/isolator/react` | `requestSessions()` makes each React Server Components request a session, through every Suspense boundary it streams. React's `cache` keeps a request only in the Flight renderer, under the `react-server` condition. |
 | `@variance-authority/isolator/jest` | The Jest transformer. |
@@ -398,6 +468,27 @@ nobody holds any more takes its values with it.
   every session.
 - **State inside a package you do not build.** `node_modules` is never
   rewritten.
+- **A session `isolated(fn)`, `isolateConcurrentTests`, `isolateConcurrentEach`
+  or React starts, for the `isolate…` functions.**
+  They act as the fallback session ends — a test, a file, `nextSession()` —
+  and nothing announces the end of a session a source answers with.
+- **Promises and `queueMicrotask`.** Neither can be cancelled, so a callback
+  queued at the end of a test still runs in the next one.
+- **What a package you do not build does as it loads, or the first time it is
+  called.** The isolator does not see that load. If a package first runs inside a
+  test and defines a global, starts a timer or adds a listener there, the
+  `isolate…` functions take it back when the test ends. The module stays cached
+  and its own flag still says it has done its setup. `isolateListeners` keeps
+  what a package under `node_modules` adds, judged by the frame that called
+  `addEventListener`: a listener a helper package leaks for your test stays
+  too, and one a file your `exclude` names adds is removed.
+- **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
+  `EventTarget` only. The test runners themselves listen on `process`.
+- **A timer started through `node:timers`.** `isolateTimers` wraps the globals.
+- **A write inside a global object, for `isolateGlobals`.** It puts back the
+  properties of `globalThis` itself: `globalThis.config = {}` is undone,
+  `globalThis.config.debug = true` is not. Hold such an object with
+  `perSession`.
 
 ## License
 

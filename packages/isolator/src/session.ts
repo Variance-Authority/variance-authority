@@ -16,8 +16,8 @@
  * test ends — as if the file ran alone, in a fresh worker.
  */
 
-import { registerTestScope } from '@variance-authority/ioc/reset';
-import { realm, testSession, type SessionSource } from './realm.js';
+import { driverInstalled, registerTestScope } from '@variance-authority/ioc/reset';
+import { realm, switchTo, testSession, type SessionSource } from './realm.js';
 
 export type { SessionSource } from './realm.js';
 
@@ -52,16 +52,22 @@ export function currentSession(): object {
  */
 export function nextSession(): void {
   const state = realm();
-  state.fallback = state.file = {};
+  const ended = state.file;
+  state.file = {};
+  switchTo(state.file, ended);
 }
 
 registerTestScope({
   enterFile: nextSession,
   enterTest() {
-    realm().fallback = testSession();
+    switchTo(testSession(), undefined);
   },
   leaveTest() {
     const state = realm();
-    state.fallback = state.file;
+    switchTo(state.file, state.fallback === state.file ? undefined : state.fallback);
   },
 });
+
+// A driver installed before this module loaded entered its file unheard: setup
+// is over and the file has started, so what it writes from here ends with it.
+if (driverInstalled() && realm().fallback === realm().base) nextSession();
