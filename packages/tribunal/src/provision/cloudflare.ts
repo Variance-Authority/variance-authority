@@ -56,6 +56,14 @@ export interface AccessApp {
   readonly name: string;
   readonly aud: string;
   readonly domain?: string;
+  readonly destinations?: readonly { readonly uri?: string }[];
+  readonly policies?: readonly AccessPolicy[];
+}
+
+/** The part of an Access policy that decides who it lets through. */
+export interface AccessPolicy {
+  readonly decision: string;
+  readonly include: readonly Record<string, unknown>[];
 }
 
 export interface Cloudflare {

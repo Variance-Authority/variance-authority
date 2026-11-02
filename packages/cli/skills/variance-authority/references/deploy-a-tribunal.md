@@ -27,11 +27,23 @@ makes or reads each one and writes it where it belongs:
 
 `--repository owner/name` names the repository whose CI pushes builds; without
 it, the one `gh` sees in the working directory. It needs `wrangler` logged in
-and `gh` authenticated with permission to set that repository's secrets.
+and `gh` authenticated with permission to set that repository's secrets and
+variables.
 
 The run asks before it makes anything, so a second run changes nothing and says
 `already provisioned`. A token missing on either side, the Worker or the
 repository, is minted again for both. `--rotate` mints both tokens regardless.
+Neither copy can be read back, so a rotation is journaled in the repository
+variable `VARIANCE_INGEST_ROTATION`: set before the Worker is written, deleted
+after the repository is. A rotation that fails between the two leaves CI with a
+token the Worker refuses, and the error says so; run the command again and it
+replaces both. A token changed by hand outside the command leaves no journal:
+run it with `--rotate`.
+
+An Access application already there is checked, not trusted: the review one
+must admit the reviewer, the machines one must bypass every machine path. A
+difference stops the run with exit 1 and names it; fix the application in the
+Zero Trust dashboard, or delete it and run again to have it made.
 
 Two steps need the person, and the command says which:
 

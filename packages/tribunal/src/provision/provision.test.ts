@@ -18,6 +18,7 @@ interface World {
   buckets: string[];
   workerSecrets: Map<string, string>;
   githubSecrets: Map<string, string>;
+  githubVariables: Map<string, string>;
   teamDomain: string | undefined;
   providers: string[];
   apps: AccessApp[];
@@ -29,6 +30,8 @@ interface World {
   r2Unreachable: boolean;
   /** `gh secret set` refuses. */
   githubRefuses: boolean;
+  /** `gh variable set` refuses. */
+  variablesRefused: boolean;
   /** `wrangler secret put` refuses. */
   workerRefuses: boolean;
   accounts: { id: string; name: string }[];
@@ -42,6 +45,7 @@ function world(overrides: Partial<World> = {}): World {
     buckets: [],
     workerSecrets: new Map(),
     githubSecrets: new Map(),
+    githubVariables: new Map(),
     teamDomain: undefined,
     providers: [],
     apps: [],
@@ -51,6 +55,7 @@ function world(overrides: Partial<World> = {}): World {
     r2Enabled: true,
     r2Unreachable: false,
     githubRefuses: false,
+    variablesRefused: false,
     workerRefuses: false,
     accounts: [{ id: 'acc', name: 'Acme' }],
     worker: 'deployed',
@@ -95,6 +100,14 @@ function harness(state: World, text = CONFIG, terminal = false) {
       const line = [program, ...args].join(' ');
       if (program !== 'gh' && !line.includes('auth token')) {
         expect(options?.env).toEqual({ CLOUDFLARE_ACCOUNT_ID: 'acc' });
+      }
+      if (program === 'gh' && args[0] === 'variable') {
+        const variables = state.githubVariables;
+        if (args[1] === 'list') return ok(JSON.stringify([...variables.keys()].map((name) => ({ name }))));
+        if (args[1] === 'delete') return ok(void variables.delete(args[2]!));
+        if (state.variablesRefused) return { code: 1, stdout: '', stderr: 'HTTP 403' };
+        variables.set(args[2]!, options?.input ?? '');
+        return ok();
       }
       if (program === 'gh') {
         if (args[1] === 'list') return ok(JSON.stringify([...state.githubSecrets.keys()].map((name) => ({ name }))));
@@ -336,27 +349,71 @@ describe('provision', () => {
     expect(said.join('\n')).not.toContain('dash.cloudflare.com');
   });
 
-  it('leaves no half-rotated ingest token for the next run to call provisioned', async () => {
-    const state = world();
-    const { run } = harness(state);
-    await run();
-    state.workerRefuses = true;
-
-    await expect(run(true)).rejects.toThrow(/secret put/);
-    state.workerRefuses = false;
-    await run();
-
-    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe(state.workerSecrets.get('INGEST_TOKEN'));
-  });
-
-  it('changes neither copy when the repository refuses the ingest token', async () => {
+  it('keeps the repository copy CI pushes with when the Worker refuses the new one', async () => {
     const state = world();
     state.workerSecrets.set('INGEST_TOKEN', 'old');
     state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
+    state.workerRefuses = true;
+
+    await expect(harness(state).run(true)).rejects.toThrow(/secret put INGEST_TOKEN failed/);
+
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
+  });
+
+  it('replaces both copies on the next run after a rotation stopped between them', async () => {
+    const state = world();
+    const { run, said } = harness(state);
+    await run();
     state.githubRefuses = true;
 
-    await expect(harness(state).run(true)).rejects.toThrow(/gh secret set/);
+    await expect(run(true)).rejects.toThrow(/run this again/);
+    expect(state.workerSecrets.get('INGEST_TOKEN')).not.toBe(state.githubSecrets.get('VARIANCE_INGEST_TOKEN'));
+    state.githubRefuses = false;
+    said.length = 0;
+
+    expect(await run()).toBe(0);
+
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe(state.workerSecrets.get('INGEST_TOKEN'));
+    expect(state.githubVariables.size).toBe(0);
+    expect(said.join('\n')).toMatch(/stopped between/);
+    expect(said.at(-1)).not.toMatch(/already provisioned/);
+  });
+
+  it('touches no token when it cannot record that a rotation has begun', async () => {
+    const state = world();
+    state.workerSecrets.set('INGEST_TOKEN', 'old');
+    state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
+    state.variablesRefused = true;
+
+    await expect(harness(state).run(true)).rejects.toThrow(/gh variable set/);
 
     expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('old');
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
+  });
+
+  it('stops on a machines application that does not bypass every machine path', async () => {
+    const state = world();
+    const { run, said } = harness(state);
+    await run();
+    const machines = state.apps[1] as unknown as { destinations: { uri: string }[] };
+    machines.destinations = machines.destinations.slice(1);
+    said.length = 0;
+
+    expect(await run()).toBe(1);
+
+    expect(said.join('\n')).toContain('tribunal.example.dev/baseline');
+  });
+
+  it('stops on a review application that does not admit the reviewer', async () => {
+    const state = world();
+    const { run, said } = harness(state);
+    await run();
+    const pages = state.apps[0] as unknown as { policies: unknown[] };
+    pages.policies = [{ name: 'others', decision: 'allow', include: [{ email: { email: 'someone@else.dev' } }] }];
+    said.length = 0;
+
+    expect(await run()).toBe(1);
+
+    expect(said.join('\n')).toContain('owner@example.dev');
   });
 });

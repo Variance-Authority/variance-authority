@@ -1,5 +1,12 @@
 // compass: variance-authority.review
-import { CloudflareError, MACHINE_PREFIXES, NOT_AUTHORIZED, type AccessApp, type Cloudflare } from './cloudflare.js';
+import {
+  CloudflareError,
+  MACHINE_PREFIXES,
+  NOT_AUTHORIZED,
+  type AccessApp,
+  type AccessPolicy,
+  type Cloudflare,
+} from './cloudflare.js';
 import { readDeployment, withAccountId, withDatabaseId, withVariable, type Deployment } from './config.js';
 
 /**
@@ -57,6 +64,15 @@ const R2_NOT_ENTITLED = 10042;
 export const REVIEW_SECRET = 'REVIEW_TOKEN';
 /** The repository secret the `variance` workflow reads. */
 export const REPOSITORY_INGEST_SECRET = 'VARIANCE_INGEST_TOKEN';
+/**
+ * The repository variable that says an ingest rotation has begun and not
+ * finished. Two writes in two services cannot be one transaction, so the run
+ * journals: this goes in first, then the Worker copy, then the repository's,
+ * and this comes out last. A failure between them leaves it, CI may hold a
+ * token the Worker refuses, and the next run replaces both. Copies changed
+ * outside the command leave no journal; `--rotate` makes a pair again.
+ */
+export const ROTATION_JOURNAL = 'VARIANCE_INGEST_ROTATION';
 
 export interface Command {
   readonly code: number;
@@ -96,6 +112,8 @@ export interface ProvisionRequest {
 }
 
 class Stop extends Error {}
+/** A stop whose reason is the message, said before the run exits 1. */
+class Mismatch extends Stop {}
 
 /** Exit status: 0 provisioned, 1 stopped on something only a person can do. */
 export async function provision(io: Provisioning, request: ProvisionRequest): Promise<number> {
@@ -127,6 +145,7 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
     await access(deployment, wrangler, token, io, request, made);
     await secrets(wrangler, must, io, request, made);
   } catch (error) {
+    if (error instanceof Mismatch) io.say(error.message);
     if (error instanceof Stop) return 1;
     throw error;
   }
@@ -239,24 +258,29 @@ async function access(
   }
 
   const host = deployment.host ?? `${deployment.name}.${await cloudflare.workersSubdomain()}.workers.dev`;
+  const reviewer = request.reviewer ?? (await cloudflare.email());
+  const reviewers: AccessPolicy = { decision: 'allow', include: [{ email: { email: reviewer } }] };
+  const callers: AccessPolicy = { decision: 'bypass', include: [{ everyone: {} }] };
+  const paths = MACHINE_PREFIXES.map((prefix) => `${host}${request.mount ?? ''}${prefix}`);
   const apps = await cloudflare.apps();
-  const pages = await app(apps, host, `${deployment.name} review`, cloudflare, async () => ({
-    type: 'self_hosted',
-    domain: host,
-    session_duration: '24h',
-    policies: [
-      {
-        name: 'reviewers',
-        decision: 'allow',
-        include: [{ email: { email: request.reviewer ?? (await cloudflare.email()) } }],
-      },
-    ],
-  }), made);
-  await app(apps, undefined, `${deployment.name} machines`, cloudflare, async () => ({
-    type: 'self_hosted',
-    destinations: MACHINE_PREFIXES.map((prefix) => ({ type: 'public', uri: `${host}${request.mount ?? ''}${prefix}` })),
-    policies: [{ name: 'bearer and share callers', decision: 'bypass', include: [{ everyone: {} }] }],
-  }), made);
+  const pages = await app(apps, host, `${deployment.name} review`, cloudflare, made, {
+    body: { type: 'self_hosted', domain: host, session_duration: '24h', policies: [{ name: 'reviewers', ...reviewers }] },
+    drift: (found) => (admits(found, reviewers) ? [] : [`no allow policy admits ${reviewer}`]),
+  });
+  await app(apps, undefined, `${deployment.name} machines`, cloudflare, made, {
+    body: {
+      type: 'self_hosted',
+      destinations: paths.map((uri) => ({ type: 'public', uri })),
+      policies: [{ name: 'bearer and share callers', ...callers }],
+    },
+    drift: (found) => {
+      const uris = new Set((found.destinations ?? []).map((each) => each.uri));
+      return [
+        ...paths.filter((uri) => !uris.has(uri)).map((uri) => `no destination ${uri}`),
+        ...(admits(found, callers) ? [] : ['no bypass policy lets every caller through']),
+      ];
+    },
+  });
 
   let text = await io.read(request.config);
   const before = text;
@@ -268,19 +292,43 @@ async function access(
   }
 }
 
+/**
+ * The application of that domain or name, made when it is missing. One already
+ * there is checked against what this run would make, and a difference stops the
+ * run: an application that lets the wrong callers through, or misses a path, is
+ * a deployment that looks provisioned and refuses CI or the reviewer.
+ */
 async function app(
   apps: readonly AccessApp[],
   domain: string | undefined,
   name: string,
   cloudflare: Cloudflare,
-  body: () => Promise<Record<string, unknown>>,
   made: string[],
+  expected: { body: Record<string, unknown>; drift: (found: AccessApp) => string[] },
 ): Promise<AccessApp> {
   const found = apps.find((each) => (domain === undefined ? each.name === name : each.domain === domain));
-  if (found !== undefined) return found;
-  const created = await cloudflare.createApp({ name, ...(await body()) });
-  made.push(`Access application ${name}`);
-  return created;
+  if (found === undefined) {
+    const created = await cloudflare.createApp({ name, ...expected.body });
+    made.push(`Access application ${name}`);
+    return created;
+  }
+  const drift = expected.drift(found);
+  if (drift.length > 0) {
+    throw new Mismatch(`Access application ${found.name} differs from what the tribunal needs:\n` +
+      drift.map((each) => `  ${each}`).join('\n') +
+      '\nFix it in the Zero Trust dashboard, or delete it and run this again to have it made.');
+  }
+  return found;
+}
+
+/** Whether one of the application's policies decides as `policy` does for its callers. */
+function admits(found: AccessApp, policy: AccessPolicy): boolean {
+  const wanted = policy.include.map((each) => JSON.stringify(each));
+  return (found.policies ?? []).some(
+    (each) =>
+      each.decision === policy.decision &&
+      wanted.every((rule) => each.include.some((include) => JSON.stringify(include) === rule)),
+  );
 }
 
 async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request: ProvisionRequest, made: string[]) {
@@ -298,26 +346,38 @@ async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request
   if (github.code !== 0) throw new Error(`gh secret list failed:\n${github.stderr}`);
   const repository = new Set((JSON.parse(github.stdout) as { name: string }[]).map((each) => each.name));
 
-  // Nothing can read a secret back, so a copy missing on either side is a new
-  // token on both, and the names present on both sides are the only proof the
-  // copies match. A write that fails halfway therefore leaves a copy missing,
-  // never two different ones: the repository is written first, and taken back
-  // if the Worker refuses, so the next run sees it gone and mints again.
-  if (request.rotate || !worker.has(INGEST_SECRET) || !repository.has(REPOSITORY_INGEST_SECRET)) {
+  const variables = await io.run('gh', ['variable', 'list', '-R', request.repository, '--json', 'name']);
+  if (variables.code !== 0) throw new Error(`gh variable list failed:\n${variables.stderr}`);
+  const unfinished = (JSON.parse(variables.stdout) as { name: string }[]).some((each) => each.name === ROTATION_JOURNAL);
+
+  // Nothing can read a secret back, so the copies are taken to match only when
+  // both exist and no rotation is journaled as unfinished.
+  if (unfinished) {
+    io.say(`A rotation of ${INGEST_SECRET} stopped between the Worker and ${request.repository}; replacing both.`);
+  }
+  if (unfinished || request.rotate || !worker.has(INGEST_SECRET) || !repository.has(REPOSITORY_INGEST_SECRET)) {
     const token = io.mint();
+    const begun = await io.run('gh', ['variable', 'set', ROTATION_JOURNAL, '-R', request.repository], {
+      input: 'begun',
+    });
+    if (begun.code !== 0) {
+      throw new Error(`gh variable set ${ROTATION_JOURNAL} failed, and no token was changed:\n${begun.stderr}`);
+    }
+    const recovery =
+      `The deployment needs recovery: CI may hold a token the Worker refuses. ${ROTATION_JOURNAL} in ` +
+      `${request.repository} records it, so run this again to replace both copies.`;
+    const put = await wrangler(['secret', 'put', INGEST_SECRET], { input: token });
+    if (put.code !== 0) {
+      throw new Error(`wrangler secret put ${INGEST_SECRET} failed:\n${put.stderr || put.stdout}\n${recovery}`);
+    }
     const set = await io.run('gh', ['secret', 'set', REPOSITORY_INGEST_SECRET, '-R', request.repository], {
       input: token,
     });
-    if (set.code !== 0) throw new Error(`gh secret set failed:\n${set.stderr}`);
-    const put = await wrangler(['secret', 'put', INGEST_SECRET], { input: token });
-    if (put.code !== 0) {
-      const taken = await io.run('gh', ['secret', 'delete', REPOSITORY_INGEST_SECRET, '-R', request.repository]);
+    if (set.code !== 0) throw new Error(`gh secret set ${REPOSITORY_INGEST_SECRET} failed:\n${set.stderr}\n${recovery}`);
+    const done = await io.run('gh', ['variable', 'delete', ROTATION_JOURNAL, '-R', request.repository]);
+    if (done.code !== 0) {
       throw new Error(
-        `wrangler secret put ${INGEST_SECRET} failed:\n${put.stderr || put.stdout}\n` +
-          (taken.code === 0
-            ? `${REPOSITORY_INGEST_SECRET} was taken back from ${request.repository}; run this again to mint a pair.`
-            : `${REPOSITORY_INGEST_SECRET} in ${request.repository} no longer matches the Worker and could not be ` +
-              `taken back:\n${taken.stderr}\nRun this again with --rotate.`),
+        `gh variable delete ${ROTATION_JOURNAL} failed:\n${done.stderr}\nBoth copies match; the next run replaces them again.`,
       );
     }
     made.push(`${INGEST_SECRET} (Worker and ${request.repository})`);
