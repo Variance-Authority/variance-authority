@@ -365,12 +365,12 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   // An answer that covers more than one declaration says which one it counts first.
   // So does one whose door or file spells it by another name than the one asked.
   const { lead } = answer;
-  const many = answer.file === undefined && new Set(answer.files).size > 1;
+  // The others are named under the headline, so a reader who stops there knows its count is one declaration's.
+  const others = answer.file === undefined ? othersLines(name, answer.namesakes, answer.kept, answer.members.declared) : [];
+  const many = others.length > 0;
   const declaration = lead !== undefined && (many || renamed(lead, name)) ? publishedAt(lead, name) : undefined;
   const which = declaration === undefined ? '' : `, ${declaration}`;
   const publishedAs = declaration === undefined ? 'published' : `${declaration},`;
-  // The others are named under the headline, so a reader who stops there knows its count is one declaration's.
-  const others = answer.file === undefined ? othersLines(name, answer.namesakes, answer.kept) : [];
   if (sites.length === 0 && exported.length > 0) {
     const how = member === undefined ? `exported, without being published, at ${exportedAt(exported)}` : `${member}, and exported at ${exportedAt(exported)}`;
     return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...others, ...own].join('\n');

@@ -81,15 +81,17 @@ export function publishedAt(one: PublishedDeclaration, asked: string): string {
  * under the headline so that a reader who stops there knows the count is one
  * declaration's: nothing when the name has one.
  */
-export function othersLines(name: string, namesakes: readonly Namesake[], kept: readonly DeclaredName[]): readonly string[] {
+export function othersLines(name: string, namesakes: readonly Namesake[], kept: readonly DeclaredName[], members: Members['declared']): readonly string[] {
+  // Each kind is listed in the order its section below answers it.
   const others = [
-    ...namesakes.map((one) =>
+    namesakes.map((one) =>
       one.declaration === undefined
         ? `${exportedAt(one.exported)}, exported without being published`
-        : `${one.declaration.at}:${one.declaration.line}, published by ${publishers(one.declaration, name)}`,
+        : `${one.declaration.at}:${one.declaration.line}${spelledAs(one.declaration.declared, name)}, published by ${publishers(one.declaration, name)}`,
     ),
-    ...kept.map((one) => `${one.at}:${one.line}, not exported`),
-  ].sort(codeUnitOrder);
+    kept.map((one) => `${one.at}:${one.line}${spelledAs(one.name, name)}, not exported`),
+    members.map((one) => `${one.at}:${one.line}, a member of \`${one.by}\``),
+  ].flatMap((lines) => [...lines].sort(codeUnitOrder));
   if (others.length === 0) return [];
   const times = others.length === 1 ? 'once more, as another thing' : `${others.length} more times, each another thing`;
   return [`It is declared ${times}, answered below:`, ...others.map((one) => `  ${one}`)];

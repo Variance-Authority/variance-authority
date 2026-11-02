@@ -60,10 +60,18 @@ describe('variance ask uses over a name several files declare', () => {
     expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, .*packages\/lib\/src\/greet\.ts:\d+\.$/);
     expect(rest.slice(0, 4)).toEqual([
       'It is declared 3 more times, each another thing, answered below:',
-      '  packages/lib/src/kept.ts:1, not exported',
       '  packages/lib/src/other.ts:1, exported without being published',
       '  packages/second/src/index.ts:1, published by @acme/second',
+      '  packages/lib/src/kept.ts:1, not exported',
     ]);
+  });
+
+  it('names a member by the name with the other declarations under its headline', async () => {
+    checkout({ 'packages/lib/src/shape.ts': 'export interface Shape {\n  greet(): void;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [, ...rest] = (await uses()).split('\n');
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/lib/src/shape.ts:2, a member of `Shape`']);
   });
 
   it('keeps the headline of a name one file declares', async () => {
