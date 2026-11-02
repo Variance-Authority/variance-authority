@@ -6,7 +6,6 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { conjoined, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
 import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
@@ -79,19 +78,19 @@ export function publishedAt(one: PublishedDeclaration, asked: string): string {
 /**
  * Every declaration beside the one answered first, by file and line, said
  * under the headline so that a reader who stops there knows the count is one
- * declaration's: nothing when the name has one.
+ * declaration's: nothing when the name has one. They come in the order the
+ * sections below answer them, `members` already ordered as theirs are.
  */
 export function othersLines(name: string, namesakes: readonly Namesake[], kept: readonly DeclaredName[], members: Members['declared']): readonly string[] {
-  // Each kind is listed in the order its section below answers it.
   const others = [
-    namesakes.map((one) =>
+    ...namesakes.map((one) =>
       one.declaration === undefined
         ? `${exportedAt(one.exported)}, exported without being published`
         : `${one.declaration.at}:${one.declaration.line}${spelledAs(one.declaration.declared, name)}, published by ${publishers(one.declaration, name)}`,
     ),
-    kept.map((one) => `${one.at}:${one.line}${spelledAs(one.name, name)}, not exported`),
-    members.map((one) => `${one.at}:${one.line}, a member of \`${one.by}\``),
-  ].flatMap((lines) => [...lines].sort(codeUnitOrder));
+    ...kept.map((one) => `${one.at}:${one.line}${spelledAs(one.name, name)}, not exported`),
+    ...members.map((one) => `${one.at}:${one.line}, a member of \`${one.by}\``),
+  ];
   if (others.length === 0) return [];
   const times = others.length === 1 ? 'once more, as another thing' : `${others.length} more times, each another thing`;
   return [`It is declared ${times}, answered below:`, ...others.map((one) => `  ${one}`)];

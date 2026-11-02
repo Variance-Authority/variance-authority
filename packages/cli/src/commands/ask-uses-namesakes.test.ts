@@ -60,8 +60,8 @@ describe('variance ask uses over a name several files declare', () => {
     expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, .*packages\/lib\/src\/greet\.ts:\d+\.$/);
     expect(rest.slice(0, 4)).toEqual([
       'It is declared 3 more times, each another thing, answered below:',
-      '  packages/lib/src/other.ts:1, exported without being published',
       '  packages/second/src/index.ts:1, published by @acme/second',
+      '  packages/lib/src/other.ts:1, exported without being published',
       '  packages/lib/src/kept.ts:1, not exported',
     ]);
   });
