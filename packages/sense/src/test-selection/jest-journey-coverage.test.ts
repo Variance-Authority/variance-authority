@@ -51,7 +51,7 @@ describe('withJourneyCoverage for Jest', () => {
       .toThrow(/is not a path/);
   });
 
-  it("constructs the project's own runtime, resolved as Jest resolves it", () => {
+  it("carries the project's own runtime as written, for the worker to resolve as Jest does", () => {
     const rootDir = resolve(import.meta.dirname, '../..');
     const configured = withJourneyCoverage(
       { rootDir, runtime: '<rootDir>/test/runtime.cjs' },
@@ -60,7 +60,17 @@ describe('withJourneyCoverage for Jest', () => {
 
     expect(configured['runtime']).toBe(SELECTION_RUNTIME);
     expect(configured.globals).toEqual({
-      'variance-authority.runtime': { root: expect.any(String), runtime: resolve(rootDir, 'test/runtime.cjs') },
+      'variance-authority.runtime': { root: expect.any(String), runtime: '<rootDir>/test/runtime.cjs' },
+    });
+  });
+
+  it("carries the preset whose runtime Jest would construct when the project names none", () => {
+    const rootDir = resolve(import.meta.dirname, '../..');
+    const configured = withJourneyCoverage({ rootDir, preset: 'ts-jest' }, { journeyFile: 'journeys.bin' });
+
+    expect(configured['runtime']).toBe(SELECTION_RUNTIME);
+    expect(withJourneyCoverage(configured, { journeyFile: 'journeys.bin' }).globals).toEqual({
+      'variance-authority.runtime': { root: expect.any(String), preset: 'ts-jest' },
     });
   });
 

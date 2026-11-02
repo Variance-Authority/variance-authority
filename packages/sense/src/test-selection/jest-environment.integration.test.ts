@@ -59,7 +59,9 @@ it.each(['native-environment.mjs', 'native/environment.js', 'mixed-environment.c
 
 it.each([
   ['Jest\'s runtime', {}],
-  ['the project\'s runtime', { FIXTURE_RUNTIME: '<rootDir>/runtime.cjs' }],
+  ['the project\'s runtime', { FIXTURE_RUNTIME: '<rootDir>/runtime.cjs', FIXTURE_PROJECT_RUNTIME: '1' }],
+  ['the runtime its preset names', { FIXTURE_PRESET: '<rootDir>/preset.cjs', FIXTURE_PROJECT_RUNTIME: '1' }],
+  ['a runtime only its resolver finds', { FIXTURE_RUNTIME: 'project-runtime', FIXTURE_RESOLVER: '<rootDir>/resolver.cjs', FIXTURE_PROJECT_RUNTIME: '1' }],
 ])('charges a docblock environment, entry and dependencies, to the file that names it alone, under %s, cold and cached', async (_, runtime) => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-docblock-environment-'));
   // Installed, so ignored: the package an environment loads a repository file through.

@@ -4,10 +4,7 @@
  * runtime reads them in each worker.
  */
 
-import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { configuredPath } from './jest-config-paths.js';
 import type { JestConfig } from './jest.js';
 
 /** Where our runtime reads its options; mirrors `OPTIONS` in `jest-runtime.cts`. */
@@ -19,29 +16,25 @@ export const SELECTION_RUNTIME = fileURLToPath(new URL('./jest-runtime.cjs', imp
 /**
  * Construct every test file's runtime through ours, which reads the
  * environment Jest built for that file — whatever chose it — and requires the
- * trace once per worker. The project's own `runtime` is resolved here as Jest
- * resolves it and constructed by ours.
+ * trace once per worker. The project's own `runtime`, or its preset's when it
+ * names none, is carried as written: the worker resolves it as Jest does, with
+ * the project's resolver, and ours constructs it.
  */
-export function selecting(config: JestConfig, root: string, rootDir: string, trace: string | undefined): JestConfig {
+export function selecting(config: JestConfig, root: string, trace: string | undefined): JestConfig {
   const named = config['runtime'] as string | undefined;
-  const carried = (config['globals'] as { [RUNTIME_GLOBAL]?: { runtime?: string } } | undefined)?.[RUNTIME_GLOBAL];
+  const carried = (config['globals'] as { [RUNTIME_GLOBAL]?: { runtime?: string; preset?: string } } | undefined)?.[RUNTIME_GLOBAL];
+  const preset = config['preset'] as string | undefined;
   // A config wrapped before already names ours; the project's is the one that wrap carried.
-  const runtime = named === undefined
-    ? undefined
-    : named === SELECTION_RUNTIME
-      ? carried?.runtime
-      : configuredPath(named, rootDir)[0] ?? createRequire(resolve(rootDir, 'package.json')).resolve(named);
+  const own = named === SELECTION_RUNTIME
+    ? { ...(carried?.runtime === undefined ? {} : { runtime: carried.runtime }), ...(carried?.preset === undefined ? {} : { preset: carried.preset }) }
+    : named !== undefined ? { runtime: named } : preset !== undefined ? { preset } : {};
   return {
     ...config,
     runtime: SELECTION_RUNTIME,
     // `globals`, the one key Jest merges with a preset rather than replacing it.
     globals: {
       ...(config['globals'] as object | undefined),
-      [RUNTIME_GLOBAL]: {
-        root,
-        ...(runtime === undefined ? {} : { runtime }),
-        ...(trace === undefined ? {} : { trace }),
-      },
+      [RUNTIME_GLOBAL]: { root, ...own, ...(trace === undefined ? {} : { trace }) },
     },
   };
 }

@@ -33,8 +33,10 @@ const OPTIONS = 'variance-authority.runtime';
 interface Options {
   /** The checkout environment inputs are named against. */
   readonly root: string;
-  /** The runtime the project configured, resolved to a file; Jest's own when absent. */
+  /** The runtime the project configured, as written; its preset's, or Jest's own, when absent. */
   readonly runtime?: string;
+  /** The project's preset, as written, read for its runtime when the project names none. */
+  readonly preset?: string;
   /** The module whose export is the application's {@link JourneyTrace}. */
   readonly trace?: string;
 }
@@ -43,6 +45,7 @@ type Environment = { constructor: unknown; global: { __VA__?: unknown; [key: sym
 interface ProjectConfig {
   readonly rootDir: string;
   readonly testEnvironment: string;
+  readonly resolver?: string | null;
   readonly globals: { readonly [OPTIONS]?: Options };
 }
 type RuntimeClass = new (config: ProjectConfig, environment: Environment, ...rest: unknown[]) => object;
@@ -163,12 +166,44 @@ function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
   });
 }
 
+type FindNodeModule = (path: string, options: { basedir: string; extensions?: readonly string[]; resolver?: string }) => string | null;
+
+/** jest-config's `replaceRootDirInPath`. */
+const rooted = (rootDir: string, name: string): string =>
+  name.startsWith('<rootDir>') ? path.resolve(rootDir, path.normalize(`./${name.slice('<rootDir>'.length)}`)) : name;
+
+/**
+ * The file of the project's own runtime, by jest-config's steps: the preset
+ * found as `setupPreset` finds it, its `runtime` overridden by the project's,
+ * and that name resolved as `normalize` resolves `runtime`, through the
+ * project's resolver.
+ */
+function projectRuntime(jest: NodeJS.Require, config: ProjectConfig, options: Options): string | undefined {
+  const find = (jest('jest-resolve') as { default: { findNodeModule: FindNodeModule } }).default.findNodeModule;
+  let name = options.runtime;
+  if (name === undefined && options.preset !== undefined) {
+    const preset = rooted(config.rootDir, options.preset);
+    const file = find(preset.startsWith('.') || path.isAbsolute(preset) ? preset : `${preset}/jest-preset`, {
+      basedir: config.rootDir,
+      extensions: ['.json', '.js', '.cjs', '.mjs'],
+    });
+    // Jest read this preset before it started: a miss here is a moved file.
+    if (file === null) throw new Error(`variance-authority: preset ${options.preset} is not found from ${config.rootDir}`);
+    name = (interop(require(file)) as { runtime?: string }).runtime;
+  }
+  if (name === undefined) return undefined;
+  const file = find(rooted(config.rootDir, name), { basedir: config.rootDir, ...(config.resolver ? { resolver: config.resolver } : {}) });
+  if (file === null) throw new Error(`Module ${name} in the runtime option was not found. <rootDir> is: ${config.rootDir}`);
+  return file;
+}
+
 /** Construct the project's runtime, then hand its environment the inputs and the trace. */
 function SelectionRuntime(config: ProjectConfig, environment: Environment, ...rest: unknown[]): object {
   const options = config.globals[OPTIONS];
   if (options === undefined) throw new Error('variance-authority: the Jest runtime is named without its options');
   const jest = runner();
-  const Base = interop(options.runtime === undefined ? jest('jest-runtime') : require(options.runtime)) as RuntimeClass;
+  const own = projectRuntime(jest, config, options);
+  const Base = interop(own === undefined ? jest('jest-runtime') : require(own)) as RuntimeClass;
   const runtime = new Base(config, environment, ...rest);
   // Jest's arguments after the environment: resolver, transformer, cacheFS, coverage options, test path.
   const [, , cacheFS, , testPath] = rest as [unknown, unknown, Map<string, string>, unknown, string];

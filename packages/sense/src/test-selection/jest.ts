@@ -332,7 +332,7 @@ export function withTestSelection(
   // Under `loads` no region is probed for a line of a test to have reached first.
   const cadence = options.cadence !== false && probesRegions(mode);
   const projects = inline?.map((project) =>
-    selecting(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), root, projectRoot(project, rootDir), undefined));
+    selecting(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), root, undefined));
   const preconditions = [
     ...setupPaths(config, rootDir),
     ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, rootDir))),
@@ -351,7 +351,7 @@ export function withTestSelection(
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, rootDir, undefined) : config),
+    ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...(selection === undefined ? {} : selectingFilter(config, {
@@ -382,7 +382,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    selecting(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), root, at, trace);
+    selecting(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), root, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
