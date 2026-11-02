@@ -20,8 +20,10 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, rm } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { readCommitRuns, testCoverageFile } from '@variance-authority/sense/test-selection';
+import type { ParsedCarry } from '../carry-args.js';
+import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 
 /** Where `carry` keeps and takes the pushed records, under the checkout. */
 export const PUSHED = '.variance/pushed';
@@ -255,4 +257,44 @@ export function keptLines(result: PushedKept, dir: string): readonly string[] {
   if (result.shallow === true) lines.push('this clone is shallow, so nothing is bundled: the next push fetches each commit the records name from the remote.');
   if (result.bundled.length > 0) lines.push(`${String(result.bundled.length)} commit(s) the mainline does not hold are bundled in ${join(dir, BUNDLE)}.`);
   return lines;
+}
+
+/**
+ * `carry take|keep`: lay what the last push ran over the restored records, or
+ * keep what this one ran for the next. Under `--format github` the suites go to
+ * `$GITHUB_OUTPUT` as `taken` and `left`, or `kept`, separated by spaces, and
+ * the lines to the error stream. `mainline` is the ref whose commits `keep`
+ * leaves out of the bundle.
+ */
+export async function movePushed(
+  parsed: ParsedCarry,
+  root: string,
+  streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
+  mainline: string | undefined,
+): Promise<ExitCode> {
+  const dir = parsed.dir ?? resolve(root, PUSHED);
+  let outputs: string[];
+  let lines: readonly string[];
+  if (parsed.direction === 'take') {
+    const taken = await takePushed(root, dir);
+    outputs = [
+      `taken=${taken.taken.join(' ')}`,
+      `left=${taken.left.map((one) => one.suite).join(' ')}`,
+      // The suite's name is the output's: a step reads `against-<suite>`.
+      ...Object.entries(taken.against ?? {}).map(([suite, path]) => `against-${suite}=${path}`),
+    ];
+    lines = takenLines(taken);
+  } else {
+    const kept = await keepPushed(root, dir, mainline);
+    outputs = [`kept=${kept.kept.join(' ')}`];
+    lines = keptLines(kept, dir);
+  }
+  if (parsed.format === 'github') {
+    streams.out(`${outputs.join('\n')}\n`);
+    streams.err(`${lines.join('\n')}\n`);
+  } else {
+    streams.out(`${lines.join('\n')}\n`);
+  }
+
+  return EXIT_CLEAN;
 }

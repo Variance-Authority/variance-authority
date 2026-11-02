@@ -47,7 +47,7 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
-import { keepPushed, keptLines, PUSHED, takePushed, takenLines } from './carry-pushed.js';
+import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
@@ -421,7 +421,11 @@ export async function runCarry(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ExitCode> {
   const root = repositoryRoot(process.cwd());
-  if (parsed.direction === 'take' || parsed.direction === 'keep') return movePushed(parsed, root, streams, env);
+  if (parsed.direction === 'take' || parsed.direction === 'keep') {
+    // What the mainline holds needs no bundle: the next push's clone has it.
+    const line = lineOf(hostRunOf(env));
+    return movePushed(parsed, root, streams, line === undefined ? undefined : `refs/remotes/origin/${line}`);
+  }
   const direction = parsed.direction;
   const config = parsed.config === undefined ? undefined : await loadConfig(parsed.config);
   let suites: readonly DeclaredSuite[] | undefined;
@@ -445,47 +449,6 @@ export async function runCarry(
     if (plan.notes.length > 0) streams.err(`${plan.notes.join('\n')}\n`);
   } else {
     streams.out(carryText(plan));
-  }
-
-  return EXIT_CLEAN;
-}
-
-/**
- * `carry take|keep`: lay what the last push ran over the restored records, or
- * keep what this one ran for the next. Under `--format github` the suites go to
- * `$GITHUB_OUTPUT` as `taken` and `left`, or `kept`, separated by spaces, and
- * the lines to the error stream.
- */
-async function movePushed(
-  parsed: ParsedCarry,
-  root: string,
-  streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
-  env: NodeJS.ProcessEnv,
-): Promise<ExitCode> {
-  const dir = parsed.dir ?? resolve(root, PUSHED);
-  let outputs: string[];
-  let lines: readonly string[];
-  if (parsed.direction === 'take') {
-    const taken = await takePushed(root, dir);
-    outputs = [
-      `taken=${taken.taken.join(' ')}`,
-      `left=${taken.left.map((one) => one.suite).join(' ')}`,
-      // The suite's name is the output's: a step reads `against-<suite>`.
-      ...Object.entries(taken.against ?? {}).map(([suite, path]) => `against-${suite}=${path}`),
-    ];
-    lines = takenLines(taken);
-  } else {
-    // What the mainline holds needs no bundle: the next push's clone has it.
-    const line = lineOf(hostRunOf(env));
-    const kept = await keepPushed(root, dir, line === undefined ? undefined : `refs/remotes/origin/${line}`);
-    outputs = [`kept=${kept.kept.join(' ')}`];
-    lines = keptLines(kept, dir);
-  }
-  if (parsed.format === 'github') {
-    streams.out(`${outputs.join('\n')}\n`);
-    streams.err(`${lines.join('\n')}\n`);
-  } else {
-    streams.out(`${lines.join('\n')}\n`);
   }
 
   return EXIT_CLEAN;
