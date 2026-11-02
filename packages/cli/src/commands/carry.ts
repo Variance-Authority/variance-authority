@@ -422,9 +422,7 @@ export async function runCarry(
 ): Promise<ExitCode> {
   const root = repositoryRoot(process.cwd());
   if (parsed.direction === 'take' || parsed.direction === 'keep') {
-    // What the mainline holds needs no bundle: the next push's clone has it.
-    const line = lineOf(hostRunOf(env));
-    return movePushed(parsed, root, streams, line === undefined ? undefined : `refs/remotes/origin/${line}`);
+    return movePushed(parsed, root, streams);
   }
   const direction = parsed.direction;
   const config = parsed.config === undefined ? undefined : await loadConfig(parsed.config);

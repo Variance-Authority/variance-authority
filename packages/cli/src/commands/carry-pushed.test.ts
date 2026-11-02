@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { bundlePushed, keepPushed, movePushed, takePushed } from './carry-pushed.js';
+import { keepPushed, movePushed, takePushed } from './carry-pushed.js';
 
 /**
  * What a pull request's earlier push left, kept by `carry keep` and taken by
@@ -14,9 +14,7 @@ import { bundlePushed, keepPushed, movePushed, takePushed } from './carry-pushed
  * The record names the commits its tests last ran at, and a selection diffs
  * each test from its commit. Those are the merge commits of earlier pushes:
  * GitHub moves `refs/pull/<n>/merge` on every push, so no ref a clone fetches
- * holds them, and they are fetched by name. A merge `check.yml` made itself,
- * with the commit the mainline's record was made at, is on no remote: the push
- * that made it bundles it beside the records. A suite whose commits cannot all
+ * holds them, and they are fetched by name. A suite whose commits cannot all
  * be had is not taken, and the checkout reads the mainline's record as it
  * would with nothing carried.
  */
@@ -156,7 +154,7 @@ describe('a pull request reads from what its last push ran', () => {
     const pushed = join(clone, '.pushed');
     await carry(pushed, 'chromium', runsAt(kept));
 
-    expect(await keepPushed(clone, pushed, 'refs/remotes/origin/main')).toEqual({ kept: ['unit'], bundled: [], absent: [] });
+    expect(await keepPushed(clone, pushed)).toEqual({ kept: ['unit'] });
     expect(readFileSync(join(pushed, 'unit', 'coverage.bin'), 'utf8')).toBe('this push');
     expect(existsSync(join(pushed, 'unit', '.run-1'))).toBe(false);
     // What an earlier push kept and this one did not record is not carried twice.
@@ -166,60 +164,6 @@ describe('a pull request reads from what its last push ran', () => {
   it('takes nothing when nothing was carried', async () => {
     const { clone } = await pullRequest();
     expect(await takePushed(clone, join(clone, '.nothing'))).toEqual({ taken: [], left: [] });
-  });
-
-  it('takes a merge no remote holds from the bundle the last push left beside the records', async () => {
-    const { clone, kept } = await pullRequest();
-    const earlier = join(dirname(clone), 'earlier');
-    git(dirname(clone), 'clone', '-q', '--no-local', join(dirname(clone), 'upstream'), earlier);
-    await commitIn(earlier, 'c.ts', 'c\n');
-    const head = git(earlier, 'rev-parse', 'HEAD');
-    git(earlier, 'checkout', '-q', '--detach', kept);
-    git(earlier, '-c', 'user.name=t', '-c', 'user.email=t@t', 'merge', '-q', '--no-ff', '--no-edit', head);
-    const merge = git(earlier, 'rev-parse', 'HEAD');
-    const carried = join(earlier, '.carried');
-    await carry(carried, 'unit', runsAt(merge, [kept]));
-
-    expect(await bundlePushed(earlier, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [merge], absent: [] });
-    expect(git(earlier, 'for-each-ref', 'refs/carried/')).toBe('');
-    expect(() => git(clone, 'cat-file', '-e', `${merge}^{commit}`)).toThrow();
-
-    expect(await takePushed(clone, carried)).toEqual({ taken: ['unit'], left: [] });
-    expect(git(clone, 'rev-parse', `${merge}^2`)).toBe(head);
-    expect(git(clone, 'for-each-ref', 'refs/carried/')).toBe('');
-  });
-
-  it('bundles the commits the clone holds, and names the ones it does not', async () => {
-    const { clone, kept, gone } = await pullRequest();
-    const carried = join(clone, '.carried');
-    const lost = 'f'.repeat(40);
-    git(clone, 'fetch', '-q', 'origin', gone);
-    await carry(carried, 'unit', runsAt(kept, [gone, lost]));
-
-    expect(await bundlePushed(clone, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [gone], absent: [lost] });
-    expect(git(clone, 'bundle', 'list-heads', join(carried, 'commits.bundle'))).toContain(gone);
-  });
-
-  it('says the bundle did not read, and leaves the suite whose commit was in it', async () => {
-    const { clone } = await pullRequest();
-    const carried = join(clone, '.carried');
-    const lost = 'f'.repeat(40);
-    await carry(carried, 'unit', runsAt(lost));
-    await writeFile(join(carried, 'commits.bundle'), 'not a bundle');
-
-    const taken = await takePushed(clone, carried);
-
-    expect(taken.left).toEqual([{ suite: 'unit', missing: [lost] }]);
-    expect(taken.unbundled).toMatch(/commits\.bundle/u);
-  });
-
-  it('bundles nothing when every commit the records name is on the mainline', async () => {
-    const { clone, kept } = await pullRequest();
-    const carried = join(clone, '.carried');
-    await carry(carried, 'unit', runsAt(kept));
-
-    expect(await bundlePushed(clone, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [], absent: [] });
-    expect(existsSync(join(carried, 'commits.bundle'))).toBe(false);
   });
 });
 
@@ -240,7 +184,7 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     await writeFile(join(carried, 'chromium', 'coverage.bin'), 'carried');
     const { said, streams: to } = streams();
 
-    await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'github' }, clone, to, undefined);
+    await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'github' }, clone, to);
 
     const aside = join(carried, '.mainline', 'unit', 'coverage.bin');
     expect(said.out).toBe(`taken=unit\nleft=chromium\nagainst-unit=${aside}\n`);
@@ -259,19 +203,19 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     const pushed = join(clone, '.pushed');
 
     const github = streams();
-    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'github' }, clone, github.streams, 'refs/remotes/origin/main');
+    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'github' }, clone, github.streams);
     expect(github.said).toEqual({ out: 'kept=unit\n', err: `kept unit in ${pushed}.\n` });
 
     const text = streams();
-    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'text' }, clone, text.streams, 'refs/remotes/origin/main');
+    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'text' }, clone, text.streams);
     expect(text.said).toEqual({ out: `kept unit in ${pushed}.\n`, err: '' });
   });
 
   it('says nothing was carried, and keeps nothing when no suite recorded', async () => {
     const { clone } = await pullRequest();
     const { said, streams: to } = streams();
-    await movePushed({ command: 'carry', direction: 'take', dir: join(clone, '.nothing'), format: 'text' }, clone, to, undefined);
-    await movePushed({ command: 'carry', direction: 'keep', dir: join(clone, '.pushed'), format: 'text' }, clone, to, undefined);
+    await movePushed({ command: 'carry', direction: 'take', dir: join(clone, '.nothing'), format: 'text' }, clone, to);
+    await movePushed({ command: 'carry', direction: 'keep', dir: join(clone, '.pushed'), format: 'text' }, clone, to);
     expect(said.out).toBe("no earlier push kept a record, so every suite reads the mainline's.\nthis push recorded no suite, so nothing is kept.\n");
   });
 });

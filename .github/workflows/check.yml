@@ -430,12 +430,13 @@ jobs:
           restore-keys: ${{ steps.plan.outputs.pushed-restore-keys }}
 
       # The record names the commits its tests last ran at, the merge commits
-      # of earlier pushes, which no ref holds: `carry take` reads a merge with
-      # the record's commit from the bundle the `record` job left beside the
-      # records, and fetches GitHub's own merge by name. A suite whose commits
-      # cannot be had is not handed on, and reads `main`'s record; checked once
-      # here, so every job reads the same. The bundle is a file, not a suite's
-      # directory, and travels with the records.
+      # of earlier pushes, which no ref holds. This workflow merges with the
+      # record's commit itself, so those merges are on no remote: the `record`
+      # job bundles them beside the records (`tools/bundle-carried.mjs`), and
+      # their heads are fetched from the bundle before `carry take` fetches the
+      # rest by name. A suite whose commits cannot be had is not handed on, and
+      # reads `main`'s record; checked once here, so every job reads the same.
+      # The bundle is a file, not a suite's directory, and travels with them.
       - name: check what the last push ran
         id: taken
         if: steps.plan.outputs.pushed-key != ''
@@ -443,6 +444,11 @@ jobs:
         env:
           PUSHED: ${{ steps.plan.outputs.pushed-path }}
         run: |
+          bundle="$PUSHED/commits.bundle"
+          if [ -f "$bundle" ]; then
+            git fetch --quiet --no-tags "$bundle" $(git bundle list-heads "$bundle" | cut -d' ' -f2) ||
+              echo "$bundle did not read, so its suites read main's record unless the remote has their commits." >&2
+          fi
           node packages/cli/dist/bin.js carry take --format github >> "$GITHUB_OUTPUT"
           taken=$(sed -n 's/^taken=//p' "$GITHUB_OUTPUT" | tail -n 1)
           for dir in "$PUSHED"/*/; do
@@ -961,8 +967,8 @@ jobs:
       # too, since the files it left incomplete are what the next push reruns.
       # Saved only when the copy finished: a part-copied record is not one.
       # A checkout merged with the record's commit is a commit no remote
-      # holds, so `carry keep` bundles it beside the records, with every
-      # commit it needs that `main` does not have.
+      # holds, so it is bundled beside the records, with every commit it
+      # needs that `main` does not have.
       - name: what this push keeps
         id: save
         if: ${{ !cancelled() && steps.records.outputs.dir != '' }}
@@ -973,7 +979,11 @@ jobs:
         id: stage
         if: ${{ !cancelled() && steps.save.outputs.pushed-key != '' }}
         shell: bash
-        run: node packages/cli/dist/bin.js carry keep
+        env:
+          PUSHED: ${{ steps.save.outputs.pushed-path }}
+        run: |
+          node packages/cli/dist/bin.js carry keep "$PUSHED"
+          node tools/bundle-carried.mjs "$PUSHED" refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v4

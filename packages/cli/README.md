@@ -3193,15 +3193,15 @@ the share carries needs none when the checkout is merged with the commit its
 record was made at: `review` reads the mainline's cases from the share.
 
 The record names the commits its tests last ran at: the merge commits of
-earlier pushes, which no branch holds. `keep` bundles the ones the mainline
-lacks beside the records, and `take` reads that bundle, then fetches the rest
-from `origin` by name. In a shallow clone nothing is bundled, and `take` fetches
-each commit alone. A suite whose commits cannot all be had keeps the mainline's
-record and `take` names it, so that push runs as a first push does. Both read
-`.variance/pushed` unless you name another directory:
-`variance carry take <dir>`. Under `--format github`, `take` prints
-`taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep` prints
-`kept=<suite> <suite>`; the lines saying why go to stderr.
+earlier pushes, which no branch holds. `take` fetches the ones the clone lacks
+from `origin` by name, each alone in a shallow clone. A workflow that merges a
+pull request itself, rather than checking out GitHub's merge, makes commits no
+remote holds, and fetches them into the clone before `take`. A suite whose
+commits cannot all be had keeps the mainline's record and `take` names it, so
+that push runs as a first push does. Both read `.variance/pushed` unless you
+name another directory: `variance carry take <dir>`. Under `--format github`,
+`take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
+prints `kept=<suite> <suite>`; the lines saying why go to stderr.
 
 `carry` also prints `report`, `images` and `review`, which are paths to upload
 and the directory to pass `variance review --out`. They have no key, because
