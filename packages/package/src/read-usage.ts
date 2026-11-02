@@ -160,6 +160,7 @@ export function readUsage(
             ...(own === undefined ? {} : { bound: own }),
             ...(binds === undefined ? {} : { declaration: binds.kind }),
             ...(doc === undefined ? {} : { doc }),
+            ...(binds?.signature === undefined || binds.signature === '' ? {} : { signature: binds.signature }),
           });
         }
 

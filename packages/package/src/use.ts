@@ -193,7 +193,8 @@ export interface Named {
   /** The kind of the declaration the export binds in its own file, as the parse records it (`function`, `class`, `const` …); absent for `export … from`, whose declaration is another file's. */
   readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
-  readonly doc?: string;
+  readonly doc?: string;  /** Everything the declaration the export binds in its own file writes before its body, its parameter comments included; absent for `export … from` and when there is none. */
+  readonly signature?: string;
 }
 
 export interface UsageOptions {
@@ -281,7 +282,8 @@ export interface Exported {
   /** The kind of the declaration the export binds in its own file, as {@link Named} carries it; absent for `export … from`. */
   readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
-  readonly doc?: string;
+  readonly doc?: string;  /** Everything the declaration the export binds in its own file writes before its body, its parameter comments included; absent for `export … from` and when there is none. */
+  readonly signature?: string;
 }
 
 /**
@@ -317,6 +319,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
         ...(published.bound === undefined ? {} : { bound: published.bound }),
         ...(published.declaration === undefined ? {} : { declaration: published.declaration }),
         ...(published.doc === undefined ? {} : { doc: published.doc }),
+        ...(published.signature === undefined ? {} : { signature: published.signature }),
       });
     }
 

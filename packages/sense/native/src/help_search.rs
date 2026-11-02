@@ -24,7 +24,7 @@ use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 
 const MAGIC: u32 = 0x5348_4156; // "VAHS", little-endian
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 const NONE: u32 = u32::MAX;
 const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 
@@ -36,6 +36,8 @@ pub struct PublishedRows {
     pub spec: Vec<String>,
     pub kind: Vec<String>,
     pub doc: Vec<Option<String>>,
+    /// What each row's declaration writes before its body; absent when its entry holds none.
+    pub signature: Vec<Option<String>>,
     pub at: Vec<String>,
     pub used_by: Vec<u32>,
     pub uses: Vec<u32>,
@@ -181,6 +183,16 @@ impl Section {
     }
 }
 
+/// What holds one term: names, and rows by their doc or their signature, each ascending.
+#[derive(Default)]
+struct Held {
+    names: Vec<u32>,
+    published: Vec<u32>,
+    exported: Vec<u32>,
+    published_signature: Vec<u32>,
+    exported_signature: Vec<u32>,
+}
+
 fn json(text: &str) -> String {
     serde_json::to_string(text).expect("a string prints")
 }
@@ -191,8 +203,9 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
     let (mut name_string, mut name_pub, mut name_exp): (Vec<u32>, Vec<Vec<u32>>, Vec<Vec<u32>>) = Default::default();
-    // Per term: the names, the published rows and the exported rows that hold it.
-    let mut by_term: HashMap<String, (Vec<u32>, Vec<u32>, Vec<u32>)> = HashMap::new();
+    // Per term: the names, the published rows and the exported rows that hold it
+    // in their doc, and the published and exported rows that hold it in their signature.
+    let mut by_term: HashMap<String, Held> = HashMap::new();
 
     macro_rules! name_of {
         ($name:expr) => {{
@@ -214,6 +227,8 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     // Tokenizing is the encoder's work per row, and each row's is its own.
     let doc_terms: Vec<HashSet<String>> =
         published.doc.par_iter().map(|doc| doc.as_deref().map(|doc| terms_of(&split, doc)).unwrap_or_default()).collect();
+    let pub_signature_terms: Vec<HashSet<String>> =
+        published.signature.par_iter().map(|signature| signature.as_deref().map(|signature| terms_of(&split, signature)).unwrap_or_default()).collect();
     for row in 0..rows {
         let name = name_of!(published.name[row].as_str());
         name_pub[name as usize].push(row as u32);
@@ -230,7 +245,10 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         sites_off.push(sites_at.len() as u32);
         doc_lower.push(doc.unwrap_or("").to_lowercase());
         for term in &doc_terms[row] {
-            by_term.entry(term.clone()).or_default().1.push(row as u32);
+            by_term.entry(term.clone()).or_default().published.push(row as u32);
+        }
+        for term in &pub_signature_terms[row] {
+            by_term.entry(term.clone()).or_default().published_signature.push(row as u32);
         }
     }
 
@@ -239,6 +257,8 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     let (mut exp_doc, mut exp_doc_lower) = (Vec::with_capacity(exported.len()), Vec::with_capacity(exported.len()));
     let exp_terms: Vec<HashSet<String>> =
         exported.par_iter().map(|named| named.doc.as_deref().map(|doc| terms_of(&split, doc)).unwrap_or_default()).collect();
+    let exp_signature_terms: Vec<HashSet<String>> =
+        exported.par_iter().map(|named| named.signature.as_deref().map(|signature| terms_of(&split, signature)).unwrap_or_default()).collect();
     for (row, named) in exported.iter().enumerate() {
         let name = name_of!(named.name.as_str());
         name_exp[name as usize].push(row as u32);
@@ -251,14 +271,17 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         exp_doc.push(doc.map_or(NONE, |doc| strings.id(doc).0));
         exp_doc_lower.push(doc.unwrap_or("").to_lowercase());
         for term in &exp_terms[row] {
-            by_term.entry(term.clone()).or_default().2.push(row as u32);
+            by_term.entry(term.clone()).or_default().exported.push(row as u32);
+        }
+        for term in &exp_signature_terms[row] {
+            by_term.entry(term.clone()).or_default().exported_signature.push(row as u32);
         }
     }
 
     let name_terms: Vec<HashSet<String>> = names.values.par_iter().map(|name| terms_of(&split, name)).collect();
     for (id, held) in name_terms.into_iter().enumerate() {
         for term in held {
-            by_term.entry(term).or_default().0.push(id as u32);
+            by_term.entry(term).or_default().names.push(id as u32);
         }
     }
     let mut terms: Vec<&String> = by_term.keys().collect();
@@ -283,9 +306,12 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     let lists = |lists: &[Vec<u32>]| postings(&lists.iter().map(Vec::as_slice).collect::<Vec<_>>());
     let (names_pub_off, names_pub) = lists(&name_pub);
     let (names_exp_off, names_exp) = lists(&name_exp);
-    let (term_name_off, term_name) = postings(&terms.iter().map(|term| by_term[*term].0.as_slice()).collect::<Vec<_>>());
-    let (term_pub_off, term_pub) = postings(&terms.iter().map(|term| by_term[*term].1.as_slice()).collect::<Vec<_>>());
-    let (term_exp_off, term_exp) = postings(&terms.iter().map(|term| by_term[*term].2.as_slice()).collect::<Vec<_>>());
+    let held = |field: fn(&Held) -> &[u32]| postings(&terms.iter().map(|term| field(&by_term[*term])).collect::<Vec<_>>());
+    let (term_name_off, term_name) = held(|held| &held.names);
+    let (term_pub_off, term_pub) = held(|held| &held.published);
+    let (term_exp_off, term_exp) = held(|held| &held.exported);
+    let (term_pub_sig_off, term_pub_sig) = held(|held| &held.published_signature);
+    let (term_exp_sig_off, term_exp_sig) = held(|held| &held.exported_signature);
 
     use Section::{Bytes, Words};
     let sections: Vec<(&str, Section)> = vec![
@@ -305,6 +331,8 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         ("terms.nameOff", Words(term_name_off)), ("terms.name", Words(term_name)),
         ("terms.pubOff", Words(term_pub_off)), ("terms.pub", Words(term_pub)),
         ("terms.expOff", Words(term_exp_off)), ("terms.exp", Words(term_exp)),
+        ("terms.pubSigOff", Words(term_pub_sig_off)), ("terms.pubSig", Words(term_pub_sig)),
+        ("terms.expSigOff", Words(term_exp_sig_off)), ("terms.expSig", Words(term_exp_sig)),
     ];
     let bodies: Vec<std::borrow::Cow<[u8]>> = sections.par_iter().map(|(_, section)| section.bytes()).collect();
 
