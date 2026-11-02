@@ -21,14 +21,17 @@ export interface PerSessionOptions {
  * a copy of what its parent held, and the first session from the object
  * itself; a write lands in the current session's copy. What a rewritten module
  * writes as it loads lands in the object and in every copy, as it would on
- * every fresh page that loads it. Values are copied as frames copy them.
+ * every fresh page that loads it. Values are copied as frames copy them. A
+ * `Map` or a `Set` is copied whole, its entries as a session's own.
  *
  * The object itself is the base, so whatever reads it directly — native code,
  * a reference kept from before — sees what it held before any session wrote.
  */
 export function perSession<T extends object>(object: T, options: PerSessionOptions = {}): T {
   const store = options.store ?? ((value: unknown) => value);
-  const held = copies<object>(object, (from) => snapshot(from));
+  // A `Map` or a `Set` keeps its entries in itself, not in properties: each session copies it whole.
+  const collection = object instanceof Map || object instanceof Set;
+  const held = copies<object>(object, (from) => (collection ? (copied(from, new Map()) as object) : snapshot(from)));
   const own = (): object => held.of(currentSession());
   const loading = () => inEverySession(currentSession());
   // A loading module reads what the current session holds, without making it a
@@ -39,7 +42,12 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
     return fanned(first, rest);
   };
   return new Proxy(Object.create(Object.getPrototypeOf(object) as object | null) as T, {
-    get: (_, key) => Reflect.get(read(), key),
+    get(_, key) {
+      const own = read();
+      const value: unknown = Reflect.get(own, key);
+      // A collection's methods answer only for the collection itself, not the proxy.
+      return collection && typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(own) : value;
+    },
     has: (_, key) => Reflect.has(read(), key),
     ownKeys: () => Reflect.ownKeys(read()),
     getOwnPropertyDescriptor(_, key) {
@@ -56,12 +64,14 @@ export function perSession<T extends object>(object: T, options: PerSessionOptio
     defineProperty(_, key, descriptor) {
       // A key fixed on the proxy would have to be fixed on its own target, which holds none.
       if (descriptor.configurable === false) return false;
+      const stored = 'value' in descriptor ? { ...descriptor, value: store(descriptor.value) } : descriptor;
+      let defined = true;
       if (loading()) {
         const { first, rest } = held.loading(currentSession());
-        for (const copy of [first, ...rest]) Reflect.defineProperty(copy, key, copy === object ? descriptor : { ...descriptor, configurable: true });
-        return true;
-      }
-      return Reflect.defineProperty(own(), key, { ...descriptor, configurable: true });
+        for (const copy of [first, ...rest]) Reflect.defineProperty(copy, key, copy === object ? stored : { ...stored, configurable: true });
+      } else defined = Reflect.defineProperty(own(), key, { ...stored, configurable: true });
+      if (defined) options.wrote?.(key);
+      return defined;
     },
     deleteProperty(_, key) {
       const deleted = Reflect.deleteProperty(read(), key);

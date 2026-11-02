@@ -139,6 +139,43 @@ describe('perSession', () => {
     expect(registry.second.count).toBe(0);
   });
 
+  it('gives each test its own Map, starting from what its file set', () => {
+    const registry = perSession(new Map<string, number>([['base', 1]]));
+    registry.set('file', 2);
+    const leave = enterTest();
+    registry.set('test', 3);
+    registry.delete('base');
+    expect([...registry.keys()]).toEqual(['file', 'test']);
+    expect(registry.size).toBe(2);
+    leave();
+    expect([...registry]).toEqual([['base', 1], ['file', 2]]);
+    nextSession();
+    expect(registry.get('base')).toBe(1);
+    expect(registry.has('file')).toBe(false);
+  });
+
+  it('gives each test its own Set, and keeps what a module adds as it loads', () => {
+    const registry = perSession(new Set<string>());
+    const leave = enterTest();
+    registry.add('test');
+    loading(() => {
+      registry.add('loaded');
+    });
+    expect(registry.has('test')).toBe(true);
+    leave();
+    expect([...registry]).toEqual(['loaded']);
+    nextSession();
+    expect([...registry]).toEqual(['loaded']);
+  });
+
+  it('stores and tells of a value defined as a property, as of one assigned', () => {
+    const wrote: PropertyKey[] = [];
+    const registry = perSession<Record<string, unknown>>({}, { store: String, wrote: (key) => void wrote.push(key) });
+    Object.defineProperty(registry, 'port', { value: 3000, enumerable: true, writable: true, configurable: true });
+    expect(registry.port).toBe('3000');
+    expect(wrote).toEqual(['port']);
+  });
+
   it('stores a value as the object would store it', () => {
     const registry = perSession<Record<string, unknown>>({}, { store: String });
     registry.port = 3000;
@@ -180,6 +217,17 @@ describe('isolateEnv', () => {
     expect(process.env.TZ).toBe(before);
     process.env.TZ = 'UTC';
     expect(new Date(0).getTimezoneOffset()).toBe(0);
+  });
+
+  it('writes a TZ defined as a property through to the environment Node reads', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    onTestFinished(isolateEnv());
+    Object.defineProperty(process.env, 'TZ', { value: 'Asia/Tokyo', enumerable: true, writable: true, configurable: true });
+    expect(new Date(0).getTimezoneOffset()).toBe(-540);
   });
 
   it('leaves the timezone Node reads to the fallback session, while a source answers with a session of its own', () => {
