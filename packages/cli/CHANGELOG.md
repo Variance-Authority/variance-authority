@@ -1,5 +1,11 @@
 # @variance-authority/cli
 
+## 0.24.1
+
+### Patch Changes
+
+- 3bf850a: `variance ask uses` names every other declaration of the name by file and line under its headline, so the count the headline gives is read as one declaration's.
+
 ## 0.24.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
