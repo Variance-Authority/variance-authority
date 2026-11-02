@@ -6,6 +6,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { conjoined, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
 import type { DeclaredName } from '@variance-authority/sense';
 import { reachSentences } from './declared.js';
@@ -88,7 +89,7 @@ export function othersLines(name: string, namesakes: readonly Namesake[], kept: 
         : `${one.declaration.at}:${one.declaration.line}, published by ${publishers(one.declaration, name)}`,
     ),
     ...kept.map((one) => `${one.at}:${one.line}, not exported`),
-  ].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  ].sort(codeUnitOrder);
   if (others.length === 0) return [];
   const times = others.length === 1 ? 'once more, as another thing' : `${others.length} more times, each another thing`;
   return [`It is declared ${times}, answered below:`, ...others.map((one) => `  ${one}`)];
