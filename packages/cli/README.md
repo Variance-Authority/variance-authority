@@ -3170,7 +3170,8 @@ ran, red or green:
   if: steps.carry.outputs.pushed-key != ''
   run: npx variance carry take --format github >> "$GITHUB_OUTPUT"
 - run: npx variance run --since "${{ steps.carry.outputs.base }}" --suite unit
-- env:
+- if: ${{ !cancelled() }}
+  env:
     AGAINST: ${{ steps.take.outputs.against-unit }}
   run: npx variance review --since "${{ steps.carry.outputs.base }}" --suite unit ${AGAINST:+--against "$AGAINST"}
 - id: keep
