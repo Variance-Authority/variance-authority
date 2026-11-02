@@ -6,7 +6,8 @@
  * that push left incomplete, a failed one included. `keep` copies each suite's
  * own record into a directory the host cache saves under the pull request's
  * key, red or green; `take` lays it back over the mainline's. Only selection
- * reads it: `review` still compares with the mainline.
+ * reads it: `take` names the mainline's cases for `review --against`, the record
+ * it replaced or, where the restore laid none, the cases the share holds.
  *
  * The records name earlier pushes' merge commits, which no branch holds;
  * `take` fetches the ones the clone lacks by name. A suite whose commits cannot
@@ -20,9 +21,11 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, rm } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { declaredSuites, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import type { Env } from '../share-lines.js';
+import { suiteBase } from './suite-base.js';
 
 /** Where `carry` keeps and takes the pushed records, under the checkout. */
 export const PUSHED = '.variance/pushed';
@@ -30,15 +33,17 @@ export const PUSHED = '.variance/pushed';
 /** Why a suite was not taken. */
 export type PushedLeft =
   | { readonly suite: string; readonly missing: readonly string[] }
-  | { readonly suite: string; readonly unlisted: true };
+  | { readonly suite: string; readonly unlisted: true }
+  | { readonly suite: string; readonly undeclared: true };
 
 export interface PushedTaken {
   readonly taken: readonly string[];
   readonly left: readonly PushedLeft[];
   /**
-   * Each replaced record, set aside by suite: the mainline's cases, for
-   * `variance review --against`, which would otherwise compare the change's
-   * cases with the last push's. Absent when no taken suite had a record.
+   * The mainline's cases by suite, for `variance review --against`, which would
+   * otherwise compare the change's cases with the last push's: the record
+   * `take` replaced, set aside, or the share's when the restore laid none.
+   * Absent when no taken suite had either.
    */
   readonly against?: Readonly<Record<string, string>>;
 }
@@ -64,28 +69,26 @@ const succeeds = (root: string, ...args: string[]): boolean => {
 
 const holds = (root: string, commit: string): boolean => succeeds(root, 'cat-file', '-e', `${commit}^{commit}`);
 
-/** The directory each suite's own record sits in, one per suite. */
-function suitesDir(root: string): string {
-  return dirname(dirname(testCoverageFile(root, { suite: 'unit' })));
-}
+/** The suites the repository declares by name; none when it declares none. */
+const declaredNames = (root: string): ReadonlySet<string> => new Set((declaredSuites(root) ?? []).map((one) => one.name));
 
 /**
- * Copy every suite's own record into `dir`, replacing what an earlier push
- * kept there. A run's half-written `.run-*` directories are left out: they are
- * no record.
+ * Copy every declared suite's own record into `dir`, replacing what an earlier
+ * push kept there. A run's half-written `.run-*` directories are left out: they
+ * are no record.
  */
 export async function keepPushed(root: string, dir: string): Promise<PushedKept> {
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
-  const from = suitesDir(root);
   const kept: string[] = [];
-  for (const suite of (await readdir(from, { withFileTypes: true }).catch(() => [])).filter((entry) => entry.isDirectory())) {
-    if (!existsSync(join(from, suite.name, 'coverage.bin'))) continue;
-    await cp(join(from, suite.name), join(dir, suite.name), {
+  for (const suite of declaredNames(root)) {
+    const record = testCoverageFile(root, { suite });
+    if (!existsSync(record)) continue;
+    await cp(dirname(record), join(dir, suite), {
       recursive: true,
       filter: (path) => !basename(path).startsWith('.run-'),
     });
-    kept.push(suite.name);
+    kept.push(suite);
   }
   return { kept: kept.sort() };
 }
@@ -94,10 +97,11 @@ export async function keepPushed(root: string, dir: string): Promise<PushedKept>
  * Lay each suite under `dir` into the checkout at `root` as its own record,
  * replacing one a restore laid from the mainline: the last push was laid on a
  * mainline record, so it is that record plus what the pull request ran since.
- * `left` names the rest, each with the commits the remote did not give, or
- * `unlisted` when its record names no commit its tests ran at.
+ * `left` names the rest, each with the commits the remote did not give,
+ * `unlisted` when its record names no commit its tests ran at, or `undeclared`
+ * for a suite the repository no longer declares.
  */
-export async function takePushed(root: string, dir: string): Promise<PushedTaken> {
+export async function takePushed(root: string, dir: string, options: { readonly env?: Env } = {}): Promise<PushedTaken> {
   let entries: Dirent[];
   try {
     entries = (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.isDirectory());
@@ -110,9 +114,14 @@ export async function takePushed(root: string, dir: string): Promise<PushedTaken
   const against: Record<string, string> = {};
   // A shallow clone fetches each commit alone: a diff reads two trees, not history.
   const depth = run(root, 'rev-parse', '--is-shallow-repository') === 'true' ? ['--depth=1'] : [];
+  const declared = declaredNames(root);
   for (const suite of entries.map((entry) => entry.name).sort()) {
     const from = join(dir, suite);
     if (!existsSync(join(from, 'coverage.bin'))) continue;
+    if (!declared.has(suite)) {
+      left.push({ suite, undeclared: true });
+      continue;
+    }
     const named = await namedCommits(join(from, 'coverage.bin'));
     if (named === undefined) {
       left.push({ suite, unlisted: true });
@@ -135,6 +144,10 @@ export async function takePushed(root: string, dir: string): Promise<PushedTaken
       await mkdir(dirname(aside), { recursive: true });
       await cp(record, aside);
       against[suite] = aside;
+    } else {
+      // Nothing laid here: a suite the share carries reads the mainline's from it.
+      const base = await suiteBase(root, { suite, ...(options.env === undefined ? {} : { env: options.env }) });
+      if (base.from === 'mainline' && base.mainline.cases !== undefined) against[suite] = base.mainline.cases;
     }
     await rm(own, { recursive: true, force: true });
     await cp(from, own, { recursive: true });
@@ -155,8 +168,8 @@ export function takenLines(result: PushedTaken): readonly string[] {
     lines.push(
       `${suite} reads from what the last push ran. ${
         aside === undefined
-          ? "No mainline record was here to set aside, so a review compares its cases with the last push's unless it reads the mainline's from the share."
-          : `The mainline's record it replaced is at ${aside}, for \`review --against\`.`
+          ? "Neither the restore nor the share gave a mainline record, so a review compares its cases with the last push's."
+          : `The mainline's cases are at ${aside}, for \`review --against\`.`
       }`,
     );
   }
@@ -164,7 +177,9 @@ export function takenLines(result: PushedTaken): readonly string[] {
     lines.push(
       'missing' in one
         ? `${one.suite} reads the mainline's record: the remote no longer has ${one.missing.map((commit) => commit.slice(0, 12)).join(', ')}, which the last push's record stands on.`
-        : `${one.suite} reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.`,
+        : 'unlisted' in one
+          ? `${one.suite} reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.`
+          : `${one.suite} is not taken: the last push kept it, and the repository no longer declares it.`,
     );
   }
   if (result.taken.length === 0 && result.left.length === 0) lines.push("no earlier push kept a record, so every suite reads the mainline's.");

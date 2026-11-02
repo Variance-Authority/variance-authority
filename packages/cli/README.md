@@ -3186,14 +3186,13 @@ ran, red or green:
     key: ${{ steps.keep.outputs.pushed-key }}
 ```
 
-Only selection reads the pushed record. When `take` replaces a record the
-restore laid, it sets that mainline record aside and prints its path as
-`against-<suite>`; pass it to `variance review --against`, so the change's
+Only selection reads the pushed record. `take` prints the mainline's cases
+for each suite it takes as `against-<suite>`: the record the restore laid,
+set aside before `take` replaced it, or, where the restore laid none, the
+cases the share holds. Pass it to `variance review --against`, so the change's
 cases are compared with the mainline's rather than the last push's. A suite
-the share carries needs none when the checkout is merged with the commit its
-record was made at: `review` reads the mainline's cases from the share. A
-suite the restore laid no record for has nothing to set aside, and `take` says
-so: put the restore before `take`.
+neither gave a record prints none, and `take` says so: put the restore before
+`take`.
 
 The record names the commits its tests last ran at: the merge commits of
 earlier pushes, which no branch holds. `take` fetches the ones the clone lacks

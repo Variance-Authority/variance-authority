@@ -192,9 +192,9 @@ it over the mainline's record.
 has the steps.
 
 The carried record decides what runs, never what your change is compared
-with. `take` copies the mainline's record aside and prints its path, and
-`variance review --against` that path compares your change's cases with the
-mainline's, not with the last push's.
+with. `take` prints the path of the mainline's cases: the record it set aside,
+or the share's. `variance review --against` that path compares your change's
+cases with the mainline's, not with the last push's.
 
 ## What a change to a module's top level runs
 

@@ -816,8 +816,8 @@ jobs:
       # What the last push ran, taken as the suite jobs took it, so the slices
       # fold over the record they ran from. The review still compares with
       # `main`: the cases the fold replaces are the last push's, so the
-      # mainline's cases are named to it, read before the own layer answers in
-      # their place.
+      # mainline's cases `take` names, the record it set aside or the share's,
+      # are passed to it.
       - uses: actions/download-artifact@v4
         if: needs.base.outputs.carried == 'true'
         with:
@@ -829,11 +829,6 @@ jobs:
         if: needs.base.outputs.carried == 'true'
         shell: bash
         run: |
-          cases=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
-            process.stdout.write(base.from === 'mainline' ? base.mainline.cases ?? '' : '');
-          ")
           node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
           moved=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github)
           left=$(printf '%s\n' "$moved" | sed -n 's/^left=//p')
@@ -841,16 +836,7 @@ jobs:
             echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
             exit 1
           fi
-          taken=$(printf '%s\n' "$moved" | sed -n 's/^taken=//p')
-          case " $taken " in
-            *" unit "*)
-              if [ -n "$cases" ]; then
-                echo "against=$cases" >> "$GITHUB_OUTPUT"
-              else
-                echo "::notice::The mainline published no unit cases that read, so the review compares the cases with the last push's."
-              fi
-              ;;
-          esac
+          printf '%s\n' "$moved" | sed -n 's/^against-unit=/against=/p' >> "$GITHUB_OUTPUT"
 
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. The mainline's record is laid first, the one the suite

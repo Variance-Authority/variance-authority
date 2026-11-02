@@ -1,11 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepPushed, movePushed, takePushed } from './carry-pushed.js';
+import { gitPublished } from './mainline-fixture.js';
+import { suiteBase } from './suite-base.js';
 
 /**
  * What a pull request's earlier push left, kept by `carry keep` and taken by
@@ -161,9 +163,49 @@ describe('a pull request reads from what its last push ran', () => {
     expect(existsSync(join(pushed, 'chromium'))).toBe(false);
   });
 
+  it('keeps the suites a repository declares, whatever their names', async () => {
+    const { clone, kept } = await pullRequest();
+    await writeFile(join(clone, 'variance.config.json'), JSON.stringify({ suites: { jest: { kind: 'unit' } } }));
+    const own = testCoverageFile(clone, { suite: 'jest' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(own, 'this push');
+    await writeFile(join(dirname(own), 'coverage.runs.json'), JSON.stringify(runsAt(kept)));
+    const pushed = join(clone, '.pushed');
+
+    expect(await keepPushed(clone, pushed)).toEqual({ kept: ['jest'] });
+    expect(readFileSync(join(pushed, 'jest', 'coverage.bin'), 'utf8')).toBe('this push');
+  });
+
+  it('leaves a suite the last push kept that the repository no longer declares', async () => {
+    const { clone, kept } = await pullRequest();
+    const carried = join(clone, '.carried');
+    await carry(carried, 'renamed', runsAt(kept));
+    await carry(carried, 'unit', runsAt(kept));
+
+    expect(await takePushed(clone, carried)).toEqual({ taken: ['unit'], left: [{ suite: 'renamed', undeclared: true }] });
+  });
+
   it('takes nothing when nothing was carried', async () => {
     const { clone } = await pullRequest();
     expect(await takePushed(clone, join(clone, '.nothing'))).toEqual({ taken: [], left: [] });
+  });
+});
+
+describe('what a review compares with once the last push is taken', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("is the mainline's cases the share holds, for a suite whose restore laid no record", async () => {
+    const home = await realpath(await mkdtemp(join(tmpdir(), 'carry-pushed-share-')));
+    const { origin, first } = await gitPublished(home);
+    const fresh = join(home, 'fresh');
+    git(home, 'clone', '-q', origin, fresh);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'fresh-cache'));
+    const carried = join(fresh, '.carried');
+    await carry(carried, 'unit', runsAt(first));
+    const base = await suiteBase(fresh, { env: {} });
+    if (base.from !== 'mainline' || base.mainline.cases === undefined) throw new Error(`expected the mainline's cases, read ${JSON.stringify(base)}`);
+
+    expect(await takePushed(fresh, carried, { env: {} })).toEqual({ taken: ['unit'], left: [], against: { unit: base.mainline.cases } });
   });
 });
 
@@ -189,7 +231,7 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     const aside = join(carried, '.mainline', 'unit', 'coverage.bin');
     expect(said.out).toBe(`taken=unit\nleft=chromium\nagainst-unit=${aside}\n`);
     expect(said.err).toBe(
-      `unit reads from what the last push ran. The mainline's record it replaced is at ${aside}, for \`review --against\`.\n` +
+      `unit reads from what the last push ran. The mainline's cases are at ${aside}, for \`review --against\`.\n` +
         "chromium reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.\n",
     );
   });
@@ -211,7 +253,7 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     expect(text.said).toEqual({ out: `kept unit in ${pushed}.\n`, err: '' });
   });
 
-  it('says when a taken suite had no mainline record to set aside', async () => {
+  it('says when neither the restore nor the share gave a taken suite a mainline record', async () => {
     const { clone, kept } = await pullRequest();
     const carried = join(clone, '.carried');
     await carry(carried, 'unit', runsAt(kept));
@@ -220,7 +262,7 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'text' }, clone, to);
 
     expect(said.out).toBe(
-      "unit reads from what the last push ran. No mainline record was here to set aside, so a review compares its cases with the last push's unless it reads the mainline's from the share.\n",
+      "unit reads from what the last push ran. Neither the restore nor the share gave a mainline record, so a review compares its cases with the last push's.\n",
     );
   });
 
