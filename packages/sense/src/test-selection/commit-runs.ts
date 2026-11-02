@@ -388,6 +388,19 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
 }
 
 /**
+ * The commits a selection reads from the record at `coverageFile`: where it was
+ * recorded, where its runs started, and where each test stands. A clone that
+ * lacks one cannot diff from it. Undefined when no runs record beside it names
+ * where it was recorded.
+ */
+export async function namedCommits(coverageFile: string): Promise<readonly string[] | undefined> {
+  const runs = await readCommitRuns(coverageFile);
+  if (runs?.commit === undefined) return undefined;
+  const all = [runs.commit, runs.over, ...(runs.standing ?? []).map((entry) => entry.commit)];
+  return [...new Set(all.filter((commit): commit is string => commit !== undefined))];
+}
+
+/**
  * The record a writer lays its run over: {@link readCommitRuns}, except that a
  * record this cannot read is no record to carry forward. The writer then
  * writes a fresh one, which places no test it did not run, and `warn` is told

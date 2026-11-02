@@ -414,39 +414,51 @@ jobs:
       # days is evicted, and the push after that reads `main`'s record, as a
       # first push does: a pull request lives hours or days, not months.
       #
+      # The keys are `variance carry`'s, as a user's workflow reads them.
       # Read after the mainline, which an own layer would answer in its place.
+      - name: what to carry
+        id: plan
+        shell: bash
+        run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
+
       - name: what the last push ran
-        if: github.event_name == 'pull_request'
+        if: steps.plan.outputs.pushed-key != ''
         uses: actions/cache/restore@v4
         with:
-          path: .variance-carry
-          key: variance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: variance-pr-${{ github.event.pull_request.number }}-
+          path: ${{ steps.plan.outputs.pushed-path }}
+          key: ${{ steps.plan.outputs.pushed-key }}
+          restore-keys: ${{ steps.plan.outputs.pushed-restore-keys }}
 
       # The record names the commits its tests last ran at, the merge commits
-      # of earlier pushes, which no ref holds: `tools/take-carried.mjs` reads
-      # a merge with the record's commit from the bundle the `record` job left
-      # beside the records, and fetches GitHub's own merge by name. A suite
-      # whose commits cannot be had is not handed on, and reads `main`'s
-      # record; checked once here, so every job reads the same. The bundle is
-      # a file, not a suite's directory, and travels with the records.
+      # of earlier pushes, which no ref holds. This workflow merges with the
+      # record's commit itself, so those merges are on no remote: the `record`
+      # job bundles them beside the records (`tools/bundle-carried.mjs`), and
+      # every job that takes them fetches the bundle before `carry take` fetches
+      # the rest by name. A suite whose commits cannot be had is not handed on, and
+      # reads `main`'s record; checked once here, so every job reads the same.
+      # The bundle is a file, not a suite's directory, and travels with them.
       - name: check what the last push ran
-        if: github.event_name == 'pull_request'
+        id: taken
+        if: steps.plan.outputs.pushed-key != ''
         shell: bash
+        env:
+          PUSHED: ${{ steps.plan.outputs.pushed-path }}
         run: |
-          taken=$(node tools/take-carried.mjs .variance-carry false)
-          for dir in .variance-carry/*/; do
+          node tools/bundle-carried.mjs fetch "$PUSHED"
+          node packages/cli/dist/bin.js carry take --format github >> "$GITHUB_OUTPUT"
+          taken=$(sed -n 's/^taken=//p' "$GITHUB_OUTPUT" | tail -n 1)
+          for dir in "$PUSHED"/*/; do
             [ -d "$dir" ] || continue
             case " $taken " in *" $(basename "$dir") "*) ;; *) rm -rf "$dir" ;; esac
           done
 
       - name: hand the last push on
         id: carry
-        if: github.event_name == 'pull_request'
+        if: steps.taken.outputs.taken != ''
         uses: actions/upload-artifact@v4
         with:
           name: variance-carried
-          path: .variance-carry
+          path: ${{ steps.plan.outputs.pushed-path }}
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 1
@@ -608,7 +620,13 @@ jobs:
       - name: take what the last push ran
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        run: node tools/take-carried.mjs "$RUNNER_TEMP/carried" true
+        run: |
+          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
+          left=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github | sed -n 's/^left=//p')
+          if [ -n "$left" ]; then
+            echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
+            exit 1
+          fi
 
       # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
@@ -798,8 +816,8 @@ jobs:
       # What the last push ran, taken as the suite jobs took it, so the slices
       # fold over the record they ran from. The review still compares with
       # `main`: the cases the fold replaces are the last push's, so the
-      # mainline's cases are named to it, read before the own layer answers in
-      # their place.
+      # mainline's cases `take` names, the record it set aside or the share's,
+      # are passed to it.
       - uses: actions/download-artifact@v4
         if: needs.base.outputs.carried == 'true'
         with:
@@ -811,21 +829,14 @@ jobs:
         if: needs.base.outputs.carried == 'true'
         shell: bash
         run: |
-          cases=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
-            process.stdout.write(base.from === 'mainline' ? base.mainline.cases ?? '' : '');
-          ")
-          taken=$(node tools/take-carried.mjs "$RUNNER_TEMP/carried" true)
-          case " $taken " in
-            *" unit "*)
-              if [ -n "$cases" ]; then
-                echo "against=$cases" >> "$GITHUB_OUTPUT"
-              else
-                echo "::notice::The mainline published no unit cases that read, so the review compares the cases with the last push's."
-              fi
-              ;;
-          esac
+          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
+          moved=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github)
+          left=$(printf '%s\n' "$moved" | sed -n 's/^left=//p')
+          if [ -n "$left" ]; then
+            echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
+            exit 1
+          fi
+          printf '%s\n' "$moved" | sed -n 's/^against-unit=/against=/p' >> "$GITHUB_OUTPUT"
 
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. The mainline's record is laid first, the one the suite
@@ -942,21 +953,27 @@ jobs:
       # A checkout merged with the record's commit is a commit no remote
       # holds, so it is bundled beside the records, with every commit it
       # needs that `main` does not have.
+      - name: what this push keeps
+        id: save
+        if: ${{ !cancelled() && steps.records.outputs.dir != '' }}
+        shell: bash
+        run: node packages/cli/dist/bin.js carry save --format github >> "$GITHUB_OUTPUT"
+
       - name: keep what this push ran
         id: stage
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
+        if: ${{ !cancelled() && steps.save.outputs.pushed-key != '' }}
         shell: bash
         env:
-          RECORDS: ${{ steps.records.outputs.dir }}
+          PUSHED: ${{ steps.save.outputs.pushed-path }}
         run: |
-          rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
-          node tools/bundle-carried.mjs .variance-carry refs/remotes/origin/main
+          node packages/cli/dist/bin.js carry keep "$PUSHED"
+          node tools/bundle-carried.mjs bundle "$PUSHED" refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v4
         with:
-          path: .variance-carry
-          key: variance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.save.outputs.pushed-path }}
+          key: ${{ steps.save.outputs.pushed-key }}
 
       # Only a push to `main` hands its records on, to the `publish` job, which
       # is the one job holding a token that can write to the repository. A red

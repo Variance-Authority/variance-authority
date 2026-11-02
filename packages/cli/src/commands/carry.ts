@@ -26,8 +26,8 @@
  * run restore only its own branch's, its base's and the default branch's
  * entries, so the default branch is the mainline such a restore finds.
  *
- * Only a push to a mainline saves a recording. A pull request that saved its
- * own would restore it on its next push and review the change against itself.
+ * Only a push to a mainline saves a recording; a pull request's `pushed` key
+ * is selection's alone, and `carry take` sets the mainline's aside for review.
  * The mainlines are asked of `share` (ADR-0077's order), and when nothing
  * answers, nothing is saved and the output says which answers were missing.
  */
@@ -47,6 +47,7 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
+import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
 import type { Config } from '../config.js';
@@ -54,7 +55,11 @@ import { loadConfig } from '../config-load.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import { projectSegment } from '../project-segment.js';
 
+/** What the cache moves: `restore` before the run, `save` after it. */
 export type CarryDirection = 'restore' | 'save';
+
+/** What moves the pushed records into and out of the checkout. */
+export type CarryMove = 'take' | 'keep';
 
 /**
  * Where a host run keeps `review`'s files, for the steps after it to upload
@@ -97,6 +102,13 @@ export interface CarryPlan {
    */
   readonly project?: string;
   readonly cached: readonly Cached[];
+  /**
+   * What the pull request's last push ran, for `carry take` to lay over the
+   * mainline's record: keyed by the pull request, so it never reaches the
+   * mainline or another pull request, and saved red or green. Only a
+   * `pull_request` run with a suite the cache or the share carries has one.
+   */
+  readonly pushed?: Cached;
   /**
    * Where the baseline store sits on disk, for a host step that commits what an
    * accept wrote. Absent for a `remote` store and under ephemeral retention,
@@ -255,6 +267,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
     keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
   }
 
+  const pushed = pushedOf(direction, input.root, run, input.suites ?? []);
   const store = config?.baselines;
   return {
     direction,
@@ -262,6 +275,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
     ...(run.base === undefined ? {} : { base: run.base }),
     ...(config === undefined ? {} : { project: projectSegment(config.project) }),
     cached,
+    ...(pushed === undefined ? {} : { pushed }),
     ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root, baselinesPathspecs: pathspecsOf(store) }),
     uploads: [
       ...(config === undefined ? [] : [{ name: 'report', path: config.report }, { name: 'images', path: config.images }]),
@@ -270,6 +284,25 @@ export function carryPlan(input: CarryInput): CarryPlan {
     shared: (input.suites ?? []).filter((suite) => suite.carry === 'share').map((suite) => suite.name),
     notes,
   };
+}
+
+/**
+ * The pull request's own key for what its last push ran. A `pull_request`
+ * run's ref is `refs/pull/<n>/merge`; a `pull_request_target` run checks out
+ * the base, so it ran nothing of the change worth keeping. A restore asks for
+ * this commit's first, so a re-run finds what its own first attempt kept, then
+ * for the newest under the pull request.
+ */
+function pushedOf(direction: CarryDirection, root: string, run: HostRun, suites: readonly DeclaredSuite[]): Cached | undefined {
+  if (run.event !== 'pull_request' || run.sha === undefined) return undefined;
+  if (!suites.some((suite) => suite.carry === 'actions-cache' || suite.carry === 'share')) return undefined;
+  const pull = /^refs\/pull\/(\d+)\/merge$/u.exec(run.ref ?? '')?.[1];
+  if (pull === undefined) return undefined;
+  const at = `variance-pushed:pr-${pull}:`;
+  const paths = [resolve(root, PUSHED)];
+  if (direction === 'restore') return { artifact: 'pushed', paths, key: `${at}${run.sha}`, restoreKeys: [at] };
+  if (run.run === undefined || run.attempt === undefined) return undefined;
+  return { artifact: 'pushed', paths, key: `${at}${run.sha}-${run.run}-${run.attempt}` };
 }
 
 /**
@@ -336,7 +369,7 @@ export function githubOutput(plan: CarryPlan): string {
   if (plan.line !== undefined) one('line', plan.line);
   if (plan.base !== undefined) one('base', plan.base);
   if (plan.project !== undefined) one('project', plan.project);
-  for (const cached of plan.cached) {
+  for (const cached of [...plan.cached, ...(plan.pushed === undefined ? [] : [plan.pushed])]) {
     many(`${cached.artifact}-path`, cached.paths);
     one(`${cached.artifact}-key`, cached.key);
     if (cached.restoreKeys !== undefined) many(`${cached.artifact}-restore-keys`, cached.restoreKeys);
@@ -360,7 +393,7 @@ export function carryText(plan: CarryPlan): string {
     `carry ${plan.direction}${plan.line === undefined ? ', off a host run' : ` for ${plan.line}`}` +
       `${plan.base === undefined ? '' : `, from ${plan.base.slice(0, 12)}`}`,
   ];
-  for (const cached of plan.cached) {
+  for (const cached of [...plan.cached, ...(plan.pushed === undefined ? [] : [plan.pushed])]) {
     lines.push('', `${cached.artifact}: ${cached.key}`, ...cached.paths.map((path) => `  ${path}`));
     if (cached.restoreKeys !== undefined) lines.push('  then', ...cached.restoreKeys.map((key) => `    ${key}`));
   }
@@ -388,6 +421,10 @@ export async function runCarry(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ExitCode> {
   const root = repositoryRoot(process.cwd());
+  if (parsed.direction === 'take' || parsed.direction === 'keep') {
+    return movePushed(parsed, root, streams);
+  }
+  const direction = parsed.direction;
   const config = parsed.config === undefined ? undefined : await loadConfig(parsed.config);
   let suites: readonly DeclaredSuite[] | undefined;
   try {
@@ -398,7 +435,7 @@ export async function runCarry(
   const host = hostRunOf(env);
   const base = await baseOf(root, host, env['GITHUB_EVENT_PATH']);
   const plan = carryPlan({
-    direction: parsed.direction,
+    direction,
     root,
     ...(config === undefined ? {} : { config }),
     ...(suites === undefined ? {} : { suites }),

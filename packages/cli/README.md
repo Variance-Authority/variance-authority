@@ -169,7 +169,7 @@ variance doctor  [--config <path>] [--baselines]
 variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save [--config <path>] [--format text|github]
+variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
 
@@ -3145,6 +3145,68 @@ prints no key for it, and stderr names the reason. The mainlines are the first
 of these that answers: the config's `share.mainlines`, the branch the remote's
 `HEAD` names, the repository's default branch in the event. When none answers,
 nothing is saved, and the message names the answers that were missing.
+
+A pull request's next push still runs only what it must: what changed since
+the last push ran, and every test file that push left incomplete, a failed
+one included. On a `pull_request` run with a suite the cache or the share
+carries, `carry restore` and `carry save` also print `pushed-path`,
+`pushed-key` and, on a restore, `pushed-restore-keys`: a key the pull request
+owns, `variance-pushed:pr-<number>:<commit>`, which neither the mainline nor
+another pull request reads. `variance carry take` lays what the last push kept
+over the mainline's record, and `variance carry keep` keeps what this push
+ran, red or green:
+
+```yaml
+- id: carry
+  run: npx variance carry restore --format github >> "$GITHUB_OUTPUT"
+# … restore the suites' caches, or read the share, as above …
+- if: steps.carry.outputs.pushed-key != ''
+  uses: actions/cache/restore@v4
+  with:
+    path: ${{ steps.carry.outputs.pushed-path }}
+    key: ${{ steps.carry.outputs.pushed-key }}
+    restore-keys: ${{ steps.carry.outputs.pushed-restore-keys }}
+- id: take
+  if: steps.carry.outputs.pushed-key != ''
+  run: npx variance carry take --format github >> "$GITHUB_OUTPUT"
+- run: npx variance run --since "${{ steps.carry.outputs.base }}" --suite unit
+- if: ${{ !cancelled() }}
+  env:
+    AGAINST: ${{ steps.take.outputs.against-unit }}
+  run: npx variance review --since "${{ steps.carry.outputs.base }}" --suite unit ${AGAINST:+--against "$AGAINST"}
+- id: keep
+  if: ${{ !cancelled() }}
+  run: npx variance carry save --format github >> "$GITHUB_OUTPUT"
+- if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
+  run: npx variance carry keep
+- if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
+  uses: actions/cache/save@v4
+  with:
+    path: ${{ steps.keep.outputs.pushed-path }}
+    key: ${{ steps.keep.outputs.pushed-key }}
+```
+
+Only selection reads the pushed record. `take` prints the mainline's cases
+for each suite it takes as `against-<suite>`: the record the restore laid,
+set aside under `.variance/against` before `take` replaced it, or, where the
+restore laid none, the cases the share holds. `keep` leaves it there, so the
+review may run before or after `keep`. Pass it to `variance review --against`, so the change's
+cases are compared with the mainline's rather than the last push's. A suite
+neither gave a record prints none, and `take` says so: put the restore before
+`take`.
+
+The record names the commits its tests last ran at: the merge commits of
+earlier pushes, which no branch holds. `take` fetches the ones the clone lacks
+from `origin` by name, each alone in a shallow clone. A workflow that merges a
+pull request itself, rather than checking out GitHub's merge, makes commits no
+remote holds, and fetches them into the clone before `take`. A suite whose
+commits cannot all be had keeps the mainline's record and `take` names it, so
+that push runs as a first push does. So does a suite the last push recorded
+under other probes than this build records under, after an upgrade of
+variance: no run here could be laid over it. Both read `.variance/pushed` unless you
+name another directory: `variance carry take <dir>`. Under `--format github`,
+`take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
+prints `kept=<suite> <suite>`; the lines saying why go to stderr.
 
 `carry` also prints `report`, `images` and `review`, which are paths to upload
 and the directory to pass `variance review --out`. They have no key, because

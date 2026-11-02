@@ -128,27 +128,40 @@ directory.
 
 ## In CI
 
-Cache the whole directory, and restore it to the same absolute path it was
-written from, because `<repository>` is a digest of that path:
+Cache the whole directory, restore it to the same absolute path it was
+written from, because `<repository>` is a digest of that path, and save it only
+from your main branch:
 
 ```yaml
-- uses: actions/cache@v4
+- uses: actions/cache/restore@v4
   with:
     path: node_modules/.cache/variance-authority
     key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
     restore-keys: |
       variance-${{ runner.os }}-${{ runner.arch }}-
+# … your tests …
+- if: github.ref == 'refs/heads/main'
+  uses: actions/cache/save@v4
+  with:
+    path: node_modules/.cache/variance-authority
+    key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
 ```
 
 With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
 
-To review a pull request against its base, save the cache only from your main
-branch. The suite keeps the cases it replaces beside the case index, with the
-commit they were recorded at, and that is what `variance review` compares with.
-A pull request that saved its own cache would restore it on its next push, and
-its review would compare the change with itself.
+A pull request saves nothing here because `variance review` compares your
+change with the cases the last run replaced, which the suite keeps in this
+directory with the commit they were recorded at. A pull request that saved
+its own cache would restore it on its next push, and its review would compare
+the change with itself.
+
+What a pull request may carry from push to push is a copy of its suites'
+records, outside this directory and under a cache key of its own, read only to
+decide which tests the next push runs. Review still compares with the main
+branch's. [A pull request's next push](selecting.md#a-pull-requests-next-push)
+says how.
 
 ## Start cold
 
