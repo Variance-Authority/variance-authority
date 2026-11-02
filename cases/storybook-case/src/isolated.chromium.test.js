@@ -135,10 +135,9 @@ live('what a story leaves on the page, outside its modules', () => {
         const ticks = document.body.dataset.ticks;
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         await new Promise((resolve) => setTimeout(resolve, 50));
-        window.dispatchEvent(new Event('va-ping'));
-        return { global: globalThis.leftover, ticking: document.body.dataset.ticks !== ticks, pinged: document.body.dataset.pinged };
+        return { global: globalThis.leftover, ticking: document.body.dataset.ticks !== ticks };
       });
-      expect(left).toEqual({ global: undefined, ticking: false, pinged: undefined });
+      expect(left).toEqual({ global: undefined, ticking: false });
     } finally {
       await page.close();
     }

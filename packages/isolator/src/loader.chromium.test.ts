@@ -71,16 +71,13 @@ it.runIf(BROWSER_AVAILABLE)('ends in a browser what a session left, from a bundl
     // The timers are the subject: what a session left must not fire after it.
     const counted = [next(), next()];
     let ticks = 0;
-    let heard = 0;
     setInterval(() => void ticks++, 1);
     requestAnimationFrame(() => void ticks++);
-    window.addEventListener('va-ping', () => void heard++);
     host.leftover = 'left';
     nextSession();
     const at = ticks;
     await new Promise((done) => setTimeout(done, 50));
-    window.dispatchEvent(new Event('va-ping'));
-    return { counted, again: next(), ticked: ticks - at, heard, leftover: host.leftover };
+    return { counted, again: next(), ticked: ticks - at, leftover: host.leftover };
   });
-  expect(after).toEqual({ counted: [1, 2], again: 1, ticked: 0, heard: 0, leftover: undefined });
+  expect(after).toEqual({ counted: [1, 2], again: 1, ticked: 0, leftover: undefined });
 });

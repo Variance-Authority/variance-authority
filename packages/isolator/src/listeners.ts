@@ -2,7 +2,8 @@
  * Event listeners a session leaves attached. A test that adds a listener to
  * `document` or `window` and never removes it hands it every event of the
  * tests after it, which a fresh page never does. Opt-in, since it wraps
- * `EventTarget.prototype`.
+ * `EventTarget.prototype`, and for unit tests: a page keeps the listeners a
+ * library adds once, as React does on its root.
  */
 
 import { inEverySession, installOnce, realm } from './realm.js';

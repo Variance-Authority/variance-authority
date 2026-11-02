@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
 /**
- * `Leaves` leaves an interval, a window listener and a global behind, as a
- * story that forgets to clean up does; `Counts` is clicked after it, so React's
- * own listeners have to survive the switch that removes the story's.
+ * `Leaves` leaves an interval and a global behind, as a story that forgets to
+ * clean up does; `Counts` is clicked after it, so the switch that ends them
+ * has to leave the page working.
  */
 export default { title: 'Isolated/Leftover' };
 
@@ -13,9 +13,6 @@ export const Leaves = {
       setInterval(() => {
         document.body.dataset.ticks = String(Number(document.body.dataset.ticks ?? 0) + 1);
       }, 5);
-      window.addEventListener('va-ping', () => {
-        document.body.dataset.pinged = 'yes';
-      });
       globalThis.leftover = 'left';
       return {};
     },

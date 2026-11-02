@@ -233,26 +233,21 @@ export default {
 };
 
 // .storybook/preview.js
-import { isolateGlobals, isolateListeners, isolateTimers, nextSession } from '@variance-authority/isolator';
-import { createRoot } from 'react-dom/client';
+import { isolateGlobals, isolateTimers, nextSession } from '@variance-authority/isolator';
 import { addons } from 'storybook/preview-api';
 
 isolateTimers();
-isolateListeners();
 isolateGlobals();
-createRoot(document.getElementById('storybook-root')).unmount();
 
 addons.getChannel().on('currentStoryWasSet', () => nextSession());
 ```
 
 `currentStoryWasSet` fires for every story selected, the one the URL opens
 included, so the first story does not run in the session of the page's boot.
-The `isolate…` calls end what a story leaves outside its modules: its timers,
-its listeners and what it adds to `window`. What the preview does as it loads
-belongs to the boot and every story keeps it. That is why the preview makes and
-unmounts a React root: React adds its listeners to the canvas once and marks
-it, so listeners the first story's render added would end with that story while
-the mark stayed, and no click would reach the next one.
+The `isolate…` calls end what a story leaves outside its modules: its timers
+and what it adds to `window`. What the preview does as it loads belongs to the
+boot and every story keeps it. Leave `isolateListeners()` out of a page: it is
+for unit tests, as its entry below says.
 
 Under Vite alone the plugin rewrites every module but the ones `exclude`
 names. Leave out the Storybook config and the story files: Storybook reads a
@@ -292,9 +287,9 @@ out of the rule, as the Jest transformer does: a test file's own `let` carries
 what a `beforeAll` set into the tests after it.
 
 In a browser, call `nextSession()` before every run, so each starts from the
-values its modules were loaded with. The runtime and the `isolate…` functions
-need nothing of Node, so a bundle built for the web runs them as they are;
-`isolateEnv()` installs nothing where there is no `process`.
+values its modules were loaded with. The runtime, `isolateTimers()` and
+`isolateGlobals()` need nothing of Node, so a bundle built for the web runs
+them as they are; `isolateEnv()` installs nothing where there is no `process`.
 
 ## Run it in another tool
 
@@ -387,7 +382,11 @@ isolateListeners();
 - **`isolateListeners({ report })`** removes, as each session ends, the
   listeners it added to any `EventTarget` and left attached. `report` is told
   of each one, with the stack that added it, once all are gone: throw from it to
-  have every leak fixed where it starts.
+  have every leak fixed where it starts. It is for unit tests, where the DOM is
+  emptied between tests and what outlives it sits on `window` and `document`.
+  On a page, as in Storybook, a library adds listeners once and marks where it
+  did — React on its root and on a portal's container — and removing them
+  would leave the mark with nothing behind it.
 
 What a rewritten module does as it loads — a property it defines, a timer it
 starts, a listener it adds — belongs to no session and stays, as it would on
@@ -398,8 +397,7 @@ belongs to that file and is done again for the next. What a timer callback
 schedules, or a listener adds, belongs to whoever scheduled or added that
 callback: a chain `beforeAll` starts runs on through the file, whichever test
 it fires in. A callback that a load or setup added runs in every session, so
-what it adds belongs to the session it runs in: a story's click reaches its
-handlers through React's root listener, and what they add ends with the story.
+what it adds belongs to the session it runs in.
 `perSession(object, { store, wrote })` is the proxy
 `isolateEnv` is built on, for any other object a session should hold its own
 copy of: `store` turns a written value into what the object would hold, as
@@ -479,12 +477,11 @@ nobody holds any more takes its values with it.
   called.** The isolator does not see that load. If a package first runs inside a
   test and defines a global, starts a timer or adds a listener there, the
   `isolate…` functions take it back when the test ends. The module stays cached
-  and its own flag still says it has done its setup. React's root listeners are
-  one such setup: make and unmount a root in setup, as the Storybook preview
-  above does, so they belong to it. A portal is another: the container it
-  first renders into, often `document.body`, gets React's listeners in that
-  session and loses them when it ends, while React's mark stays, so later
-  portals there stop answering events.
+  and its own flag still says it has done its setup. A React portal rendered
+  into `document.body` is one: React adds its listeners there once, in the
+  first test that opens one, and `isolateListeners` removes them as that test
+  ends while React's mark stays, so a later portal in the same file stops
+  answering events.
 - **`EventEmitter` and `process.on`, for `isolateListeners`.** It wraps
   `EventTarget` only. The test runners themselves listen on `process`.
 - **A timer started through `node:timers`.** `isolateTimers` wraps the globals.
