@@ -28,9 +28,15 @@ afterEach(() => nextSession());
  * its own, put back when it finishes: under a suite that runs this file through
  * the isolator, they already hold the suite's file and test sessions. A test
  * that starts sessions imports the Node entry again, after `vi.resetModules`.
+ * The modules it imported belong to its realm and go with it: a file that runs
+ * after it on the same worker would otherwise import a Node entry whose storage
+ * no source in the restored realm reads.
  */
 const ownRealms = () => {
   const host = globalThis as Record<symbol, unknown>;
+  onTestFinished(() => {
+    vi.resetModules();
+  });
   for (const key of [
     Symbol.for('@variance-authority/ioc/reset'),
     Symbol.for('@variance-authority/isolator'),
