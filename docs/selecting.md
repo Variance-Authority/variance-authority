@@ -178,18 +178,23 @@ other ways to fetch less give a wrong answer or cost more:
 
 Each push to a pull request is a fresh CI machine, and measured from the
 mainline's record it reruns the whole change, so a one-line fix runs as much
-as the push before it. Your laptop does not: it reads its own layer, and a
-selection diffs each test from the commit that test last ran at. Carry that
-layer from push to push and CI does the same. The next push runs what changed
-since the last push ran, and every test file that push left incomplete, a
-failed one included.
+as the push before it. Your laptop does not: it keeps the record its last run
+wrote, and a selection diffs each test from the commit that test last ran at.
+Carry that record from push to push and CI does the same. The next push runs
+what changed since the last push ran, and every test file that push did not
+finish green: a failed one, and one the run never reached.
 
-`variance carry keep` keeps what a push ran under a cache key the pull request
-owns, red or green, and `variance carry take` lays it over the mainline's
-record on the next push.
+`variance carry keep` copies the record a push wrote into a directory that
+`carry save` names, and the host cache saves it under a key only that pull
+request restores, red or green. On the next push `variance carry take` lays
+it over the mainline's record.
 [What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
-has the steps. Only selection reads it: `take` sets the mainline's record
-aside, and the review compares your change's cases with it.
+has the steps.
+
+The carried record decides what runs, never what your change is compared
+with. `take` copies the mainline's record aside and prints its path, and
+`variance review --against` that path compares your change's cases with the
+mainline's, not with the last push's.
 
 ## What a change to a module's top level runs
 
