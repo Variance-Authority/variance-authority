@@ -1,5 +1,11 @@
 # @variance-authority/ioc
 
+## 0.23.0
+
+### Minor Changes
+
+- 589a181: `driverInstalled()` from `@variance-authority/ioc/reset` tells a scope that registers late whether a test setup has already installed a driver, so it knows the file it joined has started.
+
 ## 0.22.0
 
 ### Minor Changes
