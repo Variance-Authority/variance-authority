@@ -25,11 +25,6 @@ export function setupPaths(config: JestConfig, rootDir: string): readonly string
     .flatMap((file) => configuredPath(file, rootDir));
 }
 
-/** The project's configured environment when it is a file: what selection falls back on before a run has recorded one. */
-export function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
-}
-
 /** Resolve one configuration entry only when it names a file rather than a package. */
 export function configuredPath(file: string, rootDir: string): readonly string[] {
   return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')

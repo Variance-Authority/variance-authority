@@ -182,7 +182,6 @@ describe('withTestSelection for Jest', () => {
         root,
         coverageFile: resolve(root, 'coverage.bin'),
         preconditions: [
-          resolve(root, 'test/environment.ts'),
           resolve(root, 'test/polyfills.js'),
           resolve(root, 'test/setup.ts'),
           resolve(root, 'tsconfig.json'),

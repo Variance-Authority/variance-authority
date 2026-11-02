@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
-import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
+import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
@@ -335,9 +335,7 @@ export function withTestSelection(
   const projects = inline?.map((project) =>
     selecting(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), root, projectRoot(project, rootDir), undefined));
   const preconditions = [
-    ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
-    ...(inline ?? []).flatMap((project) => environmentPaths(project, projectRoot(project, rootDir))),
     ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, rootDir))),
     ...declared,
   ];
