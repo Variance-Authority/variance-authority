@@ -433,8 +433,8 @@ jobs:
       # of earlier pushes, which no ref holds. This workflow merges with the
       # record's commit itself, so those merges are on no remote: the `record`
       # job bundles them beside the records (`tools/bundle-carried.mjs`), and
-      # their heads are fetched from the bundle before `carry take` fetches the
-      # rest by name. A suite whose commits cannot be had is not handed on, and
+      # every job that takes them fetches the bundle before `carry take` fetches
+      # the rest by name. A suite whose commits cannot be had is not handed on, and
       # reads `main`'s record; checked once here, so every job reads the same.
       # The bundle is a file, not a suite's directory, and travels with them.
       - name: check what the last push ran
@@ -444,11 +444,7 @@ jobs:
         env:
           PUSHED: ${{ steps.plan.outputs.pushed-path }}
         run: |
-          bundle="$PUSHED/commits.bundle"
-          if [ -f "$bundle" ]; then
-            git fetch --quiet --no-tags "$bundle" $(git bundle list-heads "$bundle" | cut -d' ' -f2) ||
-              echo "$bundle did not read, so its suites read main's record unless the remote has their commits." >&2
-          fi
+          node tools/bundle-carried.mjs fetch "$PUSHED"
           node packages/cli/dist/bin.js carry take --format github >> "$GITHUB_OUTPUT"
           taken=$(sed -n 's/^taken=//p' "$GITHUB_OUTPUT" | tail -n 1)
           for dir in "$PUSHED"/*/; do
@@ -625,6 +621,7 @@ jobs:
         if: needs.base.outputs.carried == 'true'
         shell: bash
         run: |
+          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
           left=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github | sed -n 's/^left=//p')
           if [ -n "$left" ]; then
             echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
@@ -837,6 +834,7 @@ jobs:
             const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
             process.stdout.write(base.from === 'mainline' ? base.mainline.cases ?? '' : '');
           ")
+          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
           moved=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github)
           left=$(printf '%s\n' "$moved" | sed -n 's/^left=//p')
           if [ -n "$left" ]; then
@@ -983,7 +981,7 @@ jobs:
           PUSHED: ${{ steps.save.outputs.pushed-path }}
         run: |
           node packages/cli/dist/bin.js carry keep "$PUSHED"
-          node tools/bundle-carried.mjs "$PUSHED" refs/remotes/origin/main
+          node tools/bundle-carried.mjs bundle "$PUSHED" refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v4

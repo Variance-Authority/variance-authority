@@ -196,7 +196,7 @@ export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, rec
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
-export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
+export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { commitRunsIn } from './commit-runs-text.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';

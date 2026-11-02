@@ -211,6 +211,19 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     expect(text.said).toEqual({ out: `kept unit in ${pushed}.\n`, err: '' });
   });
 
+  it('says when a taken suite had no mainline record to set aside', async () => {
+    const { clone, kept } = await pullRequest();
+    const carried = join(clone, '.carried');
+    await carry(carried, 'unit', runsAt(kept));
+    const { said, streams: to } = streams();
+
+    await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'text' }, clone, to);
+
+    expect(said.out).toBe(
+      "unit reads from what the last push ran. No mainline record was here to set aside, so a review compares its cases with the last push's unless it reads the mainline's from the share.\n",
+    );
+  });
+
   it('says nothing was carried, and keeps nothing when no suite recorded', async () => {
     const { clone } = await pullRequest();
     const { said, streams: to } = streams();

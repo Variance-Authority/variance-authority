@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BUNDLE, bundleCarried } from './bundle-carried.mjs';
+import { BUNDLE, bundleCarried, fetchBundled } from './bundle-carried.mjs';
 
 /**
  * The merge `check.yml` makes of a pull request's head and the commit the
@@ -65,9 +65,7 @@ describe('a merge no remote holds travels beside the records', () => {
     expect(await bundleCarried(earlier, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [merge], absent: [] });
     expect(git(earlier, 'for-each-ref', 'refs/carried/')).toBe('');
 
-    const bundle = join(carried, BUNDLE);
-    const heads = git(clone, 'bundle', 'list-heads', bundle).split('\n').map((line) => line.split(' ')[1] ?? '');
-    git(clone, 'fetch', '--quiet', '--no-tags', bundle, ...heads);
+    expect(fetchBundled(clone, carried)).toEqual([merge]);
     expect(git(clone, 'rev-parse', `${merge}^2`)).toBe(head);
     expect(git(clone, 'for-each-ref', 'refs/carried/')).toBe('');
   });
@@ -89,5 +87,10 @@ describe('a merge no remote holds travels beside the records', () => {
 
     expect(await bundleCarried(earlier, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [], absent: [] });
     expect(existsSync(join(carried, BUNDLE))).toBe(false);
+  });
+
+  it('fetches nothing where no bundle was kept', async () => {
+    const { clone } = await upstreamWithClones();
+    expect(fetchBundled(clone, join(clone, '.carried'))).toEqual([]);
   });
 });

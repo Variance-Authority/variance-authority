@@ -1,18 +1,19 @@
 /**
  * Bundle the merges `check.yml` made that no remote holds:
- * `node tools/bundle-carried.mjs <carried> <mainline>` writes
- * `<carried>/commits.bundle` and prints the bundled commits. This workflow
- * merges a pull request with the commit the mainline's record was made at, so
- * the next push fetches those merges from the bundle before `variance carry
- * take` fetches the rest by name; a user's workflow runs on GitHub's merge,
- * which needs none.
+ * `node tools/bundle-carried.mjs bundle <carried> <mainline>` writes
+ * `<carried>/commits.bundle`, and `fetch <carried>` fetches it into the clone.
+ * This workflow merges a pull request with the commit the mainline's record was
+ * made at, so every job of the next push fetches those merges before `variance
+ * carry take` fetches the rest by name; a user's workflow runs on GitHub's
+ * merge, which needs none.
  */
 
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readCommitRuns } from '@variance-authority/sense/test-selection';
+import { namedCommits } from '@variance-authority/sense/test-selection';
 
 /** Where `check.yml` looks for the commits beside the records. */
 export const BUNDLE = 'commits.bundle';
@@ -27,13 +28,6 @@ const succeeds = (root, ...args) => {
     return false;
   }
 };
-
-/** The commits a selection reads from the record at `coverage`, as `carry take` reads them. */
-async function namedCommits(coverage) {
-  const runs = await readCommitRuns(coverage);
-  if (runs?.commit === undefined) return undefined;
-  return [...new Set([runs.commit, runs.over, ...(runs.standing ?? []).map((entry) => entry.commit)].filter((commit) => commit !== undefined))];
-}
 
 /**
  * Write `<carried>/commits.bundle` holding every commit the records under
@@ -63,10 +57,32 @@ export async function bundleCarried(root, carried, mainline) {
   return { bundled, absent };
 }
 
+/**
+ * Fetch the commits `<carried>/commits.bundle` holds into the clone at `root`,
+ * and name them. Nothing where no bundle was kept; a bundle that does not read
+ * throws, and the job says which suites that leaves.
+ */
+export function fetchBundled(root, carried) {
+  const bundle = join(carried, BUNDLE);
+  if (!existsSync(bundle)) return [];
+  const heads = git(root, 'bundle', 'list-heads', bundle).split('\n').filter(Boolean).map((line) => line.split(' '));
+  git(root, 'fetch', '--quiet', '--no-tags', bundle, ...heads.map(([, ref]) => ref));
+  return heads.map(([commit]) => commit).sort();
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const [carried, mainline] = process.argv.slice(2);
-  if (carried === undefined || mainline === undefined) {
-    console.error('bundle-carried: name the directory of records the next push takes, and the mainline ref every clone holds');
+  const [mode, carried, mainline] = process.argv.slice(2);
+  if (mode === 'fetch' && carried !== undefined) {
+    try {
+      const fetched = fetchBundled(process.cwd(), carried);
+      if (fetched.length > 0) console.error(`bundle-carried: fetched ${String(fetched.length)} commit(s) from ${join(carried, BUNDLE)}.`);
+    } catch (error) {
+      console.error(`bundle-carried: ${join(carried, BUNDLE)} did not read, so its suites read main's record unless the remote has their commits: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    process.exit(0);
+  }
+  if (mode !== 'bundle' || carried === undefined || mainline === undefined) {
+    console.error('bundle-carried: `bundle <carried> <mainline>` names the directory of records the next push takes and the mainline ref every clone holds; `fetch <carried>` names the directory a push took them into');
     process.exit(2);
   }
   const { bundled, absent } = await bundleCarried(process.cwd(), carried, mainline);

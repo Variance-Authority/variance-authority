@@ -20,7 +20,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, rm } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { readCommitRuns, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 
@@ -67,18 +67,6 @@ const holds = (root: string, commit: string): boolean => succeeds(root, 'cat-fil
 /** The directory each suite's own record sits in, one per suite. */
 function suitesDir(root: string): string {
   return dirname(dirname(testCoverageFile(root, { suite: 'unit' })));
-}
-
-/**
- * The commits a selection reads from the record at `coverage`: where it was
- * recorded, where its runs started, and where each test stands. Undefined when
- * no runs record beside it names where it was recorded.
- */
-export async function namedCommits(coverage: string): Promise<readonly string[] | undefined> {
-  const runs = await readCommitRuns(coverage);
-  if (runs?.commit === undefined) return undefined;
-  const all = [runs.commit, runs.over, ...(runs.standing ?? []).map((entry) => entry.commit)];
-  return [...new Set(all.filter((commit): commit is string => commit !== undefined))];
 }
 
 /**
@@ -164,7 +152,13 @@ export function takenLines(result: PushedTaken): readonly string[] {
   const lines: string[] = [];
   for (const suite of result.taken) {
     const aside = result.against?.[suite];
-    lines.push(`${suite} reads from what the last push ran.${aside === undefined ? '' : ` The mainline's record it replaced is at ${aside}, for \`review --against\`.`}`);
+    lines.push(
+      `${suite} reads from what the last push ran. ${
+        aside === undefined
+          ? "No mainline record was here to set aside, so a review compares its cases with the last push's unless it reads the mainline's from the share."
+          : `The mainline's record it replaced is at ${aside}, for \`review --against\`.`
+      }`,
+    );
   }
   for (const one of result.left) {
     lines.push(
