@@ -172,6 +172,18 @@ describe('what a pull request\'s last push ran', () => {
     expect(carryPlan({ direction: 'restore', root, suites: UNIT, run: { ...PULL, event: 'pull_request_target' }, mainlines: MAIN }).pushed).toBeUndefined();
     expect(carryPlan({ direction: 'restore', root, suites: [{ name: 'unit', kind: 'unit' }], run: PULL, mainlines: MAIN }).pushed).toBeUndefined();
   });
+
+  it('is not carried by a run whose ref names no pull request, nor saved by one that names no attempt', () => {
+    expect(carryPlan({ direction: 'restore', root, suites: SHARED, run: { ...PULL, ref: 'refs/heads/feat' }, mainlines: MAIN }).pushed).toBeUndefined();
+    const { attempt: _, ...unnumbered } = PULL;
+    expect(carryPlan({ direction: 'save', root, suites: SHARED, run: unnumbered, mainlines: MAIN }).pushed).toBeUndefined();
+  });
+
+  it('is told to a person with its key and the keys a restore falls back to', () => {
+    const text = carryText(carryPlan({ direction: 'restore', root, suites: SHARED, run: PULL, mainlines: MAIN }));
+
+    expect(text).toContain(`pushed: variance-pushed:pr-3:${SHA}\n  ${join(root, '.variance/pushed')}\n  then\n    variance-pushed:pr-3:\n`);
+  });
 });
 
 describe('baselines and a report', () => {
@@ -477,6 +489,8 @@ describe('the arguments', () => {
     expect(() => parse('upload')).toThrow('`carry` restores, saves, takes or keeps, not `upload`');
     expect(parse('take')).toEqual({ command: 'carry', direction: 'take', format: 'text' });
     expect(parse('keep', 'here')).toEqual({ command: 'carry', direction: 'keep', dir: resolve('here'), format: 'text' });
+    expect(() => parse('take', 'here', 'there')).toThrow('`carry take` takes no other argument, and was given `there`');
+    expect(() => parse('save', 'here')).toThrow('`carry save` takes no other argument, and was given `here`');
     expect(() => parse('save', '--format', 'json')).toThrow('--format must be text or github');
   });
 });

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { keepPushed, movePushed, takePushed } from './carry-pushed.js';
+import { keepPushed, movePushed, takePushed, takenLines } from './carry-pushed.js';
 import { gitPublished } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
 
@@ -103,6 +103,9 @@ describe('a pull request reads from what its last push ran', () => {
     expect(taken.taken).toEqual(['chromium']);
     expect(taken.left).toEqual([{ suite: 'unit', missing: [lost] }]);
     expect(existsSync(testCoverageFile(clone, { suite: 'unit' }))).toBe(false);
+    expect(takenLines(taken)).toContain(
+      `unit reads the mainline's record: the remote no longer has ${lost.slice(0, 12)}, which the last push's record stands on.`,
+    );
   });
 
   it('leaves a suite whose record names no commit its tests ran at', async () => {
