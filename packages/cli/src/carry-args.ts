@@ -27,7 +27,7 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
   if (direction !== 'restore' && direction !== 'save' && direction !== 'take' && direction !== 'keep') {
     throw new OperatorError(
       direction === undefined
-        ? '`carry` needs a direction: `restore` before the run, or `save` after it'
+        ? "`carry` needs a direction: `restore` before the run, `save` after it, or `take` and `keep` for a pull request's next push"
         : `\`carry\` restores, saves, takes or keeps, not \`${direction}\``,
     );
   }

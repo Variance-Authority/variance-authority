@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { bundlePushed, keepPushed, takePushed } from './carry-pushed.js';
+import { bundlePushed, keepPushed, movePushed, takePushed } from './carry-pushed.js';
 
 /**
  * What a pull request's earlier push left, kept by `carry keep` and taken by
@@ -220,5 +220,58 @@ describe('a pull request reads from what its last push ran', () => {
 
     expect(await bundlePushed(clone, carried, 'refs/remotes/origin/main')).toEqual({ bundled: [], absent: [] });
     expect(existsSync(join(carried, 'commits.bundle'))).toBe(false);
+  });
+});
+
+describe('`carry take|keep` as a workflow step reads it', () => {
+  const streams = () => {
+    const said = { out: '', err: '' };
+    return { said, streams: { out: (text: string) => void (said.out += text), err: (text: string) => void (said.err += text) } };
+  };
+
+  it('writes the taken suites and the mainline\'s record set aside as outputs, and the lines to the log', async () => {
+    const { clone, kept } = await pullRequest();
+    const own = testCoverageFile(clone, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(own, 'mainline');
+    const carried = join(clone, '.carried');
+    await carry(carried, 'unit', runsAt(kept));
+    await mkdir(join(carried, 'chromium'), { recursive: true });
+    await writeFile(join(carried, 'chromium', 'coverage.bin'), 'carried');
+    const { said, streams: to } = streams();
+
+    await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'github' }, clone, to, undefined);
+
+    const aside = join(carried, '.mainline', 'unit', 'coverage.bin');
+    expect(said.out).toBe(`taken=unit\nleft=chromium\nagainst-unit=${aside}\n`);
+    expect(said.err).toBe(
+      `unit reads from what the last push ran. The mainline's record it replaced is at ${aside}, for \`review --against\`.\n` +
+        "chromium reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.\n",
+    );
+  });
+
+  it('writes the kept suites as an output, and to a person reading text says what it kept', async () => {
+    const { clone, kept } = await pullRequest();
+    const own = testCoverageFile(clone, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(own, 'this push');
+    await writeFile(join(dirname(own), 'coverage.runs.json'), JSON.stringify(runsAt(kept)));
+    const pushed = join(clone, '.pushed');
+
+    const github = streams();
+    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'github' }, clone, github.streams, 'refs/remotes/origin/main');
+    expect(github.said).toEqual({ out: 'kept=unit\n', err: `kept unit in ${pushed}.\n` });
+
+    const text = streams();
+    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'text' }, clone, text.streams, 'refs/remotes/origin/main');
+    expect(text.said).toEqual({ out: `kept unit in ${pushed}.\n`, err: '' });
+  });
+
+  it('says nothing was carried, and keeps nothing when no suite recorded', async () => {
+    const { clone } = await pullRequest();
+    const { said, streams: to } = streams();
+    await movePushed({ command: 'carry', direction: 'take', dir: join(clone, '.nothing'), format: 'text' }, clone, to, undefined);
+    await movePushed({ command: 'carry', direction: 'keep', dir: join(clone, '.pushed'), format: 'text' }, clone, to, undefined);
+    expect(said.out).toBe("no earlier push kept a record, so every suite reads the mainline's.\nthis push recorded no suite, so nothing is kept.\n");
   });
 });

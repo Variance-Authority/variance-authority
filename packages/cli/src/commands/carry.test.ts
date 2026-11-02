@@ -473,7 +473,7 @@ describe('the arguments', () => {
     const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format']));
 
     expect(parse('save', '--format', 'github')).toEqual({ command: 'carry', direction: 'save', format: 'github' });
-    expect(() => parse()).toThrow('`carry` needs a direction');
+    expect(() => parse()).toThrow('`carry` needs a direction: `restore` before the run, `save` after it, or `take` and `keep` for a pull request\'s next push');
     expect(() => parse('upload')).toThrow('`carry` restores, saves, takes or keeps, not `upload`');
     expect(parse('take')).toEqual({ command: 'carry', direction: 'take', format: 'text' });
     expect(parse('keep', 'here')).toEqual({ command: 'carry', direction: 'keep', dir: resolve('here'), format: 'text' });
