@@ -11,17 +11,20 @@
  *
  * The records name earlier pushes' merge commits, which no branch holds;
  * `take` fetches the ones the clone lacks by name. A suite whose commits cannot
- * all be had is left, and reads the mainline's record, as a first push does.
+ * all be had is left, and reads the mainline's record, as a first push does;
+ * so is one the last push recorded under other probes than the run `take`
+ * precedes, which could not be laid over it.
  */
 
 // compass: variance-authority.retention
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { declaredSuites, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { instrumentationId } from '@variance-authority/sense/instrument';
+import { declaredSuites, foreignProbes, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 import type { Env } from '../share-lines.js';
@@ -34,6 +37,7 @@ export const PUSHED = '.variance/pushed';
 export type PushedLeft =
   | { readonly suite: string; readonly missing: readonly string[] }
   | { readonly suite: string; readonly unlisted: true }
+  | { readonly suite: string; readonly instrumentation: string; readonly run: string }
   | { readonly suite: string; readonly undeclared: true };
 
 export interface PushedTaken {
@@ -48,8 +52,12 @@ export interface PushedTaken {
   readonly against?: Readonly<Record<string, string>>;
 }
 
-/** Where `take` sets aside the record it replaces, under the pushed directory. */
-export const ASIDE = '.mainline';
+/**
+ * Where `take` sets aside the record it replaces, under the checkout: outside
+ * the pushed directory, which `keep` replaces whole, so a review that reads it
+ * after `keep` still finds it.
+ */
+export const AGAINST = '.variance/against';
 
 export interface PushedKept {
   readonly kept: readonly string[];
@@ -98,10 +106,17 @@ export async function keepPushed(root: string, dir: string): Promise<PushedKept>
  * replacing one a restore laid from the mainline: the last push was laid on a
  * mainline record, so it is that record plus what the pull request ran since.
  * `left` names the rest, each with the commits the remote did not give,
- * `unlisted` when its record names no commit its tests ran at, or `undeclared`
- * for a suite the repository no longer declares.
+ * `unlisted` when its record names no commit its tests ran at, `undeclared`
+ * for a suite the repository no longer declares, or the probes it was written
+ * under when they are not `instrumentation`, the probes of the run that lands
+ * next (`foreignProbes`, as `layMainline` asks). `undefined` takes a record
+ * under any probes.
  */
-export async function takePushed(root: string, dir: string, options: { readonly env?: Env } = {}): Promise<PushedTaken> {
+export async function takePushed(
+  root: string,
+  dir: string,
+  options: { readonly env?: Env; readonly instrumentation?: string } = {},
+): Promise<PushedTaken> {
   let entries: Dirent[];
   try {
     entries = (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.isDirectory());
@@ -122,6 +137,12 @@ export async function takePushed(root: string, dir: string, options: { readonly 
       left.push({ suite, undeclared: true });
       continue;
     }
+    const run = options.instrumentation;
+    const written = run === undefined ? undefined : foreignProbes(await readFile(join(from, 'coverage.bin')), run);
+    if (written !== undefined && run !== undefined) {
+      left.push({ suite, instrumentation: written, run });
+      continue;
+    }
     const named = await namedCommits(join(from, 'coverage.bin'));
     if (named === undefined) {
       left.push({ suite, unlisted: true });
@@ -140,7 +161,7 @@ export async function takePushed(root: string, dir: string, options: { readonly 
     const record = testCoverageFile(root, { suite });
     const own = dirname(record);
     if (existsSync(record)) {
-      const aside = join(dir, ASIDE, suite, 'coverage.bin');
+      const aside = resolve(root, AGAINST, suite, 'coverage.bin');
       await mkdir(dirname(aside), { recursive: true });
       await cp(record, aside);
       against[suite] = aside;
@@ -179,7 +200,9 @@ export function takenLines(result: PushedTaken): readonly string[] {
         ? `${one.suite} reads the mainline's record: the remote no longer has ${one.missing.map((commit) => commit.slice(0, 12)).join(', ')}, which the last push's record stands on.`
         : 'unlisted' in one
           ? `${one.suite} reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.`
-          : `${one.suite} is not taken: the last push kept it, and the repository no longer declares it.`,
+          : 'run' in one
+            ? `${one.suite} reads the mainline's record: the last push recorded under the probes \`${one.instrumentation}\`, and this run records under \`${one.run}\`, so no run here can be laid over it.`
+            : `${one.suite} is not taken: the last push kept it, and the repository no longer declares it.`,
     );
   }
   if (result.taken.length === 0 && result.left.length === 0) lines.push("no earlier push kept a record, so every suite reads the mainline's.");
@@ -206,7 +229,7 @@ export async function movePushed(
   let outputs: string[];
   let lines: readonly string[];
   if (parsed.direction === 'take') {
-    const taken = await takePushed(root, dir);
+    const taken = await takePushed(root, dir, { instrumentation: instrumentationId() });
     outputs = [
       `taken=${taken.taken.join(' ')}`,
       `left=${taken.left.map((one) => one.suite).join(' ')}`,

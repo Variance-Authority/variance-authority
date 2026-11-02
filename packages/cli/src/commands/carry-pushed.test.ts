@@ -3,9 +3,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { instrumentationId } from '@variance-authority/sense/instrument';
+import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { keepPushed, movePushed, takePushed, takenLines } from './carry-pushed.js';
+import { AGAINST, keepPushed, movePushed, takePushed, takenLines } from './carry-pushed.js';
 import { gitPublished } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
 
@@ -128,12 +129,27 @@ describe('a pull request reads from what its last push ran', () => {
     const carried = join(clone, '.carried');
     await carry(carried, 'unit', runsAt(kept));
 
-    const aside = join(carried, '.mainline', 'unit', 'coverage.bin');
+    const aside = join(clone, AGAINST, 'unit', 'coverage.bin');
     expect(await takePushed(clone, carried)).toEqual({ taken: ['unit'], left: [], against: { unit: aside } });
     expect(readFileSync(own, 'utf8')).toBe('carried');
     expect(existsSync(join(dirname(own), 'stray'))).toBe(false);
     // The review compares the change's cases with the mainline's, not the last push's.
     expect(readFileSync(aside, 'utf8')).toBe('mainline');
+  });
+
+  it("keeps the mainline's cases it set aside when this push is kept before the review reads them", async () => {
+    const { clone, kept } = await pullRequest();
+    const own = testCoverageFile(clone, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(own, 'mainline');
+    const carried = join(clone, '.carried');
+    await carry(carried, 'unit', runsAt(kept));
+
+    const against = (await takePushed(clone, carried)).against?.unit;
+    await keepPushed(clone, carried);
+
+    expect(against).toBeDefined();
+    expect(readFileSync(against!, 'utf8')).toBe('mainline');
   });
 
   it('leaves the record a restore laid when the last push\'s cannot be taken', async () => {
@@ -147,6 +163,24 @@ describe('a pull request reads from what its last push ran', () => {
 
     expect((await takePushed(clone, carried)).left).toEqual([{ suite: 'unit', missing: [lost] }]);
     expect(readFileSync(own, 'utf8')).toBe('mainline');
+  });
+
+  it('leaves a suite the last push recorded under other probes, which no run here can be laid over', async () => {
+    const { clone, kept } = await pullRequest();
+    const own = testCoverageFile(clone, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(own, 'mainline');
+    const carried = join(clone, '.carried');
+    await carry(carried, 'unit', runsAt(kept));
+    await writeTestCoverage(join(carried, 'unit', 'coverage.bin'), { version: 3, instrumentation: 'earlier-probes', tests: [], modules: [] });
+
+    const taken = await takePushed(clone, carried, { instrumentation: 'these-probes' });
+
+    expect(taken).toEqual({ taken: [], left: [{ suite: 'unit', instrumentation: 'earlier-probes', run: 'these-probes' }] });
+    expect(readFileSync(own, 'utf8')).toBe('mainline');
+    expect(takenLines(taken)).toEqual([
+      "unit reads the mainline's record: the last push recorded under the probes `earlier-probes`, and this run records under `these-probes`, so no run here can be laid over it.",
+    ]);
   });
 
   it('keeps every suite this push recorded, with what a run left half-written left out', async () => {
@@ -231,7 +265,7 @@ describe('`carry take|keep` as a workflow step reads it', () => {
 
     await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'github' }, clone, to);
 
-    const aside = join(carried, '.mainline', 'unit', 'coverage.bin');
+    const aside = join(clone, AGAINST, 'unit', 'coverage.bin');
     expect(said.out).toBe(`taken=unit\nleft=chromium\nagainst-unit=${aside}\n`);
     expect(said.err).toBe(
       `unit reads from what the last push ran. The mainline's cases are at ${aside}, for \`review --against\`.\n` +
@@ -267,6 +301,23 @@ describe('`carry take|keep` as a workflow step reads it', () => {
     expect(said.out).toBe(
       "unit reads from what the last push ran. Neither the restore nor the share gave a mainline record, so a review compares its cases with the last push's.\n",
     );
+  });
+
+  it('takes a suite against the probes the run it precedes records under', async () => {
+    const { clone, kept } = await pullRequest();
+    const carried = join(clone, '.carried');
+    await carry(carried, 'unit', runsAt(kept));
+    const record = join(carried, 'unit', 'coverage.bin');
+    await writeTestCoverage(record, { version: 3, instrumentation: 'earlier-probes', tests: [], modules: [] });
+
+    const earlier = streams();
+    await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'github' }, clone, earlier.streams);
+    expect(earlier.said.out).toBe('taken=\nleft=unit\n');
+
+    await writeTestCoverage(record, { version: 3, instrumentation: instrumentationId(), tests: [], modules: [] });
+    const these = streams();
+    await movePushed({ command: 'carry', direction: 'take', dir: carried, format: 'github' }, clone, these.streams);
+    expect(these.said.out).toBe('taken=unit\nleft=\n');
   });
 
   it('says nothing was carried, and keeps nothing when no suite recorded', async () => {

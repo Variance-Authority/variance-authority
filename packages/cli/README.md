@@ -3188,8 +3188,9 @@ ran, red or green:
 
 Only selection reads the pushed record. `take` prints the mainline's cases
 for each suite it takes as `against-<suite>`: the record the restore laid,
-set aside before `take` replaced it, or, where the restore laid none, the
-cases the share holds. Pass it to `variance review --against`, so the change's
+set aside under `.variance/against` before `take` replaced it, or, where the
+restore laid none, the cases the share holds. `keep` leaves it there, so the
+review may run before or after `keep`. Pass it to `variance review --against`, so the change's
 cases are compared with the mainline's rather than the last push's. A suite
 neither gave a record prints none, and `take` says so: put the restore before
 `take`.
@@ -3200,7 +3201,9 @@ from `origin` by name, each alone in a shallow clone. A workflow that merges a
 pull request itself, rather than checking out GitHub's merge, makes commits no
 remote holds, and fetches them into the clone before `take`. A suite whose
 commits cannot all be had keeps the mainline's record and `take` names it, so
-that push runs as a first push does. Both read `.variance/pushed` unless you
+that push runs as a first push does. So does a suite the last push recorded
+under other probes than this build records under, after an upgrade of
+variance: no run here could be laid over it. Both read `.variance/pushed` unless you
 name another directory: `variance carry take <dir>`. Under `--format github`,
 `take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
 prints `kept=<suite> <suite>`; the lines saying why go to stderr.
