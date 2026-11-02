@@ -107,7 +107,8 @@ OpenTelemetry, register your provider and instrumentation in that module and
 export `openTelemetry(require('@opentelemetry/api'))`.
 
 Jest requires the module once per worker, outside every test file's sandbox,
-and your `testEnvironment` still runs. It can't be a setup file. Setup files
+and your `testEnvironment`, a test file's `@jest-environment` and your
+`runtime` still run. It can't be a setup file. Setup files
 run again in each test file, and an SDK hooks `fetch` for the whole process, so
 a second initialization leaves the first file's hooks behind. The next file in
 that worker would then send the wrong trace.

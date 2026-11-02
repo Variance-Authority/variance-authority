@@ -9,9 +9,9 @@ import {
   RUN_DIRECTORY_VARIABLE,
   SELECTION_GLOBALS,
   SELECTION_REPORTER,
+  SELECTION_RUNTIME,
   SELECTION_SETUP,
   SELECTION_TRANSFORM,
-  TRACE_ENVIRONMENT,
   withJourneyCoverage,
   withTestSelection,
 } from './jest.js';
@@ -50,6 +50,7 @@ describe('withJourneyCoverage for Jest', () => {
     expect(configured.transform).toEqual({
       '\\.tsx?$': [SELECTION_TRANSFORM, {
         root: '/repo',
+        runtime: SELECTION_RUNTIME,
         transformer: '@swc/jest',
         exclude: ['/repo/test/environment.ts'],
         cadence: false,
@@ -63,25 +64,35 @@ describe('withJourneyCoverage for Jest', () => {
     ]);
   });
 
-  it('runs the project environment through one that requires the trace once per worker', async () => {
+  it('constructs every runtime through ours, which requires the trace once per worker', () => {
     const rootDir = resolve(import.meta.dirname, '../..');
     const configured = withJourneyCoverage(
-      { rootDir, testEnvironmentOptions: { customExportConditions: ['node'] } },
+      { rootDir, testEnvironment: 'jsdom', testEnvironmentOptions: { customExportConditions: ['node'] } },
       { journeyFile: 'journeys.bin', trace: '<rootDir>/test/sentry.cjs' },
     );
 
-    expect(configured.testEnvironment).toMatch(/jest-environments\/v1%3A[0-9a-f]+\.mjs$/);
-    expect(await readFile(configured.testEnvironment as string, 'utf8')).toContain(TRACE_ENVIRONMENT);
+    // The environment is Jest's to choose per file; only the runtime is ours.
+    expect(configured.testEnvironment).toBe('jsdom');
+    expect(configured['runtime']).toBe(SELECTION_RUNTIME);
     expect(configured.testEnvironmentOptions).toEqual({
       customExportConditions: ['node'],
-      varianceAuthority: {
-        // Unset is Jest's `node`, resolved the way Jest resolves a name.
-        environment: expect.stringMatching(/jest-environment-node\/build\/index\.js$/),
-        trace: resolve(rootDir, 'test/sentry.cjs'),
-      },
+      varianceAuthority: { root: expect.any(String), trace: resolve(rootDir, 'test/sentry.cjs') },
     });
     expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
       .toThrow(/is not a path/);
+  });
+
+  it("constructs the project's own runtime, resolved as Jest resolves it", () => {
+    const rootDir = resolve(import.meta.dirname, '../..');
+    const configured = withJourneyCoverage(
+      { rootDir, runtime: '<rootDir>/test/runtime.cjs' },
+      { journeyFile: 'journeys.bin' },
+    );
+
+    expect(configured['runtime']).toBe(SELECTION_RUNTIME);
+    expect(configured.testEnvironmentOptions).toEqual({
+      varianceAuthority: { root: expect.any(String), runtime: resolve(rootDir, 'test/runtime.cjs') },
+    });
   });
 
   it.todo('marks the modules `unprobed` names as loaded, as withTestSelection does — needs `unprobed` on JestJourneyCoverageOptions');
@@ -182,13 +193,15 @@ describe('withTestSelection for Jest', () => {
     expect(configured.transform).toEqual({
       '\\.tsx?$': [SELECTION_TRANSFORM, {
         root,
+        runtime: SELECTION_RUNTIME,
         transformer: ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
-        exclude: [resolve(root, 'test/environment.ts'), resolve(root, 'tsconfig.json')],
+        exclude: [resolve(root, 'tsconfig.json')],
       }],
       '\\.css$': [SELECTION_TRANSFORM, {
         root,
+        runtime: SELECTION_RUNTIME,
         transformer: 'jest-transform-css',
-        exclude: [resolve(root, 'test/environment.ts'), resolve(root, 'tsconfig.json')],
+        exclude: [resolve(root, 'tsconfig.json')],
       }],
     });
   });
@@ -215,22 +228,27 @@ describe('withTestSelection for Jest', () => {
       {
         displayName: 'node',
         rootDir: '/repo/packages/node',
-        transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: 'babel-jest' }] },
+        transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: 'babel-jest' }] },
         // The sandbox learns its project's name from here, for the case ids.
         globals: { 'variance-authority.project': 'node' },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
         setupFilesAfterEnv: [SELECTION_SETUP],
         unmockedModulePathPatterns: [expect.any(String)],
+        runtime: SELECTION_RUNTIME,
+        // Inputs are named against the run's repository, not the project's root.
+        testEnvironmentOptions: { varianceAuthority: { root: '/repo' } },
       },
       {
         displayName: 'dom',
         testEnvironment: 'jsdom',
         rootDir: '/repo',
-        transform: { '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest' }] },
+        transform: { '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: '@swc/jest' }] },
         globals: { 'variance-authority.project': 'dom' },
         setupFiles: [SELECTION_GLOBALS],
         setupFilesAfterEnv: [SELECTION_SETUP],
         unmockedModulePathPatterns: [expect.any(String)],
+        runtime: SELECTION_RUNTIME,
+        testEnvironmentOptions: { varianceAuthority: { root: '/repo' } },
       },
     ]);
     expect(configured.reporters).toEqual([
@@ -246,7 +264,7 @@ describe('withTestSelection for Jest', () => {
     );
 
     expect(configured.transform).toEqual({
-      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', mode: 'entries' }],
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: '@swc/jest', mode: 'entries' }],
     });
     expect(configured.reporters).toEqual([
       'default',
@@ -261,7 +279,7 @@ describe('withTestSelection for Jest', () => {
     );
 
     expect(configured.transform).toEqual({
-      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '/elsewhere/world.ts'] }],
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '/elsewhere/world.ts'] }],
     });
   });
 
@@ -272,7 +290,7 @@ describe('withTestSelection for Jest', () => {
     );
 
     expect(configured.transform).toEqual({
-      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: '@swc/jest', unprobed: ['/repo/src/page/**', '!/repo/src/page/keep.ts'] }],
     });
   });
 
@@ -283,7 +301,7 @@ describe('withTestSelection for Jest', () => {
     );
 
     expect(configured.transform).toEqual({
-      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', cadence: false }],
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: '@swc/jest', cadence: false }],
     });
   });
 
@@ -311,12 +329,12 @@ describe('withTestSelection for Jest', () => {
   it('wraps what Jest would have run when the configuration names no transform', () => {
     const configured = withTestSelection({ rootDir: '/repo' }, { coverageFile: 'coverage.bin' });
     expect(configured.transform).toEqual({
-      '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: 'babel-jest' }],
+      '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: 'babel-jest' }],
     });
     expect(configured.reporters).toEqual(['default', [SELECTION_REPORTER, expect.anything()]]);
 
     const plain = withTestSelection({ rootDir: '/repo', transform: {} }, { coverageFile: 'coverage.bin' });
-    expect(plain.transform).toEqual({ '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo' }] });
+    expect(plain.transform).toEqual({ '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME }] });
   });
 
 });

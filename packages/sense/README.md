@@ -672,8 +672,8 @@ module.exports = sentry(Sentry);
 Name that module as `withJourneyCoverage`'s `trace`: `trace: './test/trace.cjs'`. With
 OpenTelemetry, register your provider and export
 `openTelemetry(require('@opentelemetry/api'))`. Jest requires the module once
-per worker, outside every test file's sandbox, and your `testEnvironment`
-still runs. A setup file runs again in each test file. An SDK hooks `fetch` for
+per worker, outside every test file's sandbox, and your `testEnvironment`, a
+test file's `@jest-environment` and your `runtime` still run. A setup file runs again in each test file. An SDK hooks `fetch` for
 the whole process, so a second initialization leaves the first file's hooks
 sending its trace from the next file's cases.
 

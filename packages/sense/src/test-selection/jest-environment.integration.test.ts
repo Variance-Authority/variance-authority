@@ -56,3 +56,40 @@ it.each(['native-environment.mjs', 'native/environment.js', 'mixed-environment.c
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+it.each([
+  ['Jest\'s runtime', {}],
+  ['the project\'s runtime', { FIXTURE_RUNTIME: '<rootDir>/runtime.cjs' }],
+])('charges a docblock environment, entry and dependencies, to the file that names it alone, under %s, cold and cached', async (_, runtime) => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'variance-docblock-environment-'));
+  try {
+    const coverageFile = resolve(directory, 'coverage.bin');
+    // One worker: both files, with different environments, run in it.
+    const run = () => execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
+      cwd: fixture,
+      env: {
+        ...process.env,
+        ...runtime,
+        FIXTURE_COVERAGE: coverageFile,
+        FIXTURE_CACHE: resolve(directory, 'cache'),
+        FIXTURE_ENVIRONMENT: 'node',
+        FIXTURE_MATCH: '<rootDir>/docblock/*.case.js',
+      },
+    });
+    const inputs = [at('environment.ts'), at('src/environment-only.js'), at('src/shared.js'), at('src/environment-data.json')];
+    const change = (file: string) => `--- a/${at(file)}\n+++ b/${at(file)}\n@@ -1 +1 @@\n-${'x'}\n+${'y'}\n`;
+    for (const _ of [0, 1]) {
+      await run();
+      const record = decodeTestCoverage(await readFile(coverageFile));
+      expect(record.tests.map(({ file }) => file).sort()).toEqual([at('docblock/local.case.js'), at('docblock/plain.case.js')]);
+      expect(record.tests.every((test) => test.complete)).toBe(true);
+      const names = (file: string) => record.tests.find((test) => test.file === at(file))!.preconditions.map(({ name }) => name);
+      expect(names('docblock/local.case.js')).toEqual(expect.arrayContaining(inputs));
+      expect(names('docblock/plain.case.js').filter((name) => inputs.includes(name))).toEqual([]);
+      expect(await selectTestFiles(coverageFile, change('environment.ts'))).toEqual([at('docblock/local.case.js')]);
+      expect(await selectTestFiles(coverageFile, change('src/environment-only.js'))).toEqual([at('docblock/local.case.js')]);
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);

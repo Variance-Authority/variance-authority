@@ -25,7 +25,7 @@ export function setupPaths(config: JestConfig, rootDir: string): readonly string
     .flatMap((file) => configuredPath(file, rootDir));
 }
 
-/** A custom environment runs before `setupFiles`, so it is an input and never probed source. */
+/** The project's configured environment when it is a file: what selection falls back on before a run has recorded one. */
 export function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
   return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
 }
