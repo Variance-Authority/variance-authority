@@ -119,3 +119,27 @@ live('stories switched on one page under the isolator', () => {
     }
   }, 120_000);
 });
+
+live('what a story leaves on the page, outside its modules', () => {
+  it('ends with the story, and the next story still renders and answers a click', async () => {
+    // A page of its own: the stories before left it holding their registrations.
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    try {
+      await show(page, ['isolated-leftover--leaves']);
+      expect(await page.evaluate(() => globalThis.leftover)).toBe('left');
+      await show(page, ['isolated-leftover--counts']);
+      await page.locator('#storybook-root button').click();
+      await expect.poll(() => page.locator('#storybook-root output').textContent()).toBe('1');
+      // The timers are the subject: the interval the story left must not tick after it.
+      const left = await page.evaluate(async () => {
+        const ticks = document.body.dataset.ticks;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return { global: globalThis.leftover, ticking: document.body.dataset.ticks !== ticks };
+      });
+      expect(left).toEqual({ global: undefined, ticking: false });
+    } finally {
+      await page.close();
+    }
+  }, 120_000);
+});

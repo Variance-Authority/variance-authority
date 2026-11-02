@@ -80,3 +80,10 @@ export const registerResetHandler = (handler: ResetHandler): (() => void) => gat
  * @returns a function that unregisters it.
  */
 export const registerTestScope = (scope: TestScope): (() => void) => gated(scope, (state) => state.scopes, scope.enterTest);
+
+/**
+ * Whether a test setup has installed a driver in this realm. A scope that
+ * registers once one exists joined a file the driver already entered, and
+ * hears nothing until the next test starts.
+ */
+export const driverInstalled = (): boolean => realm().configured;

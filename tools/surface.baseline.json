@@ -1255,6 +1255,7 @@
       "./reset": {
         "ResetHandler": "type",
         "TestScope": "interface",
+        "driverInstalled": "const",
         "registerResetHandler": "const",
         "registerTestScope": "const"
       },
@@ -1269,8 +1270,8 @@
       "type": "module",
       "exports": {
         ".": {
-          "types": "./dist/session.d.ts",
-          "default": "./dist/session.js"
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
         },
         "./runtime": {
           "types": "./dist/runtime.d.ts",
@@ -1313,10 +1314,18 @@
     },
     "names": {
       ".": {
+        "IsolateListenersOptions": "interface",
+        "LeftListener": "interface",
+        "PerSessionOptions": "interface",
         "SessionSource": "type",
         "addSessionSource": "function",
         "currentSession": "function",
-        "nextSession": "function"
+        "isolateEnv": "function",
+        "isolateGlobals": "function",
+        "isolateListeners": "function",
+        "isolateTimers": "function",
+        "nextSession": "function",
+        "perSession": "function"
       },
       "./runtime": {
         "Frame": "interface",

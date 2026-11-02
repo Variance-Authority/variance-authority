@@ -1,14 +1,17 @@
-import { nextSession } from '@variance-authority/isolator';
+import { isolateGlobals, isolateTimers, nextSession } from '@variance-authority/isolator';
 import { addons } from 'storybook/preview-api';
 
 /** The stories that keep the session of the story before them: the leak the reset removes. */
 const SHARED = new Set(['isolated-tally--shared-first', 'isolated-tally--shared-second']);
 
-// Storybook imports the next story's file before it tears the last story down
-// and runs any loader, so the reset answers the switch itself: the story file,
-// every module it loads for the first time, and every loader, decorator, render
-// and play function read the session it starts, as on a fresh page.
-addons.getChannel().on('setCurrentStory', ({ storyId }) => {
+// What a story leaves on the page outside its modules: its timers and what it
+// adds to `window` end with it.
+isolateTimers();
+isolateGlobals();
+
+// The reset answers the selection, before Storybook imports the story's file,
+// and the story the URL opens is selected too.
+addons.getChannel().on('currentStoryWasSet', ({ storyId }) => {
   if (!SHARED.has(storyId)) nextSession();
 });
 
