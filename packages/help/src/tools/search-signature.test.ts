@@ -2,7 +2,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
+import { readWorkspace } from '../read.js';
+import { publishWorkspaceFromIndex } from '../refresh-native.js';
+import { readSearchSnapshot } from '../snapshot.js';
 import type { SearchIndex } from '../search-index.js';
+import { describedShown, type DescribedDeclaration } from './described.js';
 import { searchNames } from './search-answer.js';
 import { searchIndexOf } from './search.js';
 
@@ -24,6 +28,7 @@ const PUBLISHED = [
   '/** Pairs the baseline with the candidate. */',
   'export function matchNodes(left: SemanticNode, right: SemanticNode): number {\n  return left.at - right.at;\n}',
   'export interface SemanticNode {\n  readonly at: number;\n}',
+  'export type matchShape = { readonly baseline: number };',
 ].join('\n');
 
 // Exported by a file no entrypoint reaches, in the reverse of the order expected.
@@ -33,9 +38,9 @@ const UNPUBLISHED = [
   '/** Reads it from the finished file. */',
   'export function coverageRow(): number {\n  return 0;\n}',
   'export interface FinishedFile {\n  readonly at: number;\n}',
+  'export type coverageShape = { readonly finished: number };',
 ].join('\n');
 
-let index: SearchIndex;
 let root: string;
 
 beforeAll(async () => {
@@ -46,21 +51,58 @@ beforeAll(async () => {
     'packages/trees/src/index.ts': `${PUBLISHED}\n`,
     'packages/trees/src/unpublished.ts': `${UNPUBLISHED}\n`,
   });
-  index = searchIndexOf(readHelp(root));
 });
 
 afterAll(() => vi.unstubAllEnvs());
 
-const describedFirst = (query: string): readonly string[] =>
-  (searchNames(index, { query }, treeOf([], root), root).described?.shown ?? []).map((one) => ('name' in one ? one.name : one.at));
+// Each reading collects the exported rows with its own collector: the package
+// stage's walk of the disk, Help's join over the source index's parses, and the
+// scanner's, which refreshes what was published last.
+describe.each<[string, () => Promise<SearchIndex>]>([
+  ['read off the disk', async () => searchIndexOf(readHelp(root))],
+  ['read through the source index', async () => searchIndexOf(await readWorkspace(root))],
+  ['refreshed by the scanner', async () => {
+    await publishWorkspaceFromIndex(root);
+    await publishWorkspaceFromIndex(root);
+    return readSearchSnapshot(root);
+  }],
+])('the words a signature holds, %s', (_, read) => {
+  let index: SearchIndex;
+  beforeAll(async () => {
+    index = await read();
+  });
 
-describe('the words a signature holds', () => {
+  const shownFor = (query: string) => searchNames(index, { query }, treeOf([], root), root).described?.shown ?? [];
+  const describedFirst = (query: string): readonly string[] => shownFor(query).map((one) => ('name' in one ? one.name : one.at));
+  const wordsOf = (query: string, name: string) => shownFor(query).find((one) => 'name' in one && one.name === name)?.words;
+
   it('put a published row holding them after one whose doc holds them, and before one holding only its name', () => {
-    expect(describedFirst('match baseline candidate').filter((name) => name.startsWith('match'))).toEqual(['matchNodes', 'matchTrees', 'matchAll']);
+    expect(describedFirst('match baseline candidate').filter((name) => name.startsWith('match') && name !== 'matchShape')).toEqual(['matchNodes', 'matchTrees', 'matchAll']);
   });
 
-  it('put an exported row holding them, its parameter types and their comments included, after one whose doc holds them, and before one holding only its name', () => {
-    expect(describedFirst('coverage finished file').filter((name) => name.startsWith('coverage'))).toEqual(['coverageRow', 'coverageTest', 'coverageAll']);
-    expect(describedFirst('coverage asked task').filter((name) => name.startsWith('coverage'))[0]).toBe('coverageTest');
+  it('put an exported row holding them, its parameter types included, after one whose doc holds them, and before one holding only its name', () => {
+    expect(describedFirst('coverage finished file').filter((name) => name.startsWith('coverage') && name !== 'coverageShape')).toEqual(['coverageRow', 'coverageTest', 'coverageAll']);
   });
+
+  it('are the names it writes, not the words of a comment inside it', () => {
+    expect(wordsOf('coverage asked task', 'coverageTest')).toEqual(['coverage', 'task']);
+  });
+
+  // A type alias has no head before a body: what it writes after `=` is its body.
+  it('are none of a type alias, whose text is its body', () => {
+    expect(wordsOf('match baseline candidate', 'matchShape')).toEqual(['match']);
+    expect(wordsOf('coverage finished file', 'coverageShape')).toEqual(['coverage']);
+  });
+});
+
+// A word only a signature holds reaches no name, and shows no row in a better one's place.
+it('show no row in the place of a better one for a word only its signature holds', async () => {
+  const index = searchIndexOf(readHelp(root));
+  const row = (at: string, words: string[], signed: string[] = []): DescribedDeclaration => ({
+    match: { source: 'declared', name: `${at}Kept`, kind: 'function', at, line: 1 },
+    words, named: [], signed, near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER, docLength: 40,
+  });
+  const reached = [row('a.ts', ['alpha', 'gamma']), row('b.ts', ['alpha', 'gamma']), row('c.ts', ['alpha', 'beta'], ['beta'])];
+  const shown = describedShown(index, 'alpha beta gamma', reached, 2, reached);
+  expect(shown.map((one) => ('match' in one ? one.match.at : ''))).toEqual(['a.ts', 'b.ts']);
 });

@@ -580,7 +580,9 @@ words it holds. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
 the words each holds, each counted by how few of the names and files found
 hold it, three times over when the name holds it and twice when a doc of the
-mean length or a shorter one does, less for a longer one, and that sum times
+mean length or a shorter one does, less for a longer one, and a half when only
+its signature does — the names its parameters and their types are written with,
+never a comment or a string in it — and that sum times
 how much of the query the row holds wherever it holds it, the same rarities
 summed alone — then by how many of them its name holds, then by how many of the query's
 adjacent word pairs its doc writes as a phrase, by the same rule: counts, never a score. A name
@@ -592,7 +594,9 @@ whatever either says. A word most docs say in passing tells you little about whi
 you meant, so `stopwords of a package` puts `describedNames`, whose doc says
 `stopword`, before `packageOf`, whose name says `package`. Every word one of them holds is held by a row shown, so the
 one name holding a rare word is shown however many holding a common one sort
-before it. A name weighed through a row holding fewer than half the words,
+before it. A word only a signature holds reaches no name and shows no row on its
+own: it adds weight to a name the name or a doc reached. A type alias writes no
+signature, since what follows its `=` is its body. A name weighed through a row holding fewer than half the words,
 which the loose reading reaches by every word, is told there instead, so on three words or
 more, names holding one common word never sort it out of sight.
 The words every package says about itself — `package`, `module`, `use`,

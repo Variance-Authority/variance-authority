@@ -227,7 +227,12 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 })
             };
             let doc = doc.and_then(|span| crate::dependency_namespace::doc(utf16, Some(span)));
-            let signature = signature.and_then(|span| crate::dependency_namespace::text(utf16, Some(span)));
+            // The head as `headOf` keeps it: its trailing `;` dropped, and nothing when nothing is left.
+            let signature = signature.and_then(|span| crate::dependency_namespace::text(utf16, Some(span))).and_then(|head| {
+                let head = head.trim_end();
+                let head = head.strip_suffix(';').unwrap_or(head);
+                (!head.is_empty()).then(|| head.to_owned())
+            });
             part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), declaration, doc, signature });
         }
     }
