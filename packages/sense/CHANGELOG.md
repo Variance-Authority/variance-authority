@@ -1,5 +1,11 @@
 # @variance-authority/sense
 
+## 0.23.0
+
+### Patch Changes
+
+- 7a8fa91: `namedCommits` names the commits a selection reads from a record: where it was recorded, where its runs started, and where each test stands.
+
 ## 0.22.0
 
 ### Minor Changes
