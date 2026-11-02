@@ -412,9 +412,13 @@ export function withJourneyCoverage(
  */
 function selecting(config: JestConfig, root: string, rootDir: string, trace: string | undefined): JestConfig {
   const named = config['runtime'] as string | undefined;
+  const carried = (config['globals'] as { [RUNTIME_GLOBAL]?: { runtime?: string } } | undefined)?.[RUNTIME_GLOBAL];
+  // A config wrapped before already names ours; the project's is the one that wrap carried.
   const runtime = named === undefined
     ? undefined
-    : configuredPath(named, rootDir)[0] ?? createRequire(resolve(rootDir, 'package.json')).resolve(named);
+    : named === SELECTION_RUNTIME
+      ? carried?.runtime
+      : configuredPath(named, rootDir)[0] ?? createRequire(resolve(rootDir, 'package.json')).resolve(named);
   return {
     ...config,
     runtime: SELECTION_RUNTIME,

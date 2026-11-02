@@ -82,8 +82,6 @@ function observeNativeImports(): void {
   });
 }
 
-const installed = (file: string): boolean => /[\\/]node_modules[\\/]/u.test(file);
-
 /** The recording bootstrap is not a product environment input. */
 function intrinsic(file: string): boolean {
   return file.startsWith(RUNTIME);
@@ -137,10 +135,13 @@ function environmentOf(jest: NodeJS.Require, config: ProjectConfig, source: stri
 /** The CommonJS modules the environment loaded, its entry included, even when a previous test already cached them. */
 function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
   const paths = new Set<string>();
+  // What required the environment — Jest's loader — required every other one for
+  // Jest too: its children are not this environment's inputs.
+  const loaders = new Set(Object.values(require.cache).filter((cached) => cached?.children.includes(entry)));
   const pending = [entry];
   for (let at = 0; at < pending.length; at += 1) {
     const module = pending[at];
-    if (module === undefined || paths.has(module.filename) || intrinsic(module.filename)) continue;
+    if (module === undefined || paths.has(module.filename) || intrinsic(module.filename) || loaders.has(module)) continue;
     if (nodeUtil.types.isModuleNamespaceObject(module.exports) && markOnce(root, module.filename) !== undefined) unavailable(module.filename);
     const native = [...nativeImports.get(module.filename) ?? []];
     const seenNative = new Set<string>();
@@ -152,10 +153,7 @@ function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
       native.push(...nativeImports.get(target) ?? []);
     }
     paths.add(module.filename);
-    // A package's children include what it required for anybody: `jest-util`
-    // requires every environment Jest loads. Below the entry, only the
-    // checkout's own modules say what the environment imported.
-    if (module === entry || !installed(module.filename)) pending.push(...module.children);
+    pending.push(...module.children);
   }
   const known = new Map(collectors.attach(globalThis as { __VA__?: unknown }, false).registered()
     .map((id) => [path.resolve(root, moduleIds.pathOf(id)), moduleIds.marked(id)]));

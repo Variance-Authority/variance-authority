@@ -64,6 +64,15 @@ describe('withJourneyCoverage for Jest', () => {
     });
   });
 
+  it("keeps the project's runtime through a second wrap, never naming its own", () => {
+    const rootDir = resolve(import.meta.dirname, '../..');
+    const once = withJourneyCoverage({ rootDir, runtime: '<rootDir>/test/runtime.cjs' }, { journeyFile: 'journeys.bin' });
+    const twice = withJourneyCoverage(once, { journeyFile: 'journeys.bin' });
+
+    expect(twice['runtime']).toBe(SELECTION_RUNTIME);
+    expect(twice.globals).toEqual(once.globals);
+  });
+
   it("leaves a preset's environment options to the preset", () => {
     // Jest merges `globals` with a preset, and spreads every other key over it.
     const configured = withJourneyCoverage({ rootDir: '/repo', preset: 'ts-jest' }, { journeyFile: 'journeys.bin' });

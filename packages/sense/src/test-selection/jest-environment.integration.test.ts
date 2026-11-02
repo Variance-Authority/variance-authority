@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -62,6 +62,10 @@ it.each([
   ['the project\'s runtime', { FIXTURE_RUNTIME: '<rootDir>/runtime.cjs' }],
 ])('charges a docblock environment, entry and dependencies, to the file that names it alone, under %s, cold and cached', async (_, runtime) => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-docblock-environment-'));
+  // Installed, so ignored: the package an environment loads a repository file through.
+  const installed = resolve(fixture, 'node_modules/load-setting');
+  await mkdir(installed, { recursive: true });
+  await writeFile(resolve(installed, 'index.js'), 'module.exports = (file) => require(file);\n');
   try {
     const coverageFile = resolve(directory, 'coverage.bin');
     // One worker: both files, with different environments, run in it.
@@ -77,19 +81,25 @@ it.each([
       },
     });
     const inputs = [at('environment.ts'), at('src/environment-only.js'), at('src/shared.js'), at('src/environment-data.json')];
+    const packaged = [at('packaged-environment.cjs'), at('src/packaged-setting.cjs')];
     const change = (file: string) => `--- a/${at(file)}\n+++ b/${at(file)}\n@@ -1 +1 @@\n-${'x'}\n+${'y'}\n`;
     for (const _ of [0, 1]) {
       await run();
       const record = decodeTestCoverage(await readFile(coverageFile));
-      expect(record.tests.map(({ file }) => file).sort()).toEqual([at('docblock/local.case.js'), at('docblock/plain.case.js')]);
+      expect(record.tests.map(({ file }) => file).sort()).toEqual([at('docblock/local.case.js'), at('docblock/packaged.case.js'), at('docblock/plain.case.js')]);
       expect(record.tests.every((test) => test.complete)).toBe(true);
       const names = (file: string) => record.tests.find((test) => test.file === at(file))!.preconditions.map(({ name }) => name);
       expect(names('docblock/local.case.js')).toEqual(expect.arrayContaining(inputs));
-      expect(names('docblock/plain.case.js').filter((name) => inputs.includes(name))).toEqual([]);
+      expect(names('docblock/packaged.case.js')).toEqual(expect.arrayContaining(packaged));
+      expect(names('docblock/local.case.js').filter((name) => packaged.includes(name))).toEqual([]);
+      expect(names('docblock/packaged.case.js').filter((name) => inputs.includes(name))).toEqual([]);
+      expect(names('docblock/plain.case.js').filter((name) => [...inputs, ...packaged].includes(name))).toEqual([]);
       expect(await selectTestFiles(coverageFile, change('environment.ts'))).toEqual([at('docblock/local.case.js')]);
       expect(await selectTestFiles(coverageFile, change('src/environment-only.js'))).toEqual([at('docblock/local.case.js')]);
+      expect(await selectTestFiles(coverageFile, change('src/packaged-setting.cjs'))).toEqual([at('docblock/packaged.case.js')]);
     }
   } finally {
+    await rm(installed, { recursive: true, force: true });
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);
