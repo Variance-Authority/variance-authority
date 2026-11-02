@@ -188,7 +188,7 @@ export const uses: Tool<Help> = {
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
     'A name an entry publishes only inside `export * as ns` is said to be published as `ns.name`, and a read ' +
     'through a namespace inside a namespace or one passed on as `default` is a site. ' +
-    'Each file declaring the name declares another thing: the headline names every other one by file and line, and the answer lists every one with its own imports, kept ' +
+    'Each file declaring the name declares another thing: the answer lists every one with its own imports, kept ' +
     'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone.',
   inputSchema: {
     type: 'object',
