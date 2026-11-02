@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { indexAcceptance } from './ask-acceptance.fixture.js';
-import { run } from './ask-packages-fixture.js';
+import { run } from './ask-packages.fixture.js';
 import { filesOf, uses } from './ask-facts.fixture.js';
 
 /**

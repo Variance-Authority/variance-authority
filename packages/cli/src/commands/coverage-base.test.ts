@@ -11,7 +11,7 @@ import {
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import type { Coverage } from './coverage.js';
 
 type Index = Parameters<typeof encodeAsSetExecutionIndex>[0];

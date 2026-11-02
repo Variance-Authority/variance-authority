@@ -8,7 +8,7 @@ import { encodeAsSetExecutionIndex, encodeExecutionIndex, repositoryLayers, test
 import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { hashObject } from './review-fixture.js';
 
 /**
