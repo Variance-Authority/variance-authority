@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { commitRunsFile, repositoryLayers, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { textOver } from './coverage-over-text.js';
 import { ask, atRecord, CART, CART_TEST, checkout, FEE_TEST, json, landed, made, PAY, PAY_FILE, PAY_TEST, REFUNDED, TESTS } from './coverage-over-text.fixture.js';
 

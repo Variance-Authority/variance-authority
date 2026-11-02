@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 
 /**
  * The checkout `variance ask` is measured over for the shape a large

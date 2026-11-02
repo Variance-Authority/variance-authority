@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, paragraph, run } from './ask-packages-fixture.js';
+import { checkout, paragraph, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` over a name several files declare. Each declaration is
