@@ -1,5 +1,15 @@
 # @variance-authority/sense
 
+## 0.24.0
+
+### Minor Changes
+
+- e10f8c8: `ask search` reads the words an exported declaration's signature writes: its parameter names, the type names they are written with, and its return type, a comment among them read as written, and nothing of a type alias, whose text after `=` is its body. They rank a declaration below the words of its name and its doc, so an undocumented `matchTrees(baseline: SemanticNode, candidate: SemanticNode)` answers "matching between baseline and candidate trees". A word only a signature holds reaches no declaration and shows none on its own. Each exported row of the Help value carries its `signature`; the Help snapshot moves to version 11 and the search index to version 5, so an older one is written again rather than answering without signatures.
+
+### Patch Changes
+
+- 894ba65: Jest: a test file that names its own environment with `@jest-environment` now runs under it, and that environment's entry and the repository files it loads are recorded as inputs of that test file alone. The environment is found the way Jest found it, and a project's own `runtime` still runs.
+
 ## 0.23.0
 
 ### Patch Changes
