@@ -33,19 +33,19 @@ const written = (version: number) => ({
 });
 
 describe('the workspace snapshot version', () => {
-  it('is 10, the shape whose exports carry the name they bind', () => {
-    expect(SNAPSHOT_VERSION).toBe(10);
+  it('is 11, the shape whose exports carry the signature of what they bind', () => {
+    expect(SNAPSHOT_VERSION).toBe(11);
   });
 
-  it('refuses a v9 value, written before that shape', async () => {
+  it('refuses a v10 value, written before that shape', async () => {
     const index = join(root, 'source-index.bin');
-    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(9)));
-    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v10 value`);
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(10)));
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v11 value`);
   });
 
   it('reads a value of its own version', async () => {
     const index = join(root, 'source-index.bin');
-    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(10)));
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(11)));
     await expect(readWorkspaceSnapshot(root, { index })).resolves.toMatchObject({ packages: [] });
   });
 });

@@ -20,7 +20,7 @@ import {
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
-import { docOf } from './indexed-surface.js';
+import { docOf, headOf } from './indexed-surface.js';
 
 /** An import by path while its file's targets are still to come. */
 type Pending = { -readonly [key in keyof Deep]: Deep[key] };
@@ -48,8 +48,8 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       if (parsed.unknown !== undefined) usage.unreadable.push(at);
       const kind = kindOf(at);
 
-      // The parse holds where a doc is, not what it says, so the file is read
-      // once for the prose, and only when one of its exports has any.
+      // The parse holds where a doc and a signature are, not what they say, so
+      // the file is read once for the text, and only when an export has either.
       let text: string | undefined;
       const importedHere = new Set(parsed.requests.flatMap((request) => request.bindings.map((binding) => binding.local)));
       for (const published of parsed.exports ?? []) {
@@ -63,8 +63,9 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             : [];
           const bound = named.find((symbol) => symbol.line === published.line) ?? named[0];
           const span = published.doc ?? bound?.doc;
-          if (span !== undefined) text ??= readFileSync(join(root, at), 'utf8');
+          if (span !== undefined || bound?.signature !== undefined) text ??= readFileSync(join(root, at), 'utf8');
           const doc = text === undefined ? undefined : docOf(text, span);
+          const signature = text === undefined ? undefined : headOf(text, bound?.signature);
           // What the export binds in its own file, by the package stage's one rule.
           const own = published.from === undefined ? ownBinding(published.local, importedHere) : undefined;
           usage.exported.push({
@@ -77,6 +78,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             ...(own === undefined ? {} : { bound: own }),
             ...(bound === undefined ? {} : { declaration: bound.kind }),
             ...(doc === undefined ? {} : { doc }),
+            ...(signature === undefined ? {} : { signature }),
           });
         }
       }

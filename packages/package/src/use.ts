@@ -194,6 +194,8 @@ export interface Named {
   readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
+  /** Everything the declaration the export binds in its own file writes before its body, its parameter comments included, and a type alias's whole statement, of which search reads none; absent for `export … from` and when there is none. */
+  readonly signature?: string;
 }
 
 export interface UsageOptions {
@@ -282,6 +284,8 @@ export interface Exported {
   readonly declaration?: string;
   /** The doc comment above the export statement, or above the declaration `export { x }` binds, undented; absent when there is none. */
   readonly doc?: string;
+  /** Everything the declaration the export binds in its own file writes before its body, its parameter comments included, and a type alias's whole statement, of which search reads none; absent for `export … from` and when there is none. */
+  readonly signature?: string;
 }
 
 /**
@@ -317,6 +321,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
         ...(published.bound === undefined ? {} : { bound: published.bound }),
         ...(published.declaration === undefined ? {} : { declaration: published.declaration }),
         ...(published.doc === undefined ? {} : { doc: published.doc }),
+        ...(published.signature === undefined ? {} : { signature: published.signature }),
       });
     }
 

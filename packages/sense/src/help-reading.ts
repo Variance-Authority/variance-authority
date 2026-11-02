@@ -26,6 +26,8 @@ export interface PublishedRows {
   readonly spec: string[];
   readonly kind: string[];
   readonly doc: (string | null)[];
+  /** What each row's declaration writes before its body; null when its entry holds none. */
+  readonly signature: (string | null)[];
   readonly at: string[];
   readonly usedBy: number[];
   readonly uses: number[];

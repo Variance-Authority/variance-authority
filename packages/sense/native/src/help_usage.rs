@@ -47,6 +47,12 @@ pub struct NamedExport {
     /// span the index holds; absent when nothing documents it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
+    /// What the declaration the export binds in the same file writes before its
+    /// body, as `dependency_namespace::text` cuts it from the file at the span
+    /// the index holds, its parameter comments included; absent for an
+    /// `export … from` and when the parse spans none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// An import of a file of a workspace package, rather than of an entry its
@@ -197,8 +203,8 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
-        // The file is read only when an export of it is documented: the index
-        // holds where each comment is, and the text is the file's.
+        // The file is read only when an export of it is documented or binds a
+        // declaration: the index holds where each span is, and the text is the file's.
         let mut source: Option<Vec<u16>> = None;
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
@@ -213,13 +219,21 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 named().find(|&symbol| parses.symbol_line.at(symbol) == line).or_else(|| named().next())
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
-            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol))).and_then(|span| {
-                let utf16 = source.get_or_insert_with(|| {
+            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol)));
+            let signature = bound.and_then(|symbol| parses.signature_of_symbol(symbol));
+            let utf16: &[u16] = if doc.is_none() && signature.is_none() { &[] } else {
+                source.get_or_insert_with(|| {
                     std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
-                });
-                crate::dependency_namespace::doc(utf16, Some(span))
+                })
+            };
+            let doc = doc.and_then(|span| crate::dependency_namespace::doc(utf16, Some(span)));
+            // The head as `headOf` keeps it: its trailing `;` dropped, and nothing when nothing is left.
+            let signature = signature.and_then(|span| crate::dependency_namespace::text(utf16, Some(span))).and_then(|head| {
+                let head = head.trim_end();
+                let head = head.strip_suffix(';').unwrap_or(head);
+                (!head.is_empty()).then(|| head.to_owned())
             });
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), declaration, doc });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), declaration, doc, signature });
         }
     }
     let first = parses.requests.at(row) as usize;

@@ -100,7 +100,9 @@ packages import them. When neither holds your words as written, two more
 follow, each labelled as the reading it is and both before any installed
 package: the names and files holding any of your words, matched by
 stem, a file by its name and the doc it opens with, ranked by how many of
-your words each holds, then by how many its name holds, then by how much of
+your words each holds — in its name over its doc, and its doc over the
+parameters and types its signature writes, which add to a name your words
+reached and reach none on their own — then by how many its name holds, then by how much of
 your phrase its doc writes; then the names your words reach written apart or one character off,
 exported or kept to their file. So `tsconfig custom conditions` answers
 `customConditionsFor` before the bundlers that also say those words, and
