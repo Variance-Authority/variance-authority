@@ -48,6 +48,33 @@ describe('variance ask uses over a name several files declare', () => {
     expect(out).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
   });
 
+  it('names every other declaration by file and line under its headline, before any site', async () => {
+    checkout({
+      ...NAMESAKES,
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, ...rest] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, .*packages\/lib\/src\/greet\.ts:\d+\.$/);
+    expect(rest.slice(0, 4)).toEqual([
+      'It is declared 3 more times, each another thing, answered below:',
+      '  packages/lib/src/kept.ts:1, not exported',
+      '  packages/lib/src/other.ts:1, exported without being published',
+      '  packages/second/src/index.ts:1, published by @acme/second',
+    ]);
+  });
+
+  it('keeps the headline of a name one file declares', async () => {
+    checkout({});
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, next] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package\.$/);
+    expect(next).toMatch(/^Path order; /);
+  });
+
   it('lists the imports of an exported namesake apart, as it lists a kept one', async () => {
     checkout(NAMESAKES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

@@ -72,9 +72,34 @@ export function namesakeLine(name: string, one: Pick<Namesake, 'declaration' | '
  * `asked` says that name, and so does a file that declares it by another.
  */
 export function publishedAt(one: PublishedDeclaration, asked: string): string {
-  const as = (spelled: string): string => (spelled === asked ? '' : spelled === SLOT ? ' as its default' : ` as \`${spelled}\``);
-  const by = one.doors.map(([held, opening, entry]) => `${specifierOf(held, opening)}${as(entry.name)}`).join(', ');
-  return `published by ${by}, declared${as(one.declared)} at ${one.at}:${one.line}`;
+  return `published by ${publishers(one, asked)}, declared${spelledAs(one.declared, asked)} at ${one.at}:${one.line}`;
+}
+
+/**
+ * Every declaration beside the one answered first, by file and line, said
+ * under the headline so that a reader who stops there knows the count is one
+ * declaration's: nothing when the name has one.
+ */
+export function othersLines(name: string, namesakes: readonly Namesake[], kept: readonly DeclaredName[]): readonly string[] {
+  const others = [
+    ...namesakes.map((one) =>
+      one.declaration === undefined
+        ? `${exportedAt(one.exported)}, exported without being published`
+        : `${one.declaration.at}:${one.declaration.line}, published by ${publishers(one.declaration, name)}`,
+    ),
+    ...kept.map((one) => `${one.at}:${one.line}, not exported`),
+  ].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  if (others.length === 0) return [];
+  const times = others.length === 1 ? 'once more, as another thing' : `${others.length} more times, each another thing`;
+  return [`It is declared ${times}, answered below:`, ...others.map((one) => `  ${one}`)];
+}
+
+function publishers(one: PublishedDeclaration, asked: string): string {
+  return one.doors.map(([held, opening, entry]) => `${specifierOf(held, opening)}${spelledAs(entry.name, asked)}`).join(', ');
+}
+
+function spelledAs(spelled: string, asked: string): string {
+  return spelled === asked ? '' : spelled === SLOT ? ' as its default' : ` as \`${spelled}\``;
 }
 
 /** Whether a door publishes the declaration under another name than `asked`, or its file declares it by another. */

@@ -412,7 +412,9 @@ its imports alone.
 Each file that declares a name declares another thing, so `docs_uses` answers
 for every one of them, each kept apart: under the line naming each file that
 exports the name without publishing it come that declaration's own imports, as
-the uses of a kept one come under its own heading. Pass `file`, the file one of
+the uses of a kept one come under its own heading. The lines under the
+headline name every other declaration by file and line, so the count the
+headline gives is read as one declaration's. Pass `file`, the file one of
 them is declared in, to answer for that declaration alone: `variance ask uses
 --name greet --file packages/lib/src/greet.ts`. A `file` that only passes the
 name on with `export … from` answers for the declaration it reaches, and a

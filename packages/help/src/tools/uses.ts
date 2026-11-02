@@ -8,7 +8,7 @@ import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
 import { symbol } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
-import { bracketed, keptLine, namesakeLine, narrowing, publishedAt, renamed } from './uses-declarations.js';
+import { bracketed, keptLine, namesakeLine, narrowing, othersLines, publishedAt, renamed } from './uses-declarations.js';
 import { type Counted, apart, counted, spokenSplit } from './uses-count.js';
 import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
 
@@ -188,7 +188,7 @@ export const uses: Tool<Help> = {
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
     'A name an entry publishes only inside `export * as ns` is said to be published as `ns.name`, and a read ' +
     'through a namespace inside a namespace or one passed on as `default` is a site. ' +
-    'Each file declaring the name declares another thing: the answer lists every one with its own imports, kept ' +
+    'Each file declaring the name declares another thing: the headline names every other one by file and line, and the answer lists every one with its own imports, kept ' +
     'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone.',
   inputSchema: {
     type: 'object',
@@ -369,15 +369,17 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
   const declaration = lead !== undefined && (many || renamed(lead, name)) ? publishedAt(lead, name) : undefined;
   const which = declaration === undefined ? '' : `, ${declaration}`;
   const publishedAs = declaration === undefined ? 'published' : `${declaration},`;
+  // The others are named under the headline, so a reader who stops there knows its count is one declaration's.
+  const others = answer.file === undefined ? othersLines(name, answer.namesakes, answer.kept) : [];
   if (sites.length === 0 && exported.length > 0) {
     const how = member === undefined ? `exported, without being published, at ${exportedAt(exported)}` : `${member}, and exported at ${exportedAt(exported)}`;
-    return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...own].join('\n');
+    return [`${named} is ${how}${passed}, and nothing in this workspace imports it; ${UNCOUNTED}.`, ...others, ...own].join('\n');
   }
   if (sites.length === 0 && unread !== undefined) {
-    return `${named} is ${publishedAs} and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`;
+    return [`${named} is ${publishedAs} and no other package imports it; the imports within its own package are read from the source index, and ${unread}.`, ...others].join('\n');
   }
   if (sites.length === 0) {
-    return [`${named} is ${publishedAs} and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...own].join('\n');
+    return [`${named} is ${publishedAs} and nothing in this workspace imports it; ${UNCOUNTED}. \`${shown.spell.tool(symbol)}\` has its signature and what is written above it.`, ...others, ...own].join('\n');
   }
 
   const nearest = nearestLine(from, shown.spell);
@@ -397,6 +399,7 @@ function imported(answer: Answer, from: string | undefined, own: readonly string
       : `${named} is imported in ${certain.length} ${certain.length === 1 ? 'place' : 'places'}${answer.home === undefined ? '' : spokenSplit(split, answer.home)}${published}${loaded}`;
   return [
     `${taken}${may}`,
+    ...others,
     nearest,
     ...kinds(sites, from, name, shown, answer.home),
     ...own,
