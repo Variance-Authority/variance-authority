@@ -319,7 +319,9 @@ declaration:
 Each file that declares a name declares another thing, so `uses` answers for
 every one of them, each kept apart: the published declaration's imports, a line
 naming each file that exports the name without publishing it followed by that
-declaration's own imports, and each file that keeps it to itself. `--file
+declaration's own imports, and each file that keeps it to itself. The lines
+under the headline name every other declaration by file and line, so the count
+the headline gives is read as one declaration's. `--file
 <path>`, the file one of them is declared in, answers for that declaration
 alone; a file that only passes the name on with `export … from` answers for the
 declaration it reaches. The answer ends by saying so when it covers more than one:

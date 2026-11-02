@@ -63,6 +63,15 @@ describe('variance ask uses over a member', () => {
     expect(out).not.toContain('elsewhere.ts');
   });
 
+  it('names the member under the headline of a declaration its file keeps, before any use', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, ...rest] = (await run(['ask', 'uses', '--name', 'resolveThings'])).out.split('\n');
+    expect(headline).toMatch(/^`resolveThings` \[const\] is declared, not exported, at packages\/lib\/src\/references\.ts:3/);
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/lib/src/native.ts:2, a member of `Scanner`']);
+  });
+
   it('says nothing of types for a name that is no member', async () => {
     checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

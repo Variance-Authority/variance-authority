@@ -48,6 +48,41 @@ describe('variance ask uses over a name several files declare', () => {
     expect(out).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
   });
 
+  it('names every other declaration by file and line under its headline, before any site', async () => {
+    checkout({
+      ...NAMESAKES,
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, ...rest] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, .*packages\/lib\/src\/greet\.ts:\d+\.$/);
+    expect(rest.slice(0, 4)).toEqual([
+      'It is declared 3 more times, each another thing, answered below:',
+      '  packages/second/src/index.ts:1, published by @acme/second',
+      '  packages/lib/src/other.ts:1, exported without being published',
+      '  packages/lib/src/kept.ts:1, not exported',
+    ]);
+  });
+
+  it('names a member by the name with the other declarations under its headline', async () => {
+    checkout({ 'packages/lib/src/shape.ts': 'export interface Shape {\n  greet(): void;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [, ...rest] = (await uses()).split('\n');
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/lib/src/shape.ts:2, a member of `Shape`']);
+  });
+
+  it('keeps the headline of a name one file declares', async () => {
+    checkout({});
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, next] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package\.$/);
+    expect(next).toMatch(/^Path order; /);
+  });
+
   it('lists the imports of an exported namesake apart, as it lists a kept one', async () => {
     checkout(NAMESAKES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -106,8 +141,9 @@ describe('variance ask uses over a name several files declare', () => {
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const [headline] = (await uses()).split('\n');
+    const [headline, ...rest] = (await uses()).split('\n');
     expect(headline).toMatch(/^`greet` \[function\] is published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+, and nothing in this workspace imports it; /);
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/second/src/index.ts:1, published by @acme/second']);
   });
 
   it('answers a value and a type one file declares under one name as one declaration', async () => {
@@ -129,6 +165,7 @@ describe('variance ask uses over a name several files declare', () => {
 
     const out = await uses('--file', 'packages/lib/src/greet.ts');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
+    expect(out).not.toContain('It is declared');
     expect(out).not.toMatch(/other\.ts|unrelated\.ts|kept\.ts/);
   });
 
