@@ -94,45 +94,6 @@ fn headed(kind: &str) -> bool {
     kind != "type"
 }
 
-/// A signature as the code names things in it: each comment and each string a
-/// space, so its terms are the names the source writes, never a comment's words
-/// or a default's text. A comment opener inside a string opens nothing.
-fn code_of(signature: &str) -> String {
-    let mut code = String::with_capacity(signature.len());
-    let mut chars = signature.chars().peekable();
-    while let Some(at) = chars.next() {
-        match at {
-            '\'' | '"' | '`' => {
-                while let Some(inside) = chars.next() {
-                    if inside == '\\' {
-                        chars.next();
-                    } else if inside == at {
-                        break;
-                    }
-                }
-                code.push(' ');
-            }
-            '/' if chars.peek() == Some(&'/') => {
-                while chars.next_if(|&inside| inside != '\n').is_some() {}
-                code.push(' ');
-            }
-            '/' if chars.peek() == Some(&'*') => {
-                chars.next();
-                let mut star = false;
-                for inside in chars.by_ref() {
-                    if star && inside == '/' {
-                        break;
-                    }
-                    star = inside == '*';
-                }
-                code.push(' ');
-            }
-            _ => code.push(at),
-        }
-    }
-    code
-}
-
 /// The tokenizer and term rule `termsOf` gives the loose pass: each token whole
 /// and, when it is written in several words, each word (`words_of`); short
 /// terms dropped, counted in UTF-16 code units, the rest lowercased; once each.
@@ -273,7 +234,7 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     let doc_terms: Vec<HashSet<String>> =
         published.doc.par_iter().map(|doc| doc.as_deref().map(|doc| terms_of(&split, doc)).unwrap_or_default()).collect();
     let pub_signature_terms: Vec<HashSet<String>> =
-        published.signature.par_iter().zip(&published.kind).map(|(signature, kind)| headed(kind).then_some(signature.as_deref()).flatten().map(|signature| terms_of(&split, &code_of(signature))).unwrap_or_default()).collect();
+        published.signature.par_iter().zip(&published.kind).map(|(signature, kind)| headed(kind).then_some(signature.as_deref()).flatten().map(|signature| terms_of(&split, signature)).unwrap_or_default()).collect();
     for row in 0..rows {
         let name = name_of!(published.name[row].as_str());
         name_pub[name as usize].push(row as u32);
@@ -303,7 +264,7 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
     let exp_terms: Vec<HashSet<String>> =
         exported.par_iter().map(|named| named.doc.as_deref().map(|doc| terms_of(&split, doc)).unwrap_or_default()).collect();
     let exp_signature_terms: Vec<HashSet<String>> =
-        exported.par_iter().map(|named| named.declaration.as_deref().is_none_or(headed).then_some(named.signature.as_deref()).flatten().map(|signature| terms_of(&split, &code_of(signature))).unwrap_or_default()).collect();
+        exported.par_iter().map(|named| named.declaration.as_deref().is_none_or(headed).then_some(named.signature.as_deref()).flatten().map(|signature| terms_of(&split, signature)).unwrap_or_default()).collect();
     for (row, named) in exported.iter().enumerate() {
         let name = name_of!(named.name.as_str());
         name_exp[name as usize].push(row as u32);

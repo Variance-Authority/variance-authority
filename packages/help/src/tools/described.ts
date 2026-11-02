@@ -72,7 +72,7 @@ export interface DescribedKey {
   readonly words: readonly string[];
   /** Those of them its name holds. */
   readonly named: readonly string[];
-  /** Those of them only its signature holds, neither its name nor its doc; absent when no signature was read. */
+  /** Those of them only its signature holds, neither its name nor its doc; absent on a file, which has no signature. */
   readonly signed?: readonly string[];
   /** How many of the question's adjacent word pairs its doc writes, by {@link nearOfNative}. */
   readonly near: number;
@@ -301,9 +301,9 @@ export function describedShown(
   for (const word of words) {
     if (shown.some((one) => says(one, word))) continue;
     const holder = weighed.find((one) => says(one, word));
-    // The last row whose every word another row shown also holds gives its place.
+    // The last row whose every word it says another row shown also says gives its place.
     let gives = shown.length - 1;
-    while (gives >= 0 && !(shown[gives] as Described).words.every((held) => shown.some((other, at) => at !== gives && says(other, held)))) gives -= 1;
+    while (gives >= 0 && !(shown[gives] as Described).words.every((held) => !says(shown[gives] as Described, held) || shown.some((other, at) => at !== gives && says(other, held)))) gives -= 1;
     if (holder === undefined || gives < 0) continue;
     shown.splice(gives, 1);
     shown.push(holder);
@@ -412,7 +412,7 @@ type Weight = (key: Weighed) => number;
  * The weight of a word by where a row holds it: its name, as a title, over its
  * doc, over its signature — what its declaration writes before its body, the
  * names of its parameters and of the types they are written with, as the source
- * writes them, its comments and strings left out. A signature's word weighs below
+ * writes them, a comment in it included. A signature's word weighs below
  * a doc of up to eight times the mean length, and reaches no name on its own, so
  * `coverageTest(task: FinishedFile)` answers `finished test file` before a name
  * holding only `test`, and after a row whose doc holds the words.

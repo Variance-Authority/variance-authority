@@ -581,8 +581,8 @@ so is a file, by its own name and the doc it opens with. They are ordered by
 the words each holds, each counted by how few of the names and files found
 hold it, three times over when the name holds it and twice when a doc of the
 mean length or a shorter one does, less for a longer one, and a half when only
-its signature does — the names its parameters and their types are written with,
-never a comment or a string in it — and that sum times
+its signature does — the words it writes before its body, its parameters, the
+types they are written with and a comment among them — and that sum times
 how much of the query the row holds wherever it holds it, the same rarities
 summed alone — then by how many of them its name holds, then by how many of the query's
 adjacent word pairs its doc writes as a phrase, by the same rule: counts, never a score. A name

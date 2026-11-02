@@ -67,8 +67,8 @@ their name and their documentation, and, below both, of the signature an
 exported declaration writes before its body: published above exported above
 unexported, and within each a name that is the question first — as written,
 then the same name in another case — then a rare word above a common one. A
-signature's words are the names it writes, never a comment or a string in it,
-and a type alias writes none, since what follows its `=` is its body. They
+signature's words are what it writes before its body, a comment in it
+included, and a type alias writes none, since what follows its `=` is its body. They
 reach no declaration whose name or documentation holds none of the question,
 and show none in a better one's place. It
 opens on its first hit, and on a miss names the word nothing carries.

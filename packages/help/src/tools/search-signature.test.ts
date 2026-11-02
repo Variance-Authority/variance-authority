@@ -84,8 +84,9 @@ describe.each<[string, () => Promise<SearchIndex>]>([
     expect(describedFirst('coverage finished file').filter((name) => name.startsWith('coverage') && name !== 'coverageShape')).toEqual(['coverageRow', 'coverageTest', 'coverageAll']);
   });
 
-  it('are the names it writes, not the words of a comment inside it', () => {
-    expect(wordsOf('coverage asked task', 'coverageTest')).toEqual(['coverage', 'task']);
+  // A parameter's doc comment is what its author wrote about it, read as written.
+  it('are the words it writes, a comment inside it included', () => {
+    expect(wordsOf('coverage asked task', 'coverageTest')).toEqual(['asked', 'coverage', 'task']);
   });
 
   // A type alias has no head before a body: what it writes after `=` is its body.
@@ -105,4 +106,15 @@ it('show no row in the place of a better one for a word only its signature holds
   const reached = [row('a.ts', ['alpha', 'gamma']), row('b.ts', ['alpha', 'gamma']), row('c.ts', ['alpha', 'beta'], ['beta'])];
   const shown = describedShown(index, 'alpha beta gamma', reached, 2, reached);
   expect(shown.map((one) => ('match' in one ? one.match.at : ''))).toEqual(['a.ts', 'b.ts']);
+});
+
+it('keep no row in view for a word only its signature holds, in the place of one holding a word nothing shown holds', async () => {
+  const index = searchIndexOf(readHelp(root));
+  const row = (at: string, words: string[], signed: string[] = []): DescribedDeclaration => ({
+    match: { source: 'declared', name: `${at}Kept`, kind: 'function', at, line: 1 },
+    words, named: [], signed, near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER, docLength: 40,
+  });
+  const reached = [row('a.ts', ['alpha', 'gamma']), row('x.ts', ['alpha', 'beta'], ['beta']), row('d.ts', ['delta'])];
+  const shown = describedShown(index, 'alpha beta gamma delta', reached, 2, reached);
+  expect(shown.map((one) => ('match' in one ? one.match.at : ''))).toEqual(['a.ts', 'd.ts']);
 });
