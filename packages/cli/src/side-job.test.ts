@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { main } from './bin.js';
+import { main } from './bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from './exit.js';
 
 /**

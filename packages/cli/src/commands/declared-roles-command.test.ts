@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 
 /** `variance restrictions` over the roles docs declare with `@testOnly` and `@production`, with no rule file written. */

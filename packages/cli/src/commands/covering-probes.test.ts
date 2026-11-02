@@ -13,7 +13,7 @@ import {
   writeFetchedMainline,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';

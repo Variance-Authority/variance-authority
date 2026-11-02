@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage, type Placement, type TestCoverage } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { OperatorError } from '../exit.js';
 import { graphOnce, selectedFor } from './gap-selection.js';
 import { indexOutput } from './index-command.js';

@@ -3,10 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
- * The files `ask-acceptance-*.test.ts` add over `ask-packages-fixture`'s
+ * The files `ask-acceptance-*.test.ts` add over `ask-packages.fixture`'s
  * checkout: one shape per fact the four code questions are held to by
  * spec 0104, `docs/specs/0104-the-four-code-questions.md`. Each
  * name below is spelled for the one case it carries, so a test reads the case

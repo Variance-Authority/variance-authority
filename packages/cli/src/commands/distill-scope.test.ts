@@ -9,7 +9,7 @@ import {
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const cwd = process.cwd();

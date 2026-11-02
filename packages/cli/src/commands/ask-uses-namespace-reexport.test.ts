@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` over a name a module passes on inside a namespace it

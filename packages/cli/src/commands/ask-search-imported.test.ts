@@ -5,7 +5,7 @@ import { workspaceSnapshotPath } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask search` says, beside each published name, how many places

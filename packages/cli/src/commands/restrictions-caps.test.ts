@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 
 /** `variance restrictions` checking a `maxLayer`, through the command a person types, over a chain of six packages. */

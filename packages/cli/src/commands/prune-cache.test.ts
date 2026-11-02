@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { applyPrune, writeFetchedMainline } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import {
   CACHE_PRUNE_REASONS,
   COMMITS_BEHIND,

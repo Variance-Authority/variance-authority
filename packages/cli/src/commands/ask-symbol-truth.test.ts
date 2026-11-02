@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask symbol` says one of three facts about a name: where the

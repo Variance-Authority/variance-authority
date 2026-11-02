@@ -7,7 +7,7 @@ import { encodeSegment } from '@variance-authority/core/segment';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
 import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, reserveFollowUps } from './index-follow-ups.js';

@@ -9,7 +9,7 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { repositoryLayers, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering, type Covering } from './covering.js';
 

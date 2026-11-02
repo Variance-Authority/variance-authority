@@ -57,6 +57,27 @@ describe('playwrightStanding', () => {
   });
 });
 
+// The installed loader, given the config a first load needs, caches the
+// fixture's suite tree as the worker's own load does before its first test.
+const flags = fileURLToPath(new URL('../test/fixtures/preconditions/tests/flags.spec.ts', import.meta.url));
+interface Loaded {
+  title: string;
+  _type: string;
+  _hooks: { type: string; location: object }[];
+  _entries: Loaded[];
+}
+const loaded = async (): Promise<Loaded> => {
+  const playwright = createRequire(createRequire(import.meta.url).resolve('@playwright/test'));
+  const { testLoader } = playwright('playwright/lib/common') as {
+    testLoader: { loadTestFile: (file: string, config: object) => Promise<Loaded> };
+  };
+  return await testLoader.loadTestFile(flags, { config: { rootDir: dirname(flags), tags: [] } });
+};
+// Its first load compiles with Babel, which it loads only then: on a cold CI runner
+// that took five seconds, so it is paid here, as the file is imported, and
+// every case after finds the tree cached.
+await loaded();
+
 describe('enterDescribes', () => {
   // A worker that cannot say a hook's describe throws once, at setup, and the
   // same for every test after; each case loads the module fresh for that.
@@ -78,22 +99,6 @@ describe('enterDescribes', () => {
     await expect(enterDescribes(worker({ _requireFile: '/repo/tests/checkout.spec.ts' }))).rejects.toThrow(refusal);
   });
 
-  // The installed loader, given the config a first load needs, caches the
-  // fixture's suite tree as the worker's own load does before its first test.
-  const flags = fileURLToPath(new URL('../test/fixtures/preconditions/tests/flags.spec.ts', import.meta.url));
-  interface Loaded {
-    title: string;
-    _type: string;
-    _hooks: { type: string; location: object }[];
-    _entries: Loaded[];
-  }
-  const loaded = async (): Promise<Loaded> => {
-    const playwright = createRequire(createRequire(import.meta.url).resolve('@playwright/test'));
-    const { testLoader } = playwright('playwright/lib/common') as {
-      testLoader: { loadTestFile: (file: string, config: object) => Promise<Loaded> };
-    };
-    return await testLoader.loadTestFile(flags, { config: { rootDir: dirname(flags), tags: [] } });
-  };
   const beforeEachIn = (suite: Loaded, ...titles: string[]): object => {
     const found = titles.reduce((at, title) => at._entries.find((entry) => entry.title === title)!, suite);
     return found._hooks.find((hook) => hook.type === 'beforeEach')!.location;
