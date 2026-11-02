@@ -34,7 +34,7 @@ const PUBLISHED = [
 // Exported by a file no entrypoint reaches, in the reverse of the order expected.
 const UNPUBLISHED = [
   'export function coverageAll(): number {\n  return 0;\n}',
-  'export function coverageTest(\n  /** The task it was asked for. */\n  task: FinishedFile,\n): number {\n  return task.at;\n}',
+  'export function coverageTest(\n  /** The task it was asked for. */\n  task: Readonly<FinishedFile>,\n): number {\n  return task.at;\n}',
   '/** Reads it from the finished file. */',
   'export function coverageRow(): number {\n  return 0;\n}',
   'export interface FinishedFile {\n  readonly at: number;\n}',
@@ -80,7 +80,7 @@ describe.each<[string, () => Promise<SearchIndex>]>([
     expect(describedFirst('match baseline candidate').filter((name) => name.startsWith('match') && name !== 'matchShape')).toEqual(['matchNodes', 'matchTrees', 'matchAll']);
   });
 
-  it('put an exported row holding them, its parameter types included, after one whose doc holds them, and before one holding only its name', () => {
+  it('put an exported row holding them, its generic parameter types included, after one whose doc holds them, and before one holding only its name', () => {
     expect(describedFirst('coverage finished file').filter((name) => name.startsWith('coverage') && name !== 'coverageShape')).toEqual(['coverageRow', 'coverageTest', 'coverageAll']);
   });
 

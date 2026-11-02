@@ -113,9 +113,10 @@ fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
     found
 }
 
-/// What a token ends at: a line break, a space, a punctuation mark or a
-/// backtick, which is a symbol (`Sk`) and a code span's delimiter, never a word's.
-static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}`]+").expect("the pattern is fixed"));
+/// What a token ends at: a line break, a space, a punctuation mark, a backtick,
+/// which is a symbol (`Sk`) and a code span's delimiter, never a word's, or a
+/// math symbol (`Sm`), which a type writes between names: `Promise<Node>`, `A | B`.
+static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}\p{Sm}`]+").expect("the pattern is fixed"));
 
 /// A name's terms as the search file indexes an exported one, so a name the
 /// file does not hold answers the loose pass by the same rule.

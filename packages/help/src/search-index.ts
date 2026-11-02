@@ -35,9 +35,11 @@ const NONE = 0xffffffff;
 
 /**
  * The tokenizer MiniSearch applies by default, which the loose pass was built
- * with, and the backtick, a symbol that delimits a code span and is never a word's.
+ * with, the backtick, a symbol that delimits a code span and is never a word's,
+ * and a math symbol (`Sm`), which a type writes between names: `Promise<Node>`,
+ * `A | B`, `=>`.
  */
-export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}`]+/u;
+export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}\p{Sm}`]+/u;
 
 /** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
 export function tokensOf(text: string): readonly string[] {
