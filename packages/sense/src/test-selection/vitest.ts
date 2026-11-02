@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
+// FIXME: Vitest's colour in `sense`; the integration belongs to a vitest-coloured
+// package that fills the selection's extension point.
 import type { ViteUserConfig as UserConfig } from 'vitest/config';
 import { probesRegions } from '../instrument/identity.js';
 import type { InstrumentMode } from '../instrument/index.js';

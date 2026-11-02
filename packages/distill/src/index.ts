@@ -1,4 +1,6 @@
 // compass: variance-authority/runtime/attention
+// FIXME: `eyes` is mixed, so this import carries every colour it composes;
+// import the specialist `distill` uses instead.
 import type {
   Attention,
   EyesJournal,

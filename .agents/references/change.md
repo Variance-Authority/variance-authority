@@ -187,6 +187,23 @@ the site, CLI output and error messages. Read it before writing any of them.
   integrations holds the fence, and `yarn restrictions` (in `verify:rules`)
   fails an import across it. A feature lands for every runner or says, at the
   site, which runner it waits for.
+- **A specialist keeps its colour.** A package means one thing: `sense` reads
+  source and selects tests, `react` knows React, `storybook` knows Storybook. A
+  generic package, such as `cli`, composes colours and has none of its own. A
+  specialist that learns another domain's private names or imports its
+  packages gives that knowledge two homes, so the next change to the domain
+  updates one of them. The fix is an extension point in the specialist, filled
+  by the package of that colour, never a quieter place for the same
+  knowledge: a story in `sense` asks what kind a component is, and only the
+  `react` package answers with React's names. `COLOURS` in `tools/colours.mjs`
+  declares each package's colour, and `tools/colours.check.ts` (in
+  `verify:rules`) fails a new import or private name of another colour.
+  Calling a package `mixed` takes it out of the check, so only a package
+  whose job is composing others is `mixed`. A colour finding is never set
+  aside, whoever raises it: a reviewer, CodeRabbit or the check. A recorded
+  site carries a `// FIXME:` saying where its colour belongs. The check sees
+  names and imports, not meaning: a specialist that re-derives another domain
+  under our own names is the reviewers' to catch.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a

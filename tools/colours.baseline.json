@@ -1,0 +1,42 @@
+[
+  {
+    "colour": "react",
+    "at": "packages/core/src/format/provenance.ts",
+    "count": 7
+  },
+  {
+    "colour": "mixed",
+    "at": "packages/distill/src/index.ts",
+    "count": 1
+  },
+  {
+    "colour": "react",
+    "at": "packages/isolator/src/react.ts",
+    "count": 1
+  },
+  {
+    "colour": "jest",
+    "at": "packages/sense/src/test-selection/jest-setup.cts",
+    "count": 4
+  },
+  {
+    "colour": "jest",
+    "at": "packages/sense/src/test-selection/jest-trace-environment.cts",
+    "count": 1
+  },
+  {
+    "colour": "vitest",
+    "at": "packages/sense/src/test-selection/vitest-reporter.ts",
+    "count": 1
+  },
+  {
+    "colour": "vitest",
+    "at": "packages/sense/src/test-selection/vitest.ts",
+    "count": 1
+  },
+  {
+    "colour": "vitest",
+    "at": "packages/storybook/src/preview-protocol.ts",
+    "count": 1
+  }
+]
