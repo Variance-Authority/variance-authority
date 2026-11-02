@@ -85,7 +85,6 @@ async function main(): Promise<void> {
       write: (path, text) => writeFile(path, text),
       say: (line) => void process.stdout.write(`${line}\n`),
       mint: () => randomBytes(24).toString('hex'),
-      terminal: process.stdout.isTTY === true,
       cloudflare: (token, account) => cloudflare(token, account, fetch),
     },
     request,

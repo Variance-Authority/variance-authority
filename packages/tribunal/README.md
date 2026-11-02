@@ -203,9 +203,9 @@ admitting `--reviewer` (your Cloudflare login's email when absent), and lets the
 bearer paths through. It writes `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` into
 `vars`. It mints `INGEST_TOKEN` into the Worker and the same value into the
 repository's `VARIANCE_INGEST_TOKEN` secret, read from `gh` or named with
-`--repository owner/name`, without printing it. It mints `REVIEW_TOKEN` and
-prints it once when you run it in a terminal; piped or run by an agent, it sets
-the token and does not show it. A second run changes nothing, and stops on an Access application
+`--repository owner/name`, without printing it. It sets the `REVIEW_TOKEN` the
+Worker requires and shows it to nobody; set your own with `wrangler secret put
+REVIEW_TOKEN` when you need one. A second run changes nothing, and stops on an Access application
 already there that does not admit the reviewer or bypass every bearer path.
 `--rotate` replaces both tokens; a rotation that fails between the Worker and
 the repository is recorded in the `VARIANCE_INGEST_ROTATION` variable, and the

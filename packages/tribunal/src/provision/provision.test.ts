@@ -65,7 +65,7 @@ function world(overrides: Partial<World> = {}): World {
 
 const ok = (stdout = ''): Command => ({ code: 0, stdout, stderr: '' });
 
-function harness(state: World, text = CONFIG, terminal = false) {
+function harness(state: World, text = CONFIG) {
   const files = new Map([['wrangler.jsonc', text]]);
   const said: string[] = [];
   let minted = 0;
@@ -94,7 +94,6 @@ function harness(state: World, text = CONFIG, terminal = false) {
     write: async (path, content) => void files.set(path, content),
     say: (line) => void said.push(line),
     mint: () => `token${++minted}`,
-    terminal,
     cloudflare: () => api,
     run: async (program, args, options) => {
       const line = [program, ...args].join(' ');
@@ -246,7 +245,7 @@ describe('provision', () => {
     expect(said.at(-1)).toMatch(/already provisioned/);
   });
 
-  it('keeps the review token off the output when nobody is at a terminal', async () => {
+  it('sets the review token the Worker requires and shows it to nobody', async () => {
     const state = world();
     const { run, said } = harness(state);
 
@@ -254,16 +253,6 @@ describe('provision', () => {
 
     expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
     expect(said.join('\n')).not.toContain('token2');
-    expect(said.join('\n')).toContain('--rotate');
-  });
-
-  it('prints the review token once to a person at a terminal', async () => {
-    const state = world();
-    const { run, said } = harness(state, CONFIG, true);
-
-    expect(await run()).toBe(0);
-
-    expect(said.filter((line) => line.includes('token2'))).toEqual(['REVIEW_TOKEN=token2']);
   });
 
   it('mints both tokens into a Worker that was never deployed', async () => {

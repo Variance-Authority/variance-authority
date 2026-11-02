@@ -17,7 +17,8 @@ import { readDeployment, withAccountId, withDatabaseId, withVariable, type Deplo
  * and handed straight to the one place that needs it: the database id and the
  * two Access values into `wrangler.jsonc`, the ingest token into the Worker and
  * into the repository's `VARIANCE_INGEST_TOKEN` secret. The ingest token is
- * never printed. The review token is printed once, because a person holds it.
+ * never printed. The review token is set because the Worker requires one, and
+ * shown to nobody: a person who needs it sets their own with `wrangler secret put`.
  *
  * The run asks before it makes anything, so running it again is how you check a
  * deployment is still provisioned. It does not deploy: the deployment's own
@@ -95,8 +96,6 @@ export interface Provisioning {
   write(path: string, text: string): Promise<void>;
   say(line: string): void;
   mint(): string;
-  /** A person reads the output, not an agent or a log. */
-  readonly terminal: boolean;
   cloudflare(token: string, account: string): Cloudflare;
 }
 
@@ -387,14 +386,5 @@ async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request
     const token = io.mint();
     await must(['secret', 'put', REVIEW_SECRET], { input: token });
     made.push(REVIEW_SECRET);
-    // It decides subjects, so it goes to a person or nowhere: output an agent
-    // reads ends up in a transcript.
-    if (io.terminal) {
-      io.say(`${REVIEW_SECRET}=${token}`);
-      io.say('Printed once: it decides subjects, so a person keeps it and CI never sees it.');
-    } else {
-      io.say(`${REVIEW_SECRET} is set and not shown, because no person is at this terminal.`);
-      io.say('To hold one, run this command with --rotate in your own terminal; it replaces the ingest token in both places too.');
-    }
   }
 }

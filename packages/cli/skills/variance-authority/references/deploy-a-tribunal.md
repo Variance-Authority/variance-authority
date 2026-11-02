@@ -20,10 +20,9 @@ makes or reads each one and writes it where it belongs:
 - `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` into the config's `vars`;
 - `INGEST_TOKEN` into the Worker and the same value into the repository's
   `VARIANCE_INGEST_TOKEN` secret, through stdin. It is never printed;
-- `REVIEW_TOKEN` into the Worker. It is printed only to a person at a terminal,
-  never into output an agent reads. When you run it, the token is set and not
-  shown; do not ask for it. The person who wants one runs the command with
-  `--rotate` in their own terminal.
+- `REVIEW_TOKEN` into the Worker, which refuses every request without one. It is
+  shown to nobody; do not ask for it. A person who needs one sets their own with
+  `wrangler secret put REVIEW_TOKEN`.
 
 `--repository owner/name` names the repository whose CI pushes builds; without
 it, the one `gh` sees in the working directory. It needs `wrangler` logged in
