@@ -17,59 +17,16 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * words the dependency lexicon asks a package by.
  *
  * A description is not a name: `tsconfig custom conditions` is three words an
- * agent would say about `customConditionsFor`, and neither the phrase nor every
- * word is in it. So the question is cut into stems by the rule the installed
- * packages were cut by — the sense addon owns it, stopwords included — and a name
- * answers when its own words, or the documentation of a row that publishes or
- * exports it, hold any of the question's distinct stems. One word of three is
- * still the nearest the repository has, and leaving it out would answer that the
- * repository has nothing; how much it holds decides where it sits, below. A
- * dictionary term stands for a stem when it reduces to it, so `files` stands for
- * `file` and `filter` does not. A name its file declares and does not export is in
- * no row, so the source index answers for it by the same rule, its name and its
- * doc comment read in the sense addon. A file is described the same way, by the
- * words of its own name and of the doc it opens with — what it is for, which no
- * one declaration in it says. The words every package says about itself —
- * `package`, `module`, `use`, `tool`, `get` and the like — are asked of code and
- * not of a package, since code is named in them.
- *
- * Ordered by how much of the question it holds, each word weighed by how rare it
- * is among everything the description reached — {@link rarity}, of the `N`
- * reached and the `n` holding it, counted in this one question and stored nowhere
- * — times the weight of where it holds it, three in its name and two in a doc, as
- * a field-weighted ranking weighs a title over a body. A word a row's signature
- * holds — what its declaration writes before its body, the names of its
- * parameters and of the types they are written with, as the source writes them —
- * and neither its name nor its doc does weighs a half there, below a doc of up
- * to eight times the mean length; it reaches no name on its own, so
- * `coverageTest(task: FinishedFile)` answers `finished test file` before a name
- * holding only `test`, and after a row whose doc holds the words. A doc word also counts by
- * how long the doc is, BM25's length term with a held word's count of one: a doc
- * of the mean length or shorter counts as two, a longer one less, the mean taken
- * over the doc of every row, declaration and file reached. A long doc holds most
- * words in passing, and a doc's word stays below a name's however short. That sum
- * is multiplied by a coordination factor, {@link weightOf}. A name is weighed and
- * shown through one of its rows, {@link DescribedName.through}, and counts once
- * in `N` and in the `n` of a word any of its rows holds, so no name's row moves
- * another's weight. Integers throughout, so the order is counts, never a score,
- * and a tie is a tie (ADR-0057). `N` is everything reached, the names another
- * section shows included, so the weight of a word does not move with what is
- * left. Then the words its name holds, then how many of the question's adjacent
- * word pairs its doc writes as a phrase, then how many rows publish or export it, in
- * an area those {@link rowWithin} it, then the name's own rank. A word every doc
- * says in passing tells nothing about which of them was meant:
- * `find the repository root` is asked of `repositoryRoot`, not of every doc that
- * opens on `find` and mentions a root, when most of what was reached says `find`.
- * A name was chosen for what it does, and a doc that writes the question's phrase
- * about a name that holds none of it is usually saying what the name is used
- * with. The phrase — term proximity, counted as the pairs it shares — settles
- * what the weight and the name leave level.
- *
- * The rows shown hold every word anything reached holds: the best holder of a word
- * no row shown holds takes the place of the last row whose every word another row
- * shown also holds, so `mermaid chart palette` shows the one name holding
- * `mermaid` however many names holding `chart` sort before it. The phrase is
- * counted only for a name that can be shown, since a doc is decoded to count it.
+ * agent would say about `customConditionsFor`. So the question is cut into
+ * stems by the sense addon's rule, stopwords included, and a name answers when
+ * its own words or the doc of a row that publishes or exports it hold any of
+ * them; one word of three is still the nearest the repository has. A name no row
+ * holds is answered by the source index by the same rule, and a file by its
+ * name and the doc it opens with. A row's signature adds words to a name
+ * something else reached, below its doc. {@link weightOf} weighs what each
+ * holds, {@link describedOrderBy} orders them, and {@link describedShown} picks
+ * the rows shown so that every word anything reached holds is held by one.
+ * Integers throughout, so a tie is a tie (ADR-0057).
  */
 
 /** What a reached name is ordered on. */
@@ -411,7 +368,13 @@ type Weighed = Pick<DescribedKey, 'words' | 'named' | 'signed' | 'docLength'>;
 /** How much of the question one row holds. */
 type Weight = (key: Weighed) => number;
 
-/** The weight of a word by where a row holds it: its name, as a title, over its doc. */
+/**
+ * The weight of a word by where a row holds it: its name, as a title, over its
+ * doc, over its signature — what its declaration writes before its body, its
+ * parameters and the types they are written with — so `coverageTest(task:
+ * FinishedFile)` answers `finished test file` before a name holding only
+ * `test`, and after a row whose doc holds the words.
+ */
 const FIELD_WEIGHTS = { name: 3, doc: 2, signature: 0.5 } as const;
 
 /**
@@ -477,7 +440,9 @@ function levelOrder(weight: Weight, a: Weighed, b: Weighed): number {
  * Best first by `weight`: the weight of the words held, then words in the
  * name, then the phrase its doc shares, then rows, then rank; a name of the
  * index before a declaration before a file, declarations by file, then line,
- * and files by path.
+ * and files by path. The phrase comes after the name: a doc that writes the
+ * question's phrase about a name holding none of it is usually saying what the
+ * name is used with, so term proximity only settles what the rest leaves level.
  */
 const describedOrderBy = (weight: Weight) => (a: Described, b: Described): number =>
   levelOrder(weight, a, b) ||
