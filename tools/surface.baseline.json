@@ -3375,6 +3375,7 @@
         "marksLoadTime": "function",
         "mib": "function",
         "nameIndex": "function",
+        "namedCommits": "function",
         "narrowByChangeFromView": "function",
         "narrowByExecution": "function",
         "narrowByExecutionFromView": "function",
