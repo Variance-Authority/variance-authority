@@ -131,8 +131,9 @@ is not an import, so nothing in the graph runs from the config to them. The
 runner integrations record some of them on every test they run, as
 preconditions: Vitest records the config file Vite loaded, the local modules it
 imports, its `setupFiles`, `snapshotSerializers` and `diff` file; Jest records
-`testEnvironment`, `setupFiles` and `setupFilesAfterEnv` when they are files of
-the repository; Rstest records `setupFiles`. Every test a configuration runs
+`setupFiles` and `setupFilesAfterEnv` when they are files of the repository,
+and the environment it built for each test file — `testEnvironment` or the
+file's `@jest-environment` — with every repository file it loaded; Rstest records `setupFiles`. Every test a configuration runs
 declares them, so a change to one selects every test it governs. Name the rest
 in `before`: `globalSetup` in every runner, Jest's `globalTeardown`, Jest's and
 Rstest's config file, Jest's `moduleNameMapper` and `transform` targets, and

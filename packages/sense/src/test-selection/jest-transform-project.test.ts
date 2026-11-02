@@ -1,8 +1,9 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTransformer, type JestTransformRequest } from './jest-transform.js';
+import { markedId } from './captured-modules.js';
 
 const temporary: string[] = [];
 
@@ -49,5 +50,21 @@ module.exports = { createTransformer: (options) => new Transformer(options) };
     const [other] = [(await createTransformer({ root, transformer: [resolve(root, 'transformer.cjs'), { own: 2 }] })).getCacheKey!('a', file, options)];
     expect(new Set([key, other]).size).toBe(2);
     expect(keyAsync).toBe(key);
+  });
+});
+
+describe('the transformer a selecting Jest project loads first', () => {
+  it('hands the runtime the marker of environment inputs: the checkout\'s source, never the install\'s or another root\'s', async () => {
+    const [root, elsewhere] = [await project('variance-jest-runtime-'), await project('variance-jest-elsewhere-')];
+    await writeFile(resolve(root, 'runtime.cjs'), 'module.exports = { preload: (mark) => { globalThis.vaMark = mark; } };\n');
+    await mkdir(resolve(root, 'node_modules/env'), { recursive: true });
+    const source = 'module.exports = class Environment {};\n';
+    for (const file of [resolve(root, 'env.js'), resolve(root, 'node_modules/env/index.js'), resolve(elsewhere, 'env.js')]) await writeFile(file, source);
+    await createTransformer({ root, runtime: resolve(root, 'runtime.cjs') });
+    const mark = (globalThis as { vaMark?: (root: string, file: string) => string | undefined }).vaMark!;
+    delete (globalThis as { vaMark?: unknown }).vaMark;
+    expect(mark(root, resolve(root, 'env.js'))).toBe(markedId('env.js', source));
+    expect(mark(root, resolve(root, 'node_modules/env/index.js'))).toBeUndefined();
+    expect(mark(root, resolve(elsewhere, 'env.js'))).toBeUndefined();
   });
 });

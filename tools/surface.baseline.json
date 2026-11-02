@@ -3664,12 +3664,12 @@
         "RUN_DIRECTORY_VARIABLE": "const",
         "SELECTION_GLOBALS": "const",
         "SELECTION_REPORTER": "const",
+        "SELECTION_RUNTIME": "const",
         "SELECTION_SETUP": "const",
         "SELECTION_TRANSFORM": "const",
         "STORY_DIRECTORY_VARIABLE": "const",
         "SelectionReporterConfig": "interface",
         "SelectionTransformerConfig": "interface",
-        "TRACE_ENVIRONMENT": "const",
         "withJourneyCoverage": "function",
         "withTestSelection": "function"
       },

@@ -77,7 +77,7 @@ interface Holder {
 /** Where the runner half of the seam finds the scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
-/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-trace-environment.cts`. */
+/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-runtime.cts`. */
 const TRACE = Symbol.for('variance-authority.test-selection.trace');
 
 /** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
