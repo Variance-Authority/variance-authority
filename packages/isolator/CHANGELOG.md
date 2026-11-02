@@ -1,5 +1,9 @@
 # @variance-authority/isolator
 
+## 0.24.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.23.0
 
 ### Minor Changes
