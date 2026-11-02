@@ -174,6 +174,23 @@ other ways to fetch less give a wrong answer or cost more:
   checks that no shallow cut hides a newer common ancestor. On Kibana it took 4
   to 13 fetches and 13 to 62 s.
 
+## A pull request's next push
+
+Each push to a pull request is a fresh CI machine, and measured from the
+mainline's record it reruns the whole change, so a one-line fix runs as much
+as the push before it. Your laptop does not: it reads its own layer, and a
+selection diffs each test from the commit that test last ran at. Carry that
+layer from push to push and CI does the same. The next push runs what changed
+since the last push ran, and every test file that push left incomplete, a
+failed one included.
+
+`variance carry keep` keeps what a push ran under a cache key the pull request
+owns, red or green, and `variance carry take` lays it over the mainline's
+record on the next push.
+[What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
+has the steps. Only selection reads it: `take` sets the mainline's record
+aside, and the review compares your change's cases with it.
+
 ## What a change to a module's top level runs
 
 A line at a module's top level sits in no function, so by its lines alone it is

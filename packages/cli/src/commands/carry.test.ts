@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   encodeExecutionIndex,
@@ -142,6 +142,35 @@ describe('a recording', () => {
     expect(plan.notes).toEqual([
       'suite-unit is not saved: no mainline is known, and these answers were missing: config, remote-head, event',
     ]);
+  });
+});
+
+describe('what a pull request\'s last push ran', () => {
+  const SHARED = [{ name: 'unit', kind: 'unit', carry: 'share' }] as const;
+
+  it('restores this pull request\'s own, newest first, and never another line\'s', () => {
+    const plan = carryPlan({ direction: 'restore', root, suites: SHARED, run: PULL, mainlines: MAIN });
+
+    expect(plan.pushed).toEqual({
+      artifact: 'pushed',
+      paths: [join(root, '.variance/pushed')],
+      key: `variance-pushed:pr-3:${SHA}`,
+      restoreKeys: ['variance-pushed:pr-3:'],
+    });
+    expect(githubOutput(plan)).toContain(`pushed-key=variance-pushed:pr-3:${SHA}\n`);
+  });
+
+  it('is saved by every push of a pull request, red or green, under its run', () => {
+    const plan = carryPlan({ direction: 'save', root, suites: UNIT, run: PULL, mainlines: MAIN });
+
+    expect(plan.pushed?.key).toBe(`variance-pushed:pr-3:${SHA}-8-2`);
+    expect(plan.pushed?.restoreKeys).toBeUndefined();
+  });
+
+  it('is not carried by a push, by a pull request that runs the base\'s code, or for no carried suite', () => {
+    expect(carryPlan({ direction: 'save', root, suites: UNIT, run: PUSH, mainlines: MAIN }).pushed).toBeUndefined();
+    expect(carryPlan({ direction: 'restore', root, suites: UNIT, run: { ...PULL, event: 'pull_request_target' }, mainlines: MAIN }).pushed).toBeUndefined();
+    expect(carryPlan({ direction: 'restore', root, suites: [{ name: 'unit', kind: 'unit' }], run: PULL, mainlines: MAIN }).pushed).toBeUndefined();
   });
 });
 
@@ -445,7 +474,9 @@ describe('the arguments', () => {
 
     expect(parse('save', '--format', 'github')).toEqual({ command: 'carry', direction: 'save', format: 'github' });
     expect(() => parse()).toThrow('`carry` needs a direction');
-    expect(() => parse('upload')).toThrow('`carry` restores or saves, not `upload`');
+    expect(() => parse('upload')).toThrow('`carry` restores, saves, takes or keeps, not `upload`');
+    expect(parse('take')).toEqual({ command: 'carry', direction: 'take', format: 'text' });
+    expect(parse('keep', 'here')).toEqual({ command: 'carry', direction: 'keep', dir: resolve('here'), format: 'text' });
     expect(() => parse('save', '--format', 'json')).toThrow('--format must be text or github');
   });
 });

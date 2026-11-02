@@ -149,6 +149,11 @@ branch. The suite keeps the cases it replaces beside the case index, with the
 commit they were recorded at, and that is what `variance review` compares with.
 A pull request that saved its own cache would restore it on its next push, and
 its review would compare the change with itself.
+The record `variance carry keep` saves under the pull request's own key is
+the exception: selection reads it, so the next push runs only what changed
+since, and `carry take` sets the mainline's record aside for `review
+--against`. [Running less of the suite](selecting.md#a-pull-requests-next-push)
+says how.
 
 ## Start cold
 
