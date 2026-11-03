@@ -25,29 +25,27 @@ describe('the commit a review read', () => {
     process.chdir(root);
 
     expect(Object.keys(process.env).filter((name) => name.startsWith('GITHUB_'))).toEqual([]);
-    expect(await reviewedCommit(root)).toEqual({ commit, parents: [] });
+    expect(await reviewedCommit(root, root)).toEqual({ commit, parents: [] });
   });
 
   it('calls the tree dirty when it holds a file git does not track, which the review reads as part of the change', async () => {
     const { root, commit } = await repository();
     process.chdir(root);
 
-    expect(await reviewedCommit(root, {})).toEqual({ commit, parents: [] });
+    expect(await reviewedCommit(root, root, {})).toEqual({ commit, parents: [] });
 
     await writeFile(join(root, 'created.ts'), 'export const created = 1;\n');
-    expect(await reviewedCommit(root, {})).toEqual({ commit, parents: [], dirty: true });
+    expect(await reviewedCommit(root, root, {})).toEqual({ commit, parents: [], dirty: true });
   });
 
-  it('links from the directory the diff names files from, whatever `--root` names', async () => {
-    // The diff names `app/src/total.ts` from the top, so a link made at `app/` would read `app/app/src/total.ts`.
+  it('links from `--root`, the directory the diff names files from', async () => {
+    // Under `--root app` the diff names `src/total.ts`, so a link made at the top would miss `app/`.
     const { root, commit } = await repository();
     git(root, ['remote', 'add', 'origin', 'git@github.com:o/r.git']);
     await mkdir(join(root, 'app'));
 
-    process.chdir(root);
-    expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}`);
-    process.chdir(join(root, 'app'));
-    expect((await reviewedCommit(root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}/app`);
+    expect((await reviewedCommit(root, root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}`);
+    expect((await reviewedCommit(root, join(root, 'app'), {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}/app`);
   });
 
   it('names a pull request head only on a pull request event, even when the event file names one', async () => {
@@ -56,7 +54,7 @@ describe('the commit a review read', () => {
     const head = 'h'.repeat(40);
     const event = join(root, '..', `${basename(root)}-event.json`);
     await writeFile(event, JSON.stringify({ pull_request: { head: { sha: head } } }));
-    const on = (name: string) => reviewedCommit(root, { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: event });
+    const on = (name: string) => reviewedCommit(root, root, { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: event });
 
     // A push or a merge queue checks out the commit it runs for: there is no merge, and no other head to name.
     expect(await on('push')).toEqual({ commit, parents: [] });

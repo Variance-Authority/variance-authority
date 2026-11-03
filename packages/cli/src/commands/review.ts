@@ -19,7 +19,7 @@
  * it replaced.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import {
   changedLines,
@@ -285,9 +285,9 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       { kind: 'unrecorded' },
     );
   }
-  const point = await diffPoint(ref);
-  const forward = point === undefined ? undefined : await diffSince(ref, [], point.base);
-  const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { reverse: true });
+  const point = await diffPoint(ref, [], root);
+  const forward = point === undefined ? undefined : await diffSince(ref, [], point.base, { cwd: root });
+  const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { reverse: true, cwd: root });
   if (point === undefined || forward === undefined || backward === undefined) {
     const whose = mainline === undefined ? '' : `, where mainline ${mainline.mainline} published its record of "${mainline.suite}",`;
     throw new OperatorError(
@@ -303,7 +303,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // later cases, and comparing with them would report its changes as this one's.
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
-  const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
+  const real = realpathSync(root);
+  const named = (file: string): string => relative(point.repository, resolve(real, file));
   // Which text each changed file holds now is the index's name for it, so the index is brought up to the checkout first.
   const notUpdated = await indexUpToCheckout(root);
   // One it could not names the tree as the last update found it, so it names no text the record could have run as the tree.
@@ -368,7 +369,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
   // A change with no recorded module ran nothing yet.
   const record = measured.length > 0 && ranAsTree(recorded.file, measured, changedCases, names).size === measured.length ? 'ran' : 'before';
-  const head = await reviewedCommit(point.repository);
+  const head = await reviewedCommit(point.repository, root);
   const gap = await probesGap(from, root, request.suite);
   // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
   const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
