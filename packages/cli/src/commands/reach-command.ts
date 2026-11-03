@@ -124,11 +124,13 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const unread = present.filter((file) => !READABLE.has(suffixOf(file)));
   if (readable.length === 0) {
     // Refused here, where the files are still known: the walk is handed none
-    // of them and would count the none.
-    throw stops(
-      `none of the ${many(unread.length, 'changed file')} is in a language this build reads (${listed(unread)}), ` +
-        'so this diff says nothing about what it reaches',
-    );
+    // of them and would count the none. The count is git's, deletions in it.
+    const is = (count: number) => (count === 1 ? 'is' : 'are');
+    const which = deleted.length === 0
+      ? `none of the ${many(unread.length, 'changed file')} is in a language this build reads (${listed(unread)})`
+      : `of the ${many(unread.length + deleted.length, 'changed file')}, ${deleted.length} ${is(deleted.length)} deleted ` +
+        `(${listed(deleted)}) and the other ${unread.length} ${is(unread.length)} in no language this build reads (${listed(unread)})`;
+    throw stops(`${which}, so this diff says nothing about what it reaches`);
   }
 
   const movedExports = request.wholeFiles
