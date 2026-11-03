@@ -380,24 +380,31 @@ describe('coverage names why a text is not known', () => {
 });
 
 describe('a review that counts coverage', () => {
-  it('passes coverage no reader of the text each region ran over, and says none', async () => {
+  const review = async (format: string) => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
     vi.mocked(textOver).mockClear();
     let out = '';
     let err = '';
-    const review = (format: string) => main(['review', '--root', at, '--since', 'HEAD', '--coverage', '--format', format], {
+    const code = await main(['review', '--root', at, '--since', 'HEAD', '--coverage', '--format', format], {
       out: (text) => (out += text), err: (text) => (err += text),
     });
+    expect(code, err).toBe(0);
+    return out;
+  };
 
-    expect(await review('json'), err).toBe(0);
-    const said = JSON.parse(out) as { readonly coverage: readonly unknown[] };
-    out = '';
-    expect(await review('text'), err).toBe(0);
+  it('passes coverage no reader of the text each region ran over, and says none', async () => {
+    const said = JSON.parse(await review('json')) as { readonly coverage: readonly unknown[] };
 
     expect(said.coverage.length).toBeGreaterThan(0);
     expect(vi.mocked(textOver)).not.toHaveBeenCalled();
     expect(JSON.stringify(said.coverage)).not.toMatch(/"over"/u);
+  });
+
+  it('says nothing of an older text in its text report', async () => {
+    const out = await review('text');
+
+    expect(vi.mocked(textOver)).not.toHaveBeenCalled();
     expect(out).not.toMatch(/older text/u);
   });
 });
