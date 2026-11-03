@@ -5,7 +5,6 @@
  * directory, a bucket and a git ref hold a line by the same rules.
  */
 
-import { codeUnitOrder } from '../segment/index.js';
 import {
   decodeManifest,
   encodeManifest,
@@ -21,7 +20,7 @@ import {
   type ShareLine,
   type ShareMiss,
 } from './line.js';
-import { atCommit, pastWindow, type KeptCommits } from './at-commit.js';
+import { atCommit, type KeptCommits } from './at-commit.js';
 
 /**
  * Whether `descendant` strictly descends from `ancestor`, or `undefined` when
@@ -45,8 +44,8 @@ export interface Published {
   /** How many times the manifest was read before a write held. */
   readonly attempts: number;
   /**
-   * On a mainline whose store lists and removes lines, the commits its record
-   * was kept at and what fell out of the window. Absent anywhere else.
+   * On a mainline whose store lists lines, the commits its record was kept at.
+   * Absent anywhere else.
    */
   readonly atCommit?: KeptCommits;
 }
@@ -57,8 +56,6 @@ export interface PublishOptions {
   readonly image: (digest: string) => Promise<Uint8Array>;
   /** Reads of the manifest before giving up on a line other writers keep moving. Defaults to 8. */
   readonly attempts?: number;
-  /** When this publish happens, for the window kept by commit. Defaults to now. */
-  readonly now?: number;
 }
 
 /**
@@ -86,9 +83,8 @@ export async function publishLine(
 
 /**
  * A mainline's entries kept at the commits they were derived at, the same rules
- * deciding on each, and what is past the window removed (`at-commit.ts`), when
- * the store can list and remove lines. The latest is written first and stands
- * whatever happens to those.
+ * deciding on each, when the store can list lines (`at-commit.ts`). The latest
+ * is written first and stands whatever happens to those.
  */
 async function keepAtCommits(
   cell: LineCell,
@@ -96,29 +92,16 @@ async function keepAtCommits(
   entries: readonly ShareEntry[],
   options: PublishOptions,
 ): Promise<KeptCommits | undefined> {
-  const { commits, drop } = cell;
-  if (commits === undefined || drop === undefined) return undefined;
+  if (cell.commits === undefined) return undefined;
   const byCommit = new Map<string, ShareEntry[]>();
   for (const entry of entries) byCommit.set(entry.commit, [...(byCommit.get(entry.commit) ?? []), entry]);
   const kept: string[] = [];
   for (const [commit, group] of byCommit) {
     const written = await publishOne(cell, atCommit(line, commit), group, options);
-    if ('kind' in written) return { kept, dropped: [], miss: written };
+    if ('kind' in written) return { kept, miss: written };
     kept.push(commit);
   }
-  // A record written between the listing and the removal is in the window
-  // again, so a removal that finds one moved lists again.
-  const limit = options.attempts ?? 8;
-  for (let attempt = 1; attempt <= limit; attempt += 1) {
-    const held = await commits.call(cell, line);
-    if (!Array.isArray(held)) return { kept, dropped: [], miss: held as ShareMiss };
-    const past = pastWindow(held, options.now ?? Date.now());
-    if (past.length === 0) return { kept, dropped: [] };
-    const dropped = await drop.call(cell, past.map((one) => ({ line: atCommit(line, one.commit), version: one.version })));
-    if (dropped === 'dropped') return { kept, dropped: past.map((one) => one.commit) };
-    if (dropped !== 'conflict') return { kept, dropped: [], miss: dropped };
-  }
-  return { kept, dropped: [], miss: { kind: 'unreachable', detail: `the kept records moved under ${String(limit)} removals in a row; none was removed` } };
+  return { kept };
 }
 
 async function publishOne(
@@ -357,11 +340,7 @@ export function memoryLineCell(
     async commits(line) {
       return [...written.values()]
         .filter((one) => one.line.at !== undefined && one.line.kind === line.kind && one.line.name === line.name)
-        .map((one) => {
-          const manifest = decodeManifest(held.get(`${key(one.line)}\u0000manifest`)!);
-          const holds = 'kind' in manifest ? undefined : manifest.entries.map((entry) => entry.name).sort(codeUnitOrder);
-          return { commit: one.line.at!, written: one.at, version: String(versions.get(key(one.line)) ?? 0), ...(holds ? { holds } : {}) };
-        });
+        .map((one) => ({ commit: one.line.at!, written: one.at, version: String(versions.get(key(one.line)) ?? 0) }));
     },
     async drop(lines) {
       if (lines.some((one) => String(versions.get(key(one.line)) ?? 0) !== one.version)) return 'conflict';

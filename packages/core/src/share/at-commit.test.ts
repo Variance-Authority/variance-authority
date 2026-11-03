@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { linePath, type ShareEntry } from './line.js';
-import { KEEP_COMMITS, KEEP_DAYS, atCommit } from './at-commit.js';
+import { atCommit, purgeKept } from './at-commit.js';
 import { findEntry, memoryLineCell, publishLine, readLine } from './publish.js';
 
 const MAIN = { kind: 'mainline', name: 'main' } as const;
@@ -36,72 +36,50 @@ describe('a mainline record kept at its commit', () => {
     expect(read.manifest.entries.map((held) => held.name).sort()).toEqual(['suite-v1/unit', 'suite-v1/web']);
   });
 
-  it('lists the entries each kept record holds', async () => {
-    const cell = memoryLineCell();
-    await publishLine(cell, MAIN, [entry('suite-v1/unit', sha(1))], options);
-    await publishLine(cell, MAIN, [entry('suite-v1/web', sha(1))], options);
-    expect(await cell.commits!(MAIN)).toMatchObject([{ commit: sha(1), holds: ['suite-v1/unit', 'suite-v1/web'] }]);
-  });
-
-  it(`drops what is older than ${String(KEEP_DAYS)} days`, async () => {
+  it('removes nothing on a publish, however old what it keeps', async () => {
     let now = 0;
     const cell = memoryLineCell(() => now);
-    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], { ...options, now });
-    now = (KEEP_DAYS + 1) * DAY;
-    const done = await publishLine(cell, MAIN, [entry('report-v1', sha(2))], { ...options, now });
-    expect(done).toMatchObject({ written: ['report-v1'], atCommit: { kept: [sha(2)], dropped: [sha(1)] } });
-    expect(await readLine(cell, atCommit(MAIN, sha(1)))).toEqual({ kind: 'absent' });
+    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], options);
+    now = 10_000 * DAY;
+    await publishLine(cell, MAIN, [entry('report-v1', sha(2))], options);
+    expect(await readLine(cell, atCommit(MAIN, sha(1)))).not.toHaveProperty('kind');
   });
 
-  it(`keeps at most ${String(KEEP_COMMITS)} commits, the newest`, async () => {
+  it('removes what was written before the time asked for, and leaves the latest', async () => {
     let now = 0;
     const cell = memoryLineCell(() => now);
-    for (let index = 1; index <= KEEP_COMMITS + 1; index += 1) {
-      now = index;
-      await publishLine(cell, MAIN, [entry('report-v1', sha(index))], { ...options, now });
-    }
+    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], options);
+    now = 2 * DAY;
+    await publishLine(cell, MAIN, [entry('report-v1', sha(2))], options);
+    expect(await purgeKept(cell, MAIN, DAY)).toEqual([sha(1)]);
     expect(await readLine(cell, atCommit(MAIN, sha(1)))).toEqual({ kind: 'absent' });
     expect(await readLine(cell, atCommit(MAIN, sha(2)))).not.toHaveProperty('kind');
+    expect(await readLine(cell, MAIN)).not.toHaveProperty('kind');
   });
 
-  it('says what it kept when removing what is past the window misses', async () => {
+  it('removes nothing when a record is written after it was listed', async () => {
     let now = 0;
     const cell = memoryLineCell(() => now);
-    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], { ...options, now });
-    now = (KEEP_DAYS + 1) * DAY;
-    const refused = { ...cell, drop: async () => ({ kind: 'unreachable', detail: 'refused' }) as const };
-    const done = await publishLine(refused, MAIN, [entry('report-v1', sha(2))], { ...options, now });
-    expect(done).toMatchObject({ atCommit: { kept: [sha(2)], dropped: [], miss: { kind: 'unreachable' } } });
-  });
-
-  it('keeps a record written past the window after it was listed, and drops it no sooner than the next publish', async () => {
-    let now = 0;
-    const cell = memoryLineCell(() => now);
-    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], { ...options, now });
-    now = (KEEP_DAYS + 1) * DAY;
-    // A late job at `sha(1)` writes its record between the listing and the removal.
-    let late = false;
+    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], options);
+    now = 2 * DAY;
     const racing = {
       ...cell,
       commits: async (line: Parameters<NonNullable<typeof cell.commits>>[0]) => {
         const listed = await cell.commits!(line);
-        if (!late) {
-          late = true;
-          await publishLine(cell, atCommit(MAIN, sha(1)), [entry('report-v1', sha(1))], { ...options, now });
-        }
+        await publishLine(cell, atCommit(MAIN, sha(1)), [entry('report-v2', sha(1))], options);
         return listed;
       },
     };
-    const done = await publishLine(racing, MAIN, [entry('report-v1', sha(2))], { ...options, now });
-    expect(done).toMatchObject({ atCommit: { kept: [sha(2)], dropped: [] } });
+    expect(await purgeKept(racing, MAIN, DAY)).toBe('conflict');
     expect(await readLine(cell, atCommit(MAIN, sha(1)))).not.toHaveProperty('kind');
   });
 
-  it('keeps nothing by commit for a branch, or in a store that cannot list and drop what it keeps', async () => {
+  it('keeps nothing by commit for a branch, or in a store that cannot list what it keeps', async () => {
     const cell = memoryLineCell();
     expect(await publishLine(cell, { kind: 'branch', name: 'feat/x' }, [entry('report-v1', sha(1))], options)).not.toHaveProperty('atCommit');
     expect(await cell.commits!({ kind: 'branch', name: 'feat/x' })).toEqual([]);
     const { commits: _commits, drop: _drop, ...latestOnly } = cell;
+    expect(await purgeKept(latestOnly, MAIN, DAY)).toEqual([]);
     expect(await publishLine(latestOnly, MAIN, [entry('report-v1', sha(1))], options)).not.toHaveProperty('atCommit');
     expect(await readLine(cell, atCommit(MAIN, sha(1)))).toEqual({ kind: 'absent' });
     expect(await readLine(cell, MAIN)).not.toHaveProperty('kind');

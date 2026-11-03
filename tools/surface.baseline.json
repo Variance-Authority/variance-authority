@@ -368,8 +368,6 @@
         "HeldEntry": "interface",
         "HeldLine": "interface",
         "HttpLineOptions": "interface",
-        "KEEP_COMMITS": "const",
-        "KEEP_DAYS": "const",
         "KeptAt": "interface",
         "KeptCommits": "interface",
         "LineCell": "interface",
@@ -392,8 +390,8 @@
         "manifestPaths": "function",
         "memoryLineCell": "function",
         "parseEntryName": "function",
-        "pastWindow": "function",
         "publishLine": "function",
+        "purgeKept": "function",
         "readLine": "function",
         "sameSlot": "function"
       },

@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
-import { KEEP_COMMITS } from '@variance-authority/core/share';
+import { parseArgs } from '../bin.js';
 import { keptBehind, type Env } from '../share-lines.js';
+import { purgeLines } from './share-purge.js';
 import { describePublish, mainlineIndex, publishRun } from './share.js';
 
 /**
@@ -36,7 +37,7 @@ describe('a mainline record kept at its commit', () => {
     const { dir, commits } = await repositoryOf(3);
     const config = { project: 'web', report: join(home, 'report.json'), share: { kind: 'git', mainlines: ['main'] } } as Config;
     const first = await publishRun(config, await reportAt(commits[0]!), { env: PUSH, cwd: dir });
-    expect(describePublish(config, first)).toContain(`kept the record at ${commits[0]!} beside the latest, for 14 days or 200 commits.`);
+    expect(describePublish(config, first)).toContain(`kept the record at ${commits[0]!} beside the latest.`);
     await publishRun(config, await reportAt(commits[2]!), { env: PUSH, cwd: dir });
 
     await git(dir, 'checkout', '--quiet', '-b', 'release', commits[0]!);
@@ -54,13 +55,13 @@ describe('a mainline record kept at its commit', () => {
     expect(await mainlineIndex(config, { env: {}, cwd: dir })).toMatchObject({ commit: commits[2], distance: -1, from: 'share' });
   });
 
-  it(`walks back past ${String(KEEP_COMMITS)} commits to a record kept by a sparse mainline`, async () => {
+  it('walks back to a record kept by a sparse mainline, whatever the commits are dated', async () => {
     const dir = await mkdtemp(join(home, 'sparse-'));
     await git(dir, 'init', '--quiet', '-b', 'main');
-    const stream = Array.from({ length: KEEP_COMMITS + 2 }, (_, index) => [
+    const stream = Array.from({ length: 300 }, (_, index) => [
       'commit refs/heads/main',
       `mark :${String(index + 1)}`,
-      `committer Test <test@example.com> ${String(index)} +0000`,
+      `committer Test <test@example.com> ${String(1000 - index)} +0000`,
       'data 0',
       ...(index === 0 ? [] : [`from :${String(index)}`]),
       '',
@@ -89,6 +90,31 @@ describe('a mainline record kept at its commit', () => {
     for await (const commit of keptBehind(base!, new Set([tip!, behind!]), dir)) walked.push(commit);
 
     expect(walked).toEqual([behind]);
+  });
+});
+
+describe('`variance share --purge-older-than`', () => {
+  it('takes whole days, and no suite, report or publish beside them', () => {
+    expect(parseArgs(['share', '--purge-older-than', '30', '--mainline', 'main'])).toMatchObject({ purgeOlderThan: 30, mainline: 'main' });
+    expect(() => parseArgs(['share', '--purge-older-than', 'soon'])).toThrow('whole number of days');
+    expect(() => parseArgs(['share', '--purge-older-than', '30', '--suite', 'unit'])).toThrow('whole records');
+  });
+
+  it('removes what is kept by commit older than the days named, and leaves the latest', async () => {
+    const { dir, commits } = await repositoryOf(2);
+    const config = { project: 'web', report: join(home, 'report.json'), share: { kind: 'git', mainlines: ['main'] } } as Config;
+    await publishRun(config, await reportAt(commits[0]!), { env: PUSH, cwd: dir });
+    await publishRun(config, await reportAt(commits[1]!), { env: PUSH, cwd: dir });
+    const refs = (): Promise<string> => git(dir, 'ls-remote', 'origin', 'refs/variance/*');
+
+    expect((await purgeLines(config, 1, undefined, { cwd: dir })).lines).toEqual(['mainline main: removed nothing kept by commit older than 1 day(s).']);
+    expect((await refs()).split('\n')).toHaveLength(3);
+
+    const done = await purgeLines(config, 0, 'main', { cwd: dir, now: Date.now() + 1000 * 60 * 60 });
+
+    expect(done.lines).toEqual(['mainline main: removed 2 record(s) kept by commit older than 0 day(s).']);
+    expect(await refs()).not.toContain('refs/variance/at/');
+    expect(await refs()).toContain('refs/variance/mainline/main');
   });
 });
 

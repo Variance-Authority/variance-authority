@@ -6,45 +6,38 @@
  * the tip — is measured against its merge base, and the latest is a record of
  * code it does not have: every commit between is charged to it. So each
  * mainline publish also writes the line `at/<commit>/…` (`publishLine`),
- * and a reader asks for its merge base's, then the nearest kept behind it
- * that holds the entry it reads, before the latest.
+ * and a reader asks for its merge base's, then the nearest kept behind it,
+ * before the latest.
  *
- * What is kept is bounded, and the publish that writes the next record removes
- * what fell out: {@link KEEP_DAYS} days and at most {@link KEEP_COMMITS}
- * commits per mainline, the window the cache keeps by (ADR-0078). A store whose
- * cell cannot list and remove lines keeps the latest only, because a record
- * nothing removes is a record kept for ever.
+ * Nothing is removed unless somebody asks ({@link purgeKept}). A store whose
+ * cell cannot list lines keeps the latest only.
  */
 
 import { codeUnitOrder } from '../segment/index.js';
-import type { KeptAt, ShareLine, ShareMiss } from './line.js';
-
-/** Days a mainline's record is kept at its commit. */
-export const KEEP_DAYS = 14;
-/** Commits a mainline's record is kept at, the newest. */
-export const KEEP_COMMITS = 200;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import type { KeptAt, LineCell, ShareLine, ShareMiss } from './line.js';
 
 /** The line that holds `line`'s record at `commit`. */
 export function atCommit(line: ShareLine, commit: string): ShareLine {
   return { kind: line.kind, name: line.name, at: commit };
 }
 
-/**
- * The commits a publish kept its record at, the ones it removed as past the
- * window, and the miss that stopped it before it finished, with what it had done.
- */
+/** The commits a publish kept its record at, and the miss that stopped it before it finished. */
 export interface KeptCommits {
   readonly kept: readonly string[];
-  readonly dropped: readonly string[];
   readonly miss?: ShareMiss;
 }
 
-/** What is kept past {@link KEEP_DAYS} days old at `now`, or beyond the newest {@link KEEP_COMMITS}, by commit. */
-export function pastWindow(held: readonly KeptAt[], now: number): KeptAt[] {
-  return [...held]
-    .sort((a, b) => b.written - a.written)
-    .filter((one, index) => index >= KEEP_COMMITS || now - one.written > KEEP_DAYS * DAY_MS)
-    .sort((a, b) => codeUnitOrder(a.commit, b.commit));
+/**
+ * Remove what `line` keeps by commit written before `before`, and name the
+ * commits removed. The latest stays. A store that keeps none removes none, and
+ * a record written since the listing is `conflict`, with nothing removed.
+ */
+export async function purgeKept(cell: LineCell, line: ShareLine, before: number): Promise<readonly string[] | 'conflict' | ShareMiss> {
+  if (cell.commits === undefined || cell.drop === undefined) return [];
+  const held = await cell.commits(line);
+  if (!Array.isArray(held)) return held as ShareMiss;
+  const old = (held as readonly KeptAt[]).filter((one) => one.written < before).sort((a, b) => codeUnitOrder(a.commit, b.commit));
+  if (old.length === 0) return [];
+  const dropped = await cell.drop(old.map((one) => ({ line: atCommit(line, one.commit), version: one.version })));
+  return dropped === 'dropped' ? old.map((one) => one.commit) : dropped;
 }

@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
   decodeManifest,
   keptAtOf,
@@ -245,12 +244,10 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       await rm(index, { force: true });
       if (tree.code !== 0) return missOf(tree);
       // No parent: a line is its latest, and what it replaced is the remote's to
-      // collect. A mainline's record at its commit is a line of its own, which
-      // `publishLine` removes past its window.
+      // collect. A mainline's record at its commit is a line of its own.
       // TODO: nothing deletes a branch's line, so a branch's ref outlives the branch, and
       // with it every image its tree names.
-      const names = manifest.entries.map((entry) => entry.name).sort(codeUnitOrder);
-      const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`, '-m', names.join('\n')], undefined, IDENTITY);
+      const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`], undefined, IDENTITY);
       if (commit.code !== 0) return missOf(commit);
       const sha = text(commit.stdout).trim();
 
@@ -278,22 +275,16 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     },
     async commits(line) {
       const pattern = `${namespace}/${keptAtPattern(line)}`;
-      // Commits only, never a tree: when a record was written is its commit's
-      // date, and what it holds the entry names `store` wrote in its body.
+      // Commits only, never a tree: when a record was written is its commit's date.
       const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
       if (ran.code !== 0) return missOf(ran);
-      // A body spans lines, so fields and rows are split on ASCII's own separators.
-      const format = '%(refname)%1f%(committerdate:unix)%1f%(objectname)%1f%(contents:body)%1e';
-      const listed = text((await git(['for-each-ref', `--format=${format}`, `${namespace}/`])).stdout);
+      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix) %(objectname)', `${namespace}/`])).stdout);
       const kept: KeptAt[] = [];
-      for (const row of listed.split('\u001e')) {
-        const [ref, seconds, version, body] = row.trim().split('\u001f');
+      for (const row of listed.split('\n')) {
+        const [ref, seconds, version] = row.split(' ');
         if (ref === undefined || seconds === undefined || version === undefined) continue;
         const commit = keptAtOf(line, ref.slice(namespace.length + 1));
-        if (commit === undefined) continue;
-        // A record written before its body named the entries may hold any.
-        const holds = body?.split('\n').filter((name) => name !== '');
-        kept.push({ commit, written: Number(seconds) * 1000, version, ...(holds?.length ? { holds } : {}) });
+        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000, version });
       }
       return kept;
     },
@@ -311,7 +302,7 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
         REMOTE, ...refs.map(({ ref }) => `:${ref}`),
       ]);
       if (pushed.code !== 0) {
-        // Another publish removed one first, or wrote one since it was listed.
+        // Another purge removed one first, or a publish wrote one since it was listed.
         const now = await Promise.all(refs.map(({ ref }) => remoteAt(ref)));
         if (now.some((held, index) => held !== '' && held !== undefined && held !== refs[index]!.version)) return 'conflict';
         if (!now.every((held) => held === '')) return now.includes('') ? 'conflict' : missOf(pushed, refusalOf(pushed));

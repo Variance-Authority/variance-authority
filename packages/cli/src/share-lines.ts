@@ -345,23 +345,14 @@ async function sinceMergeBase(
 /**
  * The commits of `kept` on `base`'s first-parent history, `base` included,
  * nearest first: the mainline commits at or behind it that published a
- * record. How far back one sits is git's, not the window's, which counts
- * records, so the walk is bounded by the oldest kept commit's date: one
- * committed before it is behind every kept one this clone holds. A mainline
- * commit dated before its first parent would end the walk early there.
+ * record. A reader stops at the first that answers, which ends the walk.
  */
 export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: string): AsyncGenerator<string> {
   if (kept.size === 0) return;
-  const dates = await git(['log', '--no-walk', '--ignore-missing', '--format=%ct', ...kept], cwd);
-  if (dates === undefined) return;
-  const oldest = Math.min(...dates.split('\n').filter((line) => line !== '').map(Number));
-  if (!Number.isFinite(oldest)) return;
-  const child = spawn('git', ['rev-list', '--first-parent', '--timestamp', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
+  const child = spawn('git', ['rev-list', '--first-parent', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
   try {
-    for await (const row of createInterface({ input: child.stdout })) {
-      const [seconds, commit] = row.split(' ');
-      if (Number(seconds) < oldest) return;
-      if (kept.has(commit!)) yield commit!;
+    for await (const commit of createInterface({ input: child.stdout })) {
+      if (kept.has(commit)) yield commit;
     }
   } finally {
     child.kill();

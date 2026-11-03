@@ -18,9 +18,9 @@ npm install --save-dev @variance-authority/cli
 
 - **Line** — the place in a share for one branch: a manifest and the entries it
   lists. A publish replaces the entries it offers, so a line keeps one of each.
-  A share in git also keeps each mainline publish at the commit it ran at, for
-  14 days and the newest 200, so a checkout behind the mainline's tip is
-  measured against the record at its merge base.
+  A share in git also keeps each mainline publish at the commit it ran at, so a
+  checkout behind the mainline's tip is measured against the record at its
+  merge base.
 - **Mainline** — a branch your other branches start from and merge into, such
   as `main`. Its line is `mainline/<name>`.
   [Which branches are mainlines](#which-branches-are-mainlines) says how the CLI
@@ -349,7 +349,7 @@ The publish prints what it did, and where:
 
 ```text
 wrote suite-index-v2, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
-kept the record at 3f1c9a2… beside the latest, for 14 days or 200 commits.
+kept the record at 3f1c9a2… beside the latest.
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
@@ -399,7 +399,7 @@ npx variance share --publish shard-1/report.json shard-2/report.json shard-3/rep
 ```text
 suite index at 3f1c…bd, composed from 3 shard(s): <cache>/suite/checkout-ui/3f1c…bd.bin
 wrote suite-index-v2, subject-costs-v1 to mainline main in refs/variance on origin.
-kept the record at 3f1c9a2… beside the latest, for 14 days or 200 commits.
+kept the record at 3f1c9a2… beside the latest.
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
@@ -738,11 +738,12 @@ Tribunal deployment is an `http` share.
   another prefix under `refs/`, for a repository that already uses
   `refs/variance/`.
 - **A mainline publish is also kept at its commit**, under
-  `refs/variance/at/<commit>/mainline/<name>`. The publish that writes one
-  deletes those older than 14 days or beyond the newest 200 commits of that
-  mainline, so the refs stay bounded without a job of their own. A lookup reads
-  the one at `HEAD`'s merge base with the mainline first, then the newest kept
-  behind it, and the latest when none is kept at or behind it. A directory and an HTTP store keep the latest only.
+  `refs/variance/at/<commit>/mainline/<name>`. A lookup reads the one at
+  `HEAD`'s merge base with the mainline first, then the newest kept behind it,
+  and the latest when none is kept at or behind it. Nothing removes them until
+  you ask: `variance share --purge-older-than <days>` deletes those written more
+  than that many days ago, and the latest stays. A directory and an HTTP store
+  keep the latest only.
 - **Every fetch and push runs in a bare repository of the share's own**, at
   `<cache>/share/<digest>.git`, one per remote URL, never in your clone. It
   fetches commits and trees, and an image only when something opens it, so a
@@ -1088,7 +1089,7 @@ jobs:
 
 ```text
 wrote suite-v1/unit to mainline main in refs/variance on origin.
-kept the record at 3f1c9a2… beside the latest, for 14 days or 200 commits.
+kept the record at 3f1c9a2… beside the latest.
 ```
 
 - **The artifact path is the [cache](cache.md)'s default location.** The

@@ -4,8 +4,8 @@
  * A line answers *what is mainline now* by holding one version and replacing
  * it. A checkout behind the mainline's tip — a release branch, a pull request
  * cut last week — is measured against its merge base, not the tip, so a
- * mainline's record is also kept at the commit it ran at, for a bounded window
- * (`at-commit.ts`), and the latest answers when that window holds nothing.
+ * mainline's record is also kept at the commit it ran at (`at-commit.ts`), and
+ * the latest answers when nothing at or behind a reader's commit is kept.
  *
  * A line holds **entries**, each a versioned artifact derived at one commit: the
  * run report, one record per suite, the suite index. They are entries rather
@@ -123,14 +123,11 @@ export interface LineCell {
 /**
  * One commit a mainline's record is kept at, when it was written, in ms since
  * the epoch, and the version `load` gives that line, which `drop` removes.
- * `holds` names the entries it holds, sorted, where the store can say without
- * reading the record; absent, it may hold any.
  */
 export interface KeptAt {
   readonly commit: string;
   readonly written: number;
   readonly version: string;
-  readonly holds?: readonly string[];
 }
 
 /** An entry name, read. */

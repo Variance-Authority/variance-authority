@@ -263,19 +263,35 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(await base(NOW)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW) });
   });
 
-  it('past the merge base, when nothing at or behind it is kept, reads the latest and stands until the merge base moves', async () => {
+  it('behind a newer format, says so rather than reading an older record', async () => {
+    const { ci, origin, record } = await gitPublished(home);
+    const second = await pushed(ci);
+    const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
+    if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
+    await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: 'suite-v2/unit', commit: second, bytes: frame([['coverage.bin', record]]) }], {
+      descends: async () => true,
+      image: async (digest) => { throw new Error(`no image ${digest}`); },
+    });
+    await pushed(ci);
+    const { base } = await laptop(origin);
+
+    expect(await base(NOW)).toMatchObject({ miss: { kind: 'newer' } });
+  });
+
+  it('past the merge base, reads the latest and asks on every read, so the merge base\'s record is read once it is published', async () => {
     const { ci, origin, first } = await gitPublished(home);
-    const next = await publishedNext(ci);
-    // The record at the merge base fell out of the window.
+    const second = await pushed(ci);
+    const third = await publishedNext(ci);
+    // Neither is kept: the merge base's job has not finished, and the record behind it was purged.
     await git(origin, 'update-ref', '-d', `refs/variance/at/${first}/mainline/main`);
-    const { dir, base, reach, nowhere } = await laptop(origin);
-    await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
-    expect(await base(NOW)).toMatchObject({ commit: next, distance: -1, fetched: at(NOW) });
-    await reach(nowhere);
+    const { dir, base } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', second);
+    expect(await base(NOW)).toMatchObject({ commit: third, distance: -1, fetched: at(NOW) });
 
-    const kept = await base(NOW + DAY);
+    await publishedAt(ci, second);
+    await forgetLineAnswers(join(home, 'laptop-cache'));
 
-    expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'asked' } });
+    expect(await base(NOW + 60_000)).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 60_000) });
   });
 
   it('is asked again on every read when this clone cannot count how far off the merge base it is', async () => {

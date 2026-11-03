@@ -121,11 +121,7 @@ async function nearestHolding(
   if (!('miss' in atBase) || atBase.miss.kind !== 'absent') return atBase;
   const held = await cell.commits!({ kind: 'mainline', name: mainline });
   if (!Array.isArray(held)) return { miss: held as ShareMiss };
-  // Only a record that may hold the entry is read: one kept by other suites'
-  // jobs alone says so in its listing, and costs no fetch.
-  const names = typeof name === 'string' ? [name] : name;
-  const holding = (held as readonly KeptAt[]).filter((one) => one.holds === undefined || one.holds.some((entry) => names.includes(entry)));
-  for await (const commit of keptBehind(base, new Set(holding.map((one) => one.commit)), cwd)) {
+  for await (const commit of keptBehind(base, new Set((held as readonly KeptAt[]).map((one) => one.commit)), cwd)) {
     if (commit === base) continue;
     const found = await entryIn(cell, { kind: 'mainline', name: mainline, at: commit }, name);
     if (!('miss' in found) || found.miss.kind !== 'absent') return found;

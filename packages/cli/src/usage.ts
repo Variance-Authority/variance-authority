@@ -145,7 +145,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   serve: ['--just-answer'],
   doctor: ['--baselines'],
   prune: [],
-  share: ['--mainline', '--publish', '--suite', '--collected', '--format'],
+  share: ['--mainline', '--publish', '--suite', '--collected', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
   carry: ['--config', '--format'],
@@ -176,7 +176,7 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
-  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]',
+  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',

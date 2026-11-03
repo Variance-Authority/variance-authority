@@ -282,7 +282,7 @@ describe('`variance share --suite unit`', () => {
     const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
-    expect(lines[1]).toMatch(/^kept the record at [0-9a-f]{40} beside the latest, for 14 days or 200 commits\.$/u);
+    expect(lines[1]).toMatch(/^kept the record at [0-9a-f]{40} beside the latest\.$/u);
   });
 
   it('says which test files it retired because the suite no longer collects them', async () => {

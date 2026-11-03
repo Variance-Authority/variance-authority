@@ -12,10 +12,9 @@
  *
  * The best base is the record at `HEAD`'s merge base with the mainline. A fetch
  * costs a round trip, so the record fetched last stands without asking while it
- * is at that merge base, or past it and the line was asked at it, until a pull
- * or a rebase moves it. One behind it, or at a distance this clone cannot
- * count, is asked again on each read, since the merge base's job may publish yet. A line that gave no record stands for
- * {@link MISS_STANDS_MS}, and
+ * is at that merge base. One anywhere else, or at a distance this clone cannot
+ * count, is asked again on each read, since the merge base's job may publish
+ * yet. A line that gave no record stands for {@link MISS_STANDS_MS}, and
  * `variance share --suite <name>` always asks.
  */
 
@@ -63,13 +62,12 @@ export interface MainlineRecord {
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
   /**
-   * Present when it is the record fetched earlier: reused without asking, or
-   * kept because the mainline gave no record, now or, as `asked` says, earlier
-   * within {@link MISS_STANDS_MS}. It is reused when it is at `HEAD`'s
-   * merge base with the mainline (`nearest`), or past it when the line was
-   * asked at this same merge base (`asked`).
+   * Present when it is the record fetched earlier: reused without asking
+   * because it is at `HEAD`'s merge base with the mainline, or kept because
+   * the mainline gave no record, now or, as `asked` says, earlier within
+   * {@link MISS_STANDS_MS}.
    */
-  readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
+  readonly earlier?: { readonly reused: 'nearest' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -153,14 +151,9 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // At the merge base nothing is nearer. Behind it, the merge base's job
-      // may publish its record yet, so the line is asked, and so it is when
-      // this clone cannot count the distance. Past it, nothing at or behind
-      // was kept when the line was asked at this merge base, and nothing kept
-      // since can be.
-      const asked = last.base === named?.base && distance !== undefined && distance < 0;
-      const reused = distance === 0 ? 'nearest' : asked ? 'asked' : undefined;
-      if (reused !== undefined) return earlier(last, { reused }, distance);
+      // At the merge base nothing is nearer. Anywhere else the merge base's
+      // job may publish its record yet, so the line is asked.
+      if (distance === 0) return earlier(last, { reused: 'nearest' }, distance);
     }
     const noted = readMissedMainline(readRoot);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
@@ -384,9 +377,7 @@ export function mainlineRead(read: MainlineRecord): string {
   const when = read.earlier === undefined
     ? ''
     : 'reused' in read.earlier
-      ? `, fetched at ${read.fetched}` + (read.earlier.reused === 'nearest'
-        ? ' and kept: the line holds nothing nearer the merge base'
-        : ' and kept: the line was asked at this merge base')
+      ? `, fetched at ${read.fetched} and kept: the line holds nothing nearer the merge base`
       : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
         answeredAt(read.earlier.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +

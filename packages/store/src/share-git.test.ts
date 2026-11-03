@@ -201,14 +201,14 @@ describe('createGitLineCell', { timeout: 15_000 }, () => {
       .toBe(`refs/variance/at/${two}/mainline/release/2.0`);
   });
 
-  it('lists the entries each kept record holds, so a reader opens only one that holds its own', async () => {
+  it('lists what is kept at a commit once, whichever jobs wrote it', async () => {
     const image = async (): Promise<Uint8Array> => ascii('png');
     const one = 'a'.repeat(40);
     await publishLine(cellAt('a'), MAIN, [entry('suite-v1/unit', one, 'unit')], { descends, image });
     await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', one, 'web')], { descends, image });
     const listed = await cellAt('b').commits!(MAIN);
     if (!Array.isArray(listed)) throw new Error('not listed');
-    expect(listed.map((held) => ({ commit: held.commit, holds: held.holds }))).toEqual([{ commit: one, holds: ['suite-v1/unit', 'suite-v1/web'] }]);
+    expect(listed.map((held) => held.commit)).toEqual([one]);
   });
 
   it('drops what another job publishing at the same commit dropped first', async () => {
