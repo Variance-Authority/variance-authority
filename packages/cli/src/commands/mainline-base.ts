@@ -152,12 +152,9 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // At the merge base, nothing the line could hold is nearer it. Off it,
-      // the line was asked here already when the merge base is the one it was
-      // asked at, the clone naming none then and now included. Past it, the
-      // record at the merge base was not kept when asked, and a share in git
-      // may keep it once that commit's job publishes: the answer stands as a
-      // miss does, for {@link MISS_STANDS_MS}.
+      // At the merge base nothing is nearer. Off it, the line was asked at this
+      // merge base, none then and now included; past it only for a miss's
+      // window, since the merge base's job may publish its record since.
       const asked = last.base === named?.base
         && (distance === undefined || distance > 0 || now - Date.parse(last.fetched) < MISS_STANDS_MS);
       const reused = distance === 0 ? 'nearest' : asked ? 'asked' : undefined;

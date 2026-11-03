@@ -371,7 +371,7 @@
         "KEEP_COMMITS": "const",
         "KEEP_DAYS": "const",
         "KeptAt": "interface",
-        "KeptCommits": "type",
+        "KeptCommits": "interface",
         "LineCell": "interface",
         "LineManifest": "interface",
         "PublishOptions": "interface",
