@@ -47,7 +47,7 @@ import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './reso
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
-import { behindOf, leftToMainline } from './mainline-owned.js';
+import { behindOf, leftToMainline, reachedFrom } from './mainline-owned.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -315,7 +315,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // Behind the merge base, a charged test runs only when `file` precision over the checkout's own change selects it too.
   const mine = behind === undefined || charged === undefined ? undefined : await recordAgainst(
     here,
-    withWhole('', [...new Set([...behind.changed, ...beyond.get(undefined)!.files])]),
+    withWhole('', [...new Set([...reachedFrom(here, behind.changed, relations), ...beyond.get(undefined)!.files])]),
     { ...options, precision: 'file', distances: false },
   );
   const owned = mine === undefined ? undefined : leftToMainline(charged!, mine.narrowing.entered, behind!, commit!);

@@ -188,7 +188,7 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
-  it('runs no more than `file` precision over its own change when the checkout deletes a file the mainline made a test import', async () => {
+  it('runs a test the mainline made import a file the checkout deletes, which fails at the checkout', async () => {
     const ci = await mainline();
     await landed(ci.dir, { 'src/total.ts': "import { other } from './other';\nexport function total(price: number): number {\n  return other(price) * 0.9;\n}\n" });
     // A deleted file is in no graph at the checkout, and the record never saw `total` enter it.
@@ -196,8 +196,8 @@ describe('`variance select` a commit past the record its mainline published', ()
 
     const here = await selectedIn(clone);
 
-    // `other` entered the deleted file; `total` is reached from it by neither the graph nor the record.
-    expect(here.out).toBe('test/total.test.ts\n');
+    // `other` entered the deleted file; `total` still imports it, which the graph holds as an import it could not resolve.
+    expect(here.out).toBe('');
   });
 
   it('runs a test the mainline changed when the checkout renames the module it imports', async () => {

@@ -7,6 +7,9 @@
  * the answer never runs more than that precision would.
  */
 
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { NODE_KINDS, type Relations } from '@variance-authority/core/relate';
 import type { ExecutionNarrowing, TestDistance } from '@variance-authority/sense/test-selection';
 import type { SelectSource } from './select.js';
 import { changedFrom } from './since.js';
@@ -34,6 +37,22 @@ export async function behindOf(root: string, source: SelectSource | undefined): 
   if (changed === undefined) return undefined;
   if (changed.length === 0 && (await headOf(root)) === base) return undefined;
   return { name, base, changed };
+}
+
+const FILE = NODE_KINDS.indexOf('file');
+
+/**
+ * What the checkout's change from the merge base reaches, as `file` precision
+ * reads it: the files it `changed`, and when one of them is gone from the
+ * checkout at `root`, every file in `relations` whose imports the scan could
+ * not all read. A deleted path is in no graph at the checkout, and a file that
+ * still imports it holds an import that resolves to nothing, though the record
+ * may never have seen that import: the mainline can add it after the record.
+ */
+export function reachedFrom(root: string, changed: readonly string[], relations: Relations): readonly string[] {
+  if (changed.every((file) => existsSync(join(root, file)))) return changed;
+  const holes = relations.names.filter((_, id) => relations.unknown[id] === 1 && relations.kinds[id] === FILE);
+  return [...new Set([...changed, ...holes])];
 }
 
 /** What {@link leftToMainline} kept of a narrowing, and the note that says what it left. */

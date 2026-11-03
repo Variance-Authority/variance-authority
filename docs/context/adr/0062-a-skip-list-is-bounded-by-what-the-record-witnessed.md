@@ -80,7 +80,13 @@ checkout's own change from M alone, and keeps a charged test only when `file`
 precision over that change, read from the same record and graph, selects it too.
 The record says what can differ since it ran, and `file` precision over the
 change says what the checkout can reach; a test is kept when both say so, so a
-record behind M never runs more than that precision would. The mainline's own
+record behind M never runs more than that precision would. A change that
+removes a path also reaches every file whose imports the scan could not all
+resolve: an import the mainline added after the record, of a path the checkout
+deletes, fails at the checkout and is in neither the record nor the graph. A
+load the graph cannot follow, a computed `import()`, is the named residue: a
+mainline change that turns one onto the checkout's change is left to the
+mainline unless the record saw it. The mainline's own
 tip with nothing changed answers for M and leaves nothing; so does a run whose
 graph could not come up to the checkout. `select` names how many tests it left.
 

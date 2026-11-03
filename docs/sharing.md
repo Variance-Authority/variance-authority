@@ -656,10 +656,14 @@ test is the mainline's, and the answer says how many:
 1 test file(s) left to mainline main: only its commits between the record's commit 3f1c9a2a07b8 and the merge base 8e01b44c5d21 reach them, and nothing this checkout changed from that base does.
 ```
 
-A test that entered a file you deleted or renamed runs; one the mainline made
-import it, which the record never saw, is left, as `file` precision leaves it.
-Nothing is left on the mainline's own tip with nothing changed, whose run answers for it, or when
-the [source index](source-index.md) could not come up to your checkout.
+A test that entered a file you deleted or renamed runs. So does one the
+mainline made import it, which the record never saw: when your change removes
+a path, every file whose imports the source index could not all resolve counts
+as reached. A load the import graph cannot follow, such as `import()` of a
+computed path, is not: a mainline change that turns one onto a file you changed
+leaves its test to the mainline, unless the record saw that load. Nothing is
+left on the mainline's own tip with nothing changed, whose run answers for it,
+or when the [source index](source-index.md) could not come up to your checkout.
 
 `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
