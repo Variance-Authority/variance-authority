@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
-import type { Env } from '../share-lines.js';
+import { KEEP_COMMITS } from '@variance-authority/core/share';
+import { keptBehind, type Env } from '../share-lines.js';
 import { describePublish, mainlineIndex, publishRun } from './share.js';
 
 /**
@@ -51,6 +52,29 @@ describe('a mainline record kept at its commit', () => {
     await git(dir, 'push', '--quiet', 'origin', `:refs/variance/at/${commits[0]!}/mainline/main`);
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cold-2'));
     expect(await mainlineIndex(config, { env: {}, cwd: dir })).toMatchObject({ commit: commits[2], distance: -1, from: 'share' });
+  });
+
+  it(`walks back past ${String(KEEP_COMMITS)} commits to a record kept by a sparse mainline`, async () => {
+    const dir = await mkdtemp(join(home, 'sparse-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    const stream = Array.from({ length: KEEP_COMMITS + 2 }, (_, index) => [
+      'commit refs/heads/main',
+      `mark :${String(index + 1)}`,
+      `committer Test <test@example.com> ${String(index)} +0000`,
+      'data 0',
+      ...(index === 0 ? [] : [`from :${String(index)}`]),
+      '',
+    ].join('\n')).join('');
+    await new Promise<void>((done, failed) => {
+      const child = execFile('git', ['fast-import', '--quiet'], { cwd: dir }, (error) => (error ? failed(error) : done()));
+      child.stdin!.end(stream);
+    });
+    const oldest = await git(dir, 'rev-list', '--max-parents=0', 'main');
+
+    const walked: string[] = [];
+    for await (const commit of keptBehind('main', new Set([oldest]), dir)) walked.push(commit);
+
+    expect(walked).toEqual([oldest]);
   });
 });
 

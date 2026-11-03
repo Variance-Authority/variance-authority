@@ -55,10 +55,11 @@ fetched here, and the reader says so.**
   newest record, and a share in git also keeps each mainline publish at its
   commit (`refs/variance/at/<commit>/mainline/<name>`) for the window of
   ADR-0078, 14 days and the newest 200 commits; the publish that writes one
-  deletes what fell out. The reader asks for the record at the merge base
+  deletes what fell out, each only if nothing was written to it since it
+  was listed. The reader asks for the record at the merge base
   first. On a green main every commit's job publishes its record, so until
-  the merge base's has, the reader reads the newest kept behind it, which
-  charges the change with no commit of main's it lacks; the newest of the
+  the merge base's has, the reader reads the newest kept behind it that holds
+  the suite's record, whichever jobs published there, which charges the change with no commit of main's it lacks; the newest of the
   line answers only when nothing at or behind is kept, and a directory or an
   HTTP store keeps the newest only. `fetched.json` keeps the merge base the
   line was asked at. The record stands without asking when it is at the

@@ -105,14 +105,19 @@ async function keepAtCommits(
     if ('kind' in written) return { kept, dropped: [], miss: written };
     kept.push(commit);
   }
-  const held = await commits.call(cell, line);
-  if (!Array.isArray(held)) return { kept, dropped: [], miss: held as ShareMiss };
-  const past = pastWindow(held, options.now ?? Date.now());
-  if (past.length > 0) {
-    const dropped = await drop.call(cell, past.map((commit) => atCommit(line, commit)));
-    if (dropped !== 'dropped') return { kept, dropped: [], miss: dropped };
+  // A record written between the listing and the removal is in the window
+  // again, so a removal that finds one moved lists again.
+  const limit = options.attempts ?? 8;
+  for (let attempt = 1; attempt <= limit; attempt += 1) {
+    const held = await commits.call(cell, line);
+    if (!Array.isArray(held)) return { kept, dropped: [], miss: held as ShareMiss };
+    const past = pastWindow(held, options.now ?? Date.now());
+    if (past.length === 0) return { kept, dropped: [] };
+    const dropped = await drop.call(cell, past.map((one) => ({ line: atCommit(line, one.commit), version: one.version })));
+    if (dropped === 'dropped') return { kept, dropped: past.map((one) => one.commit) };
+    if (dropped !== 'conflict') return { kept, dropped: [], miss: dropped };
   }
-  return { kept, dropped: past };
+  return { kept, dropped: [], miss: { kind: 'unreachable', detail: `the kept records moved under ${String(limit)} removals in a row; none was removed` } };
 }
 
 async function publishOne(
@@ -351,10 +356,11 @@ export function memoryLineCell(
     async commits(line) {
       return [...written.values()]
         .filter((one) => one.line.at !== undefined && one.line.kind === line.kind && one.line.name === line.name)
-        .map((one) => ({ commit: one.line.at!, written: one.at }));
+        .map((one) => ({ commit: one.line.at!, written: one.at, version: String(versions.get(key(one.line)) ?? 0) }));
     },
     async drop(lines) {
-      for (const line of lines) {
+      if (lines.some((one) => String(versions.get(key(one.line)) ?? '') !== one.version)) return 'conflict';
+      for (const { line } of lines) {
         const prefix = `${key(line)}\u0000`;
         for (const path of held.keys()) if (path.startsWith(prefix)) held.delete(path);
         versions.delete(key(line));

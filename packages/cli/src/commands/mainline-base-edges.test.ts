@@ -246,6 +246,23 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(third).not.toBe(second);
   });
 
+  it('behind the merge base, passes over a record kept there by another suite\'s job', async () => {
+    const { ci, origin, first, record } = await gitPublished(home);
+    const second = await pushed(ci);
+    // The web suite's job at `second` finished; the unit suite's has not.
+    const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
+    if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
+    await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('web'), commit: second, bytes: frame([['coverage.bin', record]]) }], {
+      descends: async () => true,
+      image: async (digest) => { throw new Error(`no image ${digest}`); },
+    });
+    await publishedNext(ci);
+    const { dir, base } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', second);
+
+    expect(await base(NOW)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW) });
+  });
+
   it('past the merge base, when nothing at or behind it is kept, reads the latest and stands until the merge base moves', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const next = await publishedNext(ci);

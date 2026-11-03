@@ -67,6 +67,29 @@ describe('a mainline record kept at its commit', () => {
     expect(done).toMatchObject({ atCommit: { kept: [sha(2)], dropped: [], miss: { kind: 'unreachable' } } });
   });
 
+  it('keeps a record written past the window after it was listed, and drops it no sooner than the next publish', async () => {
+    let now = 0;
+    const cell = memoryLineCell(() => now);
+    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], { ...options, now });
+    now = (KEEP_DAYS + 1) * DAY;
+    // A late job at `sha(1)` writes its record between the listing and the removal.
+    let late = false;
+    const racing = {
+      ...cell,
+      commits: async (line: Parameters<NonNullable<typeof cell.commits>>[0]) => {
+        const listed = await cell.commits!(line);
+        if (!late) {
+          late = true;
+          await publishLine(cell, atCommit(MAIN, sha(1)), [entry('report-v1', sha(1))], { ...options, now });
+        }
+        return listed;
+      },
+    };
+    const done = await publishLine(racing, MAIN, [entry('report-v1', sha(2))], { ...options, now });
+    expect(done).toMatchObject({ atCommit: { kept: [sha(2)], dropped: [] } });
+    expect(await readLine(cell, atCommit(MAIN, sha(1)))).not.toHaveProperty('kind');
+  });
+
   it('keeps nothing by commit for a branch, or in a store that cannot list and drop what it keeps', async () => {
     const cell = memoryLineCell();
     expect(await publishLine(cell, { kind: 'branch', name: 'feat/x' }, [entry('report-v1', sha(1))], options)).not.toHaveProperty('atCommit');

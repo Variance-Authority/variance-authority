@@ -278,30 +278,36 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       // Commits only, never a tree: when a record was written is its commit's date.
       const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
       if (ran.code !== 0) return missOf(ran);
-      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix)', `${namespace}/`])).stdout);
-      const kept: { commit: string; written: number }[] = [];
+      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix) %(objectname)', `${namespace}/`])).stdout);
+      const kept: { commit: string; written: number; version: string }[] = [];
       for (const row of listed.split('\n')) {
-        const [ref, seconds] = row.split(' ');
-        if (ref === undefined || seconds === undefined) continue;
+        const [ref, seconds, version] = row.split(' ');
+        if (ref === undefined || seconds === undefined || version === undefined) continue;
         const commit = keptAtOf(line, ref.slice(namespace.length + 1));
-        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000 });
+        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000, version });
       }
       return kept;
     },
     async drop(lines) {
-      const refs: string[] = [];
-      for (const line of lines) {
+      const refs: { ref: string; version: string }[] = [];
+      for (const { line, version } of lines) {
         const ref = refOf(line);
         if (typeof ref !== 'string') return ref;
-        refs.push(ref);
+        refs.push({ ref, version });
       }
       if (refs.length === 0) return 'dropped';
-      const pushed = await git(['push', '--no-verify', '--porcelain', '--atomic', REMOTE, ...refs.map((ref) => `:${ref}`)]);
-      // Another job publishing at the same commit may have deleted them first.
+      const pushed = await git([
+        'push', '--no-verify', '--porcelain', '--atomic',
+        ...refs.map(({ ref, version }) => `--force-with-lease=${ref}:${version}`),
+        REMOTE, ...refs.map(({ ref }) => `:${ref}`),
+      ]);
       if (pushed.code !== 0) {
-        for (const ref of refs) if ((await remoteAt(ref)) !== '') return missOf(pushed, refusalOf(pushed));
+        // Another publish removed one first, or wrote one since it was listed.
+        const now = await Promise.all(refs.map(({ ref }) => remoteAt(ref)));
+        if (now.some((held, index) => held !== '' && held !== undefined && held !== refs[index]!.version)) return 'conflict';
+        if (!now.every((held) => held === '')) return now.includes('') ? 'conflict' : missOf(pushed, refusalOf(pushed));
       }
-      for (const ref of refs) await git(['update-ref', '-d', ref]);
+      for (const { ref } of refs) await git(['update-ref', '-d', ref]);
       return 'dropped';
     },
   };

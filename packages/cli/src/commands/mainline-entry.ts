@@ -1,6 +1,6 @@
 import { findEntry, readLine, type HeldEntry, type LineCell, type ShareLine, type ShareMiss } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
-import { distanceFrom, lineCellOf, mergeBase, nearestKept, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
+import { distanceFrom, keptBehind, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
 import type { Here } from './share.js';
 
 /**
@@ -66,7 +66,7 @@ export async function mainlineEntry(
   if (cell.commits !== undefined) base ??= await mergeBase(config, mainline, cwd);
   const atBase = cell.commits === undefined || base === undefined
     ? undefined
-    : await keptBehind(cell, mainline, base, name, cwd);
+    : await nearestHolding(cell, mainline, base, name, cwd);
   const found = atBase === undefined || ('miss' in atBase && atBase.miss.kind === 'absent')
     ? await entryIn(cell, { kind: 'mainline', name: mainline }, name)
     : atBase;
@@ -103,13 +103,14 @@ export async function lineEntry(
 }
 
 /**
- * The entry kept at `base`, else at the nearest commit behind it the mainline
- * kept a record at. Every green mainline commit's job publishes one, so a merge
- * base with none is one whose job has not yet, or failed; the nearest behind
- * charges the checkout with no commit it lacks, where the latest charges every
- * one since.
+ * The entry kept at `base`, else at the nearest commit behind it whose record
+ * holds it. Every green mainline commit's job publishes one, so a merge base
+ * without it is one whose job has not yet, or failed, and a commit whose
+ * record holds only other suites' is one where only their jobs have; the
+ * nearest behind charges the checkout with no commit it lacks, where the
+ * latest charges every one since.
  */
-async function keptBehind(
+async function nearestHolding(
   cell: LineCell,
   mainline: string,
   base: string,
@@ -120,8 +121,12 @@ async function keptBehind(
   if (!('miss' in atBase) || atBase.miss.kind !== 'absent') return atBase;
   const held = await cell.commits!({ kind: 'mainline', name: mainline });
   if (!Array.isArray(held)) return { miss: held as ShareMiss };
-  const nearest = await nearestKept(base, new Set(held.map((one) => one.commit)), cwd);
-  return nearest === undefined || nearest === base ? atBase : entryIn(cell, { kind: 'mainline', name: mainline, at: nearest }, name);
+  for await (const commit of keptBehind(base, new Set(held.map((one) => one.commit)), cwd)) {
+    if (commit === base) continue;
+    const found = await entryIn(cell, { kind: 'mainline', name: mainline, at: commit }, name);
+    if (!('miss' in found) || found.miss.kind !== 'absent') return found;
+  }
+  return atBase;
 }
 
 async function entryIn(

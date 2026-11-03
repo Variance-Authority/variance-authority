@@ -112,14 +112,22 @@ export interface LineCell {
    * A store without it keeps the latest only, and nothing is kept by commit.
    */
   commits?(line: ShareLine): Promise<readonly KeptAt[] | ShareMiss>;
-  /** Remove lines, every one or none. Present wherever `commits` is. */
-  drop?(lines: readonly ShareLine[]): Promise<'dropped' | ShareMiss>;
+  /**
+   * Remove lines, every one or none, each only while it is still at the version
+   * listed: a line written since is `conflict`, and nothing is removed.
+   * Present wherever `commits` is.
+   */
+  drop?(lines: readonly { readonly line: ShareLine; readonly version: string }[]): Promise<'dropped' | 'conflict' | ShareMiss>;
 }
 
-/** One commit a mainline's record is kept at, and when it was written, in ms since the epoch. */
+/**
+ * One commit a mainline's record is kept at, when it was written, in ms since
+ * the epoch, and the version `load` gives that line, which `drop` removes.
+ */
 export interface KeptAt {
   readonly commit: string;
   readonly written: number;
+  readonly version: string;
 }
 
 /** An entry name, read. */

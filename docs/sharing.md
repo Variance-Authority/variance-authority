@@ -590,10 +590,10 @@ Records are read in this order:
    run writes, so it is never read as your checkout's own. The record read is
    the one kept at your `HEAD`'s merge base with the mainline when the share
    keeps one there. Until it does, because that commit's CI has not published
-   yet, it is the newest kept behind your merge base, and the remote is asked
-   again on each read, at most once a minute, until your merge base's record
-   is there. With nothing
-   kept at or behind your merge base, it is the mainline's newest. A record
+   yet, it is the newest kept behind your merge base that holds your suite's
+   record, and the remote is asked again on each read, at most once a minute,
+   until your merge base's record is there. With nothing kept at or behind
+   your merge base, it is the mainline's newest. A record
    fetched at your merge base is read without asking the remote again, and so
    is the newest when it was all the remote had for this merge base. After
    a pull or a rebase moves it, the remote is asked once. The result that the line has none for you stands for

@@ -6,8 +6,8 @@
  * the tip — is measured against its merge base, and the latest is a record of
  * code it does not have: every commit between is charged to it. So each
  * mainline publish also writes the line `at/<commit>/…` (`publishLine`),
- * and a reader asks for its merge base's, then the nearest kept behind it,
- * before the latest.
+ * and a reader asks for its merge base's, then the nearest kept behind it
+ * that holds the entry it reads, before the latest.
  *
  * What is kept is bounded, and the publish that writes the next record removes
  * what fell out: {@link KEEP_DAYS} days and at most {@link KEEP_COMMITS}
@@ -40,11 +40,10 @@ export interface KeptCommits {
   readonly miss?: ShareMiss;
 }
 
-/** The commits past {@link KEEP_DAYS} days old at `now`, or beyond the newest {@link KEEP_COMMITS}. */
-export function pastWindow(held: readonly KeptAt[], now: number): string[] {
+/** What is kept past {@link KEEP_DAYS} days old at `now`, or beyond the newest {@link KEEP_COMMITS}, by commit. */
+export function pastWindow(held: readonly KeptAt[], now: number): KeptAt[] {
   return [...held]
     .sort((a, b) => b.written - a.written)
     .filter((one, index) => index >= KEEP_COMMITS || now - one.written > KEEP_DAYS * DAY_MS)
-    .map((one) => one.commit)
-    .sort();
+    .sort((a, b) => (a.commit < b.commit ? -1 : a.commit > b.commit ? 1 : 0));
 }
