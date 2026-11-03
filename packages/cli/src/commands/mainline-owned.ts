@@ -6,8 +6,6 @@
  * and `leftToMainline` decides which tests only the mainline's commits reach.
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Relations } from '@variance-authority/core/relate';
 import type { ExecutionNarrowing, TestDistance } from '@variance-authority/sense/test-selection';
 import { ConfigError } from '../config-values.js';
@@ -60,8 +58,7 @@ export async function mainlineOwned<Distance extends TestDistance>(
   // A bump the checkout made from the base moves the files that import what it bumped.
   const [installed] = await installDiffs([{ point: await commitPoint(base, [], root), changed }], root);
   if (installed !== undefined && 'whole' in installed) return unchanged;
-  const removes = changed.some((file) => !existsSync(join(root, file)));
-  const left = selection.leftToMainline(narrowing, distances, new Set([...changed, ...beyondOf(relations, installed).files]), relations, removes);
+  const left = selection.leftToMainline(narrowing, distances, new Set([...changed, ...beyondOf(relations, installed).files]), relations);
   if (left === undefined) return unchanged;
   return {
     narrowing: left.narrowing,

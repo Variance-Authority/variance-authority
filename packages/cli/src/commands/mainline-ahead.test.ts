@@ -170,15 +170,16 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
-  it('runs a test the mainline changed when the checkout deletes a file the mainline made it import', async () => {
+  it('runs no more than `file` precision over its own change when the checkout deletes a file the mainline made a test import', async () => {
     const ci = await mainline();
     await landed(ci.dir, { 'src/total.ts': "import { other } from './other';\nexport function total(price: number): number {\n  return other(price) * 0.9;\n}\n" });
-    // A deleted file is in no graph at the checkout, so no import reaches `total` from it.
+    // A deleted file is in no graph at the checkout, and the record never saw `total` enter it.
     const clone = await branched(ci.origin, 'src/other.ts', undefined);
 
     const here = await selectedIn(clone);
 
-    expect(here.out).toBe('');
+    // `other` entered the deleted file; `total` is reached from it by neither the graph nor the record.
+    expect(here.out).toBe('test/total.test.ts\n');
   });
 
   it('runs a test the mainline changed when the checkout renames the module it imports', async () => {
@@ -194,6 +195,49 @@ describe('`variance select` a commit past the record its mainline published', ()
     const here = await selectedIn(clone);
 
     expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('runs a test that entered a file both the mainline and the checkout changed', async () => {
+    const ci = await mainline();
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
+    const clone = await branched(ci.origin, 'src/total.ts', TOTAL.replace('0.9', '0.7'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('runs a test the mainline moved off a file the checkout changes, as `file` precision over that change does', async () => {
+    const ci = await mainline();
+    // The mainline's test no longer imports `total`; the record, made before, says it entered `total`.
+    await landed(ci.dir, { 'test/total.test.ts': "import { other } from '../src/other';\nit('totals', () => other(1));\n" });
+    const clone = await branched(ci.origin, 'src/total.ts', TOTAL.replace('0.9', '0.7'));
+
+    const here = await selectedIn(clone);
+
+    // The record says it entered the changed file, and `file` precision reads that too: the run costs one test, never more.
+    expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('runs none of the tests only a package the mainline bumped reaches', async () => {
+    const ci = await mainline({ total: PADDED, files: { 'package-lock.json': npmLock('1.3.0') } });
+    await landed(ci.dir, { 'package-lock.json': npmLock('1.4.0') });
+    const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/total.test.ts\n');
+  });
+
+  it('runs a test the mainline added, which no record holds, and none the mainline alone reaches', async () => {
+    const ci = await mainline();
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8'), 'test/added.test.ts': "import { total } from '../src/total';\nit('adds', () => total(2));\n" });
+    const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
+
+    const here = await selectedIn(clone);
+
+    // Plain output is what to skip, and a test no record holds is never on it.
+    expect(here.out).toBe('test/total.test.ts\n');
   });
 
   it('leaves nothing to the mainline on the mainline itself, whose run is the one that answers for it', async () => {

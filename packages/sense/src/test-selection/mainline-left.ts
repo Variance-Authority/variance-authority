@@ -3,13 +3,14 @@
  * The tests a selection leaves to the mainline: those only the mainline's own
  * commits since a record behind the merge base reach. The record says what can
  * differ since it ran; the import graph at the checkout says what the
- * checkout's own change can reach. A test is kept when both say so. A path
- * the change removed is in no graph at the checkout, and what still imports it
- * holds an import the scan could not resolve, so those files are reached too.
+ * checkout's own change can reach, as a suite at `file` precision reads it:
+ * the graph's walk, and the files the record says a test entered. A test is
+ * kept when both say so, so the answer never runs a test that `file`
+ * precision over the checkout's change alone would not.
  */
-import { affectedBy, NODE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import type { TestDistance } from './distance.js';
-import type { ExecutionNarrowing } from './narrowing.js';
+import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
 
 /** What {@link leftToMainline} kept of a narrowing, and how many tests it left. */
 export interface MainlineLeft<Distance extends TestDistance> {
@@ -18,25 +19,32 @@ export interface MainlineLeft<Distance extends TestDistance> {
   readonly left: number;
 }
 
-const FILE = NODE_KINDS.indexOf('file');
+/** The files one reason names: where the change it read is, and every file it passed through to reach the test. */
+function filesOf(reason: SelectionReason): readonly string[] {
+  if (reason.kind === 'region') return [reason.file];
+  if (reason.kind === 'precondition') return [reason.name];
+  if (reason.kind === 'reader') return [reason.file, reason.reader];
+  return reason.trail;
+}
 
 /**
  * `narrowing`, read from a record behind the merge base, without the tests
- * the import graph does not reach from `mine`: the files the checkout changed
- * from that base, and those its install moved. With `removes`, the change
- * removed a path, and every file whose imports the scan could not all read is
- * reached as well. `undefined` when it leaves none.
+ * neither the import graph reaches from `mine`, the files the checkout
+ * changed from that base and those its install moved, nor a reason names one
+ * of. A removed path is in no graph at the checkout, and the reason that names
+ * it is what a test that entered it is kept by. `undefined` when it leaves none.
  */
 export function leftToMainline<Distance extends TestDistance>(
   narrowing: ExecutionNarrowing,
   distances: readonly Distance[] | undefined,
   mine: ReadonlySet<string>,
   relations: Relations,
-  removes: boolean,
 ): MainlineLeft<Distance> | undefined {
-  const holes = removes ? relations.names.filter((_, id) => relations.unknown[id] === 1 && relations.kinds[id] === FILE) : [];
-  const reached = new Set(affectedBy(relations, [...mine, ...holes], { through: RUNTIME_EDGES }).files);
-  const kept = new Set(narrowing.entered.filter((test) => reached.has(test)));
+  const reached = new Set(affectedBy(relations, mine, { through: RUNTIME_EDGES }).files);
+  const named = new Set(
+    (narrowing.because ?? []).filter((cause) => cause.via.some((reason) => filesOf(reason).some((file) => mine.has(file)))).map((cause) => cause.test),
+  );
+  const kept = new Set(narrowing.entered.filter((test) => reached.has(test) || named.has(test)));
   if (kept.size === narrowing.entered.length) return undefined;
   return {
     narrowing: { ...narrowing, entered: [...kept], because: (narrowing.because ?? []).filter((cause) => kept.has(cause.test)) },

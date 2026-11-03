@@ -646,15 +646,17 @@ that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
 is the pull request's alone.
 
 A record behind your merge base leaves the mainline's changes to the mainline.
-A test the record selects runs when imports reach it from a file you changed
-from the merge base, or from a package you bumped. Any other test is the
-mainline's, and the answer says how many:
+A test the record selects runs when `file` precision over your own change from
+the merge base would select it too: imports reach it from a file you changed or
+a package you bumped, or the record says it entered a file you changed. Any
+other test is the mainline's, and the answer says how many:
 
 ```text
 1 test file(s) left to mainline main: only its commits between the record's commit 3f1c9a2a07b8 and the merge base 8e01b44c5d21 reach them, and nothing this checkout changed from that base does.
 ```
 
-When you delete or rename a file, what still imports its old path runs too.
+A test that entered a file you deleted or renamed runs; one the mainline made
+import it, which the record never saw, is left, as `file` precision leaves it.
 Nothing is left on the mainline's own tip, whose run answers for it, or when
 the [source index](source-index.md) could not come up to your checkout.
 
