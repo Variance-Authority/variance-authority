@@ -35,9 +35,9 @@ export function spent(milliseconds: number): string {
 const COMMIT_WIDTH = 12;
 
 const WHOSE: Readonly<Record<RecordOrigin, string>> = {
-  own: "this checkout's own run",
+  own: "this checkout's record",
   mainline: 'the fetched mainline record',
-  primary: "the primary checkout's run",
+  primary: "the primary checkout's record",
 };
 
 /** The answer, from what each suite's recording said, read at `now`; `over` is the time asked for, in milliseconds. */
@@ -84,7 +84,11 @@ function takenAt({ commit, committed }: { readonly commit?: string; readonly com
 function closestSection(cases: RecordedCaseDurations, named: string): string[] {
   if ('unread' in cases || cases.timed === 0) return [];
   if (cases.limited === 0) return [`${named}: none of the ${cases.timed} timed case(s) has a recorded limit, so they are listed by time alone.`];
-  const pair = ({ duration, limit }: TimedTestCase): string => `${spent(duration)} of ${spent(limit!)}`;
+  const pair = ({ duration, limit }: TimedTestCase): string => {
+    const [run, held] = [spent(duration), spent(limit!)];
+    // Tenths would read 4,960 ms of 5,000 as the whole limit spent.
+    return run === held && duration !== limit ? `${duration} ms of ${limit} ms` : `${run} of ${held}`;
+  };
   const wide = Math.max(...cases.closest.map((row) => pair(row).length));
   const unlimited = cases.timed - cases.limited;
   return [
@@ -92,9 +96,6 @@ function closestSection(cases: RecordedCaseDurations, named: string): string[] {
     ...cases.closest.map((row) => `  ${pair(row).padStart(wide)}  ${row.file}  ${row.name}`),
     `${cases.closest.length} of ${cases.limited} limited case(s) shown` +
       `${unlimited === 0 ? '.' : `; ${unlimited} timed case(s) have no recorded limit.`}`,
-    ...(cases.closest.some((row) => row.duration > row.limit!)
-      ? ['A run above its limit is not a failure: the run spans hooks and attempts, the limit one attempt.']
-      : []),
   ];
 }
 

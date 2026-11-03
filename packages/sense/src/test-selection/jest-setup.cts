@@ -226,15 +226,7 @@ function markCollected(): { at?: number } {
   const mark: { at?: number } = {};
   const native = (globalThis as { [key: symbol]: unknown })[Symbol.for('jest-native-now')];
   const now = typeof native === 'function' ? (native as () => number) : Date.now.bind(Date);
-  let circus: { addEventHandler?: unknown };
-  try {
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return mark;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return mark;
-  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+  circusHandlers()?.((event): void => {
     if (event.name !== 'run_start') return;
     mark.at = now();
   });
@@ -400,7 +392,7 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 let enclosingCase = 0;
 
 // What the case about to run is held to. The declarer route encloses a body before
-// any limit is known, so it is read when the body runs; Jest runs one case at a time.
+// any limit is known, so it is read when the body runs; interleaved cases are not supported.
 let heldTo: number | undefined;
 
 /**

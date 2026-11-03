@@ -565,8 +565,9 @@ written before cases carried durations opens with every case untimed.
 
 A `tests.limit` column beside it holds the time the case was allowed, in whole
 milliseconds: the timeout the runner enforced on its body, read by the harness
-while the case ran, the same way under Vitest, Jest, Rstest and Playwright. The
-limit is one attempt's, and a case recorded twice keeps the larger. The duration
+while the case ran, under Vitest, Jest, Rstest and Playwright, and given as the
+case's `limit` to `startRecording().finish()` by any other runner. The limit is
+one attempt's, and a case recorded twice keeps the larger. The duration
 above spans hooks and every attempt, so a passing case can read 5.3 s against a
 limit of 5 s, and a retried case more. A case with no limit is absent from the
 column, never `0`, and a case index written before the column opens with every

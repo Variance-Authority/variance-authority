@@ -49,7 +49,7 @@ describe('the slowest recorded test files, as printed', () => {
         },
       },
     ])).toBe([
-      "Suite unit read this checkout's own run, which names no commit, /cache/suites/unit/coverage.bin.",
+      "Suite unit read this checkout's record, which names no commit, /cache/suites/unit/coverage.bin.",
       '',
       'Closest to their limit, suite unit: none of the 8 timed case(s) has a recorded limit, so they are listed by time alone.',
       '',
@@ -68,7 +68,7 @@ describe('the slowest recorded test files, as printed', () => {
     expect(formatSlowest([
       { recording: '/cache/coverage.bin', origin: 'own', slowest: [], timed: 0, untimed: 3, scope: ANYWHERE, cases: NO_CASES },
     ])).toBe(
-      "Read this checkout's own run, which names no commit, /cache/coverage.bin.\n\n" +
+      "Read this checkout's record, which names no commit, /cache/coverage.bin.\n\n" +
         'Slowest recorded test files: none of the 3 file(s) in /cache/coverage.bin has a recorded duration. ' +
         `The next recorded run stores what its runner reports.\n\n${CASES_UNREAD}`,
     );
@@ -122,16 +122,16 @@ describe('the record an answer read', () => {
   const said = (record: object): string | undefined =>
     formatSlowest([suite(NO_CASES, record)], {}, undefined, NOW).split('\n')[0];
 
-  it('says whose run it is, at which commit, and how old that commit is', () => {
+  it('says whose record it is, at which commit, and how old that commit is', () => {
     expect(said({ origin: 'mainline', commit: 'a'.repeat(40), committed: '2026-10-01T12:00:00Z' }))
       .toBe('Read the fetched mainline record at aaaaaaaaaaaa, committed 3 days ago, /cache/coverage.bin.');
     expect(said({ origin: 'primary', commit: 'b'.repeat(40), committed: '2026-10-04T11:30:00Z' }))
-      .toBe("Read the primary checkout's run at bbbbbbbbbbbb, committed 30 minutes ago, /cache/coverage.bin.");
+      .toBe("Read the primary checkout's record at bbbbbbbbbbbb, committed 30 minutes ago, /cache/coverage.bin.");
   });
 
   it('names a commit this checkout does not hold, whose age it cannot give', () => {
     expect(said({ commit: 'c'.repeat(40) }))
-      .toBe("Read this checkout's own run at cccccccccccc, a commit this checkout does not hold, so its age is unknown, /cache/coverage.bin.");
+      .toBe("Read this checkout's record at cccccccccccc, a commit this checkout does not hold, so its age is unknown, /cache/coverage.bin.");
   });
 });
 
@@ -153,12 +153,10 @@ describe('the cases closest to their limit', () => {
     ]);
   });
 
-  it('says a run above its limit is no failure, and only when one is listed', () => {
-    const above = { file: 'test/a.test.ts', name: 'hooks ran long', duration: 5_300, limit: 5_000 };
-    const note = 'A run above its limit is not a failure: the run spans hooks and attempts, the limit one attempt.';
+  it('prints milliseconds where tenths would read a run as its whole limit', () => {
+    const close = { file: 'test/a.test.ts', name: 'nearly', duration: 4_960, limit: 5_000 };
 
-    expect(formatSlowest([suite(read({ closest: [above], limited: 1, timed: 1 }))])).toContain(note);
-    expect(formatSlowest([suite(read({ closest, limited: 2, timed: 2 }))])).not.toContain(note);
+    expect(formatSlowest([suite(read({ closest: [close], limited: 1, timed: 1 }))])).toContain('4960 ms of 5000 ms');
   });
 
   it('names the absence on a record with no limits, and still lists the cases by time', () => {

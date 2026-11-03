@@ -16,6 +16,7 @@
  * of the two it is, so neither is timed: fall back, never fake.
  */
 
+import { limitAcross } from './execution-set-columns.js';
 import type { ReportedModule, RunnerTask } from './finished-files.js';
 import { projectPath } from './instrumented-modules.js';
 
@@ -59,7 +60,7 @@ export function caseLimits(
     for (const held of file.cases ?? []) declared.set(held.name, (declared.get(held.name) ?? 0) + 1);
     for (const held of file.cases ?? []) {
       const key = `${path}\0${held.name}`;
-      if (held.limit !== undefined && declared.get(held.name) === 1) limits.set(key, Math.max(held.limit, limits.get(key) ?? 0));
+      if (held.limit !== undefined && declared.get(held.name) === 1) limits.set(key, limitAcross(held.limit, limits.get(key)).limit!);
     }
   }
   return (file, name) => limits.get(`${file}\0${name}`);

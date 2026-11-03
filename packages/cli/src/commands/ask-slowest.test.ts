@@ -58,7 +58,7 @@ describe('variance ask slowest-tests', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Read this checkout's own run, which names no commit, ${at}.`,
+        `Read this checkout's record, which names no commit, ${at}.`,
         '',
         'Slowest recorded test files, as their runner timed them:',
         '  2.4 s  test/slow.test.ts',
@@ -139,7 +139,7 @@ describe('variance ask slowest-tests, somewhere', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Read this checkout's own run, which names no commit, ${at}.`,
+        `Read this checkout's record, which names no commit, ${at}.`,
         '',
         'Closest to their limit, that entered src/format.ts, each as run and limit:',
         '  250 ms of 300 ms  test/a.test.ts  writes',

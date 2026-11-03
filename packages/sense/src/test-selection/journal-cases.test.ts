@@ -312,8 +312,8 @@ describe('a run recorded by more than one process', () => {
       // Case `a` failed in one worker and passed on its retry in another, as a
       // Playwright retry lands wherever a worker is free.
       for (const [stopped, duration, limit] of [
-        [true, 300, 7000],
-        [false, 200, 5000],
+        [true, 300, 5000],
+        [false, 200, 7000],
       ] as const) {
         await stageExecution(directory, {
           subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium, complete: !stopped, duration }],

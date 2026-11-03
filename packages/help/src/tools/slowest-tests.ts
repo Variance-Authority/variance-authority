@@ -46,7 +46,7 @@ export function overOf(input: Readonly<Record<string, unknown>>, spell: Spelling
   if (time === null) {
     throw new Error(`\`${spell.input('over')}\` takes a time such as \`3s\` or \`500ms\`; it was given \`${String(said)}\`.`);
   }
-  return Number(time[1]) * (time[2] === 's' ? 1000 : 1);
+  return Math.round(Number(time[1]) * (time[2] === 's' ? 1000 : 1));
 }
 
 /** Refuse a `from` or `to` path that is in neither the recording nor the checkout. */
@@ -74,7 +74,7 @@ export const slowestTests: Tool<unknown> = {
     '`from` keeps the tests declared under the paths given, `to` the tests the recording says entered code ' +
     'in them, and the two combine. `over` keeps only the cases that ran at least that long, and leaves the files ' +
     'out. Counts are within that scope, a path the recording has no row for is named as unrecorded, and files and ' +
-    'cases whose runner reported no duration or limit are counted, not ranked. ' +
+    'cases whose runner reported no duration are counted, not ranked; a case with no limit is ranked by time alone. ' +
     'Reads the recording a test run with test selection published; runs and times nothing itself.',
   inputSchema: {
     type: 'object',

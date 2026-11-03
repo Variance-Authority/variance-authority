@@ -39,6 +39,7 @@ import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
+import { limitAcross } from './execution-set-columns.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -274,10 +275,12 @@ export function withTestSelection(
   let ended: number | undefined;
   // What each case was held to. Rstest resolves it before the case starts and
   // says it here alone: neither the case's context nor its result carries it.
+  // One reporter hears every project, so a case two ran keeps the longer.
   const limits = new Map<string, number | undefined>();
   const reporter = {
     onTestCaseStart: (test: { readonly testPath: string; readonly timeout?: number } & CaseNames) => {
-      limits.set(`${test.testPath}\0${caseNameOf(test)}`, test.timeout);
+      const key = `${test.testPath}\0${caseNameOf(test)}`;
+      limits.set(key, limitAcross(test.timeout, limits.get(key)).limit);
     },
     // A watching Rstest starts every cycle here, after the last cycle's end.
     // Rstest builds the cycle's bundle, reading its files, before it announces

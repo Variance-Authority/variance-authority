@@ -95,6 +95,15 @@ describe('the Rstest integration', () => {
     ]);
   }, 120_000);
 
+  it('holds a case two projects ran to the longer of their limits', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-projects-'));
+    temporary.push(directory);
+    await run('rstest.projects.config.mjs', directory);
+
+    const index = decodeExecutionIndex(await readFile(resolve(directory, 'coverage.bin')));
+    expect(index.tests.map((test) => test.limit)).toEqual([6543, 3210, 6543]);
+  }, 120_000);
+
   it('names the individual cases of a file, and gives a branch only to the case that walked it', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-cases-'));
     temporary.push(directory);

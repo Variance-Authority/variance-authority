@@ -416,7 +416,7 @@ export function nearestTestCoverage(root: string, options: RecordLocationOptions
   return nearestRecord(root, options).file;
 }
 
-/** Whose run a record is: this checkout's, the mainline's as fetched, or the primary checkout's under a worktree. */
+/** Whose record answered: this checkout's, the mainline's as fetched, or the primary checkout's under a worktree. */
 export type RecordOrigin = 'own' | 'mainline' | 'primary';
 
 /** {@link nearestTestCoverage} for a reader that says whose record it read. With no layer holding one, this checkout's. */

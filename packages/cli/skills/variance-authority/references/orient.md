@@ -95,8 +95,8 @@ Playwright does for its CLI skills, is not listed. `search` does not list skills
 
 ## `slowest-tests`
 
-The answer opens with the record it read: whose run, at which commit, and how
-old that commit is. A record is one run, so weigh it by those.
+The answer opens with the record it read: whose it is, at which commit, and how
+old that commit is. A figure is one reading, not an average, so weigh it by those.
 
 Then the cases closest to their limit, ranked by how much of it they ran, so
 4.9 s of 5 s stands above 40 s of 60 s. Each row states the run and the limit

@@ -5,7 +5,7 @@
  * per-case index: the nearest layer holding one answers, for each suite the
  * root config declares. Nothing here runs a test or times one. A file or case
  * whose runner reported no figure is counted apart, never as free. Each answer
- * says which record it read, because a record is one run.
+ * says which record it read, because a figure is one reading, not an average.
  */
 
 // compass: variance-authority.reach
