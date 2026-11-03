@@ -67,15 +67,9 @@ export interface PublishOptions {
  * any version — except on a mainline, where the held one is kept when its
  * commit strictly descends from the offered one: a slow run of an older commit
  * finishing last. A held entry in a newer format is kept on any line, so an old
- * CLI cannot take a line back a version. Every other held entry is left as it
- * is, which is how suites published by different jobs land on one line.
- *
- * A write that loses to another writer reads the line again and decides again.
- *
- * A mainline's entries are also kept at the commits they were derived at, the
- * same rules deciding on each, and what is past the window is removed
- * (`at-commit.ts`), when the store can list and remove lines. The latest is
- * written first and stands whatever happens to those.
+ * CLI cannot take a line back a version. Other held entries stay, which is how
+ * suites published by different jobs land on one line. A losing write reads
+ * the line again and decides again.
  */
 export async function publishLine(
   cell: LineCell,
@@ -89,6 +83,12 @@ export async function publishLine(
   return kept === undefined ? latest : { ...latest, atCommit: kept };
 }
 
+/**
+ * A mainline's entries kept at the commits they were derived at, the same rules
+ * deciding on each, and what is past the window removed (`at-commit.ts`), when
+ * the store can list and remove lines. The latest is written first and stands
+ * whatever happens to those.
+ */
 async function keepAtCommits(
   cell: LineCell,
   line: ShareLine,

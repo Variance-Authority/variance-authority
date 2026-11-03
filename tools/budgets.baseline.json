@@ -244,9 +244,6 @@
   "docs/sharding.md lead": [
     18
   ],
-  "docs/sharing.md lead": [
-    26
-  ],
   "docs/source-index.md lead": [
     17
   ],
@@ -601,9 +598,6 @@
   ],
   "packages/cli/src/commands/layers-command.ts overview": [
     16
-  ],
-  "packages/cli/src/commands/mainline-base.ts overview": [
-    32
   ],
   "packages/cli/src/commands/merge.ts block": [
     9
@@ -1324,12 +1318,6 @@
   ],
   "packages/core/src/shard/placement.ts overview": [
     18
-  ],
-  "packages/core/src/share/index.ts overview": [
-    21
-  ],
-  "packages/core/src/share/line.ts overview": [
-    16
   ],
   "packages/distill/src/attribution.ts docblock": [
     12

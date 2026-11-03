@@ -1,44 +1,26 @@
 # Read CI's latest run from your checkout
 
 A **share** is a store where CI publishes what each run found, for commands on
-your checkout to read. `variance ask` and `variance serve` answer questions about
-CI's latest run from the report that run wrote, when your checkout has no run of
-its own. `variance select` names the test files a change lets you skip, and
-`variance review` counts the changed code no test covered; where your checkout
-has no recording to measure the change from, both read which tests ran which
-lines on your mainline, the branch your other branches merge into.
-`variance share` publishes a run, or prints how far the mainline's latest
-publish is from your checkout.
-
-For each branch a share keeps one copy of each file a run publishes, and the
-next publish of that file replaces it, unless the branch is a mainline and has
-that file at a newer commit. A share stored in git also keeps each mainline
-publish at the commit it ran at, for 14 days and the newest 200 commits, so a
-checkout behind the mainline's tip is measured against the record at its merge
-base. It is stored as refs in the
-repository that hosts your code, in a directory, or behind an HTTP endpoint such
-as a deployment of [Tribunal](../packages/tribunal/README.md), the self-hosted
-review service.
-
-New here? Start with [your first run](start.md).
-
-The CLI is a devDependency, and every command below is run through it:
+your checkout to read: `variance ask` and `variance serve` answer from CI's
+latest report, and `variance select` and `variance review` measure a change
+from which tests ran which lines on your mainline, the branch your other
+branches merge into. It is stored as refs in the repository that hosts your
+code, in a directory, or behind an HTTP endpoint such as
+[Tribunal](../packages/tribunal/README.md), the self-hosted review service. New
+here? Start with [your first run](start.md). Every command below runs through
+the CLI, a devDependency:
 
 ```bash
 npm install --save-dev @variance-authority/cli
 ```
 
-A share does not replace [`baselines`](../packages/cli/README.md#configuration).
-The baselines are the images a run compares against, and `baselines.carry`,
-the [setting that names who takes a file to the next machine](#what-a-share-stores),
-refuses `"share"`. Everything in a share was derived from a commit the share
-names beside it, so losing a share costs you a run of the suite, and losing a
-baseline costs you the comparison.
-
 ## The words this page uses
 
 - **Line** — the place in a share for one branch: a manifest and the entries it
   lists. A publish replaces the entries it offers, so a line keeps one of each.
+  A share in git also keeps each mainline publish at the commit it ran at, for
+  14 days and the newest 200, so a checkout behind the mainline's tip is
+  measured against the record at its merge base.
 - **Mainline** — a branch your other branches start from and merge into, such
   as `main`. Its line is `mainline/<name>`.
   [Which branches are mainlines](#which-branches-are-mainlines) says how the CLI
@@ -146,6 +128,13 @@ Text an [ignore](ignores.md) declared volatile — a clock, a feed, an order
 number — is the exception: it is digested before the lexicon is written, so the
 suite index never stores it as words. An ignore never changes an image, so a
 published run report's images still show it.
+
+A share does not replace [`baselines`](../packages/cli/README.md#configuration).
+The baselines are the images a run compares against, and `baselines.carry`,
+the [setting that names who takes a file to the next machine](#what-a-share-stores),
+refuses `"share"`. Everything in a share was derived from a commit the share
+names beside it, so losing a share costs you a run of the suite, and losing a
+baseline costs you the comparison.
 
 ## What a line keeps
 
