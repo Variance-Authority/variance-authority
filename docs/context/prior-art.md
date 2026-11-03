@@ -105,7 +105,7 @@ false, under the open world it is unknown.
 
 Static analysers that cannot be sound on an existing codebase accept what they
 report once as a **baseline** and report only what departs from it: PHPStan's
-`--generate-baseline`, Psalm's `--set-baseline`, detekt's `baseline.xml`.
+`--generate-baseline`, Psalm's `--set-baseline`, detekt's baseline file.
 
 **What it means here.**
 [Spec 0105](../specs/0105-a-run-records-where-its-loads-drift-from-the-walk.md)

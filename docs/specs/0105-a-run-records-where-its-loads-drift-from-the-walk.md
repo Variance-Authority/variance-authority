@@ -4,8 +4,8 @@
 with the record and compared run to run. The check exists:
 [`unreachedLoads`](../../packages/sense/src/test-selection/closed-world.ts)
 names each test file that loaded a file its imports do not reach, and nothing
-calls it. Over this repository's unit record it names 923 loads, 566 of them
-from one helper that loads the CLI through `createRequire` and a dynamic
+calls it. When it landed, it named 923 loads over this repository's unit
+record, 566 of them from one helper that loads the CLI through `createRequire` and a dynamic
 `import()`, and nothing tells which of them are the runner doing what it was
 set up to do and which are new.
 **Built on:** the check above and its fixture
@@ -68,7 +68,8 @@ drift.
 ## The mainline's drift is the baseline
 
 The **baseline** is the drift of the record the suite's mainline published,
-fetched by `mainlineBase` and by nothing else, read against the walk of the
+fetched by `mainlineBase` and by nothing else — not the primary checkout's
+record a selection falls back to — read against the walk of the
 checkout that compares. The record a branch writes for itself is never the
 baseline: it would hide the branch's own growth after its first run. Nothing is stored for it:
 drift is derived from the file use the record already holds, so the record does
@@ -96,8 +97,7 @@ baseline rows and is not compared: absence selects nothing.
 A shape change is reported with the test file and the loaded file, in two
 places: the run that writes the record prints it, and `variance review` writes
 it into the comment CI posts on the pull request. It is never silent. On the
-mainline the published record becomes the next baseline, and the run names
-what it took in. On a pull request the comment names it, so the pull request
+mainline the published record becomes the next baseline. On a pull request the comment names it, so the pull request
 that brings in a dynamic import by a computed name, a mapper entry or an
 `import.meta.glob` says so.
 
@@ -124,8 +124,10 @@ it.
 ## Cost
 
 Drift is computed where a run writes a record or a review reads one, never per
-selection, so coverage selection still takes no graph. `unreachedLoads` walks
-each test file forward once and costs what the record lists: 13–74 ms per record on this repository,
+selection, so coverage selection still takes no graph. It needs the walk of
+the checkout that compares, and that walk's cost is measured with the change
+that wires it. `unreachedLoads` itself walks each test file forward once and
+costs what the record lists: 13–74 ms per record on this repository,
 and 2.1 s on a synthetic graph of 425,000 nodes and 6.3 million loads. Its rows
 are few beside the file use they are read from.
 
@@ -152,7 +154,11 @@ are few beside the file use they are read from.
   `math.ts` from `dynamic.case.ts`, and fails first on today's code, which
   reports nothing.
 - A Vitest fixture with `resolve.alias`, `vi.mock` with and without a factory,
-  `importOriginal` and `vi.resetModules` does the same.
+  `importOriginal` and `vi.resetModules` reports no shape change on its second
+  recording, and exactly one grown row when a case importing by a computed name
+  is added; that test fails first.
+- A baseline row of a test file the run did not run is neither grown nor
+  shrunk.
 - `closed-world.ts` is named and documented for drift, not for a declared
   world, and its `__mocks__` path exemption is deleted. The `it.todo` in
   `closed-world.test.ts` that fails a closed suite's run is replaced by the
@@ -164,5 +170,5 @@ Drift is read per test file, which is enough to report it and to judge it. It
 cannot speak for a test file that did not run. That needs the importer that
 made each load, so a new row `importer → file` holds for every test the walk
 takes through that importer. Vitest's `resolveId` and Node's `resolve` hook are
-handed the importer; the `it.todo` in `closed-world.test.ts` that names the
-request the runner answered stays for it.
+handed the importer. The `it.todo` in `closed-world.test.ts` that names the
+request the runner answered is reworded to ask for that importer, and stays.
