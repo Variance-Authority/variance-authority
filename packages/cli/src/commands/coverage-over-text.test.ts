@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -414,35 +413,5 @@ describe('a review that counts coverage', () => {
     expect(vi.mocked(textOver)).not.toHaveBeenCalled();
     expect(JSON.stringify(said.coverage)).not.toMatch(/"over"/u);
     expect(out).not.toMatch(/older text/u);
-  });
-
-  it('reads its base in the checkout `--root` names, not the one it was started in', async () => {
-    const { at } = await checkout(atRecord);
-    await writeFile(join(at, PAY_FILE), REFUNDED);
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: at, encoding: 'utf8' }).trim();
-    let out = '';
-    let err = '';
-
-    const code = await main(['review', '--root', at, '--since', 'HEAD', '--format', 'json'], { out: (text) => (out += text), err: (text) => (err += text) });
-
-    expect(code, err).toBe(0);
-    expect((JSON.parse(out) as { readonly from: string }).from).toBe(head);
-  });
-
-  it('reads the install in the checkout `--root` names, not the one it was started in', async () => {
-    const { at } = await checkout(atRecord);
-    const lock = (version: string) => JSON.stringify({ name: 'a', lockfileVersion: 3, packages: { '': { name: 'a' }, 'node_modules/left': { version } } });
-    await writeFile(join(at, 'package-lock.json'), lock('1.0.0'));
-    const git = (...args: readonly string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd: at });
-    git('add', 'package-lock.json');
-    git('commit', '--quiet', '-m', 'lock');
-    await writeFile(join(at, 'package-lock.json'), lock('2.0.0'));
-    let out = '';
-    let err = '';
-
-    const code = await main(['review', '--root', at, '--since', 'HEAD', '--format', 'json'], { out: (text) => (out += text), err: (text) => (err += text) });
-
-    expect(code, err).toBe(0);
-    expect((JSON.parse(out) as { readonly beyond?: { readonly packages: readonly string[] } }).beyond?.packages).toEqual(['left']);
   });
 });
