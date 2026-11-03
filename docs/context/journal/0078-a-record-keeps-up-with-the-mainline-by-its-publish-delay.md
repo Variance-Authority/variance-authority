@@ -185,4 +185,4 @@ parent, and both sets are empty.
 - Shopify Engineering, *Successfully Merging the Work of 1000+ Developers* and *Introducing the Merge Queue*.
 - Graydon Hoare, *The Not Rocket Science Rule of Software Engineering* (bors).
 - Horwitz, Prins and Reps, *Integrating Noninterfering Versions of Programs*, TOPLAS 1989.
-- Chromium, `docs/useful_urls.md` (LKGR).
+- Chromium, *Useful URLs* (LKGR), https://chromium.googlesource.com/chromium/src/+/2f90dd6/docs/useful_urls.md.
