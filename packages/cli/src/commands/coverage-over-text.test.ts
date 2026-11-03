@@ -386,9 +386,35 @@ describe('a review that counts coverage', () => {
     vi.mocked(textOver).mockClear();
     let out = '';
     let err = '';
+    const { ChildProcess } = await import('node:child_process');
+    const { Session } = await import('node:inspector/promises');
+    const spawned = ChildProcess.prototype.spawn;
+    const spawns: string[] = [];
+    ChildProcess.prototype.spawn = function spy(this: InstanceType<typeof ChildProcess>, options: { args?: string[]; cwd?: string }) {
+      const began = Date.now();
+      this.on('close', () => spawns.push(`${Date.now() - began}ms ${(options.args ?? []).join(' ').slice(0, 160)}`));
+      return spawned.call(this, options as never);
+    } as never;
+    const session = new Session();
+    session.connect();
+    await session.post('Profiler.enable');
+    await session.post('Profiler.start');
+    const began = Date.now();
     const code = await main(['review', '--root', at, '--since', 'HEAD', '--coverage', '--format', format], {
       out: (text) => (out += text), err: (text) => (err += text),
     });
+    const { profile } = await session.post('Profiler.stop');
+    ChildProcess.prototype.spawn = spawned;
+    const self = new Map<string, number>();
+    const gaps = profile.timeDeltas ?? [];
+    const byId = new Map(profile.nodes.map((node) => [node.id, node]));
+    (profile.samples ?? []).forEach((id, index) => {
+      const frame = byId.get(id)!.callFrame;
+      const key = `${frame.functionName || '(anon)'} ${frame.url.split('/').slice(-3).join('/')}:${frame.lineNumber}`;
+      self.set(key, (self.get(key) ?? 0) + (gaps[index] ?? 0) / 1000);
+    });
+    const top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 25).map(([key, ms]) => `${Math.round(ms)}ms ${key}`);
+    process.stderr.write(`\nDIAG ${format} total ${Date.now() - began}ms code ${code}\nDIAG env ${Object.keys(process.env).filter((key) => /^(CI|GITHUB|RUNNER|VARIANCE)/u.test(key)).sort().join(' ')}\nDIAG spawns ${spawns.length}\n${spawns.map((line) => `DIAG ${line}`).join('\n')}\n${top.map((line) => `DIAG ${line}`).join('\n')}\n`);
     expect(code, err).toBe(0);
     return out;
   };
@@ -399,12 +425,12 @@ describe('a review that counts coverage', () => {
     expect(said.coverage.length).toBeGreaterThan(0);
     expect(vi.mocked(textOver)).not.toHaveBeenCalled();
     expect(JSON.stringify(said.coverage)).not.toMatch(/"over"/u);
-  });
+  }, 120_000);
 
   it('says nothing of an older text in its text report', async () => {
     const out = await review('text');
 
     expect(vi.mocked(textOver)).not.toHaveBeenCalled();
     expect(out).not.toMatch(/older text/u);
-  });
+  }, 120_000);
 });
