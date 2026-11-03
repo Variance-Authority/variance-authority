@@ -658,12 +658,12 @@ test is the mainline's, and the answer says how many:
 
 A test that entered a file you deleted or renamed runs. So does one the
 mainline made import it, which the record never saw: when your change removes
-a path, every file whose imports the source index could not all resolve counts
+a path, every file whose imports the [source index](source-index.md) could not all resolve counts
 as reached. A load the import graph cannot follow, such as `import()` of a
 computed path, is not: a mainline change that turns one onto a file you changed
 leaves its test to the mainline, unless the record saw that load. Nothing is
 left on the mainline's own tip with nothing changed, whose run answers for it,
-or when the [source index](source-index.md) could not come up to your checkout.
+or when the source index could not come up to your checkout.
 
 `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
