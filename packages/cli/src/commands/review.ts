@@ -357,7 +357,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     return reach.missing.length === seeds.length ? undefined : reach.files;
   });
   const suite = heldAsPrecondition(recorded.file, [...changed.keys()].map(named));
-  const beyond = await installDiff(point, [...changed.keys()]);
+  const beyond = await installDiff(point, [...changed.keys()], real);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)

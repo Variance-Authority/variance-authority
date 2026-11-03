@@ -414,4 +414,21 @@ describe('a review that counts coverage', () => {
     expect(code, err).toBe(0);
     expect((JSON.parse(out) as { readonly from: string }).from).toBe(head);
   });
+
+  it('reads the install in the checkout `--root` names, not the one it was started in', async () => {
+    const { at } = await checkout(atRecord);
+    const lock = (version: string) => JSON.stringify({ name: 'a', lockfileVersion: 3, packages: { '': { name: 'a' }, 'node_modules/left': { version } } });
+    await writeFile(join(at, 'package-lock.json'), lock('1.0.0'));
+    const git = (...args: readonly string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd: at });
+    git('add', 'package-lock.json');
+    git('commit', '--quiet', '-m', 'lock');
+    await writeFile(join(at, 'package-lock.json'), lock('2.0.0'));
+    let out = '';
+    let err = '';
+
+    const code = await main(['review', '--root', at, '--since', 'HEAD', '--format', 'json'], { out: (text) => (out += text), err: (text) => (err += text) });
+
+    expect(code, err).toBe(0);
+    expect((JSON.parse(out) as { readonly beyond?: { readonly packages: readonly string[] } }).beyond?.packages).toEqual(['left']);
+  });
 });
