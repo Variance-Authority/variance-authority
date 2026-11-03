@@ -2470,13 +2470,13 @@ This one prints a **run** list, which is the dangerous shape, so it has no short
 answer at all. Either stdout lists every file the diff reaches — every changed
 file that runs differently among them — or the command writes nothing to stdout
 and exits `2`. It refuses when the diff is empty, when a changed file in a
-language it reads is not in the graph, when no changed file is in the graph, and
-when every changed file runs what it ran before:
+language it reads is not in the graph, when no changed file is in a language it
+reads, and when every changed file runs what it ran before:
 
 ```
 $ variance reach --since origin/main
-none of the 2 changed files is in the file graph, so this diff says nothing about
-what it reaches. Rather than print a file list this cannot stand behind, `reach`
+none of the 2 changed files is in a language this build reads (README.md and
+yarn.lock), so this diff says nothing about what it reaches. Rather than print a file list this cannot stand behind, `reach`
 stops here: a short list piped into a runner is a green build over a change
 nobody read.
 ```

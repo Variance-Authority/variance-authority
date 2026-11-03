@@ -114,6 +114,15 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
 
   const readable = present.filter((file) => READABLE.has(suffixOf(file)));
   const unread = present.filter((file) => !READABLE.has(suffixOf(file)));
+  if (readable.length === 0) {
+    // Refused here, where the files are still known: the walk is handed none
+    // of them and would count the none.
+    throw new OperatorError(
+      `none of the ${many(unread.length, 'changed file')} is in a language this build reads (${listed(unread)}), ` +
+        'so this diff says nothing about what it reaches. Rather than print a file list this cannot stand behind, ' +
+        '`reach` stops here: a short list piped into a runner is a green build over a change nobody read.',
+    );
+  }
 
   const movedExports = request.wholeFiles
     ? undefined
