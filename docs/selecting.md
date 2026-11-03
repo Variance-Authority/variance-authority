@@ -11,7 +11,9 @@ that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
-uncertainty widens the run, and the report explains why. A suite you do not yet
+doubt about the evidence widens the run, a changed file nothing connects to a
+subject is named instead, and the report explains both;
+[what a skipped test promises](selection-safety.md) lists each case. A suite you do not yet
 trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
@@ -269,7 +271,7 @@ very different costs:
   over an unwatched surface.** It does so silently, because that subject is not
   in the report to be missing from.
 
-So every uncertainty resolves toward observing:
+So every uncertainty but one resolves toward observing:
 
 | Situation | What happens |
 |---|---|

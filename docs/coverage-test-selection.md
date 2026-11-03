@@ -295,7 +295,7 @@ it. A changed value is charged to the tests that ran a function that reads it,
 in the same file or in a file that imports it, not to every test that loaded
 the file.
 
-**What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
+**A test file the record cannot answer for runs, and a change it cannot connect is printed.** A test file the
 record did not observe whole always runs. A changed file the record has no data for is
 parsed the same way; if parsing cannot decide, the tests of the recorded files
 that import it are selected. A file

@@ -2,9 +2,10 @@
 
 [Variance Authority](README.md) leaves a test file out of a run only when the
 record of its last run shows it ran none of the code you changed. Every doubt
-about that record — there is none, it cannot be read, or the change touched what
-every test rests on — runs more of the suite, up to all of it, and the run
-prints which doubt it was. A changed file that neither the record nor your
+about that record — there is none, it holds nothing whole, or the change touched
+what every test rests on — runs more of the suite, up to all of it, and the run
+prints which doubt it was; a record that is there but cannot be reached stops
+the command instead. A changed file that neither the record nor your
 imports connect to any test keeps no test in the run, and the run names it so
 you can declare it. What no record can show is a short, fixed list, and the
 whole-suite run on your main branch is where a test it hid fails.
