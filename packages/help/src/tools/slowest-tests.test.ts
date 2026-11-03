@@ -153,6 +153,10 @@ describe('the cases closest to their limit', () => {
     ]);
   });
 
+  it('says a time asked for that tenths would move in milliseconds', () => {
+    expect(formatSlowest([suite(read({ faster: 2 }))], {}, 4_960)).toContain('ran at least 4960 ms');
+  });
+
   it('prints milliseconds where tenths would read a run as its whole limit', () => {
     const close = { file: 'test/a.test.ts', name: 'nearly', duration: 4_960, limit: 5_000 };
 

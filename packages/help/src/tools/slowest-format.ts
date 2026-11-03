@@ -40,6 +40,11 @@ const WHOSE: Readonly<Record<RecordOrigin, string>> = {
   primary: "the primary checkout's record",
 };
 
+/** The time asked for as it was asked: tenths would move a threshold such as 4.96 s. */
+function asked(over: number): string {
+  return over % 100 === 0 ? spent(over) : `${over} ms`;
+}
+
 /** The answer, from what each suite's recording said, read at `now`; `over` is the time asked for, in milliseconds. */
 export function formatSlowest(
   suites: readonly RecordedDurations[],
@@ -49,7 +54,7 @@ export function formatSlowest(
 ): string {
   const lines: string[] = [];
   const where = placeOf(scope);
-  const atLeast = over === undefined ? '' : `, at least ${spent(over)}`;
+  const atLeast = over === undefined ? '' : `, at least ${asked(over)}`;
   for (const suite of suites) {
     const of = suite.suite === undefined ? '' : `, suite ${suite.suite}`;
     if (lines.length > 0) lines.push('');
@@ -131,7 +136,7 @@ function section(
   }
   if (read.timed === 0 && faster > 0) {
     return [
-      `${named}: none of the ${faster} timed ${noun}(s) ran at least ${spent(over!)}` +
+      `${named}: none of the ${faster} timed ${noun}(s) ran at least ${asked(over!)}` +
         `${read.untimed === 0 ? '.' : `; ${read.untimed} recorded ${noun}(s) have no duration.`}`,
       ...unrecorded,
     ];

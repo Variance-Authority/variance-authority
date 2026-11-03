@@ -275,7 +275,7 @@ export function withTestSelection(
   let ended: number | undefined;
   // What each case was held to. Rstest resolves it before the case starts and
   // says it here alone: neither the case's context nor its result carries it.
-  // One reporter hears every project, so a case two ran keeps the longer.
+  // One reporter hears every project, so a case two ran in one cycle keeps the longer.
   const limits = new Map<string, number | undefined>();
   const reporter = {
     onTestCaseStart: (test: { readonly testPath: string; readonly timeout?: number } & CaseNames) => {
@@ -288,7 +288,10 @@ export function withTestSelection(
     // the last cycle ended.
     // FIXME: so a watching rerun counts the save that started it as a write
     // while it ran, and records the files it saved incomplete.
-    onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
+    onTestRunStart: () => {
+      limits.clear();
+      return reopenRun(run, ended ?? run.startedAt);
+    },
     onTestRunEnd: async (payload: RstestRunEnd) => {
       ended = Date.now();
       const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
