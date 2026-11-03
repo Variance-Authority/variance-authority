@@ -60,13 +60,9 @@ export async function mainlineEntry(
   const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
   if (cell === undefined) return { mainline, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
   if ('kind' in cell) return { mainline, miss: cell };
-  // The record at the merge base measures the code this checkout has. Every
-  // mainline commit's job publishes one, so until the merge base's has, the
-  // nearest published behind it measures the least code it lacks; the latest
-  // would charge it with every commit since. The latest answers when nothing
-  // at or behind is kept (`at-commit.ts` in core's share), and alone in a
-  // store that keeps none by commit. Any other miss is the share's answer,
-  // and asking again would ask an unreachable one twice.
+  // The latest answers when nothing at or behind the merge base is kept, and
+  // alone in a store that keeps none by commit. Any other miss is the share's
+  // answer, and asking again would ask an unreachable one twice.
   if (cell.commits !== undefined) base ??= await mergeBase(config, mainline, cwd);
   const atBase = cell.commits === undefined || base === undefined
     ? undefined
@@ -106,7 +102,12 @@ export async function lineEntry(
   return entryIn(cell, line, name);
 }
 
-/** The entry kept at `base`, else at the nearest commit behind it the mainline kept a record at. */
+/**
+ * The entry kept at `base`, else at the nearest commit behind it the mainline
+ * kept a record at. Every mainline commit's job publishes one, so a merge base
+ * with none is one whose job has not yet; the nearest behind charges the
+ * checkout with no commit it lacks, where the latest charges every one since.
+ */
 async function keptBehind(
   cell: LineCell,
   mainline: string,
