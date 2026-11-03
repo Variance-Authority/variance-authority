@@ -23,14 +23,28 @@ const narrowing: ExecutionNarrowing = {
 
 describe('leftToMainline', () => {
   it('keeps the test the checkout change reaches through the graph and leaves the other', () => {
-    const left = leftToMainline(narrowing, undefined, new Set(['src/other.ts']), relations);
+    const left = leftToMainline(narrowing, undefined, new Set(['src/other.ts']), relations, false);
 
     expect(left?.narrowing.entered).toEqual(['test/other.test.ts']);
     expect(left?.narrowing.because?.map((cause) => cause.test)).toEqual(['test/other.test.ts']);
     expect(left?.left).toBe(1);
   });
 
-  it('leaves nothing when a reason names a file the checkout changed', () => {
-    expect(leftToMainline(narrowing, undefined, new Set(['src/total.ts']), relations)).toBeUndefined();
+  it('leaves a test whose reason names a file the checkout changed when the graph does not reach it from there', () => {
+    const left = leftToMainline(narrowing, undefined, new Set(['src/total.ts']), relations, false);
+
+    expect(left?.narrowing.entered).toEqual(['test/total.test.ts']);
+  });
+
+  it('reaches every file whose imports the scan could not all read when the change removes a path', () => {
+    // `total.test.ts` still imports a module the change deleted, so its import resolves to nothing.
+    const holed = relationsOfFiles([
+      { file: 'src/other.ts' },
+      { file: 'test/total.test.ts', unknown: '1 relative specifier(s) that resolve to nothing: ../src/total' },
+      { file: 'test/other.test.ts', edges: [{ to: 'src/other.ts', kind: 'imports' as const }] },
+    ]);
+
+    expect(leftToMainline(narrowing, undefined, new Set(['src/total.ts']), holed, true)?.narrowing.entered).toEqual(['test/total.test.ts']);
+    expect(leftToMainline(narrowing, undefined, new Set(['src/total.ts']), holed, false)?.narrowing.entered).toEqual([]);
   });
 });

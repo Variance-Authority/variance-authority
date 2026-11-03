@@ -44,17 +44,16 @@ const TOTAL = 'export function total(price: number): number {\n  return price * 
 const OTHER = 'export function other(price: number): number {\n  return price + 1;\n}\n';
 const TOTAL_TEST = "import { total } from '../src/total';\nit('totals', () => total(1));\n";
 const OTHER_TEST = "import { other } from '../src/other';\nit('others', () => other(1));\n";
-const CONFIG = 'export default { test: {} };\n';
 const PADDED = "import pad from 'left-pad';\nexport function total(price: number): number {\n  return pad(price) * 0.9;\n}\n";
 
 /**
  * The mainline at its published record: both folders committed, pushed, and
  * the record a whole run there made published, in which each test entered its
- * own folder's module and nothing else. `config` is a runner config every test
- * declares; `total` replaces its module, and `files` are written beside.
+ * own folder's module and nothing else. `total` replaces its module, and
+ * `files` are written beside.
  */
 async function mainline(
-  { config, total = TOTAL, files = {} }: { config?: string; total?: string; files?: Readonly<Record<string, string>> } = {},
+  { total = TOTAL, files = {} }: { total?: string; files?: Readonly<Record<string, string>> } = {},
 ): Promise<{ dir: string; origin: string; recorded: string }> {
   const origin = join(home, 'origin.git');
   const dir = join(home, 'ci');
@@ -69,7 +68,6 @@ async function mainline(
   await writeFile(join(dir, 'src/other.ts'), OTHER);
   await writeFile(join(dir, 'test/total.test.ts'), TOTAL_TEST);
   await writeFile(join(dir, 'test/other.test.ts'), OTHER_TEST);
-  if (config !== undefined) await writeFile(join(dir, 'vitest.config.ts'), config);
   await writeFile(join(dir, 'variance.config.json'), JSON.stringify({
     suites: { unit: { kind: 'unit', carry: 'share' } },
     share: shareConfig(home).share,
@@ -81,15 +79,13 @@ async function mainline(
   await git(dir, 'push', '--quiet', 'origin', 'main');
   await git(dir, 'fetch', '--quiet', 'origin');
 
-  // The runner records the config it loaded as every test's precondition.
-  const preconditions = config === undefined ? [] : [{ name: 'vitest.config.ts', digest: digestString(config) }];
   await writeTestCoverage(testCoverageFile(dir, { suite: 'unit' }), {
     version: 3,
     instrumentation: 'fixture',
     commit: recorded,
     tests: [
-      { file: 'test/other.test.ts', complete: true, preconditions },
-      { file: 'test/total.test.ts', complete: true, preconditions },
+      { file: 'test/other.test.ts', complete: true, preconditions: [] },
+      { file: 'test/total.test.ts', complete: true, preconditions: [] },
     ],
     modules: [moduleOf('src/other.ts', 'other', OTHER, 'test/other.test.ts'), moduleOf('src/total.ts', 'total', total, 'test/total.test.ts')],
   });
@@ -159,58 +155,19 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('');
   });
 
-  it('runs every test declaring the config when the mainline names a setup file in it and the checkout changes that file', async () => {
-    const ci = await mainline({ config: CONFIG });
-    // The config names the setup file by a string, so no import reaches it, and the record was made before it.
-    await landed(ci.dir, {
-      'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
-      'test/setup.ts': 'globalThis.rate = 0.9;\n',
+  it('runs a test whose module a mainline flag turns onto a file the checkout changes, though the record never saw that load', async () => {
+    // At the record the flag is off: `total` read it and never loaded `x`.
+    const ci = await mainline({
+      total: "import { enabled } from './flags';\nexport async function total(price: number): Promise<number> {\n  return enabled ? (await import('./x')).x(price) : price * 0.9;\n}\n",
+      files: { 'src/flags.ts': 'export const enabled = false;\n', 'src/x.ts': 'export function x(price: number): number {\n  return price * 0.9;\n}\n' },
     });
-    const clone = await branched(ci.origin, 'test/setup.ts', 'globalThis.rate = 0.8;\n');
+    // The mainline changes only the flag; `total`, its literal import and `x` stay as they were.
+    await landed(ci.dir, { 'src/flags.ts': 'export const enabled = true;\n' });
+    const clone = await branched(ci.origin, 'src/x.ts', 'export function x(price: number): number {\n  return price * 0.8;\n}\n');
 
     const here = await selectedIn(clone);
 
-    expect(here.out).toBe('');
-  });
-
-  it('runs every test declaring the config when the mainline has it import a file the checkout changes', async () => {
-    const ci = await mainline({ config: CONFIG });
-    await landed(ci.dir, {
-      'vitest.config.ts': "import { rate } from './test/rate';\nexport default { test: { env: { RATE: String(rate) } } };\n",
-      'test/rate.ts': 'export const rate = 0.9;\n',
-    });
-    const clone = await branched(ci.origin, 'test/rate.ts', 'export const rate = 0.8;\n');
-
-    const here = await selectedIn(clone);
-
-    expect(here.out).toBe('');
-  });
-
-  it('runs every test declaring the config when the mainline names a setup file in it that imports a file the checkout changes', async () => {
-    const ci = await mainline({ config: CONFIG });
-    await landed(ci.dir, {
-      'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
-      'test/setup.ts': "import './helpers/rate';\n",
-      'test/helpers/rate.ts': 'globalThis.rate = 0.9;\n',
-    });
-    const clone = await branched(ci.origin, 'test/helpers/rate.ts', 'globalThis.rate = 0.8;\n');
-
-    const here = await selectedIn(clone);
-
-    expect(here.out).toBe('');
-  });
-
-  it('runs a test the mainline sent through a load it computes, when the checkout changes what that load can reach', async () => {
-    const ci = await mainline();
-    // A specifier that is not a literal: the scan reads no edge out of `total`, and the record never saw the load.
-    await landed(ci.dir, {
-      'src/total.ts': "const where = './other';\nexport async function total(price: number): Promise<number> {\n  return (await import(where)).other(price) * 0.9;\n}\n",
-    });
-    const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
-
-    const here = await selectedIn(clone);
-
-    expect(here.out).toBe('');
+    expect(here.out).toBe('test/other.test.ts\n');
   });
 
   it('runs a test the mainline changed when the checkout deletes a file the mainline made it import', async () => {

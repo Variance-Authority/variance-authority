@@ -646,29 +646,17 @@ that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
 is the pull request's alone.
 
 A record behind your merge base leaves the mainline's changes to the mainline.
-A test runs when a reason that selected it names a file you changed from the
-merge base, or when imports reach it from one. Any other test is the
+A test the record selects runs when imports reach it from a file you changed
+from the merge base, or from a package you bumped. Any other test is the
 mainline's, and the answer says how many:
 
 ```text
 1 test file(s) left to mainline main: only its commits between the record's commit 3f1c9a2a07b8 and the merge base 8e01b44c5d21 reach them, and nothing this checkout changed from that base does.
 ```
 
-A test also runs when a precondition it declares, such as the runner config,
-loads a file you changed, or when your change reaches a file nothing imports,
-which a config may name as its setup. It runs when a region that selected it is
-in a file whose loads the scan could not all read, such as an `import()` of a
-computed name, and when it imports a package you bumped. A renamed file counts
-under both its names. Nothing is left on the mainline's own tip, whose run
-answers for it, or when the [source index](source-index.md) could not come up
-to your checkout.
-
-A read no import shows, such as a file read with `fs` or a script a test
-spawns, connects nothing: declare it as a precondition, or in `before`. One
-case is not seen: a mainline commit that changes a value in one file, which
-another file's computed load reads, can turn that load onto a file you
-changed. The test that load reaches is left to the mainline until a record at
-your merge base reads it.
+When you delete or rename a file, what still imports its old path runs too.
+Nothing is left on the mainline's own tip, whose run answers for it, or when
+the [source index](source-index.md) could not come up to your checkout.
 
 `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,

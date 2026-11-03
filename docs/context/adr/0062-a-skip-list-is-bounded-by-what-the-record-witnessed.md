@@ -75,16 +75,14 @@ cannot see is a widening nobody will ever narrow again.
 **A cause only the mainline's commits gave is the mainline's.** A record behind
 the checkout's merge base M with its mainline is charged with every commit the
 mainline merged since the record, and the mainline's CI answers for M. So `select`
-removes the causes of a test when nothing the checkout changed from M can reach it:
-no reason names a file of that change, the import graph at the checkout reaches the
-test from none, the precondition roots it declares neither load one nor sit beside
-a changed file nothing imports, and no region that selected it is in a file whose
-loads the scan could not all read. A test selected for no reason it names, and
-every test of a run whose graph could not come up to the checkout, keeps its
-causes. This narrows on evidence, the graph and the declared roots as the checkout
-holds them, and `select` names how many tests it left. What it cannot see is a
-value the mainline changed that steers a load in another file onto the checkout's
-change.
+removes the causes of a test the import graph at the checkout does not reach from
+anything the checkout changed from M, or from a package it bumped. A path the
+change removed is in no graph, so when the change removes one, every file whose
+imports the scan could not all read is reached too: what still imports the path
+is one. The record says what can differ since it ran, and the graph says what the
+checkout's change can reach; a test is kept when both say so. Every test of a run
+whose graph could not come up to the checkout keeps its causes, and `select` names
+how many tests it left.
 
 ## Consequences
 
