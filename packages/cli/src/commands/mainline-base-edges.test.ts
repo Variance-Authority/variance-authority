@@ -234,7 +234,7 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(read).not.toHaveProperty('earlier');
   });
 
-  it('is asked again once the merge base moves past it, and stands once asked there', async () => {
+  it('is asked again once the merge base moves past it, and stands ten minutes once asked there', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const { dir, base, reach, nowhere } = await laptop(origin);
     expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
@@ -247,9 +247,11 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(asked).not.toHaveProperty('earlier');
     await reach(nowhere);
 
+    expect(await base(NOW + 2 * 60_000)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
+    // A day later the merge base's job may have published, so the line is asked again.
     const kept = await base(NOW + DAY);
 
-    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: {} } });
   });
 });
 

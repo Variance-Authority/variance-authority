@@ -13,7 +13,7 @@
  * The best base is the record at `HEAD`'s merge base with the mainline. A fetch
  * costs a round trip, so the record fetched last stands without asking while it
  * is at that merge base or the line was asked at it, until a pull or a rebase
- * moves it; one past the merge base stands for {@link MISS_STANDS_MS}, since
+ * moves it; one off the merge base stands for {@link MISS_STANDS_MS}, since
  * the record at the merge base may be kept once its job publishes. A line that gave no record stands for {@link MISS_STANDS_MS}, and
  * `variance share --suite <name>` always asks.
  */
@@ -66,7 +66,7 @@ export interface MainlineRecord {
    * kept because the mainline gave no record, now or, as `asked` says, earlier
    * within {@link MISS_STANDS_MS}. It is reused when it is at `HEAD`'s
    * merge base with the mainline (`nearest`), or else when the line was asked
-   * at this same merge base (`asked`), past it only within {@link MISS_STANDS_MS}.
+   * at this same merge base within {@link MISS_STANDS_MS} (`asked`).
    */
   readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
@@ -153,10 +153,9 @@ export async function mainlineBase(
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
       // At the merge base nothing is nearer. Off it, the line was asked at this
-      // merge base, none then and now included; past it only for a miss's
-      // window, since the merge base's job may publish its record since.
-      const asked = last.base === named?.base
-        && (distance === undefined || distance > 0 || now - Date.parse(last.fetched) < MISS_STANDS_MS);
+      // merge base, none then and now included, within a miss's window: the
+      // merge base's job may publish its record since.
+      const asked = last.base === named?.base && now - Date.parse(last.fetched) < MISS_STANDS_MS;
       const reused = distance === 0 ? 'nearest' : asked ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }

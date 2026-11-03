@@ -591,8 +591,8 @@ Records are read in this order:
    the one kept at your `HEAD`'s merge base with the mainline when the share
    keeps one there, and the mainline's newest otherwise. A record fetched at
    that merge base is read without asking the remote again, and so is one
-   fetched while your merge base was the one it is now, for 10 minutes when it
-   is past your merge base, since the record there may be kept by then. After
+   fetched while your merge base was the one it is now, for 10 minutes, since
+   the record at your merge base may be published by then. After
    a pull or a rebase moves it, the remote is asked once. The result that the line has none for you stands for
    10 minutes, with the time of that result. When the remote does not answer,
    the record fetched earlier is read, and the answer prints when it was
