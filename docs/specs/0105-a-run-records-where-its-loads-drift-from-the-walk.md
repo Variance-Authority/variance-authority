@@ -105,8 +105,10 @@ file the change deleted, or reaches one through an import that no longer
 resolves, has no merge-base walk to read it against, and is counted, not
 compared. A change to what the walk or the run rests on — a file the suite's
 declared `before` closure holds, or an install that moved a package or may have
-moved any — is read against no graph, and the review compares nothing and names
-the file or the package.
+moved any — moves the walk itself, so the review compares as it does for any
+change and names that file or package beside the rows as their cause: a mapper
+entry or a bumped package is the change whose load shape a reader most needs to
+see.
 
 The mainline's record need not stand at the merge base. A record from an
 earlier or a later mainline commit is a **compatible** baseline when the
@@ -201,7 +203,7 @@ few beside the file use they are read from.
 - An import the change added is not walked at the merge base and one it
   removed is; a test file whose baseline loads a deleted file is counted, not
   compared; a file the `before` closure holds, or an install that moved a package,
-  compares nothing and names the file or the package.
+  is compared, and the review names it as the cause of the rows.
 - Grown and shrunk rows are reported only for test files both sides observed
   whole at their own commit; a test file the run did not run is not compared,
   one the baseline lacks is listed apart as its first drift, and one the pull

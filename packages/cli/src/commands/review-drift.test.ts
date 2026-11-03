@@ -51,10 +51,10 @@ describe('the drift a review reports', () => {
     expect(reviewDrift(input({ head: record('head', [], 'probes-2') }))).toEqual({ unchecked: expect.stringContaining('probes-2') });
   });
 
-  it('compares nothing when the change moved what the walk or the run rests on', () => {
-    expect(reviewDrift(input({ moved: 'installed `vitest` differently' }))).toEqual({
-      unchecked: "the change installed `vitest` differently, so the merge base's walk is not this one undone",
-    });
+  it('compares a change that moved what the walk or the run rests on, and names the move as the cause', () => {
+    const drift = reviewDrift(input({ moved: 'installed `vitest` differently', head: record('head', ['src/lazy.ts']) }));
+    expect(drift).toMatchObject({ baseline: 'base', cause: 'the change installed `vitest` differently', grown: [LAZY] });
+    expect(driftWords(drift, (value) => value).sentence).toContain('The change installed `vitest` differently, so the walk itself moved.');
   });
 
   it('takes a record at an earlier mainline commit when the commits between move nothing the walk reads', () => {

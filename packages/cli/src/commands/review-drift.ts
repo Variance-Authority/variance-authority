@@ -39,7 +39,7 @@ import { commitPoint } from './since.js';
 
 /** The drift a review reports: the shape change against the baseline, or why the first inclusion was not checked. */
 export type ReviewDrift =
-  | ({ readonly baseline: string } & DriftChange)
+  | ({ readonly baseline: string; readonly cause?: string } & DriftChange)
   | { readonly unchecked: string };
 
 /** One side of the comparison: its record and the test files its runs observed whole at its commit. */
@@ -66,7 +66,7 @@ export interface DriftInput {
   readonly mergeBase: string;
   /** The files that differ between the baseline's commit and the merge base; absent when they are one commit. */
   readonly between?: readonly string[];
-  /** What the change moved that the walk or the run rests on: a file under `before` (`restsOf`), or an install (`installDiff`). */
+  /** What the change moved that the walk or the run rests on, a file under `before` (`restsOf`) or an install (`installDiff`): compared all the same, and named as the cause of its rows. */
   readonly moved?: string;
   /** The same, for the commits between the baseline's commit and the merge base. */
   readonly movedBetween?: string;
@@ -87,7 +87,6 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
   if (baseline.coverage.instrumentation !== head.coverage.instrumentation) {
     return { unchecked: `the mainline's record was cut by probes \`${baseline.coverage.instrumentation}\` and this one by \`${head.coverage.instrumentation}\`` };
   }
-  if (input.moved !== undefined) return { unchecked: `the change ${input.moved}, so the merge base's walk is not this one undone` };
   const recorded = new Set(baseline.coverage.modules.map((module) => module.file));
   const walked = (file: string) => idOf(relations, 'file', file) !== undefined || input.sources.has(file) || recorded.has(file);
   const moved = input.movedBetween ?? input.between?.find(walked);
@@ -102,6 +101,7 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
   const held = (coverage: TestCoverage) => new Set(coverage.tests.map((test) => test.file));
   return {
     baseline: baseline.commit,
+    ...(input.moved === undefined ? {} : { cause: `the change ${input.moved}` }),
     ...driftChange(
       { rows: base.rows, observed: baseline.observed, held: held(baseline.coverage) },
       { rows: now.rows, observed: head.observed, held: held(head.coverage) },
@@ -218,8 +218,9 @@ export function driftWords(drift: ReviewDrift, code: (value: string) => string):
     ...drift.notCompared.map(({ reason, tests }) => ({ label: `Not compared, ${reason}`, items: tests.map(code) })),
   ].filter(({ items }) => items.length > 0);
   const shape = changed ? `${count(drift.grown.length, 'row')} grew and ${drift.shrunk.length} shrank` : 'no shape change';
+  const cause = drift.cause === undefined ? '' : ` ${drift.cause[0]!.toUpperCase()}${drift.cause.slice(1)}, so the walk itself moved.`;
   return {
-    sentence: `Drift from the walk against the mainline's record at ${code(drift.baseline.slice(0, 12))}: ${count(drift.compared, 'test file')} compared, ${shape}. A row is an observed load, not a defect.`,
+    sentence: `Drift from the walk against the mainline's record at ${code(drift.baseline.slice(0, 12))}: ${count(drift.compared, 'test file')} compared, ${shape}.${cause} A row is an observed load, not a defect.`,
     changed,
     lists,
   };
