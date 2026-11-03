@@ -8,6 +8,8 @@ const RELATIONS = relationsOfFiles([
   { file: 'test/a.test.ts', edges: [{ to: 'src/a.ts', kind: 'imports' as const }] },
   { file: 'src/a.ts' },
   { file: 'src/lazy.ts' },
+  { file: 'src/setup-a.ts' },
+  { file: 'src/setup-b.ts' },
 ]);
 
 function record(commit: string, loads: readonly string[], instrumentation = 'probes-1'): DriftRecord {
@@ -22,6 +24,7 @@ function input(partial: Partial<DriftInput>): DriftInput {
     relations: RELATIONS,
     sources: new Set(['src/a.ts', 'src/lazy.ts', 'test/a.test.ts']),
     before: [],
+    baseBefore: [],
     unrelated: false,
     baseline: record('base', []),
     head: record('head', []),
@@ -69,6 +72,12 @@ describe('the drift a review reports', () => {
     const drift = reviewDrift(input({ baseline: record('0123456789abcdef', []), between: ['README.md', 'src/a.ts'], distance: 3 }));
     expect(drift).toEqual({ unchecked: "the mainline's record stands at 0123456789ab, 3 commits before the merge base, and the commits between them moved `src/a.ts`, which the walk reads, so it is not a baseline for this change" });
     expect(reviewDrift(input({ between: ['yarn.lock'], movedBetween: 'installed `vitest` differently' }))).toEqual({ unchecked: expect.stringContaining('the commits between them installed `vitest` differently') });
+  });
+
+  it('walks the baseline from the merge base\'s `before`, not the checkout\'s', () => {
+    const drift = reviewDrift(input({ before: ['src/setup-b.ts'], baseBefore: ['src/setup-a.ts'], baseline: record('base', ['src/setup-a.ts']), head: record('head', ['src/setup-b.ts']) }));
+    expect(drift).toMatchObject({ grown: [], shrunk: [] });
+    expect(reviewDrift(input({ baseBefore: { missing: 'the merge base\'s variance.config.json is not JSON' } }))).toEqual({ unchecked: 'the merge base\'s variance.config.json is not JSON' });
   });
 
   it.todo('is not checked for a suite whose test files share a realm, Vitest\'s `isolate: false` or a reused page — needs the record to say its files shared a worker');

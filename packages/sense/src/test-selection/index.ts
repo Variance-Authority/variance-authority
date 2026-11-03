@@ -133,6 +133,7 @@ export {
   CARRIERS,
   SUITE_KINDS,
   SuitesError,
+  beforeIn,
   beforeOf,
   declaredSuites,
   parseBefore,
