@@ -268,6 +268,40 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
   });
 
+  it('stands when another job handed it at a merge base this job has moved past, with the line not asked', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, readRoot, base, reach, nowhere } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, distance: 0, fetched: at(NOW) });
+    // The `base` job read before the merge, and its read at the merge missed.
+    await writeFetchedMainline(cacheRootFor(dir), 'unit', { ...readFetchedMainline(readRoot)!, handed: true });
+    await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+    await reach(nowhere);
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW), earlier: { reused: 'asked' } });
+  });
+
+  it('keeps the record behind the merge base, with the line\'s miss, when the record the line answers with does not read', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    const merged = await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+    expect(await base(NOW + 60_000)).toMatchObject({ commit: first, distance: 1 });
+    const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
+    if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
+    await publishLine(cell, { kind: 'mainline', name: 'main' }, [
+      { name: suiteEntry('unit'), commit: merged, bytes: frame([['coverage.bin', new Uint8Array([1, 2, 3, 4])]]) },
+    ], { descends: async () => false, image: async (digest) => { throw new Error(`no image ${digest}`); } });
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+
+    const kept = await base(NOW + 60_000 + MISS_STANDS_MS);
+
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: { kind: 'unreadable' } } });
+  });
+
   it('keeps the record behind the merge base, with the line\'s miss, when the line asked again does not answer', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const { dir, base, reach, nowhere } = await laptop(origin);

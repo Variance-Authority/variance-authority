@@ -153,9 +153,9 @@ export async function mainlineBase(
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
       // At or past the merge base nothing on the line is nearer. Behind it, an
-      // ask at this merge base stands as long as a miss, or for a CI job's whole
-      // run when another job handed it on (ADR-0084).
-      const askedHere = last.base === named?.base && (last.handed === true || stands(last.fetched));
+      // ask at this merge base stands as long as a miss, and a record another
+      // CI job handed on stands for this job's whole run (ADR-0084).
+      const askedHere = last.handed === true || (last.base === named?.base && stands(last.fetched));
       const reused = distance !== undefined && distance <= 0 ? 'nearest' : askedHere ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }
@@ -180,9 +180,12 @@ export async function mainlineBase(
     if (last !== undefined) return measured(place, root, last, { unanswered: found.miss }, baseOf(last.mainline));
     return { suite, ...found };
   }
-  const unread = async (detail: string): Promise<MainlineMissed> => {
+  // The record fetched earlier stands with the miss, unless the answer was its
+  // own commit, whose files the attempt to keep the answer has touched.
+  const unread = async (detail: string): Promise<MainlineBase> => {
     const miss: MainlineMiss = { kind: 'unreadable', detail };
     await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss });
+    if (last !== undefined && last.commit !== found.commit) return measured(place, root, last, { unanswered: miss }, baseOf(last.mainline));
     return { suite, mainline: found.mainline, miss };
   };
 
