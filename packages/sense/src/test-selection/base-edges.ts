@@ -4,15 +4,13 @@
  * undone (spec 0105): what `driftFromWalk` reads a baseline against without
  * indexing the merge base.
  *
- * Each file the change edits is read in both texts, and an import that binds
- * names on one side only is resolved at the checkout. The checkout's graph
- * holding the edge says the change added it; not holding it says the change
- * removed it. Two such imports landing on one file are a respelling, and move
- * nothing. An import whose target no longer resolves, and an edit that does
- * not parse, leave the importer's merge-base edges unknown.
- *
- * An import that binds nothing — `import './x'` — is not one the reading
- * names, so a change to one is not undone.
+ * Each file the change edits is read in both texts, and every specifier each
+ * loads, a bare `import './x'` and a re-export included, is resolved at the
+ * checkout. The targets are compared as sets: one only the checkout's text
+ * lands on is an edge the change added, one only the merge base's lands on an
+ * edge it removed, and a target both land on moves nothing however each text
+ * spells it. A merge-base import that no longer resolves, and an edit that
+ * does not parse, leave the importer's merge-base edges unknown.
  */
 import { isAbsolute } from 'node:path';
 import { EDGE_KINDS, idOf, type Adjacency, type NodeId, type Relations } from '@variance-authority/core/relate';
@@ -60,26 +58,34 @@ export function baseEdgesOf(root: string, relations: Relations, changes: readonl
       unknown.add(file);
       continue;
     }
-    const verdict = scanner?.moduleVerdict?.(file, before, after);
-    const targets = verdict === undefined || verdict === null ? undefined : resolvedImports(root, relations, file, verdict.imported);
-    if (targets === undefined) {
+    const sides = [before, after].map((text) => scanner?.moduleReferences?.(file, text)?.sources);
+    const [was, now] = sides;
+    const specifiers = was === undefined || now === undefined ? undefined : [...new Set([...was, ...now])];
+    const resolved = specifiers === undefined ? undefined : resolvedImports(root, relations, file, specifiers);
+    if (was === undefined || now === undefined || specifiers === undefined || resolved === undefined) {
       unknown.add(file);
       continue;
     }
     if (id === undefined) continue;
-    if (targets.some((target) => target === '')) unknown.add(file);
-    const landed = targets.filter((target) => target !== '' && !isAbsolute(target));
-    const once = landed.filter((target) => landed.indexOf(target) === landed.lastIndexOf(target));
+    const landing = new Map(specifiers.map((specifier, at) => [specifier, resolved[at]!]));
+    const inGraph = (target: string) => target !== '' && !isAbsolute(target);
+    const then = new Set(was.map((specifier) => landing.get(specifier)!));
+    const there = new Set(now.map((specifier) => landing.get(specifier)!).filter(inGraph));
+    if (then.has('')) unknown.add(file);
     const held = new Set(runtimeTargets(relations, id));
-    for (const target of once) {
+    for (const target of there) {
+      const to = idOf(relations, 'file', target);
+      if (then.has(target) || to === undefined || !held.has(to)) continue;
+      const of = added.get(id);
+      if (of === undefined) added.set(id, new Set([to]));
+      else of.add(to);
+    }
+    for (const target of [...then].filter(inGraph)) {
+      if (there.has(target)) continue;
       const to = idOf(relations, 'file', target);
       if (to === undefined) {
         unknown.add(file);
-      } else if (held.has(to)) {
-        const of = added.get(id);
-        if (of === undefined) added.set(id, new Set([to]));
-        else of.add(to);
-      } else {
+      } else if (!held.has(to)) {
         const of = removed.get(id);
         if (of === undefined) removed.set(id, [to]);
         else of.push(to);
