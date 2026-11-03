@@ -602,9 +602,6 @@
   "packages/cli/src/commands/layers-command.ts overview": [
     16
   ],
-  "packages/cli/src/commands/mainline-base.ts overview": [
-    32
-  ],
   "packages/cli/src/commands/merge.ts block": [
     9
   ],
@@ -4065,9 +4062,6 @@
   "tools/surfaces.check.ts docblock": [
     18,
     11
-  ],
-  "tools/take-base.mjs overview": [
-    16
   ],
   "tools/temporary-per-test.ts overview": [
     22

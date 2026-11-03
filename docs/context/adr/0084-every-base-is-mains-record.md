@@ -58,8 +58,9 @@ fetched here, and the reader says so.**
   same merge base: its record there is published once the mainline's own run
   finishes, so a record still behind it is asked for again after that window.
   A pull or a rebase that moves the merge base has the line asked at once. Every
-  reader of a checkout, and every CI job handed the read root, has one merge
-  base and reads one record. A remote that does not answer leaves the record
+  reader of a checkout has one merge base and reads one record, and so does
+  every CI job handed the read root: `take-base` marks the pointer as handed,
+  and a handed pointer at the job's merge base stands with no clock. A remote that does not answer leaves the record
   fetched earlier as the base, and the reader names when it was fetched and
   why it was not fetched now. `variance share --suite <name>` always asks.
 - **A miss stands for ten minutes** (`MISS_STANDS_MS`). The line's answer that

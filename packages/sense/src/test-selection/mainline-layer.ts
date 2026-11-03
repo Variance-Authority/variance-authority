@@ -48,10 +48,15 @@ export interface FetchedMainline {
   readonly mainline: string;
   /** The commit the mainline published it at, and the directory it is kept in. */
   readonly commit: string;
-  /** When it was fetched, as an ISO time. */
+  /** When it was fetched, as an ISO time: the last ask at `base` the line answered, since every fetch rewrites it. */
   readonly fetched: string;
   /** `HEAD`'s merge base with the mainline when the line was asked; absent when the clone named none. */
   readonly base?: string;
+  /**
+   * `true` when a CI job took this pointer from the job that asked the line:
+   * it is the run's answer, and stands for the job however long it runs.
+   */
+  readonly handed?: true;
 }
 
 /** The mainline's record of one suite, as the last fetch on this machine kept it. */
@@ -90,8 +95,8 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
-    const { mainline, commit, fetched, base } = value;
-    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}) };
+    const { mainline, commit, fetched, base, handed } = value;
+    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}), ...(handed === true ? { handed } : {}) };
   } catch {
     return undefined;
   }

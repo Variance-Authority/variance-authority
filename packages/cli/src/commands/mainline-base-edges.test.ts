@@ -9,8 +9,10 @@ import {
   commitRunsFile,
   declaredSuites,
   mainlineReadRoot,
+  readFetchedMainline,
   testCoverageFile,
   withCaseSections,
+  writeFetchedMainline,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN } from '../exit.js';
@@ -248,6 +250,22 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
 
     expect(fresh).toMatchObject({ commit: next, distance: 0, fetched: at(NOW + 60_000 + MISS_STANDS_MS) });
     expect(fresh).not.toHaveProperty('earlier');
+  });
+
+  it('stands behind the merge base a day later when another job handed it, with the line not asked', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, readRoot, base, reach, nowhere } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+    expect(await base(NOW + 60_000)).toMatchObject({ commit: first, distance: 1 });
+    // As `take-base` lays the pointer the `base` job read.
+    await writeFetchedMainline(cacheRootFor(dir), 'unit', { ...readFetchedMainline(readRoot)!, handed: true });
+    await reach(nowhere);
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
   });
 
   it('keeps the record behind the merge base, with the line\'s miss, when the line asked again does not answer', async () => {

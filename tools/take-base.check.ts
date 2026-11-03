@@ -15,7 +15,8 @@ import { afterEach, describe, expect, it } from 'vitest';
  * place the slice by two sets of durations, and the fold refuses a file both
  * ran. `check.yml` reads the line once and hands the read root on; this is the
  * step that takes it. The pointer keeps the merge base the line was asked at,
- * which is the job's own, so the job asks the line no more. A miss is an answer
+ * which is the job's own, and is marked as handed, so the job asks the line no
+ * more, however long it runs. A miss is an answer
  * too, handed and stamped as given now, because it names no commit and stands
  * for a while; and a job told an artifact was uploaded that cannot find it
  * stops, rather than ask the line itself.
@@ -45,7 +46,7 @@ function take(handed: string, cache: string, uploaded: 'true' | 'false' = 'true'
 }
 
 describe('take-base', () => {
-  it('lays the handed record under the read root as the base job read it, with the merge base it was asked at', async () => {
+  it('lays the handed record under the read root as the base job read it, with the merge base it was asked at, marked as handed', async () => {
     const handed = await temporary('va-handed-');
     const cache = await temporary('va-cache-');
     const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
@@ -57,7 +58,7 @@ describe('take-base', () => {
     take(handed, cache);
 
     const readRoot = mainlineReadRoot(cache, 'unit');
-    expect(readFetchedMainline(readRoot)).toEqual(read);
+    expect(readFetchedMainline(readRoot)).toEqual({ ...read, handed: true });
     expect(existsSync(join(readRoot, OLD, 'coverage.bin'))).toBe(true);
   });
 

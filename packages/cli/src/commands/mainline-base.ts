@@ -28,13 +28,14 @@ import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
 
 /**
- * How long the line's answer that it gave no record stands without asking the
- * remote again.
+ * How long the line's answer that it gave no record, or a record behind the
+ * merge base it was asked at, stands without asking the remote again.
  *
- * A record is placed by its commit; a miss has none, so a clock places it. Long
- * enough that an edit loop of `yarn test:since` on a network that hangs waits
- * once, and short enough that a remote back in reach is read in the same
- * sitting.
+ * A miss has no commit, and a record behind the merge base waits on the one
+ * the mainline publishes there, so a clock places both. Long enough that an
+ * edit loop of `yarn test:since` on a network that hangs waits once, and short
+ * enough that a remote back in reach, or a record just published, is read in
+ * the same sitting.
  */
 export const MISS_STANDS_MS = 10 * 60_000;
 
@@ -146,23 +147,20 @@ export async function mainlineBase(
   const chosen = await readerMainline(place, env, root);
   const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
+  const stands = (asked: string) => now - Date.parse(asked) < MISS_STANDS_MS;
   if (here.refetch !== true) {
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // A fetch costs a round trip, and on a network that hangs the store's whole
-      // timeout, so it is made only when it can help. At or past the merge base,
-      // nothing the line could hold is nearer it.
-      // Behind it, the line was asked here already when the merge base is the
-      // one it was asked at, the clone naming none then and now included, and
-      // that answer stands as long as a miss would: the record at the merge
-      // base is on its way. Every fetch rewrites `fetched`, so it is the ask.
-      const askedHere = last.base === named?.base && now - Date.parse(last.fetched) < MISS_STANDS_MS;
+      // At or past the merge base nothing on the line is nearer. Behind it, an
+      // ask at this merge base stands as long as a miss, or for a CI job's whole
+      // run when another job handed it on (ADR-0084).
+      const askedHere = last.base === named?.base && (last.handed === true || stands(last.fetched));
       const reused = distance !== undefined && distance <= 0 ? 'nearest' : askedHere ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);
-    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
+    if (noted !== undefined && noted.mainline === mainline && stands(noted.at)) {
       if (last !== undefined) return measured(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
