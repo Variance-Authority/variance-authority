@@ -62,7 +62,7 @@ export function driftChange(base: DriftSide, head: DriftSide, { present, unread 
   const removed: string[] = [];
   let compared = 0;
 
-  for (const test of [...new Set([...base.held, ...head.observed])].sort(codeUnitOrder)) {
+  for (const test of [...new Set([...base.held, ...head.held, ...head.observed])].sort(codeUnitOrder)) {
     if (!head.observed.has(test)) {
       if (!present(test)) removed.push(test);
       else skip('not observed at the head', test);

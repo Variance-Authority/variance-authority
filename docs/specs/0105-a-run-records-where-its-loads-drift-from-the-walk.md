@@ -133,6 +133,14 @@ suite whose test files share a realm — Vitest's `isolate: false`, a reused pag
 The review says the first inclusion was not checked for either, and it is never
 reported as held.
 
+Both walks resolve through the checkout's configuration. A change that edits
+what decides where an import resolves — a manifest, a workspace or a
+`tsconfig*.json` — leaves no merge-base walk to compare against, so the review
+names the file and compares nothing; a lockfile is read by the install diff and
+compared. The pull request's record is walked as the checkout stands, so a file
+the walk reads that moved since the record's runs, and that they did not run as
+the checkout holds it, is named the same way.
+
 ## What is compared
 
 A record is layered: the rows of a test file can come from an older commit
@@ -220,6 +228,10 @@ few beside the file use they are read from.
   request's test file landed at an earlier head, a failed or filtered file, and
   records of different recorder formats are each counted under their reason and
   not compared.
+- A change that edits a manifest, a workspace or a `tsconfig*.json` is named
+  as not checked, and a lockfile edit is compared; a file the walk reads that
+  moved after the pull request's runs, which they did not run as it stands, is
+  named as not checked.
 - A suite whose files share a realm is named as not checked.
 - The Jest fixture of `drift.integration.test.ts` — a mapper for styles
   and a path alias, `__mocks__` beside a module and under the root, automock

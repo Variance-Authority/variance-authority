@@ -366,7 +366,7 @@ function nativeTree(held: NativeGitTree): Tree {
  * both sides of the boundary; the literal names come from the caller, because
  * [`reuse.ts`](./reuse.ts) owns that list.
  */
-function isNamed(path: string, names: readonly string[]): boolean {
+export function isNamed(path: string, names: readonly string[]): boolean {
   const name = path.slice(path.lastIndexOf('/') + 1);
 
   return names.includes(name) || (name.startsWith('tsconfig') && name.endsWith('.json'));

@@ -54,4 +54,10 @@ describe('where drift changed shape between the baseline and the pull request', 
       ],
     });
   });
+
+  it('counts a test file only the head holds, and did not observe whole, as not observed at the head', () => {
+    const base = side(['t/a.test.ts'], []);
+    const head = side(['t/a.test.ts'], [], ['t/a.test.ts', 't/new.test.ts']);
+    expect(driftChange(base, head, { present: everywhere }).notCompared).toEqual([{ reason: 'not observed at the head', tests: ['t/new.test.ts'] }]);
+  });
 });

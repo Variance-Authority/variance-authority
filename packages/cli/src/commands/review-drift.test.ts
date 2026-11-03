@@ -28,6 +28,9 @@ function input(partial: Partial<DriftInput>): DriftInput {
     baseline: record('base', []),
     head: record('head', []),
     base: { added: new Map(), removed: new Map(), created: new Set(), unknown: new Set() },
+    changed: [],
+    since: [],
+    ran: new Set(),
     present: () => true,
     ...partial,
   };
@@ -76,6 +79,27 @@ describe('the drift a review reports', () => {
     const drift = reviewDrift(input({ before: ['src/setup-b.ts'], baseBefore: ['src/setup-a.ts'], baseline: record('base', ['src/setup-a.ts']), head: record('head', ['src/setup-b.ts']) }));
     expect(drift).toMatchObject({ grown: [], shrunk: [] });
     expect(reviewDrift(input({ baseBefore: { missing: 'the merge base\'s variance.config.json is not JSON' } }))).toEqual({ unchecked: 'the merge base\'s variance.config.json is not JSON' });
+  });
+
+  it('is not checked when the change edited what decides where an unchanged import resolves', () => {
+    // `src/a.ts` imports `@/service`, unchanged; the change points `paths` from `src/old/` to `src/new/`.
+    const relations = relationsOfFiles([
+      { file: 'test/a.test.ts', edges: [{ to: 'src/a.ts', kind: 'imports' as const }] },
+      { file: 'src/a.ts', edges: [{ to: 'src/new/service.ts', kind: 'imports' as const }] },
+      { file: 'src/new/service.ts' },
+      { file: 'src/old/service.ts' },
+    ]);
+    const drift = reviewDrift(input({ relations, changed: ['tsconfig.json'], baseline: record('base', ['src/old/service.ts']), head: record('head', ['src/new/service.ts']) }));
+    expect(drift).toEqual({ unchecked: expect.stringContaining('`tsconfig.json`') });
+    expect(reviewDrift(input({ changed: ['yarn.lock', 'src/a.ts'] }))).toMatchObject({ compared: 1 });
+  });
+
+  it('is not checked when the checkout moved a file the walk reads after its runs, and compared when the runs ran it as it stands', () => {
+    // The runs loaded `src/lazy.ts` through an import `src/a.ts` has since dropped.
+    const stale = input({ head: record('head', ['src/lazy.ts']), since: ['src/a.ts'], ran: new Set() });
+    expect(reviewDrift(stale)).toEqual({ unchecked: expect.stringContaining('`src/a.ts`') });
+    expect(reviewDrift({ ...stale, ran: new Set(['src/a.ts']) })).toMatchObject({ grown: [LAZY] });
+    expect(reviewDrift(input({ since: { missing: 'git could not say' } }))).toEqual({ unchecked: expect.stringContaining('git could not say') });
   });
 
   it.todo('is not checked for a suite whose test files share a realm, Vitest\'s `isolate: false` or a reused page — needs the record to say its files shared a worker');

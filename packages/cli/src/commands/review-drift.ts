@@ -37,6 +37,8 @@ import {
   type DriftChange,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { decidesResolution, workingTreeChanges } from '@variance-authority/sense';
+import { LOCKFILES } from '@variance-authority/sense/lock';
 import { idOf, type Relations } from '@variance-authority/core/relate';
 import { filesBetween } from './base-diff.js';
 import { installDiffBetween, type DiffPoint, type InstallDiff } from './installed.js';
@@ -82,6 +84,17 @@ export interface DriftInput {
   readonly base: BaseEdges;
   /** Whether the checkout holds this test file. */
   readonly present: (test: string) => boolean;
+  /** The root-relative files the change touched. */
+  readonly changed: readonly string[];
+  /** The files that differ between the commit this record's runs stand at and the checkout, or why they are not known. */
+  readonly since: readonly string[] | { readonly missing: string };
+  /** Those of `since` this record ran as the checkout holds them. */
+  readonly ran: ReadonlySet<string>;
+}
+
+/** Whether an edit to `file` moves where imports resolve in a way the merge base's walk cannot undo: a lockfile is the install diff's to name. */
+function resolves(file: string): boolean {
+  return decidesResolution(file) && !(LOCKFILES as readonly string[]).includes(file.slice(file.lastIndexOf('/') + 1));
 }
 
 /** The pull request's drift against the baseline's, or why it was not compared. */
@@ -94,8 +107,19 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
   if (baseline.coverage.instrumentation !== head.coverage.instrumentation) {
     return { unchecked: `the mainline's record was cut by probes \`${baseline.coverage.instrumentation}\` and this one by \`${head.coverage.instrumentation}\`` };
   }
-  const recorded = new Set(baseline.coverage.modules.map((module) => module.file));
-  const walked = (file: string) => idOf(relations, 'file', file) !== undefined || input.sources.has(file) || recorded.has(file);
+  // The merge base's walk resolves each import through the checkout's configuration, so an edit to it leaves no merge base to walk.
+  const configured = input.changed.find(resolves);
+  if (configured !== undefined) {
+    return { unchecked: `the change edited \`${configured}\`, which decides where imports resolve, and the merge base's walk resolves through the checkout's, so it is not the walk the baseline ran against` };
+  }
+  if ('missing' in input.since) return { unchecked: `this record's runs could not be compared with the checkout: ${input.since.missing}` };
+  const recorded = new Set([...baseline.coverage.modules, ...head.coverage.modules].map((module) => module.file));
+  const walked = (file: string) => idOf(relations, 'file', file) !== undefined || input.sources.has(file) || recorded.has(file) || resolves(file);
+  // The head is walked as the checkout stands, so a file the walk reads that moved since the runs, and that they did not run as it stands, walks a graph they did not run.
+  const stale = input.since.find((file) => walked(file) && !input.ran.has(file));
+  if (stale !== undefined) {
+    return { unchecked: `this record's runs stand at ${head.commit.slice(0, 12)}, and the checkout since moved \`${stale}\`, which the walk reads, so the walk is not the one they ran against` };
+  }
   const moved = input.movedBetween ?? input.between?.find(walked);
   if (moved !== undefined) {
     const away = input.distance === undefined ? '' : `, ${Math.abs(input.distance)} commit${Math.abs(input.distance) === 1 ? '' : 's'} ${input.distance < 0 ? 'past' : 'before'} the merge base`;
@@ -168,6 +192,10 @@ export interface DriftSources {
   readonly sources: ReadonlySet<string>;
   /** What the change installed differently, as `review` read it. */
   readonly installed: InstallDiff | undefined;
+  /** The commit the checkout stands at, or `undefined` when git named none. */
+  readonly commit: string | undefined;
+  /** Those of `files` this checkout's record ran as the tree holds them. */
+  readonly ran: (files: readonly string[]) => ReadonlySet<string>;
 }
 
 /** {@link reviewDrift} over the records and texts `review` holds. */
@@ -186,6 +214,7 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
   const changes = await Promise.all(from.changed.filter((file) => from.sources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file)));
   const base = baseEdgesOf(root, from.relations, changes);
   const before = beforeOf(root, suite);
+  const since = from.runs?.commit === undefined ? [] : await movedSince(root, point.repository, from.runs.commit, from.commit);
   const baseBefore = await beforeAt(root, point, suite, 'the merge base');
   const moved = await movedUnder(from.relations, 'missing' in baseBefore ? [before] : [before, baseBefore], from.changed, async () => from.installed);
   // Measured from the baseline's commit to the merge base on their own, whatever the change itself moved.
@@ -206,7 +235,24 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     ...(mainline === undefined || 'miss' in mainline || mainline.distance === undefined ? {} : { distance: mainline.distance }),
     base,
     present: (test) => existsSync(resolve(root, test)),
+    changed: from.changed,
+    since,
+    ran: 'missing' in since ? new Set() : from.ran(since),
   });
+}
+
+/** The root-relative files that differ between the runs' `commit` and the checkout, committed or not, or why git could not say. */
+async function movedSince(root: string, repository: string, commit: string, checkout: string | undefined): Promise<readonly string[] | { readonly missing: string }> {
+  if (checkout === undefined) return { missing: 'git named no commit for the checkout' };
+  try {
+    const committed = commit === checkout ? [] : await filesBetween(commit, checkout, root, repository);
+    const prefix = relative(repository, root);
+    const tree = await workingTreeChanges(root, prefix === '' ? '' : `${prefix}/`);
+    if (tree === undefined) return { missing: 'git could not say what the working tree changed' };
+    return [...new Set([...committed, ...tree.changed, ...tree.gone])].sort();
+  } catch (error) {
+    return { missing: error instanceof Error ? error.message.trim() : String(error) };
+  }
 }
 
 /**

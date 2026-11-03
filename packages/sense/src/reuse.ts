@@ -59,7 +59,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
-import { treeOf, type Tree } from './tree.js';
+import { isNamed, treeOf, type Tree } from './tree.js';
 import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 
 /**
@@ -142,6 +142,11 @@ const LAYOUT_FILES = [
   'bun.lockb',
   'deno.json',
 ];
+
+/** Whether a file's contents decide where other files' imports resolve: a manifest, a lockfile, a workspace or `tsconfig*.json`. */
+export function decidesResolution(path: string): boolean {
+  return isNamed(path, LAYOUT_FILES);
+}
 
 /**
  * The tree as two questions: how resolution is configured, and what each
