@@ -243,25 +243,12 @@ times.
 
 ## When it runs everything
 
-Selection removes only the files its record shows your edit did not reach, and
-every doubt about that record runs more:
-
-- **A test file the record has never seen.** A new test runs until a run
-  records it.
-- **An edit the record cannot read.** No record of the suite, neither this
-  checkout's nor the mainline's, a diff git would not produce, or a lockfile that cannot be compared at the base: the run
-  prints `declined:` and runs every file.
-- **A file nothing imports.** A runner configuration or a setup file is read
-  like any other file unless you name it as
-  [before reach](changes-before-and-beyond.md); named, a change to it runs the
-  whole suite.
-
-A file the record holds nothing about, such as a README or a fixture a test
-reads with `fs`, keeps no test in the run, and stderr names it. If a test does
-read that fixture, name it in the seam's `preconditions` option, and from the
-next recording on a change to it runs every test that declared it.
-[What a skipped test promises](selection-safety.md) lists every doubt and what
-each runs.
+A new test file runs until a run records it, and every doubt about the record
+prints `declined:` and runs every file;
+[what a skipped test promises](selection-safety.md) lists each doubt, and the
+changed files that keep no test. If a test reads a fixture with `fs`, name it in
+the seam's `preconditions` option, and from the next recording on a change to it
+runs every test that declared it.
 
 ## What a selection costs
 

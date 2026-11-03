@@ -7,7 +7,7 @@ what every test rests on — runs more of the suite, up to all of it, and the ru
 prints which doubt it was; a record that is there but cannot be reached stops
 the command instead. A changed file that neither the record nor your
 imports connect to any test keeps no test in the run, and the run names it so
-you can declare it. What no record can show is a short, fixed list, and the
+you can declare it. What no record can show is a short list, and the
 whole-suite run on your main branch is where a test it hid fails.
 
 ## One edit and its answer
@@ -97,8 +97,8 @@ against that text before it is compared with your diff.
 | git cannot produce the diff | every test file | `cannot read what changed since <ref>` / `no diff, so every test file runs` |
 | The install cannot be compared with the one the record ran over | every test file | the reason the lockfile could not be compared, then `a package bump shows in no covered line, so every test file runs` |
 | The diff moves a file the suite declares in `before` | every test file | `the suite <name> rests on <files> before any test imports it, and this diff moves it` / `what a suite rests on runs before every test in it, so every test file runs` |
-| A changed module was recorded from a text nobody kept | every test that loaded it | `N changed modules were recorded from a text the journal's own commit does not hold and the cache did not keep, so every region of them was charged rather than read` |
-| The record names no commit | every test that loaded a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
+| A changed module was recorded from a text nobody kept | every test that ran any region of it | `N changed modules were recorded from a text the journal's own commit does not hold and the cache did not keep, so every region of them was charged rather than read` |
+| The record names no commit, and `--since` names the base | every test that ran a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
 | Some test files last ran at an earlier commit | those files are read against both texts | `N test files last ran at <commit>, before the journal's commit <commit>, so the K files changed between the two are read from both texts for them` |
 
 A package bump is not by itself a doubt. When the lockfile can be compared, the
@@ -112,7 +112,7 @@ look like a clean one:
 
 - a record that exists but cannot be reached: `A selection that treated this as "nothing recorded" would skip nothing and look exactly like a clean answer.`;
 - a record that names no commit, with no `--since` to name one: `a selection measured from a guess would skip test files for lines nobody changed.`;
-- a file of runs kept beside the journal that cannot be read: `a selection that guessed would skip tests that should run.`
+- a file of runs kept beside the journal that cannot be read, when no `--diff` is handed in: `a selection that guessed would skip tests that should run.`
 
 When a suite declares nothing in `before`, every run says so:
 
@@ -135,8 +135,9 @@ loaded its nearest measured importers is charged`. A stylesheet or an image a
 component imports is answered this way.
 
 When neither the record nor the file graph connects the file to any test, the
-file keeps no test in the run. This is the one place a doubt narrows instead of
-widening, and it is deliberate: a README, a changeset or a design note would
+file keeps no test in the run. This is one of two places a doubt narrows
+instead of widening — the other is [an unseen load](#what-no-record-shows) — and
+it is deliberate: a README, a changeset or a design note would
 otherwise run your whole suite on every edit. The run names every such file:
 
 ```text
@@ -191,7 +192,14 @@ trace a record or a file graph can read:
   setup file, whose text the record does not keep, selects nothing.
 - **A branch no run has taken.** A changed line no test executed charges no
   test. That is correct for selection — no test exercised it — and it is a
-  coverage gap, which [the record also shows](selecting.md#what-the-record-does-not-show).
+  coverage gap, which [the record also shows](selecting.md#a-branch-no-run-has-taken).
+- **A result a cache returned.** A memoized function the cache answered runs
+  nothing, so a change to it selects only the case that ran it:
+  [a result a cache returned](selecting.md#a-result-a-cache-returned).
+- **A value another test file evaluated.** Under a module graph shared across
+  test files, a file that reads what an earlier file's evaluation left runs
+  nothing in the module:
+  [a record needs a module graph per test file](selecting.md#a-record-needs-a-module-graph-per-test-file).
 
 None of these is a doubt the run can detect, so none of them widens the run.
 
@@ -200,12 +208,13 @@ None of these is a doubt the run can detect, so none of them widens the run.
 The record your branches read is the one your main branch publishes, from a run
 of the whole suite; [sharing](sharing.md) describes how that run is published
 and how a checkout finds it. A published record has to show that every test
-file the runner collects ran, so that run skips nothing. A
-test that a narrowed run on a branch hid because of an undeclared load fails
-there, on the next push to main, against the same change.
+file the runner collects ran, so that run skips nothing. Any
+test that a narrowed run on a branch hid fails there, on the next push to main,
+against the same change.
 
 So a miss costs a late failure, not a silent one: the failing test names the
-file, and the fix is the declaration the earlier sections list. The narrowed
+file, and the fix is the declaration or the change to the test that the
+earlier sections name. The narrowed
 runs on your branches buy time; the whole run on main is the backstop for the
 short list above.
 

@@ -305,7 +305,7 @@ modules that import it. A test that loaded a changed file through an edge the
 graph does not list is printed by name and is not selected: the missing edge is
 the thing to fix. Every run prints one line per changed file saying how it was
 read, or why it could not be.
-[Where selection widens](selecting.md#where-selection-widens) lists each case.
+[What a skipped test promises](selection-safety.md) lists each case.
 
 The record is columnar and stores each repeated set of tests once. In a
 checkout of around 400,000 files, close to the size of Chromium's, the
