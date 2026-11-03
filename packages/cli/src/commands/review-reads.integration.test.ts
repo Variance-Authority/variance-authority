@@ -181,4 +181,9 @@ describe('a review of new code behind new flags, from a run on the change', () =
     expect(rowOf('on')).toBe('| 🟢 | `on` | new | `src/pay.ts:5` | 8; ' + ['express', 'fee', 'tax', 'tip']
       .map((key) => `flags:${key} read false by 1, true by 1, not by 6`).join('; ') + ' | 8 | `test/pay.test.ts` |');
   });
+
+  it('reads the drift from the walk through the records it holds, and says why it was not checked when the suite shares none', () => {
+    expect(answer.drift).toEqual({ unchecked: 'the suite does not share its record, so there is no mainline record to read a baseline from' });
+    expect(formatReview(answer, 'text')).toContain('Drift from the walk was not checked: the suite does not share its record');
+  });
 });

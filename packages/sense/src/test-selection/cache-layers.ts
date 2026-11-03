@@ -161,6 +161,11 @@ function readRootConfig(repository: string): RootConfig | undefined {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
   }
+  return rootConfigOf(file, text);
+}
+
+/** The root config `text` holds, read as the file at `file`: what {@link rootConfig} reads, for a text taken from any commit. */
+export function rootConfigOf(file: string, text: string): RootConfig {
   let value: unknown;
   try {
     value = JSON.parse(text);

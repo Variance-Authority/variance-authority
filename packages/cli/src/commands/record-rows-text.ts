@@ -49,3 +49,22 @@ export function rowsCut(coverageFile: string, files: Iterable<string>, index: Ex
     return texts;
   });
 }
+
+/**
+ * Per file of `files`, the git blob name of every text the record's rows of it
+ * were cut from, however many there are: a layered record holds a file's rows
+ * from each run that loaded it. A file whose rows keep no blob name is absent.
+ * Throws when the record does not read.
+ */
+export function rowBlobs(coverageFile: string, files: Iterable<string>): ReadonlyMap<string, ReadonlySet<string>> {
+  const asked = new Set(files);
+  if (asked.size === 0) return new Map();
+  return askCoverageFile(coverageFile, (coverage) => {
+    const blobs = new Map<string, ReadonlySet<string>>();
+    for (const file of asked) {
+      const held = new Set(findModules(coverage, file).map((row) => coverage.moduleBlob?.at(row)).filter((id) => id !== undefined && id !== NO_BLOB).map((id) => coverage.string(id!)));
+      if (held.size > 0) blobs.set(file, held);
+    }
+    return blobs;
+  });
+}

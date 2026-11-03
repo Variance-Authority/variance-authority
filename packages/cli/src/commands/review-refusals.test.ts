@@ -68,6 +68,15 @@ describe('a review that cannot be made', () => {
       expect(answer.files.every((file) => file.cases === undefined)).toBe(true);
     });
 
+    it('says why the drift from the walk was not checked, rather than leaving it out', async () => {
+      const { root, first } = await changed();
+      await mkdir(commitRunsFile(testCoverageFile(root)), { recursive: true });
+
+      const answer = await review(parse(['--since', first, '--root', root]));
+
+      expect(answer.drift).toEqual({ unchecked: expect.stringContaining('no runs record') });
+    });
+
     it('says which text the record ran over is not known when the source index cannot be brought up to the checkout, and why, beside the answer', async () => {
       const { root, first, against } = await changed();
       await updateSourceIndex(root);

@@ -79,12 +79,7 @@ export async function movedOnBase(
     const top = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
     const mergeBase = (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
     if (at === mergeBase) return { mergeBase, files: [] };
-    const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', at, mergeBase], {
-      cwd: top,
-      maxBuffer: 32 * 1024 * 1024,
-    });
-    const files = stdout.split('\0').filter((file) => file !== '').map((file) => relative(root, join(top, file)));
-    return { mergeBase, files: files.sort() };
+    return { mergeBase, files: await filesBetween(at, mergeBase, root, top) };
   } catch (error) {
     const said = (error as { stderr?: unknown }).stderr;
     throw new OperatorError(
@@ -94,6 +89,17 @@ export async function movedOnBase(
       { kind: 'undiffed' },
     );
   }
+}
+
+/** The files that differ between commits `from` and `to`, named the way the run names files, in code-unit order. Throws what git said. */
+export async function filesBetween(from: string, to: string, root: string, top?: string): Promise<readonly string[]> {
+  const run = promisify(execFile);
+  const repository = top ?? (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
+  const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', from, to], {
+    cwd: repository,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  return stdout.split('\0').filter((file) => file !== '').map((file) => relative(root, join(repository, file))).sort();
 }
 
 /**

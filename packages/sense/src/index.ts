@@ -53,6 +53,7 @@ export {
 export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
 
 export {
+  decidesResolution,
   treeShapeOf,
   memoryRecordCache,
   openRecordCache,

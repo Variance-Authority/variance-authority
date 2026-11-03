@@ -42,9 +42,11 @@ import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './e
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { readReviewDrift, type ReviewDrift } from './review-drift.js';
 import { reviewedCommit } from './review-head.js';
 import { baseIndex, casesMoved } from './review-base-cases.js';
 import { everySuiteRegions } from './review-suites.js';
+import { rowBlobs } from './record-rows-text.js';
 import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { changedPackagesOf } from './review-changed-packages.js';
@@ -238,6 +240,8 @@ export interface Review {
   readonly runsUnread?: string;
   /** Why which text the record ran over is not known, when the source index could not be brought up to the checkout to name the tree's. */
   readonly notUpdated?: string;
+  /** Where the run's loads drifted from the walk against the mainline's, or why that was not checked (spec 0105). */
+  readonly drift?: ReviewDrift;
 }
 
 /** The runs at this commit as a review reports them: where and when they ran, how many, and what their landings say together. */
@@ -366,6 +370,12 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const record = measured.length > 0 && ranAsTree(recorded.file, measured, changedCases, names).size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository);
   const gap = await probesGap(from, root, request.suite);
+  // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
+  const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
+    root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources, installed: beyond,
+    commit: head?.commit, rowBlobs: (files) => rowBlobs(recorded.file, files), blobOf: (file) => names.get(file),
+    mainline: shared ?? (await mainlineBase(root, recorded.declared)),
+  });
   return {
     ...(head === undefined ? {} : { head }),
     from: point.base,
@@ -385,6 +395,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
     ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
     ...(notUpdated === undefined ? {} : { notUpdated: notUpdatedNote(notUpdated) }),
+    drift,
   };
 }
 
