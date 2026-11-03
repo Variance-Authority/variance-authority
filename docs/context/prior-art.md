@@ -109,10 +109,10 @@ report once as a **baseline** and report only what departs from it: PHPStan's
 
 **What it means here.**
 [Spec 0105](../specs/0105-a-run-records-where-its-loads-drift-from-the-walk.md)
-does not ask a suite which world it is in. A run records its **drift**, the
-loads its imports do not reach, and the record its mainline published carries
-the baseline. A later run reports where the shape changed against it, the
-soundiness way, and a suite with a baseline is closed.
+does not ask a suite which world it is in. A record's **drift** is the loads
+its imports do not reach, and the mainline's record at a pull request's merge
+base carries the baseline. The review reports where the shape changed against
+it, the soundiness way, and a baseline explains every load its record holds.
 
 ### Dominators, and where a region begins
 
