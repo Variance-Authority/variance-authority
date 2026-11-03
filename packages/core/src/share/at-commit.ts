@@ -16,6 +16,7 @@
  * nothing removes is a record kept for ever.
  */
 
+import { codeUnitOrder } from '../segment/index.js';
 import type { KeptAt, ShareLine, ShareMiss } from './line.js';
 
 /** Days a mainline's record is kept at its commit. */
@@ -45,5 +46,5 @@ export function pastWindow(held: readonly KeptAt[], now: number): KeptAt[] {
   return [...held]
     .sort((a, b) => b.written - a.written)
     .filter((one, index) => index >= KEEP_COMMITS || now - one.written > KEEP_DAYS * DAY_MS)
-    .sort((a, b) => (a.commit < b.commit ? -1 : a.commit > b.commit ? 1 : 0));
+    .sort((a, b) => codeUnitOrder(a.commit, b.commit));
 }
