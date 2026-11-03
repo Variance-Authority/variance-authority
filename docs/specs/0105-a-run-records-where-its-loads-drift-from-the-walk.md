@@ -78,7 +78,11 @@ is its record read against the graph of its checkout. Both walks are made by
 the Variance that compares, so a resolver fix or a release moves both sides
 together, and a pull request that removes an import or renames a file a test
 loaded moves its walk and its file use together, so neither reads as a shape
-change nobody made. Nothing is stored for it: drift is derived from the file
+change nobody made. Each side's walk reads that side's suite configuration too
+— its `before` files, its aliases, its `relations` — so a pull request that adds
+a setup file is read against its own. A load that stays after its import is
+removed, through a setup file, a mapper or a dynamic import, is drift the pull
+request made, and reads as grown. Nothing is stored for it: drift is derived from the file
 use the record already holds, so the record does not grow. Accepting it is
 publishing the record: there is no file to write by hand, and no tracked file
 moves, because a record is not part of git.
@@ -90,16 +94,33 @@ mainline's record is not at the merge base, or there is none, or the records
 are not shared, the review names which and how many commits away the record
 is, and compares nothing.
 
-A suite with `relations: false` has no walk, so it has no drift. The review
-says the first inclusion was not checked, and it is never reported as held.
+A suite with `relations: false` has no walk, so it has no drift. Nor has a
+suite whose test files share a realm — Vitest's `isolate: false`, a reused page
+— for what such a file loads depends on what ran before it in the same worker.
+The review says the first inclusion was not checked for either, and it is never
+reported as held.
+
+## What is compared
+
+A record is layered: the rows of a test file can come from an older commit
+than the record's own, where the mainline's run passed over it, or where the
+pull request's run landed it at an earlier head. A row read against a graph it
+was not recorded on is a false row, so a test file is compared only when both
+sides observed it whole at their own commit: the mainline's run at the merge
+base, and the pull request's run at its head, each running the file to the end
+with the same cases. Both records also share the recorder's format and recipe;
+when they do not, the review names the skew and compares nothing. Every test
+file left out is counted under its reason — standing at an older commit, ran at
+an older head, failed or filtered — and never compared.
 
 ## A review reports where the shape changed
 
 The review compares the pull request's drift with the baseline's, test file by
-test file, for the test files the pull request's run ran. A row the baseline
+test file, for the test files both sides observed. A row the baseline
 lacks has **grown**; a baseline row the run lacks has **shrunk**. A test file
 the run did not run keeps its baseline rows and is not compared: absence
-selects nothing. A test file the baseline does not hold, because it is new or
+selects nothing. A test file the pull request renamed or deleted is listed as
+removed. A test file the baseline does not hold, because it is new or
 its record was not made, has no rows to compare; its drift is listed apart, as
 the first it records, not as grown.
 
@@ -148,9 +169,17 @@ few beside the file use they are read from.
   `mainlineBase`, read against the merge base's graph; the record carries no
   drift of its own. A record at another commit, none, or records not shared is
   named with the reason and the distance, and nothing is compared.
-- Grown and shrunk rows are reported for the test files the run ran; a test
-  file it did not run is not compared, and a test file the baseline lacks is
-  listed apart as its first drift.
+- Grown and shrunk rows are reported only for test files both sides observed
+  whole at their own commit; a test file the run did not run is not compared,
+  one the baseline lacks is listed apart as its first drift, and one the pull
+  request removed is listed as removed.
+- A mainline test file standing at a commit older than the merge base, a pull
+  request's test file landed at an earlier head, a failed or filtered file, and
+  records of different recorder formats are each counted under their reason and
+  not compared.
+- A suite whose files share a realm is named as not checked.
+- Renaming a file a test reaches only through drift reports one shrunk and one
+  grown row under the exact names.
 - The Jest fixture of `closed-world.integration.test.ts` — a mapper for styles
   and a path alias, `__mocks__` beside a module and under the root, automock
   with opt-outs, `requireActual`, `isolateModules` and a setup file — reviewed
