@@ -53,7 +53,7 @@ const PADDED = "import pad from 'left-pad';\nexport function total(price: number
  * `files` are written beside.
  */
 async function mainline(
-  { total = TOTAL, files = {} }: { total?: string; files?: Readonly<Record<string, string>> } = {},
+  { total = TOTAL, files = {}, before }: { total?: string; files?: Readonly<Record<string, string>>; before?: readonly string[] } = {},
 ): Promise<{ dir: string; origin: string; recorded: string }> {
   const origin = join(home, 'origin.git');
   const dir = join(home, 'ci');
@@ -69,7 +69,7 @@ async function mainline(
   await writeFile(join(dir, 'test/total.test.ts'), TOTAL_TEST);
   await writeFile(join(dir, 'test/other.test.ts'), OTHER_TEST);
   await writeFile(join(dir, 'variance.config.json'), JSON.stringify({
-    suites: { unit: { kind: 'unit', carry: 'share' } },
+    suites: { unit: { kind: 'unit', carry: 'share', ...(before === undefined ? {} : { before }) } },
     share: shareConfig(home).share,
   }));
   await git(dir, 'add', '-A');
@@ -268,6 +268,38 @@ describe('`variance select` a commit past the record its mainline published', ()
 
     expect(here.out).toBe('test/other.test.ts\n');
     expect(here.err).not.toContain('left to mainline');
+  });
+
+  it('runs none of the tests only the mainline reaches when the checkout is at the merge base with an edit not yet committed', async () => {
+    const ci = await mainline();
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
+    const clone = await cloneOf(home, ci.origin);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
+    await writeFile(join(clone, 'src/other.ts'), OTHER.replace('+ 1', '+ 2'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/total.test.ts\n');
+  });
+
+  it('runs none of the tests only the mainline reaches when the mainline changed a file the suite rests on before reach', async () => {
+    const ci = await mainline({ before: ['test/setup.ts'], files: { 'test/setup.ts': 'export const seed = 1;\n' } });
+    await landed(ci.dir, { 'test/setup.ts': 'export const seed = 2;\n' });
+    const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/total.test.ts\n');
+  });
+
+  it('runs the whole suite when the checkout changes a file the suite rests on before reach', async () => {
+    const ci = await mainline({ before: ['test/setup.ts'], files: { 'test/setup.ts': 'export const seed = 1;\n' } });
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
+    const clone = await branched(ci.origin, 'test/setup.ts', 'export const seed = 2;\n');
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('');
   });
 
   it('runs a test whose module imports a package the checkout bumped', async () => {

@@ -75,15 +75,14 @@ cannot see is a widening nobody will ever narrow again.
 **A cause only the mainline's commits gave is the mainline's.** A record behind
 the checkout's merge base M with its mainline is charged with every commit the
 mainline merged since the record, and the mainline's CI answers for M. So `select`
-keeps a test only when `file` precision over the checkout's own change from M
-would select it too: the import graph at the checkout reaches it from a file of
-that change or from a package the checkout bumped, or a reason names a file of
-that change, which is how a test that entered a removed path is kept. The record
-says what can differ since it ran, and `file` precision over the change says what
-the checkout can reach; a test is kept when both say so, so a record behind M
-never runs more than that precision would. Every test of a run whose graph could
-not come up to the checkout keeps its causes, and `select` names how many tests
-it left.
+compares the install from M, moves what the suite rests on before reach by the
+checkout's own change from M alone, and keeps a charged test only when `file`
+precision over that change, read from the same record and graph, selects it too.
+The record says what can differ since it ran, and `file` precision over the
+change says what the checkout can reach; a test is kept when both say so, so a
+record behind M never runs more than that precision would. The mainline's own
+tip with nothing changed answers for M and leaves nothing; so does a run whose
+graph could not come up to the checkout. `select` names how many tests it left.
 
 ## Consequences
 

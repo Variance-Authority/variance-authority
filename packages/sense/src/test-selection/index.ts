@@ -61,8 +61,8 @@ export {
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
-export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause, type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
-export { leftToMainline, type MainlineLeft } from './mainline-left.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause } from './distill-native.js';
+export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
 export {
