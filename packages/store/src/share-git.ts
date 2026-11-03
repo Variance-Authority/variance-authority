@@ -249,8 +249,6 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       // `publishLine` removes past its window.
       // TODO: nothing deletes a branch's line, so a branch's ref outlives the branch, and
       // with it every image its tree names.
-      // The body names the entries, so `commits` says what a kept record holds
-      // from the commit alone, without fetching its tree.
       const names = manifest.entries.map((entry) => entry.name).sort(codeUnitOrder);
       const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`, '-m', names.join('\n')], undefined, IDENTITY);
       if (commit.code !== 0) return missOf(commit);
@@ -280,7 +278,8 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     },
     async commits(line) {
       const pattern = `${namespace}/${keptAtPattern(line)}`;
-      // Commits only, never a tree: when a record was written is its commit's date.
+      // Commits only, never a tree: when a record was written is its commit's
+      // date, and what it holds the entry names `store` wrote in its body.
       const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
       if (ran.code !== 0) return missOf(ran);
       // A body spans lines, so fields and rows are split on ASCII's own separators.
