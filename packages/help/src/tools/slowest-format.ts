@@ -24,7 +24,7 @@ import type {
   ScopeCounts,
   TimedTestCase,
 } from '@variance-authority/sense';
-import { ago } from '../ago.js';
+import { ago } from '@variance-authority/sense/test-selection';
 
 /** A duration as a reader compares them: milliseconds under a second, seconds to a tenth above. */
 export function spent(milliseconds: number): string {

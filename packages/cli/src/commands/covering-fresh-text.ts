@@ -12,7 +12,7 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { ago } from '@variance-authority/help';
+import { ago } from '@variance-authority/sense/test-selection';
 import { staleFile, staleLines } from './covering-stale.js';
 import type { CoveringRan, Landed, RanStand } from './covering-ran.js';
 import type { Covering, CoveringTarget } from './covering.js';

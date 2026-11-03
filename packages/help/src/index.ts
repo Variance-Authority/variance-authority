@@ -51,4 +51,3 @@ export type { PagesOptions, Written } from './write.js';
 export { refreshDependencyLexicon } from './dependency-lexicon.js';
 export { caughtUp, foundNothingAnswer, foundNothingFooter, snapshotLine, type CaughtUp } from './caught-up.js';
 export { FoundNothing } from './tools/find.js';
-export { ago } from './ago.js';
