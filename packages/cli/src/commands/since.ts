@@ -66,9 +66,7 @@ export async function changedSince(ref: string, roots: readonly string[] = []): 
     const repository = await topLevel(asked);
     if (repository === undefined) throw new Error(`${asked} is not in a git checkout`);
     const base = await mergeBase(run, ref, repository);
-    return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))].map(
-      (file) => relative(here, join(repository, file)),
-    );
+    return (await changedAndNew(run, repository, base)).map((file) => relative(here, join(repository, file)));
   } catch (error) {
     throw new OperatorError(
       `\`--since ${ref}\` could not list what changed: ${messageOf(error)}. ` +
@@ -196,6 +194,20 @@ async function untrackedFiles(run: Run, repository: string): Promise<readonly st
     maxBuffer: 32 * 1024 * 1024,
   });
   return stdout.split('\0').filter((file) => file !== '');
+}
+
+/** What the working tree changed from `base`, untracked files included, named from the top level `repository`. */
+async function changedAndNew(run: Run, repository: string, base: string): Promise<readonly string[]> {
+  return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))];
+}
+
+/** {@link changedAndNew} from the commit `base`; `undefined` when git cannot list it. */
+export async function changedFrom(base: string, repository: string): Promise<readonly string[] | undefined> {
+  try {
+    return await changedAndNew(promisify(execFile), repository, base);
+  } catch {
+    return undefined;
+  }
 }
 
 /** The whole of a new file as one hunk of additions. `--no-index` exits 1 when the sides differ, which they do. */
