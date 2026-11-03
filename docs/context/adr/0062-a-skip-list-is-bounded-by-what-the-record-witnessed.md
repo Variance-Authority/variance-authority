@@ -72,6 +72,20 @@ the tests that entered the module* — was built and measured: it dropped 3 of
 the answer, and `stale` and `unread` are reported by name. A widening a caller
 cannot see is a widening nobody will ever narrow again.
 
+**A cause only the mainline's commits gave is the mainline's.** A record behind
+the checkout's merge base M with its mainline is charged with every commit the
+mainline merged since the record, and the mainline's CI answers for M. So `select`
+removes the causes of a test when nothing the checkout changed from M can reach it:
+no reason names a file of that change, the import graph at the checkout reaches the
+test from none, the precondition roots it declares neither load one nor sit beside
+a changed file nothing imports, and no region that selected it is in a file whose
+loads the scan could not all read. A test selected for no reason it names, and
+every test of a run whose graph could not come up to the checkout, keeps its
+causes. This narrows on evidence, the graph and the declared roots as the checkout
+holds them, and `select` names how many tests it left. What it cannot see is a
+value the mainline changed that steers a load in another file onto the checkout's
+change.
+
 ## Consequences
 
 The valve is cheap where it matters and expensive only where it should be. Every
@@ -101,7 +115,8 @@ exists to do that before a human does.
   developer's checkout.
 - **An enrichment that replaces rather than adds.** Anything layered onto
   selection — a graph, a relation table, a heuristic — may add causes and may add
-  widenings. Removing one is a change to this ADR, not a refinement of a caller.
+  widenings. Removing one is a change to this ADR, not a refinement of a caller,
+  as the mainline's causes above are.
 - **Silent narrowing anywhere downstream.** A classification that decides an edit
   is inert, a merge that skips an unreadable input, a reporter that drops a module
   it could not identify: each must widen or fail loudly. None may quietly answer

@@ -47,6 +47,7 @@ import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './reso
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
+import { mainlineOwned } from './mainline-owned.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -301,7 +302,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           ),
           handed ? { ...options, undone: false } : options,
         );
-  const asked = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
+  const charged = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
+  // A record behind the merge base is read against the mainline's commits too; a test only they reach is the mainline's.
+  // A graph that could not come up to the checkout says nothing of what its change reaches, so it leaves nothing.
+  const owned = charged === undefined || commit === undefined || handed || stale !== undefined ? undefined : await mainlineOwned(here, commit, charged.narrowing, charged.distances, relations);
+  const asked = owned ?? charged;
+  const told = owned?.note === undefined ? rested : { ...rested, standing: [...(rested.standing ?? []), owned.note] };
   const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparisons above, which have already said what moved.
@@ -328,7 +334,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           }),
         };
 
-  const answer = said({ ...rested, ground });
+  const answer = said({ ...told, ground });
   // FIXME: a stand's tests were read against their own diff, and the case cut
   // reads the journal's alone, so a selection with stands runs its files whole.
   if (request.grain !== 'case' || ground.kind !== 'read' || stands.length > 0) return answer;
