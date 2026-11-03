@@ -87,7 +87,7 @@ export type RecordedDurations = (
       readonly origin: RecordOrigin;
       /** The commit the record was taken at; absent where it names none. */
       readonly commit?: string;
-      /** When the record's latest run landed, as ISO 8601; absent where no runs record beside it can say. */
+      /** When the record's latest run landed, as ISO 8601; absent where no runs record beside it stands at this commit. */
       readonly landed?: string;
       /** The slowest first, at most the limit asked for. */
       readonly slowest: readonly TimedTestFile[];
@@ -146,14 +146,16 @@ export function recordedDurations(
   });
 }
 
-/** The commit the record at `recording` names, and when the runs beside it say its latest run landed. */
+/** The commit the record at `recording` names, and when its latest run landed if the runs beside it stand at that commit. */
 function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
-  return { ...(commit === undefined ? {} : { commit }), ...landedAt(commitRunsFile(recording)) };
+  return { ...(commit === undefined ? {} : { commit }), ...landedAt(commitRunsFile(recording), commit) };
 }
 
-function landedAt(runs: string): { readonly landed?: string } {
+function landedAt(runs: string, commit: string | undefined): { readonly landed?: string } {
   try {
-    return { landed: commitRunsIn(readFileSync(runs, 'utf8'), `the runs record at ${runs}`).latest };
+    const held = commitRunsIn(readFileSync(runs, 'utf8'), `the runs record at ${runs}`);
+    // A landing that died between its two writes leaves a snapshot beside the runs of the commit before it.
+    return held.commit === commit ? { landed: held.latest } : {};
   } catch {
     // The durations stand without their age, and the reader says the record does not hold it.
     return {};

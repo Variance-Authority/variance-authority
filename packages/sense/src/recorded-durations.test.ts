@@ -292,6 +292,16 @@ describe('the record an answer read', () => {
     expect(suite).not.toHaveProperty('landed');
   });
 
+  it('gives no landing from runs beside it that stand at another commit, as a landing that died between its writes leaves', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
+    writeFileSync(commitRunsFile(at), commitRunsText({ commit: 'a'.repeat(40), latest: LANDED, runs: 1, landings: [] }));
+
+    const [suite] = recordedDurations(root, 1);
+
+    expect(suite).toMatchObject({ commit, timed: 1 });
+    expect(suite).not.toHaveProperty('landed');
+  });
+
   it('still answers from a record whose runs beside it cannot be read', () => {
     const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
     writeFileSync(commitRunsFile(at), 'not json');
