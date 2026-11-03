@@ -58,8 +58,8 @@ export function leftToMainline<Distance extends TestDistance>(
   const reached = new Set(affectedBy(relations, mine, { through: RUNTIME_EDGES }).files);
   const why = new Map((narrowing.because ?? []).map((cause) => [cause.test, cause.via] as const));
   const entered = new Set(narrowing.entered);
-  // A config names its setup by a string, so a file of mine nothing imports may be one a precondition the mainline changed now names.
-  const named = [...mine].some((file) => {
+  // A config names its setup by a string, so a file nothing imports that my change reaches may be one a precondition the mainline changed now names.
+  const named = [...new Set([...mine, ...reached])].some((file) => {
     const id = idOf(relations, 'file', file);
     return id !== undefined && !entered.has(file) && !imported(relations, id);
   });

@@ -655,11 +655,13 @@ mainline's, and the answer says how many:
 ```
 
 A test also runs when a precondition it declares, such as the runner config,
-loads a file you changed, or when you changed a file nothing imports, which a
-config may name as its setup. It runs when a region that selected it is in a
-file whose loads the scan could not all read, such as an `import()` of a
-computed name, and when it imports a package you bumped. Nothing is left when the [source index](source-index.md) could not come up to your
-checkout.
+loads a file you changed, or when your change reaches a file nothing imports,
+which a config may name as its setup. It runs when a region that selected it is
+in a file whose loads the scan could not all read, such as an `import()` of a
+computed name, and when it imports a package you bumped. A renamed file counts
+under both its names. Nothing is left on the mainline's own tip, whose run
+answers for it, or when the [source index](source-index.md) could not come up
+to your checkout.
 
 A read no import shows, such as a file read with `fs` or a script a test
 spawns, connects nothing: declare it as a precondition, or in `before`. One

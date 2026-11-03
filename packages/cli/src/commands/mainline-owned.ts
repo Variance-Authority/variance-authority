@@ -25,9 +25,9 @@ export interface Owned<Distance extends TestDistance> {
 /**
  * `narrowing`, read from the record at `commit` in the checkout at the top
  * level `root`, without the tests only the mainline's commits since `commit`
- * reach. Nothing is left out when the checkout names no mainline, git cannot
- * list what changed from the merge base, the install there cannot be compared,
- * or `commit` is not before that base.
+ * reach. Nothing is left out when the checkout names no mainline or is at its
+ * merge base with it, git cannot list what changed from that base, the install
+ * there cannot be compared, or `commit` is not before that base.
  */
 export async function mainlineOwned<Distance extends TestDistance>(
   root: string,
@@ -49,6 +49,8 @@ export async function mainlineOwned<Distance extends TestDistance>(
   const mainline = await readerMainline({ share }, process.env, root);
   if ('missing' in mainline || mainline.base === undefined) return unchanged;
   const { name, base } = mainline;
+  // At the mainline's own tip this run is the one that answers for the base.
+  if ((await commitPoint('HEAD', [], root))?.base === base) return unchanged;
   if (((await distanceFrom({ share }, name, commit, root, base)) ?? 0) <= 0) return unchanged;
 
   const changed = await changedFrom(base, root);

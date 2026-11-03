@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
@@ -115,7 +115,10 @@ function moduleOf(file: string, name: string, source: string, test: string) {
 
 /** A commit on the mainline past its record, pushed and not recorded: each file written with its source. */
 async function landed(dir: string, files: Readonly<Record<string, string>>): Promise<void> {
-  for (const [file, source] of Object.entries(files)) await writeFile(join(dir, file), source);
+  for (const [file, source] of Object.entries(files)) {
+    await mkdir(dirname(join(dir, file)), { recursive: true });
+    await writeFile(join(dir, file), source);
+  }
   await git(dir, 'add', '-A');
   await git(dir, 'commit', '--quiet', '-m', `lands ${Object.keys(files).join(', ')}`);
   await git(dir, 'push', '--quiet', 'origin', 'main');
@@ -183,6 +186,20 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('');
   });
 
+  it('runs every test declaring the config when the mainline names a setup file in it that imports a file the checkout changes', async () => {
+    const ci = await mainline({ config: CONFIG });
+    await landed(ci.dir, {
+      'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
+      'test/setup.ts': "import './helpers/rate';\n",
+      'test/helpers/rate.ts': 'globalThis.rate = 0.9;\n',
+    });
+    const clone = await branched(ci.origin, 'test/helpers/rate.ts', 'globalThis.rate = 0.8;\n');
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('');
+  });
+
   it('runs a test the mainline sent through a load it computes, when the checkout changes what that load can reach', async () => {
     const ci = await mainline();
     // A specifier that is not a literal: the scan reads no edge out of `total`, and the record never saw the load.
@@ -205,6 +222,33 @@ describe('`variance select` a commit past the record its mainline published', ()
     const here = await selectedIn(clone);
 
     expect(here.out).toBe('');
+  });
+
+  it('runs a test the mainline changed when the checkout renames the module it imports', async () => {
+    const ci = await mainline();
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
+    const clone = await cloneOf(home, ci.origin);
+    await git(clone, 'checkout', '--quiet', '-b', 'mine');
+    // The test still imports the old path, so it fails here and passes at the merge base.
+    await git(clone, 'mv', 'src/total.ts', 'src/sum.ts');
+    await git(clone, '-c', 'user.name=Dev', '-c', 'user.email=dev@example.test', 'commit', '--quiet', '-m', 'mine renames total');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('leaves nothing to the mainline on the mainline itself, whose run is the one that answers for it', async () => {
+    const ci = await mainline();
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
+    const clone = await cloneOf(home, ci.origin);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/other.test.ts\n');
+    expect(here.err).not.toContain('left to mainline');
   });
 
   it('runs a test whose module imports a package the checkout bumped', async () => {
