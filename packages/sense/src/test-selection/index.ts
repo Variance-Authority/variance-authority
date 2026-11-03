@@ -103,6 +103,7 @@ export {
   layeredFiles,
   repositoryLayers,
   rootConfig,
+  rootConfigOf,
   writesBase,
   type CacheLayers, type RootConfig,
 } from './cache-layers.js';

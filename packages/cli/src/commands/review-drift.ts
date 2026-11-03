@@ -27,6 +27,7 @@ import {
   readCommitRuns,
   readTestCoverage,
   rootConfig,
+  rootConfigOf,
   whatLanded,
   undone,
   type BaseEdges,
@@ -56,7 +57,6 @@ export interface DriftRecord {
 }
 
 export interface DriftInput {
-  readonly root: string;
   readonly relations: Relations;
   /** The source files the checkout's index holds. */
   readonly sources: ReadonlySet<string>;
@@ -70,8 +70,6 @@ export interface DriftInput {
   readonly baseline: DriftRecord | { readonly missing: string };
   /** This checkout's record, or why there is none. */
   readonly head: DriftRecord | { readonly missing: string };
-  /** The pull request's merge base. */
-  readonly mergeBase: string;
   /** The files that differ between the baseline's commit and the merge base; absent when they are one commit. */
   readonly between?: readonly string[];
   /** What the change moved that the walk or the run rests on, its `before`, a file under it or an install: compared all the same, and named as the cause of its rows. */
@@ -80,7 +78,6 @@ export interface DriftInput {
   readonly movedBetween?: string;
   /** Commits between the baseline's commit and the merge base, when this clone can count them. */
   readonly distance?: number;
-  /** Each file the change touched, in both texts. */
   /** The edges the change moved, undone to walk the merge base (`baseEdgesOf`). */
   readonly base: BaseEdges;
   /** Whether the checkout holds this test file. */
@@ -140,8 +137,7 @@ async function beforeAt(root: string, point: DiffPoint | undefined, suite: strin
   try {
     const text = await point.at(relative(point.repository, file));
     if (text === undefined) return [];
-    const value: unknown = JSON.parse(text);
-    return beforeIn({ file, value: typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {} }, suite);
+    return beforeIn(rootConfigOf(file, text), suite);
   } catch (error) {
     return { missing: `${whose}'s ${CACHE_CONFIG} could not be read, so the \`before\` it declared is not known: ${error instanceof Error ? error.message : String(error)}` };
   }
@@ -197,7 +193,6 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     ? undefined
     : await movedBetweenOf(root, suite, from.relations, base, baseline.commit, point.base, baseBefore, between);
   return reviewDrift({
-    root,
     relations: from.relations,
     sources: from.sources,
     before,
@@ -205,7 +200,6 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     unrelated: declared?.relations === false,
     baseline: typeof between === 'string' ? { missing: `the commits between the mainline's record and ${point.base.slice(0, 12)} could not be compared: ${between.trim()}` } : baseline,
     head,
-    mergeBase: point.base,
     ...(between === undefined || typeof between === 'string' ? {} : { between }),
     ...(moved === undefined ? {} : { moved }),
     ...(movedBetween === undefined ? {} : { movedBetween }),

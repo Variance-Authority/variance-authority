@@ -20,7 +20,6 @@ function record(commit: string, loads: readonly string[], instrumentation = 'pro
 
 function input(partial: Partial<DriftInput>): DriftInput {
   return {
-    root: '.',
     relations: RELATIONS,
     sources: new Set(['src/a.ts', 'src/lazy.ts', 'test/a.test.ts']),
     before: [],
@@ -28,7 +27,6 @@ function input(partial: Partial<DriftInput>): DriftInput {
     unrelated: false,
     baseline: record('base', []),
     head: record('head', []),
-    mergeBase: 'base',
     base: { added: new Map(), removed: new Map(), created: new Set(), unknown: new Set() },
     present: () => true,
     ...partial,

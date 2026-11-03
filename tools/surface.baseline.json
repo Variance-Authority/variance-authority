@@ -3457,6 +3457,7 @@
         "repositoryLayers": "function",
         "repositoryRoot": "function",
         "rootConfig": "function",
+        "rootConfigOf": "function",
         "routesFromView": "function",
         "rowOf": "function",
         "runsAsBefore": "function",

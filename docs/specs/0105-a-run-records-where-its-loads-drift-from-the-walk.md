@@ -190,7 +190,7 @@ Drift is computed by the review, never per selection and never by the run, so
 coverage selection still takes no graph and recording takes no more time. The
 review already builds the checkout's graph; the merge base's is that graph
 with the change's edges undone, so it costs a parse of each edited file's two
-texts and a resolve of the imports bound in one only. `driftFromWalk` itself walks each test file forward once
+texts and a resolve of every specifier either text loads. `driftFromWalk` itself walks each test file forward once
 and costs what the record lists: 13–74 ms per record on this repository, and
 2.1 s on a synthetic graph of 425,000 nodes and 6.3 million loads. Its rows are
 few beside the file use they are read from.

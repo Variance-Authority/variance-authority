@@ -12,7 +12,8 @@
  * spells it. A relative merge-base import that no longer resolves, and an edit
  * that does not parse, leave the importer's merge-base edges unknown; a bare
  * one that resolves to no file is a builtin or a package, which the graph holds
- * no file for either way (`isRelative`).
+ * no file for either way (`isRelative`). A dropped import of a file the graph
+ * holds no node for, a stylesheet or JSON, is no edge either walk could take.
  */
 import { isAbsolute } from 'node:path';
 import { EDGE_KINDS, idOf, type Adjacency, type NodeId, type Relations } from '@variance-authority/core/relate';
@@ -86,9 +87,7 @@ export function baseEdgesOf(root: string, relations: Relations, changes: readonl
     for (const target of [...then].filter(inGraph)) {
       if (there.has(target)) continue;
       const to = idOf(relations, 'file', target);
-      if (to === undefined) {
-        unknown.add(file);
-      } else if (!held.has(to)) {
+      if (to !== undefined && !held.has(to)) {
         const of = removed.get(id);
         if (of === undefined) removed.set(id, [to]);
         else of.push(to);
