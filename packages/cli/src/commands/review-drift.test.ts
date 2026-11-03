@@ -1,7 +1,7 @@
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { drifting, driftWords, reviewDrift, type DriftInput, type DriftRecord } from './review-drift.js';
+import { driftWords, reviewDrift, type DriftInput, type DriftRecord } from './review-drift.js';
 
 /** `test/a.test.ts` imports `src/a.ts`; `src/lazy.ts` is imported by nothing, so a load of it is drift. */
 const RELATIONS = relationsOfFiles([
@@ -51,17 +51,10 @@ describe('the drift a review reports', () => {
     expect(reviewDrift(input({ head: record('head', [], 'probes-2') }))).toEqual({ unchecked: expect.stringContaining('probes-2') });
   });
 
-  it('compares nothing when the change edits what configures the walk', () => {
-    const changes = [{ file: 'tsconfig.json', before: '{}', after: '{"compilerOptions":{}}' }];
-    expect(reviewDrift(input({ changes }))).toEqual({ unchecked: expect.stringContaining('`tsconfig.json`') });
-    expect(reviewDrift(input({ before: ['test/setup.ts'], changes: [{ file: 'test/setup.ts', before: '', after: 'x' }] }))).toEqual({
-      unchecked: expect.stringContaining('`test/setup.ts`'),
+  it('compares nothing when the change moved what the walk or the run rests on', () => {
+    expect(reviewDrift(input({ moved: 'installed `vitest` differently' }))).toEqual({
+      unchecked: "the change installed `vitest` differently, so the merge base's walk is not this one undone",
     });
-  });
-
-  it('reads the texts of a changed configuring file the index does not hold, so the edit reaches the guard', () => {
-    const changed = ['package.json', 'tsconfig.base.json', 'test/setup.ts', 'README.md', 'src/a.ts', 'src/gone.ts'];
-    expect(drifting(changed, new Set(['src/a.ts']), ['test/setup.ts'], (file) => file !== 'src/gone.ts')).toEqual(['package.json', 'tsconfig.base.json', 'test/setup.ts', 'src/a.ts', 'src/gone.ts']);
   });
 
   it('takes a record at an earlier mainline commit when the commits between move nothing the walk reads', () => {
@@ -74,8 +67,8 @@ describe('the drift a review reports', () => {
 
   it('names a record at an earlier mainline commit incompatible when the commits between moved the walk', () => {
     const drift = reviewDrift(input({ baseline: record('0123456789abcdef', []), between: ['README.md', 'src/a.ts'], distance: 3 }));
-    expect(drift).toEqual({ unchecked: "the mainline's record stands at 0123456789ab, 3 commits before the merge base, and `src/a.ts` moved the walk between them, so it is not a baseline for this change" });
-    expect(reviewDrift(input({ between: ['yarn.lock'] }))).toEqual({ unchecked: expect.stringContaining('`yarn.lock`') });
+    expect(drift).toEqual({ unchecked: "the mainline's record stands at 0123456789ab, 3 commits before the merge base, and the commits between them moved `src/a.ts`, which the walk reads, so it is not a baseline for this change" });
+    expect(reviewDrift(input({ between: ['yarn.lock'], movedBetween: 'installed `vitest` differently' }))).toEqual({ unchecked: expect.stringContaining('the commits between them installed `vitest` differently') });
   });
 
   it.todo('is not checked for a suite whose test files share a realm, Vitest\'s `isolate: false` or a reused page — needs the record to say its files shared a worker');

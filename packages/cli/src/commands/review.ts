@@ -371,7 +371,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const gap = await probesGap(from, root, request.suite);
   // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
   const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
-    root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources,
+    root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources, installed: beyond,
     mainline: shared ?? (await mainlineBase(root, recorded.declared)),
   });
   return {

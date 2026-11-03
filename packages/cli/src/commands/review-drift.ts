@@ -13,13 +13,12 @@
  * nothing the walk reads.
  */
 
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
-import { promisify } from 'node:util';
+import { resolve } from 'node:path';
 import {
   baseEdgesOf,
+  beforeOf,
   driftChange,
   driftFromWalk,
   readCommitRuns,
@@ -32,8 +31,11 @@ import {
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
-import type { DiffPoint } from './installed.js';
+import { filesBetween } from './base-diff.js';
+import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineMissed, type MainlineBase } from './mainline-base.js';
+import { restsOf } from './select-before.js';
+import { commitPoint } from './since.js';
 
 /** The drift a review reports: the shape change against the baseline, or why the first inclusion was not checked. */
 export type ReviewDrift =
@@ -52,7 +54,7 @@ export interface DriftInput {
   readonly relations: Relations;
   /** The source files the checkout's index holds. */
   readonly sources: ReadonlySet<string>;
-  /** The suite's `before` files. */
+  /** The `before` files the suite rests on, its own and the repository's. */
   readonly before: readonly string[];
   /** The suite declares `relations: false`: it has no walk. */
   readonly unrelated: boolean;
@@ -64,25 +66,16 @@ export interface DriftInput {
   readonly mergeBase: string;
   /** The files that differ between the baseline's commit and the merge base; absent when they are one commit. */
   readonly between?: readonly string[];
+  /** What the change moved that the walk or the run rests on: a file under `before` (`restsOf`), or an install (`installDiff`). */
+  readonly moved?: string;
+  /** The same, for the commits between the baseline's commit and the merge base. */
+  readonly movedBetween?: string;
   /** Commits between the baseline's commit and the merge base, when this clone can count them. */
   readonly distance?: number;
   /** Each file the change touched, in both texts. */
   readonly changes: readonly ChangedText[];
   /** Whether the checkout holds this test file. */
   readonly present: (test: string) => boolean;
-}
-
-const CONFIGURING = [
-  /^package\.json$/u,
-  /^(yarn\.lock|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|bun\.lockb?)$/u,
-  /^tsconfig(\..+)?\.json$/u,
-  /^(jest|vitest|vite)\.config\.[cm]?[jt]s$/u,
-  /^variance\.config\.json$/u,
-];
-
-/** Whether `file` configures the walk or the run, by its name, or because the suite runs it before every test. */
-function configures(file: string, before: readonly string[]): boolean {
-  return before.includes(file) || CONFIGURING.some((pattern) => pattern.test(basename(file)));
 }
 
 /** The pull request's drift against the baseline's, or why it was not compared. */
@@ -94,12 +87,12 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
   if (baseline.coverage.instrumentation !== head.coverage.instrumentation) {
     return { unchecked: `the mainline's record was cut by probes \`${baseline.coverage.instrumentation}\` and this one by \`${head.coverage.instrumentation}\`` };
   }
-  const configuring = input.changes.find(({ file }) => configures(file, before));
-  if (configuring !== undefined) return { unchecked: `the change edits \`${configuring.file}\`, which configures the walk, so the merge base's walk is not this one undone` };
-  const moved = input.between?.find((file) => configures(file, before) || walked(input, baseline.coverage, file));
+  if (input.moved !== undefined) return { unchecked: `the change ${input.moved}, so the merge base's walk is not this one undone` };
+  const moved = input.movedBetween ?? input.between?.find((file) => walked(input, baseline.coverage, file));
   if (moved !== undefined) {
     const away = input.distance === undefined ? '' : `, ${Math.abs(input.distance)} commit${Math.abs(input.distance) === 1 ? '' : 's'} ${input.distance < 0 ? 'past' : 'before'} the merge base`;
-    return { unchecked: `the mainline's record stands at ${baseline.commit.slice(0, 12)}${away}, and \`${moved}\` moved the walk between them, so it is not a baseline for this change` };
+    const what = input.movedBetween ?? `moved \`${moved}\`, which the walk reads`;
+    return { unchecked: `the mainline's record stands at ${baseline.commit.slice(0, 12)}${away}, and the commits between them ${what}, so it is not a baseline for this change` };
   }
 
   const base = driftFromWalk(relations, baseline.coverage.modules, before, { base: baseEdgesOf(input.root, relations, input.changes) });
@@ -120,6 +113,21 @@ function walked({ relations, sources }: DriftInput, coverage: TestCoverage, file
   return relations.index.has(`file:${file}`) || sources.has(file) || coverage.modules.some((module) => module.file === file);
 }
 
+/** What `files` moved that the walk or the run rests on, said as what they did, or `undefined` when they moved neither. */
+async function movedUnder(root: string, suite: string | undefined, relations: Relations, files: readonly string[], install: () => Promise<InstallDiff | undefined>): Promise<string | undefined> {
+  if (files.length === 0) return undefined;
+  const { rests } = await restsOf(root, suite, relations, files);
+  if (rests[0] !== undefined) return `moved \`${rests[0]}\`, which the suite rests on before reach`;
+  return installed(await install());
+}
+
+/** An install that moved, said as what it did. */
+function installed(diff: InstallDiff | undefined): string | undefined {
+  if (diff === undefined) return undefined;
+  if ('whole' in diff) return `may have installed any package differently: ${diff.whole}`;
+  return diff.packages[0] === undefined ? undefined : `installed \`${diff.packages[0]}\` differently`;
+}
+
 /** What `review` already holds that the drift is read from. */
 export interface DriftSources {
   readonly root: string;
@@ -136,6 +144,8 @@ export interface DriftSources {
   readonly changed: readonly string[];
   readonly relations: Relations;
   readonly sources: ReadonlySet<string>;
+  /** What the change installed differently, as `review` read it. */
+  readonly installed: InstallDiff | undefined;
 }
 
 /** {@link reviewDrift} over the records and texts `review` holds. */
@@ -149,26 +159,29 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
   const head = from.runs?.commit === undefined
     ? { missing: 'no run here listed itself, so which test files this change observed whole is not known' }
     : await observedAt(from.runs.commit, from.record, 'this record');
-  const between = 'missing' in baseline || baseline.commit === point.base ? undefined : await filesBetween(root, baseline.commit, point.base);
+  const between = 'missing' in baseline || baseline.commit === point.base ? undefined : await filesBetween(baseline.commit, point.base, root).catch(() => null);
+  const suite = declared?.name;
+  const moved = await movedUnder(root, suite, from.relations, from.changed, async () => from.installed);
+  // The working tree's install is the merge base's whenever the change installed nothing differently, so the commits between are measured against it.
+  const movedBetween = moved !== undefined || between === undefined || between === null || 'missing' in baseline
+    ? undefined
+    : await movedUnder(root, suite, from.relations, between, async () => installDiff(await commitPoint(baseline.commit, [], root), between, root));
   return reviewDrift({
     root,
     relations: from.relations,
     sources: from.sources,
-    before: declared?.before ?? [],
+    before: beforeOf(root, suite),
     unrelated: declared?.relations === false,
     baseline: between === null ? { missing: `the commits between the mainline's record and ${point.base.slice(0, 12)} could not be compared` } : baseline,
     head,
     mergeBase: point.base,
     ...(between === undefined || between === null ? {} : { between }),
+    ...(moved === undefined ? {} : { moved }),
+    ...(movedBetween === undefined ? {} : { movedBetween }),
     ...(mainline === undefined || 'miss' in mainline || mainline.distance === undefined ? {} : { distance: mainline.distance }),
-    changes: await Promise.all(drifting(from.changed, from.sources, declared?.before ?? [], (file) => existsSync(resolve(root, file))).map(async (file) => textsOf(from, file))),
+    changes: await Promise.all(from.changed.filter((file) => from.sources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file))),
     present: (test) => existsSync(resolve(root, test)),
   });
-}
-
-/** The changed files whose texts the drift reads: a source the index holds, a deleted file, or one that configures the walk, which the index does not parse. */
-export function drifting(changed: readonly string[], sources: ReadonlySet<string>, before: readonly string[], exists: (file: string) => boolean): readonly string[] {
-  return changed.filter((file) => sources.has(file) || !exists(file) || configures(file, before));
 }
 
 /** The record at `file`, with the test files the runs beside it observed whole at `commit`. */
@@ -178,16 +191,6 @@ async function observedAt(commit: string, file: string, whose: string): Promise<
   const coverage = await readTestCoverage(file).catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
   if (typeof coverage === 'string') return { missing: `${whose} holds no file use to read: ${coverage}` };
   return { commit, coverage, observed: new Set(whatLanded(runs.landings).files) };
-}
-
-/** The root-relative files that differ between two commits, or `null` when git could not say. */
-async function filesBetween(root: string, from: string, to: string): Promise<readonly string[] | null> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['diff', '--name-only', '--relative', from, to], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
-    return stdout.split('\n').filter((line) => line !== '');
-  } catch {
-    return null;
-  }
 }
 
 async function textsOf({ root, point, named }: DriftSources, file: string): Promise<ChangedText> {
