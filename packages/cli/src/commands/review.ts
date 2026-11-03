@@ -370,7 +370,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const head = await reviewedCommit(point.repository);
   const gap = await probesGap(from, root, request.suite);
   // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
-  const drift = runs === undefined ? undefined : await readReviewDrift({
+  const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
     root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources,
     mainline: shared ?? (await mainlineBase(root, recorded.declared)),
   });
@@ -393,7 +393,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
     ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
     ...(notUpdated === undefined ? {} : { notUpdated: notUpdatedNote(notUpdated) }),
-    ...(drift === undefined ? {} : { drift }),
+    drift,
   };
 }
 
