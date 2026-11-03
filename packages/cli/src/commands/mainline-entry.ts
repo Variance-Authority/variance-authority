@@ -1,4 +1,4 @@
-import { findEntry, readLine, type HeldEntry, type LineCell, type ShareLine, type ShareMiss } from '@variance-authority/core/share';
+import { findEntry, readLine, type HeldEntry, type KeptAt, type LineCell, type ShareLine, type ShareMiss } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
 import { distanceFrom, keptBehind, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
 import type { Here } from './share.js';
@@ -121,7 +121,11 @@ async function nearestHolding(
   if (!('miss' in atBase) || atBase.miss.kind !== 'absent') return atBase;
   const held = await cell.commits!({ kind: 'mainline', name: mainline });
   if (!Array.isArray(held)) return { miss: held as ShareMiss };
-  for await (const commit of keptBehind(base, new Set(held.map((one) => one.commit)), cwd)) {
+  // Only a record that may hold the entry is read: one kept by other suites'
+  // jobs alone says so in its listing, and costs no fetch.
+  const names = typeof name === 'string' ? [name] : name;
+  const holding = (held as readonly KeptAt[]).filter((one) => one.holds === undefined || one.holds.some((entry) => names.includes(entry)));
+  for await (const commit of keptBehind(base, new Set(holding.map((one) => one.commit)), cwd)) {
     if (commit === base) continue;
     const found = await entryIn(cell, { kind: 'mainline', name: mainline, at: commit }, name);
     if (!('miss' in found) || found.miss.kind !== 'absent') return found;

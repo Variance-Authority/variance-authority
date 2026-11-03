@@ -5,6 +5,7 @@
  * directory, a bucket and a git ref hold a line by the same rules.
  */
 
+import { codeUnitOrder } from '../segment/index.js';
 import {
   decodeManifest,
   encodeManifest,
@@ -356,10 +357,14 @@ export function memoryLineCell(
     async commits(line) {
       return [...written.values()]
         .filter((one) => one.line.at !== undefined && one.line.kind === line.kind && one.line.name === line.name)
-        .map((one) => ({ commit: one.line.at!, written: one.at, version: String(versions.get(key(one.line)) ?? 0) }));
+        .map((one) => {
+          const manifest = decodeManifest(held.get(`${key(one.line)}\u0000manifest`)!);
+          const holds = 'kind' in manifest ? undefined : manifest.entries.map((entry) => entry.name).sort(codeUnitOrder);
+          return { commit: one.line.at!, written: one.at, version: String(versions.get(key(one.line)) ?? 0), ...(holds ? { holds } : {}) };
+        });
     },
     async drop(lines) {
-      if (lines.some((one) => String(versions.get(key(one.line)) ?? '') !== one.version)) return 'conflict';
+      if (lines.some((one) => String(versions.get(key(one.line)) ?? 0) !== one.version)) return 'conflict';
       for (const { line } of lines) {
         const prefix = `${key(line)}\u0000`;
         for (const path of held.keys()) if (path.startsWith(prefix)) held.delete(path);

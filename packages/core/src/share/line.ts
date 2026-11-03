@@ -123,11 +123,14 @@ export interface LineCell {
 /**
  * One commit a mainline's record is kept at, when it was written, in ms since
  * the epoch, and the version `load` gives that line, which `drop` removes.
+ * `holds` names the entries it holds, sorted, where the store can say without
+ * reading the record; absent, it may hold any.
  */
 export interface KeptAt {
   readonly commit: string;
   readonly written: number;
   readonly version: string;
+  readonly holds?: readonly string[];
 }
 
 /** An entry name, read. */

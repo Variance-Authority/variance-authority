@@ -346,14 +346,20 @@ async function sinceMergeBase(
  * The commits of `kept` on `base`'s first-parent history, `base` included,
  * nearest first: the mainline commits at or behind it that published a
  * record. How far back one sits is git's, not the window's, which counts
- * records, so the walk runs until the caller stops it or the history this
- * clone holds ends.
+ * records, so the walk runs until every one of `kept` was passed, the caller
+ * stops it, or the history this clone holds ends.
  */
 export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: string): AsyncGenerator<string> {
   if (kept.size === 0) return;
   const child = spawn('git', ['rev-list', '--first-parent', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
   try {
-    for await (const commit of createInterface({ input: child.stdout })) if (kept.has(commit)) yield commit;
+    let passed = 0;
+    for await (const commit of createInterface({ input: child.stdout })) {
+      if (!kept.has(commit)) continue;
+      yield commit;
+      passed += 1;
+      if (passed === kept.size) return;
+    }
   } finally {
     child.kill();
   }

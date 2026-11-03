@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
   decodeManifest,
   keptAtOf,
@@ -8,6 +9,7 @@ import {
   linePath,
   manifestPaths,
   type Descends,
+  type KeptAt,
   type LineCell,
   type ShareLine,
   type ShareMiss,
@@ -247,7 +249,10 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       // `publishLine` removes past its window.
       // TODO: nothing deletes a branch's line, so a branch's ref outlives the branch, and
       // with it every image its tree names.
-      const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`], undefined, IDENTITY);
+      // The body names the entries, so `commits` says what a kept record holds
+      // from the commit alone, without fetching its tree.
+      const names = manifest.entries.map((entry) => entry.name).sort(codeUnitOrder);
+      const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`, '-m', names.join('\n')], undefined, IDENTITY);
       if (commit.code !== 0) return missOf(commit);
       const sha = text(commit.stdout).trim();
 
@@ -278,13 +283,18 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       // Commits only, never a tree: when a record was written is its commit's date.
       const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
       if (ran.code !== 0) return missOf(ran);
-      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix) %(objectname)', `${namespace}/`])).stdout);
-      const kept: { commit: string; written: number; version: string }[] = [];
-      for (const row of listed.split('\n')) {
-        const [ref, seconds, version] = row.split(' ');
+      // A body spans lines, so fields and rows are split on ASCII's own separators.
+      const format = '%(refname)%1f%(committerdate:unix)%1f%(objectname)%1f%(contents:body)%1e';
+      const listed = text((await git(['for-each-ref', `--format=${format}`, `${namespace}/`])).stdout);
+      const kept: KeptAt[] = [];
+      for (const row of listed.split('\u001e')) {
+        const [ref, seconds, version, body] = row.trim().split('\u001f');
         if (ref === undefined || seconds === undefined || version === undefined) continue;
         const commit = keptAtOf(line, ref.slice(namespace.length + 1));
-        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000, version });
+        if (commit === undefined) continue;
+        // A record written before its body named the entries may hold any.
+        const holds = body?.split('\n').filter((name) => name !== '');
+        kept.push({ commit, written: Number(seconds) * 1000, version, ...(holds?.length ? { holds } : {}) });
       }
       return kept;
     },

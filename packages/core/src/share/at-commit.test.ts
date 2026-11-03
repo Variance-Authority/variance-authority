@@ -36,6 +36,13 @@ describe('a mainline record kept at its commit', () => {
     expect(read.manifest.entries.map((held) => held.name).sort()).toEqual(['suite-v1/unit', 'suite-v1/web']);
   });
 
+  it('lists the entries each kept record holds', async () => {
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('suite-v1/unit', sha(1))], options);
+    await publishLine(cell, MAIN, [entry('suite-v1/web', sha(1))], options);
+    expect(await cell.commits!(MAIN)).toMatchObject([{ commit: sha(1), holds: ['suite-v1/unit', 'suite-v1/web'] }]);
+  });
+
   it(`drops what is older than ${String(KEEP_DAYS)} days`, async () => {
     let now = 0;
     const cell = memoryLineCell(() => now);
