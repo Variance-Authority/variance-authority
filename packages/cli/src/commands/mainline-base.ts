@@ -26,9 +26,12 @@
  * record fetched last, by this checkout or by the primary checkout it was cut
  * from, stands without asking while the reader's mainline is the one it was
  * fetched from and either it is at or past the merge base, or the line was
- * asked at this same merge base. A merge base moves on a pull or a rebase, so
- * that is when the line is asked again; every reader of a checkout, and every
- * job of a CI run, which all share one merge base, reads the same record. When
+ * asked at this same merge base within {@link MISS_STANDS_MS}. A merge base
+ * moves on a pull or a rebase, so that is when the line is asked first; the
+ * mainline publishes its record there once its own run finishes, so a record
+ * still behind is asked for again once that window passes. Every reader of a
+ * checkout, and every job of a CI run, which all share one merge base, reads
+ * the same record. When
  * the line does not answer, the record fetched last is still the base, and the
  * note says why it was not refreshed.
  *
@@ -86,7 +89,7 @@ export interface MainlineRecord {
    * kept because the mainline gave no record, now or, as `asked` says, earlier
    * within {@link MISS_STANDS_MS}. It is reused when it is at or past `HEAD`'s
    * merge base with the mainline (`nearest`), or else when the line was asked
-   * at this same merge base (`asked`).
+   * at this same merge base within {@link MISS_STANDS_MS} (`asked`).
    */
   readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
@@ -174,8 +177,11 @@ export async function mainlineBase(
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
       // At or past the merge base, nothing the line could hold is nearer it.
       // Behind it, the line was asked here already when the merge base is the
-      // one it was asked at, the clone naming none then and now included.
-      const reused = distance !== undefined && distance <= 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
+      // one it was asked at, the clone naming none then and now included, and
+      // that answer stands as long as a miss would: the record at the merge
+      // base is on its way. Every fetch rewrites `fetched`, so it is the ask.
+      const askedHere = last.base === named?.base && now - Date.parse(last.fetched) < MISS_STANDS_MS;
+      const reused = distance !== undefined && distance <= 0 ? 'nearest' : askedHere ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);

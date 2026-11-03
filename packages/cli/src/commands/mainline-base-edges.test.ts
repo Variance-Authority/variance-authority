@@ -65,7 +65,11 @@ async function pushed(ci: string): Promise<string> {
 
 /** A commit pushed to `ci`'s `main`, and the record CI made there published to the mainline. */
 async function publishedNext(ci: string): Promise<string> {
-  const commit = await pushed(ci);
+  return publishedAt(ci, await pushed(ci));
+}
+
+/** The record CI made at `commit`, already on `ci`'s `main`, published to the mainline. */
+async function publishedAt(ci: string, commit: string): Promise<string> {
   const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
@@ -224,9 +228,40 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(asked).not.toHaveProperty('earlier');
     await reach(nowhere);
 
-    const kept = await base(NOW + DAY);
+    const kept = await base(NOW + 60_000 + MISS_STANDS_MS - 1);
 
     expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
+  });
+
+  it('is asked again at that merge base once a miss would have expired, and moves onto the record published there', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    const merged = await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+    expect(await base(NOW + 60_000)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
+    // CI's run at the merge base finishes, and publishes, after the pull.
+    const next = await publishedAt(ci, merged);
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+
+    const fresh = await base(NOW + 60_000 + MISS_STANDS_MS);
+
+    expect(fresh).toMatchObject({ commit: next, distance: 0, fetched: at(NOW + 60_000 + MISS_STANDS_MS) });
+    expect(fresh).not.toHaveProperty('earlier');
+  });
+
+  it('keeps the record behind the merge base, with the line\'s miss, when the line asked again does not answer', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, base, reach, nowhere } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+    expect(await base(NOW + 60_000)).toMatchObject({ commit: first, distance: 1 });
+    await reach(nowhere);
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: { kind: 'unreachable' } } });
   });
 });
 

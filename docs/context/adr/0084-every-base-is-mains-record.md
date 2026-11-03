@@ -54,8 +54,10 @@ fetched here, and the reader says so.**
   only its newest record, and the best base is the record at `HEAD`'s merge
   base with the mainline. `fetched.json` keeps the merge base the line was
   asked at. The record stands without asking when it is at or past the merge
-  base, or when the line was asked at this same merge base. Otherwise a pull
-  or a rebase has moved the merge base, and the line is asked once. Every
+  base, or for ten minutes (`MISS_STANDS_MS`) after the line was asked at this
+  same merge base: its record there is published once the mainline's own run
+  finishes, so a record still behind it is asked for again after that window.
+  A pull or a rebase that moves the merge base has the line asked at once. Every
   reader of a checkout, and every CI job handed the read root, has one merge
   base and reads one record. A remote that does not answer leaves the record
   fetched earlier as the base, and the reader names when it was fetched and

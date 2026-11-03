@@ -592,9 +592,11 @@ Records are read in this order:
    run writes, so it is never read as your checkout's own. The mainline keeps
    only its newest record, and the nearest one you can use is at your `HEAD`'s
    merge base with the mainline. A record fetched at or past that merge base
-   is read without asking the remote again, and so is one fetched while your
-   merge base was the one it is now. After a pull or a rebase moves it, the
-   remote is asked once. The result that the line has none for you stands for
+   is read without asking the remote again. One behind it is read without
+   asking for 10 minutes after it was fetched at the merge base you have now,
+   then the remote is asked again, so the record the mainline publishes there
+   once its own run finishes reaches you without `variance share`. After a pull
+   or a rebase moves the merge base, the remote is asked at once. The result that the line has none for you stands for
    10 minutes, with the time of that result. When the remote does not answer,
    the record fetched earlier is read, and the answer prints when it was
    fetched and why it was not fetched again.
