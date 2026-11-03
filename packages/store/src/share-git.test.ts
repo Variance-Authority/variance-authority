@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
+import { atCommit, findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
 import { createGitLineCell, gitDescends, headerEnv } from './share-git.js';
 
 const MAIN = { kind: 'mainline', name: 'release/2.0' } as const;
@@ -23,7 +23,8 @@ const descends = async (): Promise<boolean> => false;
  * Against a real bare repository over `file://`, which speaks the same
  * protocol a hosted remote does, filters and leases included.
  */
-describe('createGitLineCell', () => {
+// Every mainline publish here also keeps its record at its commit: a push and a listing more apiece.
+describe('createGitLineCell', { timeout: 15_000 }, () => {
   beforeEach(() => variancePrecondition('fixture', { remote: 'accepts' }));
   let home = '';
   let url = '';
@@ -172,6 +173,31 @@ describe('createGitLineCell', () => {
     expect(await descent(first, first)).toBe(false);
     expect(await descent('f'.repeat(40), first)).toBeUndefined();
     expect(await gitDescends({ url, gitDir: join(home, 'b') }, 'gone')(second, first)).toBeUndefined();
+  });
+  it('keeps a mainline record at its commit as its own ref, lists it and drops it', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    const two = 'b'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', two, 'two')], { descends, image });
+    expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim().split('\n'))
+      .toEqual([`refs/variance/at/${one}/mainline/release/2.0`, `refs/variance/at/${two}/mainline/release/2.0`]);
+
+    const reader = cellAt('b');
+    const read = await readLine(reader, atCommit(MAIN, one));
+    if ('kind' in read) throw new Error(read.kind);
+    const found = findEntry(read.manifest, 'report-v1');
+    if ('kind' in found) throw new Error(found.kind);
+    expect(await read.entry(found)).toEqual(ascii('one'));
+
+    const listed = await reader.commits!(MAIN);
+    if (!Array.isArray(listed)) throw new Error('not listed');
+    expect(listed.map((held) => held.commit).sort()).toEqual([one, two]);
+    expect(listed.every((held) => Math.abs(held.written - Date.now()) < 60_000)).toBe(true);
+
+    expect(await reader.drop!([atCommit(MAIN, one)])).toBe('dropped');
+    expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim())
+      .toBe(`refs/variance/at/${two}/mainline/release/2.0`);
   });
 });
 

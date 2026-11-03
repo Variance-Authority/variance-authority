@@ -50,9 +50,14 @@ fetched here, and the reader says so.**
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
-- **A fetched record stands until a nearer one can exist.** The line holds
-  only its newest record, and the best base is the record at `HEAD`'s merge
-  base with the mainline. `fetched.json` keeps the merge base the line was
+- **A fetched record stands until a nearer one can exist.** The best base is
+  the record at `HEAD`'s merge base with the mainline. The line holds its
+  newest record, and a share in git also keeps each mainline publish at its
+  commit (`refs/variance/at/<commit>/mainline/<name>`) for the window of
+  ADR-0078, 14 days and the newest 200 commits; the publish that writes one
+  deletes what fell out. The reader asks for the record at the merge base
+  first and reads the newest when none is kept there, and a directory or an
+  HTTP store keeps the newest only. `fetched.json` keeps the merge base the line was
   asked at. The record stands without asking when it is at or past the merge
   base, or when the line was asked at this same merge base. Otherwise a pull
   or a rebase has moved the merge base, and the line is asked once. Every

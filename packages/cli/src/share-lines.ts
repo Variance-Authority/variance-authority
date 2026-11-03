@@ -341,7 +341,8 @@ async function sinceMergeBase(
   return since === undefined ? { base } : { base, since };
 }
 
-async function mergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<string | undefined> {
+/** `HEAD`'s merge base with `mainline` as this clone last fetched it. */
+export async function mergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<string | undefined> {
   const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
   return base === undefined || base === '' ? undefined : base;
 }

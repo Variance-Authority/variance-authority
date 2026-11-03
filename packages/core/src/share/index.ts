@@ -11,8 +11,9 @@
  * what mainline already knows, and mainline already knew it an hour ago on a
  * runner that has since been destroyed. This module is the seam between those
  * two: a `LineCell` holds the latest of what one mainline or one branch
- * published, `publishLine` replaces it, and `readLine` reads it back
- * with the reason when it cannot.
+ * published, `publishLine` replaces it, keeps a mainline's at its commit
+ * too, for a bounded window, and `readLine` reads it back with the
+ * reason when it cannot.
  *
  * ## What this is not
  *
@@ -28,4 +29,5 @@
 
 export * from './line.js';
 export * from './publish.js';
+export * from './at-commit.js';
 export * from './http-line.js';

@@ -240,8 +240,10 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       const tree = await git(['write-tree', '--missing-ok'], undefined, env);
       await rm(index, { force: true });
       if (tree.code !== 0) return missOf(tree);
-      // No parent: a line is its latest, and what it replaced is the remote's to collect.
-      // TODO: nothing deletes a line, so a branch's ref outlives the branch, and
+      // No parent: a line is its latest, and what it replaced is the remote's to
+      // collect. A mainline's record at its commit is a line of its own, which
+      // `publishLine` removes past its window.
+      // TODO: nothing deletes a branch's line, so a branch's ref outlives the branch, and
       // with it every image its tree names.
       const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`], undefined, IDENTITY);
       if (commit.code !== 0) return missOf(commit);
@@ -268,6 +270,35 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       }
       await git(['update-ref', ref, sha]);
       return 'written';
+    },
+    async commits(line) {
+      const tail = `/${linePath(line)}`;
+      const at = `${namespace}/at/`;
+      // Commits only, never a tree: when a record was written is its commit's date.
+      const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${at}*${tail}:${at}*${tail}`]);
+      if (ran.code !== 0) return missOf(ran);
+      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix)', at])).stdout);
+      const kept: { commit: string; written: number }[] = [];
+      for (const row of listed.split('\n')) {
+        const [ref, seconds] = row.split(' ');
+        if (ref === undefined || seconds === undefined || !ref.endsWith(tail)) continue;
+        const commit = ref.slice(at.length, ref.length - tail.length);
+        if (/^[0-9a-f]{4,64}$/.test(commit)) kept.push({ commit, written: Number(seconds) * 1000 });
+      }
+      return kept;
+    },
+    async drop(lines) {
+      const refs: string[] = [];
+      for (const line of lines) {
+        const ref = refOf(line);
+        if (typeof ref !== 'string') return ref;
+        refs.push(ref);
+      }
+      if (refs.length === 0) return 'dropped';
+      const pushed = await git(['push', '--no-verify', '--porcelain', '--atomic', REMOTE, ...refs.map((ref) => `:${ref}`)]);
+      if (pushed.code !== 0) return missOf(pushed, refusalOf(pushed));
+      for (const ref of refs) await git(['update-ref', '-d', ref]);
+      return 'dropped';
     },
   };
 }

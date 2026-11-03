@@ -1,14 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  findEntry,
+  KEEP_COMMITS,
+  KEEP_DAYS,
   publishLine,
-  readLine,
-  type HeldEntry,
+  type KeptCommits,
   type Published,
   type ShareEntry,
   type ShareLine,
-  type ShareMiss,
 } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
 import { readSuiteIndex, writeSuiteIndex } from '@variance-authority/report/file';
@@ -21,21 +20,13 @@ import {
 import type { Config } from '../config.js';
 import { costsEntryOf } from './costs-entry.js';
 import { REPORT_ENTRY, entryCarriesEyes, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
-import {
-  descendsOf,
-  distanceFrom,
-  lineCellOf,
-  lineOfRun,
-  readerMainline,
-  READ_REUSE_MS,
-  type Env,
-  type MainlinesMissing,
-  type Unconfigured,
-} from '../share-lines.js';
+import { descendsOf, lineCellOf, lineOfRun, type Env, type MainlinesMissing } from '../share-lines.js';
+import { mainlineEntry, type MainlineAt, type MainlineMiss, type MainlineMissed } from './mainline-entry.js';
 import { suiteIndexRoot } from './resources.js';
 import { isSlice, readCliRunReport, suitePartPath, type CliRunReport } from './run-report.js';
 
 export { mainlinesOf, type Mainlines } from '../share-lines.js';
+export { lineEntry, mainlineEntry, type LineEntry, type MainlineAt, type MainlineMiss, type MainlineMissed } from './mainline-entry.js';
 
 /**
  * Publishing a run to its line, and reading a mainline's suite index back — the
@@ -235,34 +226,10 @@ export function eyesWritten(eyes: readonly string[], written: readonly string[])
   return went.length === 0 ? {} : { eyes: went };
 }
 
-/**
- * Why the reader's mainline did not answer: the share's own account, or that
- * nothing names a mainline, a share, or the credential the share was given.
- */
-export type MainlineMiss = ShareMiss | Unconfigured;
-
-/** Which mainline a read was about, and where its entry was derived. */
-export interface MainlineAt {
-  readonly mainline: string;
-  readonly commit: string;
-  /** Commits the entry is behind `HEAD`'s merge base with the mainline; negative when ahead. */
-  readonly distance?: number;
-}
-
 /** A mainline's suite index, where it was read from, and how far it is from this checkout. */
 export interface MainlineIndex extends MainlineAt {
   readonly from: 'local' | 'share';
   readonly index: SuiteIndex;
-}
-
-/**
- * Which mainline was asked and why it did not answer. `holds` names what the
- * line does hold when the miss is an entry it lacks, rather than the line.
- */
-export interface MainlineMissed {
-  readonly mainline?: string;
-  readonly miss: MainlineMiss;
-  readonly holds?: readonly string[];
 }
 
 /** A mainline index, or which mainline was asked and why it did not answer. */
@@ -334,68 +301,6 @@ export async function mainlineSuite(
 }
 
 /**
- * Where the reader's mainline holds `name`, and a way to read its bytes.
- *
- * The mainline is the one named, with `HEAD`'s merge base with it when the
- * caller asked for it, or else the one `readerMainline` chooses. The
- * bytes are read only when asked, because a commit this machine already holds
- * is answered from disk.
- */
-export async function mainlineEntry(
-  config: Pick<Config, 'share' | 'cacheRoot'>,
-  name: string | readonly string[],
-  options: Here & { readonly mainline?: string; readonly base?: string },
-): Promise<{ readonly at: MainlineAt; readonly held: LineEntry } | MainlineMissed> {
-  const env = options.env ?? process.env;
-  const cwd = options.cwd ?? process.cwd();
-  let { mainline, base } = options;
-  if (mainline === undefined) {
-    const chosen = await readerMainline(config, env, cwd);
-    if ('missing' in chosen) {
-      return { miss: { kind: 'unconfigured', detail: `nothing answered from ${chosen.missing.join(', ')}` } };
-    }
-    ({ name: mainline, base } = chosen);
-  }
-  const found = await lineEntry(config, { kind: 'mainline', name: mainline }, name, cwd);
-  if ('miss' in found) return { mainline, ...found };
-
-  const distance = await distanceFrom(config, mainline, found.entry.commit, cwd, base);
-  return { at: { mainline, commit: found.entry.commit, ...(distance !== undefined ? { distance } : {}) }, held: found };
-}
-
-/** One entry a line holds, and its bytes and images on demand. */
-export interface LineEntry {
-  readonly entry: HeldEntry;
-  readonly bytes: () => Promise<Uint8Array | ShareMiss>;
-  readonly image: (digest: string) => Promise<Uint8Array | ShareMiss>;
-}
-
-/**
- * Where `line` holds `name`, or the first of a list it holds, or the first's miss.
- *
- * An `absent` entry on a line that exists carries what the line does hold, so
- * a reader can say *it holds suite-index-v2* rather than *nothing is
- * published*, which would send somebody to look for a publish that happened.
- */
-export async function lineEntry(
-  config: Pick<Config, 'share' | 'cacheRoot'>,
-  line: ShareLine,
-  name: string | readonly string[],
-  cwd: string,
-): Promise<LineEntry | { readonly miss: MainlineMiss; readonly holds?: readonly string[] }> {
-  const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
-  if (cell === undefined) return { miss: { kind: 'unconfigured', detail: 'no share is configured' } };
-  if ('kind' in cell) return { miss: cell };
-
-  const held = await readLine(cell, line);
-  if ('kind' in held) return { miss: held };
-  const found = (typeof name === 'string' ? [name] : name).map((one) => findEntry(held.manifest, one));
-  const entry = found.find((one) => !('kind' in one)) ?? found[0]!;
-  if ('kind' in entry) return entry.kind === 'absent' ? { miss: entry, holds: held.manifest.entries.map((one) => one.name) } : { miss: entry };
-  return { entry, bytes: () => held.entry(entry), image: (digest) => held.image(digest) };
-}
-
-/**
  * `variance share` — what the reader's mainline holds, or what this run gave
  * its line.
  *
@@ -459,10 +364,21 @@ export function describePublish(config: Pick<Config, 'share'>, done: RunPublish)
       : [
           `left out ${String(leftOut.length)} image(s) the report names and this machine could not read, the first at ${leftOut[0]!}.`,
         ]),
+    ...describeKept(done.published.atCommit),
     ...(done.unpublished ?? []).map((why) => `left out ${why}.`),
     ...(done.eyes ?? []).map((name) =>
       `${name} carried its cases' Eyes journals: the record's eyes section went with it.`),
     ...Object.entries(done.retired ?? {}).map(([name, files]) => `retired ${String(files.length)} test file(s) from ${name} that the suite no longer collects, ${files[0]!} among them.`),
+  ];
+}
+
+function describeKept(kept: KeptCommits | undefined): readonly string[] {
+  if (kept === undefined) return [];
+  if ('kind' in kept) return [`kept nothing by commit beside the latest: ${describeMiss(kept)}.`];
+  const window = `${String(KEEP_DAYS)} days or ${String(KEEP_COMMITS)} commits`;
+  return [
+    ...kept.kept.map((commit) => `kept the record at ${commit} beside the latest, for ${window}.`),
+    ...(kept.dropped.length === 0 ? [] : [`removed ${String(kept.dropped.length)} record(s) kept by commit past ${window}.`]),
   ];
 }
 

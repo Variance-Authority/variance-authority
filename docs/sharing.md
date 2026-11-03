@@ -10,9 +10,12 @@ lines on your mainline, the branch your other branches merge into.
 `variance share` publishes a run, or prints how far the mainline's latest
 publish is from your checkout.
 
-A share keeps no history. For each branch it keeps one copy of each file a run
-publishes, and the next publish of that file replaces it, unless the branch is a
-mainline and has that file at a newer commit. It is stored as refs in the
+For each branch a share keeps one copy of each file a run publishes, and the
+next publish of that file replaces it, unless the branch is a mainline and has
+that file at a newer commit. A share stored in git also keeps each mainline
+publish at the commit it ran at, for 14 days and the newest 200 commits, so a
+checkout behind the mainline's tip is measured against the record at its merge
+base. It is stored as refs in the
 repository that hosts your code, in a directory, or behind an HTTP endpoint such
 as a deployment of [Tribunal](../packages/tribunal/README.md), the self-hosted
 review service.
@@ -154,10 +157,12 @@ branch/<name>/      the record of each branch
 images/<digest>     every image a record names, stored once
 ```
 
-There is no history. Your branches are brought up to date with a mainline
-before they merge, by a merge queue, a required up-to-date branch or a rebase,
-so the question for your checkout is *what is mainline now, and how far am I
-from it*, and every lookup prints that distance.
+A directory keeps no history. Your branches are brought up to date with a
+mainline before they merge, by a merge queue, a required up-to-date branch or a
+rebase, so the question for your checkout is *what is mainline now, and how far
+am I from it*, and every lookup prints that distance. A [share in
+git](#the-repositorys-own-refs) also keeps each mainline publish at its
+commit, which answers a checkout that is not brought up to date.
 
 **A publish replaces only the entries it offers.** Two jobs that publish
 different suites at one commit leave both `suite-v1` entries on the line. Each
@@ -355,6 +360,7 @@ The publish prints what it did, and where:
 
 ```text
 wrote suite-index-v2, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
+kept the record at 3f1c9a2… beside the latest, for 14 days or 200 commits.
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
@@ -404,6 +410,7 @@ npx variance share --publish shard-1/report.json shard-2/report.json shard-3/rep
 ```text
 suite index at 3f1c…bd, composed from 3 shard(s): <cache>/suite/checkout-ui/3f1c…bd.bin
 wrote suite-index-v2, subject-costs-v1 to mainline main in refs/variance on origin.
+kept the record at 3f1c9a2… beside the latest, for 14 days or 200 commits.
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
@@ -434,7 +441,9 @@ at <cache>/suite/checkout-ui/3f1c9a2….bin
 ```
 
 `evaluated at` names the commit the publishing run ran at, which the manifest
-names. When this machine already has a suite index at that commit, the lookup
+names. A share in git answers with the record it keeps at your merge base when
+it has one, so the distance reads `at the merge base with this checkout`, and
+with the mainline's latest otherwise. When this machine already has a suite index at that commit, the lookup
 reads that one instead of fetching, and the first line ends in
 `read from this machine`. What the share returns is written under that commit,
 so the next command reads it from disk.
@@ -589,9 +598,9 @@ Records are read in this order:
    worktree's own, not the primary checkout's.
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
-   run writes, so it is never read as your checkout's own. The mainline keeps
-   only its newest record, and the nearest one you can use is at your `HEAD`'s
-   merge base with the mainline. A record fetched at or past that merge base
+   run writes, so it is never read as your checkout's own. The record read is
+   the one kept at your `HEAD`'s merge base with the mainline when the share
+   keeps one there, and the mainline's newest otherwise. A record fetched at or past that merge base
    is read without asking the remote again, and so is one fetched while your
    merge base was the one it is now. After a pull or a rebase moves it, the
    remote is asked once. The result that the line has none for you stands for
@@ -735,6 +744,12 @@ Tribunal deployment is an `http` share.
   fetch these refs and your branch list does not show them. `namespace` sets
   another prefix under `refs/`, for a repository that already uses
   `refs/variance/`.
+- **A mainline publish is also kept at its commit**, under
+  `refs/variance/at/<commit>/mainline/<name>`. The publish that writes one
+  deletes those older than 14 days or beyond the newest 200 commits of that
+  mainline, so the refs stay bounded without a job of their own. A lookup reads
+  the one at `HEAD`'s merge base with the mainline first, and the latest when
+  none is kept there. A directory and an HTTP store keep the latest only.
 - **Every fetch and push runs in a bare repository of the share's own**, at
   `<cache>/share/<digest>.git`, one per remote URL, never in your clone. It
   fetches commits and trees, and an image only when something opens it, so a
@@ -1080,6 +1095,7 @@ jobs:
 
 ```text
 wrote suite-v1/unit to mainline main in refs/variance on origin.
+kept the record at 3f1c9a2… beside the latest, for 14 days or 200 commits.
 ```
 
 - **The artifact path is the [cache](cache.md)'s default location.** The

@@ -1,12 +1,11 @@
 /**
  * A line: the latest of what CI derived on one mainline or one branch.
  *
- * A line answers the question a checkout actually has — *what is mainline now*
- * — by holding one version and replacing it, rather than keeping one artifact
- * per commit for a reader to walk history in search of. Work is branched off a
- * mainline and brought up to date with it before it merges, so the latest is
- * the right answer, and the distance from a checkout to it is the instruction
- * when it is not.
+ * A line answers *what is mainline now* by holding one version and replacing
+ * it. A checkout behind the mainline's tip — a release branch, a pull request
+ * cut last week — is measured against its merge base, not the tip, so a
+ * mainline's record is also kept at the commit it ran at, for a bounded window
+ * (`at-commit.ts`), and the latest answers when that window holds nothing.
  *
  * A line holds **entries**, each a versioned artifact derived at one commit: the
  * run report, one record per suite, the suite index. They are entries rather
@@ -27,6 +26,8 @@ export interface ShareLine {
   readonly kind: 'mainline' | 'branch';
   /** The branch name as git spells it, `release/2.0` included. */
   readonly name: string;
+  /** The commit whose record this line holds, kept beside the latest. Absent: the latest. */
+  readonly at?: string;
 }
 
 /** An artifact offered to a line. */
@@ -106,6 +107,19 @@ export interface LineCell {
       readonly expected?: string;
     },
   ): Promise<'written' | 'conflict' | ShareMiss>;
+  /**
+   * The commits a mainline's record is kept at, and when each was written.
+   * A store without it keeps the latest only, and nothing is kept by commit.
+   */
+  commits?(line: ShareLine): Promise<readonly KeptAt[] | ShareMiss>;
+  /** Remove lines, every one or none. Present wherever `commits` is. */
+  drop?(lines: readonly ShareLine[]): Promise<'dropped' | ShareMiss>;
+}
+
+/** One commit a mainline's record is kept at, and when it was written, in ms since the epoch. */
+export interface KeptAt {
+  readonly commit: string;
+  readonly written: number;
 }
 
 /** An entry name, read. */
@@ -137,7 +151,9 @@ export function sameSlot(a: EntryName, b: EntryName): boolean {
 }
 
 /**
- * The path of a line inside a store, `mainline/release/2.0`.
+ * The path of a line inside a store, `mainline/release/2.0`, and
+ * `at/<commit>/mainline/release/2.0` for its record kept at one commit: the
+ * commit comes first, because git cannot hold a ref inside another ref's name.
  *
  * Each segment of the branch name is folded to key characters, a
  * deliberately many-to-one mapping. Two branches whose names differ only in
@@ -149,7 +165,10 @@ export function linePath(line: ShareLine): string {
     .split('/')
     .map((part) => part.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, ''))
     .filter((part) => part !== '');
-  return `${line.kind}/${segments.length === 0 ? 'unnamed' : segments.join('/')}`;
+  const path = `${line.kind}/${segments.length === 0 ? 'unnamed' : segments.join('/')}`;
+  if (line.at === undefined) return path;
+  if (!COMMIT.test(line.at)) throw new Error(`"${line.at}" is not a commit, so no line is kept at it`);
+  return `at/${line.at}/${path}`;
 }
 
 /** The digest an entry's bytes are held under. */

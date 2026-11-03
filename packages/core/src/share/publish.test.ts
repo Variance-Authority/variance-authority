@@ -125,7 +125,7 @@ describe('publishLine', () => {
   });
 
   it('sends an image the line already holds once', async () => {
-    const cell = memoryLineCell();
+    const { commits: _commits, drop: _drop, ...cell } = memoryLineCell();
     const asked: string[] = [];
     const image = async (digest: string): Promise<Uint8Array> => {
       asked.push(digest);
