@@ -214,6 +214,25 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(await base(NOW + 2 * DAY)).toMatchObject({ commit: first, distance: 0, earlier: { reused: 'nearest' } });
   });
 
+  it('past the merge base, asks the line again at the same merge base, and reads the record kept there once it is', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    await publishedNext(ci);
+    // The job at the merge base has not published yet.
+    const kept = `refs/variance/at/${first}/mainline/main`;
+    const record = await git(origin, 'rev-parse', kept);
+    await git(origin, 'update-ref', '-d', kept);
+    const { dir, base } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
+    expect(await base(NOW)).toMatchObject({ distance: -1, fetched: at(NOW) });
+
+    await git(origin, 'update-ref', kept, record);
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+    const read = await base(NOW + DAY);
+
+    expect(read).toMatchObject({ commit: first, distance: 0, fetched: at(NOW + DAY) });
+    expect(read).not.toHaveProperty('earlier');
+  });
+
   it('is asked again once the merge base moves past it, and stands once asked there', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const { dir, base, reach, nowhere } = await laptop(origin);
