@@ -5,40 +5,15 @@
  *
  * `review` and `select` measure a change from a base, and a base taken from the
  * branch's own record would measure the change against itself, so the mainline
- * is the only line read. It is asked only for a suite the root config gives to
- * the share. `suiteBase` orders it against this checkout's own record and the
- * primary checkout's.
+ * is the only line read, and only for a suite the root config gives to the
+ * share. The bytes go into a read layer of their own, beneath every layer a run
+ * writes and addressed by commit, and `fetched.json` beside it names the one
+ * fetched last, which is how the runner seams in
+ * `@variance-authority/sense/test-selection` land on the same record.
  *
- * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/`
- * in the cache, beneath every layer a run writes, and a `fetched.json` beside
- * the commit directories names the one fetched last. That file is where the
- * fetch hands the record to the runner seams in
- * `@variance-authority/sense/test-selection`: a checkout's first run lays that
- * copy under its own layer and lands on it, so a plain `yarn test` measures
- * from the same record this reads. A run never records over the read layer.
- * It is addressed by commit, like every record in the cache, so a second read
- * of the same commit writes the same bytes to the same place.
- *
- * A fetch costs a round trip to the remote, and on a network that hangs, the
- * whole of the store's timeout. The best base is the record at `HEAD`'s merge
- * base with the mainline, and the line holds only its newest record, so asking
- * can only help while the record fetched last is behind that merge base. The
- * record fetched last, by this checkout or by the primary checkout it was cut
- * from, stands without asking while the reader's mainline is the one it was
- * fetched from and either it is at or past the merge base, or the line was
- * asked at this same merge base within {@link MISS_STANDS_MS}. A merge base
- * moves on a pull or a rebase, so that is when the line is asked first; the
- * mainline publishes its record there once its own run finishes, so a record
- * still behind is asked for again once that window passes. Every reader of a
- * checkout, and every job of a CI run, which all share one merge base, reads
- * the same record. When
- * the line does not answer, the record fetched last is still the base, and the
- * note says why it was not refreshed.
- *
- * A line that gave no record, because it could not be reached, held none, or
- * held one this version cannot keep, names no commit to place that answer by.
- * It stands for {@link MISS_STANDS_MS}, and the note says when it was given.
- * `variance share --suite <name>` always asks.
+ * When the record fetched last stands without asking the remote, and when a
+ * line that gave none is asked again, is ADR-0084's rule, kept in the guard of
+ * {@link mainlineBase}. `variance share --suite <name>` always asks.
  */
 
 import { readFileSync } from 'node:fs';
@@ -175,7 +150,9 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // At or past the merge base, nothing the line could hold is nearer it.
+      // A fetch costs a round trip, and on a network that hangs the store's whole
+      // timeout, so it is made only when it can help. At or past the merge base,
+      // nothing the line could hold is nearer it.
       // Behind it, the line was asked here already when the merge base is the
       // one it was asked at, the clone naming none then and now included, and
       // that answer stands as long as a miss would: the record at the merge
