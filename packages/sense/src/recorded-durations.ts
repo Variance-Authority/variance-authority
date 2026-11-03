@@ -3,24 +3,9 @@
  *
  * Read from what a recorded run published, the way `recordedCases` reads the
  * per-case index: the nearest layer holding one answers, for each suite the
- * root config declares — the snapshot for files, the case index beside it for
- * cases. Nothing here runs a test or times one. A duration is the runner's
- * figure, stored when the run was recorded; a file's is what running it cost,
- * the phases before its first case included (`fileCost`). A file or case whose
- * runner reported none is counted as untimed rather than as free.
- *
- * A scope narrows both halves the same way, and the counts are counted inside
- * it: `from` keeps the tests declared under a path, `to` the tests the record
- * says entered one (see `recorded-scope.ts`).
- *
- * A case also carries the limit its runner gave it, which ranks it a second
- * way: by how much of that limit it ran. The two figures do not measure the
- * same thing. A duration spans hooks and every attempt the record folded; a
- * limit bounds one attempt. So a passing case can read above its limit, and
- * the ranking states the pair and judges neither.
- *
- * Each answer says which record it read: whose run, at which commit, and when
- * that commit was made. A record is one run, and a reader weighs it by those.
+ * root config declares. Nothing here runs a test or times one. A file or case
+ * whose runner reported no figure is counted apart, never as free. Each answer
+ * says which record it read, because a record is one run.
  */
 
 // compass: variance-authority.reach
@@ -56,7 +41,13 @@ export interface TimedTestFile {
   readonly duration: number;
 }
 
-/** One test case, the file that declares it, and the milliseconds its runner reported for it. */
+/**
+ * One test case, the file that declares it, and the milliseconds its runner
+ * reported for it. Its `limit` ranks it a second way, by how much of that limit
+ * it ran. A duration spans hooks and every attempt the record folded and a limit
+ * bounds one attempt, so a passing case can read above its limit: the ranking
+ * states the pair and judges neither.
+ */
 export interface TimedTestCase {
   readonly file: string;
   /** The declaration path inside the file, as the case index names it. */

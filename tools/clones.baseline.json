@@ -386,13 +386,6 @@
   },
   {
     "files": [
-      "packages/sense/src/orient.ts",
-      "packages/sense/src/recorded-durations.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/sense/src/read.ts",
       "packages/sense/src/test-selection/source-lines.ts"
     ],

@@ -191,15 +191,9 @@ interface CircusNode {
 function skipTheCut(): void {
   const cutFile = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CUT'];
   if (cutFile === undefined) return;
-  let circus: { addEventHandler?: unknown };
-  try {
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return;
-  (register as (handler: (event: CircusEvent, state: { rootDescribeBlock?: CircusNode }) => void) => void)(
+  const register = circusHandlers<{ rootDescribeBlock?: CircusNode }>();
+  if (register === undefined) return;
+  register(
     (event, state): void => {
       if (event.name !== 'run_start' || state.rootDescribeBlock === undefined) return;
       const testFile = expect.getState().testPath;
@@ -268,6 +262,23 @@ interface CircusEvent {
 }
 
 /**
+ * jest-circus's way to add a handler, or undefined under another runner. It is
+ * resolved at run time, from the sandbox: jest-circus is the runner Jest has
+ * defaulted to since 27, but it is the project's to replace, and a project that
+ * replaced it must still get everything else in this file.
+ */
+function circusHandlers<State>(): ((handler: (event: CircusEvent, state: State) => void) => void) | undefined {
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return undefined;
+  }
+  const register = circus.addEventHandler;
+  return typeof register === 'function' ? (register as (handler: (event: CircusEvent, state: State) => void) => void) : undefined;
+}
+
+/**
  * Take the enclosure from the runner rather than from the realm.
  *
  * `test_fn_start` is dispatched by `_callCircusTest` immediately before it
@@ -291,19 +302,10 @@ interface CircusEvent {
  * one of those.
  */
 function bracketEveryCase(nextId: () => string): void {
-  let circus: { addEventHandler?: unknown };
-  try {
-    // Resolved at run time, from the sandbox: jest-circus is the runner Jest
-    // has defaulted to since 27, but it is the project's to replace, and a
-    // project that replaced it must still get everything else in this file.
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return;
+  const register = circusHandlers<{ testTimeout?: number }>();
+  if (register === undefined) return;
 
-  (register as (handler: (event: CircusEvent, state: { testTimeout?: number }) => void) => void)((event, state): void => {
+  register((event, state): void => {
     placeCalls(event);
     if (event.name === 'test_start') attempt('begin');
     if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');

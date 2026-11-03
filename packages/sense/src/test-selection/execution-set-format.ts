@@ -42,13 +42,10 @@ export type { SetColumns, StringTable, TestColumns } from './execution-set-colum
  * ExecutionBlock.loaded}); version 2 recorded the set of cases that loaded each
  * region, and is still read, as the flag its set implies.
  *
- * `tests.stopped` and `tests.duration` joined version 3 without a new number:
- * each is one optional column a reader looks for by name, and a file without
- * it — the addon's journeys among them — reads as cases that said nothing.
- * `blocks.owner` joined the same way, and a file without it names no region
- * around any. `blocks.overwrittenSet` did too, and a file without it holds no
- * overwritten case. `tests.limit` did too, and a file without it names no case's
- * limit.
+ * `tests.stopped`, `tests.duration`, `tests.limit`, `blocks.owner` and
+ * `blocks.overwrittenSet` joined version 3 without a new number: each is one
+ * optional column a reader looks for by name, and a file without it — the
+ * addon's journeys among them — reads as holding none of it.
  */
 export const SET_EXECUTION_FORMAT = LAYOUT.cases.format;
 

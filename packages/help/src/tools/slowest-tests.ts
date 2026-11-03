@@ -2,22 +2,9 @@
  * `docs_slowest_tests` — which recorded test cases are closest to their limit,
  * and which test files and cases took longest, anywhere or somewhere.
  *
- * The duration is read from what the test runner reported when the run was
- * recorded: for a file, what running it cost, the larger of its duration and
- * its phases summed (`fileCost`), so the time before its first case counts; for
- * a case, Vitest's task result, Jest's assertion result, Rstest's test result.
- * Nothing here times anything, and a file or case whose runner
- * reported no duration is counted apart rather than ranked as instant.
- *
- * *Slowest* means little without *where*, so a question may narrow it: `from`
- * keeps the tests declared under a path, `to` the tests the recording says
- * entered one. Both are answered by the recording (`recordedDurations`), which
- * owns what ran where; nothing here walks an import. `over` narrows by time:
- * only the cases that ran at least that long.
- *
- * The reading is `@variance-authority/sense`'s: it opens the snapshot the latest
- * recorded run published, suite by suite, the same way `docs_orient` finds the
- * recorded cases.
+ * Nothing here times anything or walks an import: `recordedDurations` owns what
+ * the runner reported and what ran where. `from`, `to` and `over` narrow its
+ * answer, and `formatSlowest` tells it.
  */
 
 // compass: variance-authority.report.agent-surface
