@@ -97,14 +97,18 @@ publishing the record: there is no file to write by hand, and no tracked file
 moves, because a record is not part of git.
 
 The merge base's graph is the checkout's with the change undone where it moved
-an edge. Each file the change edits is read in both texts, and an import bound
-in one text only is resolved and charged to that side: one the pull request
-added is not walked at the merge base, one it removed is. A file the change
+an edge, walked from the `before` files the merge base's own config declares.
+Each file the change edits is read in both texts, every specifier each text
+loads is resolved — bare imports and re-exports too — and the two texts'
+targets are compared as sets: a target the pull request added is not walked at
+the merge base, one it removed is, and one both texts reach stays however
+often either names it. A file the change
 created is not entered at the merge base. A test file whose baseline loads a
 file the change deleted, or reaches one through an import that no longer
 resolves, has no merge-base walk to read it against, and is counted, not
-compared. A change to what the walk or the run rests on — a file the suite's
-declared `before` closure holds, or an install that moved a package or may have
+compared. A merge base whose config cannot be read has no `before` to walk
+from, and the review names why and compares nothing. A change to what the walk
+or the run rests on — the `before` files it declares, a file their closure holds, or an install that moved a package or may have
 moved any — moves the walk itself, so the review compares as it does for any
 change and names that file or package beside the rows as their cause: a mapper
 entry or a bumped package is the change whose load shape a reader most needs to
@@ -112,8 +116,10 @@ see.
 
 The mainline's record need not stand at the merge base. A record from an
 earlier or a later mainline commit is a **compatible** baseline when the
-commits between it and the merge base touch no file the walk reads and nothing
-that configures it: their record would be the same reading of the same walk.
+commits between it and the merge base touch no file the walk reads, declare the
+same `before` at both ends, move no file under it and install the same
+packages, read off those commits' own diff whatever the pull request changed:
+their record would be the same reading of the same walk.
 When they touch one, the baseline is **incompatible**: its drift could hold
 the mainline's own changes since the branch point, or miss them, and would
 name another pull request's change on this one. The review then names the
@@ -197,13 +203,15 @@ few beside the file use they are read from.
 - The baseline is the mainline's record, fetched through `mainlineBase`, read
   against the merge base's graph; the record carries no drift of its own. A
   record at another commit is compared when the commits between touch nothing
-  the walk reads, and is otherwise named incompatible with its commit, its
+  the walk reads, declare the same `before`, move nothing under it and install
+  the same packages, read off their own diff, and is otherwise named incompatible with its commit, its
   distance and the first file that moved the walk; none, or records not
   shared, is named with the reason, and nothing is compared.
-- An import the change added is not walked at the merge base and one it
-  removed is; a test file whose baseline loads a deleted file is counted, not
-  compared; a file the `before` closure holds, or an install that moved a package,
-  is compared, and the review names it as the cause of the rows.
+- The merge base's walk starts from the merge base's own `before`; an import
+  target the change added is not walked there and one it removed is, compared
+  as sets of resolved targets; a test file whose baseline loads a deleted file is counted, not
+  compared; a changed `before`, a file its closure holds, or an install that moved
+  a package, is compared, and the review names it as the cause of the rows.
 - Grown and shrunk rows are reported only for test files both sides observed
   whole at their own commit; a test file the run did not run is not compared,
   one the baseline lacks is listed apart as its first drift, and one the pull

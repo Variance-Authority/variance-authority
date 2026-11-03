@@ -3296,6 +3296,7 @@
         "assumedOf": "function",
         "atDistance": "function",
         "baseEdgesOf": "function",
+        "beforeIn": "function",
         "beforeOf": "function",
         "blobsAt": "function",
         "blocksOfTarget": "function",
