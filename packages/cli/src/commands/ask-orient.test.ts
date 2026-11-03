@@ -207,7 +207,7 @@ describe('variance ask orient', () => {
         '3 files asked about:',
         '  packages/checkout/src/total.ts  @t/checkout',
         '  packages/cart/src/price.ts      @t/cart',
-        '  src/gone.ts                     no package, not in the source index',
+        '  src/gone.ts                     not in the source index',
         '',
         `Packages, from the source index at ${sourceIndexPath(root)} (4 files indexed).`,
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +

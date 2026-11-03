@@ -93,8 +93,8 @@ describe('an orientation, said', () => {
         '4 files asked about:',
         '  packages/checkout/src/total.ts  @t/checkout',
         '  packages/cart/src/price.ts      @t/cart',
-        '  README.md                       no package, not in the source index',
-        '  test/total.test.ts              no package, not in the source index',
+        '  README.md                       not in the source index',
+        '  test/total.test.ts              not in the source index',
         '',
         'Packages, from the source index at /cache/source-index.bin (40 files indexed; 2 changed or removed since).',
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
@@ -158,7 +158,7 @@ describe('an orientation, said', () => {
         '3 files asked about:',
         '  scripts/build.ts    no package',
         '  apps/app/README.md  @t/app, not in the source index',
-        '  src/new.ts          no package, not in the source index',
+        '  src/new.ts          not in the source index',
         '',
       ].join('\n'),
     );

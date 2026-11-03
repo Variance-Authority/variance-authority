@@ -59,7 +59,12 @@ function named(reading: OrientReading): readonly string[] {
   const rows = files.map((file, at) => {
     const owner = owners?.[at];
     if (owner === undefined) return `  ${file}`;
-    const where = `${owner.package ?? 'no package'}${owner.indexed ? '' : ', not in the source index'}`;
+    // Absent is not empty: a path git does not list has no package read, so only a package found is named.
+    const where = owner.indexed
+      ? owner.package ?? 'no package'
+      : owner.package === undefined || owner.package === null
+        ? 'not in the source index'
+        : `${owner.package}, not in the source index`;
     return `  ${file.padEnd(wide)}  ${where}`;
   });
   return [`${plural(files.length, 'file')} asked about:`, ...rows];
