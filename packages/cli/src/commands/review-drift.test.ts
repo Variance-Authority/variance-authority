@@ -29,7 +29,7 @@ function input(partial: Partial<DriftInput>): DriftInput {
     baseline: record('base', []),
     head: record('head', []),
     mergeBase: 'base',
-    changes: [],
+    base: { added: new Map(), removed: new Map(), created: new Set(), unknown: new Set() },
     present: () => true,
     ...partial,
   };

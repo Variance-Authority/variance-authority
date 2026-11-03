@@ -10,7 +10,8 @@ import { baseEdgesOf } from './base-edges.js';
  * created; at the merge base it imported `./b`, and `./gone`, which the change
  * deleted. `src/same.ts` respelled its import of `./b` with an extension,
  * `src/two.ts` added a second import of `./b` beside the one it kept, and
- * `src/effect.ts` dropped a bare `import './c'`.
+ * `src/effect.ts` dropped a bare `import './c'` and a builtin and a package it
+ * kept, and `src/barrel.ts` dropped its re-export of `./b`.
  */
 const HEAD: Record<string, string> = {
   'src/a.ts': "import { c } from './c';\nimport { n } from './new';\nexport const a = c + n;\n",
@@ -19,14 +20,16 @@ const HEAD: Record<string, string> = {
   'src/new.ts': 'export const n = 1;\n',
   'src/same.ts': "import { b } from './b.ts';\nexport const s = b;\n",
   'src/two.ts': "import { b } from './b';\nimport { b as again } from './b.ts';\nexport const t = b + again;\n",
-  'src/effect.ts': 'export const e = 1;\n',
+  'src/effect.ts': "import { join } from 'node:path';\nexport const e = join('e');\n",
+  'src/barrel.ts': 'export const r = 1;\n',
 };
 const BASE: Record<string, string> = {
   'src/a.ts': "import { b } from './b';\nimport { g } from './gone';\nexport const a = b + g;\n",
   'src/same.ts': "import { b } from './b';\nexport const s = b;\n",
   'src/gone.ts': 'export const g = 1;\n',
   'src/two.ts': "import { b } from './b';\nexport const t = b;\n",
-  'src/effect.ts': "import './c';\nexport const e = 1;\n",
+  'src/effect.ts': "import './c';\nimport { join } from 'node:path';\nimport 'not-installed';\nexport const e = join('e');\n",
+  'src/barrel.ts': "export { b } from './b';\n",
 };
 const RELATIONS = relationsOfFiles([
   { file: 'src/a.ts', edges: [{ to: 'src/c.ts', kind: 'imports' as const }, { to: 'src/new.ts', kind: 'imports' as const }] },
@@ -36,6 +39,7 @@ const RELATIONS = relationsOfFiles([
   { file: 'src/same.ts', edges: [{ to: 'src/b.ts', kind: 'imports' as const }] },
   { file: 'src/two.ts', edges: [{ to: 'src/b.ts', kind: 'imports' as const }] },
   { file: 'src/effect.ts' },
+  { file: 'src/barrel.ts' },
 ]);
 const id = (name: string) => RELATIONS.index.get(`file:${name}`)!;
 let root: string;
@@ -53,7 +57,7 @@ afterAll(async () => {
 });
 
 describe('the merge base walk, as the checkout with the change undone', () => {
-  it('undoes an added import, restores a removed one and a bare one, leaves a respelling and a second import of a kept target alone, and names what it cannot read', () => {
+  it('undoes an added import, restores a removed one and a bare one or a re-export, leaves a respelling and a second import of a kept target alone, and names what it cannot read, which no builtin or package is', () => {
     const edges = baseEdgesOf(root, RELATIONS, [
       { file: 'src/a.ts', before: BASE['src/a.ts']!, after: HEAD['src/a.ts']! },
       { file: 'src/new.ts', after: HEAD['src/new.ts']! },
@@ -61,10 +65,11 @@ describe('the merge base walk, as the checkout with the change undone', () => {
       { file: 'src/same.ts', before: BASE['src/same.ts']!, after: HEAD['src/same.ts']! },
       { file: 'src/two.ts', before: BASE['src/two.ts']!, after: HEAD['src/two.ts']! },
       { file: 'src/effect.ts', before: BASE['src/effect.ts']!, after: HEAD['src/effect.ts']! },
+      { file: 'src/barrel.ts', before: BASE['src/barrel.ts']!, after: HEAD['src/barrel.ts']! },
     ]);
 
     expect(edges.added).toEqual(new Map([[id('src/a.ts'), new Set([id('src/c.ts'), id('src/new.ts')])]]));
-    expect(edges.removed).toEqual(new Map([[id('src/a.ts'), [id('src/b.ts')]], [id('src/effect.ts'), [id('src/c.ts')]]]));
+    expect(edges.removed).toEqual(new Map([[id('src/a.ts'), [id('src/b.ts')]], [id('src/effect.ts'), [id('src/c.ts')]], [id('src/barrel.ts'), [id('src/b.ts')]]]));
     expect(edges.created).toEqual(new Set([id('src/new.ts')]));
     expect(edges.unknown).toEqual(new Set(['src/a.ts', 'src/gone.ts']));
   });

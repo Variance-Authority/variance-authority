@@ -3493,6 +3493,7 @@
         "textsAt": "function",
         "textsOf": "function",
         "timeBeforeCases": "function",
+        "undone": "function",
         "unenteredSentence": "function",
         "unmeasuredOf": "function",
         "valued": "function",

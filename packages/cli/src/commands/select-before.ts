@@ -58,7 +58,7 @@ export async function restsOf(
   }
 
   const before = beforeReach(relations, entries);
-  const rests = [...new Set(changedBefore(before, changed))].sort();
+  const rests = restsIn(before, changed);
   // An entry the scan does not hold is ordinary when it is a `.nvmrc` or a
   // workflow directory, which load nothing. One that is not on disk at all is
   // a declaration that covers nothing, and is named.
@@ -73,6 +73,16 @@ export async function restsOf(
               `${missing.length === 1 ? 'it covers' : 'each covers'} only a change that adds it back`,
           ],
   };
+}
+
+/** What of `changed` lies under `before`, once each and in code-unit order. */
+function restsIn(before: ReturnType<typeof beforeReach>, changed: readonly string[]): readonly string[] {
+  return [...new Set(changedBefore(before, changed))].sort();
+}
+
+/** The files of `changed` that `entries` reach down `relations`, as {@link restsOf} walks them. */
+export function restsUnder(relations: Relations, entries: readonly string[], changed: readonly string[]): readonly string[] {
+  return entries.length === 0 ? [] : restsIn(beforeReach(relations, entries), changed);
 }
 
 /** The sentence a whole run gives for what it rests on. */

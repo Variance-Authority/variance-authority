@@ -14,11 +14,9 @@
  * the walk reads, nothing the suite rests on and no package.
  */
 
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
+import { relative, resolve } from 'node:path';
 import {
   CACHE_CONFIG,
   baseEdgesOf,
@@ -30,16 +28,19 @@ import {
   readTestCoverage,
   rootConfig,
   whatLanded,
+  undone,
+  type BaseEdges,
   type ChangedText,
   type CommitRuns,
   type DeclaredSuite,
   type DriftChange,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { beforeReach, changedBefore, idOf, type Relations } from '@variance-authority/core/relate';
+import { idOf, type Relations } from '@variance-authority/core/relate';
 import { filesBetween } from './base-diff.js';
-import { installDiffOfPatch, type DiffPoint, type InstallDiff } from './installed.js';
+import { installDiffBetween, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineMissed, type MainlineBase } from './mainline-base.js';
+import { restsUnder } from './select-before.js';
 import { commitPoint } from './since.js';
 
 /** The drift a review reports: the shape change against the baseline, or why the first inclusion was not checked. */
@@ -80,7 +81,8 @@ export interface DriftInput {
   /** Commits between the baseline's commit and the merge base, when this clone can count them. */
   readonly distance?: number;
   /** Each file the change touched, in both texts. */
-  readonly changes: readonly ChangedText[];
+  /** The edges the change moved, undone to walk the merge base (`baseEdgesOf`). */
+  readonly base: BaseEdges;
   /** Whether the checkout holds this test file. */
   readonly present: (test: string) => boolean;
 }
@@ -104,7 +106,7 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
     return { unchecked: `the mainline's record stands at ${baseline.commit.slice(0, 12)}${away}, and the commits between them ${what}, so it is not a baseline for this change` };
   }
 
-  const base = driftFromWalk(relations, baseline.coverage.modules, input.baseBefore, { base: baseEdgesOf(input.root, relations, input.changes) });
+  const base = driftFromWalk(relations, baseline.coverage.modules, input.baseBefore, { base: input.base });
   const now = driftFromWalk(relations, head.coverage.modules, before);
   const held = (coverage: TestCoverage) => new Set(coverage.tests.map((test) => test.file));
   return {
@@ -126,7 +128,7 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
 async function movedUnder(relations: Relations, lists: readonly (readonly string[])[], files: readonly string[], install: () => Promise<InstallDiff | undefined>): Promise<string | undefined> {
   if (lists.some((list) => list.join('\0') !== lists[0]!.join('\0'))) return 'declared `before` differently';
   if (files.length === 0) return undefined;
-  const rests = [...new Set(lists.flatMap((list) => (list.length === 0 ? [] : changedBefore(beforeReach(relations, list), files))))].sort();
+  const rests = [...new Set(lists.flatMap((list) => restsUnder(relations, list, files)))].sort();
   if (rests[0] !== undefined) return `moved \`${rests[0]}\`, which the suite rests on before reach`;
   return installed(await install());
 }
@@ -142,19 +144,6 @@ async function beforeAt(root: string, point: DiffPoint | undefined, suite: strin
     return beforeIn({ file, value: typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {} }, suite);
   } catch (error) {
     return { missing: `${whose}'s ${CACHE_CONFIG} could not be read, so the \`before\` it declared is not known: ${error instanceof Error ? error.message : String(error)}` };
-  }
-}
-
-/** Which packages the commits from `from` to `to` installed differently, read off their own diff, never the working tree's install. */
-async function installBetween(from: string, to: string, files: readonly string[], root: string): Promise<InstallDiff | undefined> {
-  const { LOCKFILES } = await import('@variance-authority/sense/lock');
-  const install = files.filter((file) => basename(file) === 'package.json' || (LOCKFILES as readonly string[]).includes(basename(file)));
-  if (install.length === 0) return undefined;
-  try {
-    const { stdout } = await promisify(execFile)('git', ['diff', from, to, '--', ...install], { cwd: root, maxBuffer: 256 * 1024 * 1024 });
-    return await installDiffOfPatch(stdout, root);
-  } catch (error) {
-    return { whole: `git could not diff ${install.join(', ')} between ${from.slice(0, 12)} and ${to.slice(0, 12)}: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -198,13 +187,15 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     : await observedAt(from.runs.commit, from.record, 'this record');
   const between = 'missing' in baseline || baseline.commit === point.base ? undefined : await filesBetween(baseline.commit, point.base, root).catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
   const suite = declared?.name;
+  const changes = await Promise.all(from.changed.filter((file) => from.sources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file)));
+  const base = baseEdgesOf(root, from.relations, changes);
   const before = beforeOf(root, suite);
   const baseBefore = await beforeAt(root, point, suite, 'the merge base');
   const moved = await movedUnder(from.relations, 'missing' in baseBefore ? [before] : [before, baseBefore], from.changed, async () => from.installed);
   // Measured from the baseline's commit to the merge base on their own, whatever the change itself moved.
   const movedBetween = between === undefined || typeof between === 'string' || 'missing' in baseline || 'missing' in baseBefore
     ? undefined
-    : await movedBetweenOf(root, suite, from.relations, baseline.commit, point.base, baseBefore, between);
+    : await movedBetweenOf(root, suite, from.relations, base, baseline.commit, point.base, baseBefore, between);
   return reviewDrift({
     root,
     relations: from.relations,
@@ -219,16 +210,20 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     ...(moved === undefined ? {} : { moved }),
     ...(movedBetween === undefined ? {} : { movedBetween }),
     ...(mainline === undefined || 'miss' in mainline || mainline.distance === undefined ? {} : { distance: mainline.distance }),
-    changes: await Promise.all(from.changed.filter((file) => from.sources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file))),
+    base,
     present: (test) => existsSync(resolve(root, test)),
   });
 }
 
-/** What the commits from the baseline's `commit` to the merge base `base` moved that the walk or the run rests on. */
-export async function movedBetweenOf(root: string, suite: string | undefined, relations: Relations, commit: string, base: string, baseBefore: readonly string[], between: readonly string[]): Promise<string | undefined> {
+/**
+ * What the commits from the baseline's `commit` to the merge base `base` moved
+ * that the walk or the run rests on, read over the merge base's graph: the
+ * checkout's with the change's `edges` undone.
+ */
+export async function movedBetweenOf(root: string, suite: string | undefined, relations: Relations, edges: BaseEdges, commit: string, base: string, baseBefore: readonly string[], between: readonly string[]): Promise<string | undefined> {
   const then = await beforeAt(root, await commitPoint(commit, [], root), suite, "the mainline record's commit");
   if ('missing' in then) return `may have declared \`before\` differently: ${then.missing}`;
-  return await movedUnder(relations, [then, baseBefore], between, async () => installBetween(commit, base, between, root));
+  return await movedUnder({ ...relations, depends: undone(relations, edges) }, [then, baseBefore], between, async () => installDiffBetween(commit, base, between, root));
 }
 
 /** The record at `file`, with the test files the runs beside it observed whole at `commit`. */

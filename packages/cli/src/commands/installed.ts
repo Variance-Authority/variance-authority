@@ -46,8 +46,10 @@
 
 // compass: variance-authority.reach
 
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import type { Lockfile } from '@variance-authority/sense/lock';
 import { blobs, entriesIn, patchEnds } from './patch-blobs.js';
 
@@ -315,6 +317,19 @@ async function compared(
         'invisible without it, so the run observes everything rather than reporting success ' +
         'over a package it never compared',
     };
+  }
+}
+
+/** Which packages the commits from `from` to `to` installed differently, read off their own diff, never the working tree's install. */
+export async function installDiffBetween(from: string, to: string, files: readonly string[], root: string): Promise<InstallDiff | undefined> {
+  const { LOCKFILES } = await import('@variance-authority/sense/lock');
+  const install = files.filter((file) => basename(file) === 'package.json' || (LOCKFILES as readonly string[]).includes(basename(file)));
+  if (install.length === 0) return undefined;
+  try {
+    const { stdout } = await promisify(execFile)('git', ['diff', from, to, '--', ...install], { cwd: root, maxBuffer: 256 * 1024 * 1024 });
+    return await installDiffOfPatch(stdout, root);
+  } catch (error) {
+    return { whole: `git could not diff ${install.join(', ')} between ${from.slice(0, 12)} and ${to.slice(0, 12)}: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 

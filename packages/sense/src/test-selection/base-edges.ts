@@ -9,12 +9,15 @@
  * checkout. The targets are compared as sets: one only the checkout's text
  * lands on is an edge the change added, one only the merge base's lands on an
  * edge it removed, and a target both land on moves nothing however each text
- * spells it. A merge-base import that no longer resolves, and an edit that
- * does not parse, leave the importer's merge-base edges unknown.
+ * spells it. A relative merge-base import that no longer resolves, and an edit
+ * that does not parse, leave the importer's merge-base edges unknown; a bare
+ * one that resolves to no file is a builtin or a package, which the graph holds
+ * no file for either way (`isRelative`).
  */
 import { isAbsolute } from 'node:path';
 import { EDGE_KINDS, idOf, type Adjacency, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
+import { isRelative } from '../specifier.js';
 import { resolvedImports, runtimeTargets } from './effects.js';
 
 /** The merge base's walk, as the checkout's with the change's edges undone. */
@@ -71,7 +74,7 @@ export function baseEdgesOf(root: string, relations: Relations, changes: readonl
     const inGraph = (target: string) => target !== '' && !isAbsolute(target);
     const then = new Set(was.map((specifier) => landing.get(specifier)!));
     const there = new Set(now.map((specifier) => landing.get(specifier)!).filter(inGraph));
-    if (then.has('')) unknown.add(file);
+    if (was.some((specifier) => landing.get(specifier) === '' && isRelative(specifier))) unknown.add(file);
     const held = new Set(runtimeTargets(relations, id));
     for (const target of there) {
       const to = idOf(relations, 'file', target);

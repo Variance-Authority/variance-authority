@@ -197,7 +197,7 @@ export { commitRunsIn } from './commit-runs-text.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { whatLanded, type WhatLanded } from './landings.js';
-export { baseEdgesOf, type BaseEdges, type ChangedText } from './base-edges.js';
+export { baseEdgesOf, undone, type BaseEdges, type ChangedText } from './base-edges.js';
 export { driftChange, type DriftChange, type DriftSide, type NotCompared } from './drift-change.js';
 export { driftFromWalk, type Drift, type DriftRow, type LoadedModule } from './drift.js';
 export { ranOver, readsTheSnapshot, type HeldNames, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
