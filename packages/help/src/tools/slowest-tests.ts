@@ -114,6 +114,6 @@ export const slowestTests: Tool<unknown> = {
       throw new Error('`slowest-tests` reads what a checkout published, and this host named no checkout to read');
     }
     refuseUnknown(root, scope);
-    return formatSlowest(recordedDurations(root, limit, scope, over), scope, over);
+    return formatSlowest(recordedDurations(root, limit, scope, over), scope, over, Date.now());
   },
 };

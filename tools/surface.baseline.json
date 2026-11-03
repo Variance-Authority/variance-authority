@@ -3392,6 +3392,7 @@
         "layFetchedMainline": "function",
         "layeredCoverage": "function",
         "layeredFiles": "function",
+        "limitAcross": "function",
         "lineGrain": "function",
         "lostText": "function",
         "machineOwners": "function",

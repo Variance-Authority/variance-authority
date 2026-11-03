@@ -48,9 +48,9 @@ function asked(over: number): string {
 /** The answer, from what each suite's recording said, read at `now`; `over` is the time asked for, in milliseconds. */
 export function formatSlowest(
   suites: readonly RecordedDurations[],
-  scope: DurationScope = {},
-  over?: number,
-  now: number = Date.now(),
+  scope: DurationScope,
+  over: number | undefined,
+  now: number,
 ): string {
   const lines: string[] = [];
   const where = placeOf(scope);
@@ -77,12 +77,10 @@ function recordLine(suite: RecordedDurations, now: number): string[] {
   return [`${named} ${WHOSE[suite.origin]}${takenAt(suite, now)}, ${suite.recording}.`];
 }
 
-function takenAt({ commit, committed }: { readonly commit?: string; readonly committed?: string }, now: number): string {
-  if (commit === undefined) return ', which names no commit';
-  const short = commit.slice(0, COMMIT_WIDTH);
-  return committed === undefined
-    ? ` at ${short}, a commit this checkout does not hold, so its age is unknown`
-    : ` at ${short}, committed ${ago(committed, now)}`;
+function takenAt({ commit, landed }: { readonly commit?: string; readonly landed?: string }, now: number): string {
+  const at = commit === undefined ? ', which names no commit' : ` at ${commit.slice(0, COMMIT_WIDTH)}`;
+  if (landed !== undefined) return `${at}, landed ${ago(landed, now)}`;
+  return commit === undefined ? at : `${at}, landed at a time the record does not hold`;
 }
 
 /** The cases that ran the largest share of their limit, each as its run and its limit. */

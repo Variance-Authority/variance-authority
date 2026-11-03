@@ -1,4 +1,4 @@
-import type { RecordedCaseDurations, RecordedDurations } from '@variance-authority/sense';
+import type { DurationScope, RecordedCaseDurations, RecordedDurations } from '@variance-authority/sense';
 import { describe, expect, it } from 'vitest';
 import { spellingOf } from '@variance-authority/mcp/tools';
 import { formatSlowest, overOf, scopeOf, slowestTests, spent } from './slowest-tests.js';
@@ -7,6 +7,9 @@ const ANYWHERE = { unrecorded: [] };
 const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };
 const CASES_UNREAD = 'Slowest recorded test cases: none read from /cache/coverage.bin, nothing is recorded there.';
 const NOW = Date.parse('2026-10-04T12:00:00Z');
+
+const printed = (suites: readonly RecordedDurations[], scope: DurationScope = {}, over?: number): string =>
+  formatSlowest(suites, scope, over, NOW);
 
 /** A case index's reading, with nothing in it unless the test says. */
 function read(cases: Partial<Extract<RecordedCaseDurations, { slowest: unknown }>>): RecordedCaseDurations {
@@ -25,7 +28,7 @@ function suite(cases: RecordedCaseDurations, record: object = {}): RecordedDurat
 
 describe('the slowest recorded test files, as printed', () => {
   it('lists each file with the duration its runner reported, and counts what it left out', () => {
-    expect(formatSlowest([
+    expect(printed([
       {
         suite: 'unit',
         recording: '/cache/suites/unit/coverage.bin',
@@ -65,7 +68,7 @@ describe('the slowest recorded test files, as printed', () => {
   });
 
   it('says the recording holds no durations rather than listing nothing', () => {
-    expect(formatSlowest([
+    expect(printed([
       { recording: '/cache/coverage.bin', origin: 'own', slowest: [], timed: 0, untimed: 3, scope: ANYWHERE, cases: NO_CASES },
     ])).toBe(
       "Read this checkout's record, which names no commit, /cache/coverage.bin.\n\n" +
@@ -75,13 +78,13 @@ describe('the slowest recorded test files, as printed', () => {
   });
 
   it('says where it looked when nothing is recorded', () => {
-    expect(formatSlowest([{ recording: '/cache/coverage.bin', origin: 'own', unread: 'nothing is recorded there', cases: NO_CASES }])).toBe(
+    expect(printed([{ recording: '/cache/coverage.bin', origin: 'own', unread: 'nothing is recorded there', cases: NO_CASES }])).toBe(
       `Slowest recorded test files: none read from /cache/coverage.bin, nothing is recorded there.\n\n${CASES_UNREAD}`,
     );
   });
 
   it('names the scope it applied on the first line, and a `to` path with no row as unrecorded', () => {
-    const answer = formatSlowest([{
+    const answer = printed([{
       recording: '/cache/coverage.bin',
       origin: 'own',
       slowest: [{ file: 'test/b.test.ts', duration: 40 }],
@@ -101,7 +104,7 @@ describe('the slowest recorded test files, as printed', () => {
 
   it('says which half of an empty scope matched nothing, never an empty table', () => {
     const empty = (scope: { declared?: number; entered?: number; unrecorded: readonly string[] }, asked: object) =>
-      formatSlowest([{ recording: '/r', origin: 'own', slowest: [], timed: 0, untimed: 0, scope, cases: NO_CASES }], asked).split('\n')[2];
+      printed([{ recording: '/r', origin: 'own', slowest: [], timed: 0, untimed: 0, scope, cases: NO_CASES }], asked).split('\n')[2];
 
     expect(empty({ declared: 0, unrecorded: [] }, { from: ['lib'] }))
       .toBe('Slowest recorded test files, under lib: no recorded file in /r is declared under lib.');
@@ -120,18 +123,18 @@ describe('the slowest recorded test files, as printed', () => {
 
 describe('the record an answer read', () => {
   const said = (record: object): string | undefined =>
-    formatSlowest([suite(NO_CASES, record)], {}, undefined, NOW).split('\n')[0];
+    printed([suite(NO_CASES, record)]).split('\n')[0];
 
-  it('says whose record it is, at which commit, and how old that commit is', () => {
-    expect(said({ origin: 'mainline', commit: 'a'.repeat(40), committed: '2026-10-01T12:00:00Z' }))
-      .toBe('Read the fetched mainline record at aaaaaaaaaaaa, committed 3 days ago, /cache/coverage.bin.');
-    expect(said({ origin: 'primary', commit: 'b'.repeat(40), committed: '2026-10-04T11:30:00Z' }))
-      .toBe("Read the primary checkout's record at bbbbbbbbbbbb, committed 30 minutes ago, /cache/coverage.bin.");
+  it('says whose record it is, at which commit, and when its latest run landed', () => {
+    expect(said({ origin: 'mainline', commit: 'a'.repeat(40), landed: '2026-10-01T12:00:00Z' }))
+      .toBe('Read the fetched mainline record at aaaaaaaaaaaa, landed 3 days ago, /cache/coverage.bin.');
+    expect(said({ origin: 'primary', commit: 'b'.repeat(40), landed: '2026-10-04T11:30:00Z' }))
+      .toBe("Read the primary checkout's record at bbbbbbbbbbbb, landed 30 minutes ago, /cache/coverage.bin.");
   });
 
-  it('names a commit this checkout does not hold, whose age it cannot give', () => {
+  it('says so when the record holds no landing', () => {
     expect(said({ commit: 'c'.repeat(40) }))
-      .toBe("Read this checkout's record at cccccccccccc, a commit this checkout does not hold, so its age is unknown, /cache/coverage.bin.");
+      .toBe("Read this checkout's record at cccccccccccc, landed at a time the record does not hold, /cache/coverage.bin.");
   });
 });
 
@@ -142,7 +145,7 @@ describe('the cases closest to their limit', () => {
   ];
 
   it('lists each as its run and its limit, before the files, and counts the cases with no limit', () => {
-    const answer = formatSlowest([suite(read({ closest, limited: 2, timed: 3, slowest: closest }))]).split('\n');
+    const answer = printed([suite(read({ closest, limited: 2, timed: 3, slowest: closest }))]).split('\n');
 
     expect(answer.slice(2, 7)).toEqual([
       'Closest to their limit, each as run and limit:',
@@ -154,19 +157,19 @@ describe('the cases closest to their limit', () => {
   });
 
   it('says a time asked for that tenths would move in milliseconds', () => {
-    expect(formatSlowest([suite(read({ faster: 2 }))], {}, 4_960)).toContain('ran at least 4960 ms');
+    expect(printed([suite(read({ faster: 2 }))], {}, 4_960)).toContain('ran at least 4960 ms');
   });
 
   it('prints milliseconds where tenths would read a run as its whole limit', () => {
     const close = { file: 'test/a.test.ts', name: 'nearly', duration: 4_960, limit: 5_000 };
 
-    expect(formatSlowest([suite(read({ closest: [close], limited: 1, timed: 1 }))])).toContain('4960 ms of 5000 ms');
+    expect(printed([suite(read({ closest: [close], limited: 1, timed: 1 }))])).toContain('4960 ms of 5000 ms');
   });
 
   it('names the absence on a record with no limits, and still lists the cases by time', () => {
     const slowest = [{ file: 'test/a.test.ts', name: 'old', duration: 900 }];
 
-    const answer = formatSlowest([suite(read({ slowest, timed: 1 }))]);
+    const answer = printed([suite(read({ slowest, timed: 1 }))]);
 
     expect(answer).toContain('Closest to their limit: none of the 1 timed case(s) has a recorded limit, so they are listed by time alone.');
     expect(answer).toContain('  900 ms  test/a.test.ts  old');
@@ -177,7 +180,7 @@ describe('cases over a time', () => {
   it('leaves the files out, says the time in each heading and counts what ran faster', () => {
     const slowest = [{ file: 'test/a.test.ts', name: 'slow', duration: 3_500, limit: 5_000 }];
 
-    expect(formatSlowest([suite(read({ slowest, closest: slowest, limited: 1, timed: 1, faster: 4, untimed: 2 }))], { from: ['test'] }, 3_000).split('\n').slice(2)).toEqual([
+    expect(printed([suite(read({ slowest, closest: slowest, limited: 1, timed: 1, faster: 4, untimed: 2 }))], { from: ['test'] }, 3_000).split('\n').slice(2)).toEqual([
       'Closest to their limit, under test, at least 3.0 s, each as run and limit:',
       '  3.5 s of 5.0 s  test/a.test.ts  slow',
       '1 of 1 limited case(s) shown.',
@@ -189,7 +192,7 @@ describe('cases over a time', () => {
   });
 
   it('says none ran that long, rather than that the scope matched nothing', () => {
-    expect(formatSlowest([suite(read({ faster: 4 }))], {}, 3_000).split('\n').slice(2)).toEqual([
+    expect(printed([suite(read({ faster: 4 }))], {}, 3_000).split('\n').slice(2)).toEqual([
       'Slowest recorded test cases, at least 3.0 s: none of the 4 timed case(s) ran at least 3.0 s.',
     ]);
   });

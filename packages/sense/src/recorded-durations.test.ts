@@ -6,6 +6,8 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fileCases, recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
 import { withCaseSections } from './test-selection/case-record.js';
+import { commitRunsFile } from './test-selection/commit-runs.js';
+import { commitRunsText } from './test-selection/commit-runs-text.js';
 import { encodeExecutionIndex } from './test-selection/execution-format.js';
 import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
@@ -269,34 +271,35 @@ describe('cases that ran at least a time', () => {
 });
 
 describe('the record an answer read', () => {
-  function committed(): string {
-    const git = (...args: readonly string[]): string =>
-      execFileSync('git', ['-C', root, '-c', 'user.name=a', '-c', 'user.email=a@b', ...args], {
-        encoding: 'utf8',
-        env: { ...process.env, GIT_COMMITTER_DATE: '2026-10-01T12:00:00Z' },
-      }).trim();
-    git('commit', '--quiet', '--allow-empty', '-m', 'one');
-    return git('rev-parse', 'HEAD');
-  }
+  const commit = 'f'.repeat(40);
+  const LANDED = '2026-10-01T12:00:00.000Z';
 
-  it('names the commit it was taken at and when that commit was made', () => {
-    const commit = committed();
-    record({ ...coverage([['test/a.test.ts', 40]]), commit });
+  it('names the commit it was taken at and when its latest run landed', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
+    writeFileSync(commitRunsFile(at), commitRunsText({ commit, latest: LANDED, runs: 1, landings: [] }));
 
     const [suite] = recordedDurations(root, 1);
 
-    expect(suite).toMatchObject({ origin: 'own', commit });
-    expect(Date.parse((suite as { committed: string }).committed)).toBe(Date.parse('2026-10-01T12:00:00Z'));
+    expect(suite).toMatchObject({ origin: 'own', commit, landed: LANDED });
   });
 
-  it('keeps a commit this checkout does not hold, with no time to give it', () => {
-    const commit = 'f'.repeat(40);
+  it('keeps the commit of a record with no runs beside it, with no landing to give it', () => {
     record({ ...coverage([['test/a.test.ts', 40]]), commit });
 
     const [suite] = recordedDurations(root, 1);
 
     expect(suite).toMatchObject({ commit });
-    expect(suite).not.toHaveProperty('committed');
+    expect(suite).not.toHaveProperty('landed');
+  });
+
+  it('still answers from a record whose runs beside it cannot be read', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
+    writeFileSync(commitRunsFile(at), 'not json');
+
+    const [suite] = recordedDurations(root, 1);
+
+    expect(suite).toMatchObject({ commit, timed: 1 });
+    expect(suite).not.toHaveProperty('landed');
   });
 });
 

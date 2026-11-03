@@ -315,7 +315,7 @@ variance ask slowest-tests --over 3s --from packages/checkout/
 A test at 4.9 s of a 5 s limit fails on the next slow machine, and a test at
 40 s of 60 s does not, so `slowest-tests` ranks by how much of its limit each
 case ran. Each suite's answer opens with the record it read: whose it is, at which
-commit, and how old that commit is. A figure is one reading, not an average, so
+commit, and how long ago its latest run landed. A figure is one reading, not an average, so
 that line says how far to trust the numbers.
 
 Then come the cases closest to their limit, each as its run and its limit, and

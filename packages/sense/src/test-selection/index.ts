@@ -61,10 +61,10 @@ export {
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
-export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause } from './distill-native.js';
-export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause, type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
+export { limitAcross } from './execution-set-columns.js';
 export { EXECUTION_FORMAT, decodeExecutionIndex, encodeExecutionIndex, isEncodedExecutionIndex } from './execution-format.js';
 export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';

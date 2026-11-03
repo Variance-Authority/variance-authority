@@ -10,10 +10,11 @@
 
 // compass: variance-authority.reach
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { keepsCases } from './test-selection/case-record.js';
+import { commitRunsFile } from './test-selection/commit-runs.js';
+import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { fileCost } from './test-selection/file-cost.js';
@@ -86,8 +87,8 @@ export type RecordedDurations = (
       readonly origin: RecordOrigin;
       /** The commit the record was taken at; absent where it names none. */
       readonly commit?: string;
-      /** When that commit was made, as ISO 8601; absent where this checkout does not hold it. */
-      readonly committed?: string;
+      /** When the record's latest run landed, as ISO 8601; absent where no runs record beside it can say. */
+      readonly landed?: string;
       /** The slowest first, at most the limit asked for. */
       readonly slowest: readonly TimedTestFile[];
       /** Every file the recording holds a duration for. */
@@ -132,7 +133,7 @@ export function recordedDurations(
         });
         timed.sort((left, right) => right.duration - left.duration || codeUnitOrder(left.file, right.file));
         return {
-          ...takenAt(root, view.commit),
+          ...takenAt(recording, view.commit),
           slowest: timed.slice(0, limit),
           timed: timed.length,
           untimed,
@@ -145,18 +146,17 @@ export function recordedDurations(
   });
 }
 
-/** The commit a record names, and when `root`'s history says it was made. */
-function takenAt(root: string, commit: string | undefined): { readonly commit?: string; readonly committed?: string } {
-  if (commit === undefined) return {};
+/** The commit the record at `recording` names, and when the runs beside it say its latest run landed. */
+function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
+  return { ...(commit === undefined ? {} : { commit }), ...landedAt(commitRunsFile(recording)) };
+}
+
+function landedAt(runs: string): { readonly landed?: string } {
   try {
-    const committed = execFileSync('git', ['-C', root, 'show', '-s', '--format=%cI', '--end-of-options', commit], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-    return { commit, committed };
+    return { landed: commitRunsIn(readFileSync(runs, 'utf8'), `the runs record at ${runs}`).latest };
   } catch {
-    // A mainline record's commit may be one this checkout has not fetched; the reader says so.
-    return { commit };
+    // The durations stand without their age, and the reader says the record does not hold it.
+    return {};
   }
 }
 

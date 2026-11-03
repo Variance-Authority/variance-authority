@@ -37,7 +37,7 @@ import {
 } from '@variance-authority/sense/journal';
 import { stitchJourneys } from '@variance-authority/sense/journey';
 import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
-import { recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { limitAcross, recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
@@ -257,7 +257,7 @@ export function createExecutionRecorder(
       if (subject !== undefined) {
         const key = caseKey(owner, subject.id);
         if (duration !== undefined) add(key, duration);
-        if (limit !== undefined) limits.set(key, Math.max(limit, limits.get(key) ?? 0));
+        if (limit !== undefined) limits.set(key, limitAcross(limit, limits.get(key)).limit!);
         const said = listener?.take(key);
         if (said !== undefined) {
           heard.set(key, saidAcross(heard.get(key), said).said!);
