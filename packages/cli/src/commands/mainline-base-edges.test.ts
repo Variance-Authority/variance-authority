@@ -45,9 +45,9 @@ afterEach(async () => {
 });
 
 /** A clone of `origin` with a cache of its own, and what `mainlineBase` asks of it. */
-async function laptop(origin: string) {
+async function laptop(origin: string, ...clone: string[]) {
   const dir = join(home, 'clone');
-  await git(home, 'clone', '--quiet', origin, dir);
+  await git(home, 'clone', '--quiet', ...clone, clone.length === 0 ? origin : `file://${origin}`, dir);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   const declared = declaredSuites(dir)?.find((one) => one.name === 'unit');
   const readRoot = mainlineReadRoot(cacheRootFor(dir), 'unit');
@@ -259,6 +259,20 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     const kept = await base(NOW + DAY);
 
     expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'asked' } });
+  });
+
+  it('is asked again on every read when this clone cannot count how far off the merge base it is', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    await pushed(ci);
+    // Cut at the merge base: no walk behind it, and no distance to the record.
+    const { base, reach, nowhere } = await laptop(origin, '--depth', '1');
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    await reach(nowhere);
+
+    const read = await base(NOW + 60_000);
+
+    expect(read).toMatchObject({ commit: first, fetched: at(NOW), earlier: { unanswered: { kind: 'unreachable' } } });
+    expect(read).not.toHaveProperty('distance');
   });
 
   it('is asked again once the merge base moves past it, and on every read while it is behind', async () => {

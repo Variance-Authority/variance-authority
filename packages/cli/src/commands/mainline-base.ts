@@ -13,8 +13,8 @@
  * The best base is the record at `HEAD`'s merge base with the mainline. A fetch
  * costs a round trip, so the record fetched last stands without asking while it
  * is at that merge base, or past it and the line was asked at it, until a pull
- * or a rebase moves it. One behind it is asked again on each read, since the
- * merge base's job may publish yet. A line that gave no record stands for
+ * or a rebase moves it. One behind it, or at a distance this clone cannot
+ * count, is asked again on each read, since the merge base's job may publish yet. A line that gave no record stands for
  * {@link MISS_STANDS_MS}, and
  * `variance share --suite <name>` always asks.
  */
@@ -154,10 +154,11 @@ export async function mainlineBase(
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
       // At the merge base nothing is nearer. Behind it, the merge base's job
-      // may publish its record yet, so the line is asked. Past it, nothing at
-      // or behind was kept when the line was asked at this merge base, and
-      // nothing kept since can be.
-      const asked = last.base === named?.base && (distance === undefined || distance < 0);
+      // may publish its record yet, so the line is asked, and so it is when
+      // this clone cannot count the distance. Past it, nothing at or behind
+      // was kept when the line was asked at this merge base, and nothing kept
+      // since can be.
+      const asked = last.base === named?.base && distance !== undefined && distance < 0;
       const reused = distance === 0 ? 'nearest' : asked ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }

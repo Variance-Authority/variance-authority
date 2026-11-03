@@ -104,9 +104,10 @@ export async function lineEntry(
 
 /**
  * The entry kept at `base`, else at the nearest commit behind it the mainline
- * kept a record at. Every mainline commit's job publishes one, so a merge base
- * with none is one whose job has not yet; the nearest behind charges the
- * checkout with no commit it lacks, where the latest charges every one since.
+ * kept a record at. Every green mainline commit's job publishes one, so a merge
+ * base with none is one whose job has not yet, or failed; the nearest behind
+ * charges the checkout with no commit it lacks, where the latest charges every
+ * one since.
  */
 async function keptBehind(
   cell: LineCell,

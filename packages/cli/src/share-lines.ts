@@ -21,6 +21,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   httpLineCell,
+  KEEP_COMMITS,
   type Descends,
   type LineCell,
   type ShareLine,
@@ -345,11 +346,12 @@ async function sinceMergeBase(
 /**
  * The first of `kept` on `base`'s first-parent history, `base` included: the
  * newest mainline commit at or behind it that published its record. Absent
- * when none is in the history this clone holds. The walk stops at the hit.
+ * when none is in the history this clone holds, or within the newest
+ * {@link KEEP_COMMITS} commits the share keeps by. The walk stops at the hit.
  */
 export async function nearestKept(base: string, kept: ReadonlySet<string>, cwd: string): Promise<string | undefined> {
   if (kept.size === 0) return undefined;
-  const child = spawn('git', ['rev-list', '--first-parent', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
+  const child = spawn('git', ['rev-list', '--first-parent', `--max-count=${String(KEEP_COMMITS)}`, base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
   let found: string | undefined;
   for await (const commit of createInterface({ input: child.stdout })) {
     if (!kept.has(commit)) continue;
