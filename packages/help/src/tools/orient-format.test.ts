@@ -93,8 +93,8 @@ describe('an orientation, said', () => {
         '4 files asked about:',
         '  packages/checkout/src/total.ts  @t/checkout',
         '  packages/cart/src/price.ts      @t/cart',
-        '  README.md                       not in the source index',
-        '  test/total.test.ts              not in the source index',
+        '  README.md                       no package, not in the source index',
+        '  test/total.test.ts              no package, not in the source index',
         '',
         'Packages, from the source index at /cache/source-index.bin (40 files indexed; 2 changed or removed since).',
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
@@ -146,14 +146,22 @@ describe('an orientation, said', () => {
   });
 
   it('says a file with no package as that, and one the index does not hold as that, never dropping either', () => {
-    const owners = [{ indexed: true }, { indexed: false }];
+    const owners = [{ indexed: true }, { package: '@t/app', directory: 'apps/app', indexed: false }, { indexed: false }];
     const text = formatOrientation({
-      files: ['scripts/build.ts', 'src/new.ts'],
+      files: ['scripts/build.ts', 'apps/app/README.md', 'src/new.ts'],
       around: { index: '', orientation: { ...ORIENTATION, owners, packages: [] } },
       recorded: [],
     });
 
-    expect(text).toContain('2 files asked about:\n  scripts/build.ts  no package\n  src/new.ts        not in the source index\n');
+    expect(text).toContain(
+      [
+        '3 files asked about:',
+        '  scripts/build.ts    no package',
+        '  apps/app/README.md  @t/app, not in the source index',
+        '  src/new.ts          no package, not in the source index',
+        '',
+      ].join('\n'),
+    );
   });
 
   it('says no case ran a file only when no region of it ran, and what the importers could not name for one that only loaded', () => {

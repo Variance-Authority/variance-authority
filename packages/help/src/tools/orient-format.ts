@@ -59,7 +59,7 @@ function named(reading: OrientReading): readonly string[] {
   const rows = files.map((file, at) => {
     const owner = owners?.[at];
     if (owner === undefined) return `  ${file}`;
-    const where = owner.indexed ? owner.package ?? 'no package' : 'not in the source index';
+    const where = `${owner.package ?? 'no package'}${owner.indexed ? '' : ', not in the source index'}`;
     return `  ${file.padEnd(wide)}  ${where}`;
   });
   return [`${plural(files.length, 'file')} asked about:`, ...rows];
