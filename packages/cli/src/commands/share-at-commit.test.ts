@@ -76,6 +76,20 @@ describe('a mainline record kept at its commit', () => {
 
     expect(walked).toEqual([oldest]);
   });
+
+  it('walks to a record kept behind the merge base past one kept ahead of it', async () => {
+    const dir = await mkdtemp(join(home, 'ahead-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    for (let index = 0; index < 4; index += 1) {
+      await git(dir, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--allow-empty', '-m', String(index));
+    }
+    const [tip, base, , behind] = (await git(dir, 'rev-list', 'main')).split('\n');
+
+    const walked: string[] = [];
+    for await (const commit of keptBehind(base!, new Set([tip!, behind!]), dir)) walked.push(commit);
+
+    expect(walked).toEqual([behind]);
+  });
 });
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
