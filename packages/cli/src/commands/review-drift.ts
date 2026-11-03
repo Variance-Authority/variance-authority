@@ -88,8 +88,10 @@ export interface DriftInput {
   readonly changed: readonly string[];
   /** The files that differ between the commit this record's runs stand at and the checkout, or why they are not known. */
   readonly since: readonly string[] | { readonly missing: string };
-  /** Those of `since` this record ran as the checkout holds them. */
+  /** Those of `since` a row of this record was cut from as the checkout holds them. */
   readonly ran: ReadonlySet<string>;
+  /** The source files this record holds rows of, every one cut from a text the checkout does not hold. */
+  readonly strayed: readonly string[];
 }
 
 /** Whether an edit to `file` moves where imports resolve in a way the merge base's walk cannot undo: a lockfile is the install diff's to name. */
@@ -116,9 +118,9 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
   const recorded = new Set([...baseline.coverage.modules, ...head.coverage.modules].map((module) => module.file));
   const walked = (file: string) => idOf(relations, 'file', file) !== undefined || input.sources.has(file) || recorded.has(file) || resolves(file);
   // The head is walked as the checkout stands, so a file the walk reads that moved since the runs, and that they did not run as it stands, walks a graph they did not run.
-  const stale = input.since.find((file) => walked(file) && !input.ran.has(file));
+  const stale = input.since.find((file) => walked(file) && !input.ran.has(file)) ?? input.strayed.find(walked);
   if (stale !== undefined) {
-    return { unchecked: `this record's runs stand at ${head.commit.slice(0, 12)}, and the checkout since moved \`${stale}\`, which the walk reads, so the walk is not the one they ran against` };
+    return { unchecked: `this record's runs stand at ${head.commit.slice(0, 12)} and did not run \`${stale}\` as the checkout holds it, which the walk reads, so the walk is not the one they ran against` };
   }
   const moved = input.movedBetween ?? input.between?.find(walked);
   if (moved !== undefined) {
@@ -194,8 +196,10 @@ export interface DriftSources {
   readonly installed: InstallDiff | undefined;
   /** The commit the checkout stands at, or `undefined` when git named none. */
   readonly commit: string | undefined;
-  /** Those of `files` this checkout's record ran as the tree holds them. */
-  readonly ran: (files: readonly string[]) => ReadonlySet<string>;
+  /** The git blob name of every text this checkout's record cut rows of each of `files` from (`rowBlobs`). */
+  readonly rowBlobs: (files: readonly string[]) => ReadonlyMap<string, ReadonlySet<string>>;
+  /** The git blob name the source index gives a file as the checkout holds it. */
+  readonly blobOf: (file: string) => string | undefined;
 }
 
 /** {@link reviewDrift} over the records and texts `review` holds. */
@@ -237,8 +241,23 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     present: (test) => existsSync(resolve(root, test)),
     changed: from.changed,
     since,
-    ran: 'missing' in since ? new Set() : from.ran(since),
+    ...atTree(from, 'missing' in since ? [] : since, 'missing' in head ? [] : head.coverage.modules.map((module) => module.file).filter((file) => from.sources.has(file))),
   });
+}
+
+/**
+ * Which of `since` a row of the record was cut from as the checkout holds it,
+ * and which of the `recorded` source files no row was, every one of their rows
+ * keeping a blob name: a run on an edit since reverted leaves git nothing to
+ * name. A file whose rows keep none is not judged.
+ */
+function atTree(from: DriftSources, since: readonly string[], recorded: readonly string[]): { readonly ran: ReadonlySet<string>; readonly strayed: readonly string[] } {
+  const blobs = from.rowBlobs([...new Set([...since, ...recorded])]);
+  const asTree = (file: string) => {
+    const blob = from.blobOf(file);
+    return blob !== undefined && blobs.get(file)?.has(blob) === true;
+  };
+  return { ran: new Set(since.filter(asTree)), strayed: recorded.filter((file) => blobs.has(file) && !asTree(file)) };
 }
 
 /** The root-relative files that differ between the runs' `commit` and the checkout, committed or not, or why git could not say. */

@@ -46,6 +46,7 @@ import { readReviewDrift, type ReviewDrift } from './review-drift.js';
 import { reviewedCommit } from './review-head.js';
 import { baseIndex, casesMoved } from './review-base-cases.js';
 import { everySuiteRegions } from './review-suites.js';
+import { rowBlobs } from './record-rows-text.js';
 import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { changedPackagesOf } from './review-changed-packages.js';
@@ -372,7 +373,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
   const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
     root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources, installed: beyond,
-    commit: head?.commit, ran: (files) => ranAsTree(recorded.file, files, changedCases, names),
+    commit: head?.commit, rowBlobs: (files) => rowBlobs(recorded.file, files), blobOf: (file) => names.get(file),
     mainline: shared ?? (await mainlineBase(root, recorded.declared)),
   });
   return {

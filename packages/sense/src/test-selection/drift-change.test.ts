@@ -55,6 +55,14 @@ describe('where drift changed shape between the baseline and the pull request', 
     });
   });
 
+  it('counts a test file only the head holds, and the checkout no longer does, as not observed at the head rather than removed', () => {
+    const base = side(['t/a.test.ts'], []);
+    const head = side(['t/a.test.ts'], [], ['t/a.test.ts', 't/gone.test.ts']);
+    const change = driftChange(base, head, { present: (test) => test !== 't/gone.test.ts' });
+    expect(change.removed).toEqual([]);
+    expect(change.notCompared).toEqual([{ reason: 'not observed at the head', tests: ['t/gone.test.ts'] }]);
+  });
+
   it('counts a test file only the head holds, and did not observe whole, as not observed at the head', () => {
     const base = side(['t/a.test.ts'], []);
     const head = side(['t/a.test.ts'], [], ['t/a.test.ts', 't/new.test.ts']);

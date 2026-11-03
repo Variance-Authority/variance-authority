@@ -64,7 +64,7 @@ export function driftChange(base: DriftSide, head: DriftSide, { present, unread 
 
   for (const test of [...new Set([...base.held, ...head.held, ...head.observed])].sort(codeUnitOrder)) {
     if (!head.observed.has(test)) {
-      if (!present(test)) removed.push(test);
+      if (!present(test) && base.held.has(test)) removed.push(test);
       else skip('not observed at the head', test);
     } else if (!base.held.has(test)) {
       for (const file of headRows.get(test) ?? []) first.push({ file, test });

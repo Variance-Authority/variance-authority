@@ -31,6 +31,7 @@ function input(partial: Partial<DriftInput>): DriftInput {
     changed: [],
     since: [],
     ran: new Set(),
+    strayed: [],
     present: () => true,
     ...partial,
   };
@@ -100,6 +101,11 @@ describe('the drift a review reports', () => {
     expect(reviewDrift(stale)).toEqual({ unchecked: expect.stringContaining('`src/a.ts`') });
     expect(reviewDrift({ ...stale, ran: new Set(['src/a.ts']) })).toMatchObject({ grown: [LAZY] });
     expect(reviewDrift(input({ since: { missing: 'git could not say' } }))).toEqual({ unchecked: expect.stringContaining('git could not say') });
+  });
+
+  it('is not checked when the runs ran a recorded file at a text the checkout no longer holds, whatever git says moved', () => {
+    // The runs read an edit of `src/a.ts` that was reverted before the review: git names nothing since their commit.
+    expect(reviewDrift(input({ head: record('head', ['src/lazy.ts']), strayed: ['src/a.ts'] }))).toEqual({ unchecked: expect.stringContaining('`src/a.ts`') });
   });
 
   it.todo('is not checked for a suite whose test files share a realm, Vitest\'s `isolate: false` or a reused page — needs the record to say its files shared a worker');
