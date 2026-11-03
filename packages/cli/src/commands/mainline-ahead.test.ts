@@ -4,7 +4,9 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { indexOutput } from './index-command.js';
 import { PUSH, cloneOf, git, publishTo, selectedIn, shareConfig } from './mainline-fixture.js';
+import { selectOutput } from './select-command.js';
 import { npmLock } from './select-install-fixture.js';
 
 /** Set to have the source index refuse to come up to the checkout, as a read-only cache or a failed scan does. */
@@ -50,10 +52,12 @@ const PADDED = "import pad from 'left-pad';\nexport function total(price: number
  * The mainline at its published record: both folders committed, pushed, and
  * the record a whole run there made published, in which each test entered its
  * own folder's module and nothing else. `total` replaces its module, and
- * `files` are written beside.
+ * `files` are written beside; so are `entered`, which `total`'s test entered.
  */
 async function mainline(
-  { total = TOTAL, files = {}, before }: { total?: string; files?: Readonly<Record<string, string>>; before?: readonly string[] } = {},
+  { total = TOTAL, files = {}, entered = {}, before }: {
+    total?: string; files?: Readonly<Record<string, string>>; entered?: Readonly<Record<string, string>>; before?: readonly string[];
+  } = {},
 ): Promise<{ dir: string; origin: string; recorded: string }> {
   const origin = join(home, 'origin.git');
   const dir = join(home, 'ci');
@@ -64,7 +68,7 @@ async function mainline(
   await mkdir(join(dir, 'src'));
   await mkdir(join(dir, 'test'));
   await writeFile(join(dir, 'src/total.ts'), total);
-  for (const [file, source] of Object.entries(files)) await writeFile(join(dir, file), source);
+  for (const [file, source] of Object.entries({ ...files, ...entered })) await writeFile(join(dir, file), source);
   await writeFile(join(dir, 'src/other.ts'), OTHER);
   await writeFile(join(dir, 'test/total.test.ts'), TOTAL_TEST);
   await writeFile(join(dir, 'test/other.test.ts'), OTHER_TEST);
@@ -87,7 +91,11 @@ async function mainline(
       { file: 'test/other.test.ts', complete: true, preconditions: [] },
       { file: 'test/total.test.ts', complete: true, preconditions: [] },
     ],
-    modules: [moduleOf('src/other.ts', 'other', OTHER, 'test/other.test.ts'), moduleOf('src/total.ts', 'total', total, 'test/total.test.ts')],
+    modules: [
+      moduleOf('src/other.ts', 'other', OTHER, 'test/other.test.ts'),
+      moduleOf('src/total.ts', 'total', total, 'test/total.test.ts'),
+      ...Object.entries(entered).map(([file, source]) => moduleOf(file, file, source, 'test/total.test.ts')),
+    ],
   });
   await publishTo(home, dir, recorded, PUSH, 'mainline main');
   return { dir, origin, recorded };
@@ -223,6 +231,42 @@ describe('`variance select` a commit past the record its mainline published', ()
     const here = await selectedIn(clone);
 
     expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('runs a test that entered a file the checkout restored to the record\'s text after the mainline changed it', async () => {
+    const ci = await mainline();
+    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
+    // The checkout undoes the mainline's change: `total` reads as the record ran it, and differs from the merge base.
+    const clone = await branched(ci.origin, 'src/total.ts', TOTAL);
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('places a test by the hops from the checkout\'s change, not from the mainline\'s nearer one', async () => {
+    // `total` imports `a`, `a` imports `b`, `b` imports `c`: the test is one hop from `total` and four from `c`.
+    const ci = await mainline({
+      total: "import { a } from './a';\nexport function total(price: number): number {\n  return a(price) * 0.9;\n}\n",
+      entered: {
+        'src/a.ts': "import { b } from './b';\nexport const a = (n: number) => b(n);\n",
+        'src/b.ts': "import { c } from './c';\nexport const b = (n: number) => c(n);\n",
+        'src/c.ts': 'export const c = (n: number) => n;\n',
+      },
+    });
+    await landed(ci.dir, { 'src/total.ts': "import { a } from './a';\nexport function total(price: number): number {\n  return a(price) * 0.8;\n}\n" });
+    const clone = await branched(ci.origin, 'src/c.ts', 'export const c = (n: number) => n + 1;\n');
+    process.chdir(clone);
+    await indexOutput({ cwd: clone });
+
+    const leg = async (from: number, to: number) =>
+      JSON.parse((await selectOutput({ cwd: clone, format: 'json', atDistance: { from, to } })).out);
+    const near = await leg(0, 2);
+    const far = await leg(3, Number.MAX_SAFE_INTEGER);
+
+    expect(near.skip).toContain('test/total.test.ts');
+    expect(far.skip).not.toContain('test/total.test.ts');
+    expect(far.distances).toContainEqual(expect.objectContaining({ test: 'test/total.test.ts', hops: 4, from: 'src/c.ts' }));
   });
 
   it('runs a test the mainline moved off a file the checkout changes, as `file` precision over that change does', async () => {

@@ -4,7 +4,9 @@
  * The mainline and its merge base come from the fetch that read its record,
  * and the checkout's own change from git, from that base. A test the record
  * charges runs only when `file` precision over that change selects it too, so
- * the answer never runs more than that precision would.
+ * the answer never runs more than that precision would, and its hops are
+ * counted from that change: a nearer edit only the mainline made places no
+ * test.
  */
 
 import { existsSync } from 'node:fs';
@@ -55,38 +57,37 @@ export function reachedFrom(root: string, changed: readonly string[], relations:
   return [...new Set([...changed, ...holes])];
 }
 
-/** What {@link leftToMainline} kept of a narrowing, and the note that says what it left. */
+/** What {@link leftToMainline} kept of a narrowing, and the note that says what it left, when it left any. */
 export interface Owned {
   readonly narrowing: ExecutionNarrowing;
   readonly distances: readonly TestDistance[] | undefined;
-  readonly note: string;
+  readonly note: string | undefined;
+}
+
+/** A narrowing and the distances measured with it. */
+interface Read {
+  readonly narrowing: ExecutionNarrowing;
+  readonly distances?: readonly TestDistance[] | undefined;
 }
 
 /**
  * `charged`, read from the record at `commit`, without the tests `file`
- * precision over the checkout's change from the merge base does not select:
- * those only the mainline's commits since `commit` reach. `undefined` when it
- * leaves none.
+ * precision over the checkout's change from the merge base, read as `mine`,
+ * does not select: those only the mainline's commits since `commit` reach.
+ * Each test kept stands at its distance in `mine`, from that change alone.
  */
-export function leftToMainline(
-  charged: { readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] | undefined },
-  selected: readonly string[],
-  behind: Behind,
-  commit: string,
-): Owned | undefined {
-  const mine = new Set(selected);
-  const left = new Set(charged.narrowing.entered.filter((test) => !mine.has(test)));
-  if (left.size === 0) return undefined;
+export function leftToMainline(charged: Read, mine: Read, behind: Behind, commit: string): Owned {
+  const selected = new Set(mine.narrowing.entered);
+  const left = new Set(charged.narrowing.entered.filter((test) => !selected.has(test)));
   const { narrowing } = charged;
+  const entered = narrowing.entered.filter((test) => !left.has(test));
+  const kept = new Set(entered);
   return {
-    narrowing: {
-      ...narrowing,
-      entered: narrowing.entered.filter((test) => !left.has(test)),
-      because: (narrowing.because ?? []).filter((cause) => !left.has(cause.test)),
-    },
-    distances: charged.distances?.filter((distance) => !left.has(distance.test)),
-    note:
-      `${left.size} test file(s) left to mainline ${behind.name}: only its commits between the record's commit ` +
-      `${commit.slice(0, 12)} and the merge base ${behind.base.slice(0, 12)} reach them, and nothing this checkout changed from that base does`,
+    narrowing: { ...narrowing, entered, because: (narrowing.because ?? []).filter((cause) => !left.has(cause.test)) },
+    distances: mine.distances?.filter((distance) => kept.has(distance.test)),
+    note: left.size === 0
+      ? undefined
+      : `${left.size} test file(s) left to mainline ${behind.name}: only its commits between the record's commit ` +
+        `${commit.slice(0, 12)} and the merge base ${behind.base.slice(0, 12)} reach them, and nothing this checkout changed from that base does`,
   };
 }

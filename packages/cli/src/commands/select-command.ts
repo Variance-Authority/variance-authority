@@ -300,6 +300,10 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // stand, never the tree, so a module the landing kept a text for is charged
   // whole there: the kept text is not what the tree holds.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
+  // Behind the merge base, a file the checkout changed from it that reads as
+  // the record ran it was moved by the mainline and put back here: the record's
+  // diff holds no line of it, so it is charged whole.
+  const restored = behind === undefined ? [] : behind.changed.filter((file) => !changed.includes(file));
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
       ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })
@@ -307,18 +311,19 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           here,
           withWhole(
             [selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'),
-            beyond.get(question.at)!.files,
+            question.at === undefined ? [...beyond.get(undefined)!.files, ...restored] : beyond.get(question.at)!.files,
           ),
           handed ? { ...options, undone: false } : options,
         );
   const charged = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
-  // Behind the merge base, a charged test runs only when `file` precision over the checkout's own change selects it too.
+  // Behind the merge base, a charged test runs only when `file` precision over
+  // the checkout's own change selects it too, and stands at its hops from that change.
   const mine = behind === undefined || charged === undefined ? undefined : await recordAgainst(
     here,
     withWhole('', [...new Set([...reachedFrom(here, behind.changed, relations), ...beyond.get(undefined)!.files])]),
-    { ...options, precision: 'file', distances: false },
+    { ...options, precision: 'file' },
   );
-  const owned = mine === undefined ? undefined : leftToMainline(charged!, mine.narrowing.entered, behind!, commit!);
+  const owned = mine === undefined ? undefined : leftToMainline(charged!, mine, behind!, commit!);
   const asked = owned ?? charged;
   const told = owned?.note === undefined ? rested : { ...rested, standing: [...(rested.standing ?? []), owned.note] };
   const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;
