@@ -2476,9 +2476,9 @@ reads, and when every changed file runs what it ran before:
 ```
 $ variance reach --since origin/main
 none of the 2 changed files is in a language this build reads (README.md and
-yarn.lock), so this diff says nothing about what it reaches. Rather than print a file list this cannot stand behind, `reach`
-stops here: a short list piped into a runner is a green build over a change
-nobody read.
+yarn.lock), so this diff says nothing about what it reaches. Rather than print
+a file list this cannot stand behind, `reach` stops here: a short list piped
+into a runner is a green build over a change nobody read.
 ```
 
 Changed paths in no language it reads — a lockfile, a workflow, a Dockerfile —

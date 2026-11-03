@@ -89,6 +89,14 @@ export interface ReachOutput {
   readonly err: string;
 }
 
+/** A refusal to print a file list, for `reason`. */
+function stops(reason: string): OperatorError {
+  return new OperatorError(
+    `${reason}. Rather than print a file list this cannot stand behind, \`reach\` stops ` +
+      'here: a short list piped into a runner is a green build over a change nobody read.',
+  );
+}
+
 /** Walk the file graph from a diff, and say what it reaches. */
 export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const changed = await changedSince(request.since);
@@ -117,10 +125,9 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   if (readable.length === 0) {
     // Refused here, where the files are still known: the walk is handed none
     // of them and would count the none.
-    throw new OperatorError(
+    throw stops(
       `none of the ${many(unread.length, 'changed file')} is in a language this build reads (${listed(unread)}), ` +
-        'so this diff says nothing about what it reaches. Rather than print a file list this cannot stand behind, ' +
-        '`reach` stops here: a short list piped into a runner is a green build over a change nobody read.',
+        'so this diff says nothing about what it reaches',
     );
   }
 
@@ -129,12 +136,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
     : ((await movedSince(point, readable)) ?? new Map<string, readonly string[]>());
   const quiet = movedExports && readable.filter((file) => movedExports.get(file)?.length === 0);
   const reach = affectedFiles(relations, readable, ['.'], [], movedExports);
-  if (refused(reach)) {
-    throw new OperatorError(
-      `${reach.whole}. Rather than print a file list this cannot stand behind, \`reach\` stops ` +
-        'here: a short list piped into a runner is a green build over a change nobody read.',
-    );
-  }
+  if (refused(reach)) throw stops(reach.whole);
 
   const notes = [
     reach.how,
