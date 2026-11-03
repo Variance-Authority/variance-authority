@@ -47,6 +47,7 @@ import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './reso
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
+import { behindOf, leftToMainline, reachedFrom } from './mainline-owned.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -231,6 +232,14 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // half an install, so the commit's is read whole and a note says so, one
   // for each commit it happened at.
   const changed = [...selection.changedLines(diff).keys()];
+  // A record behind the merge base is read against the mainline's commits too,
+  // and only what the checkout changed from that base is this run's to answer
+  // for: its install is compared there, and what the suite rests on is moved
+  // by that change alone. A graph that could not come up to the checkout says
+  // nothing of what the change reaches, so it leaves nothing to the mainline.
+  const ahead = commit === undefined || handed ? undefined : await behindOf(here, source);
+  let stale = ahead === undefined || request.relations !== undefined ? undefined : await indexUpToCheckout(here, undefined, !request.noGit);
+  const behind = stale === undefined ? ahead : undefined;
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();
@@ -238,11 +247,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   else {
     const groups = [undefined, ...stands];
     const asked = await Promise.all(groups.map(async (stand) => {
-      const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here);
-      const installed = stand === undefined ? reading?.installed : stand.installed;
+      const from = stand?.commit ?? behind?.base ?? commit;
+      const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(from!, [], here);
+      const installed = stand === undefined ? (behind === undefined ? reading?.installed : undefined) : stand.installed;
       const ran = point === undefined || installed === undefined ? point : ranOn(point, installed, selection.keptTexts(request.root));
       const missing = ran !== undefined && 'missing' in ran;
-      const at = (stand?.commit ?? commit)?.slice(0, 12);
+      const at = from?.slice(0, 12);
       const note = missing
         ? `the suite ran over a ${ran.missing} that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`
         : undefined;
@@ -252,7 +262,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
       const kept = missing || ran === point ? [] : Object.keys(installed!);
       return {
         point: missing ? point : ran,
-        changed: [...new Set([...changed, ...(stand?.changed ?? []), ...kept])],
+        changed: [...new Set([...(stand === undefined ? (behind?.changed ?? changed) : changed), ...(stand?.changed ?? []), ...kept])],
         note,
       };
     }));
@@ -267,7 +277,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
-  const stale = request.relations === undefined ? await indexUpToCheckout(here, undefined, !request.noGit) : undefined;
+  if (ahead === undefined && request.relations === undefined) stale = await indexUpToCheckout(here, undefined, !request.noGit);
   const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
@@ -275,10 +285,10 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const declared = (await recordedSuite(here, request.suite, 'landing')).declared;
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...(behind?.changed ?? changed), ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
-    handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
+    handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? behind?.base ?? commit)?.slice(0, 12) ?? base}`,
   );
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
@@ -290,6 +300,10 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // stand, never the tree, so a module the landing kept a text for is charged
   // whole there: the kept text is not what the tree holds.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
+  // Behind the merge base, a file the checkout changed from it that reads as
+  // the record ran it was moved by the mainline and put back here: the record's
+  // diff holds no line of it, so it is charged whole.
+  const restored = behind === undefined ? [] : behind.changed.filter((file) => !changed.includes(file));
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
       ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })
@@ -297,11 +311,21 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           here,
           withWhole(
             [selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'),
-            beyond.get(question.at)!.files,
+            question.at === undefined ? [...beyond.get(undefined)!.files, ...restored] : beyond.get(question.at)!.files,
           ),
           handed ? { ...options, undone: false } : options,
         );
-  const asked = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
+  const charged = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
+  // Behind the merge base, a charged test runs only when `file` precision over
+  // the checkout's own change selects it too, and stands at its hops from that change.
+  const mine = behind === undefined || charged === undefined ? undefined : await recordAgainst(
+    here,
+    withWhole('', [...new Set([...reachedFrom(here, behind.changed, relations), ...beyond.get(undefined)!.files])]),
+    { ...options, precision: 'file' },
+  );
+  const owned = mine === undefined ? undefined : leftToMainline(charged!, mine, behind!, commit!);
+  const asked = owned ?? charged;
+  const told = owned?.note === undefined ? rested : { ...rested, standing: [...(rested.standing ?? []), owned.note] };
   const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparisons above, which have already said what moved.
@@ -328,7 +352,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           }),
         };
 
-  const answer = said({ ...rested, ground });
+  const answer = said({ ...told, ground });
   // FIXME: a stand's tests were read against their own diff, and the case cut
   // reads the journal's alone, so a selection with stands runs its files whole.
   if (request.grain !== 'case' || ground.kind !== 'read' || stands.length > 0) return answer;
@@ -422,7 +446,7 @@ export async function recordedOrMainline(
   if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
   if (base.from === 'mainline') {
     const read = base.mainline;
-    const distance = read.distance === undefined ? {} : { distance: read.distance };
+    const distance = read.distance === undefined ? {} : { distance: read.distance, ...(read.base === undefined ? {} : { base: read.base }) };
     return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
   }
   const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };

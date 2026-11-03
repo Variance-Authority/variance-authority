@@ -71,6 +71,8 @@ export interface MainlineRecord {
   readonly commit: string;
   /** Commits the record is behind `HEAD`'s merge base with the mainline; negative when ahead. Absent when this clone cannot count. */
   readonly distance?: number;
+  /** The merge base `distance` is counted to, when it was counted. */
+  readonly base?: string;
   /** The coverage record, in the read layer. */
   readonly coverage: string;
   /** The record again, when it carries a case index that reads. */
@@ -176,7 +178,7 @@ export async function mainlineBase(
       // Behind it, the line was asked here already when the merge base is the
       // one it was asked at, the clone naming none then and now included.
       const reused = distance !== undefined && distance <= 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
-      if (reused !== undefined) return earlier(last, { reused }, distance);
+      if (reused !== undefined) return earlier(last, { reused }, distance, named?.base);
     }
     const noted = readMissedMainline(readRoot);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
@@ -254,6 +256,7 @@ export async function mainlineBase(
     mainline: found.mainline,
     commit: found.commit,
     ...(found.distance !== undefined ? { distance: found.distance } : {}),
+    ...(found.distance !== undefined && base !== undefined ? { base } : {}),
     coverage,
     ...(index !== undefined && casesUnread === undefined ? { cases: coverage } : {}),
     ...(casesUnread !== undefined ? { casesUnread } : {}),
@@ -271,17 +274,23 @@ async function measured(
   why: NonNullable<MainlineRecord['earlier']>,
   base: string | undefined,
 ): Promise<MainlineRecord> {
-  return earlier(last, why, await distanceFrom(place, last.mainline, last.commit, root, base));
+  return earlier(last, why, await distanceFrom(place, last.mainline, last.commit, root, base), base);
 }
 
-/** The record fetched earlier, as a base, `distance` commits behind this checkout's merge base. */
-async function earlier(last: LastFetched, why: NonNullable<MainlineRecord['earlier']>, distance: number | undefined): Promise<MainlineRecord> {
+/** The record fetched earlier, as a base, `distance` commits behind this checkout's merge base `base`. */
+async function earlier(
+  last: LastFetched,
+  why: NonNullable<MainlineRecord['earlier']>,
+  distance: number | undefined,
+  base: string | undefined,
+): Promise<MainlineRecord> {
   const { keepsCases } = await import('@variance-authority/sense/test-selection');
   return {
     suite: last.suite,
     mainline: last.mainline,
     commit: last.commit,
     ...(distance !== undefined ? { distance } : {}),
+    ...(distance !== undefined && base !== undefined ? { base } : {}),
     coverage: last.coverage,
     ...(keepsCases(last.coverage) ? { cases: last.coverage } : {}),
     ...(last.runs === undefined ? {} : { runs: last.runs }),

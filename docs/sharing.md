@@ -640,10 +640,32 @@ and the `record of "<suite>":` line says why. With no execution record, `select`
 runs every test file, and `review` requires `--since`.
 
 `select` diffs from the commit the mainline's execution record names, so a
-record behind or past your merge base adds mainline's changes in between to
-yours: a wider run, never a narrower one. In CI, [merge the pull request with
+record past your merge base adds mainline's changes in between to yours: a
+wider run, never a narrower one. In CI, [merge the pull request with
 that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
-is the pull request's alone. `review` diffs from the merge base of that
+is the pull request's alone.
+
+A record behind your merge base leaves the mainline's changes to the mainline.
+A test the record selects runs when `file` precision over your own change from
+the merge base would select it too: imports reach it from a file you changed or
+a package you bumped, or the record says it entered a file you changed. A bump
+or a change to what the suite rests on counts only when you made it. Any other
+test is the mainline's, and the answer says how many:
+
+```text
+1 test file(s) left to mainline main: only its commits between the record's commit 3f1c9a2a07b8 and the merge base 8e01b44c5d21 reach them, and nothing this checkout changed from that base does.
+```
+
+A test that entered a file you deleted or renamed runs. So does one the
+mainline made import it, which the record never saw: when your change removes
+a path, every file whose imports the [source index](source-index.md) could not all resolve counts
+as reached. A load the import graph cannot follow, such as `import()` of a
+computed path, is not: a mainline change that turns one onto a file you changed
+leaves its test to the mainline, unless the record saw that load. Nothing is
+left on the mainline's own tip with nothing changed, whose run answers for it,
+or when the source index could not come up to your checkout.
+
+`review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
 with the ones the mainline published only when that merge base is the published
 commit. For a record past your merge base it is not, and `review` compares them
