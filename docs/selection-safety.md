@@ -10,6 +10,8 @@ imports connect to any test keeps no test in the run, and the run names it so
 you can declare it. What no record can show is a short, fixed list, and the
 whole-suite run on your main branch is where a test it hid fails.
 
+## One edit and its answer
+
 Here is one edit, in this repository, and the answer `variance select` gives
 for it. The edit changes one line inside `unreadNotes` in
 `packages/cli/src/commands/select-notes.ts`:
