@@ -29,6 +29,7 @@ export interface TestColumns {
   readonly testStopped: Uint8Array | undefined;
   /** Absent in an index written before cases carried a duration. */
   readonly testDuration: Uint32Array | undefined;
+  readonly testLimit: Uint32Array | undefined;
   /** What each case said, `undefined` where none listened; absent in an index that listened to no case. */
   readonly testSaid: readonly (Said | undefined)[] | undefined;
   /** The line that reached each region a case crossed; absent in an index written without cuts. */
@@ -95,17 +96,20 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
   const testStopped = opened.found.has('tests.stopped') ? columnBytes(opened, 'tests.stopped') : undefined;
   // Written since a case carries its runner's duration; a file without it timed none.
   const testDuration = opened.found.has('tests.duration') ? columnWords(opened, 'tests.duration') : undefined;
+  // Written since a case carries the limit it ran under; a file without it names none.
+  const testLimit = opened.found.has(LAYOUT.cases.limit) ? columnWords(opened, LAYOUT.cases.limit) : undefined;
   const testCount = testId.length;
   // Written since a case's said items are crossing sets; a file without it listened to none.
   const testSaid = Object.values(HEARD_SECTIONS).some((name) => opened.found.has(name)) ? saidOf(opened, testCount) : undefined;
   if (testFile.length !== testCount || testName.length !== testCount) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testCount) throw invalid();
+  if (testLimit !== undefined && testLimit.length !== testCount) throw invalid();
   for (let test = 0; test < testCount && testStopped !== undefined; test += 1) {
     if ((testStopped[test] ?? 0) > STOPPED) throw invalid();
   }
   // Written since a cut case carries the line that reached each region; a file without it cut none.
   const testLines = opened.found.has(LINES_COLUMN) ? linesTable(opened, testCount) : undefined;
-  return { testId, testFile, testName, testStopped, testDuration, testSaid, testLines };
+  return { testId, testFile, testName, testStopped, testDuration, testLimit, testSaid, testLines };
 }
 
 /** The section `case_said.rs` lays what each case said in. */
@@ -306,6 +310,25 @@ export function stoppedFrom(column: Uint8Array | undefined, at: number): { reado
  */
 export function durationColumn(tests: readonly ExecutionTest[]): Uint32Array {
   return Uint32Array.from(tests, (test) => durationWord(test.duration));
+}
+
+/**
+ * `tests.limit` for these cases. Zero is a runner's word for no limit, so it is
+ * written as none, and an endless one has no word to be written as.
+ */
+export function limitColumn(tests: readonly ExecutionTest[]): Uint32Array {
+  return Uint32Array.from(tests, (test) => durationWord(test.limit === 0 ? undefined : test.limit));
+}
+
+export function limitFrom(column: Uint32Array | undefined, at: number): { readonly limit?: number } {
+  const held = column?.[at];
+  return held === undefined || held === NO_DURATION ? {} : { limit: held };
+}
+
+/** The limit of one case across its frames: the longest, the one a slow frame could still pass under. */
+export function limitAcross(first: number | undefined, second: number | undefined): { readonly limit?: number } {
+  if (first === undefined && second === undefined) return {};
+  return { limit: Math.max(first ?? 0, second ?? 0) };
 }
 
 export function durationFrom(column: Uint32Array | undefined, at: number): { readonly duration?: number } {

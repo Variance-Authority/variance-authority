@@ -153,6 +153,13 @@ describe('the journey set spelling', () => {
     expect(decodeExecutionIndex(bytes).tests).toEqual(timed);
   });
 
+  it('keeps the limit each case ran under, and a case with none without one', () => {
+    const limited = [{ ...tests[0]!, duration: 480, limit: 500 }, tests[1]!];
+    const bytes = encodeSetExecutionIndex({ tests: limited, modules: [], sets: new CrossingSets(2).pool() });
+
+    expect(decodeExecutionIndex(bytes).tests).toEqual(limited);
+  });
+
   it('keeps the region around each region, names none in an index that recorded none, and refuses one that does not come first or does not cover every region', () => {
     const module = (file: string, owner?: Uint32Array): SetExecutionModule => ({
       file,

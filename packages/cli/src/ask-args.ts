@@ -189,6 +189,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const subpath = flags.values.get('--subpath');
   const query = flags.values.get('--query');
   const from = flags.values.get('--from');
+  const over = flags.values.get('--over');
   const to = flags.values.get('--to');
   const changedFile = flags.values.get('--changed-file');
   const taintFile = flags.values.get('--taint-file');
@@ -227,6 +228,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(query !== undefined ? { query } : {}),
     ...carried(flags, PLACING),
     ...(from !== undefined ? { from } : {}),
+    ...(over !== undefined ? { over } : {}),
     ...(to !== undefined ? { to } : {}),
     ...carried(flags, CROSSING),
     ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),

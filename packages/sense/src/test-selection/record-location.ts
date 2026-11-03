@@ -413,17 +413,28 @@ export async function readableTestCoverage(
  * asked.
  */
 export function nearestTestCoverage(root: string, options: RecordLocationOptions = {}): string {
+  return nearestRecord(root, options).file;
+}
+
+/** Whose run a record is: this checkout's, the mainline's as fetched, or the primary checkout's under a worktree. */
+export type RecordOrigin = 'own' | 'mainline' | 'primary';
+
+/** {@link nearestTestCoverage} for a reader that says whose record it read. With no layer holding one, this checkout's. */
+export function nearestRecord(
+  root: string,
+  options: RecordLocationOptions = {},
+): { readonly file: string; readonly origin: RecordOrigin } {
   const inside = recordPath(root, options.suite);
   const [own, ...under] = layeredFiles(repositoryLayers(root, options.cacheRoot), inside);
-  if (present(own!)) return own!;
+  if (present(own!)) return { file: own!, origin: 'own' };
   // The fetched record is the base only when the first run here would lay it:
   // one this build does not read is passed over, as seeding passes it over.
   const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
   const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot);
-  if (fetched !== undefined) return fetched.coverage;
-  for (const file of under) if (present(file)) return file;
+  if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
+  for (const file of under) if (present(file)) return { file, origin: 'primary' };
 
-  return own!;
+  return { file: own!, origin: 'own' };
 }
 
 function present(file: string): boolean {

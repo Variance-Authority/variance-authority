@@ -263,7 +263,7 @@ function cutIn(file: string): Record<string, readonly string[]> {
 /** What jest-circus hands a handler: the case, with the body about to be called. */
 interface CircusEvent {
   readonly name: string;
-  readonly test?: { fn?: unknown; name?: unknown } | undefined;
+  readonly test?: { fn?: unknown; name?: unknown; timeout?: number } | undefined;
   readonly hook?: { readonly type: string; readonly parent: CircusBlock } | undefined;
 }
 
@@ -303,13 +303,15 @@ function bracketEveryCase(nextId: () => string): void {
   const register = circus.addEventHandler;
   if (typeof register !== 'function') return;
 
-  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+  (register as (handler: (event: CircusEvent, state: { testTimeout?: number }) => void) => void)((event, state): void => {
     placeCalls(event);
     if (event.name === 'test_start') attempt('begin');
     if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
+    // As jest-circus resolves it, for which a timeout of 0 is no timeout given.
+    heldTo = held.timeout || state.testTimeout;
     const body = held.fn;
     if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
@@ -395,6 +397,10 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 // wrapper reached inside it is the same case, not concurrency.
 let enclosingCase = 0;
 
+// What the case about to run is held to. The declarer route encloses a body before
+// any limit is known, so it is read when the body runs; Jest runs one case at a time.
+let heldTo: number | undefined;
+
 /**
  * One case's body, run inside the scope its crossings belong to.
  *
@@ -425,7 +431,7 @@ function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): Cas
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
+      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project, heldTo), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }

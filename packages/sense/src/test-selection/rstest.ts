@@ -127,6 +127,12 @@ export interface RstestTestSelectionOptions {
   readonly cadence?: boolean;
 }
 
+/** Where a case stands in its file, as Rstest names it to a reporter. */
+interface CaseNames {
+  readonly parentNames?: readonly string[];
+  readonly name?: string;
+}
+
 /** What one test file's run left behind, as Rstest's `onTestRunEnd` reports it. */
 export interface RstestFileResult {
   readonly testPath: string;
@@ -266,7 +272,13 @@ export function withTestSelection(
   const settle = foldRun(run, { coverageFile, shims: [setupId] });
   const story = askedForStories(coverageFile);
   let ended: number | undefined;
+  // What each case was held to. Rstest resolves it before the case starts and
+  // says it here alone: neither the case's context nor its result carries it.
+  const limits = new Map<string, number | undefined>();
   const reporter = {
+    onTestCaseStart: (test: { readonly testPath: string; readonly timeout?: number } & CaseNames) => {
+      limits.set(`${test.testPath}\0${caseNameOf(test)}`, test.timeout);
+    },
     // A watching Rstest starts every cycle here, after the last cycle's end.
     // Rstest builds the cycle's bundle, reading its files, before it announces
     // the start: the first cycle began when the run was made, and a rerun when
@@ -284,7 +296,7 @@ export function withTestSelection(
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
-          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration)),
+          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration, limits.get(`${file.testPath}\0${caseNameOf(test)}`))),
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
@@ -437,7 +449,7 @@ function caseEnds(file: RstestFileResult) {
   }));
 }
 
-function caseNameOf(test: { readonly parentNames?: readonly string[]; readonly name?: string }): string {
+function caseNameOf(test: CaseNames): string {
   return [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > ');
 }
 

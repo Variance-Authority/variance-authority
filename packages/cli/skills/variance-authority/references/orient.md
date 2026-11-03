@@ -13,7 +13,7 @@ the answer. Run them from the checkout you are asking about.
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
 | one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
 | a place, and the question of what it may import | `stack --from <path>` |
-| a suite that is slow | `slowest-tests`, scoped with `--from` or `--to` |
+| a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran that long |
 
 ## `orient`
 
@@ -95,8 +95,17 @@ Playwright does for its CLI skills, is not listed. `search` does not list skills
 
 ## `slowest-tests`
 
-The test files, then the test cases, that the latest recorded run spent longest
-in. A file's time is what running it cost: the larger of the duration its
+The answer opens with the record it read: whose run, at which commit, and how
+old that commit is. A record is one run, so weigh it by those.
+
+Then the cases closest to their limit, ranked by how much of it they ran, so
+4.9 s of 5 s stands above 40 s of 60 s. Each row states the run and the limit
+and judges neither: the run spans hooks and every attempt, the limit one
+attempt, so a passing case can read 5.3 s of 5 s. A case whose record holds no
+limit is counted, and a record older than the column says so and lists its cases
+by time alone.
+
+Then the test files and test cases that run spent longest in. A file's time is what running it cost: the larger of the duration its
 runner reported and its phases summed, so the environment, setup files and
 import before its first case count, as Vitest's own file duration does not.
 Nothing is timed here. A file or case
@@ -105,7 +114,9 @@ keeps the tests declared under the paths you give. `--to` keeps the tests that,
 in the recording, ran code in those paths, the same reading `variance covering`
 makes, not an import walk. A `--to` path the recording has no row for is named
 as unrecorded. A path that is in neither the recording nor the checkout is
-refused.
+refused. `--over 3s` keeps the cases that ran at least that long, in both
+rankings, leaves the files out and counts what ran faster; `500ms` and `1.5s`
+read too.
 
 For the time each visual subject takes, ask `variance ask costs`, which needs
 the config.

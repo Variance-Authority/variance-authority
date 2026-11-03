@@ -28,6 +28,7 @@ export default withTestSelection(
     rootDir: root,
     cacheDirectory,
     testEnvironment: '<rootDir>/test/environment.ts',
+    testTimeout: 4321,
     testMatch: ['<rootDir>/test/*.case.ts'],
     transform: {
       '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],

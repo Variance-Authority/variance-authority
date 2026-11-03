@@ -39,6 +39,7 @@ async function ended(
   owner: string,
   status: TestInfo['status'],
   duration?: number,
+  timeout?: number,
 ): Promise<void> {
   const declared = varianceCompletedFixtures.varianceCompleted as unknown as readonly [
     (
@@ -55,6 +56,7 @@ async function ended(
     titlePath: [owner, 'the one test'],
     testId: `${owner}-1`,
     ...(duration === undefined ? {} : { duration }),
+    ...(timeout === undefined ? {} : { timeout }),
   } as unknown as TestInfo);
 }
 
@@ -374,6 +376,29 @@ describe('a worker that is one of several', () => {
       const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => one.duration)).toEqual([200]);
       expect((await readTestCoverage(coverageFile)).tests[0]!.duration).toBe(200);
+    });
+  });
+
+  it('records the longest limit any attempt of a case ran under', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+      const test = { name: 'the one test', id: `${owner}-1` };
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      // `test.setTimeout` in the body leaves a later attempt with another limit.
+      for (const timeout of [30_000, 90_000, 60_000]) {
+        await recorder.note(
+          pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+          owner,
+          test,
+        );
+        await ended(recorder, root, owner, 'passed', 10, timeout);
+      }
+      await recorder.close();
+
+      expect(decodeExecutionIndex(await readFile(coverageFile)).tests.map((one) => one.limit)).toEqual([90_000]);
     });
   });
 

@@ -127,6 +127,8 @@ export interface AskRequest extends Crossing {
   readonly taintFile?: string;
   /** Use the last published source generation without inspecting the checkout. */
   readonly justAnswer?: boolean;
+  /** `--over <time>`: only the cases that ran at least that long. */
+  readonly over?: string;
   readonly limit?: number;
   /** Rows a paged question skips. */
   readonly offset?: number;

@@ -563,6 +563,15 @@ under the file where the runner gives none. A path the file declares twice
 cannot be matched to one of the two cases, so neither is timed. A case index
 written before cases carried durations opens with every case untimed.
 
+A `tests.limit` column beside it holds the time the case was allowed, in whole
+milliseconds: the timeout the runner enforced on its body, read by the harness
+while the case ran, the same way under Vitest, Jest, Rstest and Playwright. The
+limit is one attempt's, and a case recorded twice keeps the larger. The duration
+above spans hooks and every attempt, so a passing case can read 5.3 s against a
+limit of 5 s, and a retried case more. A case with no limit is absent from the
+column, never `0`, and a case index written before the column opens with every
+case unlimited.
+
 The case index also carries what each case said, its
 [case preconditions](case-preconditions.md), in a `tests.said` section. Each
 distinct `(name, value, site, level)` is one item, and the cases that said it are
@@ -580,8 +589,9 @@ each story, from its first collection to its decision: the same time
 recorded on the story's row and on its case, once however many times the story
 was read, and a story the run did not time is recorded without one.
 
-`variance ask slowest-tests` lists the slowest recorded files and the slowest
-recorded cases, anywhere or under the paths you name.
+`variance ask slowest-tests` opens with whose record it read, at which commit and
+how old, then lists the cases closest to their limit and the slowest recorded
+files and cases, anywhere or under the paths you name.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —

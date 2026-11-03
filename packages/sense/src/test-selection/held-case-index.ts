@@ -1,7 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
-import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
+import { durationColumn, limitColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
 import { below, mergedDictionary } from './format-dictionary.js';
 import { NO_DURATION, NO_OWNER } from './format-layout.js';
@@ -180,11 +180,13 @@ export function writeLaid(
 
   const objectStopped = stoppedColumn(objects);
   const objectDuration = durationColumn(objects);
+  const objectLimit = limitColumn(objects);
   const testId = new Uint32Array(tests.length);
   const testFile = new Uint32Array(tests.length);
   const testName = new Uint32Array(tests.length);
   const testStopped = new Uint8Array(tests.length);
   const testDuration = new Uint32Array(tests.length);
+  const testLimit = new Uint32Array(tests.length);
   for (let at = 0, object = 0; at < tests.length; at += 1) {
     const test = tests[at]!;
     if (typeof test === 'number') {
@@ -193,6 +195,7 @@ export function writeLaid(
       testName[at] = remap[columns.testName[test]!]!;
       testStopped[at] = columns.testStopped?.[test] ?? 0;
       testDuration[at] = columns.testDuration?.[test] ?? NO_DURATION;
+      testLimit[at] = columns.testLimit?.[test] ?? NO_DURATION;
       continue;
     }
     testId[at] = id(test.id);
@@ -200,6 +203,7 @@ export function writeLaid(
     testName[at] = id(test.name);
     testStopped[at] = objectStopped[object]!;
     testDuration[at] = objectDuration[object]!;
+    testLimit[at] = objectLimit[object]!;
     object += 1;
   }
 
@@ -257,7 +261,7 @@ export function writeLaid(
 
   return writeSetColumns({
     strings: { blob: dictionary.blob, offsets: dictionary.offsets },
-    testId, testFile, testName, testStopped, testDuration,
+    testId, testFile, testName, testStopped, testDuration, testLimit,
     testSaid: tests.map((test) => (typeof test === 'number' ? columns.testSaid?.[test] : test.said)),
     moduleFile, moduleBlocks,
     blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner, blockOverwritten,

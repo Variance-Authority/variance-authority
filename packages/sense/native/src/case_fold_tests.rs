@@ -121,6 +121,13 @@ fn carries_each_cases_duration_and_lines_on_the_rows_of_the_fold() {
 }
 
 #[test]
+fn joins_a_case_two_shards_ran_at_its_longest_limit_and_names_none_where_no_shard_did() {
+    let one = |limit| shard(&[case("a.test.ts", "adds", "1", FINISHED), case("a.test.ts", "drops", "2", FINISHED)], &CaseExtras { limits: vec![Some(limit), None], ..CaseExtras::default() }, &[]);
+    let joined = read(&folded(&[&one(5000), &one(8000)]).unwrap().bytes);
+    assert_eq!(joined.limits, [Some(8000), None]);
+}
+
+#[test]
 fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
     let one = |duration, settled| shard(&[case("a.test.ts", "adds", "1", settled)], &CaseExtras { durations: vec![Some(duration)], lines: Vec::new(), ..CaseExtras::default() }, &[]);
     let joined = read(&folded(&[&one(3, STOPPED), &one(8, FINISHED)]).unwrap().bytes);

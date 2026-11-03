@@ -311,19 +311,19 @@ describe('a run recorded by more than one process', () => {
 
       // Case `a` failed in one worker and passed on its retry in another, as a
       // Playwright retry lands wherever a worker is free.
-      for (const [stopped, duration] of [
-        [true, 300],
-        [false, 200],
+      for (const [stopped, duration, limit] of [
+        [true, 300, 7000],
+        [false, 200, 5000],
       ] as const) {
         await stageExecution(directory, {
           subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium, complete: !stopped, duration }],
-          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', stopped, duration, journal: run.premium }],
+          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', stopped, duration, limit, journal: run.premium }],
         });
       }
       const staged = await foldStage(directory);
       expect(staged.subjects.map((subject) => subject.duration)).toEqual([500]);
-      expect(staged.cases!.map(({ stopped, duration }) => ({ stopped, duration }))).toEqual([
-        { stopped: false, duration: 500 },
+      expect(staged.cases!.map(({ stopped, duration, limit }) => ({ stopped, duration, limit }))).toEqual([
+        { stopped: false, duration: 500, limit: 7000 },
       ]);
 
       await recordExecution({ root, cacheRoot: resolve(root, 'cache'), coverageFile, subjects: staged.subjects, cases: staged.cases! });

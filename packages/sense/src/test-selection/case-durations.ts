@@ -27,6 +27,8 @@ export interface FinishedCase {
   readonly id?: string;
   /** Milliseconds the runner reported for the case; absent when it reported none. */
   readonly duration?: number;
+  /** Milliseconds the runner held the case to, for a runner that says so only outside the case. */
+  readonly limit?: number;
 }
 
 /** The runner's duration for one recorded case, or `undefined` when no runner timed it. */
@@ -34,6 +36,34 @@ export type CaseDurations = (file: string, name: string, id: string) => number |
 
 /** A lookup that times no case, for a run whose runner reported none. */
 export const UNTIMED: CaseDurations = () => undefined;
+
+/** The limit a runner reported for one recorded case, or `undefined` when it reported none. */
+export type CaseLimits = (file: string, name: string) => number | undefined;
+
+/** A lookup that limits no case, for a run whose cases carry their own limit. */
+export const UNLIMITED: CaseLimits = () => undefined;
+
+/**
+ * The limits every announcement of a finished file reported, by the declaration
+ * path. Two projects' copies of a case keep the longer limit, as the record's
+ * join does, and a name one file declares twice says neither.
+ */
+export function caseLimits(
+  files: readonly { readonly filepath: string; readonly cases?: readonly FinishedCase[] }[],
+  root: string,
+): CaseLimits {
+  const limits = new Map<string, number>();
+  for (const file of files) {
+    const path = projectPath(root, file.filepath);
+    const declared = new Map<string, number>();
+    for (const held of file.cases ?? []) declared.set(held.name, (declared.get(held.name) ?? 0) + 1);
+    for (const held of file.cases ?? []) {
+      const key = `${path}\0${held.name}`;
+      if (held.limit !== undefined && declared.get(held.name) === 1) limits.set(key, Math.max(held.limit, limits.get(key) ?? 0));
+    }
+  }
+  return (file, name) => limits.get(`${file}\0${name}`);
+}
 
 /**
  * The durations every announcement of a finished file reported, keyed the way
@@ -112,10 +142,11 @@ export function reportedCases(module: ReportedModule): Pick<{ cases?: readonly F
   };
 }
 
-export function finishedCase(name: string, id: string | undefined, duration: unknown): FinishedCase {
+export function finishedCase(name: string, id: string | undefined, duration: unknown, limit?: number): FinishedCase {
   return {
     name,
     ...(id === undefined ? {} : { id }),
     ...(typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? { duration } : {}),
+    ...(limit === undefined ? {} : { limit }),
   };
 }

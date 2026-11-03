@@ -104,6 +104,7 @@ describe('the slowest recorded test files', () => {
         timed: 4,
         untimed: 1,
         scope: { unrecorded: [] },
+        origin: 'own',
         cases: { recording: at, ...NO_CASES },
       },
     ]);
@@ -126,6 +127,7 @@ describe('the slowest recorded test files', () => {
     expect(recordedDurations(root, 3)).toEqual([
       {
         recording: testCoverageFile(root),
+        origin: 'own',
         unread: 'nothing is recorded there',
         cases: { recording: testCoverageFile(root), ...NO_CASES },
       },
@@ -167,10 +169,134 @@ describe('the slowest recorded test cases', () => {
         { file: 'test/b.test.ts', name: 'reads > once', duration: 480 },
         { file: 'test/b.test.ts', name: 'reads > twice', duration: 480 },
       ],
+      closest: [],
+      limited: 0,
+      faster: 0,
       timed: 3,
       untimed: 1,
       scope: { unrecorded: [] },
     });
+  });
+});
+
+/** Cases a limit reads differently from a clock: the long one has room, the short one has none. */
+function limitedCases(): string {
+  return record(coverage([['test/a.test.ts', 300], ['slow/b.test.ts', 500]]), {
+    tests: [
+      { id: 'a', file: 'slow/b.test.ts', name: 'imports the world', duration: 40_000, limit: 60_000 },
+      { id: 'b', file: 'test/a.test.ts', name: 'nearly out', duration: 4_900, limit: 5_000 },
+      { id: 'c', file: 'test/a.test.ts', name: 'hooks ran long', duration: 5_300, limit: 5_000 },
+      { id: 'd', file: 'test/a.test.ts', name: 'never said', duration: 7_000 },
+      { id: 'e', file: 'test/a.test.ts', name: 'quick', duration: 10, limit: 5_000 },
+      { id: 'f', file: 'test/a.test.ts', name: 'untimed', limit: 5_000 },
+    ],
+    modules: [],
+  });
+}
+
+describe('the cases closest to their limit', () => {
+  it('ranks by how much of its limit a case ran, so 4.9 s of 5 s stands above 40 s of 60 s', () => {
+    limitedCases();
+
+    const [suite] = recordedDurations(root, 3);
+
+    expect(suite?.cases).toMatchObject({
+      closest: [
+        { name: 'hooks ran long', duration: 5_300, limit: 5_000 },
+        { name: 'nearly out', duration: 4_900, limit: 5_000 },
+        { name: 'imports the world', duration: 40_000, limit: 60_000 },
+      ],
+      limited: 4,
+      timed: 5,
+      untimed: 1,
+    });
+  });
+
+  it('breaks a tie of the same share by the longer run, then by file and name', () => {
+    record(coverage([['test/a.test.ts', 300]]), {
+      tests: [
+        { id: 'a', file: 'test/a.test.ts', name: 'half of little', duration: 100, limit: 200 },
+        { id: 'b', file: 'test/a.test.ts', name: 'half of much', duration: 1_000, limit: 2_000 },
+      ],
+      modules: [],
+    });
+
+    const [suite] = recordedDurations(root, 2);
+
+    expect(suite?.cases).toMatchObject({ closest: [{ name: 'half of much' }, { name: 'half of little' }] });
+  });
+
+  it('leaves a record before the column with nothing to rank, and every case still timed', () => {
+    twoModules();
+
+    const [suite] = recordedDurations(root, 2);
+
+    expect(suite?.cases).toMatchObject({ closest: [], limited: 0, timed: 3 });
+  });
+});
+
+describe('cases that ran at least a time', () => {
+  it('keeps only those cases, in both rankings, counting what ran faster and leaving the untimed unknown', () => {
+    limitedCases();
+
+    const [suite] = recordedDurations(root, 10, {}, 5_000);
+
+    expect(suite?.cases).toMatchObject({
+      slowest: [{ name: 'imports the world' }, { name: 'never said' }, { name: 'hooks ran long' }],
+      closest: [{ name: 'hooks ran long' }, { name: 'imports the world' }],
+      limited: 2,
+      timed: 3,
+      faster: 2,
+      untimed: 1,
+    });
+  });
+
+  it('keeps a case that ran exactly that long', () => {
+    limitedCases();
+
+    const [suite] = recordedDurations(root, 10, {}, 5_300);
+
+    expect(suite?.cases).toMatchObject({ timed: 3 });
+  });
+
+  it('narrows inside the scope, and counts inside it', () => {
+    limitedCases();
+
+    const [suite] = recordedDurations(root, 10, { from: ['slow'] }, 3_000);
+
+    expect(suite?.cases).toMatchObject({ slowest: [{ name: 'imports the world' }], timed: 1, faster: 0, untimed: 0 });
+  });
+});
+
+describe('the record an answer read', () => {
+  function committed(): string {
+    const git = (...args: readonly string[]): string =>
+      execFileSync('git', ['-C', root, '-c', 'user.name=a', '-c', 'user.email=a@b', ...args], {
+        encoding: 'utf8',
+        env: { ...process.env, GIT_COMMITTER_DATE: '2026-10-01T12:00:00Z' },
+      }).trim();
+    git('commit', '--quiet', '--allow-empty', '-m', 'one');
+    return git('rev-parse', 'HEAD');
+  }
+
+  it('names the commit it was taken at and when that commit was made', () => {
+    const commit = committed();
+    record({ ...coverage([['test/a.test.ts', 40]]), commit });
+
+    const [suite] = recordedDurations(root, 1);
+
+    expect(suite).toMatchObject({ origin: 'own', commit });
+    expect(Date.parse((suite as { committed: string }).committed)).toBe(Date.parse('2026-10-01T12:00:00Z'));
+  });
+
+  it('keeps a commit this checkout does not hold, with no time to give it', () => {
+    const commit = 'f'.repeat(40);
+    record({ ...coverage([['test/a.test.ts', 40]]), commit });
+
+    const [suite] = recordedDurations(root, 1);
+
+    expect(suite).toMatchObject({ commit });
+    expect(suite).not.toHaveProperty('committed');
   });
 });
 

@@ -1,6 +1,6 @@
 /**
- * `docs_slowest_tests` — which recorded test files, and which test cases, took
- * longest, anywhere or somewhere.
+ * `docs_slowest_tests` — which recorded test cases are closest to their limit,
+ * and which test files and cases took longest, anywhere or somewhere.
  *
  * The duration is read from what the test runner reported when the run was
  * recorded: for a file, what running it cost, the larger of its duration and
@@ -12,7 +12,8 @@
  * *Slowest* means little without *where*, so a question may narrow it: `from`
  * keeps the tests declared under a path, `to` the tests the recording says
  * entered one. Both are answered by the recording (`recordedDurations`), which
- * owns what ran where; nothing here walks an import.
+ * owns what ran where; nothing here walks an import. `over` narrows by time:
+ * only the cases that ran at least that long.
  *
  * The reading is `@variance-authority/sense`'s: it opens the snapshot the latest
  * recorded run published, suite by suite, the same way `docs_orient` finds the
@@ -23,7 +24,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
-import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
+import { limitOf, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
@@ -48,6 +49,19 @@ export function scopeOf(input: Readonly<Record<string, unknown>>): DurationScope
   return { ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) };
 }
 
+const TIME = /^(\d+(?:\.\d+)?)(ms|s)$/u;
+
+/** `over` as asked, in milliseconds: `3s`, `1.5s`, `500ms`. Anything else is refused, never read as no filter. */
+export function overOf(input: Readonly<Record<string, unknown>>, spell: Spelling): number | undefined {
+  const said = input['over'];
+  if (said === undefined) return undefined;
+  const time = typeof said === 'string' ? TIME.exec(said.trim()) : null;
+  if (time === null) {
+    throw new Error(`\`${spell.input('over')}\` takes a time such as \`3s\` or \`500ms\`; it was given \`${String(said)}\`.`);
+  }
+  return Number(time[1]) * (time[2] === 's' ? 1000 : 1);
+}
+
 /** Refuse a `from` or `to` path that is in neither the recording nor the checkout. */
 function refuseUnknown(root: string, scope: DurationScope): void {
   const recorded = recordedOnce(root);
@@ -65,12 +79,15 @@ const PATHS = { type: 'array', items: { type: 'string' } } as const;
 export const slowestTests: Tool<unknown> = {
   name: 'docs_slowest_tests',
   description:
-    'The test files, then the test cases, that took longest in the latest recorded run, slowest first, with ' +
-    'what each took as its test runner timed it, a file\'s time including its environment, setup files and import ' +
-    'before its first case; a case row names its file and its declaration path. ' +
+    'Which record it read, whose run, at which commit and how old; then the test cases closest to their limit, ' +
+    'each as its run and its limit; then the test files and the test cases that took longest in that run, slowest ' +
+    'first, with what each took as its test runner timed it, a file\'s time including its environment, setup files ' +
+    'and import before its first case; a case row names its file and its declaration path. ' +
+    'A run spans hooks and attempts and a limit one attempt, so a passing case can read above its limit. ' +
     '`from` keeps the tests declared under the paths given, `to` the tests the recording says entered code ' +
-    'in them, and the two combine. Counts are within that scope, a path the recording has no row for is ' +
-    'named as unrecorded, and files and cases whose runner reported no duration are counted, not ranked. ' +
+    'in them, and the two combine. `over` keeps only the cases that ran at least that long, and leaves the files ' +
+    'out. Counts are within that scope, a path the recording has no row for is named as unrecorded, and files and ' +
+    'cases whose runner reported no duration or limit are counted, not ranked. ' +
     'Reads the recording a test run with test selection published; runs and times nothing itself.',
   inputSchema: {
     type: 'object',
@@ -87,6 +104,10 @@ export const slowestTests: Tool<unknown> = {
           'Optional. Repo-relative paths; only tests the recording says entered code in a file at or ' +
           'under one. Read from the recording, not from imports.',
       },
+      over: {
+        type: 'string',
+        description: 'Optional. A time such as `3s` or `500ms`; only the cases that ran at least that long.',
+      },
       limit: {
         type: 'integer',
         minimum: 1,
@@ -97,13 +118,15 @@ export const slowestTests: Tool<unknown> = {
   },
 
   run: (_subject, input, invocation) => {
-    const limit = limitOf(input, SLOWEST, spellingOf(invocation));
+    const spell = spellingOf(invocation);
+    const limit = limitOf(input, SLOWEST, spell);
+    const over = overOf(input, spell);
     const scope = scopeOf(input);
     const root = invocation?.root;
     if (root === undefined) {
       throw new Error('`slowest-tests` reads what a checkout published, and this host named no checkout to read');
     }
     refuseUnknown(root, scope);
-    return formatSlowest(recordedDurations(root, limit, scope), scope);
+    return formatSlowest(recordedDurations(root, limit, scope, over), scope, over);
   },
 };

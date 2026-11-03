@@ -25,9 +25,10 @@ const AMBIENT = '';
  * varint path already costs. NUL is the separator because it is the one byte a
  * file path and a test name cannot contain.
  */
-function packCase(file: string, name: string, id: string, project?: string): string {
+function packCase(file: string, name: string, id: string, project?: string, limit?: number): string {
   const packed = `${file}\u0000${name}\u0000${id}`;
-  return project === undefined || project === '' ? packed : withField(packed, PROJECT, project);
+  const named = project === undefined || project === '' ? packed : withField(packed, PROJECT, project);
+  return limit === undefined ? named : withField(named, LIMIT, String(limit));
 }
 
 /**
@@ -76,6 +77,12 @@ function heardField(packed: string): string | undefined {
  */
 const PROJECT = 6;
 
+/**
+ * The milliseconds the case ran under, as its runner set them. Absent when the
+ * harness could not read one, which is not a case without a limit.
+ */
+const LIMIT = 7;
+
 function withField(packed: string, at: number, value: string): string {
   const fields = packed.split('\u0000');
   while (fields.length <= at) fields.push('');
@@ -98,14 +105,16 @@ function settledCase(packed: string, stopped: boolean): string {
   return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; stopped?: boolean } {
+function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; limit?: number; stopped?: boolean } {
   const parts = packed.split('\u0000');
   const project = parts[PROJECT];
+  const limit = parts[LIMIT];
   const coordinate = {
     file: parts[0] ?? packed,
     name: parts[1] ?? AMBIENT,
     id: parts[2] ?? AMBIENT,
     ...(project === undefined || project === '' ? {} : { project }),
+    ...(limit === undefined || limit === '' ? {} : { limit: Number(limit) }),
   };
   if (parts[SETTLED] === STOPPED) return { ...coordinate, stopped: true };
   if (parts[SETTLED] === FINISHED) return { ...coordinate, stopped: false };

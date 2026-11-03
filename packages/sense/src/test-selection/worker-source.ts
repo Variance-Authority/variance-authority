@@ -302,7 +302,7 @@ const caseKey = (test) => {
   // Required here, where a case is recorded, and not at the top: a runner that
   // records nothing never loads it.
   caseOwner ??= createRequire(${JSON.stringify(HERE)})('./case-owner.cjs');
-  return caseOwner.packCase(file, testName(test), test.id, test.file?.projectName);
+  return caseOwner.packCase(file, testName(test), test.id, test.file?.projectName, test.timeout);
 };
 
 // Where a \`variancePrecondition\` call stands. Hooks are wrapped when their

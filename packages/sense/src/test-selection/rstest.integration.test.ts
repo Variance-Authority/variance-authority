@@ -114,6 +114,9 @@ describe('the Rstest integration', () => {
       at('test/beta.case.ts > takes the beta path'),
     ]);
 
+    // The case's own timeout where it gave one, and the run's otherwise.
+    expect(index.tests.map((test) => test.limit)).toEqual([4321, 3210, 4321]);
+
     const decide = index.modules.find((module) => module.file === at('src/decide.ts'));
     expect(decide).toBeDefined();
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');

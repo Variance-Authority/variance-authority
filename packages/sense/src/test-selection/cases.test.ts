@@ -56,6 +56,14 @@ describe('a case coordinate', () => {
     });
   });
 
+  it('carries the limit its case ran under, beside the project, and packs as before without one', () => {
+    const limited = packCase('a.test.ts', 'adds', '1', 'unit', 5000);
+
+    expect(unpackCase(limited)).toEqual({ file: 'a.test.ts', name: 'adds', id: '1', project: 'unit', limit: 5000 });
+    expect(unpackCase(packCase('a.test.ts', 'adds', '1', undefined, 5000)).limit).toBe(5000);
+    expect(packCase('a.test.ts', 'adds', '1', undefined, undefined)).toBe(['a.test.ts', 'adds', '1'].join('\0'));
+  });
+
   it('reads a bare file path as the bucket no case owns', () => {
     expect(unpackCase('test/branch.case.ts')).toEqual({
       file: 'test/branch.case.ts',
