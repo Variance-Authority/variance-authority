@@ -30,7 +30,7 @@ import {
   type DriftChange,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import type { Relations } from '@variance-authority/core/relate';
+import { idOf, type Relations } from '@variance-authority/core/relate';
 import { filesBetween } from './base-diff.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineMissed, type MainlineBase } from './mainline-base.js';
@@ -88,7 +88,9 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
     return { unchecked: `the mainline's record was cut by probes \`${baseline.coverage.instrumentation}\` and this one by \`${head.coverage.instrumentation}\`` };
   }
   if (input.moved !== undefined) return { unchecked: `the change ${input.moved}, so the merge base's walk is not this one undone` };
-  const moved = input.movedBetween ?? input.between?.find((file) => walked(input, baseline.coverage, file));
+  const recorded = new Set(baseline.coverage.modules.map((module) => module.file));
+  const walked = (file: string) => idOf(relations, 'file', file) !== undefined || input.sources.has(file) || recorded.has(file);
+  const moved = input.movedBetween ?? input.between?.find(walked);
   if (moved !== undefined) {
     const away = input.distance === undefined ? '' : `, ${Math.abs(input.distance)} commit${Math.abs(input.distance) === 1 ? '' : 's'} ${input.distance < 0 ? 'past' : 'before'} the merge base`;
     const what = input.movedBetween ?? `moved \`${moved}\`, which the walk reads`;
@@ -106,11 +108,6 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
       { present: input.present, unread: new Map(base.unread.map(({ test, file }) => [test, file])) },
     ),
   };
-}
-
-/** Whether the walk reads `file`: a node of its graph, a source the index holds, or a module the baseline recorded. */
-function walked({ relations, sources }: DriftInput, coverage: TestCoverage, file: string): boolean {
-  return relations.index.has(`file:${file}`) || sources.has(file) || coverage.modules.some((module) => module.file === file);
 }
 
 /** What `files` moved that the walk or the run rests on, said as what they did, or `undefined` when they moved neither. */
@@ -159,11 +156,11 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
   const head = from.runs?.commit === undefined
     ? { missing: 'no run here listed itself, so which test files this change observed whole is not known' }
     : await observedAt(from.runs.commit, from.record, 'this record');
-  const between = 'missing' in baseline || baseline.commit === point.base ? undefined : await filesBetween(baseline.commit, point.base, root).catch(() => null);
+  const between = 'missing' in baseline || baseline.commit === point.base ? undefined : await filesBetween(baseline.commit, point.base, root).catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
   const suite = declared?.name;
   const moved = await movedUnder(root, suite, from.relations, from.changed, async () => from.installed);
   // The working tree's install is the merge base's whenever the change installed nothing differently, so the commits between are measured against it.
-  const movedBetween = moved !== undefined || between === undefined || between === null || 'missing' in baseline
+  const movedBetween = moved !== undefined || between === undefined || typeof between === 'string' || 'missing' in baseline
     ? undefined
     : await movedUnder(root, suite, from.relations, between, async () => installDiff(await commitPoint(baseline.commit, [], root), between, root));
   return reviewDrift({
@@ -172,10 +169,10 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     sources: from.sources,
     before: beforeOf(root, suite),
     unrelated: declared?.relations === false,
-    baseline: between === null ? { missing: `the commits between the mainline's record and ${point.base.slice(0, 12)} could not be compared` } : baseline,
+    baseline: typeof between === 'string' ? { missing: `the commits between the mainline's record and ${point.base.slice(0, 12)} could not be compared: ${between.trim()}` } : baseline,
     head,
     mergeBase: point.base,
-    ...(between === undefined || between === null ? {} : { between }),
+    ...(between === undefined || typeof between === 'string' ? {} : { between }),
     ...(moved === undefined ? {} : { moved }),
     ...(movedBetween === undefined ? {} : { movedBetween }),
     ...(mainline === undefined || 'miss' in mainline || mainline.distance === undefined ? {} : { distance: mainline.distance }),

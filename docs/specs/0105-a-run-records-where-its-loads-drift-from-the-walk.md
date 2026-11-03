@@ -1,13 +1,15 @@
 # Spec 0105 — a run records where its loads drift from the walk
 
-**Missing:** a reading of where a run's loads left the walk's prediction,
-compared with the mainline's and reported on the pull request. The reading is
-[`driftFromWalk`](../../packages/sense/src/test-selection/drift.ts): each test
-file that loaded a file its imports do not reach. When its first form landed, it
-named 923 loads over this repository's unit
-record, 566 of them from one helper that loads the CLI through `createRequire`
-and a dynamic `import()`, and nothing tells which of them are the runner doing
-what it was set up to do and which are new.
+**Missing:** the Vitest fixture that holds the review to a second runner's
+record, the check that names a suite whose test files share a realm as not
+checked, and the importer that made each load. The review reads where a run's
+loads left the walk against where the mainline's did and writes the shape change
+into the pull request's comment
+([`review-drift.ts`](../../packages/cli/src/commands/review-drift.ts)), comparing
+the rows test file by test file
+([`drift-change.ts`](../../packages/sense/src/test-selection/drift-change.ts))
+against the merge base's walk, the checkout's with the change's edges undone
+([`base-edges.ts`](../../packages/sense/src/test-selection/base-edges.ts)).
 **Built on:** the reading above and its fixture
 ([`drift.integration.test.ts`](../../packages/sense/src/test-selection/drift.integration.test.ts));
 the mocks a test declares, read off its tree
@@ -101,9 +103,10 @@ added is not walked at the merge base, one it removed is. A file the change
 created is not entered at the merge base. A test file whose baseline loads a
 file the change deleted, or reaches one through an import that no longer
 resolves, has no merge-base walk to read it against, and is counted, not
-compared. A change to what configures the walk — the suite's `before` files,
-a `tsconfig`, a package manifest or the lockfile — is read against no graph,
-and the review compares nothing and names the file.
+compared. A change to what the walk or the run rests on — a file the suite's
+declared `before` closure holds, or an install that moved a package or may have
+moved any — is read against no graph, and the review compares nothing and names
+the file or the package.
 
 The mainline's record need not stand at the merge base. A record from an
 earlier or a later mainline commit is a **compatible** baseline when the
@@ -197,8 +200,8 @@ few beside the file use they are read from.
   shared, is named with the reason, and nothing is compared.
 - An import the change added is not walked at the merge base and one it
   removed is; a test file whose baseline loads a deleted file is counted, not
-  compared; an edited `before` file, `tsconfig`, manifest or lockfile compares
-  nothing and names the file.
+  compared; a file the `before` closure holds, or an install that moved a package,
+  compares nothing and names the file or the package.
 - Grown and shrunk rows are reported only for test files both sides observed
   whole at their own commit; a test file the run did not run is not compared,
   one the baseline lacks is listed apart as its first drift, and one the pull

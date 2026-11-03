@@ -1,6 +1,7 @@
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
-import { driftFromWalk, type BaseEdges } from './drift.js';
+import type { BaseEdges } from './base-edges.js';
+import { driftFromWalk } from './drift.js';
 
 /**
  * `test/a.test.ts` imports `src/a.ts`, which imports `src/b.ts`, which imports

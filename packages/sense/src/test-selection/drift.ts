@@ -16,7 +16,8 @@
  * never joins the graph or changes what a selection runs.
  */
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, idOf, type Adjacency, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { undone, type BaseEdges } from './base-edges.js';
 
 /** One module's row of a record, as far as this reading needs it. */
 export interface LoadedModule {
@@ -34,25 +35,6 @@ export interface DriftRow {
 export interface Drift {
   readonly rows: DriftRow[];
   readonly unread: DriftRow[];
-}
-
-/**
- * The merge base's walk, as the checkout's with the change's edges undone
- * (`base-edges.ts`).
- */
-export interface BaseEdges {
-  /** Runtime edges the change added, by importer: the merge base's walk does not take them. */
-  readonly added: ReadonlyMap<NodeId, ReadonlySet<NodeId>>;
-  /** Runtime edges the change removed, by importer: only the merge base's walk takes them. */
-  readonly removed: ReadonlyMap<NodeId, readonly NodeId[]>;
-  /** Files the change created, which the merge base's walk never enters. */
-  readonly created: ReadonlySet<NodeId>;
-  /**
-   * Files whose merge-base edges are not known — an edit that does not parse,
-   * an import that no longer resolves — and files the change deleted. A test
-   * file whose walk enters one, or that loaded one, is unread.
-   */
-  readonly unknown: ReadonlySet<string>;
 }
 
 export interface DriftOptions {
@@ -87,18 +69,22 @@ export function driftFromWalk(
   const ids = (names: Iterable<string>) => [...names].flatMap((name) => fileId(name) ?? []);
   const asked = (names: readonly string[]) =>
     new Set(ids(names.flatMap((name) => relations.shadows.get(name) ?? [])));
-  const unknown = base === undefined ? new Set<NodeId>() : new Set(ids(base.unknown));
+  const unknown = base === undefined ? [] : ids(base.unknown).sort((a, b) => a - b);
+  const depends = base === undefined ? relations.depends : undone(relations, base);
+  const entered = (walk: Walk) => unknown.find((id) => walk.has(id));
 
-  const beforeWalk = new Walk(relations, base, unknown);
+  const beforeWalk = new Walk(depends, relations.names.length);
   beforeWalk.enter(ids(before), asked(before));
-  const walk = new Walk(relations, base, unknown);
+  const beforeStopped = entered(beforeWalk);
+  const walk = new Walk(depends, relations.names.length);
 
   const rows: DriftRow[] = [];
   const unread: DriftRow[] = [];
   for (const [test, files] of loadedBy) {
     walk.restart();
-    walk.enter(ids([test]), asked([test]));
-    const stopped = walk.stopped ?? beforeWalk.stopped ?? files.find((file) => base?.unknown.has(sources.get(file)!) === true);
+    walk.enter(ids([test]).filter((id) => base?.created.has(id) !== true), asked([test]));
+    const at = entered(walk) ?? beforeStopped;
+    const stopped = at === undefined ? files.find((file) => base?.unknown.has(sources.get(file)!) === true) : relations.names[at];
     if (stopped !== undefined) {
       unread.push({ file: stopped, test });
       continue;
@@ -126,20 +112,13 @@ class Walk {
   private readonly stamps: Uint32Array;
   private stamp = 1;
   private readonly stack: NodeId[] = [];
-  /** The first file this walk entered whose merge-base edges are not known. */
-  stopped: string | undefined;
 
-  constructor(
-    private readonly relations: Relations,
-    private readonly base: BaseEdges | undefined,
-    private readonly unknown: ReadonlySet<NodeId>,
-  ) {
-    this.stamps = new Uint32Array(relations.names.length);
+  constructor(private readonly depends: Adjacency, nodes: number) {
+    this.stamps = new Uint32Array(nodes);
   }
 
   restart(): void {
     this.stamp += 1;
-    this.stopped = undefined;
   }
 
   has(id: NodeId): boolean {
@@ -148,21 +127,18 @@ class Walk {
 
   /** Adds what `seeds` reach to this walk, never entering a node in `avoid`. */
   enter(seeds: readonly NodeId[], avoid: ReadonlySet<NodeId>): void {
-    const { offset, target, kind } = this.relations.depends;
+    const { offset, target, kind } = this.depends;
     for (const seed of seeds) this.visit(seed, avoid);
     while (this.stack.length > 0) {
       const id = this.stack.pop()!;
-      const added = this.base?.added.get(id);
       for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
-        if (RUNTIME[kind[edge]!] === 1 && added?.has(target[edge]!) !== true) this.visit(target[edge]!, avoid);
+        if (RUNTIME[kind[edge]!] === 1) this.visit(target[edge]!, avoid);
       }
-      for (const removed of this.base?.removed.get(id) ?? []) this.visit(removed, avoid);
     }
   }
 
   private visit(id: NodeId, avoid: ReadonlySet<NodeId>): void {
-    if (this.has(id) || avoid.has(id) || this.base?.created.has(id) === true) return;
-    if (this.unknown.has(id)) this.stopped ??= this.relations.names[id];
+    if (this.has(id) || avoid.has(id)) return;
     this.stamps[id] = this.stamp;
     this.stack.push(id);
   }
