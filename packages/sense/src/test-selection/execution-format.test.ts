@@ -370,6 +370,21 @@ describe('the preconditions each case named', () => {
     expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
   });
 
+  it('refuses a limit column that does not hold one entry per case, in either spelling', () => {
+    const short = (sections: { name: string; length: number }[]) => {
+      sections.find((section) => section.name === 'tests.limit')!.length = 4;
+    };
+    const tests = [
+      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', limit: 5000 },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', limit: 6000 },
+    ];
+    const rows = encodeExecutionIndex({ tests, modules: [] });
+    const set = encodeSetExecutionIndex({ tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(() => decodeExecutionIndex(withHeader(rows, short))).toThrow(/not a variance-authority execution index/);
+    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
+  });
+
   it('is refused by the row spelling, which has no place for a case whose crossing is not known', () => {
     const flagged: ExecutionIndex = {
       tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
