@@ -85,6 +85,10 @@ sentence that says what runs. Through a runner's seam — a config wrapped by
 [testing an edit](test-an-edit.md) sets it up — the same doubt is the line
 `variance-authority: declined: <why>`, and every test file runs.
 
+The output calls the file the record is kept in the *journal*. Each line range in
+it was cut from a module's text at the journal's commit, so a range is checked
+against that text before it is compared with your diff.
+
 | Doubt | What runs | What the output says |
 |---|---|---|
 | No record of the suite: not this checkout's, not the mainline's | every test file | `no execution journal at <path>` / `nothing to narrow by, so every test file runs` |
@@ -108,7 +112,7 @@ look like a clean one:
 
 - a record that exists but cannot be reached: `A selection that treated this as "nothing recorded" would skip nothing and look exactly like a clean answer.`;
 - a record that names no commit, with no `--since` to name one: `a selection measured from a guess would skip test files for lines nobody changed.`;
-- a runs record beside the record that cannot be read: `a selection that guessed would skip tests that should run.`
+- a file of runs kept beside the journal that cannot be read: `a selection that guessed would skip tests that should run.`
 
 When a suite declares nothing in `before`, every run says so:
 
