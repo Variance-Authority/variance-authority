@@ -103,10 +103,16 @@ treat unsoundly instead of claiming soundness. **Reiter** (1978) named the
 assumption underneath both: under the **closed world** what is not recorded is
 false, under the open world it is unknown.
 
+Static analysers that cannot be sound on an existing codebase accept what they
+report once as a **baseline** and report only what departs from it: PHPStan's
+`--generate-baseline`, Psalm's `--set-baseline`, detekt's `baseline.xml`.
+
 **What it means here.**
-[Spec 0105](../specs/0105-a-suite-declares-whether-its-world-is-closed.md) makes
-the assumption a per-suite declaration. A closed suite fails on a safety
-violation; an open one reports where the record stops, the soundiness way.
+[Spec 0105](../specs/0105-a-run-records-where-its-loads-drift-from-the-walk.md)
+does not ask a suite which world it is in. A run records its **drift**, the
+loads its imports do not reach, and the record its mainline published carries
+the baseline. A later run reports where the shape changed against it, the
+soundiness way, and a suite with a baseline is closed.
 
 ### Dominators, and where a region begins
 
