@@ -13,7 +13,6 @@
  * cell cannot list lines keeps the latest only.
  */
 
-import { codeUnitOrder } from '../segment/index.js';
 import type { KeptAt, LineCell, ShareLine, ShareMiss } from './line.js';
 
 /** The line that holds `line`'s record at `commit`. */
@@ -29,15 +28,14 @@ export interface KeptCommits {
 
 /**
  * Remove what `line` keeps by commit written before `before`, and name the
- * commits removed. The latest stays. A store that keeps none removes none, and
- * a record written since the listing is `conflict`, with nothing removed.
+ * commits removed. The latest stays, and a store that keeps none removes none.
  */
-export async function purgeKept(cell: LineCell, line: ShareLine, before: number): Promise<readonly string[] | 'conflict' | ShareMiss> {
+export async function purgeKept(cell: LineCell, line: ShareLine, before: number): Promise<readonly string[] | ShareMiss> {
   if (cell.commits === undefined || cell.drop === undefined) return [];
   const held = await cell.commits(line);
   if (!Array.isArray(held)) return held as ShareMiss;
-  const old = (held as readonly KeptAt[]).filter((one) => one.written < before).sort((a, b) => codeUnitOrder(a.commit, b.commit));
+  const old = (held as readonly KeptAt[]).filter((one) => one.written < before).map((one) => one.commit);
   if (old.length === 0) return [];
-  const dropped = await cell.drop(old.map((one) => ({ line: atCommit(line, one.commit), version: one.version })));
-  return dropped === 'dropped' ? old.map((one) => one.commit) : dropped;
+  const dropped = await cell.drop(old.map((commit) => atCommit(line, commit)));
+  return dropped === 'dropped' ? old : dropped;
 }

@@ -4,10 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { memoryLineCell, publishLine, type ShareEntry } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { parseArgs } from '../bin.js';
 import { keptBehind, type Env } from '../share-lines.js';
-import { purgeLines } from './share-purge.js';
+import { nearestHolding } from './mainline-entry.js';
+import { purgeLines, runSharePurge } from './share-purge.js';
 import { describePublish, mainlineIndex, publishRun } from './share.js';
 
 /**
@@ -29,6 +32,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -93,6 +97,46 @@ describe('a mainline record kept at its commit', () => {
   });
 });
 
+describe('the nearest record holding an entry', () => {
+  const MAIN = { kind: 'mainline', name: 'main' } as const;
+  const options = { descends: async () => undefined, image: async () => new Uint8Array() };
+  const entry = (name: string, commit: string): ShareEntry => ({ name, commit, bytes: new Uint8Array([1]) });
+
+  it('reads no kept commit for an entry the latest lacks, because no job published it', async () => {
+    const { dir, commits } = await repositoryOf(2);
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('report-v1', commits[0]!)], options);
+    const listing = vi.spyOn(cell, 'commits');
+
+    const found = await nearestHolding(cell, 'main', commits[1]!, 'suite-v1/unit', dir);
+
+    expect(found).toMatchObject({ miss: { kind: 'absent' }, holds: ['report-v1'] });
+    expect(listing).not.toHaveBeenCalled();
+  });
+
+  it('reads the latest at the merge base when its publish stopped before keeping it by commit', async () => {
+    const { dir, commits } = await repositoryOf(2);
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('report-v1', commits[0]!)], options);
+    await publishLine({ ...cell, commits: undefined }, MAIN, [entry('report-v1', commits[1]!)], options);
+
+    const found = await nearestHolding(cell, 'main', commits[1]!, 'report-v1', dir);
+
+    expect(found).toMatchObject({ entry: { commit: commits[1] } });
+  });
+
+  it('reads the format asked for behind the merge base when the latest moved to a newer one', async () => {
+    const { dir, commits } = await repositoryOf(3);
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('report-v1', commits[0]!)], options);
+    await publishLine(cell, MAIN, [entry('report-v2', commits[2]!)], options);
+
+    const found = await nearestHolding(cell, 'main', commits[1]!, 'report-v1', dir);
+
+    expect(found).toMatchObject({ entry: { commit: commits[0] } });
+  });
+});
+
 describe('`variance share --purge-older-than`', () => {
   it('takes whole days, and no suite, report or publish beside them', () => {
     expect(parseArgs(['share', '--purge-older-than', '30', '--mainline', 'main'])).toMatchObject({ purgeOlderThan: 30, mainline: 'main' });
@@ -115,6 +159,21 @@ describe('`variance share --purge-older-than`', () => {
     expect(done.lines).toEqual(['mainline main: removed 2 record(s) kept by commit older than 0 day(s).']);
     expect(await refs()).not.toContain('refs/variance/at/');
     expect(await refs()).toContain('refs/variance/mainline/main');
+  });
+
+  it('runs on the share the root config names, and says what it removed', async () => {
+    const { dir, commits } = await repositoryOf(1);
+    const config = { project: 'web', report: join(home, 'report.json'), share: { kind: 'git', mainlines: ['main'] } } as Config;
+    await publishRun(config, await reportAt(commits[0]!), { env: PUSH, cwd: dir });
+    await writeFile(join(dir, 'variance.config.json'), JSON.stringify({ share: config.share }));
+    vi.spyOn(process, 'cwd').mockReturnValue(dir);
+    const said: string[] = [];
+
+    const exit = await runSharePurge({ config: 'variance.config.json', purgeOlderThan: 0, mainline: 'main' }, { out: (text) => said.push(text) });
+
+    expect(exit).toBe(EXIT_CLEAN);
+    expect(said).toEqual(['mainline main: removed 1 record(s) kept by commit older than 0 day(s).\n']);
+    expect(await git(dir, 'ls-remote', 'origin', 'refs/variance/at/*')).toBe('');
   });
 });
 

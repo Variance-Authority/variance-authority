@@ -3,19 +3,11 @@
  * The mainline's record of a suite: fetched, kept where every reader and every
  * runner seam on this machine finds it, and reused until a nearer one can exist.
  *
- * `review` and `select` measure a change from the mainline's record, never the
- * branch's own, and only for a suite the root config gives to the share. The
- * bytes go into a read layer of their own, `share/read/<suite>/<commit>/` in
+ * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/` in
  * the cache, beneath every layer a run writes, and `fetched.json` names the one
  * fetched last, which is how the runner seams in
  * `@variance-authority/sense/test-selection` lay it under a checkout's first run.
- *
- * The best base is the record at `HEAD`'s merge base with the mainline. A fetch
- * costs a round trip, so the record fetched last stands without asking while it
- * is at that merge base. One anywhere else, or at a distance this clone cannot
- * count, is asked again on each read, since the merge base's job may publish
- * yet. A line that gave no record stands for {@link MISS_STANDS_MS}, and
- * `variance share --suite <name>` always asks.
+ * When the record fetched last stands without asking is {@link reuseOf}'s to say.
  */
 
 import { readFileSync } from 'node:fs';
@@ -65,11 +57,12 @@ export interface MainlineRecord {
   readonly fetched: string;
   /**
    * Present when it is the record fetched earlier: reused without asking
-   * because it is at `HEAD`'s merge base with the mainline, or kept because
+   * because the line holds nothing nearer `HEAD`'s merge base with the mainline
+   * (`nearest`) or was asked at this same merge base (`asked`), or kept because
    * the mainline gave no record, now or, as `asked` says, earlier within
    * {@link MISS_STANDS_MS}.
    */
-  readonly earlier?: { readonly reused: 'nearest' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
+  readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -106,6 +99,19 @@ export interface MainlineAsk {
   readonly refetch?: boolean;
   /** The clock, for a test. */
   readonly now?: number;
+}
+
+/**
+ * Why the record fetched last stands without asking the line, if it does. A
+ * share that keeps by commit can still gain a record at the merge base, so only
+ * one already there stands. A share that keeps the latest only can hold nothing
+ * nearer once its record is past the merge base, and is asked once per merge
+ * base behind it.
+ */
+function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere: boolean): 'nearest' | 'asked' | undefined {
+  if (distance === 0) return 'nearest';
+  if (keptByCommit) return undefined;
+  return distance !== undefined && distance < 0 ? 'nearest' : askedHere ? 'asked' : undefined;
 }
 
 /**
@@ -153,9 +159,8 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // At the merge base nothing is nearer. Anywhere else the merge base's
-      // job may publish its record yet, so the line is asked.
-      if (distance === 0) return earlier(last, { reused: 'nearest' }, distance, named?.base);
+      const reused = reuseOf(distance, share?.kind === 'git', last.base === named?.base);
+      if (reused !== undefined) return earlier(last, { reused }, distance, named?.base);
     }
     const noted = readMissedMainline(readRoot);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
@@ -386,7 +391,9 @@ export function mainlineRead(read: MainlineRecord): string {
   const when = read.earlier === undefined
     ? ''
     : 'reused' in read.earlier
-      ? `, fetched at ${read.fetched} and kept: the line holds nothing nearer the merge base`
+      ? `, fetched at ${read.fetched}` + (read.earlier.reused === 'nearest'
+        ? ' and kept: the line holds nothing nearer the merge base'
+        : ' and kept: the line was asked at this merge base')
       : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
         answeredAt(read.earlier.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +

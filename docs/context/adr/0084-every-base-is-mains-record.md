@@ -61,9 +61,11 @@ fetched here, and the reader says so.**
   it that holds the suite's record, whichever jobs published there, which
   charges the change with no commit of main's it lacks; the newest of the line
   answers only when nothing at or behind is kept, and a directory or an HTTP
-  store keeps the newest only. The record stands without asking only when it is
-  at the merge base, since nothing is nearer. Anywhere else the line is asked on
-  each read, because the merge base's job may publish yet. Every reader of a
+  store keeps the newest only. In a git share the record stands without asking
+  only when it is at the merge base, since nothing is nearer. Anywhere else the
+  line is asked on each read, because the merge base's job may publish yet. A
+  directory or an HTTP store has nothing nearer to offer, so its newest stands
+  once asked at this merge base, and past the merge base. Every reader of a
   checkout, and every CI job handed the read root, has one merge base and reads
   one record. A remote that does not answer leaves the record fetched earlier as
   the base, and the reader names when it was fetched and why it was not fetched
@@ -137,6 +139,9 @@ fetched here, and the reader says so.**
   job publishes; a merge base whose job never does is asked at each read, at
   most once a minute, until a pull moves it.
 - Kept records grow by one per green mainline commit until somebody purges.
+- A suite that publishes rarely costs a read per kept commit between it and the
+  merge base, and with nothing kept behind it the walk reads the whole
+  first-parent history. Neither is measured.
 - The publish job runs `vitest list` as well as the build.
 - A developer who never runs `variance share --suite <name>`, `test:since` or
   `select` has never fetched, and their seams lay the primary checkout's

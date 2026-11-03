@@ -57,23 +57,6 @@ describe('a mainline record kept at its commit', () => {
     expect(await readLine(cell, MAIN)).not.toHaveProperty('kind');
   });
 
-  it('removes nothing when a record is written after it was listed', async () => {
-    let now = 0;
-    const cell = memoryLineCell(() => now);
-    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], options);
-    now = 2 * DAY;
-    const racing = {
-      ...cell,
-      commits: async (line: Parameters<NonNullable<typeof cell.commits>>[0]) => {
-        const listed = await cell.commits!(line);
-        await publishLine(cell, atCommit(MAIN, sha(1)), [entry('report-v2', sha(1))], options);
-        return listed;
-      },
-    };
-    expect(await purgeKept(racing, MAIN, DAY)).toBe('conflict');
-    expect(await readLine(cell, atCommit(MAIN, sha(1)))).not.toHaveProperty('kind');
-  });
-
   it('keeps nothing by commit for a branch, or in a store that cannot list what it keeps', async () => {
     const cell = memoryLineCell();
     expect(await publishLine(cell, { kind: 'branch', name: 'feat/x' }, [entry('report-v1', sha(1))], options)).not.toHaveProperty('atCommit');

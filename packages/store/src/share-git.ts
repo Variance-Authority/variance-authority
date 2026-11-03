@@ -38,6 +38,8 @@ export interface GitLineOptions {
 
 const REMOTE = 'share';
 const EMPTY = '0'.repeat(40);
+/** Refs one push deletes: every one is an argument, and a purge can name years of them. */
+const DROP_PER_PUSH = 500;
 
 type Git = (args: readonly string[], input?: Uint8Array, env?: Record<string, string>) => Promise<Ran>;
 
@@ -143,19 +145,20 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     return ref;
   };
 
+  const held = async (marker: string): Promise<boolean> => {
+    const reuse = options.reuseMs ?? 0;
+    return reuse > 0 && stat(marker).then((file) => Date.now() - file.mtimeMs < reuse, () => false);
+  };
+
   // FIXME: the remote keeps `branch/Feature` and `branch/feature` apart, but on
   // a disk that ignores case this cache's loose ref and its marker are one file
   // for both, so fetching one line overwrites the other's local ref, and `blob`
   // and a reused marker then answer the other line's commit.
   async function fetched(ref: string): Promise<string | ShareMiss> {
     const marker = join(options.gitDir, 'variance-fetched', ref);
-    const reuse = options.reuseMs ?? 0;
-    if (reuse > 0) {
-      const held = await stat(marker).then((file) => Date.now() - file.mtimeMs < reuse, () => false);
-      if (held) {
-        const at = (await readFile(marker, 'utf8')).trim();
-        return at === '' ? { kind: 'absent' } : at;
-      }
+    if (await held(marker)) {
+      const at = (await readFile(marker, 'utf8')).trim();
+      return at === '' ? { kind: 'absent' } : at;
     }
     const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', `--filter=blob:none`, REMOTE, `+${ref}:${ref}`]);
     let at: string | ShareMiss;
@@ -275,39 +278,37 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     },
     async commits(line) {
       const pattern = `${namespace}/${keptAtPattern(line)}`;
-      // Commits only, never a tree: when a record was written is its commit's date.
-      const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
-      if (ran.code !== 0) return missOf(ran);
-      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix) %(objectname)', `${namespace}/`])).stdout);
+      const marker = join(options.gitDir, 'variance-fetched', 'listed', linePath(line));
+      if (!(await held(marker))) {
+        // Commits only, never a tree: when a record was written is its commit's date.
+        const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
+        if (ran.code !== 0) return missOf(ran);
+        await mkdir(dirname(marker), { recursive: true });
+        await writeFile(marker, '');
+      }
+      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix)', `${namespace}/`])).stdout);
       const kept: KeptAt[] = [];
       for (const row of listed.split('\n')) {
-        const [ref, seconds, version] = row.split(' ');
-        if (ref === undefined || seconds === undefined || version === undefined) continue;
+        const [ref, seconds] = row.split(' ');
+        if (ref === undefined || seconds === undefined) continue;
         const commit = keptAtOf(line, ref.slice(namespace.length + 1));
-        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000, version });
+        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000 });
       }
       return kept;
     },
     async drop(lines) {
-      const refs: { ref: string; version: string }[] = [];
-      for (const { line, version } of lines) {
+      const refs: string[] = [];
+      for (const line of lines) {
         const ref = refOf(line);
         if (typeof ref !== 'string') return ref;
-        refs.push({ ref, version });
+        refs.push(ref);
       }
-      if (refs.length === 0) return 'dropped';
-      const pushed = await git([
-        'push', '--no-verify', '--porcelain', '--atomic',
-        ...refs.map(({ ref, version }) => `--force-with-lease=${ref}:${version}`),
-        REMOTE, ...refs.map(({ ref }) => `:${ref}`),
-      ]);
-      if (pushed.code !== 0) {
-        // Another purge removed one first, or a publish wrote one since it was listed.
-        const now = await Promise.all(refs.map(({ ref }) => remoteAt(ref)));
-        if (now.some((held, index) => held !== '' && held !== undefined && held !== refs[index]!.version)) return 'conflict';
-        if (!now.every((held) => held === '')) return now.includes('') ? 'conflict' : missOf(pushed, refusalOf(pushed));
+      for (let at = 0; at < refs.length; at += DROP_PER_PUSH) {
+        const part = refs.slice(at, at + DROP_PER_PUSH);
+        const pushed = await git(['push', '--no-verify', '--porcelain', REMOTE, ...part.map((ref) => `:${ref}`)]);
+        if (pushed.code !== 0) return missOf(pushed, refusalOf(pushed));
+        await git(['update-ref', '--stdin'], bytes(part.map((ref) => `delete ${ref}\n`).join('')));
       }
-      for (const { ref } of refs) await git(['update-ref', '-d', ref]);
       return 'dropped';
     },
   };

@@ -195,8 +195,7 @@ describe('createGitLineCell', { timeout: 15_000 }, () => {
     expect(listed.map((held) => held.commit).sort()).toEqual([one, two]);
     expect(listed.every((held) => Math.abs(held.written - Date.now()) < 60_000)).toBe(true);
 
-    const held = listed.find((kept) => kept.commit === one)!;
-    expect(await reader.drop!([{ line: atCommit(MAIN, one), version: held.version }])).toBe('dropped');
+    expect(await reader.drop!([atCommit(MAIN, one)])).toBe('dropped');
     expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim())
       .toBe(`refs/variance/at/${two}/mainline/release/2.0`);
   });
@@ -211,31 +210,45 @@ describe('createGitLineCell', { timeout: 15_000 }, () => {
     expect(listed.map((held) => held.commit)).toEqual([one]);
   });
 
-  it('drops what another job publishing at the same commit dropped first', async () => {
-    const image = async (): Promise<Uint8Array> => ascii('png');
-    const one = 'a'.repeat(40);
-    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
-    const late = cellAt('b');
-    const listed = await late.commits!(MAIN);
-    if (!Array.isArray(listed) || listed.length !== 1) throw new Error('not listed');
-    const kept = [{ line: atCommit(MAIN, one), version: listed[0]!.version }];
-    expect(await cellAt('a').drop!(kept)).toBe('dropped');
 
-    expect(await late.drop!(kept)).toBe('dropped');
+  it('lists from the remote once within its reuse', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const [one, two] = ['a'.repeat(40), 'b'.repeat(40)];
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    const reader = createGitLineCell({ url, gitDir: join(home, 'reader'), reuseMs: 60_000 });
+    expect(await reader.commits!(MAIN)).toMatchObject([{ commit: one }]);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', two, 'two')], { descends, image });
+
+    expect(await reader.commits!(MAIN)).toMatchObject([{ commit: one }]);
+    expect(await cellAt('fresh').commits!(MAIN)).toHaveLength(2);
   });
 
-  it('keeps what another job wrote at the same commit after it was listed', async () => {
+  it('drops more lines than one push names', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    const record = git(remote, 'rev-parse', `refs/variance/at/${one}/mainline/release/2.0`).trim();
+    const refs = Array.from({ length: 1201 }, (_, index) => `refs/variance/at/${index.toString(16).padStart(40, '0')}/mainline/release/2.0`);
+    execFileSync('git', ['--git-dir', remote, 'update-ref', '--stdin'], { input: refs.map((ref) => `create ${ref} ${record}\n`).join('') });
+    const reader = cellAt('b');
+    const listed = await reader.commits!(MAIN);
+    if (!Array.isArray(listed)) throw new Error('not listed');
+    expect(listed).toHaveLength(1202);
+
+    expect(await reader.drop!(listed.map((held) => atCommit(MAIN, held.commit)))).toBe('dropped');
+    expect(git(remote, 'for-each-ref', 'refs/variance/at/').trim()).toBe('');
+  });
+
+  it('drops what another purge removed first', async () => {
     const image = async (): Promise<Uint8Array> => ascii('png');
     const one = 'a'.repeat(40);
     await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
     const late = cellAt('b');
-    const listed = await late.commits!(MAIN);
-    if (!Array.isArray(listed) || listed.length !== 1) throw new Error('not listed');
-    await publishLine(cellAt('a'), atCommit(MAIN, one), [entry('suite-v1/web', one, 'web')], { descends, image });
+    await late.commits!(MAIN);
+    expect(await cellAt('a').drop!([atCommit(MAIN, one)])).toBe('dropped');
 
-    expect(await late.drop!([{ line: atCommit(MAIN, one), version: listed[0]!.version }])).toBe('conflict');
-    expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim())
-      .toBe(`refs/variance/at/${one}/mainline/release/2.0`);
+    expect(await late.drop!([atCommit(MAIN, one)])).toBe('dropped');
+    expect(await late.commits!(MAIN)).toEqual([]);
   });
 });
 

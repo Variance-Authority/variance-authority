@@ -17,7 +17,7 @@ import { EXIT_CLEAN } from '../exit.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { MISS_STANDS_MS, mainlineBase, mainlineMissed } from './mainline-base.js';
-import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, git, gitPublished, ranWhole, recordIn } from './mainline-fixture.js';
+import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, git, gitPublished, published, publishTo, ranWhole, recordIn } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare } from './suite-share.js';
 
@@ -323,6 +323,40 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     const kept = await base(NOW + 2 * 60_000);
 
     expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: { kind: 'unreachable' } } });
+  });
+});
+
+describe('a record fetched earlier from a share that keeps the latest only', { timeout: 15_000 }, () => {
+  it('stands past the merge base, because the line holds nothing nearer it', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    const { dir: ci, origin } = await published(home);
+    const next = await pushed(ci);
+    await recordIn(ci, next, ['test/total.test.ts'], [DISCOUNTS]);
+    await publishTo(home, ci, next, PUSH, 'mainline main');
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: next, distance: 0, fetched: at(NOW) });
+    await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'nearest' } });
+  });
+
+  it('is asked once the merge base moves past it, and stands once asked there', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    const { dir: ci, origin, first } = await published(home);
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+
+    const asked = await base(NOW + 60_000);
+    expect(asked).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
+    expect(asked).not.toHaveProperty('earlier');
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
   });
 });
 

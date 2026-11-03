@@ -113,21 +113,16 @@ export interface LineCell {
    */
   commits?(line: ShareLine): Promise<readonly KeptAt[] | ShareMiss>;
   /**
-   * Remove lines, every one or none, each only while it is still at the version
-   * listed: a line written since is `conflict`, and nothing is removed.
-   * Present wherever `commits` is.
+   * Remove lines. A miss can follow some removed, and listing again names the
+   * rest. Present wherever `commits` is.
    */
-  drop?(lines: readonly { readonly line: ShareLine; readonly version: string }[]): Promise<'dropped' | 'conflict' | ShareMiss>;
+  drop?(lines: readonly ShareLine[]): Promise<'dropped' | ShareMiss>;
 }
 
-/**
- * One commit a mainline's record is kept at, when it was written, in ms since
- * the epoch, and the version `load` gives that line, which `drop` removes.
- */
+/** One commit a mainline's record is kept at, and when it was written, in ms since the epoch. */
 export interface KeptAt {
   readonly commit: string;
   readonly written: number;
-  readonly version: string;
 }
 
 /** An entry name, read. */

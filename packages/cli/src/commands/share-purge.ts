@@ -1,11 +1,11 @@
-// compass: variance-authority.reach
+// compass: variance-authority.retention
 /**
  * `variance share --purge-older-than <days>`: the records kept by commit
  * removed on request. Nothing else removes them, so a share that never asks
  * keeps them all, or leaves them to whatever expires its refs.
  */
 
-import { purgeKept } from '@variance-authority/core/share';
+import { purgeKept, type ShareMiss } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
@@ -39,7 +39,7 @@ export async function purgeLines(
       continue;
     }
     exit = EXIT_OPERATOR;
-    lines.push(`mainline ${name}: nothing removed: ${purged === 'conflict' ? 'a record was written since it was listed, so run it again' : describeMiss(purged as Exclude<typeof purged, 'conflict' | readonly string[]>)}.`);
+    lines.push(`mainline ${name}: not finished, so run it again: ${describeMiss(purged as ShareMiss)}.`);
   }
   return { lines, exit };
 }

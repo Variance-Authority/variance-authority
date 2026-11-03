@@ -5,7 +5,7 @@
  * which files declare which components — is expensive and identical on every
  * machine that starts from the same tree, so a pull-request runner reads what
  * mainline already published. A `LineCell` holds the latest of one mainline or
- * branch, and a mainline's at its recent commits; `publishLine` writes it and
+ * branch, and a mainline's at each commit it published; `publishLine` writes it and
  * `readLine` reads it back, with the reason when it cannot.
  *
  * Not a baseline store: a line holds only what its commit can derive again, so
