@@ -1,15 +1,15 @@
 # Spec 0105 — a run records where its loads drift from the walk
 
 **Missing:** a reading of where a run's loads left the walk's prediction,
-compared with the mainline's and reported on the pull request. The check
-exists: [`unreachedLoads`](../../packages/sense/src/test-selection/closed-world.ts)
-names each test file that loaded a file its imports do not reach, and nothing
-calls it. When it landed, it named 923 loads over this repository's unit
+compared with the mainline's and reported on the pull request. The reading is
+[`driftFromWalk`](../../packages/sense/src/test-selection/drift.ts): each test
+file that loaded a file its imports do not reach. When its first form landed, it
+named 923 loads over this repository's unit
 record, 566 of them from one helper that loads the CLI through `createRequire`
 and a dynamic `import()`, and nothing tells which of them are the runner doing
 what it was set up to do and which are new.
-**Built on:** the check above and its fixture
-([`closed-world.integration.test.ts`](../../packages/sense/src/test-selection/closed-world.integration.test.ts));
+**Built on:** the reading above and its fixture
+([`drift.integration.test.ts`](../../packages/sense/src/test-selection/drift.integration.test.ts));
 the mocks a test declares, read off its tree
 ([`mocks.ts`](../../packages/sense/src/taint/mocks.ts)); the precision ladder
 and its union
@@ -48,14 +48,21 @@ suite's `before` files do not reach: one row per test file and loaded file. It
 is a reading of the record against the walk, not a configuration and not a
 second table of imports. It never joins the graph and never changes what a
 selection runs: the union at `file` and `symbol` already keeps every file the
-record holds, and stays. Whoever changes the walk reads its rows as the walk's
-misses, each one a resolver defect or a load no source names.
+record holds, and stays.
+
+Drift is an observed difference, not a defect. A row says the run loaded a file
+the walk does not reach; it does not say why. A `moduleNameMapper` entry, a
+setup file, a computed `require`, a lazy `import()` behind a flag, an
+environment variable a config reads: each makes a load the source names nowhere
+as an edge, and each can move between two runs with no edit to the graph. A
+row the walk should have read — `import.meta.glob`, `createRequire().resolve`
+of a literal, a resolver defect — is one cause among these, and the row alone
+never tells which.
 
 A mock the runner served is drift like any other runner-made load, and sits in
-the baseline from the first run. `unreachedLoads` today exempts a `__mocks__`
-file whose original the test reaches or mocks, or whose package it reaches;
-that is the runner's mapping guessed from a path, the rule this spec drops, and
-it is deleted when drift is wired. A mock a test declares in its own text —
+the baseline from the first run. No `__mocks__` file is exempt by its path: that
+would be the runner's mapping guessed from a path, the rule this spec drops. A
+mock a test declares in its own text —
 `jest.mock`, `vi.mock` — is read off the tree as a cut, and an original its
 factory loads as an edge, and both stay.
 
@@ -72,8 +79,8 @@ builds the checkout's graph. The run that writes a record does not read it, so
 recording costs what it does today and every runner's record is read the same
 way.
 
-The **baseline** is the drift of the mainline's record at the pull request's
-merge base, read against the graph of the merge base. The pull request's drift
+The **baseline** is the drift of the mainline's record, read against the graph
+of the pull request's merge base. The pull request's drift
 is its record read against the graph of its checkout. Both walks are made by
 the Variance that compares, so a resolver fix or a release moves both sides
 together, and a pull request that removes an import or renames a file a test
@@ -82,17 +89,32 @@ change nobody made. Each side's walk reads that side's suite configuration too
 — its `before` files, its aliases, its `relations` — so a pull request that adds
 a setup file is read against its own. A load that stays after its import is
 removed, through a setup file, a mapper or a dynamic import, is drift the pull
-request made, and reads as grown. Nothing is stored for it: drift is derived from the file
+request made, and reads as grown, though the graph is what moved. Nothing is stored for it: drift is derived from the file
 use the record already holds, so the record does not grow. Accepting it is
 publishing the record: there is no file to write by hand, and no tracked file
 moves, because a record is not part of git.
 
-A record at any other commit is not a baseline. One past the merge base holds
-the mainline's own changes since the branch point, and one behind it misses
-them; either would name another pull request's change on this one. When the
-mainline's record is not at the merge base, or there is none, or the records
-are not shared, the review names which and how many commits away the record
-is, and compares nothing.
+The merge base's graph is the checkout's with the change undone where it moved
+an edge. Each file the change edits is read in both texts, and an import bound
+in one text only is resolved and charged to that side: one the pull request
+added is not walked at the merge base, one it removed is. A file the change
+created is not entered at the merge base. A test file whose baseline loads a
+file the change deleted, or reaches one through an import that no longer
+resolves, has no merge-base walk to read it against, and is counted, not
+compared. A change to what configures the walk — the suite's `before` files,
+a `tsconfig`, a package manifest or the lockfile — is read against no graph,
+and the review compares nothing and names the file.
+
+The mainline's record need not stand at the merge base. A record from an
+earlier or a later mainline commit is a **compatible** baseline when the
+commits between it and the merge base touch no file the walk reads and nothing
+that configures it: their record would be the same reading of the same walk.
+When they touch one, the baseline is **incompatible**: its drift could hold
+the mainline's own changes since the branch point, or miss them, and would
+name another pull request's change on this one. The review then names the
+record's commit, how many commits away it is and the first file between them
+that moved the walk, and compares nothing. A suite with no mainline record, or
+records not shared, is named the same way.
 
 A suite with `relations: false` has no walk, so it has no drift. Nor has a
 suite whose test files share a realm — Vitest's `isolate: false`, a reused page
@@ -131,11 +153,13 @@ brings in a dynamic import by a computed name, a mapper entry or an
 
 A shape change is not a failure. Every row of it was recorded by a test that
 ran, so the record already holds what selection needs for that test, and
-failing a correct change on a correct record is a false positive. What a row
-asks for is a decision. A load the walk should have read —
-`import.meta.glob`, `createRequire().resolve` of a literal, a resolver defect —
-is a defect in Variance and is fixed here. A load the runner was set up to make
-stays in the baseline once the pull request merges.
+failing a correct change on a correct record is a false positive. A grown row
+is not a new edge and not a resolver defect until somebody reads why the file
+loaded: a configuration, an environment, a lazy branch the change's run took,
+or a load the walk should have read. The comment names the row; the reader
+names its cause. One the runner was set up to make stays in the baseline once
+the pull request merges, and one the walk should have read is a defect in
+Variance, fixed here.
 
 ## A baseline explains every load
 
@@ -153,9 +177,9 @@ it.
 
 Drift is computed by the review, never per selection and never by the run, so
 coverage selection still takes no graph and recording takes no more time. The
-review already builds the checkout's graph; the merge base's graph is the one
-it adds, and its cost is measured against the review's own time with the
-change that wires it. `unreachedLoads` itself walks each test file forward once
+review already builds the checkout's graph; the merge base's is that graph
+with the change's edges undone, so it costs a parse of each edited file's two
+texts and a resolve of the imports bound in one only. `driftFromWalk` itself walks each test file forward once
 and costs what the record lists: 13–74 ms per record on this repository, and
 2.1 s on a synthetic graph of 425,000 nodes and 6.3 million loads. Its rows are
 few beside the file use they are read from.
@@ -165,10 +189,16 @@ few beside the file use they are read from.
 - `variance review` with `relations` on writes the drift's shape change into
   the pull request's comment; with `relations: false` it says the first
   inclusion was not checked. No runner seam computes or prints drift.
-- The baseline is the mainline's record at the merge base, fetched through
-  `mainlineBase`, read against the merge base's graph; the record carries no
-  drift of its own. A record at another commit, none, or records not shared is
-  named with the reason and the distance, and nothing is compared.
+- The baseline is the mainline's record, fetched through `mainlineBase`, read
+  against the merge base's graph; the record carries no drift of its own. A
+  record at another commit is compared when the commits between touch nothing
+  the walk reads, and is otherwise named incompatible with its commit, its
+  distance and the first file that moved the walk; none, or records not
+  shared, is named with the reason, and nothing is compared.
+- An import the change added is not walked at the merge base and one it
+  removed is; a test file whose baseline loads a deleted file is counted, not
+  compared; an edited `before` file, `tsconfig`, manifest or lockfile compares
+  nothing and names the file.
 - Grown and shrunk rows are reported only for test files both sides observed
   whole at their own commit; a test file the run did not run is not compared,
   one the baseline lacks is listed apart as its first drift, and one the pull
@@ -178,27 +208,25 @@ few beside the file use they are read from.
   records of different recorder formats are each counted under their reason and
   not compared.
 - A suite whose files share a realm is named as not checked.
-- Renaming a file a test reaches only through drift reports one shrunk and one
-  grown row under the exact names.
-- The Jest fixture of `closed-world.integration.test.ts` — a mapper for styles
+- The Jest fixture of `drift.integration.test.ts` — a mapper for styles
   and a path alias, `__mocks__` beside a module and under the root, automock
   with opt-outs, `requireActual`, `isolateModules` and a setup file — reviewed
   against itself reports no shape change. Adding a computed-name load to a test
   file the baseline holds reports exactly one grown row, and removing it
   reports exactly one shrunk row; both fail first on today's code, which
   reports nothing.
-- Removing a static import from that fixture, and renaming a file a test loads
-  through one, report no shape change.
+- Removing a static import from that fixture reports no shape change, and
+  renaming a file a test loads through one counts that test file as not
+  compared.
 - Drift is read from every record that holds file use, whatever runner wrote
   it. Jest and Vitest records hold it today, and each gets a fixture: the
   Vitest one has `resolve.alias`, `vi.mock` with and without a factory,
   `importOriginal` and `vi.resetModules`, reports no shape change against
   itself and one grown row for an added computed-name load, and fails first.
   A runner whose record holds no file use is named as not checked.
-- `closed-world.ts` is named and documented for drift, not for a declared
-  world, and its `__mocks__` exemption is deleted. The `it.todo` in
-  `closed-world.test.ts` that fails a closed suite's run is replaced by the
-  review's shape change.
+- `drift.ts` is named and documented for drift, not for a declared world, and
+  exempts no `__mocks__` file. No test fails a suite's run on drift: the
+  review's shape change takes that place.
 
 ## Not here
 
@@ -206,8 +234,7 @@ Drift is read per test file, which is enough to report it and to judge it. It
 cannot speak for a test file that did not run. That needs the importer that
 made each load, so a new row `importer → file` holds for every test the walk
 takes through that importer. Vitest's `resolveId` and Node's `resolve` hook are
-handed the importer. The `it.todo` in `closed-world.test.ts` that names the
-request the runner answered is reworded to ask for that importer, and stays.
+handed the importer. The `it.todo` in `drift.test.ts` asks for that importer.
 
 The old spec's `open: [parts]` and declared jump files are dropped with the
 declared world: drift needs neither.

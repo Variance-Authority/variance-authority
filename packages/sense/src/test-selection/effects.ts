@@ -90,7 +90,8 @@ function loadedFrom(relations: Relations | undefined, files: readonly string[]):
   return loaded;
 }
 
-function runtimeTargets(relations: Relations, id: NodeId): readonly NodeId[] {
+/** The files `id` loads at runtime, itself left out. */
+export function runtimeTargets(relations: Relations, id: NodeId): readonly NodeId[] {
   const { offset, target, kind } = relations.depends;
   const targets: NodeId[] = [];
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {
