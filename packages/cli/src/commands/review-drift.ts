@@ -161,9 +161,14 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     mergeBase: point.base,
     ...(between === undefined || between === null ? {} : { between }),
     ...(mainline === undefined || 'miss' in mainline || mainline.distance === undefined ? {} : { distance: mainline.distance }),
-    changes: await Promise.all(from.changed.filter((file) => from.sources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file))),
+    changes: await Promise.all(drifting(from.changed, from.sources, declared?.before ?? [], (file) => existsSync(resolve(root, file))).map(async (file) => textsOf(from, file))),
     present: (test) => existsSync(resolve(root, test)),
   });
+}
+
+/** The changed files whose texts the drift reads: a source the index holds, a deleted file, or one that configures the walk, which the index does not parse. */
+export function drifting(changed: readonly string[], sources: ReadonlySet<string>, before: readonly string[], exists: (file: string) => boolean): readonly string[] {
+  return changed.filter((file) => sources.has(file) || !exists(file) || configures(file, before));
 }
 
 /** The record at `file`, with the test files the runs beside it observed whole at `commit`. */

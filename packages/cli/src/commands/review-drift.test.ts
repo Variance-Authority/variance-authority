@@ -1,7 +1,7 @@
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { driftWords, reviewDrift, type DriftInput, type DriftRecord } from './review-drift.js';
+import { drifting, driftWords, reviewDrift, type DriftInput, type DriftRecord } from './review-drift.js';
 
 /** `test/a.test.ts` imports `src/a.ts`; `src/lazy.ts` is imported by nothing, so a load of it is drift. */
 const RELATIONS = relationsOfFiles([
@@ -57,6 +57,11 @@ describe('the drift a review reports', () => {
     expect(reviewDrift(input({ before: ['test/setup.ts'], changes: [{ file: 'test/setup.ts', before: '', after: 'x' }] }))).toEqual({
       unchecked: expect.stringContaining('`test/setup.ts`'),
     });
+  });
+
+  it('reads the texts of a changed configuring file the index does not hold, so the edit reaches the guard', () => {
+    const changed = ['package.json', 'tsconfig.base.json', 'test/setup.ts', 'README.md', 'src/a.ts', 'src/gone.ts'];
+    expect(drifting(changed, new Set(['src/a.ts']), ['test/setup.ts'], (file) => file !== 'src/gone.ts')).toEqual(['package.json', 'tsconfig.base.json', 'test/setup.ts', 'src/a.ts', 'src/gone.ts']);
   });
 
   it('takes a record at an earlier mainline commit when the commits between move nothing the walk reads', () => {
