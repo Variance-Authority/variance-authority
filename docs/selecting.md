@@ -11,8 +11,7 @@ that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any doubt
-about the evidence widens the run; [what a skipped test promises](selection-safety.md)
-lists each doubt and the one exception. A suite you do not yet
+about the evidence widens the run; [what a skipped test promises](selection-safety.md) lists each doubt and the one exception. A suite you do not yet
 trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
