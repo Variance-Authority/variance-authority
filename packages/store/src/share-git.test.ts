@@ -199,6 +199,17 @@ describe('createGitLineCell', { timeout: 15_000 }, () => {
     expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim())
       .toBe(`refs/variance/at/${two}/mainline/release/2.0`);
   });
+
+  it('drops what another job publishing at the same commit dropped first', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    const late = cellAt('b');
+    expect(await late.commits!(MAIN)).toHaveLength(1);
+    expect(await cellAt('a').drop!([atCommit(MAIN, one)])).toBe('dropped');
+
+    expect(await late.drop!([atCommit(MAIN, one)])).toBe('dropped');
+  });
 });
 
 describe('headerEnv', () => {

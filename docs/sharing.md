@@ -600,9 +600,9 @@ Records are read in this order:
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
    run writes, so it is never read as your checkout's own. The record read is
    the one kept at your `HEAD`'s merge base with the mainline when the share
-   keeps one there, and the mainline's newest otherwise. A record fetched at or past that merge base
-   is read without asking the remote again, and so is one fetched while your
-   merge base was the one it is now. After a pull or a rebase moves it, the
+   keeps one there, and the mainline's newest otherwise. A record fetched at
+   that merge base is read without asking the remote again, and so is one
+   fetched while your merge base was the one it is now. After a pull or a rebase moves it, the
    remote is asked once. The result that the line has none for you stands for
    10 minutes, with the time of that result. When the remote does not answer,
    the record fetched earlier is read, and the answer prints when it was

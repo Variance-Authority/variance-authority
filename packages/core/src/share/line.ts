@@ -171,6 +171,19 @@ export function linePath(line: ShareLine): string {
   return `at/${line.at}/${path}`;
 }
 
+/** The pattern of every path {@link linePath} gives `line` kept at a commit, the commit a `*`. */
+export function keptAtPattern(line: ShareLine): string {
+  return `at/*/${linePath({ kind: line.kind, name: line.name })}`;
+}
+
+/** The commit `path` keeps `line`'s record at, when it is one {@link linePath} gives. */
+export function keptAtOf(line: ShareLine, path: string): string | undefined {
+  const [head, tail] = keptAtPattern(line).split('*') as [string, string];
+  if (!path.startsWith(head) || !path.endsWith(tail)) return undefined;
+  const commit = path.slice(head.length, path.length - tail.length);
+  return COMMIT.test(commit) ? commit : undefined;
+}
+
 /** The digest an entry's bytes are held under. */
 export function entryDigest(bytes: Uint8Array): string {
   return sha256HexBytes(bytes);

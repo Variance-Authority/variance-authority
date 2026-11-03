@@ -59,17 +59,16 @@ export async function mainlineEntry(
   if (cell === undefined) return { mainline, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
   if ('kind' in cell) return { mainline, miss: cell };
   // The record at the merge base measures the code this checkout has. The
-  // latest answers when it is that record, when none is kept there
-  // (`at-commit.ts` in core's share), and alone in a store that keeps none by
-  // commit. A latest that missed is written before anything kept beside it,
-  // so the miss is the answer.
-  const latest = await entryIn(cell, { kind: 'mainline', name: mainline }, name);
-  if (cell.commits !== undefined && 'entry' in latest) base ??= await mergeBase(config, mainline, cwd);
-  const atBase =
-    cell.commits === undefined || base === undefined || !('entry' in latest) || latest.entry.commit === base
-      ? undefined
-      : await entryIn(cell, { kind: 'mainline', name: mainline, at: base }, name);
-  const found = atBase === undefined || ('miss' in atBase && atBase.miss.kind === 'absent') ? latest : atBase;
+  // latest answers when none is kept there (`at-commit.ts` in core's share),
+  // and alone in a store that keeps none by commit. Any other miss is the
+  // share's answer, and asking again would ask an unreachable one twice.
+  if (cell.commits !== undefined) base ??= await mergeBase(config, mainline, cwd);
+  const atBase = cell.commits === undefined || base === undefined
+    ? undefined
+    : await entryIn(cell, { kind: 'mainline', name: mainline, at: base }, name);
+  const found = atBase === undefined || ('miss' in atBase && atBase.miss.kind === 'absent')
+    ? await entryIn(cell, { kind: 'mainline', name: mainline }, name)
+    : atBase;
   if ('miss' in found) return { mainline, ...found };
 
   const distance = await distanceFrom(config, mainline, found.entry.commit, cwd, base);

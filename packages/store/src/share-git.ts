@@ -3,6 +3,8 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   decodeManifest,
+  keptAtOf,
+  keptAtPattern,
   linePath,
   manifestPaths,
   type Descends,
@@ -272,18 +274,17 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       return 'written';
     },
     async commits(line) {
-      const tail = `/${linePath(line)}`;
-      const at = `${namespace}/at/`;
+      const pattern = `${namespace}/${keptAtPattern(line)}`;
       // Commits only, never a tree: when a record was written is its commit's date.
-      const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${at}*${tail}:${at}*${tail}`]);
+      const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
       if (ran.code !== 0) return missOf(ran);
-      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix)', at])).stdout);
+      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix)', `${namespace}/`])).stdout);
       const kept: { commit: string; written: number }[] = [];
       for (const row of listed.split('\n')) {
         const [ref, seconds] = row.split(' ');
-        if (ref === undefined || seconds === undefined || !ref.endsWith(tail)) continue;
-        const commit = ref.slice(at.length, ref.length - tail.length);
-        if (/^[0-9a-f]{4,64}$/.test(commit)) kept.push({ commit, written: Number(seconds) * 1000 });
+        if (ref === undefined || seconds === undefined) continue;
+        const commit = keptAtOf(line, ref.slice(namespace.length + 1));
+        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000 });
       }
       return kept;
     },
@@ -296,7 +297,10 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       }
       if (refs.length === 0) return 'dropped';
       const pushed = await git(['push', '--no-verify', '--porcelain', '--atomic', REMOTE, ...refs.map((ref) => `:${ref}`)]);
-      if (pushed.code !== 0) return missOf(pushed, refusalOf(pushed));
+      // Another job publishing at the same commit may have deleted them first.
+      if (pushed.code !== 0) {
+        for (const ref of refs) if ((await remoteAt(ref)) !== '') return missOf(pushed, refusalOf(pushed));
+      }
       for (const ref of refs) await git(['update-ref', '-d', ref]);
       return 'dropped';
     },

@@ -21,11 +21,12 @@
  *
  * A fetch costs a round trip to the remote, and on a network that hangs, the
  * whole of the store's timeout. The best base is the record at `HEAD`'s merge
- * base with the mainline, and the line holds only its newest record, so asking
- * can only help while the record fetched last is behind that merge base. The
+ * base with the mainline. The line holds its newest record, and a share in git
+ * also the one at each recent commit, so asking can help whenever the record
+ * fetched last is not at that merge base. The
  * record fetched last, by this checkout or by the primary checkout it was cut
  * from, stands without asking while the reader's mainline is the one it was
- * fetched from and either it is at or past the merge base, or the line was
+ * fetched from and either it is at the merge base, or the line was
  * asked at this same merge base. A merge base moves on a pull or a rebase, so
  * that is when the line is asked again; every reader of a checkout, and every
  * job of a CI run, which all share one merge base, reads the same record. When
@@ -84,7 +85,7 @@ export interface MainlineRecord {
   /**
    * Present when it is the record fetched earlier: reused without asking, or
    * kept because the mainline gave no record, now or, as `asked` says, earlier
-   * within {@link MISS_STANDS_MS}. It is reused when it is at or past `HEAD`'s
+   * within {@link MISS_STANDS_MS}. It is reused when it is at `HEAD`'s
    * merge base with the mainline (`nearest`), or else when the line was asked
    * at this same merge base (`asked`).
    */
@@ -172,10 +173,11 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // At or past the merge base, nothing the line could hold is nearer it.
-      // Behind it, the line was asked here already when the merge base is the
-      // one it was asked at, the clone naming none then and now included.
-      const reused = distance !== undefined && distance <= 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
+      // At the merge base, nothing the line could hold is nearer it. Off it,
+      // the line was asked here already when the merge base is the one it was
+      // asked at, the clone naming none then and now included; past it, a
+      // share in git may keep the record at the merge base.
+      const reused = distance === 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);

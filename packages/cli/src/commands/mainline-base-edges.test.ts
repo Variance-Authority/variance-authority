@@ -185,7 +185,8 @@ describe('a line that gave no record a moment ago', () => {
   });
 });
 
-describe('a record fetched earlier, against this checkout\'s merge base with the mainline', () => {
+// Each mainline publish here also keeps its record at its commit: a push and a listing more apiece.
+describe('a record fetched earlier, against this checkout\'s merge base with the mainline', { timeout: 15_000 }, () => {
   it('stands at the merge base a day later, with the line not asked', async () => {
     const { origin, first } = await gitPublished(home);
     const { base, reach, nowhere } = await laptop(origin);
@@ -197,18 +198,20 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(kept).toMatchObject({ commit: first, distance: 0, fetched: at(NOW), earlier: { reused: 'nearest' } });
   });
 
-  it('stands past the merge base, because the line holds nothing nearer it', async () => {
-    const { ci, origin } = await gitPublished(home);
+  it('past the merge base, asks the line, which keeps the record at the merge base', async () => {
+    const { ci, origin, first } = await gitPublished(home);
     const next = await publishedNext(ci);
     const { dir, base, reach, nowhere } = await laptop(origin);
     expect(await base(NOW)).toMatchObject({ commit: next, distance: 0, fetched: at(NOW) });
     // A branch cut before the record: its merge base is one commit behind it.
     await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
+
+    const read = await base(NOW + DAY);
+    expect(read).toMatchObject({ commit: first, distance: 0, fetched: at(NOW + DAY) });
+    expect(read).not.toHaveProperty('earlier');
     await reach(nowhere);
 
-    const kept = await base(NOW + DAY);
-
-    expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'nearest' } });
+    expect(await base(NOW + 2 * DAY)).toMatchObject({ commit: first, distance: 0, earlier: { reused: 'nearest' } });
   });
 
   it('is asked again once the merge base moves past it, and stands once asked there', async () => {
