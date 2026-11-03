@@ -1,17 +1,16 @@
 // compass: variance-authority.reach
 /**
  * What a selection over a record behind the merge base leaves to the mainline.
- * The mainline and its merge base come from the share the root config names,
+ * The mainline and its merge base come from the fetch that read its record,
  * and the checkout's own change from git, from that base. A test the record
  * charges runs only when `file` precision over that change selects it too, so
  * the answer never runs more than that precision would.
  */
 
 import type { ExecutionNarrowing, TestDistance } from '@variance-authority/sense/test-selection';
-import { ConfigError } from '../config-values.js';
-import { distanceFrom, readerMainline } from '../share-lines.js';
-import { rootShare } from './mainline-base.js';
-import { changedFrom, commitPoint } from './since.js';
+import type { SelectSource } from './select.js';
+import { changedFrom } from './since.js';
+import { headOf } from './suite-share.js';
 
 /** A record behind the checkout's merge base with its mainline `name`: that `base`, and what the checkout `changed` from it. */
 export interface Behind {
@@ -21,29 +20,19 @@ export interface Behind {
 }
 
 /**
- * Whether the record at `commit` is behind the merge base of the checkout at
- * the top level `root`, and what the checkout changed from that base.
- * `undefined` when the checkout names no mainline, git cannot list what
- * changed from the base, `commit` is not before it, or the checkout is the
- * mainline's own tip with nothing changed: that run answers for the base.
+ * Whether the record read, as `source` says, is the mainline's and behind the
+ * merge base of the checkout at the top level `root`, and what the checkout
+ * changed from that base. `undefined` for any other record, when git cannot
+ * list what changed from the base, or when the checkout is at the base with
+ * nothing changed: that run answers for the base.
  */
-export async function behindOf(root: string, commit: string): Promise<Behind | undefined> {
-  const selection = await import('@variance-authority/sense/test-selection');
-  let share: ReturnType<typeof rootShare>;
-  try {
-    share = rootShare(selection.rootConfig(root));
-  } catch (error) {
-    if (error instanceof ConfigError) return undefined;
-    throw error;
-  }
-  if (share === undefined) return undefined;
-  const mainline = await readerMainline({ share }, process.env, root);
-  if ('missing' in mainline || mainline.base === undefined) return undefined;
-  const { name, base } = mainline;
+export async function behindOf(root: string, source: SelectSource | undefined): Promise<Behind | undefined> {
+  if (source?.from !== 'mainline' || source.mainline === undefined || source.base === undefined) return undefined;
+  if ((source.distance ?? 0) <= 0) return undefined;
+  const { mainline: name, base } = source;
   const changed = await changedFrom(base, root);
   if (changed === undefined) return undefined;
-  if (changed.length === 0 && (await commitPoint('HEAD', [], root))?.base === base) return undefined;
-  if (((await distanceFrom({ share }, name, commit, root, base)) ?? 0) <= 0) return undefined;
+  if (changed.length === 0 && (await headOf(root)) === base) return undefined;
   return { name, base, changed };
 }
 

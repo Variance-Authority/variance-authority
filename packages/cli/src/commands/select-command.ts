@@ -237,7 +237,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // for: its install is compared there, and what the suite rests on is moved
   // by that change alone. A graph that could not come up to the checkout says
   // nothing of what the change reaches, so it leaves nothing to the mainline.
-  const ahead = commit === undefined || handed ? undefined : await behindOf(here, commit);
+  const ahead = commit === undefined || handed ? undefined : await behindOf(here, source);
   let stale = ahead === undefined || request.relations !== undefined ? undefined : await indexUpToCheckout(here, undefined, !request.noGit);
   const behind = stale === undefined ? ahead : undefined;
   const installs = new Map<string | undefined, InstallDiff | undefined>();
@@ -441,7 +441,7 @@ export async function recordedOrMainline(
   if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
   if (base.from === 'mainline') {
     const read = base.mainline;
-    const distance = read.distance === undefined ? {} : { distance: read.distance };
+    const distance = read.distance === undefined ? {} : { distance: read.distance, ...(read.base === undefined ? {} : { base: read.base }) };
     return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
   }
   const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
