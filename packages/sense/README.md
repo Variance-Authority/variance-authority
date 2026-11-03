@@ -2002,6 +2002,39 @@ tree. A recording made outside a checkout has no commit, and an index that
 records no commit has nothing to diff against, so a caller with one runs
 the suite it would have run anyway.
 
+### Read where the loads drift from the walk
+
+The record holds what each test file loaded; the import graph holds what its
+imports reach. A load the walk does not reach is drift: a `moduleNameMapper`
+entry, a `__mocks__` file, a setup file, a lazy `import()` behind a flag. It is
+an observed load, not a defect, and it never changes what a selection runs.
+`driftFromWalk` names each one, a row per test file and loaded file, and its
+`sourceOf` names a built file by its source. `driftChange` compares two sides'
+rows for the test files both observed whole, and its `present` says which
+baseline test files the checkout still holds; the rest are listed as removed:
+
+```ts
+import {
+  driftChange,
+  driftFromWalk,
+  readTestCoverage,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
+
+const coverage = await readTestCoverage(testCoverageFile(process.cwd()));
+const { rows } = driftFromWalk(relations, coverage.modules, ['test/setup.ts'], {
+  sourceOf: (file) => file,
+});
+const change = driftChange(baseline, { rows, observed, held }, {
+  present: (test) => existsSync(test),
+});
+console.log(change.grown, change.shrunk, change.notCompared);
+```
+
+`variance review` reads the mainline's record against the merge base's walk —
+`baseEdgesOf` undoes the change's edges — and writes the grown and shrunk rows
+into the pull request's comment.
+
 ## Fold shards into one snapshot
 
 A suite too large for one machine runs across N jobs and ends with N snapshots,

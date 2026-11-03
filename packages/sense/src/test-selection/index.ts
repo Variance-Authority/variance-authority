@@ -65,12 +65,7 @@ export { rankDistillCauses, readDistillRecords, type DistillRecords, type Native
 export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
-export {
-  EXECUTION_FORMAT,
-  decodeExecutionIndex,
-  encodeExecutionIndex,
-  isEncodedExecutionIndex,
-} from './execution-format.js';
+export { EXECUTION_FORMAT, decodeExecutionIndex, encodeExecutionIndex, isEncodedExecutionIndex } from './execution-format.js';
 export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
@@ -108,6 +103,7 @@ export {
   layeredFiles,
   repositoryLayers,
   rootConfig,
+  rootConfigOf,
   writesBase,
   type CacheLayers, type RootConfig,
 } from './cache-layers.js';
@@ -138,6 +134,7 @@ export {
   CARRIERS,
   SUITE_KINDS,
   SuitesError,
+  beforeIn,
   beforeOf,
   declaredSuites,
   parseBefore,
@@ -201,6 +198,9 @@ export { commitRunsIn } from './commit-runs-text.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { whatLanded, type WhatLanded } from './landings.js';
+export { baseEdgesOf, undone, type BaseEdges, type ChangedText } from './base-edges.js';
+export { driftChange, type DriftChange, type DriftSide, type NotCompared } from './drift-change.js';
+export { driftFromWalk, type Drift, type DriftRow, type LoadedModule } from './drift.js';
 export { ranOver, readsTheSnapshot, type HeldNames, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
