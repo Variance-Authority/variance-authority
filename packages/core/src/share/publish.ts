@@ -356,7 +356,7 @@ export function memoryLineCell(
     async drop(lines) {
       for (const line of lines) {
         const prefix = `${key(line)}\u0000`;
-        for (const path of [...held.keys()]) if (path.startsWith(prefix)) held.delete(path);
+        for (const path of held.keys()) if (path.startsWith(prefix)) held.delete(path);
         versions.delete(key(line));
         written.delete(key(line));
       }
