@@ -227,6 +227,7 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
 
     await git(origin, 'update-ref', kept, record);
     await forgetLineAnswers(join(home, 'laptop-cache'));
+    expect(await base(NOW + 60_000)).toMatchObject({ distance: -1, earlier: { reused: 'asked' } });
     const read = await base(NOW + DAY);
 
     expect(read).toMatchObject({ commit: first, distance: 0, fetched: at(NOW + DAY) });

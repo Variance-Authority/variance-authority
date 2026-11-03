@@ -374,11 +374,14 @@ export function describePublish(config: Pick<Config, 'share'>, done: RunPublish)
 
 function describeKept(kept: KeptCommits | undefined): readonly string[] {
   if (kept === undefined) return [];
-  if ('kind' in kept) return [`kept nothing by commit beside the latest: ${describeMiss(kept)}.`];
   const window = `${String(KEEP_DAYS)} days or ${String(KEEP_COMMITS)} commits`;
+  const stopped = kept.miss === undefined
+    ? []
+    : [`${kept.kept.length === 0 ? 'kept nothing by commit beside the latest' : 'stopped keeping records by commit'}: ${describeMiss(kept.miss)}.`];
   return [
     ...kept.kept.map((commit) => `kept the record at ${commit} beside the latest, for ${window}.`),
     ...(kept.dropped.length === 0 ? [] : [`removed ${String(kept.dropped.length)} record(s) kept by commit past ${window}.`]),
+    ...stopped,
   ];
 }
 

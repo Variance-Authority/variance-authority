@@ -102,15 +102,15 @@ async function keepAtCommits(
   const kept: string[] = [];
   for (const [commit, group] of byCommit) {
     const written = await publishOne(cell, atCommit(line, commit), group, options);
-    if ('kind' in written) return written;
+    if ('kind' in written) return { kept, dropped: [], miss: written };
     kept.push(commit);
   }
   const held = await commits.call(cell, line);
-  if (!Array.isArray(held)) return held as ShareMiss;
+  if (!Array.isArray(held)) return { kept, dropped: [], miss: held as ShareMiss };
   const past = pastWindow(held, options.now ?? Date.now());
   if (past.length > 0) {
     const dropped = await drop.call(cell, past.map((commit) => atCommit(line, commit)));
-    if (dropped !== 'dropped') return dropped;
+    if (dropped !== 'dropped') return { kept, dropped: [], miss: dropped };
   }
   return { kept, dropped: past };
 }

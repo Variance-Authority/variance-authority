@@ -29,8 +29,15 @@ export function atCommit(line: ShareLine, commit: string): ShareLine {
   return { kind: line.kind, name: line.name, at: commit };
 }
 
-/** The commits a publish kept its record at, and the ones it removed as past the window, or why it could not. */
-export type KeptCommits = { readonly kept: readonly string[]; readonly dropped: readonly string[] } | ShareMiss;
+/**
+ * The commits a publish kept its record at, the ones it removed as past the
+ * window, and the miss that stopped it before it finished, with what it had done.
+ */
+export interface KeptCommits {
+  readonly kept: readonly string[];
+  readonly dropped: readonly string[];
+  readonly miss?: ShareMiss;
+}
 
 /** The commits past {@link KEEP_DAYS} days old at `now`, or beyond the newest {@link KEEP_COMMITS}. */
 export function pastWindow(held: readonly KeptAt[], now: number): string[] {

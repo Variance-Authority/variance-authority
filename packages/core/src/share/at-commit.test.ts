@@ -57,6 +57,16 @@ describe('a mainline record kept at its commit', () => {
     expect(await readLine(cell, atCommit(MAIN, sha(2)))).not.toHaveProperty('kind');
   });
 
+  it('says what it kept when removing what is past the window misses', async () => {
+    let now = 0;
+    const cell = memoryLineCell(() => now);
+    await publishLine(cell, MAIN, [entry('report-v1', sha(1))], { ...options, now });
+    now = (KEEP_DAYS + 1) * DAY;
+    const refused = { ...cell, drop: async () => ({ kind: 'unreachable', detail: 'refused' }) as const };
+    const done = await publishLine(refused, MAIN, [entry('report-v1', sha(2))], { ...options, now });
+    expect(done).toMatchObject({ atCommit: { kept: [sha(2)], dropped: [], miss: { kind: 'unreachable' } } });
+  });
+
   it('keeps nothing by commit for a branch, or in a store that cannot list and drop what it keeps', async () => {
     const cell = memoryLineCell();
     expect(await publishLine(cell, { kind: 'branch', name: 'feat/x' }, [entry('report-v1', sha(1))], options)).not.toHaveProperty('atCommit');

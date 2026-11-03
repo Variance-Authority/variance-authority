@@ -59,8 +59,9 @@ fetched here, and the reader says so.**
   first and reads the newest when none is kept there, and a directory or an
   HTTP store keeps the newest only. `fetched.json` keeps the merge base the line was
   asked at. The record stands without asking when it is at the merge base,
-  or when the line was asked at this same merge base; one past it is asked
-  again, because the record at the merge base may be kept. Otherwise a pull
+  or when the line was asked at this same merge base; one past it stands for
+  ten minutes and is then asked again, because the record at the merge base
+  may be kept by then. Otherwise a pull
   or a rebase has moved the merge base, and the line is asked once. Every
   reader of a checkout, and every CI job handed the read root, has one merge
   base and reads one record. A remote that does not answer leaves the record

@@ -13,7 +13,8 @@
  * The best base is the record at `HEAD`'s merge base with the mainline. A fetch
  * costs a round trip, so the record fetched last stands without asking while it
  * is at that merge base or the line was asked at it, until a pull or a rebase
- * moves it. A line that gave no record stands for {@link MISS_STANDS_MS}, and
+ * moves it; one past the merge base stands for {@link MISS_STANDS_MS}, since
+ * the record at the merge base may be kept once its job publishes. A line that gave no record stands for {@link MISS_STANDS_MS}, and
  * `variance share --suite <name>` always asks.
  */
 
@@ -65,7 +66,7 @@ export interface MainlineRecord {
    * kept because the mainline gave no record, now or, as `asked` says, earlier
    * within {@link MISS_STANDS_MS}. It is reused when it is at `HEAD`'s
    * merge base with the mainline (`nearest`), or else when the line was asked
-   * at this same merge base (`asked`).
+   * at this same merge base (`asked`), past it only within {@link MISS_STANDS_MS}.
    */
   readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
@@ -153,9 +154,13 @@ export async function mainlineBase(
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
       // At the merge base, nothing the line could hold is nearer it. Off it,
       // the line was asked here already when the merge base is the one it was
-      // asked at, the clone naming none then and now included; past it, a
-      // share in git may keep the record at the merge base.
-      const reused = distance === 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
+      // asked at, the clone naming none then and now included. Past it, the
+      // record at the merge base was not kept when asked, and a share in git
+      // may keep it once that commit's job publishes: the answer stands as a
+      // miss does, for {@link MISS_STANDS_MS}.
+      const asked = last.base === named?.base
+        && (distance === undefined || distance > 0 || now - Date.parse(last.fetched) < MISS_STANDS_MS);
+      const reused = distance === 0 ? 'nearest' : asked ? 'asked' : undefined;
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);
