@@ -170,6 +170,24 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
+  it.each([
+    ['rates.json', "import rates from './rates.json';", 'rates.rate', '{ "rate": 0.9 }\n', '{ "rate": 0.8 }\n'],
+    ['total.css', "import './total.css';", '0.9', '.total { color: red; }\n', '.total { color: blue; }\n'],
+    ['rates.graphql', "import rates from './rates.graphql';", '0.9', 'query Rates { rate }\n', 'query Rates { rate tax }\n'],
+  ])('runs a test whose module imports the %s the checkout changes, though the record never saw that file', async (file, load, factor, before, after) => {
+    const ci = await mainline({
+      total: `${load}\nexport function total(price: number): number {\n  return price * ${factor};\n}\n`,
+      files: { [`src/${file}`]: before },
+    });
+    await landed(ci.dir, { 'src/other.ts': OTHER.replace('+ 1', '+ 3') });
+    const clone = await branched(ci.origin, `src/${file}`, after);
+
+    const here = await selectedIn(clone);
+
+    // `other` only the mainline's change reaches; `total` imports the file the checkout changed.
+    expect(here.out).toBe('test/other.test.ts\n');
+  });
+
   it('runs no more than `file` precision over its own change when the checkout deletes a file the mainline made a test import', async () => {
     const ci = await mainline();
     await landed(ci.dir, { 'src/total.ts': "import { other } from './other';\nexport function total(price: number): number {\n  return other(price) * 0.9;\n}\n" });
