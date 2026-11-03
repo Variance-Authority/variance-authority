@@ -63,8 +63,8 @@ function named(reading: OrientReading): readonly string[] {
     const where = owner.indexed
       ? owner.package ?? 'no package'
       : owner.package === undefined || owner.package === null
-        ? 'not in the source index'
-        : `${owner.package}, not in the source index`;
+        ? 'outside index'
+        : `${owner.package}, outside index`;
     return `  ${file.padEnd(wide)}  ${where}`;
   });
   return [`${plural(files.length, 'file')} asked about:`, ...rows];

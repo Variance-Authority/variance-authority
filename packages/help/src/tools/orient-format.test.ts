@@ -93,8 +93,8 @@ describe('an orientation, said', () => {
         '4 files asked about:',
         '  packages/checkout/src/total.ts  @t/checkout',
         '  packages/cart/src/price.ts      @t/cart',
-        '  README.md                       not in the source index',
-        '  test/total.test.ts              not in the source index',
+        '  README.md                       outside index',
+        '  test/total.test.ts              outside index',
         '',
         'Packages, from the source index at /cache/source-index.bin (40 files indexed; 2 changed or removed since).',
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
@@ -142,7 +142,7 @@ describe('an orientation, said', () => {
     expect(text).toContain('Packages: no source index is published at /cache/source-index.bin. `variance index` publishes one.');
     // Every file asked about is still said, with nothing claimed about its package.
     expect(text).toContain('4 files asked about:\n  packages/checkout/src/total.ts\n  packages/cart/src/price.ts\n  README.md\n');
-    expect(text).not.toContain('not in the source index');
+    expect(text).not.toContain('outside index');
   });
 
   it('says a file with no package as that, and one the index does not hold as that, never dropping either', () => {
@@ -157,8 +157,8 @@ describe('an orientation, said', () => {
       [
         '3 files asked about:',
         '  scripts/build.ts    no package',
-        '  apps/app/README.md  @t/app, not in the source index',
-        '  src/new.ts          not in the source index',
+        '  apps/app/README.md  @t/app, outside index',
+        '  src/new.ts          outside index',
         '',
       ].join('\n'),
     );
