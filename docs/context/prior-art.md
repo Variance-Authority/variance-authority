@@ -219,8 +219,9 @@ TOPLAS 1989) defined.
 **What it means here.** A mainline record that refreshes only the traces of
 the tests a landed change selects is Ekstazi's invariant (Gligoric et al.,
 above) applied per commit; we found no work that publishes a record that way.
-[Journal 0078](journal/0078-a-record-keeps-up-with-the-mainline-by-its-publish-delay.md)
-models a record behind the merge base and measures its lag here.
+[Journal 0078](journal/0078-a-record-behind-the-merge-base-narrows-best-effort.md)
+models a record behind the merge base, what selection over it can promise,
+and measures its lag here.
 
 ## Flake detection without a rerun
 
