@@ -2259,8 +2259,8 @@ each entered or placed test's `hops`, `bearing` and, where no distance was
 measured, `because`, as `distances`.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
-journal holds no answer: nothing recorded on this machine, a diff git would not
-produce, a lockfile that cannot be compared at the diff's base, or a journal
+journal holds no answer: no record of the suite, neither this checkout's nor the
+mainline's, a diff git would not produce, a lockfile that cannot be compared at the diff's base, or a journal
 with no whole observation in it.
 
 A changed file the journal records nothing about is not one of those. Prose, a

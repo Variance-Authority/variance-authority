@@ -10,8 +10,8 @@ For a Vitest or Jest suite, [run the tests an edit needs](test-an-edit.md) puts
 that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
-Selection observes those two when the evidence supports that decision. Any
-uncertainty widens the run, and the report explains why. A suite you do not yet
+Selection observes those two when the evidence supports that decision. Every
+doubt but one widens the run, and the report explains each. A suite you do not yet
 trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
@@ -269,7 +269,7 @@ very different costs:
   over an unwatched surface.** It does so silently, because that subject is not
   in the report to be missing from.
 
-So every uncertainty resolves toward observing:
+So every uncertainty but one resolves toward observing:
 
 | Situation | What happens |
 |---|---|
@@ -286,7 +286,8 @@ The last three produce an explicit warning or stop. A run that stays whole
 without printing that it did looks exactly like a selector that found nothing
 affected, although those facts require different next steps.
 
-These rows read the baselines and the file graph. When the suite also keeps an
+These rows read the baselines and the file graph; the execution record's own
+doubts are in [what a skipped test promises](selection-safety.md). When the suite also keeps an
 [execution record](execution-record.md), the record reads the same diff next and
 removes every subject it recorded whole that the diff did not reach, the
 subjects the two whole-suite rows kept included. It also keeps every subject it

@@ -38,12 +38,13 @@ describe('the commit a review read', () => {
     expect(await reviewedCommit(root, root, {})).toEqual({ commit, parents: [], dirty: true });
   });
 
-  it('links from `--root`, the directory the diff names files from', async () => {
-    // Under `--root app` the diff names `src/total.ts`, so a link made at the top would miss `app/`.
+  it('links from the directory the diff names files from, which is `--root`, whatever directory the process started in', async () => {
+    // The diff names `src/total.ts` from `app/`, so a link made at the top would read `src/total.ts` with no `app/`.
     const { root, commit } = await repository();
     git(root, ['remote', 'add', 'origin', 'git@github.com:o/r.git']);
     await mkdir(join(root, 'app'));
 
+    process.chdir(root);
     expect((await reviewedCommit(root, root, {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}`);
     expect((await reviewedCommit(root, join(root, 'app'), {}))?.blob).toBe(`https://github.com/o/r/blob/${commit}/app`);
   });

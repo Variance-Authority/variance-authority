@@ -287,7 +287,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   }
   const point = await diffPoint(ref, [], root);
   const forward = point === undefined ? undefined : await diffSince(ref, [], point.base, { cwd: root });
-  const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { reverse: true, cwd: root });
+  const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { cwd: root, reverse: true });
   if (point === undefined || forward === undefined || backward === undefined) {
     const whose = mainline === undefined ? '' : `, where mainline ${mainline.mainline} published its record of "${mainline.suite}",`;
     throw new OperatorError(
@@ -303,8 +303,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // later cases, and comparing with them would report its changes as this one's.
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
-  const real = realpathSync(root);
-  const named = (file: string): string => relative(point.repository, resolve(real, file));
+  const named = (file: string): string => relative(point.repository, resolve(realpathSync(root), file));
   // Which text each changed file holds now is the index's name for it, so the index is brought up to the checkout first.
   const notUpdated = await indexUpToCheckout(root);
   // One it could not names the tree as the last update found it, so it names no text the record could have run as the tree.
@@ -357,7 +356,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     return reach.missing.length === seeds.length ? undefined : reach.files;
   });
   const suite = heldAsPrecondition(recorded.file, [...changed.keys()].map(named));
-  const beyond = await installDiff(point, [...changed.keys()], real);
+  const beyond = await installDiff(point, [...changed.keys()], root);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
     ? await motionAgainst(from, against, ref, root)

@@ -194,6 +194,35 @@ addresses it only for its own naming needs — the dragon rule, and the Act and
 Assert vocabulary in [`scenarios.md`](../scenarios.md). Neither of those reaches
 source. Nothing here joins an authored Act to the regions executed under it.
 
+### Selection in continuous integration, and the record's age
+
+A selector reads a record made at some earlier commit, and in continuous
+integration the mainline moves while the record is made. **Elbaum, Rothermel
+and Penix** (FSE 2014) measured selection and prioritization on Google's
+pre-submit and post-submit streams, and selected by recent failure history
+rather than by coverage. **Shi, Zhao and Marinov** (*Understanding and
+Improving Regression Test Selection in Continuous Integration*, ISSRE 2019) ran
+Ekstazi and STARTS over real CI histories: the failures selection missed were
+almost all flaky tests, not unsafe skips.
+
+The mainline itself is kept green by queues. The **not rocket science rule**,
+as Graydon Hoare stated it for bors, tests the merge result before it lands.
+**Uber's SubmitQueue** (Ananthanarayanan et al., *Keeping Master Green at
+Scale*, EuroSys 2019) builds speculative combinations of pending changes and
+reports thousands of commits a day; **Shopify**'s merge queue posts describe
+about 400 commits a day to master. **Chromium**'s last known good revision
+(LKGR) published the newest commit that passed, for blame and for syncing to.
+A queue tests the merge, not whether two changes interfere in meaning, which
+**Horwitz, Prins and Reps** (*Integrating Noninterfering Versions of Programs*,
+TOPLAS 1989) defined.
+
+**What it means here.** A mainline record that refreshes only the traces of
+the tests a landed change selects is Ekstazi's invariant (Gligoric et al.,
+above) applied per commit; we found no work that publishes a record that way.
+[Journal 0078](journal/0078-a-record-behind-the-merge-base-narrows-best-effort.md)
+models a record behind the merge base, what selection over it can promise,
+and measures its lag here.
+
 ## Flake detection without a rerun
 
 **DeFlaker** (Bell, Legunsen, Hilton, Eloussi, Yung, Marinov, ICSE 2018) is the

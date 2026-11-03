@@ -381,6 +381,20 @@ describe('coverage names why a text is not known', () => {
 });
 
 describe('a review that counts coverage', () => {
+  it('reads the change of the checkout `--root` names, not the one the process started in', async () => {
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+    let out = '';
+    let err = '';
+
+    const code = await main(['review', '--root', at, '--since', 'HEAD', '--format', 'json'], {
+      out: (text) => (out += text), err: (text) => (err += text),
+    });
+
+    expect(code, err).toBe(0);
+    expect((JSON.parse(out) as { readonly files: readonly { readonly file: string }[] }).files.map(({ file }) => file)).toEqual([PAY_FILE]);
+  });
+
   it('passes coverage no reader of the text each region ran over, and says none', async () => {
     const { at } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
