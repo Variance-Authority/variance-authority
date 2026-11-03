@@ -3,10 +3,11 @@
  * What a selection over a record behind the merge base leaves to the mainline.
  * The mainline and its merge base come from the fetch that read its record,
  * and the checkout's own change from git, from that base. A test the record
- * charges runs only when `file` precision over that change selects it too, so
- * the answer never runs more than that precision would, and its hops are
- * counted from that change: a nearer edit only the mainline made places no
- * test.
+ * charges runs only when `file` precision over that change selects it too, and
+ * its hops are counted from that change: a nearer edit only the mainline made
+ * places no test. The answer runs no more than that precision would, save when
+ * the change deletes a path: then every file whose imports the scan could not
+ * all resolve counts as changed too ({@link reachedFrom}).
  */
 
 import { existsSync } from 'node:fs';
