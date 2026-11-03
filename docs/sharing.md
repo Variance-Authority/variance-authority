@@ -589,10 +589,12 @@ Records are read in this order:
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
    run writes, so it is never read as your checkout's own. The record read is
    the one kept at your `HEAD`'s merge base with the mainline when the share
-   keeps one there, and the mainline's newest otherwise. A record fetched at
-   that merge base is read without asking the remote again, and so is one
-   fetched while your merge base was the one it is now, for 10 minutes, since
-   the record at your merge base may be published by then. After
+   keeps one there. Until it does, because that commit's CI has not published
+   yet, it is the newest kept behind your merge base, and the remote is asked
+   again on each read until your merge base's record is there. With nothing
+   kept at or behind your merge base, it is the mainline's newest. A record
+   fetched at your merge base is read without asking the remote again, and so
+   is the newest when it was all the remote had for this merge base. After
    a pull or a rebase moves it, the remote is asked once. The result that the line has none for you stands for
    10 minutes, with the time of that result. When the remote does not answer,
    the record fetched earlier is read, and the answer prints when it was
@@ -738,8 +740,8 @@ Tribunal deployment is an `http` share.
   `refs/variance/at/<commit>/mainline/<name>`. The publish that writes one
   deletes those older than 14 days or beyond the newest 200 commits of that
   mainline, so the refs stay bounded without a job of their own. A lookup reads
-  the one at `HEAD`'s merge base with the mainline first, and the latest when
-  none is kept there. A directory and an HTTP store keep the latest only.
+  the one at `HEAD`'s merge base with the mainline first, then the newest kept
+  behind it, and the latest when none is kept at or behind it. A directory and an HTTP store keep the latest only.
 - **Every fetch and push runs in a bare repository of the share's own**, at
   `<cache>/share/<digest>.git`, one per remote URL, never in your clone. It
   fetches commits and trees, and an image only when something opens it, so a

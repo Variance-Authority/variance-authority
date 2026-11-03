@@ -6,7 +6,8 @@
  * the tip — is measured against its merge base, and the latest is a record of
  * code it does not have: every commit between is charged to it. So each
  * mainline publish also writes the line `at/<commit>/…` (`publishLine`),
- * and a reader asks for its merge base's before the latest.
+ * and a reader asks for its merge base's, then the nearest kept behind it,
+ * before the latest.
  *
  * What is kept is bounded, and the publish that writes the next record removes
  * what fell out: {@link KEEP_DAYS} days and at most {@link KEEP_COMMITS}

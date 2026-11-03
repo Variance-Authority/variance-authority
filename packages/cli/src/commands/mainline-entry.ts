@@ -1,11 +1,12 @@
 import { findEntry, readLine, type HeldEntry, type LineCell, type ShareLine, type ShareMiss } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
-import { distanceFrom, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
+import { distanceFrom, lineCellOf, mergeBase, nearestKept, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
 import type { Here } from './share.js';
 
 /**
  * Reading one entry from a line, and from the reader's mainline: the record at
- * the checkout's merge base when the share keeps one there, else the latest.
+ * the checkout's merge base when the share keeps one there, else the nearest
+ * kept behind it, else the latest.
  */
 
 /**
@@ -36,7 +37,8 @@ export interface MainlineMissed {
  * Where the reader's mainline holds `name`, and a way to read its bytes.
  *
  * The mainline is the one named, or else the one `readerMainline` chooses, and
- * the record is the one kept at `HEAD`'s merge base with it before the latest. The
+ * the record is the one kept nearest `HEAD`'s merge base with it, at it or
+ * behind it, before the latest. The
  * bytes are read only when asked, because a commit this machine already holds
  * is answered from disk.
  */
@@ -58,14 +60,17 @@ export async function mainlineEntry(
   const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
   if (cell === undefined) return { mainline, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
   if ('kind' in cell) return { mainline, miss: cell };
-  // The record at the merge base measures the code this checkout has. The
-  // latest answers when none is kept there (`at-commit.ts` in core's share),
-  // and alone in a store that keeps none by commit. Any other miss is the
-  // share's answer, and asking again would ask an unreachable one twice.
+  // The record at the merge base measures the code this checkout has. Every
+  // mainline commit's job publishes one, so until the merge base's has, the
+  // nearest published behind it measures the least code it lacks; the latest
+  // would charge it with every commit since. The latest answers when nothing
+  // at or behind is kept (`at-commit.ts` in core's share), and alone in a
+  // store that keeps none by commit. Any other miss is the share's answer,
+  // and asking again would ask an unreachable one twice.
   if (cell.commits !== undefined) base ??= await mergeBase(config, mainline, cwd);
   const atBase = cell.commits === undefined || base === undefined
     ? undefined
-    : await entryIn(cell, { kind: 'mainline', name: mainline, at: base }, name);
+    : await keptBehind(cell, mainline, base, name, cwd);
   const found = atBase === undefined || ('miss' in atBase && atBase.miss.kind === 'absent')
     ? await entryIn(cell, { kind: 'mainline', name: mainline }, name)
     : atBase;
@@ -99,6 +104,22 @@ export async function lineEntry(
   if (cell === undefined) return { miss: { kind: 'unconfigured', detail: 'no share is configured' } };
   if ('kind' in cell) return { miss: cell };
   return entryIn(cell, line, name);
+}
+
+/** The entry kept at `base`, else at the nearest commit behind it the mainline kept a record at. */
+async function keptBehind(
+  cell: LineCell,
+  mainline: string,
+  base: string,
+  name: string | readonly string[],
+  cwd: string,
+): Promise<LineEntry | { readonly miss: MainlineMiss; readonly holds?: readonly string[] }> {
+  const atBase = await entryIn(cell, { kind: 'mainline', name: mainline, at: base }, name);
+  if (!('miss' in atBase) || atBase.miss.kind !== 'absent') return atBase;
+  const held = await cell.commits!({ kind: 'mainline', name: mainline });
+  if (!Array.isArray(held)) return { miss: held as ShareMiss };
+  const nearest = await nearestKept(base, new Set(held.map((one) => one.commit)), cwd);
+  return nearest === undefined || nearest === base ? atBase : entryIn(cell, { kind: 'mainline', name: mainline, at: nearest }, name);
 }
 
 async function entryIn(

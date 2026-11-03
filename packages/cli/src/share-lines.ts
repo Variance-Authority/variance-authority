@@ -14,10 +14,11 @@
  * own repository under the cache.
  */
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 import {
   httpLineCell,
   type Descends,
@@ -339,6 +340,24 @@ async function sinceMergeBase(
   if (base === undefined) return {};
   const since = await countPast(cwd, base, 'HEAD');
   return since === undefined ? { base } : { base, since };
+}
+
+/**
+ * The first of `kept` on `base`'s first-parent history, `base` included: the
+ * newest mainline commit at or behind it that published its record. Absent
+ * when none is in the history this clone holds. The walk stops at the hit.
+ */
+export async function nearestKept(base: string, kept: ReadonlySet<string>, cwd: string): Promise<string | undefined> {
+  if (kept.size === 0) return undefined;
+  const child = spawn('git', ['rev-list', '--first-parent', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
+  let found: string | undefined;
+  for await (const commit of createInterface({ input: child.stdout })) {
+    if (!kept.has(commit)) continue;
+    found = commit;
+    child.kill();
+    break;
+  }
+  return found;
 }
 
 /** `HEAD`'s merge base with `mainline` as this clone last fetched it. */

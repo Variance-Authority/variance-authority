@@ -31,7 +31,7 @@ afterEach(async () => {
 });
 
 describe('a mainline record kept at its commit', () => {
-  it('answers a checkout behind the tip from its merge base, and the latest when none is kept there', async () => {
+  it('answers a checkout behind the tip from its merge base, else the nearest kept behind it, else the latest', async () => {
     const { dir, commits } = await repositoryOf(3);
     const config = { project: 'web', report: join(home, 'report.json'), share: { kind: 'git', mainlines: ['main'] } } as Config;
     const first = await publishRun(config, await reportAt(commits[0]!), { env: PUSH, cwd: dir });
@@ -42,8 +42,14 @@ describe('a mainline record kept at its commit', () => {
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cold-0'));
     expect(await mainlineIndex(config, { env: {}, cwd: dir })).toMatchObject({ commit: commits[0], distance: 0, from: 'share' });
 
+    // `commits[1]`'s job has not published: the nearest behind it charges the
+    // checkout with no commit it lacks, where the latest would charge it one.
     await git(dir, 'checkout', '--quiet', '-b', 'unkept', commits[1]!);
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cold-1'));
+    expect(await mainlineIndex(config, { env: {}, cwd: dir })).toMatchObject({ commit: commits[0], distance: 1, from: 'share' });
+
+    await git(dir, 'push', '--quiet', 'origin', `:refs/variance/at/${commits[0]!}/mainline/main`);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cold-2'));
     expect(await mainlineIndex(config, { env: {}, cwd: dir })).toMatchObject({ commit: commits[2], distance: -1, from: 'share' });
   });
 });

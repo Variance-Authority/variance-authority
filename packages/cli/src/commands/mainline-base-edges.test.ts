@@ -66,15 +66,23 @@ async function pushed(ci: string): Promise<string> {
 /** A commit pushed to `ci`'s `main`, and the record CI made there published to the mainline. */
 async function publishedNext(ci: string): Promise<string> {
   const commit = await pushed(ci);
+  await publishedAt(ci, commit);
+  return commit;
+}
+
+/** The record CI made at `commit` published to the mainline: that commit's job finishing, whenever it does. */
+async function publishedAt(ci: string, commit: string): Promise<void> {
   const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+  await git(ci, 'checkout', '--quiet', commit);
   await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), commit);
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
+  await git(ci, 'checkout', '--quiet', 'main');
   if (reader === undefined) vi.unstubAllEnvs();
   else vi.stubEnv('VARIANCE_AUTHORITY_CACHE', reader);
-  expect(done).toMatchObject({ published: { written: [suiteEntry('unit')] } });
-  return commit;
+  // The latest keeps a newer commit's record when that job finished first.
+  expect(done).toMatchObject({ published: { atCommit: { kept: [commit] } } });
 }
 
 /** Take back the git cell's held answers under `cache`, as a minute passing would. */
@@ -214,44 +222,60 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(await base(NOW + 2 * DAY)).toMatchObject({ commit: first, distance: 0, earlier: { reused: 'nearest' } });
   });
 
-  it('past the merge base, asks the line again at the same merge base, and reads the record kept there once it is', async () => {
+  it('behind the merge base, reads the nearest record published behind it, and asks on every read until the merge base\'s is', async () => {
+    // Green main: every commit's job publishes its record, the merge base's
+    // too once its job finishes, and a later commit's may finish first.
     const { ci, origin, first } = await gitPublished(home);
-    await publishedNext(ci);
-    // The job at the merge base has not published yet.
-    const kept = `refs/variance/at/${first}/mainline/main`;
-    const record = await git(origin, 'rev-parse', kept);
-    await git(origin, 'update-ref', '-d', kept);
+    const second = await pushed(ci);
+    const third = await publishedNext(ci);
     const { dir, base } = await laptop(origin);
-    await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
-    expect(await base(NOW)).toMatchObject({ distance: -1, fetched: at(NOW) });
+    await git(dir, 'checkout', '--quiet', '-b', 'older', second);
 
-    await git(origin, 'update-ref', kept, record);
+    // Not the latest, which is past the merge base and charges the branch with `third`.
+    expect(await base(NOW)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW) });
     await forgetLineAnswers(join(home, 'laptop-cache'));
-    expect(await base(NOW + 60_000)).toMatchObject({ distance: -1, earlier: { reused: 'asked' } });
-    const read = await base(NOW + DAY);
+    const again = await base(NOW + 60_000);
+    expect(again).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
+    expect(again).not.toHaveProperty('earlier');
 
-    expect(read).toMatchObject({ commit: first, distance: 0, fetched: at(NOW + DAY) });
-    expect(read).not.toHaveProperty('earlier');
+    await publishedAt(ci, second);
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+    const read = await base(NOW + 2 * 60_000);
+
+    expect(read).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 2 * 60_000) });
+    expect(third).not.toBe(second);
   });
 
-  it('is asked again once the merge base moves past it, and stands ten minutes once asked there', async () => {
+  it('past the merge base, when nothing at or behind it is kept, reads the latest and stands until the merge base moves', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const next = await publishedNext(ci);
+    // The record at the merge base fell out of the window.
+    await git(origin, 'update-ref', '-d', `refs/variance/at/${first}/mainline/main`);
+    const { dir, base, reach, nowhere } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
+    expect(await base(NOW)).toMatchObject({ commit: next, distance: -1, fetched: at(NOW) });
+    await reach(nowhere);
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'asked' } });
+  });
+
+  it('is asked again once the merge base moves past it, and on every read while it is behind', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const { dir, base, reach, nowhere } = await laptop(origin);
     expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
     await pushed(ci);
     await git(dir, 'pull', '--quiet', '--ff-only');
 
-    // A minute later: the line holds nothing newer, and is asked for it all the same.
     const asked = await base(NOW + 60_000);
     expect(asked).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
     expect(asked).not.toHaveProperty('earlier');
     await reach(nowhere);
 
-    expect(await base(NOW + 2 * 60_000)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { reused: 'asked' } });
-    // A day later the merge base's job may have published, so the line is asked again.
-    const kept = await base(NOW + DAY);
+    const kept = await base(NOW + 2 * 60_000);
 
-    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: {} } });
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: { kind: 'unreachable' } } });
   });
 });
 

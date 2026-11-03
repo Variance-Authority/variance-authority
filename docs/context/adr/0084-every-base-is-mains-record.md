@@ -56,13 +56,16 @@ fetched here, and the reader says so.**
   commit (`refs/variance/at/<commit>/mainline/<name>`) for the window of
   ADR-0078, 14 days and the newest 200 commits; the publish that writes one
   deletes what fell out. The reader asks for the record at the merge base
-  first and reads the newest when none is kept there, and a directory or an
-  HTTP store keeps the newest only. `fetched.json` keeps the merge base the line was
-  asked at. The record stands without asking when it is at the merge base,
-  or for ten minutes after the line was asked at this same merge base, then
-  is asked again, because the record at the merge base may be published by
-  then. Otherwise a pull
-  or a rebase has moved the merge base, and the line is asked once. Every
+  first. On a green main every commit's job publishes its record, so until
+  the merge base's has, the reader reads the newest kept behind it, which
+  charges the change with no commit of main's it lacks; the newest of the
+  line answers only when nothing at or behind is kept, and a directory or an
+  HTTP store keeps the newest only. `fetched.json` keeps the merge base the
+  line was asked at. The record stands without asking when it is at the
+  merge base, or past it when the line was asked at this same merge base,
+  since nothing kept later can be nearer. Behind it the line is asked on each
+  read, because the merge base's job may publish yet. Otherwise a pull or a
+  rebase has moved the merge base, and the line is asked once. Every
   reader of a checkout, and every CI job handed the read root, has one merge
   base and reads one record. A remote that does not answer leaves the record
   fetched earlier as the base, and the reader names when it was fetched and
@@ -132,9 +135,11 @@ fetched here, and the reader says so.**
 
 ## Cost
 
-- A record main published after the line was asked at this merge base is not
+- Behind the merge base, every read asks the line until the merge base's job
+  publishes; a merge base whose job never does is asked at each read, at most
+  once a minute, until a pull moves it.
+- Past it, a record kept after the line was asked at this merge base is not
   read until the merge base moves, or `variance share --suite <name>` asks.
-  The older record selects more tests, never fewer.
 - The publish job runs `vitest list` as well as the build.
 - A developer who never runs `variance share --suite <name>`, `test:since` or
   `select` has never fetched, and their seams lay the primary checkout's
