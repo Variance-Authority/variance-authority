@@ -41,7 +41,10 @@ there, or in a new test file beside it. Once the edit is in the tree, `yarn
 variance select --suite <slice>` selects from the diff, and says nothing about a
 file that has not changed. A `refactor` or `perf` change alters no assertion:
 name the green tests `covering` found and the invariants the change preserves,
-and those tests stay green on both sides.
+and those tests stay green on both sides. A file of types alone never runs, so
+`covering` has no answer for it: `yarn variance ask uses` names what stands on
+it, and the invariant is the build's emitted `.js` and `.d.ts`, compared before
+and after.
 
 **Does existing code already answer it?** Before writing, ask `yarn variance
 ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
