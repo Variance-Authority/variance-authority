@@ -34,7 +34,8 @@ you want the nearest snapshot a worktree can actually read:
 checkouts never write one another's bytes. A worktree writes its own layer under
 `.work/<workspace-digest>/` beneath that directory and reads the primary
 checkout's as a fallback, so a worktree cut this morning inherits what the
-repository already recorded instead of re-transforming it.
+repository already recorded instead of re-transforming it. A repository that
+declares its suites has [one such file for each](#one-record-for-each-suite).
 
 **Do not commit it.** The default path is outside your work tree: `git status`
 never sees it, `git clean` never takes it, and it never lands in a pull request.
@@ -54,7 +55,93 @@ Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
 whole suite instead of narrowing on damage.
 
-### One record for each suite
+## What a run does to the record already there
+
+It depends on what the run finds at the path:
+
+| At the path | What the run does |
+|---|---|
+| Nothing | Writes what it observed as the whole record. In [the cache](cache.md) it first copies in the checkout's base, when there is one, and lays over that. |
+| A record under the same probes | Lays over it, as the rest of this section says. |
+| A record under other probes | In the cache, replaces it, and prints one line saying so. At a path you handed in, refuses with the reason and leaves the file as it was. |
+| A record this build cannot read | Refuses with the reason and leaves the file as it was, in the cache too. |
+
+The checkout's base is the mainline's record as last fetched on this machine,
+or in a worktree the primary checkout's. A record in the cache can be replaced
+because the next runs rebuild it, and [what that costs](cache.md#after-an-upgrade)
+is on the cache page.
+
+The probes are the recipe a build cuts a module into regions by, and a record
+names them in its instrumentation id, such as `sense:instrument/presence-v6`.
+One build records under one set of probes and reads what it wrote, so a record
+under another id cannot take this run's observations.
+
+**A run that instruments no module** lays no coverage. A record at the path keeps
+its coverage as it was, under the run's cases. A run that also keeps no cases
+writes nothing. [Writing the record](#writing-the-record) has the file
+such a run writes, and the one exception.
+
+### The lay
+
+A run **lays** what it observed over the record: that replaces what was there,
+and everything else stays. A run of three test files leaves every other test in
+place. *Lay* is this page's one word for that step, and
+[writing the record](#writing-the-record) shows where it sits in a write.
+
+Below, a [region](#blocks) is a function, a branch arm, a loop body or a handler
+of a module, and a [crossing](#keys) is one test having run one region. A
+region's [digest](#blocks) is a hash of its own text, without the regions inside
+it. A test's row is its one entry in the record, which says whether it is
+complete.
+
+What the lay does to each test depends on whether the run observed it:
+
+- **A test the run observed** gets a new row and new crossings. If the run
+  recorded it incomplete under the same preconditions, its previous crossings
+  stay beside the new ones.
+- **A test the run did not observe** keeps its row, and each of its crossings
+  stays on the region with the same [address](#identity-under-an-edit). Its row
+  stays as it was unless the lay demotes it.
+
+To **demote** a test is to mark its row incomplete, so it runs on its next
+selection. These three cases demote a test the run did not observe, and nothing
+else does:
+
+1. **A region it crossed has a new digest**, and the edit can change what that
+   region runs. The run asks the two texts what
+   [selection would read off the diff](#tracing-a-diff-to-tests). An edit that
+   changes nothing that runs, such as one to types alone, demotes no test. An
+   edit that changes only function bodies demotes the tests on the regions it
+   changed, and no test for having loaded the module.
+2. **A region it crossed is gone**, and the nearest region that survives around
+   it does not list the test. Regions nest, so a test that ran a deleted
+   function is normally listed on the region around it.
+3. **Its module cannot be placed.** The file is there and cannot be read, its
+   text cannot be cut into regions, or one of the two records did not instrument
+   the module. Every test that crossed the module is demoted.
+
+**The lay reads the address first and the digest second.** The address places
+the crossing: a region of the previous record pairs with the region at the same
+address and of the same kind, and no digest is read to do it. The digest then
+decides about the test: a paired region with a new digest keeps the crossing and
+demotes the test, which is case 1. The second step makes the first safe, because
+other text at the same address has a new digest, so the test runs again.
+
+**A module the run did not load** stays in the record, its regions at the lines
+of the text it had when it was recorded. When the file has other text now, the
+run cuts that text into regions and places each crossing by address, so the
+regions sit at the lines the next diff will use, and the three cases above
+apply. When the file is gone, the module stays as it was and no test is demoted:
+the diff that deleted the file selects the tests that crossed it.
+
+**The case index** is the record's list of which named cases ran each region,
+kept in the same file. A test file the run finished has its cases replaced, one
+it did not finish keeps its old cases beside the ones that ran again, and the
+cases of a test file the checkout no longer holds are retired. Every other case
+stays. The index has no digests, so its cases move with an edit by a rule of
+their own, in [identity under an edit](#identity-under-an-edit).
+
+## One record for each suite
 
 If your repository runs more than one test suite, declare each one, with its
 kind, under `suites` in the `variance.config.json` at the repository root:
@@ -103,63 +190,6 @@ change to it selects, and no line. A payment module your unit suite
 walked and your visual suite never loaded reads as exactly that. `--suite
 <name>` asks one record alone.
 
-## What a run does to the record already there
-
-A run does not write the file from nothing. It **lays** its rows over the record
-at the path: what it observed replaces what was there, and everything else
-stays. A run of three test files leaves the rows of every other test in place.
-*Lay* is this page's one word for that step, and
-[writing the record](#writing-the-record) shows where it sits in a write.
-
-Below, a [region](#blocks) is a function, a branch arm, a loop body or a handler
-of a module, and a [crossing](#keys) is one test having run one region.
-
-What the lay does to each test depends on whether the run observed it:
-
-- **A test the run observed** gets a new row and new crossings. If the run
-  recorded it incomplete under the same preconditions, its previous crossings
-  stay beside the new ones.
-- **A test the run did not observe** keeps its row, and each of its crossings
-  stays on the region with the same [address](#identity-under-an-edit). Its row
-  stays as it was unless the lay demotes it.
-
-To **demote** a test is to mark its row incomplete, so it runs on its next
-selection. These three cases demote a test the run did not observe, and nothing
-else does:
-
-1. **A region it crossed has a new digest**, and the edit can change what that
-   region runs. An edit that changes nothing that runs demotes no test. An edit
-   that changes only function bodies leaves out the module's own region.
-2. **A region it crossed is gone**, and the nearest region that survives around
-   it does not list the test. Regions nest, so a test that ran a deleted
-   function is normally listed on the region around it.
-3. **Its module cannot be placed.** The file cannot be read, its text cannot be
-   cut into regions, or one of the two records did not instrument the module.
-   Every test that crossed the module is demoted.
-
-**The lay reads the address first and the digest second.** The address places
-the crossing: a region of the previous record pairs with the region at the same
-address and of the same kind, and no digest is read to do it. The digest then
-decides about the test: a paired region with a new digest keeps the crossing and
-demotes the test, which is case 1. The second step makes the first safe, because
-other text at the same address has a new digest, so the test runs again.
-
-**A module the run did not load** stays in the record, and its rows are lines of
-the text it had when it was recorded. When the file has other text now, the run
-cuts that text into regions and places each crossing by address, so the rows are
-in the lines the next diff will use. When nothing is at the path, the rows stay
-as they are and the module is answered for by name.
-
-**A record the run cannot lay over** is another build's. One build records under
-one set of probes and reads what it wrote, so a record under another
-instrumentation id cannot take this run's rows. In the checkout's
-[cache](cache.md) the run replaces that record before the lay, in one printed
-line. At a path you handed in, the run refuses with the reason and leaves the
-record where it is, as it does for any record this build cannot read.
-
-The case index keeps a rule of its own, in
-[identity under an edit](#identity-under-an-edit), because it has no digests.
-
 ## What each host records
 
 Six hosts write this file, and they write the same structures into it. What
@@ -178,8 +208,8 @@ case from the next.
 | [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
 None of the Node seams asks you to change a runner option to record cases, and the
-snapshot's bytes do not depend on them — the case axis is a second file beside
-it. A test file that runs in a page, under Vitest or Rstest browser mode, is
+coverage in the record does not depend on them: the case index is its own
+section of the same file. A test file that runs in a page, under Vitest or Rstest browser mode, is
 recorded per file only: that run writes no case index and prints a warning.
 [Own fewer tests](own-fewer-tests.md#ask-which-tests-cover-a-line) is the
 question that reads it.
@@ -602,7 +632,7 @@ with neither is untimed. Two projects' figures are summed before the larger is
 taken, so the cost is that of both runs. `variance ask slowest-tests` ranks
 files by this cost and a sharded run places them by it.
 
-The case index beside the snapshot carries the same figure for each case, in a
+The case index in the record carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
 result, Rstest's test result, Playwright's `testInfo.duration`, or the
 `duration` a case carries in what you pass to `startRecording().finish()`.
@@ -973,8 +1003,9 @@ under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
 function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
 a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
-no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
-over a snapshot, cut under another recipe. A reader answers from such a
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a
+journal cut under another recipe, and what it does about a record under another
+recipe is [in the table above](#what-a-run-does-to-the-record-already-there). A reader answers from such a
 snapshot as it holds it, and names both recipes and the regions the difference
 leaves unanswered.
 
@@ -1086,9 +1117,10 @@ crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Prepare the record.** The run replaces a cached record under other probes, and
-when the cache holds no record it puts the checkout's base there, so the run has
-a record to lay over. It does neither at a path outside the cache.
+**Prepare the record.** In the cache, the run
+[replaces a record under other probes](#what-a-run-does-to-the-record-already-there),
+and copies in the checkout's base where no record is left, so it has a record to
+lay over. It does neither at a path outside the cache.
 
 **Lay over the previous record.** The native addon applies
 [the rules above](#what-a-run-does-to-the-record-already-there) column to column,
@@ -1130,10 +1162,9 @@ answer is the same whichever shard is read first.
 
 **A run that instruments nothing.** A run that keeps its cases and instruments
 no module still writes the file, with the case sections and none of the
-coverage sections: no strings, snapshot, tests, modules, blocks or sets. A
-record already at the path keeps its coverage as it was, under the new run's
-cases. A run that keeps no cases and instruments nothing writes nothing. A
-file whose probes fired where nothing could place them is the exception: it is
+coverage sections: no strings, snapshot, tests, modules, blocks or sets. Over a
+record it [leaves the coverage there](#what-a-run-does-to-the-record-already-there).
+A file whose probes fired where nothing could place them is the exception: it is
 recorded incomplete, which selects it on the next run, and that row lands as
 coverage does. Such a record moves the way any record does: a new
 worktree seeds from it, and landing it as a shard with `variance journeys` lays
