@@ -1050,7 +1050,7 @@
         "variance-authority-help": "./dist/bin.js"
       },
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
