@@ -6,7 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
-import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -266,11 +266,24 @@ export async function askSource(request: SourceRequest): Promise<string> {
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
   };
   const started = Date.now();
-  const answering = await sourceAnswering(request, tool, input, reading);
+  const read = await sourceAnswering(request, tool, input, reading);
   // A reading `--just-answer` asked for, or a published search opened at its
   // age, is not compared with the checkout, and every answer from it says so.
   // Every other one is the checkout's as it is by the time it refuses.
-  const unseen = request.justAnswer === true || answering.unseen === true;
+  const unseen = request.justAnswer === true || read.unseen === true;
+  const again = (from: Answering): ReturnType<typeof caughtUp<Answering>> =>
+    caughtUp(
+      from.at,
+      started,
+      request.source === undefined ? process.cwd() : undefined,
+      (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }),
+      async (subject = from) => (await subject.outlived?.(started, from.help)) === true,
+    );
+  // An answer whose named files changed since its generation is asked again
+  // before it is given; one that could not be, or whose files moved again, says
+  // so in the line that dates it.
+  const looked = !unseen && (await read.outlived?.(started)) === true ? await again(read) : undefined;
+  const answering = looked?.subject ?? read;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
@@ -279,15 +292,13 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // found is thrown the same way, so it is read again like a refusal, and is
   // then printed as the answer it is.
   try {
-    return rendered(request, answering, unseen);
+    return rendered(request, answering, looked?.unseen ?? unseen);
   } catch (refusal) {
-    // A refusal read from what the checkout was before the question is not
-    // yet a fact about the checkout: it is read again, brought up to date,
-    // and that answer stands.
-    // A reading nothing compared with the checkout says so under its refusal,
-    // and one that could not be compared says why.
-    const caught = unseen ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
-    const dated = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
+    // A refusal from what the checkout was before the question is not yet a
+    // fact about it: it is read again, unless the look just did, and that answer
+    // stands. A reading not compared with the checkout says so, and why.
+    const caught = unseen ? undefined : (looked ?? (await again(answering)));
+    const dated = refusalFooter(caught, caught?.subject?.at ?? answering.at, unseen);
     const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
     const said = footer === '' ? '' : `\n\n${footer}`;
     if (caught?.subject === undefined) {
@@ -297,7 +308,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
       throw refused(refusal, said);
     }
     try {
-      return rendered(request, caught.subject, false);
+      return rendered(request, caught.subject, caught.unseen ?? false);
     } catch (still) {
       const found = foundNothingAnswer(still, caught, caught.subject.at, false);
       if (found !== undefined) return foundNothing(found, unopenedLine(caught.subject.unopened, true));
@@ -332,18 +343,18 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : await wholeSource(readSource, tool, input, reading);
 }
 
-function rendered(request: SourceRequest, answering: Answering, unseen: boolean): string {
+function rendered(request: SourceRequest, answering: Answering, unseen: boolean | string): string {
   const at = answering.at;
   if (request.format === 'json') {
     // The generation is carried as a field rather than a footer line, and is
     // absent when the reading could not say when it was made.
     const data = answering.data?.();
     const unopened = answering.unopened === undefined ? {} : { unopened: answering.unopened };
-    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...unopened }, undefined, 2)}\n`;
+    return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen === false ? {} : { compared: false }) }), ...unopened }, undefined, 2)}\n`;
   }
   const answer = answering.answer();
   const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
-  const said = unopenedLine(answering.unopened, !unseen);
+  const said = unopenedLine(answering.unopened, unseen === false);
   return `${said === undefined ? dated : `${dated}\n${said}`}\n`;
 }
 

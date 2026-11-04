@@ -1,7 +1,7 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -102,6 +102,97 @@ describe('the server `variance serve` starts', () => {
       const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
       expect(result.isError).toBeUndefined();
       expect(result.content[0]!.text).toContain('src/kept.ts');
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/kept.ts'), { force: true });
+    }
+  });
+
+  it('reads the checkout again before `docs_search` lists a name renamed since the generation it holds', async () => {
+    await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
+    const server = session();
+    try {
+      // A refusal reads the checkout again, so the generation held from here on holds the name.
+      await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } });
+      const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'oldName' } });
+      expect(before.content[0]!.text).toContain('src/renamed.ts');
+      await writeFile(join(workspace, 'src/renamed.ts'), 'export function newName(): number {\n  return 1;\n}\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'oldName' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).not.toContain('src/renamed.ts');
+      expect(snapshotOf(result.content[0]!.text)).not.toBe(snapshotOf(before.content[0]!.text));
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/renamed.ts'), { force: true });
+    }
+  });
+
+  it('reads the checkout again before `docs_search` calls a name published that its barrel stopped passing on', async () => {
+    const entry = await readFile(join(workspace, 'src/index.ts'), 'utf8');
+    await writeFile(join(workspace, 'src/mid.ts'), "export { passedOn } from './passed.js';\n");
+    await writeFile(join(workspace, 'src/passed.ts'), 'export const passedOn = 1;\n');
+    await writeFile(join(workspace, 'src/index.ts'), `${entry}export * from './mid.js';\n`);
+    execFileSync('git', ['init', '--quiet'], { cwd: workspace });
+    const server = session();
+    try {
+      // A refusal reads the checkout again, so the generation held from here on holds the barrel.
+      await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'passedOn' } });
+      const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'passedOn' } });
+      expect(before.content[0]!.text).toContain('mounted · passedOn [const]');
+      await writeFile(join(workspace, 'src/mid.ts'), 'export const stayed = 1;\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'passedOn' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).not.toContain('mounted · passedOn [const]');
+      expect(snapshotOf(result.content[0]!.text)).not.toBe(snapshotOf(before.content[0]!.text));
+    } finally {
+      server.close();
+      await writeFile(join(workspace, 'src/index.ts'), entry);
+      await rm(join(workspace, 'src/mid.ts'), { force: true });
+      await rm(join(workspace, 'src/passed.ts'), { force: true });
+      await rm(join(workspace, '.git'), { recursive: true, force: true });
+    }
+  });
+
+  it('reads the checkout again before `docs_symbol` answers a name renamed since the generation it holds', async () => {
+    await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } })).content[0]!.text).toContain('src/renamed.ts');
+      await writeFile(join(workspace, 'src/renamed.ts'), 'export function newName(): number {\n  return 1;\n}\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } });
+      expect(result.content[0]!.text).toContain('`oldName` is not');
+      expect(result.content[0]!.text).not.toContain('src/renamed.ts:1');
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/renamed.ts'), { force: true });
+    }
+  });
+
+  it('dates a found answer once, saying why, when the checkout could not be read again', async () => {
+    const manifest = await readFile(join(workspace, 'package.json'), 'utf8');
+    const source = await readFile(join(workspace, 'src/index.ts'), 'utf8');
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'mounted' } })).isError).toBeUndefined();
+      await writeFile(join(workspace, 'src/index.ts'), `// moved\n${source}`);
+      await writeFile(join(workspace, 'package.json'), '{ half-written');
+      const text = (await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'mounted' } })).content[0]!.text;
+      expect(text.match(/^Snapshot /gmu)).toHaveLength(1);
+      expect(text).toMatch(/^Snapshot \S+, not compared with the checkout \(it could not be read again: /mu);
+    } finally {
+      server.close();
+      await writeFile(join(workspace, 'package.json'), manifest);
+      await writeFile(join(workspace, 'src/index.ts'), source);
+    }
+  });
+
+  it('keeps the generation it holds while `docs_search` names no file that changed', async () => {
+    const server = session();
+    try {
+      const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'mounted' } });
+      await writeFile(join(workspace, 'src/kept.ts'), 'export const kept = 1;\n');
+      const after = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'mounted' } });
+      expect(after.content[0]!.text).toBe(before.content[0]!.text);
     } finally {
       server.close();
       await rm(join(workspace, 'src/kept.ts'), { force: true });
@@ -291,6 +382,11 @@ async function writeConfig(checkout: string, share: Readonly<Record<string, unkn
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
   return (await promisify(execFile)('git', args, { cwd })).stdout.trim();
+}
+
+/** The time an answer's generation was made, from its date line. */
+function snapshotOf(text: string): string | undefined {
+  return /^Snapshot (\S+?)\.$/mu.exec(text)?.[1];
 }
 
 async function ask<Result>(method: string, params?: Record<string, unknown>, cwd = workspace): Promise<Result> {

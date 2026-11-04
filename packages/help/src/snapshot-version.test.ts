@@ -10,6 +10,8 @@ import { readWorkspaceSnapshot, SNAPSHOT_FORMAT, SNAPSHOT_VERSION, workspaceSnap
  * the version, and a value written in the shape before it is refused rather
  * than read: a v9 export has no `bound`, the name it binds in its own file, and
  * a reader handed one would key every default export by the slot `default`.
+ * So does a time the reader needs: a v12 value says when it was published, not
+ * when its read began, and a look at the checkout cannot be made against it.
  */
 
 let root: string;
@@ -29,23 +31,30 @@ const written = (version: number) => ({
   graphRoot: root,
   graphDigest: 'digest',
   generatedAt: '2026-10-18T00:00:00.000Z',
+  ...(version >= 13 ? { readStartedAt: '2026-10-17T23:59:59.000Z' } : {}),
   help: { packages: [], deep: [], unfollowed: [], byPath: [], exported: [], unreadable: [] },
 });
 
 describe('the workspace snapshot version', () => {
-  it('is 12, the shape whose exports carry `bound` whichever path wrote them', () => {
-    expect(SNAPSHOT_VERSION).toBe(12);
+  it('is 13, the shape that says when its read began', () => {
+    expect(SNAPSHOT_VERSION).toBe(13);
   });
 
-  it('refuses a v11 value, which a refresh may have written without `bound`', async () => {
+  it('refuses a v12 value, which says only when it was published', async () => {
     const index = join(root, 'source-index.bin');
-    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(11)));
-    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v12 value`);
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(12)));
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v13 value`);
+  });
+
+  it('refuses a value of its own version that does not say when its read began', async () => {
+    const index = join(root, 'source-index.bin');
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify({ ...written(13), readStartedAt: undefined }));
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`is not a ${SNAPSHOT_FORMAT} v13 value`);
   });
 
   it('reads a value of its own version', async () => {
     const index = join(root, 'source-index.bin');
-    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(12)));
+    await writeFile(workspaceSnapshotPath(index), JSON.stringify(written(13)));
     await expect(readWorkspaceSnapshot(root, { index })).resolves.toMatchObject({ packages: [] });
   });
 });

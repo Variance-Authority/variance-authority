@@ -185,7 +185,7 @@ export function nowhere(
     ? []
     : [
         ...exportsNamed(help, root, head, wanted).filter((held) => held.bound !== undefined),
-        ...declaredAt(root, head, wanted).filter((one) => !isNested(one)),
+        ...declaredAt(help, root, head, wanted).filter((one) => !isNested(one)),
       ];
   // What was read and found nothing comes first, as only what was read; what was not read, last.
   const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;

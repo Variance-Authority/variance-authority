@@ -2,7 +2,7 @@ import { declaredLooseOf, declaredTermsOf } from '@variance-authority/sense';
 import { tokensOf } from '../search-index.js';
 import { declaredMatch } from './declared.js';
 import { editsAllowed, matchingTerms, type Dictionary } from './loose.js';
-import type { DeclaredMatch } from './search-answer.js';
+import type { DeclaredMatch } from './search-matches.js';
 
 // compass: variance-authority.report.agent-surface
 

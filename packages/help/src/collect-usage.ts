@@ -39,8 +39,11 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
+  /** Each `export … from` accepted so far, which `Usage` does not hold: `export *` names nothing. */
+  forwards(): readonly string[];
 } {
   const usage = gatheringUsage();
+  const forwards: string[] = [];
   const pending = new Map<string, Map<number, Pending>>();
 
   return {
@@ -53,6 +56,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       let text: string | undefined;
       const importedHere = new Set(parsed.requests.flatMap((request) => request.bindings.map((binding) => binding.local)));
       for (const published of parsed.exports ?? []) {
+        if (published.from !== undefined) forwards.push(`${at}\0${published.exported ?? ''}\0${published.from}\0${published.imported ?? ''}`);
         if (published.exported !== undefined) {
           // The TypeScript reader spans an export's doc on the export; the
           // others span it on the declaration the export binds, by its name.
@@ -77,6 +81,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             kind,
             ...(own === undefined ? {} : { bound: own }),
             ...(bound === undefined ? {} : { declaration: bound.kind }),
+            ...(bound === undefined || bound.line === published.line ? {} : { boundLine: bound.line }),
             ...(doc === undefined ? {} : { doc }),
             ...(signature === undefined ? {} : { signature }),
           });
@@ -111,6 +116,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       }
     },
     read: () => usage.read(),
+    forwards: () => forwards,
   };
 }
 

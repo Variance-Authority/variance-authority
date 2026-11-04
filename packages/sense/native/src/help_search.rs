@@ -379,8 +379,11 @@ fn align(at: usize) -> usize {
 /// The export list as a set: each row's file, name, kind and type, in byte
 /// order, once.
 pub(crate) fn exported_digest(exported: &[NamedExport]) -> String {
-    let mut keys: Vec<String> =
-        exported.par_iter().map(|named| format!("{}\0{}\0{}\0{}", named.at, named.name, named.kind, u8::from(named.r#type))).collect();
+    set_digest(exported.par_iter().map(|named| format!("{}\0{}\0{}\0{}", named.at, named.name, named.kind, u8::from(named.r#type))).collect())
+}
+
+/// `keys` as a set: in byte order, once.
+pub(crate) fn set_digest(mut keys: Vec<String>) -> String {
     keys.par_sort_unstable();
     keys.dedup();
     let mut digest = Sha256::new();
