@@ -16,6 +16,7 @@ import {
   type SuiteIndex,
 } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
+import { OperatorError } from '../exit.js';
 import { costsEntryOf } from './costs-entry.js';
 import { REPORT_ENTRY, entryCarriesEyes, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun, type Env, type MainlinesMissing } from '../share-lines.js';
@@ -302,16 +303,19 @@ export async function mainlineSuite(
  * `variance share` — what the reader's mainline holds, or what this run gave
  * its line.
  *
- * Always a clean exit. A share that holds nothing is a share the next push
- * fills, and failing a pipeline over it would make an optimisation
- * load-bearing.
+ * A clean exit, but for a publish that could not keep its record by commit. A
+ * share that holds nothing is a share the next push fills, and failing a
+ * pipeline over it would make an optimisation load-bearing.
  */
 export async function shareLines(
   config: Config,
   options: { readonly publish: boolean; readonly mainline?: string; readonly report?: string },
   here: Here = {},
 ): Promise<readonly string[]> {
-  if (options.publish) return describePublish(config, await publishRun(config, options.report ?? config.report, here));
+  if (options.publish) {
+    const done = await publishRun(config, options.report ?? config.report, here);
+    return refusedUnkept(done, describePublish(config, done));
+  }
 
   const found = await mainlineIndex(config, {
     ...here,
@@ -331,6 +335,17 @@ export async function shareLines(
         : `, lexicon over ${lexicon.fields.length} field(s) of ${lexicon.subjects.length} subject(s)`),
     `at ${suiteIndexPath(config, found.commit)}`,
   ];
+}
+
+/** Whether a publish wrote the latest and could not keep it by commit. */
+export function unkept(done: RunPublish): boolean {
+  return 'published' in done && done.published.atCommit?.miss !== undefined;
+}
+
+/** `lines`, or a refusal saying them: CI has to see a kept record that was not written, and publish again. */
+export function refusedUnkept(done: RunPublish, lines: readonly string[]): readonly string[] {
+  if (unkept(done)) throw new OperatorError(lines.join('\n'));
+  return lines;
 }
 
 /** What a publish did, in the lines `variance share --publish` prints. */

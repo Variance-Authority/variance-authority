@@ -5,6 +5,8 @@ import { OperatorError } from './exit.js';
 export interface ParsedShare {
   readonly command: 'share';
   readonly config: string;
+  /** Set when `--config` was given: a purge then removes from that config's share and no other. */
+  readonly configNamed?: boolean;
   /** The mainline to read. The pull request's base, else the listed one nearest `HEAD`. */
   readonly mainline?: string;
   /** Publish the report's suite index and subject costs rather than fetch mainline's. */
@@ -91,6 +93,7 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
   return {
     command: 'share',
     config,
+    ...(flags.values.has('--config') ? { configNamed: true } : {}),
     publish,
     ...(purge !== undefined ? { purgeOlderThan: Number(purge) } : {}),
     ...(mainline !== undefined ? { mainline } : {}),

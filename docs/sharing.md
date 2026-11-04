@@ -647,25 +647,11 @@ wider run, never a narrower one. In CI, [merge the pull request with
 that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
 is the pull request's alone.
 
-A record behind your merge base leaves the mainline's changes to the mainline.
-A test the record selects runs when `file` precision over your own change from
-the merge base would select it too: imports reach it from a file you changed or
-a package you bumped, or the record says it entered a file you changed. A bump
-or a change to what the suite rests on counts only when you made it. Any other
-test is the mainline's, and the answer says how many:
-
-```text
-1 test file(s) left to mainline main: only its commits between the record's commit 3f1c9a2a07b8 and the merge base 8e01b44c5d21 reach them, and nothing this checkout changed from that base does.
-```
-
-A test that entered a file you deleted or renamed runs. So does one the
-mainline made import it, which the record never saw: when your change removes
-a path, every file whose imports the [source index](source-index.md) could not all resolve counts
-as reached. A load the import graph cannot follow, such as `import()` of a
-computed path, is not: a mainline change that turns one onto a file you changed
-leaves its test to the mainline, unless the record saw that load. Nothing is
-left on the mainline's own tip with nothing changed, whose run answers for it,
-or when the source index could not come up to your checkout.
+A record behind your merge base is read the same way: the mainline's commits
+between it and your merge base count as changed, and the tests they reach run
+with yours. That record cannot say what those commits made a test load, so a
+test they touch is never skipped on its word. The run grows with the distance
+until the merge base's own job publishes.
 
 `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
@@ -712,8 +698,11 @@ record](#a-suite-your-checkout-has-not-recorded).
 - `variance share --suite <name> --publish` on a mainline that wrote nothing,
   for a miss or a record it left out. Every checkout measures from that line's
   record, so an older one left in place has to show in CI.
+- `variance share --publish`, with or without `--suite`, on a mainline that
+  wrote the latest and could not keep it by commit. The latest stands, and the
+  job has to publish again for a checkout at that commit to find its record.
 
-Apart from that last case, `variance share` exits 0 on a miss, so a publish
+Apart from those last two cases, `variance share` exits 0 on a miss, so a publish
 that stopped working does not turn CI red.
 Watch the distance `npx variance share` prints: a mainline record forty commits
 behind your merge base is one nothing has published to since.

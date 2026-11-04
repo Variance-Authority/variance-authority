@@ -44,14 +44,14 @@ export async function purgeLines(
   return { lines, exit };
 }
 
-/** `variance share --purge-older-than <days>`, on the root config's share, else the project config's. */
+/** `variance share --purge-older-than <days>`, on the share of the `--config` named, else the root config's, else the project config's. */
 export async function runSharePurge(
-  options: { readonly config: string; readonly purgeOlderThan: number; readonly mainline?: string },
+  options: { readonly config: string; readonly configNamed?: boolean; readonly purgeOlderThan: number; readonly mainline?: string },
   streams: { readonly out: (text: string) => void },
 ): Promise<ExitCode> {
   const selection = await import('@variance-authority/sense/test-selection');
   const root = process.cwd();
-  const share = rootShare(selection.rootConfig(root));
+  const share = options.configNamed === true ? undefined : rootShare(selection.rootConfig(root));
   const place = share === undefined ? await loadConfig(options.config) : { share, cacheRoot: selection.cacheRootFor(root) };
   const done = await purgeLines(place, options.purgeOlderThan, options.mainline);
   streams.out(`${done.lines.join('\n')}\n`);

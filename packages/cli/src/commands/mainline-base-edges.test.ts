@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +13,7 @@ import {
   withCaseSections,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { MISS_STANDS_MS, mainlineBase, mainlineMissed } from './mainline-base.js';
@@ -411,6 +411,20 @@ describe('a record path the checkout cannot ask about', () => {
     await writeFile(dirname(own), '');
 
     await expect(suiteBase(dir, { env: LOCAL })).rejects.toMatchObject({ code: 'ENOTDIR' });
+  });
+});
+
+describe('`variance share --suite --publish` that cannot keep its record by commit', () => {
+  it('wrote the latest, says what it could not keep, and fails the command', async () => {
+    const { ci, origin } = await gitPublished(home, { publish: false });
+    await writeFile(join(origin, 'hooks/update'), '#!/bin/sh\ncase "$1" in refs/variance/at/*) exit 1;; esac\n');
+    await chmod(join(origin, 'hooks/update'), 0o755);
+
+    const done = await suiteShare(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
+
+    expect(done.exit).toBe(EXIT_OPERATOR);
+    expect(done.lines.join('\n')).toContain('stopped before it finished keeping records by commit');
+    expect(await git(ci, 'ls-remote', 'origin', 'refs/variance/mainline/main')).not.toBe('');
   });
 });
 

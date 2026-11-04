@@ -9,20 +9,11 @@ import { PUSH, cloneOf, git, publishTo, selectedIn, shareConfig } from './mainli
 import { selectOutput } from './select-command.js';
 import { npmLock } from './select-install-fixture.js';
 
-/** Set to have the source index refuse to come up to the checkout, as a read-only cache or a failed scan does. */
-let refused: string | undefined;
-
-vi.mock('./source-graph.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./source-graph.js')>();
-  return { ...original, indexUpToCheckout: async (...args: Parameters<typeof original.indexUpToCheckout>) => refused ?? original.indexUpToCheckout(...args) };
-});
-
 /**
  * A checkout whose mainline moved past the record it published: a pull
- * brought commits CI has not recorded yet. A test is the checkout's to run when
- * its outcome here can differ from its outcome at the merge base, so a change
- * only the mainline made is the mainline's to run, and the checkout's own
- * change selects by what its tests reach.
+ * brought commits CI has not recorded yet. The record cannot say what those
+ * commits made a test load, so they count as changed with the checkout's own,
+ * and a test either reaches runs.
  *
  * Two folders, one test each: `total` (package A) and `other` (package B).
  */
@@ -36,7 +27,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  refused = undefined;
   process.chdir(cwd);
   vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
@@ -140,16 +130,14 @@ async function branched(origin: string, file: string, source: string | undefined
 }
 
 describe('`variance select` a commit past the record its mainline published', () => {
-  it('runs none of the tests only the mainline\'s change reaches', async () => {
+  it('runs a test only the mainline\'s change reaches, whose record cannot say what that change made it load', async () => {
     const ci = await mainline();
     await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
     const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
 
     const here = await selectedIn(clone);
 
-    // Plain output is what to skip.
-    expect(here.out).toBe('test/total.test.ts\n');
-    expect(here.err).toContain(`1 test file(s) left to mainline main: only its commits between the record's commit ${ci.recorded.slice(0, 12)} and the merge base `);
+    expect(here.out).toBe('');
   });
 
   it('runs a test the mainline changed when it reaches the checkout\'s change, though its record never entered it', async () => {
@@ -178,6 +166,26 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
+  it('runs a test a computed load the mainline moved turns onto the checkout\'s change, which neither the record nor the graph sees', async () => {
+    // At the record `total` loads `w`. The mainline moves the name, and the graph follows no computed path.
+    const ci = await mainline({
+      total: "import { target } from './target';\nexport async function total(price: number): Promise<number> {\n  return (await import(`./${target}`)).run(price);\n}\n",
+      files: {
+        'src/target.ts': "export const target = 'w';\n",
+        'src/w.ts': 'export const run = (price: number) => price;\n',
+        'src/x.ts': 'export const run = (price: number) => price;\n',
+      },
+      entered: { 'src/target.ts': "export const target = 'w';\n" },
+    });
+    await landed(ci.dir, { 'src/target.ts': "export const target = 'x';\n" });
+    const clone = await branched(ci.origin, 'src/x.ts', 'export const run = (price: number) => price * 2;\n');
+
+    const here = await selectedIn(clone);
+
+    // Plain output is what to skip.
+    expect(here.out).not.toContain('test/total.test.ts');
+  });
+
   it.each([
     ['rates.json', "import rates from './rates.json';", 'rates.rate', '{ "rate": 0.9 }\n', '{ "rate": 0.8 }\n'],
     ['total.css', "import './total.css';", '0.9', '.total { color: red; }\n', '.total { color: blue; }\n'],
@@ -187,12 +195,12 @@ describe('`variance select` a commit past the record its mainline published', ()
       total: `${load}\nexport function total(price: number): number {\n  return price * ${factor};\n}\n`,
       files: { [`src/${file}`]: before },
     });
-    await landed(ci.dir, { 'src/other.ts': OTHER.replace('+ 1', '+ 3') });
+    await landed(ci.dir, { 'src/unread.ts': 'export const unread = 1;\n' });
     const clone = await branched(ci.origin, `src/${file}`, after);
 
     const here = await selectedIn(clone);
 
-    // `other` only the mainline's change reaches; `total` imports the file the checkout changed.
+    // `other` nothing reaches; `total` imports the file the checkout changed.
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
@@ -233,18 +241,18 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
-  it('runs a test that entered a file the checkout restored to the record\'s text after the mainline changed it', async () => {
+  it('skips a test that entered only a file the checkout restored to the record\'s text, which the record ran', async () => {
     const ci = await mainline();
     await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
-    // The checkout undoes the mainline's change: `total` reads as the record ran it, and differs from the merge base.
+    // The checkout undoes the mainline's change: every file reads as the record ran it.
     const clone = await branched(ci.origin, 'src/total.ts', TOTAL);
 
     const here = await selectedIn(clone);
 
-    expect(here.out).toBe('test/other.test.ts\n');
+    expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
   });
 
-  it('places a test by the hops from the checkout\'s change, not from the mainline\'s nearer one', async () => {
+  it('places a test by the hops from the nearest change, the mainline\'s included', async () => {
     // `total` imports `a`, `a` imports `b`, `b` imports `c`: the test is one hop from `total` and four from `c`.
     const ci = await mainline({
       total: "import { a } from './a';\nexport function total(price: number): number {\n  return a(price) * 0.9;\n}\n",
@@ -264,12 +272,12 @@ describe('`variance select` a commit past the record its mainline published', ()
     const near = await leg(0, 2);
     const far = await leg(3, Number.MAX_SAFE_INTEGER);
 
-    expect(near.skip).toContain('test/total.test.ts');
-    expect(far.skip).not.toContain('test/total.test.ts');
-    expect(far.distances).toContainEqual(expect.objectContaining({ test: 'test/total.test.ts', hops: 4, from: 'src/c.ts' }));
+    expect(near.skip).not.toContain('test/total.test.ts');
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: 'test/total.test.ts', hops: 1, from: 'src/total.ts' }));
+    expect(far.skip).toContain('test/total.test.ts');
   });
 
-  it('runs a test the mainline moved off a file the checkout changes, as `file` precision over that change does', async () => {
+  it('runs a test the mainline moved off a file the checkout changes', async () => {
     const ci = await mainline();
     // The mainline's test no longer imports `total`; the record, made before, says it entered `total`.
     await landed(ci.dir, { 'test/total.test.ts': "import { other } from '../src/other';\nit('totals', () => other(1));\n" });
@@ -277,23 +285,23 @@ describe('`variance select` a commit past the record its mainline published', ()
 
     const here = await selectedIn(clone);
 
-    // The record says it entered the changed file, and `file` precision reads that too: the run costs one test, never more.
+    // The record says it entered the changed file: the run costs one test, never more.
     expect(here.out).toBe('test/other.test.ts\n');
   });
 
-  it('runs none of the tests only a package the mainline bumped reaches', async () => {
+  it('runs a test only a package the mainline bumped reaches', async () => {
     const ci = await mainline({ total: PADDED, files: { 'package-lock.json': npmLock('1.3.0') } });
     await landed(ci.dir, { 'package-lock.json': npmLock('1.4.0') });
     const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
 
     const here = await selectedIn(clone);
 
-    expect(here.out).toBe('test/total.test.ts\n');
+    expect(here.out).toBe('');
   });
 
-  it('runs a test the mainline added, which no record holds, and none the mainline alone reaches', async () => {
+  it('runs a test the mainline added, which no record holds', async () => {
     const ci = await mainline();
-    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8'), 'test/added.test.ts': "import { total } from '../src/total';\nit('adds', () => total(2));\n" });
+    await landed(ci.dir, { 'test/added.test.ts': "import { total } from '../src/total';\nit('adds', () => total(2));\n" });
     const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
 
     const here = await selectedIn(clone);
@@ -302,38 +310,14 @@ describe('`variance select` a commit past the record its mainline published', ()
     expect(here.out).toBe('test/total.test.ts\n');
   });
 
-  it('leaves nothing to the mainline on the mainline itself, whose run is the one that answers for it', async () => {
-    const ci = await mainline();
-    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
-    const clone = await cloneOf(home, ci.origin);
-    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
-
-    const here = await selectedIn(clone);
-
-    expect(here.out).toBe('test/other.test.ts\n');
-    expect(here.err).not.toContain('left to mainline');
-  });
-
-  it('runs none of the tests only the mainline reaches when the checkout is at the merge base with an edit not yet committed', async () => {
-    const ci = await mainline();
-    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
-    const clone = await cloneOf(home, ci.origin);
-    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
-    await writeFile(join(clone, 'src/other.ts'), OTHER.replace('+ 1', '+ 2'));
-
-    const here = await selectedIn(clone);
-
-    expect(here.out).toBe('test/total.test.ts\n');
-  });
-
-  it('runs none of the tests only the mainline reaches when the mainline changed a file the suite rests on before reach', async () => {
+  it('runs the whole suite when the mainline changed a file the suite rests on before reach', async () => {
     const ci = await mainline({ before: ['test/setup.ts'], files: { 'test/setup.ts': 'export const seed = 1;\n' } });
     await landed(ci.dir, { 'test/setup.ts': 'export const seed = 2;\n' });
     const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
 
     const here = await selectedIn(clone);
 
-    expect(here.out).toBe('test/total.test.ts\n');
+    expect(here.out).toBe('');
   });
 
   it('runs the whole suite when the checkout changes a file the suite rests on before reach', async () => {
@@ -348,25 +332,13 @@ describe('`variance select` a commit past the record its mainline published', ()
 
   it('runs a test whose module imports a package the checkout bumped', async () => {
     const ci = await mainline({ total: PADDED, files: { 'package-lock.json': npmLock('1.3.0') } });
-    await landed(ci.dir, { 'src/other.ts': OTHER.replace('+ 1', '+ 3') });
+    await landed(ci.dir, { 'src/unread.ts': 'export const unread = 1;\n' });
     const clone = await branched(ci.origin, 'package-lock.json', npmLock('1.4.0'));
 
     const here = await selectedIn(clone);
 
-    // `other` only the mainline's change reaches; `total` imports what the checkout's bump moved.
+    // `other` nothing reaches; `total` imports what the checkout's bump moved.
     expect(here.out).toBe('test/other.test.ts\n');
-  });
-
-  it('leaves nothing to the mainline when the source index could not come up to the checkout', async () => {
-    const ci = await mainline();
-    await landed(ci.dir, { 'src/total.ts': TOTAL.replace('0.9', '0.8') });
-    const clone = await branched(ci.origin, 'src/other.ts', OTHER.replace('+ 1', '+ 2'));
-    refused = 'the source index could not be updated to the checkout: read-only';
-
-    const here = await selectedIn(clone);
-
-    expect(here.out).toBe('');
-    expect(here.err).not.toContain('left to mainline');
   });
 
   it('selects as it does without a mainline when the record is at the merge base', async () => {
@@ -376,6 +348,5 @@ describe('`variance select` a commit past the record its mainline published', ()
     const here = await selectedIn(clone);
 
     expect(here.out).toBe('test/total.test.ts\n');
-    expect(here.err).not.toContain('left to mainline');
   });
 });

@@ -1,17 +1,17 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryLineCell, publishLine, type ShareEntry } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, OperatorError } from '../exit.js';
 import { parseArgs } from '../bin.js';
 import { keptBehind, type Env } from '../share-lines.js';
 import { nearestHolding } from './mainline-entry.js';
 import { purgeLines, runSharePurge } from './share-purge.js';
-import { describePublish, mainlineIndex, publishRun } from './share.js';
+import { describePublish, mainlineIndex, publishRun, shareLines } from './share.js';
 
 /**
  * A checkout behind the mainline's tip reads the record at its merge base.
@@ -174,6 +174,50 @@ describe('`variance share --purge-older-than`', () => {
     expect(exit).toBe(EXIT_CLEAN);
     expect(said).toEqual(['mainline main: removed 1 record(s) kept by commit older than 0 day(s).\n']);
     expect(await git(dir, 'ls-remote', 'origin', 'refs/variance/at/*')).toBe('');
+  });
+
+  it('runs on the share a named `--config` names, whatever the root config says', async () => {
+    const { dir, commits } = await repositoryOf(1);
+    const config = { project: 'web', report: join(home, 'report.json'), share: { kind: 'git', mainlines: ['main'] } } as Config;
+    await publishRun(config, await reportAt(commits[0]!), { env: PUSH, cwd: dir });
+    await writeFile(join(dir, 'variance.config.json'), JSON.stringify({ share: config.share }));
+    await git(dir, 'remote', 'add', 'elsewhere', await mkdtemp(join(home, 'elsewhere-')));
+    await git(await git(dir, 'remote', 'get-url', 'elsewhere'), 'init', '--bare', '--quiet');
+    const named = join(dir, 'alternative.json');
+    await writeFile(named, JSON.stringify({
+      project: 'web',
+      profile: 'chromium',
+      viewport: { width: 1280, height: 800 },
+      retention: 'ephemeral',
+      subjects: { kind: 'list', ids: ['cart/empty'], collector: './collector.mjs' },
+      fonts: [],
+      report: 'report.json',
+      share: { kind: 'git', remote: 'elsewhere', mainlines: ['main'] },
+    }));
+    vi.spyOn(process, 'cwd').mockReturnValue(dir);
+
+    await runSharePurge({ config: named, configNamed: true, purgeOlderThan: 0, mainline: 'main' }, { out: () => undefined });
+
+    expect(await git(dir, 'ls-remote', 'origin', 'refs/variance/at/*')).toContain(commits[0]!);
+  });
+
+  it('says a purge was given `--config` only when it was', () => {
+    expect(parseArgs(['share', '--purge-older-than', '7', '--config', 'alternative.json'])).toMatchObject({ configNamed: true });
+    expect(parseArgs(['share', '--purge-older-than', '7'])).not.toHaveProperty('configNamed');
+  });
+
+  it('refuses a publish that wrote the latest and could not keep it by commit', async () => {
+    const { dir, commits } = await repositoryOf(1);
+    const config = { project: 'web', report: join(home, 'report.json'), share: { kind: 'git', mainlines: ['main'] } } as Config;
+    const hook = join(await git(dir, 'remote', 'get-url', 'origin'), 'hooks', 'update');
+    await writeFile(hook, '#!/bin/sh\ncase "$1" in refs/variance/at/*) exit 1;; esac\n');
+    await chmod(hook, 0o755);
+
+    const published = shareLines(config, { publish: true, report: await reportAt(commits[0]!) }, { env: PUSH, cwd: dir });
+
+    await expect(published).rejects.toThrow(OperatorError);
+    await expect(published).rejects.toThrow(/stopped before it finished keeping records by commit/);
+    expect(await git(dir, 'ls-remote', 'origin', 'refs/variance/mainline/main')).toContain('refs/variance/mainline/main');
   });
 });
 

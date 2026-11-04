@@ -137,8 +137,6 @@ export interface SelectSource {
   readonly mainline?: string;
   /** How far the mainline's record is behind this checkout's merge base with it; negative when ahead. */
   readonly distance?: number;
-  /** The merge base `distance` is counted to, when it was counted. */
-  readonly base?: string;
   /** Which record was read, said as the first note, after the verdict. */
   readonly says: string;
 }

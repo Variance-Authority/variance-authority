@@ -59,7 +59,9 @@ fetched here, and the reader says so.**
   at the merge base first. On a green main every commit's job publishes its
   record, so until the merge base's has, the reader reads the newest kept behind
   it that holds the suite's record, whichever jobs published there, which
-  charges the change with no commit of main's it lacks; the newest of the line
+  charges the change with no commit of main's it lacks. The commits between that
+  record and the merge base count as changed with the checkout's own, because
+  that record cannot say what they made a test load. The newest of the line
   answers only when nothing at or behind is kept, and a directory or an HTTP
   store keeps the newest only. In a git share the record stands without asking
   only when it is at the merge base, since nothing is nearer. Anywhere else the
