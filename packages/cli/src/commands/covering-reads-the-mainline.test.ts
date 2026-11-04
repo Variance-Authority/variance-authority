@@ -408,7 +408,7 @@ describe('a question with `--text`, which an editor asks on every repaint', () =
 
     await expect(refused).rejects.toThrow('record of "unit": the share was not asked; this read does not fetch.');
     // Not `unconfigured`: nothing is missing from this environment, and a read that may fetch finds the record.
-    expect(await suiteBase(clone, { env: {}, offline: true })).toMatchObject({ from: 'none', missed: { miss: { kind: 'unfetched' }, shareAsked: false } });
+    expect(await suiteBase(clone, { env: {}, fetch: 'never' })).toMatchObject({ from: 'none', missed: { miss: { kind: 'unfetched' }, shareAsked: false } });
   });
 });
 

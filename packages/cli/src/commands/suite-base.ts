@@ -60,8 +60,8 @@ export interface SuiteBaseOptions {
   readonly suite?: string;
   readonly cacheRoot?: string;
   readonly env?: Env;
-  /** The same order with nothing fetched: see {@link MainlineAsk.fetch}. */
-  readonly offline?: boolean;
+  /** See {@link MainlineAsk.fetch}. Under `'never'` a checkout's own record is not repinned either. */
+  readonly fetch?: MainlineAsk['fetch'];
 }
 
 /**
@@ -84,13 +84,13 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   const ask: MainlineAsk = {
     ...(options.env === undefined ? {} : { env: options.env }),
     ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-    ...(options.offline === true ? { fetch: 'never' as const } : {}),
+    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
   };
   if (await exists(own)) {
     // The milestone under the checkout moves forward when the mainline's
     // newest record is one HEAD contains: see `repinOwnLayer`. A read that
     // fetches nothing can be killed mid-way, so it rewrites nothing either.
-    const read = declared?.carry === 'share' && options.offline !== true ? await mainlineBase(root, declared, ask) : undefined;
+    const read = declared?.carry === 'share' && options.fetch !== 'never' ? await mainlineBase(root, declared, ask) : undefined;
     const repin = read === undefined || 'miss' in read ? undefined : await selection.repinOwnLayer(own, fetchedOf(read), root);
     const layer = await selection.readOwnLayer(own);
     return { from: 'own', ...at, file: own, ...(layer === undefined ? {} : { layer }), ...(repin === undefined ? {} : { repin }) };
@@ -143,7 +143,7 @@ export interface FoundRecord {
  */
 export async function recordedOrMainline(
   request: { readonly root: string; readonly suite?: string },
-  options: { readonly offline?: boolean } = {},
+  options: Pick<SuiteBaseOptions, 'fetch'> = {},
 ): Promise<FoundRecord> {
   const recorded = await recordedSuite(request.root, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;

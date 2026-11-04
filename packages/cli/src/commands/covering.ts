@@ -289,7 +289,7 @@ export async function covering(request: CoveringQuestion, graph: Graph = graphOn
   let from = request.execution;
   try {
     if (from === undefined) {
-      found = await recordedOrMainline(request, { offline: handed });
+      found = await recordedOrMainline(request, handed ? { fetch: 'never' } : {});
       from = await recordedExecutionFile(request.root, request.suite, found.at);
       request = { ...request, record: found.at };
     }

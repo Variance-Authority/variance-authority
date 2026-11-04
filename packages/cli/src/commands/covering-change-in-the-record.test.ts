@@ -243,7 +243,7 @@ describe('a question that does not fetch, once the mainline selected is another'
 
     expect(answer.at).toBe(first);
     expect(answer.source).toMatchObject({ from: 'mainline', mainline: 'main' });
-    expect(await suiteBase(clone, { env: {}, offline: true })).toMatchObject({ from: 'mainline', mainline: { earlier: { reused: 'nearest' } } });
+    expect(await suiteBase(clone, { env: {}, fetch: 'never' })).toMatchObject({ from: 'mainline', mainline: { earlier: { reused: 'nearest' } } });
   });
 
   it('holds nothing to read from a record of the mainline selected before', async () => {
@@ -251,7 +251,7 @@ describe('a question that does not fetch, once the mainline selected is another'
     await asked(await question());
     vi.stubEnv('GITHUB_BASE_REF', 'release');
 
-    expect(await suiteBase(clone, { env: RELEASE, offline: true })).toMatchObject({
+    expect(await suiteBase(clone, { env: RELEASE, fetch: 'never' })).toMatchObject({
       from: 'none',
       missed: { mainline: 'release', miss: { kind: 'unfetched' }, shareAsked: false },
     });

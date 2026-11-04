@@ -156,7 +156,7 @@ describe('the milestone under a checkout', { timeout: 15_000 }, () => {
     await refetch(home, worktree, next);
     const before = await readFile(own);
 
-    const base = await suiteBase(worktree, { env: LOCAL, offline: true });
+    const base = await suiteBase(worktree, { env: LOCAL, fetch: 'never' });
 
     expect(base).toMatchObject({ from: 'own', layer: { pinned: { commit: first } } });
     expect(base).not.toHaveProperty('repin');
