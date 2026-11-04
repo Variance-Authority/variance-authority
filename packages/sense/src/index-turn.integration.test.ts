@@ -9,6 +9,9 @@ import { repositoryLayers } from './test-selection/cache-layers.js';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 
+/** What a test that does not listen to the turn gives it to say. */
+const ignored = (): void => {};
+
 /** A repository with one commit, in the spelling a process sees: the temporary directory is a symlink on macOS. */
 function repository(): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
@@ -29,7 +32,7 @@ async function heldTurn(root: string): Promise<ChildProcessWithoutNullStreams> {
   // It says so from inside its turn.
   const holder = spawn(process.execPath, ['--input-type=module', '-e', [
     "const { inIndexTurn } = await import('@variance-authority/sense');",
-    `await inIndexTurn(${JSON.stringify(root)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));`,
+    `await inIndexTurn(${JSON.stringify(root)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }), () => {}, () => {});`,
   ].join('\n')], { cwd: PACKAGE, env: process.env });
   let stderr = '';
   holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
@@ -66,7 +69,7 @@ describe('the index turn', () => {
         clearTimeout(unheard);
         setTimeout(release, 200);
       }
-    });
+    }, ignored);
 
     await ran;
     expect(told).toEqual([{ pid: holder.pid, root: primary }]);
@@ -75,9 +78,9 @@ describe('the index turn', () => {
 
   it('is taken again once the work that held it is done, and let go when that work throws', async () => {
     const root = repository();
-    await expect(inIndexTurn(root, () => Promise.reject(new Error('refused')))).rejects.toThrow('refused');
+    await expect(inIndexTurn(root, () => Promise.reject(new Error('refused')), ignored, ignored)).rejects.toThrow('refused');
     const told: IndexTurnHolder[] = [];
-    expect(await inIndexTurn(root, async () => 'ran', (held) => told.push(held))).toBe('ran');
+    expect(await inIndexTurn(root, async () => 'ran', (held) => told.push(held), ignored)).toBe('ran');
     expect(told).toEqual([]);
   });
 
@@ -95,7 +98,7 @@ describe('the index turn', () => {
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', realpathSync(mkdtempSync(join(tmpdir(), 'va-index-turn-cache-'))));
     const [one, other] = [repository(), repository()];
     expect(indexTurnPath(one)).not.toBe(indexTurnPath(other));
-    expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran'))).toBe('ran');
+    expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran', ignored, ignored), ignored, ignored)).toBe('ran');
   });
 
   it('leaves a worktree of a bare repository to run beside another, which has no primary checkout to find', async () => {
@@ -107,7 +110,7 @@ describe('the index turn', () => {
     execFileSync('git', ['worktree', 'add', '--quiet', '-b', 'other', other], { cwd: bare });
 
     expect(indexTurnPath(one)).not.toBe(indexTurnPath(other));
-    expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran'))).toBe('ran');
+    expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran', ignored, ignored), ignored, ignored)).toBe('ran');
   });
 
   it('writes nothing in the temporary directory, which everybody on the machine shares', async () => {
@@ -115,7 +118,7 @@ describe('the index turn', () => {
     const temporary = mkdtempSync(join(tmpdir(), 'va-index-turn-machine-'));
     vi.stubEnv('TMPDIR', temporary);
 
-    await inIndexTurn(root, async () => 'ran');
+    await inIndexTurn(root, async () => 'ran', ignored, ignored);
     expect(readdirSync(temporary)).toEqual([]);
   });
 
@@ -125,7 +128,7 @@ describe('the index turn', () => {
     mkdirSync(path, { recursive: true });
     const refused: [string, string][] = [];
 
-    expect(await inIndexTurn(root, async () => 'ran', () => {}, (at, reason) => refused.push([at, reason]))).toBe('ran');
+    expect(await inIndexTurn(root, async () => 'ran', ignored, (at, reason) => refused.push([at, reason]))).toBe('ran');
     expect(refused).toEqual([[path, 'Is a directory (os error 21)']]);
   });
 
@@ -135,7 +138,7 @@ describe('the index turn', () => {
     mkdirSync(`${path}.holder`, { recursive: true });
     const refused: [string, string][] = [];
 
-    expect(await inIndexTurn(root, async () => 'ran', () => {}, (at, reason) => refused.push([at, reason]))).toBe('ran');
+    expect(await inIndexTurn(root, async () => 'ran', ignored, (at, reason) => refused.push([at, reason]))).toBe('ran');
     expect(refused).toEqual([[path, 'writing its .holder: Is a directory (os error 21)']]);
   });
 
@@ -144,7 +147,7 @@ describe('the index turn', () => {
     const failure = new Error(`${indexTurnPath(root)}: the work's own failure`);
     const refused: string[] = [];
 
-    await expect(inIndexTurn(root, () => Promise.reject(failure), () => {}, (_, reason) => refused.push(reason))).rejects.toBe(failure);
+    await expect(inIndexTurn(root, () => Promise.reject(failure), ignored, (_, reason) => refused.push(reason))).rejects.toBe(failure);
     expect(refused).toEqual([]);
   });
 });

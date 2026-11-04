@@ -57,8 +57,8 @@ function taken(addon: NativeScanner, path: string, holder: string): { release():
 export async function inIndexTurn<T>(
   root: string,
   work: () => Promise<T>,
-  waiting: (holder: IndexTurnHolder) => void = () => {},
-  alone: (path: string, reason: string) => void = () => {},
+  waiting: (holder: IndexTurnHolder) => void,
+  alone: (path: string, reason: string) => void,
 ): Promise<T> {
   const addon = native();
   if (addon === undefined) {
