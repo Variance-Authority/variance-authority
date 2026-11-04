@@ -13,8 +13,6 @@ Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Every
 doubt but one widens the run, and the report explains each. A suite you do not yet
 trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
-Its `mode` sets [how much its record stores](#record-as-finely-as-you-select),
-and you can [change it at any time](#changing-mode).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
@@ -197,6 +195,10 @@ The carried record decides what runs, never what your change is compared
 with. `take` prints the path of the mainline's cases: the record it set aside,
 or the share's. `variance review --against` that path compares your change's
 cases with the mainline's, not with the last push's.
+
+A record's `mode` sets how much it stores, and
+[changing `mode`](#changing-mode) says which record each run reads afterwards,
+on a push as on your laptop.
 
 ## What a change to a module's top level runs
 
