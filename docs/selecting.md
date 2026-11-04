@@ -439,11 +439,34 @@ probes go:
 | `unprobed` | none | the modules you name, such as one whose functions a test hands to `page.evaluate`, run with the `loads` line and no probe inside a finer recording, so a change to one selects every test that loaded it, as at `file-use`. Jest takes globs, Vitest and Rstest a predicate |
 
 A `loads` record has no cases, so `cadence`, `continuations` and stories do not
-apply to it. Each `mode` records under its own probes, so when you change it the
-next run replaces the record in [your cache](cache.md) and says so in one line.
-A run fails rather than lay itself over a `coverageFile` made under another
-`mode`: give it a new one, or delete the old record. Each option and its edges are in
+apply to it. Each option and its edges are in
 [Sense](../packages/sense/README.md#options-on-the-vitest-seam).
+
+### Changing `mode`
+
+Each `mode` records under its own probes, and a run can add only to a record
+made under the probes it places. So a change of `mode` ends the record you have,
+and what the next run does depends on where that record came from:
+
+| The record | The next run |
+|---|---|
+| in [your cache](cache.md), where it lives unless you name a path, and where CI restores it | replaces it, and prints one line naming the file and both probes |
+| at the path you gave [`coverageFile`](../packages/sense/README.md#options-on-the-vitest-seam), the option that keeps a record outside the cache | runs its tests, then fails with an error naming the file and both probes, and leaves the file as it was. Delete the file, or set `coverageFile` to a path with no file at it. If you never set the option, this row is not yours |
+| published by your mainline to a [share](sharing.md) | selects from it as before: the count of commits decides whether it is usable, and `mode` does not enter. It cannot add to that record, so it writes a new one and says so in one line |
+| carried from [a pull request's last push](#a-pull-requests-next-push) | is not laid over it. `variance carry take` either leaves that record and names it, so the push reads the mainline's, or takes it, and the run replaces it as in your cache |
+
+You publish nothing first. Change `mode` on a branch, and the mainline's record
+keeps answering at its own step until a push to the mainline publishes one under
+the new `mode`.
+
+The first run after the change is not a whole run unless you ask for one. It is
+selected from the old record as usual, and the record it writes holds only the
+tests that ran. As on [the first run](#the-first-run), a test file the record
+has never seen cannot be ruled out, so your next selected run takes the rest, and
+selection is back to normal after that. A run of the whole suite pays that pass
+at once. [After an upgrade](cache.md#after-an-upgrade) says what happens to
+the earlier cases and what your main branch saves, and a change of `mode` goes
+the same way.
 
 ### A record needs a module graph per test file
 
