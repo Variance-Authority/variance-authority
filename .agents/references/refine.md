@@ -77,7 +77,8 @@ are GitHub issues" in `AGENTS.md` says. Its body holds, in this order, one
 section to a heading:
 
 - **Situation**: `Given` the state and `When` the one thing somebody does, in
-  Gherkin lines, apart from any fix.
+  Gherkin lines, apart from any fix. Scenarios that establish one contract share
+  a brief, each with its own `Given`, `When` and `Then`.
 - **Perceived**: what they get today, as the output reads, what they do
   instead, and what already answers part of it.
 - **Expected**: `Then` what they should get, in Gherkin lines. A `Then` is

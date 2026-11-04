@@ -28,6 +28,10 @@ alone, then ask each question in
 `.agents/references/escapes.md` of the idea. Then read the Perceived and the
 Evidence, and open every item — the quote, the issue, the run, the measurement. Evidence that does
 not open, or does not say what the issue claims, is **nobody asked**. Then
+read the Affected and the Impact and challenge them against your case: what the
+scenario crosses, who is hurt, how often, at what cost, and why each RICE label
+holds. An Impact the Evidence does not carry is **nobody asked**; a label it
+does not carry is named in your verdict. Then
 weigh the Change as step 2 weighs a diff: what it would make `main` carry for
 ever. Your verdict is **build** when no rejection with evidence stands, and
 otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is

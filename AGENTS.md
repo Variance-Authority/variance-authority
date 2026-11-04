@@ -294,9 +294,10 @@ An issue filed by hand has a title that is a scenario:
 The surface is the command, package or `.compass/` block a reader looks for, so
 a list of issues reads by area. The rest says what is true when the work is
 done. A `feat`, `fix` or `perf` issue's body is the brief
-[refine](.agents/references/refine.md#the-idea-loop) lays out, one situation to
-an issue: a second situation is a second issue. Any other opens with the
-problem, then a "Done when" checklist somebody can check.
+[refine](.agents/references/refine.md#the-idea-loop) lays out, one behavioural
+problem to an issue: scenarios that establish the same contract share it, and a
+second problem is a second issue. Any other opens with the problem, then a "Done
+when" checklist somebody can check.
 
 It carries one `reach:`, `impact:`, `confidence:` and `effort:` label, whose
 descriptions hold the scale, and reach × impact × confidence ÷ effort ranks it.
