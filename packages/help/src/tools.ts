@@ -22,13 +22,15 @@ import { uses } from './tools/uses.js';
 /**
  * `tool`, its answer dated by the workspace generation it was read from. With
  * `unseen`, that generation was never compared with the checkout: the date says
- * so, and a refusal adds that the name may only be newer than it.
+ * so, and a refusal adds that the name may only be newer than it. An invocation's
+ * `unseen` is the reason a host has for this one call.
  */
 function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
   return {
     ...tool,
     run(subject, input, invocation) {
       const at = workspaceGeneration(subject);
+      const caveat = invocation?.unseen ?? unseen;
       let answer: string;
       try {
         answer = tool.run(subject, input, invocation);
@@ -36,12 +38,12 @@ function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
         // A name refused by a generation nothing compared with the checkout
         // may only be newer than it, and the refusal says so. A name found
         // nothing for is an answer, which its surface dates as it gives it.
-        if (!unseen || at === undefined || refusal instanceof FoundNothing) throw refusal;
-        const said = `${refusal instanceof Error ? refusal.message : String(refusal)}\n\n${snapshotLine(at, true)}`;
+        if (caveat === false || at === undefined || refusal instanceof FoundNothing) throw refusal;
+        const said = `${refusal instanceof Error ? refusal.message : String(refusal)}\n\n${snapshotLine(at, caveat)}`;
         const operator = (refusal as { readonly varianceOperatorError?: unknown } | undefined)?.varianceOperatorError === true;
         throw operator ? operatorError(said, { cause: refusal }) : new Error(said, { cause: refusal });
       }
-      return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+      return at === undefined ? answer : `${answer}\n${snapshotLine(at, caveat)}`;
     },
   };
 }
@@ -140,15 +142,13 @@ export { formatOrientation, type OrientReading } from './tools/orient-format.js'
 export { answerSearch, searchIndexOf, searchQuestionOf } from './tools/search.js';
 export type {
   ExportedMatch,
-  InArea,
   Matches,
-  PublishedMatch,
   SearchAnswer,
   SearchArea,
   SearchQuestion,
-} from './tools/search-answer.js';
+} from './tools/search-matches.js';
 export { searchNames } from './tools/search-answer.js';
-export { importingOf, type ImportingOf, type ImportingOne } from './tools/published-match.js';
+export { importingOf, type ImportingOf, type ImportingOne, type InArea, type PublishedMatch } from './tools/published-match.js';
 export type { ImportedIn } from './tools/uses-count.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';

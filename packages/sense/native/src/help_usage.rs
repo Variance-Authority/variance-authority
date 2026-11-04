@@ -28,7 +28,7 @@ mod unresolved_walk;
 pub(crate) use unresolved_walk::sources;
 
 #[napi(object)]
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize)]
 pub struct NamedExport {
     pub name: String,
     pub at: String,
@@ -46,6 +46,10 @@ pub struct NamedExport {
     /// `export … from`, whose declaration is another file's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declaration: Option<String>,
+    /// The line of that declaration, when the export statement is on another:
+    /// absent for `export function f`, whose `line` is both.
+    #[serde(rename = "boundLine", skip_serializing_if = "Option::is_none")]
+    pub bound_line: Option<u32>,
     /// The doc comment above the export, or above the declaration it binds in
     /// the same file, as `dependency_namespace::doc` cuts it from the file at the
     /// span the index holds; absent when nothing documents it.
@@ -105,6 +109,8 @@ pub struct NameUse {
 #[napi(object)]
 pub struct IndexedUsage {
     pub exported: Vec<NamedExport>,
+    /// Each `export … from`, named or `*`, as `forward_row` writes it.
+    pub forwards: Vec<String>,
     pub deep: Vec<DeepRequest>,
     /// Imports of a package that declares no entry: every one is by path.
     pub by_path: Vec<DeepRequest>,
@@ -144,6 +150,7 @@ fn requested(specifier: &str) -> (&str, String) {
 #[derive(Default)]
 struct Part {
     exported: Vec<NamedExport>,
+    forwards: Vec<String>,
     deep: Vec<DeepRequest>,
     by_path: Vec<DeepRequest>,
     unfollowed: Vec<DeepRequest>,
@@ -204,6 +211,13 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
     names
 }
 
+/// One `export … from` of the file `at`, as `collect-usage.ts` writes it: `*`
+/// exports no name of its own, so no row of the export list holds it, and
+/// `imported` is what the row leads to, which no name or specifier says.
+fn forward_row(at: &str, exported: Option<&str>, from: &str, imported: Option<&str>) -> String {
+    format!("{at}\0{}\0{from}\0{}", exported.unwrap_or(""), imported.unwrap_or(""))
+}
+
 fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
@@ -223,6 +237,9 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
             .collect();
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
+            if let Some(from) = text.optional(parses.export_from.at(export)) {
+                part.forwards.push(forward_row(at, text.optional(id), from, text.optional(parses.export_imported.at(export))));
+            }
             let Some(name) = text.optional(id) else { continue };
             let local = text.optional(parses.export_local.at(export));
             let passed_on = text.optional(parses.export_from.at(export)).is_some();
@@ -237,6 +254,7 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 named().find(|&symbol| parses.symbol_line.at(symbol) == line).or_else(|| named().next())
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
+            let bound_line = bound.map(|symbol| parses.symbol_line.at(symbol)).filter(|&line| line != parses.export_line.at(export));
             let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol)));
             let signature = bound.and_then(|symbol| parses.signature_of_symbol(symbol));
             let utf16: &[u16] = if doc.is_none() && signature.is_none() { &[] } else {
@@ -251,7 +269,7 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 let head = head.strip_suffix(';').unwrap_or(head);
                 (!head.is_empty()).then(|| head.to_owned())
             });
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), bound: own.map(str::to_owned), declaration, doc, signature });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), bound: own.map(str::to_owned), declaration, bound_line, doc, signature });
         }
     }
     let first = parses.requests.at(row) as usize;
@@ -310,11 +328,12 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
             collect(root, layers, crossing, by, &targets)
         })
         .collect();
-    let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
+    let mut out = IndexedUsage { exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
     let mut reasons = Vec::new();
     for part in parts {
         reasons.extend(part.reasons);
         out.exported.extend(part.exported);
+        out.forwards.extend(part.forwards);
         out.deep.extend(part.deep);
         out.by_path.extend(part.by_path);
         out.unfollowed.extend(part.unfollowed);

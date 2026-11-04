@@ -180,7 +180,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
-| `covering` | names the tests that covered one source file, line or function, nearest first |
+| `covering` | names the tests that covered one source file, line or function, nearest first with `--hops` |
 | `review` | prints what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
@@ -218,9 +218,14 @@ Without the flag a generation is reused for one hour before the next source
 question refreshes it. A question refused from a reused generation, on `ask`
 or `serve`, is asked again of one made now, with the dependency lexicon built
 when it is missing or behind, before the refusal is given; on `ask` that holds
-under `--changed-file` and `--taint-file` too. When the checkout cannot be read
-again, the refusal says it was not compared with the generation, and why; when
-the lexicon cannot be built, it says the installed packages were not compared,
+under `--changed-file` and `--taint-file` too. So is a `symbol` or `uses`
+whose files changed or went away after the generation, the ones that declare the
+name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
+`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides: an answer whose files
+are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
+is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
+and why, and gives what the generation recorded of a file written since, by name and with none of its
+text; when the lexicon cannot be built, it says the installed packages were not compared,
 and why. An injected
 `AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
 named, `search` is the exception: it reads the published generation, whatever
@@ -239,7 +244,10 @@ question and return it through `Sourced.tree` only then.
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
 editor, watcher, or CI step already detected as changed. It is producer input:
 an empty file states that nothing changed, it replaces Git status discovery, and
-it cannot be combined with `--just-answer`.
+it cannot be combined with `--just-answer`. A file you listed gives its names at
+the lines it holds now. A file you left off is unchanged for
+that request; the next question without a list looks. With no generation to
+refresh, the read is whole and the list is not used.
 
 `--format json` prints `search` as data: the query, the area, and the
 `published`, `exported` and `loose` sections, each with its `total` and the
@@ -268,9 +276,10 @@ agent, a container with no editor in it, somebody else's harness: all of them
 have a shell, and many of them cannot add a server. The skill this package ships
 at `skills/variance-authority/SKILL.md` routes an agent through these questions in order;
 the one at `skills/variance-testing/SKILL.md` is the order to ask them in while
-it writes, fixes or debugs a test. Link both into your agent's skills directory
-rather than copying them; with a `variance.config.json`, `variance doctor` prints
-where it finds each and prints the link when it finds none.
+it changes code, or writes, fixes or debugs a test. Link both into your agent's
+skills directory rather than copying them; with a `variance.config.json`,
+`variance doctor` prints where it finds each and prints the link when it finds
+none.
 
 Every answer exits `0`, including one that describes changes. `ask` reads; it
 does not decide. The verdict stays with `run`, `report` and `adjudicate`, which

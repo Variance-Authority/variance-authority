@@ -12,7 +12,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { caughtUp, foundNothingAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, outlived, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP, HELP_TOOLS, UNCOMPARED_HELP, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
@@ -55,8 +55,8 @@ import { reportSource } from './report-source.js';
  * every request. A source question reads the last published workspace generation
  * while it is less than an hour old; `--just-answer` removes even that expiry,
  * and every answer then says it was not compared with the checkout. A source
- * question refused from a reused generation is asked again of one read now, as
- * `@variance-authority/help`'s `caughtUp` decides for `variance ask` too.
+ * question a reused generation refuses, or whose named files changed since it,
+ * is asked again of one read now, as `caughtUp` decides for `variance ask` too.
  * Producing a generation remains separate work. Neither half pays for the other.
  */
 
@@ -114,6 +114,7 @@ function over<Inner>(
         ...(previous === undefined ? {} : { previous }),
         ...(invocation?.tree === undefined ? {} : { tree: invocation.tree }),
         ...(invocation?.root === undefined ? {} : { root: invocation.root }),
+        ...(invocation?.unseen === undefined ? {} : { unseen: invocation.unseen }),
       });
     },
   }));
@@ -223,14 +224,23 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     served: options.justAnswer === true ? UNCOMPARED_BENCH : BENCH,
     tree: () => tree,
     root,
-    // A source question refused from a reused generation, asked again of one
-    // read now. `--just-answer` reads only what was published, so its refusal stands.
+    // A source question refused from a reused generation, or answered from one
+    // its named files changed since, asked again of one read now. `--just-answer`
+    // reads only what was published, so its answer stands.
     ...(options.justAnswer === true ? {} : {
-      again: async (asked: string | undefined, refused: Bench, started: number) => {
+      again: async (asked: string | undefined, refused: Bench, started: number, input: Readonly<Record<string, unknown>>) => {
         const at = refused.help === undefined ? undefined : workspaceGeneration(refused.help);
         if (asked === undefined || !SOURCE_QUESTIONS.has(asked)) return undefined;
-        return caughtUp(at, started, root, async (current) => (current ? { ...refused, help: await readHelp(0) } : refused));
+        return caughtUp(
+          at,
+          started,
+          root,
+          async (current) => (current ? { ...refused, help: await readHelp(0) } : refused),
+          async (read = refused) => read.help !== undefined && await outlived(asked, read.help, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused.help),
+        );
       },
+      outlived: async (asked: string | undefined, input: Readonly<Record<string, unknown>>, bench: Bench, started: number) =>
+        bench.help !== undefined && await outlived(asked, bench.help, input, { root, ...(tree === undefined ? {} : { tree }) }, started),
     }),
     // A source question's name nothing declares is the answer once it has
     // been read again, said as `variance ask` says it.

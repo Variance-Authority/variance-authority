@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import {
+  forwardsDigest,
   primarySourceIndexPath,
   readHelp,
   sourceIndexPath,
@@ -10,6 +11,7 @@ import {
 } from '@variance-authority/sense';
 
 import {
+  everyEntry,
   readWorkspaceManifests,
   type Deep,
   type Help,
@@ -19,7 +21,7 @@ import {
   type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, samePackages } from './read.js';
+import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, sameExportedSurface, samePackages } from './read.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import { publishedRows } from './search-index.js';
 import { type NativeUsage, useOf } from './native-use.js';
@@ -28,6 +30,7 @@ import {
   SNAPSHOT_VERSION,
   indexManifestDigest,
   workspaceExportedDigest,
+  workspaceForwardsDigest,
   workspaceGeneration,
   workspaceIndexDigest,
   workspaceSearchPath,
@@ -44,6 +47,8 @@ export type FromIndexOptions = HelpOptions & {
   /** `false` reads the workspace's own index from the working tree, as `variance index --no-git` does. */
   readonly packs?: boolean;
   readonly progress?: Progress;
+  /** When the update of that index began reading the checkout: the read this publish rests on is the caller's. */
+  readonly readStartedAt: string;
 };
 
 /**
@@ -56,14 +61,14 @@ export type FromIndexOptions = HelpOptions & {
  * thousands of members are the costliest read before the index, so they are
  * read once here and handed to whichever half runs.
  */
-export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions = {}): Promise<string | undefined> {
+export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions): Promise<string | undefined> {
   const where = resolve(root);
   const previous = await stepped(options.progress, 'reading the questions published last', () =>
     readWorkspaceSnapshot(where, options.index === undefined ? {} : { index: options.index }).catch(() => undefined));
   const manifests = await manifestsOf(where, options);
   const refreshed = previous === undefined ? undefined : await refreshOver(where, previous, manifests, options);
   // The index is the caller's, written a moment ago and saved by it.
-  return refreshed ?? workspaceGeneration(await readWorkspaceOver(where, manifests, { ...options, saveIndex: false }));
+  return refreshed ?? workspaceGeneration(await readWorkspaceOver(where, manifests, options.readStartedAt, { ...options, saveIndex: false }));
 }
 
 function manifestsOf(where: string, options: FromIndexOptions): Promise<WorkspaceManifests> {
@@ -72,25 +77,15 @@ function manifestsOf(where: string, options: FromIndexOptions): Promise<Workspac
 }
 
 /**
- * Refresh a published value from an index that was just written, with the
- * chain read and the value written by the native scanner.
+ * Refresh a published value from an index that was just written, which the
+ * caller says is current, with the chain read and the value written by the
+ * native scanner, keeping the documented surface as `refreshWorkspace` does.
  *
- * The caller says the root's index is current, which is what `variance index`
- * knows and a scan would spend its time re-proving. A workspace whose member
- * list reaches beside its root reads the index it keeps over what the list
- * names, and that one is updated here, since only the list says what it covers. Everything that moved is usage,
- * exports and the graph; the documented surface is kept, exactly as
- * `refreshWorkspace` keeps it. On a large repository the value is mostly its
- * export list, and that list never crosses into JavaScript here: it is compared
- * by digest and written by the addon that read it. So what this answers is the
- * generation it published, not the value, and `undefined` when it cannot
- * refresh: the offerings or the exported set changed, or there is no native
- * scanner. The caller then reads the way
- * it always did.
- *
- * A value refreshed from this very manifest, over the same packages, is the
- * value this refresh would write, so it is kept and its generation answered:
- * an index that did not move costs its value nothing.
+ * The export list never crosses into JavaScript: it is compared by digest and
+ * written by the addon, and only the rows of files an entry prints cross. So
+ * this answers the generation it published, not the value, and `undefined` when
+ * it cannot refresh: the offerings, the exported set, an `export … from` or a
+ * row an entry prints changed, or there is no native scanner.
  */
 async function refreshOver(
   where: string,
@@ -103,6 +98,7 @@ async function refreshOver(
   const opened = offerings.flatMap((offering) => offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`));
   const own = options.index ?? sourceIndexPath(where);
   const index = scopeSourceIndexPath(own, scope.dirs);
+  // A member list reaching beside the root keeps its own index, which only the list can update.
   if (!coversWhole(scope.dirs)) {
     // A worktree's starts from the primary checkout's, as the root's own does.
     const primary = own === sourceIndexPath(where) ? primarySourceIndexPath(where) : undefined;
@@ -117,6 +113,7 @@ async function refreshOver(
   const indexDigest = await indexManifestDigest(index);
   if (indexDigest === undefined) return undefined;
   const kept = workspaceGeneration(documented);
+  // A value refreshed from this very manifest is what this refresh would write: an index that did not move costs nothing.
   if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
   let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
@@ -127,6 +124,10 @@ async function refreshOver(
   }
   if (reading === null || reading.exportedDigest !== workspaceExportedDigest(documented)) return undefined;
   const read = reading.usage();
+  const forwards = forwardsDigest(read.forwards);
+  if (forwards !== workspaceForwardsDigest(documented)) return undefined;
+  const printed = [...new Set([...everyEntry(documented)].map(([, , entry]) => entry.at))];
+  if (!sameExportedSurface(printed, reading.exportedOf(printed), documented)) return undefined;
 
   const names = new Map<string, Map<string, Use[]>>();
   for (const use of read.names) {
@@ -157,7 +158,9 @@ async function refreshOver(
       root: realpathSync(where),
       graphRoot: realpathSync(scope.root),
       generatedAt,
+      readStartedAt: options.readStartedAt,
       indexDigest,
+      forwardsDigest: forwards,
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),
       byPath: JSON.stringify(help.byPath),

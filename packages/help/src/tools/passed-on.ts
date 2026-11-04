@@ -11,10 +11,9 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Help, Named } from '@variance-authority/package/help';
 import type { ExportedDeclaration } from '@variance-authority/sense';
+import { textAsRead } from './as-read.js';
 import { boundOf, originKey, SLOT } from './declaration-key.js';
 import { textRows } from './declared.js';
 
@@ -46,7 +45,7 @@ export function exportedRows(help: Help, root: string | undefined, name: string,
   const bound = boundOf(root, held);
   const origin = elsewhere(bound, held);
   const declared: Named = origin === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
-  const text = root === undefined ? [] : bound === undefined ? lineOf(root, declared) : textRows(root, bound);
+  const text = root === undefined ? [] : bound === undefined ? lineOf(help, root, declared) : textRows(help, root, bound);
   return {
     declared,
     rows: [
@@ -60,16 +59,10 @@ export function exportedRows(help: Help, root: string | undefined, name: string,
 
 /**
  * The line an export is written on, as the checkout holds it now; nothing when
- * the file is gone or the line no longer holds the name, since the index read
- * an older text.
+ * the file is gone or was written since `help` was read, since the index read an
+ * older text.
  */
-export function lineOf(root: string, held: Pick<Named, 'at' | 'line' | 'name'>): readonly string[] {
-  let text: string;
-  try {
-    text = readFileSync(join(root, held.at), 'utf8');
-  } catch {
-    return [];
-  }
-  const line = text.split(/\r?\n/)[held.line - 1]?.trim();
-  return line === undefined || !line.includes(held.name) ? [] : [line];
+function lineOf(help: Help, root: string, held: Pick<Named, 'at' | 'line'>): readonly string[] {
+  const line = textAsRead(help, root, held.at)?.split(/\r?\n/)[held.line - 1]?.trim();
+  return line === undefined ? [] : [line];
 }

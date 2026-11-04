@@ -2,7 +2,7 @@ import { opening } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
-import type { ExportedMatch } from './search-answer.js';
+import type { ExportedMatch } from './search-matches.js';
 
 // compass: variance-authority.report.agent-surface
 
