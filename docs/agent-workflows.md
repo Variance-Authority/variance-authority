@@ -25,8 +25,10 @@ asked, the arguments it takes, and what it answers; it reads no configuration,
 so it works before any run exists. Producing the run those questions read is
 [your first run](start.md).
 
-For an agent that speaks MCP rather than a shell, the server is a second
-package:
+Questions about your code need no run, no browser and no config: [connect your
+agent](agent-workspace-api.md#connect-your-agent) prints the shell and MCP lines
+for them. For the questions about a run, an agent that speaks MCP rather than a
+shell reads the report through a second package:
 
 ```bash
 npm install --save-dev @variance-authority/mcp

@@ -61,8 +61,8 @@ npm install --save-dev @variance-authority/mcp
 {
   "mcpServers": {
     "variance-live": {
-      "command": "variance-authority-mcp",
-      "args": ["--watch"]
+      "command": "npx",
+      "args": ["variance-authority-mcp", "--watch"]
     }
   }
 }

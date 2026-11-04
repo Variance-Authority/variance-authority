@@ -6,7 +6,8 @@ the whole report itself — what changed, and what changed it. The server answer
 only from the report it is given: it never runs a test, re-renders a state, or
 promotes a baseline.
 
-New here? Start with [your first run](start.md).
+New here? Start with [your first run](start.md). To give an agent your code with
+no run and no config, [connect it to the source](agent-workspace-api.md#connect-your-agent).
 
 ## Produce a report first
 
@@ -45,15 +46,18 @@ other client:
 {
   "mcpServers": {
     "variance": {
-      "command": "variance-authority-mcp",
-      "args": [".variance/report.json"]
+      "command": "npx",
+      "args": ["variance-authority-mcp", ".variance/report.json"]
     }
   }
 }
 ```
 
-The relative report path is resolved from the server process's working
-directory. Use an absolute path when the client starts elsewhere. The server
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so the entry goes through `npx`. The relative report path is resolved
+from the server process's working directory. A client that starts outside the
+repository takes the absolute path of both: `"args": ["--prefix", "/path/to/repo",
+"variance-authority-mcp", "/path/to/repo/.variance/report.json"]`. The server
 validates the report at startup and re-reads it before each request, so a
 completed rerun is answered from the new report without reconnecting.
 

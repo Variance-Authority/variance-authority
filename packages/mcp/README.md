@@ -83,7 +83,7 @@ Either binary goes in the client's server list:
 // claude_desktop_config.json, or any MCP client
 {
   "mcpServers": {
-    "variance": { "command": "variance-authority-mcp", "args": [".variance/report.json"] }
+    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/report.json"] }
   }
 }
 ```

@@ -28,32 +28,40 @@ same server over the same functions; it needs `variance.config.json`, as every
 
 ## Writing the client config
 
-In an MCP client's `command` field, write the installed binary, its resolved
-path or a package script. A package runner there costs a registry check on
-every client start.
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so write `npx` there and the binary first in `args`, or the same through
+another package manager's runner. `npx` finds the binary in `node_modules/.bin`
+without asking the registry.
 
 ```json
 {
   "mcpServers": {
     "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
+      "command": "npx",
+      "args": ["variance-authority-help", "."]
     }
   }
 }
 ```
 
-`command` must resolve the installed binary. `args` is a bare root and no verb,
-which is the form that starts a stdio server. `.` is the directory the client
-starts the process in, so pass the workspace's absolute path if that is not the
-workspace. The server key, `workspace-api` here, is yours to name.
+After the binary, `args` is a bare root and no verb, which is the form that starts
+a stdio server. `npx` and `.` both read the directory the client starts the
+process in. A client that starts outside the workspace takes its absolute path
+twice: `"args": ["--prefix", "<workspace>", "variance-authority-help",
+"<workspace>"]`. The server key, `workspace-api` here, is yours to name.
+`docs_orient` with no files reads the code map `variance index` makes, which needs
+`@variance-authority/cli` beside this package and no config.
+
+`npx @modelcontextprotocol/inspector --cli --config .mcp.json --server
+workspace-api --method tools/list` launches the entry and lists its tools, with
+no client open.
 
 ## Tool names and arguments
 
 | Name | What it is | Where it appears |
 | --- | --- | --- |
 | `@variance-authority/help` | the npm package | a manifest, a package runner |
-| `variance-authority-help` | the binary that package installs | a shell, an MCP `command` |
+| `variance-authority-help` | the binary that package installs | a shell, the first of an MCP entry's `args` |
 | `docs_packages`, `docs_search`, … | the MCP tool names | an MCP client's tool list |
 
 Drop the `docs_` prefix and turn `_` into `-`, and you have the `variance ask`

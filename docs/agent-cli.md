@@ -433,9 +433,9 @@ An agent opens a skill only when its description matches the task, and it reads
 `AGENTS.md` every session. The lines that send it to `variance ask` before it
 searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
 
-`variance doctor` lists which skills your agent can find, reports whether each
-is a link or a copy that has fallen behind, and prints the link for any it
-cannot find. It never writes the link for you.
+With a `variance.config.json`, `variance doctor` lists which skills your agent
+can find, reports whether each is a link or a copy that has fallen behind, and
+prints the link for any it cannot find. It never writes the link for you.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

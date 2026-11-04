@@ -18,6 +18,71 @@ file and its resolution inputs stay the same. A question with `from` or `to`
 then filters names through those stored edges instead of searching every file
 for another string.
 
+## Connect your agent
+
+You need a git repository and Node 22.15 or newer. You do not need a
+`variance.config.json` or a run. Install the two packages, build the index and
+read the code map:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/help
+npx variance index
+npx variance ask orient
+```
+
+The last line waits for the map the index makes, then prints it:
+
+```text
+# shop: 2 packages in 2 dependency layers (1 takes nothing), 2 source files, 0 areas
+  packages: cart, price
+```
+
+The map is of packages, so a repository with one has none, and the answer says
+so. Every other question still answers. The index lives in `node_modules/.cache`,
+so it adds no tracked file. That is the shell half: your agent can now run any
+`npx variance ask` question.
+
+For the MCP half, add this entry to the file your client keeps its servers in,
+`.mcp.json` at the repository root for Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "workspace-api": {
+      "command": "npx",
+      "args": ["variance-authority-help", "."]
+    }
+  }
+}
+```
+
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so the entry goes through `npx`, which finds the binary in
+`node_modules/.bin` without asking the registry. Change `npx` to however your
+package manager runs a local binary. Both `npx` and `.` read the directory the
+client starts in. A client that starts outside the repository takes its absolute
+path twice: `"args": ["--prefix", "/path/to/repo", "variance-authority-help",
+"/path/to/repo"]`.
+
+Check the entry before you open the client. This launches it from the same
+file and asks for the tools:
+
+```bash
+npx @modelcontextprotocol/inspector --cli --config .mcp.json --server workspace-api --method tools/list
+```
+
+The answer lists these fourteen:
+
+```text
+docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
+docs_discover docs_intersection docs_orient docs_slowest_tests docs_journey_map
+docs_test_composition docs_stack docs_gaps
+```
+
+Then start the client, approve the server if it asks, and have your agent call
+`docs_orient` with no arguments. It returns the same map. To have the agent reach
+for these questions by itself, [point it at them](#point-an-agent-at-it).
+
 ## Choose the cheapest entrance
 
 | You need | Start with |
@@ -189,11 +254,10 @@ them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
 Without `--just-answer`, a source question other than `search` that a reused
-generation refuses is asked again, whether you ask through `variance ask`,
-`variance serve` or `variance-authority-help` and its server: the name is
-looked for again in a generation made from the checkout as it is, and in what
-your installed packages export, with that list built first when it is missing
-or behind. A function you wrote a minute ago, or a package you just installed,
+generation refuses is asked again, whichever command or server you ask through:
+the name is looked for again in a generation made from the checkout as it is,
+and in what your installed packages export, with that list built first when it
+is missing or behind. A function you wrote a minute ago, or a package you just installed,
 is answered rather than reported missing, and that holds when you name changed
 files too. Only a refusal pays for that reading; an answer that found its name
 comes from the generation it was found in. When the checkout cannot be read
@@ -223,16 +287,10 @@ nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. [Naming what
 changed](source-index.md#naming-what-changed) gives the file contract.
 
-## Point the server at the workspace
+## Ask from the shell
 
-Use Node 22 or newer. Install the package in the TypeScript workspace:
-
-```bash
-npm install --save-dev @variance-authority/help
-```
-
-The package installs a `variance-authority-help` binary, which answers the same
-questions on the command line, with no client and no server:
+`variance-authority-help` answers the same questions on the command line, with
+no client and no server, and `npx` runs it without an install:
 
 ```bash
 npx @variance-authority/help search viewport --root .
@@ -242,10 +300,9 @@ Pass the package name to `npx`, not the binary name: `variance-authority-help`
 is not a package name and the registry will report it missing. `--root` is the
 workspace to read; omit it when you are standing in that workspace.
 
-A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The same questions are on
-`variance ask`, beside the questions about a run, and read the checkout under
-the working directory:
+A workspace with `@variance-authority/cli` installed asks the same questions on
+`variance ask`, beside the questions about a run, reading the checkout under the
+working directory:
 
 ```bash
 npx variance ask search --query viewport
@@ -260,28 +317,10 @@ generation. An answer names a flag or a next question the same way —
 `docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
-The source questions are also tools on `variance serve`, under the same names as below, so
-a workspace with the CLI declares one server for the run and the source
-together. The rest of this page is that contract, whichever of the two serves
-it.
-
-Without the CLI, configure the MCP client to launch this package's server with
-the workspace root:
-
-```json
-{
-  "mcpServers": {
-    "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
-    }
-  }
-}
-```
-
-Here `.` is the server process's working directory. Pass the workspace's
-absolute path when the MCP client launches outside it. The configured command
-must resolve the installed package binary.
+A workspace with a `variance.config.json` can declare `variance serve` instead of
+the entry above: it carries the same tools under the same names, beside the ones
+about a run. With no config it exits 2. The rest of this page is the contract of
+those tools, whichever of the two serves them.
 
 ## Read from entrypoint to symbol
 
@@ -583,7 +622,8 @@ mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skil
 mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
 ```
 
-`variance doctor` reports whether your agent can find it.
+With a `variance.config.json`, `variance doctor` reports whether your agent can
+find it.
 
 The full tool and source-reading contract is in the
 [`@variance-authority/help` package

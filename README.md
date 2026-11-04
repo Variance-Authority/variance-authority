@@ -41,6 +41,9 @@ as the investigation grows.
 Your agent keeps its editor, shell, and test runner. Variance supplies the
 source facts and observations it reads, through the interfaces it already has.
 
+- [**On your code, with no config**](docs/agent-workspace-api.md#connect-your-agent)
+  — one install, one index and one MCP entry give it the shell, the tools and
+  the code map in any git repository.
 - [**From the shell**](docs/agent-cli.md) — query the current workspace, a
   completed report, or a live watcher from the command line.
 - [**Over MCP**](docs/agent-mcp.md) — the observations you supply become
