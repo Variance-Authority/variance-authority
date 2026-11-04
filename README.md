@@ -27,6 +27,7 @@ as the investigation grows.
 
 | What do you need to do? | Start here |
 | --- | --- |
+| Give your coding agent these answers | [Connect it](#connect-your-coding-agent): one install and one index, with no config and no test run, then a few lines in `AGENTS.md`. |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
@@ -61,14 +62,36 @@ declared at packages/price/src/index.ts:1
 used by 1 package: @shop/cart — 1 import by published path
 ```
 
-An agent that runs commands can now ask about your source and
-[what a change reaches](#it-reads-more-than-javascript), and
-[a few lines in `AGENTS.md`](docs/agent-workspace-api.md#point-an-agent-at-it)
-tell it to. A client that reaches tools only through a server first
+The same install says which files an edit reaches over imports,
+[in every language it reads](#it-reads-more-than-javascript), one per line and
+with no test run:
+
+```bash
+npx variance reach --since origin/main
+```
+
+Your agent reaches for these once something tells it to. It reads `AGENTS.md` at
+the start of every session, so put these lines there, with `npx` changed to
+however your package manager runs a local binary:
+
+```markdown
+## Finding your way in the code
+
+Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` prints what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+```
+
+That connects an agent that runs commands.
+[Linking the skill those lines name](docs/agent-workspace-api.md#point-an-agent-at-it)
+gives it the rest, and a client that reaches tools only through a server first
 [adds the MCP entry](docs/agent-workspace-api.md#add-the-mcp-server).
 
-A question about a test or a screenshot needs something to read first: a finished
-report, or a watcher on a suite in flight.
+Those answers read your source. What your code did comes from your runs: a
+question about a test or a screenshot needs a report, which `npx variance run`
+writes once [your first run](docs/start.md) is set up, or a suite
+[reporting to a watcher](docs/agent-live-run.md) while it runs.
 [Choose an agent workflow](docs/agent-workflows.md) matches your question to what
 it needs and the route that reaches it, [the shell](docs/agent-cli.md) or
 [MCP](docs/agent-mcp.md), which alone releases a test stopped at a line you chose.

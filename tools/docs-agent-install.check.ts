@@ -63,6 +63,7 @@ const STANDS_IN = /^npm install |^npx @variance-authority\/help |@modelcontextpr
 
 const ORIENT = 'npx variance ask orient';
 const SYMBOL = 'npx variance ask symbol --name price';
+const REACH = 'npx variance reach --since origin/main';
 
 interface Entry {
   readonly command: string;
@@ -221,12 +222,33 @@ describe('README.md starts an agent on the lines the page runs', () => {
 
   it('prints the install, the index and the check, each of them run above', () => {
     expect(shellLines(start)).toContain(SYMBOL);
-    expect(shellLines(fences)).toEqual(expect.arrayContaining([...shellLines(start)]));
+    const others = shellLines(start).filter((line) => line !== REACH);
+    expect(shellLines(fences)).toEqual(expect.arrayContaining([...others]));
   });
 
   it('prints the answer that check gets', () => {
     const [answer] = start.filter((fence) => fence.lang === 'text');
     expect(answer?.code.trim()).toBe(symbolOf(followed));
+  });
+
+  it('prints the lines that tell the agent, as the page that links the skill prints them', () => {
+    const told = (section: readonly Fence[]) => section.find((fence) => fence.lang === 'markdown')?.code;
+    expect(told(fences)).toContain('ask uses');
+    expect(told(start)).toBe(told(fences));
+  });
+
+  it('prints what a change reaches, on the same install, with no config and no run', () => {
+    expect(shellLines(start)).toContain(REACH);
+    const root = repository('one package');
+    const sh = (line: string) => spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' });
+    const commit = 'git -c user.name=reader -c user.email=reader@example.com commit -qm edit';
+    writeFileSync(join(root, 'src/cart.ts'), "import { price } from './index';\nexport const total = price(1);\n");
+    sh(`git add -A && ${commit} && git update-ref refs/remotes/origin/main HEAD`);
+    writeFileSync(join(root, 'src/index.ts'), 'export const price = (net: number) => net * 1.3;\n');
+    sh(`git add -A && ${commit}`);
+    const reached = sh(REACH);
+    expect(reached.status).toBe(0);
+    expect(reached.stdout.trim().split('\n')).toEqual(['src/cart.ts', 'src/index.ts']);
   });
 });
 
