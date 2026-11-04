@@ -375,14 +375,9 @@ describe(`${RUN_PAGE} connects a client to a finished run`, () => {
 });
 
 const liveRoot = repository('one package');
-const liveEntry = entriesIn(printed(LIVE_PAGE, LIVE_SERVER))[0];
+const [liveEntry, livePrefixed] = entriesIn(printed(LIVE_PAGE, LIVE_SERVER));
 const liveProse = prose(LIVE_PAGE);
-/** The entry for a client that starts elsewhere is one line of prose, so it is read from there. */
-const liveArgs = /"args": (\["--prefix".*?\])/.exec(liveProse)?.[1];
-const liveElsewhere: Entry | undefined =
-  liveArgs === undefined
-    ? undefined
-    : { command: 'npx', args: (JSON.parse(liveArgs) as string[]).map((arg) => arg.replace('/path/to/repo', liveRoot)) };
+const liveElsewhere = livePrefixed === undefined ? undefined : filledIn(livePrefixed, liveRoot);
 const watching = liveEntry === undefined ? undefined : await connect(liveEntry, liveRoot, 'variance_self');
 const watchingElsewhere = liveElsewhere === undefined ? undefined : await connect(liveElsewhere, '/', 'variance_self');
 

@@ -35,12 +35,6 @@ Write tests with `suite` where you wrote `test`. The fixture reports test open
 and close for every test it runs, including tests that take no screenshot and
 destructure no fixture, so a listing has no holes.
 
-That gives every test its open and close, and no announcements. An announcement
-comes from your application: a call to `vae` from
-[`@variance-authority/event`](https://variance-authority.dev/reference/packages/event)
-at a decision, heard by a test that takes the `events` fixture. A test missing
-either half lists with nothing announced.
-
 ## Start the watcher before the suite
 
 A run in flight leaves no file behind, so something has to be listening before
@@ -55,7 +49,9 @@ npx variance watch
 ```
 
 From an MCP client, install the server and add it to the client's server list,
-which is `.mcp.json` at the repository root for Claude Code:
+which is `.mcp.json` at the repository root for Claude Code. [A client that
+starts anywhere else](#a-client-that-starts-anywhere-else), such as Claude
+Desktop, takes the entry at the end of this section.
 
 ```bash
 npm install --save-dev @variance-authority/mcp
@@ -72,18 +68,10 @@ npm install --save-dev @variance-authority/mcp
 }
 ```
 
-`npx` looks for the binary in the directory the client starts the server in. A
-client that starts anywhere else, such as Claude Desktop, needs your repository's
-path in [its own file](agent-mcp.md#a-client-that-starts-anywhere-else):
-
-`"args": ["--prefix", "/path/to/repo", "variance-authority-mcp", "--watch"]`
-
-That path only finds the binary. A watcher serves whichever suite reports to its
-address, so no entry names a project.
-
-You run no command here: the client starts the server when it connects to its
-servers, so open the client, or restart it if it was open. The watcher lasts as
-long as that connection, and a restarted client is a new watcher at a new address.
+You run no command to start it: the client starts the server when it connects to
+its servers, so open the client, or restart it if it was open. The watcher lasts
+as long as that connection, and a restarted client is a new watcher at a new
+address.
 
 `variance watch` prints the assignment in its terminal. The MCP server's start-up
 line goes to the client, which may not show it, so ask your agent to call
@@ -110,6 +98,23 @@ names the watcher that owns this run. The listener takes an ephemeral loopback
 port, so concurrent suites, editor sessions and agents do not claim the same
 address. An address added after worker startup belongs to the next run.
 
+### A client that starts anywhere else
+
+`npx` looks for the binary in the directory the client starts the server in. A
+client that starts anywhere else, such as Claude Desktop, needs your repository's
+path in [its own file](agent-mcp.md#a-client-that-starts-anywhere-else):
+
+```json
+{
+  "mcpServers": {
+    "variance-live": {
+      "command": "npx",
+      "args": ["--prefix", "/path/to/repo", "variance-authority-mcp", "--watch"]
+    }
+  }
+}
+```
+
 ## Ask the same questions from either entrance
 
 Start with identity, then narrow to the test:
@@ -122,6 +127,11 @@ Start with identity, then narrow to the test:
 | What arrived since the previous reading? | `npx variance ask diff` | `variance_diff` |
 | Which tests have stopped for me to look at them? | — | `variance_waiting` |
 | Let a stopped test go on. | — | `variance_continue` |
+
+The last two rows answer only under MCP. A shell command owns no run, so there is
+nothing in it to release. They are the pair a test triggers with
+`variance.snapshot()` and `await variance.observe()` — see [interrogate a test
+where it stands](agent-interrogate.md).
 
 `--at <address>` selects a watcher and defaults to
 `VARIANCE_AUTHORITY_VANTAGE`. Each shell question also loads a config it never
@@ -148,12 +158,11 @@ each test, with how many announcements it has heard:
   passed      the upsell stays away — tests/checkout.spec.ts — worker 0 — heard 1
 ```
 
-The last two answer only under MCP. A shell command owns no run, so there is
-nothing in it to release. They are the pair a test triggers with
-`variance.snapshot()` and `await variance.observe()` — see [interrogate a test
-where it stands](agent-interrogate.md).
-
-A listed test with no announcements is a measured lifecycle with no application
+The fixture gives every test its open and close, and no announcements. An
+announcement comes from your application: a call to `vae` from
+[`@variance-authority/event`](https://variance-authority.dev/reference/packages/event)
+at a decision, heard by a test that takes the `events` fixture. A test missing
+either half lists with `heard 0`: a measured lifecycle with no application
 signal, not a reconstructed empty trace. `test-signals` names the realm of each
 announcement — where the reporting code ran, whether that is the browser page,
 another process, or the runner's own — and pairs work starts with ends, so an
