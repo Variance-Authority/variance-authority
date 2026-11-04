@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { gitReads } from './__fixtures__/git-reads.js';
 import { gitStarted } from './__fixtures__/git-started.js';
-import { HELD_BYTES, textAtRecording } from './recorded-text.js';
+import { HELD_BYTES, textAtRecording, textsAt } from './recorded-text.js';
 
 const FILES = 100;
 const ASKS = 5;
@@ -153,7 +153,7 @@ describe('what was asked is more than is held', () => {
       });
 
       expect(started.filter((argv) => argv[1] !== 'config').map((argv) => argv[1])).toEqual(['cat-file']);
-      // A round asks three times what is held, so nothing outlives the round after it.
+      // A round asks six times what is held, so nothing outlives the round after it.
       for (const { at, commit } of asks) expect(reads(commit, path(at)), `${path(at)} at ${commit}`).toBe(rounds);
 
       const held = asks.slice(-STAY).reverse();
@@ -216,6 +216,45 @@ describe('what a name says at a commit', () => {
     });
   });
 
+  it('is the file of that name and no other spelling of it, as a listing reads it', () => {
+    checkout((root, first) => {
+      const sourceAt = textAtRecording(root, []);
+      for (const spelled of [`./${path(1)}`, `src/../${path(1)}`]) {
+        expect(textsAt(root, new Map([[first, [spelled]]])).get(first)?.has(spelled)).toBe(false);
+        expect(sourceAt(spelled, first)).toBeUndefined();
+      }
+    });
+  });
+
+  it('is nothing under a file and under a directory the commit does not hold, with no process', () => {
+    checkout((root, first) => {
+      const sourceAt = textAtRecording(root, []);
+      expect(sourceAt(path(1), first)).toBe(body(1));
+      const started = gitStarted(root, () => {
+        expect(sourceAt(`${path(1)}/inside.ts`, first)).toBeUndefined();
+        expect(sourceAt('gone/deep/down.ts', first)).toBeUndefined();
+      });
+
+      expect(started).toEqual([]);
+    });
+  });
+
+  it('is nothing for a submodule, with no process', () => {
+    checkout((root, first) => {
+      const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+      git('update-index', '--add', '--cacheinfo', `160000,${'1'.repeat(40)},src/vendored`);
+      git('commit', '--quiet', '--message', 'a submodule');
+      const second = git('rev-parse', 'HEAD');
+      const sourceAt = textAtRecording(root, []);
+      expect(sourceAt(path(1), first)).toBe(body(1));
+      const started = gitStarted(root, () => {
+        expect(sourceAt('src/vendored', second)).toBeUndefined();
+      });
+
+      expect(started).toEqual([]);
+    });
+  });
+
   it('is the checkout\'s own when two checkouts are asked in turn', () => {
     const other = (at: number): string => `export const other = ${at};\n`;
     checkout((root, first) => {
@@ -239,6 +278,20 @@ describe('a read git refused', () => {
         const sourceAt = textAtRecording(root, named);
         expect(() => sourceAt(path(0), missing)).toThrow(/not in this checkout's object store/);
         expect(() => sourceAt(path(0), missing)).toThrow(/not in this checkout's object store/);
+      }
+    });
+  });
+
+  it('is a blob the tree names and the store lacks, not the path being absent', () => {
+    checkout((root, first) => {
+      const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+      const blob = git('rev-parse', `${first}:${path(1)}`);
+      rmSync(resolve(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+      for (const named of [[], [path(1)]]) {
+        const sourceAt = textAtRecording(root, named);
+        expect(() => sourceAt(path(1), first)).toThrow(/git could not read the files asked about/);
+        expect(() => sourceAt(path(1), first)).toThrow(/git could not read the files asked about/);
+        expect(sourceAt(ABSENT, first)).toBeUndefined();
       }
     });
   });

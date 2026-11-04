@@ -40,11 +40,6 @@ pub(crate) fn fetch(root: &str, oids: &[&str]) -> Result<(), String> {
     }
 }
 
-/// Whether a remote promised what this clone lacks.
-pub(crate) fn partial(root: &str) -> bool {
-    promised(root).is_some()
-}
-
 /// Those of `oids` the clone does not hold, as `rev-list` prints them: `?`
 /// and the object name. Every one of them when git cannot say.
 fn lacking<'a>(root: &str, oids: &[&'a str]) -> Vec<&'a str> {
@@ -59,7 +54,7 @@ fn lacking<'a>(root: &str, oids: &[&'a str]) -> Vec<&'a str> {
 }
 
 /// [`remote`], asked once per checkout.
-fn promised(root: &str) -> Option<String> {
+pub(crate) fn promised(root: &str) -> Option<String> {
     static ASKED: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
     let asked = ASKED.get_or_init(Mutex::default);
     if let Some(known) = asked.lock().ok().and_then(|held| held.get(root).cloned()) {

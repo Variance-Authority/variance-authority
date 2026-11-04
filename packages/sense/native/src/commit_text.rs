@@ -31,8 +31,10 @@
 //! file, and each would leave a child behind until something collected it. It
 //! ends with its standard input, when this process does.
 //!
-//! It answers only what the name settles. Anything else goes to [`read`], which
-//! names git's reason: a commit this clone lacks, a blob the tree names and the
+//! Git answers `missing` alike for a path the tree does not list and a blob it
+//! lists and the store lacks, so a path is absent only when the tree that would
+//! list it does not, read from the same process. It answers only what that
+//! settles. Anything else goes to [`read`], which names git's reason: a commit this clone lacks, a blob the tree names and the
 //! store does not, a git-LFS pointer, a process that died. `cat-file` gives a
 //! pointer's text, and its content takes `git lfs smudge`. That read starts
 //! processes every time it runs: two for a commit the store lacks, about sixteen
@@ -45,7 +47,7 @@
 // compass: variance-authority.reach.source-index
 
 use std::collections::HashMap;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Mutex, PoisonError};
 
@@ -97,7 +99,7 @@ pub fn text_at(root: String, commit: String, file: String) -> napi::Result<Optio
 /// read of a text it left behind gives git's reason.
 #[napi(catch_unwind)]
 pub fn fetch_texts_at(root: String, commit: String, files: Vec<String>) {
-    if !crate::promisor::partial(&root) {
+    if crate::promisor::promised(&root).is_none() {
         return;
     }
     if let Ok(named) = blobs(&root, &commit, &files) {
@@ -247,30 +249,55 @@ pub(crate) fn absent(root: &str, commit: &str) -> Option<String> {
 fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, String> {
     let asked: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
     let out = answer(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
-    let cut = || "git cat-file --batch ended its answer early".to_owned();
+    let mut rest = out.as_slice();
     let mut read = Vec::with_capacity(oids.len());
-    let mut at = 0;
     for _ in oids {
-        let end = at + out.get(at..).ok_or_else(cut)?.iter().position(|&byte| byte == b'\n').ok_or_else(cut)?;
-        let head = String::from_utf8_lossy(&out[at..end]).into_owned();
-        at = end + 1;
-        // `<object> missing` alone, or `<object> <type> <size>`, then the body and a newline.
-        if head.ends_with(" missing") {
-            read.push(Err(format!("git answered `{head}`")));
-            continue;
-        }
-        let Some(size) = body_size(&head) else {
-            return Err(format!("git answered `{head}`"));
-        };
-        read.push(Ok(out.get(at..at + size).ok_or_else(cut)?.to_vec()));
-        at += size + 1;
+        read.push(match reply(&mut rest)? {
+            Reply::Object { body, .. } => Ok(body),
+            Reply::Missing(name) => Err(format!("git answered `{name} missing`")),
+        });
     }
     Ok(read)
 }
 
-/// The size `<object> <type> <size>` gives the body after it.
-pub(crate) fn body_size(head: &str) -> Option<usize> {
-    head.rsplit(' ').next()?.parse().ok()
+/// What git said to one name.
+enum Reply {
+    /// A submodule's commit comes as a `submodule` with no body.
+    Object { oid: String, kind: String, body: Vec<u8> },
+    /// Git holds nothing under this name. It says so alike for a path the tree
+    /// does not list, a commit the store lacks, and a blob the tree names and
+    /// the store lacks, so this alone settles none of them.
+    Missing(String),
+}
+
+/// One answer of a `cat-file --batch`, read from `from`: `<name> missing`,
+/// `<object> submodule`, or `<object> <type> <size>`, then the body and a newline.
+fn reply(from: &mut impl BufRead) -> Result<Reply, String> {
+    let cut = || "git cat-file --batch ended its answer early".to_owned();
+    let mut head = Vec::new();
+    from.read_until(b'\n', &mut head).map_err(|why| why.to_string())?;
+    if head.pop() != Some(b'\n') {
+        return Err(cut());
+    }
+    let head = String::from_utf8_lossy(&head).into_owned();
+    if let Some(name) = head.strip_suffix(" missing") {
+        return Ok(Reply::Missing(name.to_owned()));
+    }
+    let mut fields = head.split(' ');
+    let (oid, kind, size) = (fields.next(), fields.next(), fields.next());
+    let (Some(oid), Some(kind)) = (oid, kind) else {
+        return Err(format!("git answered `{head}`"));
+    };
+    let mut body = Vec::new();
+    if kind != "submodule" {
+        let Some(size) = size.and_then(|size| size.parse::<usize>().ok()) else {
+            return Err(format!("git answered `{head}`"));
+        };
+        body.resize(size + 1, 0);
+        from.read_exact(&mut body).map_err(|_| cut())?;
+        body.pop();
+    }
+    Ok(Reply::Object { oid: oid.to_owned(), kind: kind.to_owned(), body })
 }
 
 /// The blob `commit`'s tree names at each of `files` that is one. A path the
@@ -309,20 +336,12 @@ struct Open {
     stdout: BufReader<ChildStdout>,
 }
 
-/// What git said to one name.
-enum Reply {
-    Object { kind: String, body: Vec<u8> },
-    /// The name resolves to nothing: the tree does not list the path, or the store lacks the commit.
-    Unresolved,
-    /// The name resolves to an object the store lacks.
-    Lacking,
-}
-
 /// `file` at `commit`: `Some(Some(bytes))` its blob, `Some(None)` a path the
 /// commit does not hold, `None` when this cannot say and the read that names
 /// the reason must.
 pub(crate) fn blob_at(root: &str, commit: &str, file: &str) -> Option<Option<Vec<u8>>> {
-    if commit.contains('\n') || file.contains('\n') {
+    // Git reads a name that starts so against the working directory, and it is no path in a tree.
+    if commit.contains('\n') || file.contains('\n') || file.starts_with("./") || file.starts_with("../") {
         return None;
     }
     let mut slot = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
@@ -352,45 +371,48 @@ impl Open {
         Ok(Open { root: root.to_owned(), child, stdin, stdout: BufReader::new(stdout) })
     }
 
-    fn answer(&mut self, commit: &str, file: &str) -> io::Result<Option<Option<Vec<u8>>>> {
+    fn answer(&mut self, commit: &str, file: &str) -> Result<Option<Option<Vec<u8>>>, String> {
         Ok(match self.ask(&format!("{commit}:{file}"))? {
-            Reply::Object { kind, body } if kind == "blob" => (!crate::lfs::pointer(&body)).then_some(Some(body)),
+            Reply::Object { kind, body, .. } if kind == "blob" => (!crate::lfs::pointer(&body)).then_some(Some(body)),
             // A directory, or a submodule's commit: only a blob is a text.
             Reply::Object { .. } => Some(None),
-            Reply::Unresolved => self.holds(commit)?.then_some(None),
-            Reply::Lacking => None,
+            Reply::Missing(_) => self.unlisted(commit, file)?.then_some(None),
         })
     }
 
-    fn holds(&mut self, commit: &str) -> io::Result<bool> {
-        Ok(matches!(self.ask(&format!("{commit}^{{commit}}"))?, Reply::Object { .. }))
+    /// Whether `commit`'s tree holds nothing at `path`, read from the tree that
+    /// would list it. False for a path it lists, and when that tree cannot be
+    /// read, a commit the store lacks included.
+    fn unlisted(&mut self, commit: &str, path: &str) -> Result<bool, String> {
+        let (parent, name) = path.rsplit_once('/').map_or((None, path), |(parent, name)| (Some(parent), name));
+        let tree = parent.map_or_else(|| format!("{commit}^{{tree}}"), |parent| format!("{commit}:{parent}"));
+        match (self.ask(&tree)?, parent) {
+            (Reply::Object { oid, kind, body }, _) if kind == "tree" => Ok(!lists(&body, name, oid.len() / 2)),
+            (Reply::Object { .. }, _) => Ok(true),
+            (Reply::Missing(_), Some(parent)) => self.unlisted(commit, parent),
+            (Reply::Missing(_), None) => Ok(false),
+        }
     }
 
     /// One name out and its whole answer back, so neither pipe ever fills.
-    fn ask(&mut self, name: &str) -> io::Result<Reply> {
-        writeln!(self.stdin, "{name}")?;
-        self.stdin.flush()?;
-        let mut head = Vec::new();
-        self.stdout.read_until(b'\n', &mut head)?;
-        if head.pop() != Some(b'\n') {
-            return Err(io::ErrorKind::UnexpectedEof.into());
-        }
-        let head = String::from_utf8_lossy(&head);
-        if head.strip_suffix(" missing") == Some(name) {
-            return Ok(Reply::Unresolved);
-        }
-        if head.ends_with(" missing") {
-            return Ok(Reply::Lacking);
-        }
-        // `<object> <type> <size>`, then the body and a newline.
-        let (Some(size), Some(kind)) = (body_size(&head), head.split(' ').nth(1)) else {
-            return Err(io::ErrorKind::InvalidData.into());
-        };
-        let mut body = vec![0; size + 1];
-        self.stdout.read_exact(&mut body)?;
-        body.pop();
-        Ok(Reply::Object { kind: kind.to_owned(), body })
+    fn ask(&mut self, name: &str) -> Result<Reply, String> {
+        writeln!(self.stdin, "{name}").and_then(|()| self.stdin.flush()).map_err(|why| why.to_string())?;
+        reply(&mut self.stdout)
     }
+}
+
+/// Whether `tree`, a tree object's body of `<mode> <name>\0<object>` entries
+/// with objects of `width` bytes, lists `name`.
+fn lists(tree: &[u8], name: &str, width: usize) -> bool {
+    let mut rest = tree;
+    while let Some(end) = rest.iter().position(|byte| *byte == 0) {
+        let entry = &rest[..end];
+        if entry.iter().position(|byte| *byte == b' ').is_some_and(|space| &entry[space + 1..] == name.as_bytes()) {
+            return true;
+        }
+        rest = rest.get(end + 1 + width..).unwrap_or_default();
+    }
+    false
 }
 
 impl Drop for Open {
