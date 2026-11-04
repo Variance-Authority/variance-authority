@@ -3,6 +3,7 @@
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
+import { noteSelectedMainline } from './mainline-selected.js';
 
 /**
  * The one record a command scoped to one runner reads: `--suite`'s, or the only
@@ -104,6 +105,7 @@ export async function recordedSuite(
           'and each records on its own; pass `--suite <name>` to say which record to read',
       );
     }
+    await noteSelectedMainline(root, only);
     const file = purpose === 'landing'
       ? selection.testCoverageFile(root, { suite: only })
       : await selection.readableTestCoverage(root, { suite: only });

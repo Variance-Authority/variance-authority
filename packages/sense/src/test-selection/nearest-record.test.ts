@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
-import { mainlineReadRoot, writeFetchedMainline, writeTestCoverage } from './index.js';
+import { mainlineReadRoot, writeFetchedMainline, writeSelectedMainline, writeTestCoverage } from './index.js';
 import { nearestRecord } from './record-location.js';
 
 const temporary: string[] = [];
@@ -54,7 +54,11 @@ describe('whose record answers a worktree', () => {
     await hold(mainline);
     await writeFetchedMainline(asked.cacheRoot, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
     expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
-    expect(nearestRecord(worktree, { ...asked, fetched: 'passed' })).toEqual({ file: below, origin: 'primary' });
+
+    await writeSelectedMainline(asked.cacheRoot, 'unit', 'release');
+    expect(nearestRecord(worktree, asked)).toEqual({ file: below, origin: 'primary' });
+    await writeSelectedMainline(asked.cacheRoot, 'unit', undefined);
+    expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
 
     await hold(own);
     expect(nearestRecord(worktree, asked)).toEqual({ file: own, origin: 'own' });

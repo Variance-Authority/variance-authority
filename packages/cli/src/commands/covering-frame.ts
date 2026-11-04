@@ -34,6 +34,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt, CoveringQuestion, CoveringSource } from '../covering-args.js';
+import { noteSelectedMainline } from './mainline-selected.js';
 
 /** A recorded range where it stands in the held text, and the one state it is painted as. */
 export interface CoveringRange extends SourceTestRange {
@@ -91,6 +92,7 @@ export async function recordOf(
 export async function snapshotFor(request: CoveringRead): Promise<string | undefined> {
   if (request.record !== undefined) return request.record;
   try {
+    await noteSelectedMainline(request.root, request.suite);
     return await readableTestCoverage(request.root, { suite: request.suite });
   } catch (error) {
     if (request.execution !== undefined) return undefined;

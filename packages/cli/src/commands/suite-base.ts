@@ -19,12 +19,14 @@
  *    It is an offline fallback, and the reader says why the mainline's is not it.
  *
  * A checkout's first run is laid on the same answer. The runner seams in
- * `@variance-authority/sense/test-selection` cannot fetch, so they lay the
- * mainline's record as last fetched here, else the primary checkout's, and say
- * which; `mainlineBase` is what leaves a fetched record where they look. So the
- * base a reader measures from and the base the first run lands on are one
- * record, and a checkout that has run keeps measuring from the mainline's,
- * moving forward with it as HEAD does.
+ * `@variance-authority/sense/test-selection` cannot fetch or select, so they
+ * lay the mainline's record as last fetched here, else the primary checkout's,
+ * and say which; `mainlineBase` leaves the fetched record and the mainline
+ * selected where they look, and `lastFetchedMainline` turns away a record of any
+ * other. The two are one record once a reader has selected here; a seam that
+ * runs before any reader judges by nothing, and lays what was fetched. A
+ * checkout that has run keeps measuring from the mainline's, moving forward
+ * with it as HEAD does.
  *
  * `mainlineBase` owns the fetch and the read layer it keeps the bytes in, with
  * the runs record the publishing run carried beside them, and
@@ -86,7 +88,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
     ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
   };
-  if (await exists(own)) {
+  if (await recordHeld(own)) {
     // The milestone under the checkout moves forward when the mainline's
     // newest record is one HEAD contains: see `repinOwnLayer`. A read that
     // fetches nothing can be killed mid-way, so it rewrites nothing either.
@@ -102,8 +104,8 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 
   // With no mainline record fetched here, the nearest layer under this
   // checkout's own is the primary checkout's, the same one a first run lays.
-  const nearest = await selection.readableTestCoverage(root, read === undefined ? named : { ...named, fetched: 'passed' });
-  if (nearest !== own && (await exists(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
+  const nearest = await selection.readableTestCoverage(root, named);
+  if (nearest !== own && (await recordHeld(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
 }
 
@@ -267,23 +269,15 @@ function onlySuite(declared: readonly { readonly name: string }[] | undefined): 
  */
 export async function recordHeld(file: string): Promise<boolean> {
   try {
-    return await exists(file);
+    await stat(file);
+    return true;
   } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return false;
     throw new OperatorError(
       `the recorded execution journal at ${file} could not be reached: ` +
         `${error instanceof Error ? error.message : String(error)}. A reader that treated ` +
         'this as "nothing recorded" would pass over a record it holds and look exactly like a clean answer.',
       { cause: error },
     );
-  }
-}
-
-async function exists(file: string): Promise<boolean> {
-  try {
-    await stat(file);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return false;
-    throw error;
   }
 }

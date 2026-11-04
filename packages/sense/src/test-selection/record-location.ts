@@ -36,8 +36,6 @@ export interface RecordLocationOptions {
   readonly suite?: string | undefined;
   /** The cache directory, when the caller already knows it. */
   readonly cacheRoot?: string | undefined;
-  /** `passed` when the caller judged the fetched record and turned it down: the layers under this checkout's are asked without it. */
-  readonly fetched?: 'passed' | undefined;
 }
 
 /**
@@ -441,7 +439,7 @@ export function nearestRecord(
   // one this build does not read is passed over, as seeding passes it over.
   const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
   const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot);
-  if (fetched !== undefined && options.fetched !== 'passed') return { file: fetched.coverage, origin: 'mainline' };
+  if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
   for (const file of under) if (present(file)) return { file, origin: 'primary' };
 
   return { file: own!, origin: 'own' };

@@ -29,7 +29,8 @@ import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import { entryCarriesEyes, suiteEntry, suiteEntryOf } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun } from '../share-lines.js';
-import { mainlineBase, mainlineMissed, mainlineRead, rootShare } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
+import { rootShare } from './mainline-selected.js';
 import { describePublish, eyesWritten, unkept, type Here, type RunPublish } from './share.js';
 
 /** What `share --suite` was asked to do. */

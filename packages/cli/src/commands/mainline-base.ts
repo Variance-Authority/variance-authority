@@ -12,12 +12,12 @@
 
 import { readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
-import { parseShare } from '../config-share.js';
+import { join } from 'node:path';
+import type { DeclaredSuite, LastFetched } from '@variance-authority/sense/test-selection';
 import { ConfigError, messageOf } from '../config-values.js';
 import { distanceFrom, keepsByCommit, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
+import { keepSelected, rootShare } from './mainline-selected.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
 
@@ -151,17 +151,17 @@ export async function mainlineBase(
   const env = here.env ?? process.env;
   const now = here.now ?? Date.now();
   const readRoot = selection.mainlineReadRoot(cacheRoot, suite);
-  // Both caches when the caller named none, as a runner seam reads them.
-  const last = selection.lastFetchedMainline(root, suite, here.cacheRoot);
 
   // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
   // for every distance measured below, and the fetch keeps the merge base.
   const chosen = await readerMainline(place, env, root);
   const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
-  // A record fetched for another mainline answers nothing about this one, so it is no record here. With no
-  // mainline named nothing says it is another's, and it stands, though only a named one is reused unasked.
-  const held = named === undefined || last?.mainline === named.name ? last : undefined;
+  // Noted before the read, because the note is what turns another mainline's record away. With no mainline
+  // named nothing says it is another's, and it stands, though only a named one is reused unasked.
+  await keepSelected(selection.writeSelectedMainline, cacheRoot, suite, named?.name);
+  // Both caches when the caller named none, as a runner seam reads them.
+  const held = selection.lastFetchedMainline(root, suite, here.cacheRoot);
   if (here.fetch !== 'always') {
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {
@@ -376,18 +376,6 @@ function decodes(bytes: Uint8Array): string | undefined {
   } catch (error) {
     return `its per-case index does not read (${messageOf(error)}), so it is not kept`;
   }
-}
-
-/**
- * The root config's `share`, where a suite declared beside it is published.
- *
- * Read from the root file because that is where the suites are declared: the
- * CLI refuses a suite given to a share in a file with no `share` section.
- */
-export function rootShare(config: RootConfig | undefined) {
-  const value = config?.value['share'];
-  if (config === undefined || value === undefined) return undefined;
-  return parseShare(value, { source: config.file, baseDir: dirname(config.file) });
 }
 
 /** Why the record fetched earlier stands, for {@link mainlineRead}. */

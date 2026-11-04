@@ -420,14 +420,14 @@ describe('a fetch when the daily prune of the cache is due', () => {
 });
 
 describe('a record path the checkout cannot ask about', () => {
-  it('is refused with the file system\'s answer, never read as a checkout that has recorded nothing', async () => {
+  it('is refused in the operator\'s sentence, never read as a checkout that has recorded nothing', async () => {
     const { origin } = await gitPublished(home);
     const { dir } = await laptop(origin);
     const own = testCoverageFile(dir, { suite: 'unit' });
     await mkdir(dirname(dirname(own)), { recursive: true });
     await writeFile(dirname(own), '');
 
-    await expect(suiteBase(dir, { env: LOCAL })).rejects.toMatchObject({ code: 'ENOTDIR' });
+    await expect(suiteBase(dir, { env: LOCAL })).rejects.toThrow(/could not be reached: ENOTDIR/u);
   });
 });
 

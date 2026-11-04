@@ -43,6 +43,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
+import { noteSelectedMainline } from './mainline-selected.js';
 import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
@@ -182,6 +183,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     // nearest that holds it, which in a checkout that has not run is the
     // mainline's as last fetched here, else, in a worktree, the primary
     // checkout's.
+    await noteSelectedMainline(request.root, one?.name);
     const record = await readableTestCoverage(request.root, { suite: one?.name });
     const from = await recordOf(request.root, one?.name, record);
     if (from === undefined) {
