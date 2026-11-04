@@ -28,8 +28,8 @@ export interface Answering {
   readonly unseen?: boolean;
   /** The published files that were there and did not open; absent when none failed. */
   readonly unopened?: readonly Unopened[];
-  /** Whether the files the answer names changed since its generation; absent for a reading that cannot say. */
-  readonly outlived?: (started: number) => Promise<boolean>;
+  /** Whether the files the answer names changed since its generation, read before the request that began at `started` when one is named; absent for a reading that cannot say. */
+  readonly outlived?: (started?: number) => Promise<boolean>;
 }
 
 export async function wholeSource(

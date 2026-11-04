@@ -360,15 +360,21 @@ declaration you moved is given at the line it holds today. An edit anywhere else
 waits for the hour: `uses` does not see an import you just added. The look is a
 stat of each file.
 
-When the checkout cannot be read again, the answer or the refusal names the
-generation time, says the checkout was not compared with it, and says why. When
-the list of installed exports cannot be built, the refusal says the installed
-packages were not compared, and why.
+When the checkout cannot be read again, or a file the answer rests on is saved
+again during that read, the answer or the refusal names the generation time,
+says the checkout was not compared with it, and says why. Of a file written
+after the generation's read the answer gives what the generation recorded, a
+declaration and its members by name, and none of the file's text: its lines are
+no longer the ones that were read. The next question reads again. When the list
+of installed exports cannot be built, the refusal says the installed packages
+were not compared, and why.
 
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, and every answer and refusal names the generation
 time and says the checkout was not compared with it; as JSON, `search` carries
-`compared: false` beside `generatedAt`. If no generation has been published,
+`compared: false` beside `generatedAt`. Text comes from a file only while that
+file is as old as the generation's read, so a newer one gives its recorded names.
+If no generation has been published,
 the command refuses instead of silently turning the question into production
 work.
 
@@ -384,8 +390,12 @@ When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
 nothing changed. This is producer input: it replaces Git's changed-file
-discovery and cannot be combined with `--just-answer`. [Naming what
-changed](source-index.md#naming-what-changed) gives the file contract.
+discovery and cannot be combined with `--just-answer`. Such a refresh reads the
+files you listed and no others, so the generation keeps the time of the read it
+refreshed: an answer given with the list prints a listed file's recorded names,
+and the next question without one that rests on that file reads the checkout.
+[Naming what changed](source-index.md#naming-what-changed) gives the file
+contract.
 
 ## Ask from the shell
 

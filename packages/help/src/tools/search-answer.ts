@@ -368,14 +368,14 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
  * published row shown is counted by `importingOf` when it is given, as `uses`
  * counts that name.
  */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): Searched {
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, since?: number): Searched {
   const count = importingOf === undefined ? undefined : counting(importingOf);
-  const found = searchedBy(index, question, tree, root, count?.of);
+  const found = searchedBy(index, question, tree, root, count?.of, since);
   const unread = count?.unread();
   return unread === undefined ? found : { ...found, answer: { ...found.answer, importsUnread: unread } };
 }
 
-function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined): Searched {
+function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, since: number | undefined): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
   const { query, area, within, named, hits, answered, rest } = found;
@@ -439,7 +439,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const told = described === undefined || left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP, described)
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...one.match, words: one.words }];
-      if ('file' in one) return [{ ...fileMatch(root, one.file), words: one.words }];
+      if ('file' in one) return [{ ...fileMatch(root, one.file, since), words: one.words }];
       // The row it was weighed through is the row shown.
       const { through } = one;
       const row = through.kind === 'published'

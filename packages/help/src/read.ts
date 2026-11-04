@@ -66,6 +66,7 @@ import {
   republishWorkspaceSnapshot,
   tryPublishWorkspaceSnapshot,
   workspaceGeneration,
+  workspaceReadStarted,
 } from './snapshot.js';
 
 export { publishedGeneration, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
@@ -284,14 +285,17 @@ export async function readWorkspaceOver(root: string, manifests: WorkspaceManife
  * the new Sense scan. Signatures, comments and README mentions stay on the
  * supplied reading until its published or exported name set changes; a new or
  * removed symbol therefore rebuilds documentation immediately rather than
- * waiting for the caller's slower documentation cadence.
+ * waiting for the caller's slower documentation cadence. A refresh of `changed`
+ * files keeps the time the supplied reading began, as `readStartedAt` says.
  */
 export async function refreshWorkspace(
   root: string,
   documented: Help,
   options: ReadingOptions = {},
 ): Promise<Help> {
-  const read = await scanWorkspace(root, options);
+  // A listed refresh read those files and nothing else, so every other file is as old as `documented` read it.
+  const kept = options.changed === undefined ? undefined : workspaceReadStarted(documented);
+  const read = await scanWorkspace(root, options, kept === undefined ? undefined : { readStartedAt: new Date(kept).toISOString() });
   if (!sameSurface(read, read.scanned.usage.exported, documented)) return documentWorkspace(read, options);
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
@@ -316,7 +320,7 @@ interface WorkspaceScan {
 async function scanWorkspace(
   root: string,
   options: ReadingOptions,
-  over?: { readonly manifests: WorkspaceManifests; readonly readStartedAt: string },
+  over?: { readonly manifests?: WorkspaceManifests; readonly readStartedAt: string },
 ): Promise<WorkspaceScan> {
   const readStartedAt = over?.readStartedAt ?? new Date().toISOString();
   const where = resolve(root);

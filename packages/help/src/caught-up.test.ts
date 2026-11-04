@@ -74,6 +74,14 @@ describe('outlived', () => {
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, Date.parse(workspaceGeneration(help)!))).toBe(false);
   });
 
+  it('looks at a generation read during the request when no request is named, as the look after a read does', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root })).toBe(false);
+    edit(root);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root })).toBe(true);
+  });
+
   it('leaves a name no file declares to its refusal, and any question that names no file as it is', async () => {
     const root = await fixture.published();
     const help = await readWorkspace(root);
@@ -98,6 +106,36 @@ describe('outlived', () => {
 });
 
 describe('caughtUp', () => {
+  it('looks once more at what it read, and says a file moved during that read rather than reading again', async () => {
+    const started = Date.now();
+    const reads: boolean[] = [];
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => {
+      reads.push(current);
+      return 'asked again';
+    }, async (subject) => subject === 'asked again');
+    expect(caught).toEqual({ subject: 'asked again', unseen: 'a file it rests on changed while it was read' });
+    expect(reads).toEqual([true]);
+  });
+
+  it('says nothing of the read when no file moved during it', async () => {
+    const started = Date.now();
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => 'asked again', async () => false);
+    expect(caught).toEqual({ subject: 'asked again' });
+  });
+
+  it('gives the reason to a date line, with no look, when the read failed', async () => {
+    const started = Date.now();
+    const looked: unknown[] = [];
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
+      throw new Error('a manifest is half-written');
+    }, async (subject) => {
+      looked.push(subject);
+      return true;
+    });
+    expect(looked).toEqual([]);
+    expect(caught?.unseen).toBe('it could not be read again: a manifest is half-written');
+  });
+
   it('asks again, of a current generation, a refusal from one made before the question', async () => {
     const started = Date.now();
     expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toEqual({ subject: true });

@@ -114,6 +114,7 @@ function over<Inner>(
         ...(previous === undefined ? {} : { previous }),
         ...(invocation?.tree === undefined ? {} : { tree: invocation.tree }),
         ...(invocation?.root === undefined ? {} : { root: invocation.root }),
+        ...(invocation?.unseen === undefined ? {} : { unseen: invocation.unseen }),
       });
     },
   }));
@@ -227,10 +228,16 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     // its named files changed since, asked again of one read now. `--just-answer`
     // reads only what was published, so its answer stands.
     ...(options.justAnswer === true ? {} : {
-      again: async (asked: string | undefined, refused: Bench, started: number) => {
+      again: async (asked: string | undefined, refused: Bench, started: number, input: Readonly<Record<string, unknown>>) => {
         const at = refused.help === undefined ? undefined : workspaceGeneration(refused.help);
         if (asked === undefined || !SOURCE_QUESTIONS.has(asked)) return undefined;
-        return caughtUp(at, started, root, async (current) => (current ? { ...refused, help: await readHelp(0) } : refused));
+        return caughtUp(
+          at,
+          started,
+          root,
+          async (current) => (current ? { ...refused, help: await readHelp(0) } : refused),
+          async (read) => read.help !== undefined && await outlived(asked, read.help, input, { root, ...(tree === undefined ? {} : { tree }) }),
+        );
       },
       outlived: async (asked: string | undefined, input: Readonly<Record<string, unknown>>, bench: Bench, started: number) =>
         bench.help !== undefined && await outlived(asked, bench.help, input, { root, ...(tree === undefined ? {} : { tree }) }, started),

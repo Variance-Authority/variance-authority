@@ -221,9 +221,10 @@ when it is missing or behind, before the refusal is given; on `ask` that holds
 under `--changed-file` and `--taint-file` too. So is a `symbol` or `uses` whose
 declaring files, or `serve`'s `docs_search` whose printed files, changed or went
 away after the generation, which a stat of each decides: an answer whose files
-are unchanged reads nothing more. When the checkout cannot be read again, the answer or the refusal says it
-was not compared with the generation, and why; when
-the lexicon cannot be built, it says the installed packages were not compared,
+are unchanged reads nothing more. When the checkout cannot be read again, or a file the answer rests on
+is saved again during that read, the answer or the refusal says it was not compared with the generation,
+and why, and gives what the generation recorded of a file written since, by name and with none of its
+text; when the lexicon cannot be built, it says the installed packages were not compared,
 and why. An injected
 `AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
 named, `search` is the exception: it reads the published generation, whatever

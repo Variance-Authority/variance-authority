@@ -18,8 +18,6 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
@@ -27,6 +25,7 @@ import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { textAsRead } from './as-read.js';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
@@ -77,28 +76,28 @@ export const declarationsNamed = askedOnce((_help: Help, root: string | undefine
 /**
  * One declaration, as `symbol` writes it: the name and its kind, where it is
  * declared, its signature and its documentation as the checkout holds them,
- * and who can reach it. The signature and the
- * documentation are left out when the file no longer holds the name where the
- * index read it.
+ * and who can reach it. The signature and the documentation are left out of a
+ * file written since `help` was read, as {@link textRows} says.
  */
-function declaredBlock(root: string, held: DeclaredName, spell: Spelling): string {
+function declaredBlock(help: Help, root: string, held: DeclaredName, spell: Spelling): string {
   return [
     `${held.name} [${held.kind}]`,
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...textRows(root, held),
+    ...textRows(help, root, held),
     reachSentences(held, spell).block,
   ].join('\n');
 }
 
 /** Where a declaration is, and the spans of its signature and documentation. */
-type Spanned = Pick<DeclaredName, 'at' | 'name' | 'line' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
+type Spanned = Pick<DeclaredName, 'at' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
 
 /**
  * A declaration's signature and documentation, as the checkout holds them;
- * neither when the file no longer holds the name where the index read it.
+ * neither when the file is gone or was written since `help` was read, since the
+ * spans are of the text that read saw.
  */
-export function textRows(root: string, held: Spanned): readonly string[] {
-  const text = textAt(root, held);
+export function textRows(help: Help, root: string, held: Spanned): readonly string[] {
+  const text = textAsRead(help, root, held.at);
   if (text === undefined) return [];
   const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
   const doc = docOf(text, spanOf(held.docStart, held.docEnd));
@@ -196,27 +195,6 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
 }
 
 /**
- * Whether `line` of `lines` still spells `name`, so a line the index read is
- * today's text of the same thing. The line spells the item's own name: one
- * inside a Rust inline module is declared as `tests::fixture` and written
- * `fn fixture`.
- */
-export function holdsName(lines: readonly string[], name: string, line: number): boolean {
-  return lines[line - 1]?.includes(name.split('::').at(-1)!) === true;
-}
-
-/** The file's text, when it still holds the name on the line the index read it at. */
-function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
-  let text: string;
-  try {
-    text = readFileSync(join(root, held.at), 'utf8');
-  } catch {
-    return undefined;
-  }
-  return holdsName(text.split(/\r?\n/), held.name, held.line) ? text : undefined;
-}
-
-/**
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
  * declaration, source first and nearest a path in `from` first, the first
@@ -240,7 +218,7 @@ export function declaredBlocks(
   );
   if (held.length === 0) return { blocks: [] };
   const blocks = [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
+    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(help, root, one, spell)),
     ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];

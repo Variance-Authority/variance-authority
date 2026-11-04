@@ -133,7 +133,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
     // The original's own sites are not read here, so the entry's are what may read it.
     const may = undecided(published.name, held, entry);
-    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
+    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(help, root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
@@ -144,7 +144,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
       return {
         text: [
           ...rows,
-          ...memberRows(root, declared.at, declared.name, declared.line),
+          ...memberRows(help, root, declared.at, declared.name, declared.line),
         ].join('\n'),
         at: [[held.at, held.line], ...(declared === held ? [] : [[declared.at, declared.line] as const])],
       };

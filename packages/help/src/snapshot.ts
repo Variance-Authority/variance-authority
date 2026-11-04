@@ -34,8 +34,10 @@ interface WorkspaceSnapshot {
   readonly generatedAt: string;
   /**
    * When the read behind the value began, before any of it was read: a file
-   * written after this may not be in the value, and one written before it is.
-   * `generatedAt` is taken after the read, so it says neither.
+   * written before this is in the value, and one written after it may not be. A
+   * refresh of listed files keeps the time of the read it refreshed, because it
+   * read nothing else, so a file it listed counts as written after. `generatedAt`
+   * is taken after the read, so it says neither.
    */
   readonly readStartedAt: string;
   /**

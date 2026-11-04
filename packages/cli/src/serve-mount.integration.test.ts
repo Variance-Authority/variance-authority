@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -139,6 +139,24 @@ describe('the server `variance serve` starts', () => {
     } finally {
       server.close();
       await rm(join(workspace, 'src/renamed.ts'), { force: true });
+    }
+  });
+
+  it('dates a found answer once, saying why, when the checkout could not be read again', async () => {
+    const manifest = await readFile(join(workspace, 'package.json'), 'utf8');
+    const source = await readFile(join(workspace, 'src/index.ts'), 'utf8');
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'mounted' } })).isError).toBeUndefined();
+      await writeFile(join(workspace, 'src/index.ts'), `// moved\n${source}`);
+      await writeFile(join(workspace, 'package.json'), '{ half-written');
+      const text = (await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'mounted' } })).content[0]!.text;
+      expect(text.match(/^Snapshot /gmu)).toHaveLength(1);
+      expect(text).toMatch(/^Snapshot \S+, not compared with the checkout \(it could not be read again: /mu);
+    } finally {
+      server.close();
+      await writeFile(join(workspace, 'package.json'), manifest);
+      await writeFile(join(workspace, 'src/index.ts'), source);
     }
   });
 

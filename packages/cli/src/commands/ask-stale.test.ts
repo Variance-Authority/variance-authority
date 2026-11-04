@@ -49,6 +49,17 @@ const IMPORTER = 'apps/app/src/checkout.ts';
 
 const OPTIONS = 'export interface Options {\n  /** Whether CI. */\n  readonly ci: boolean;\n  /** The step. */\n  readonly step: string;\n}\n';
 
+/** {@link OPTIONS} rewritten so every line the index read still spells the name it read there. */
+const OPTIONS_REWRITTEN = '// Options went elsewhere\n//\n// the ci job is gone\n//\n// the last step is gone\n';
+
+const HIDDEN = 'packages/kit/src/hidden.ts';
+
+/** A name its file declares and does not export. */
+const HIDDEN_TEXT = 'export const shown = 1;\n/** Halves it. */\nfunction hiddenOf(amount: number): number {\n  return amount / 2;\n}\nexport const used = hiddenOf(shown);\n';
+
+/** {@link HIDDEN_TEXT} rewritten so the line the index read still spells the name. */
+const HIDDEN_REWRITTEN = 'export const shown = 1;\n// the words of today\n// hiddenOf went elsewhere, and this comment is long enough to reach past the old signature\n';
+
 /** The time an answer's generation was made, from its date line. */
 function snapshotOf(out: string): string | undefined {
   return /^Snapshot (\S+Z)/mu.exec(out)?.[1];
@@ -193,6 +204,86 @@ describe('variance ask about a name whose file changed since the source index', 
 
     expect(answer).toContain(`${TAX}:1`);
     expect(answer).toMatch(/not compared with the checkout \(it could not be read again: a manifest is half-written\)/u);
+    expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
+  });
+
+  it('reads no text of a file the look found changed, though each recorded line still spells its name', async () => {
+    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS, [HIDDEN]: HIDDEN_TEXT });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const held = await readWorkspaceForAnswer(root);
+    write(root, { 'packages/kit/src/options.ts': OPTIONS_REWRITTEN, [HIDDEN]: HIDDEN_REWRITTEN });
+    const refused = async (name: string): Promise<string> =>
+      await askSource({
+        question: 'symbol',
+        name,
+        source: async (_root, reading) => {
+          if (reading?.current === true) throw new Error('a manifest is half-written');
+          return { help: held };
+        },
+      });
+
+    const members = await refused('Options');
+    expect(members).toContain('packages/kit/src/options.ts:3 — ci');
+    expect(members).toContain('packages/kit/src/options.ts:5 — step');
+    expect(members).not.toContain('is gone');
+    expect(members).not.toContain('went elsewhere');
+
+    const declared = await refused('hiddenOf');
+    expect(declared).toContain(`declared, not exported, at ${HIDDEN}:3`);
+    expect(declared).not.toContain('went elsewhere');
+    expect(declared).not.toContain('words of today');
+  });
+
+  it('carries the caveat, with one reading and none of its text, for a file saved during the read the look asked for', async () => {
+    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const held = await readWorkspaceForAnswer(root);
+    write(root, { 'packages/kit/src/options.ts': `// moved\n${OPTIONS}` });
+    let reads = 0;
+
+    const answer = await askSource({
+      question: 'symbol',
+      name: 'Options',
+      source: async (_root, reading) => {
+        if (reading?.current !== true) return { help: held };
+        reads += 1;
+        const help = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
+        // The save the read could not have seen, made once the read is over.
+        write(root, { 'packages/kit/src/options.ts': `// moved\n//\n// the ci job is gone\n${OPTIONS}` });
+        return { help };
+      },
+    });
+
+    expect(reads).toBe(1);
+    expect(answer).toContain('packages/kit/src/options.ts:4 — ci');
+    expect(answer).not.toContain('is gone');
+    expect(answer).toMatch(/^Snapshot \S+, not compared with the checkout \(a file it rests on changed while it was read\)/mu);
+    expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
+
+    const next = await run(['ask', 'symbol', '--name', 'Options']);
+    expect(next.out).toContain('packages/kit/src/options.ts:6 — readonly ci: boolean;');
+    expect(next.out).not.toContain('not compared');
+  });
+
+  it('gives no opening of a file `search` found, once that file was written since the read and could not be read again', async () => {
+    const opening = (words: string): string => `/**\n * Where painted ${words} dance.\n */\n\n/** One. */\nexport const pond = 1;\n`;
+    const root = checkout({ 'packages/kit/src/frogs.ts': opening('frogs') });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const held = await readWorkspaceForAnswer(root);
+    write(root, { 'packages/kit/src/frogs.ts': opening('toads') });
+
+    const answer = await askSource({
+      question: 'search',
+      query: 'painted frogs dance',
+      source: async (_root, reading) => {
+        if (reading?.current === true) throw new Error('a manifest is half-written');
+        return { help: held };
+      },
+    });
+
+    expect(answer).toContain('packages/kit/src/frogs.ts');
+    expect(answer).not.toContain('toads');
+    expect(answer).toMatch(/^Snapshot \S+, not compared with the checkout \(it could not be read again: a manifest is half-written\)/mu);
   });
 
   it('gives the members it recorded, and none of today\'s text at their old lines, when the checkout could not be read again', async () => {
@@ -262,5 +353,24 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(`${TAX}:1`);
     expect(out).toMatch(/^Snapshot \S+, not compared with the checkout/mu);
+  });
+
+  it('gives what the record holds, under `--just-answer`, of a file written since its generation was read', async () => {
+    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    write(root, { 'packages/kit/src/options.ts': OPTIONS_REWRITTEN });
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Options', '--just-answer']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('packages/kit/src/options.ts:3 — ci');
+    expect(out).not.toContain('is gone');
+  });
+
+  it('gives today\'s text, under `--just-answer`, of a file nothing wrote since its generation was read', async () => {
+    checkout({ 'packages/kit/src/options.ts': OPTIONS });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { out } = await run(['ask', 'symbol', '--name', 'Options', '--just-answer']);
+    expect(out).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
   });
 });

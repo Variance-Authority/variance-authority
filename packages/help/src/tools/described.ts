@@ -1,11 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { opening } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
+import { textSince } from './as-read.js';
 import { declaredMatch } from './declared.js';
 import type { DeclaredMatch, FileMatch } from './search-answer.js';
 import { admittedBy, rowWithin, termsOfStems } from './loose.js';
@@ -385,16 +384,17 @@ export function describedDeclarations(
   ];
 }
 
-/** A described file as a `search` section holds it, its doc's opening read from the checkout. */
-export function fileMatch(root: string | undefined, file: DescribedFile): FileMatch {
+/**
+ * A described file as a `search` section holds it, its doc's opening read from
+ * the checkout; none when the file is gone or, for a generation whose read began
+ * at `since`, was written after it.
+ */
+export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined): FileMatch {
   let summary: string | undefined;
   if (root !== undefined && file.docStart != null && file.docEnd != null) {
-    try {
-      const doc = docOf(readFileSync(join(root, file.at), 'utf8'), { start: file.docStart, end: file.docEnd });
-      summary = doc === undefined ? undefined : opening(doc);
-    } catch {
-      summary = undefined;
-    }
+    const text = textSince(root, file.at, since);
+    const doc = text === undefined ? undefined : docOf(text, { start: file.docStart, end: file.docEnd });
+    summary = doc === undefined ? undefined : opening(doc);
   }
   return { source: 'file', at: file.at, ...(file.by === '' ? {} : { package: file.by }), ...(summary === undefined ? {} : { summary }) };
 }

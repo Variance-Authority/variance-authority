@@ -139,7 +139,7 @@ export function ask(
   args: readonly string[],
   walk?: () => Tree | undefined,
   root?: string,
-  unseen = false,
+  unseen: boolean | string = false,
 ): string {
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);

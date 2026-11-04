@@ -97,8 +97,14 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     root,
     // `justAnswer` reads nothing but what was published, so its answer stands.
     ...(justAnswer ? {} : {
-      again: async (_asked: string | undefined, refused: Help, started: number) => {
-        return caughtUp(workspaceGeneration(refused), started, root, async (current) => (current ? readNow(0) : refused));
+      again: async (asked: string | undefined, refused: Help, started: number, input: Readonly<Record<string, unknown>>) => {
+        return caughtUp(
+          workspaceGeneration(refused),
+          started,
+          root,
+          async (current) => (current ? readNow(0) : refused),
+          (read) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }),
+        );
       },
       outlived: (asked: string | undefined, input: Readonly<Record<string, unknown>>, subject: Help, started: number) =>
         outlived(asked, subject, input, { root, ...(tree === undefined ? {} : { tree }) }, started),

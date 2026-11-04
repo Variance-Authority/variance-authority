@@ -57,10 +57,11 @@ interface Reading {
 
 /** An answer not yet given, and the generation it will be given from. */
 interface Answering {
-  readonly answer: () => string;
+  /** The answer, its date line saying `unseen` when the checkout was not compared with it for that reason. */
+  readonly answer: (unseen?: string) => string;
   readonly at: string | undefined;
-  /** Whether the files the answer names changed since its generation; absent for a reading that cannot say. */
-  readonly outlived?: (started: number) => Promise<boolean>;
+  /** Whether the files the answer names changed since its generation, read before the request that began at `started` when one is named; absent for a reading that cannot say. */
+  readonly outlived?: (started?: number) => Promise<boolean>;
 }
 
 /** The longest verb and a gap, so a verb added later never runs into its description. */
@@ -173,7 +174,7 @@ if (asking(verb) && verb !== undefined) {
       if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
       const help = await readWorkspaceForAnswer(root, reading);
       return {
-        answer: () => ask(help, verb, ownArgs, () => tree, root, justAnswer),
+        answer: (unseen) => ask(help, verb, ownArgs, () => tree, root, unseen ?? justAnswer),
         at: workspaceGeneration(help),
         outlived: (started) => outlived(tool.name, help, inputFrom(tool, ownArgs), { root, ...(tree === undefined ? {} : { tree }) }, started),
       };
@@ -182,22 +183,22 @@ if (asking(verb) && verb !== undefined) {
     const started = Date.now();
     const read = await answering(false);
     // An answer whose named files changed since its generation is asked again
-    // first; one that could not be says so under it.
-    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await caughtUp(read.at, started, root, answering) : undefined;
+    // first; one that could not be, or whose files moved again, says so where it is dated.
+    const moved = async (subject: Answering): Promise<boolean> => (await subject.outlived?.()) === true;
+    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await caughtUp(read.at, started, root, answering, moved) : undefined;
     const first = looked?.subject ?? read;
     let answer: string;
     try {
-      answer = first.answer();
-      if (looked?.subject === undefined && looked?.footer !== undefined) answer += `\n${looked.footer}`;
+      answer = first.answer(looked?.unseen);
     } catch (refusal) {
       // A refusal from a reused generation is asked again of one read now;
       // `--just-answer` and `search` read only what was published, so theirs stands.
       // A refusal whose checkout could not be compared says why.
-      const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering);
+      const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering, moved);
       const footer = caught?.footer ?? (justAnswer && first.at !== undefined ? snapshotLine(first.at, true) : undefined);
       try {
         if (caught?.subject === undefined) throw refusal;
-        answer = caught.subject.answer();
+        answer = caught.subject.answer(caught.unseen);
       } catch (still) {
         // A name not found is an answer once nothing newer can be read, dated as any other.
         const found = foundNothingAnswer(still, caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);

@@ -85,17 +85,13 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
   /**
    * A subject to ask a call of once more, or none to let its answer stand.
    *
-   * A host whose subject is a reading it reuses — a workspace generation kept
-   * for an hour — can refuse a name only because the reading is older than the
-   * file that declares it. So a call to a tool the server has, with every
-   * argument it requires, that came back `isError`, or that `outlived` says no
-   * longer holds, is handed here with the subject that answered it and when the
-   * request started. A `subject` read since is asked the same call, and the
-   * tree is asked for again with it; a `footer` ends the answer that still
-   * stands, for a host that could not bring its reading up to date and says
-   * why. Only those two pay for the second reading.
+   * For a host whose subject is a reading it reuses, a workspace generation kept
+   * for an hour, which can be older than the file that answers. A call to a tool
+   * the server has, with every argument it requires, that came back `isError` or
+   * that `outlived` says no longer holds, is handed here with its subject, when
+   * the request started and its arguments. Only those two pay for a second reading.
    */
-  readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<Again | undefined>;
+  readonly again?: (asked: string | undefined, refused: Subject, started: number, input: Readonly<Record<string, unknown>>) => Promise<Again | undefined>;
 
   /**
    * Whether an answer the call found stands on something that changed since
@@ -127,8 +123,12 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
 
 /** What a host answers a refused call with: a fresher subject, and what a refusal that still stands says. */
 export interface AskedAgain<Subject> {
+  /** A subject read since: the same call is asked of it, and the tree asked for again with it. */
   readonly subject?: Subject;
+  /** What ends a refusal that still stands, or an answer given no `unseen`. */
   readonly footer?: string;
+  /** Why the answer given was not compared with what it is about, handed to the tool on its `ToolInvocation`. */
+  readonly unseen?: string;
 }
 
 export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Subject>>(options: ServerOptions<Subject, Again>): () => void {
@@ -156,28 +156,31 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
     queue = queue.then(async () => {
       const started = Date.now();
       const asked = askedTool(request);
-      const answer = async (subject: Subject) => {
+      const answer = async (subject: Subject, unseen?: string) => {
         const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
         return answering(request, () => subject, options.served, {
           ...(previous === undefined ? {} : { previous }),
           ...(tree === undefined ? {} : { tree }),
           ...(options.root === undefined ? {} : { root: options.root }),
+          ...(unseen === undefined ? {} : { unseen }),
         });
       };
       let subject: Subject = await options.subject(asked, askedInput(request));
       let answered = await answer(subject);
       let response = answered.response;
       if (wellFormed(request, options.served) && (!succeeded(response) || (await options.outlived?.(asked, askedInput(request) ?? {}, subject, started)) === true)) {
-        const fresher = await options.again?.(asked, subject, started);
-        if (fresher?.subject !== undefined) {
-          subject = fresher.subject;
-          answered = await answer(subject);
+        const fresher = await options.again?.(asked, subject, started, askedInput(request) ?? {});
+        // An answer that stands was given before the host said why it does, so it is given once more to say so.
+        const unseen = fresher?.unseen !== undefined && succeeded(response);
+        if (fresher?.subject !== undefined || unseen) {
+          subject = fresher?.subject ?? subject;
+          answered = await answer(subject, fresher?.unseen);
           response = answered.response;
         }
         const said = response === null || answered.thrown === undefined ? undefined : options.answered?.(answered.thrown.value, subject, fresher);
         if (said !== undefined) response = { ...response!, result: { content: [{ type: 'text', text: said }] } };
-        // An answer found once the subject was read again has nothing to say of it.
-        else if (fresher?.footer !== undefined && (fresher.subject === undefined || !succeeded(response))) response = footed(response, fresher.footer);
+        // An answer found once the subject was read again, or dated with why it could not be, has nothing more to say of it.
+        else if (fresher?.footer !== undefined && !(succeeded(response) && (fresher.subject !== undefined || unseen))) response = footed(response, fresher.footer);
       }
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);

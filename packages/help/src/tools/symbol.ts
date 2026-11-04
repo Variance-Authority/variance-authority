@@ -271,7 +271,7 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
   // A default export is headed by the name its declaration is keyed by, as every import of it is read.
   const named = entry.name === SLOT ? keyOf(help, root, { at: entry.at, name: entry.declared }).named : entry.name;
   const renamed = renamedSites(named, listed.sites);
-  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
+  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(help, root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
 }
 
 /**
@@ -324,7 +324,7 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
       ...(name === SLOT ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
       ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
       why,
-      ...(root === undefined || bound === undefined ? [] : textRows(root, bound)),
+      ...(root === undefined || bound === undefined ? [] : textRows(help, root, bound)),
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
       ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
@@ -382,7 +382,7 @@ function exportedOnly(help: Help, name: string, exported: readonly Named[], root
       return [
         ...rows,
         ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
-        ...memberRows(root, declared.at, declared.name, declared.line),
+        ...memberRows(help, root, declared.at, declared.name, declared.line),
       ].join('\n');
     })
     .join('\n\n');

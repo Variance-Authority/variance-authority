@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
 import { taintTable } from '@variance-authority/sense/taint';
+import { workspaceReadStarted } from './snapshot.js';
 import {
   readWorkspace,
   readWorkspaceForAnswer,
@@ -261,6 +262,31 @@ describe('reading a workspace through the source index', () => {
       expect(measure?.doc).toContain('Measures the thing');
       expect(measure?.doc).not.toContain('Fresh words');
       expect(measure?.uses).toBe((entryNamed(first, 'measure')?.uses ?? 0) + 1);
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the time the whole read began, since a refresh of a list read nothing else', async () => {
+    const { root, temporary } = await copyWorkspace('help-refresh-clock-');
+    try {
+      const index = join(root, '.index');
+      const first = await readWorkspace(root, { index });
+      const values = join(root, 'packages/alpha/src/values.ts');
+      const source = await readFile(values, 'utf8');
+      const changed = ['packages/alpha/src/values.ts'];
+
+      const same = await refreshWorkspace(root, first, { index, changed });
+      expect(workspaceReadStarted(same)).toBe(workspaceReadStarted(first));
+      expect(workspaceReadStarted(await readWorkspaceSnapshot(root, { index }))).toBe(workspaceReadStarted(first));
+
+      // A surface the documentation has to follow takes the other way out.
+      await writeFile(values, `${source}\n/** New on this turn. */\nexport const introduced = true;\n`);
+      const barrel = join(root, 'packages/alpha/src/index.ts');
+      await writeFile(barrel, `${await readFile(barrel, 'utf8')}\nexport { introduced } from './values.js';\n`);
+      const rebuilt = await refreshWorkspace(root, same, { index, changed: [...changed, 'packages/alpha/src/index.ts'] });
+      expect(entryNamed(rebuilt, 'introduced')).toBeDefined();
+      expect(workspaceReadStarted(rebuilt)).toBe(workspaceReadStarted(first));
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

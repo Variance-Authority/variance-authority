@@ -71,7 +71,7 @@ describe('a call whose answer outlived what it stands on', () => {
       name: 'stated',
       description: 'answers with the subject it was asked of',
       inputSchema: { type: 'object', properties: {} },
-      run: (state) => state.value,
+      run: (state, _input, invocation) => (invocation?.unseen === undefined ? state.value : `${state.value}, unseen: ${invocation.unseen}`),
     }],
   };
 
@@ -111,6 +111,28 @@ describe('a call whose answer outlived what it stands on', () => {
   it('carries what the host says about a subject it could not read again', async () => {
     const said = await asked({ outlived: async () => true, again: async () => ({ footer: 'not compared: the reading failed' }) });
     expect(said).toBe('reused\n\nnot compared: the reading failed');
+  });
+
+  it('answers once more of the subject it read, saying why that was not compared', async () => {
+    const said = await asked({ outlived: async () => true, again: async () => ({ subject: { value: 'fresh' }, unseen: 'it moved' }) });
+    expect(said).toBe('fresh, unseen: it moved');
+  });
+
+  it('dates an answer it could not read again in the answer, and leaves it no footer', async () => {
+    const said = await asked({ outlived: async () => true, again: async () => ({ unseen: 'the reading failed', footer: 'not compared: the reading failed' }) });
+    expect(said).toBe('reused, unseen: the reading failed');
+  });
+
+  it('hands the host the arguments it asks again with', async () => {
+    const handed: unknown[] = [];
+    await asked({
+      outlived: async () => true,
+      again: async (_tool, _refused, _started, input) => {
+        handed.push(input);
+        return {};
+      },
+    });
+    expect(handed).toEqual([{ kept: true }]);
   });
 
   it('says nothing of a footer once the subject was read again', async () => {
