@@ -2823,7 +2823,7 @@ owns its own collector, renderer, storage, or review surface:
   `imageRoot` for where the report's images are published, and `limits` when a
   caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
-- `suiteBase(root, { suite, cacheRoot, env, offline })` answers which execution record a
+- `suiteBase(root, { suite, cacheRoot, env, fetch })` answers which execution record a
   runner of your own measures a change from: the checkout's own, else the
   `suite-v1/<suite>` your mainline published to the share, or the one fetched on
   this machine earlier when the remote does not answer, else, in a worktree that
@@ -2839,8 +2839,9 @@ owns its own collector, renderer, storage, or review surface:
   record written under other probes is not copied, because no run could be laid
   over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
   `undefined` for a landing that lays no coverage. `env` stands in for
-  `process.env` when the line is read, `cacheRoot` for the cache, and `offline`
-  makes a read that fetches nothing and rewrites no record. After the shards ran,
+  `process.env` when the line is read, `cacheRoot` for the cache, and `fetch`
+  says whether the remote is asked: `'never'` makes a read that fetches nothing
+  and rewrites no record, `'always'` asks it whatever was fetched. After the shards ran,
   `landSuite(cwd, shards, suite)` lands their records on `suite`'s record in the
   checkout, as `variance journeys <shards> --suite` does, and returns what the landing said without the reading, for a CI fan-in
   that folds the record for the jobs after it.
