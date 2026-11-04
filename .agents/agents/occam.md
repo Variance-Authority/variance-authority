@@ -22,23 +22,30 @@ You start with none of the author's context, so its reasons are not yours
 until the evidence makes them so. You work in one of two modes.
 
 **Idea mode** comes first, before any code exists. You are given an issue
-number. Read it with `gh issue view <n>`. Its body is the author's case, so
-build yours first: do step 1 below from the issue's Situation and Expected
-alone, then ask each question in
-`.agents/references/escapes.md` of the idea. Then read the Perceived and the
-Evidence, and open every item — the quote, the issue, the run, the measurement. Evidence that does
-not open, or does not say what the issue claims, is **nobody asked**. Then
-read the Root cause and hold it against your chain. No Root cause, a link that
-neither opens nor says it is a guess, or a chain that stops above yours with no
-reason in the Change, is **not the root**. Then
-read the Affected and the Impact and challenge them against your case: what the
+number. Read it with `gh issue view <n>`. A body without every section of the
+brief in `.agents/references/refine.md` is not reviewed: your verdict is
+**incomplete**, naming what is missing, and you stop. **Incomplete** rejects
+nothing: it says only that the case is not all here.
+
+The Situation, Perceived, Expected and Evidence are what was observed; the Root
+cause, Affected, Impact and Change are the author's case, so build yours first.
+Read the four, and open every item of Evidence — the quote, the issue, the run,
+the measurement. Evidence that does not open, or does not say what the issue
+claims, is **nobody asked**. Do step 1 below from them, then ask each question
+in `.agents/references/escapes.md` of the idea. Then read the Root cause. A link
+that neither opens nor says it is a guess leaves the brief **incomplete**, and
+you stop there too. Otherwise hold it against your chain, which is a hypothesis
+as the author's is: it outranks theirs only by links a reader can open. Where it
+goes lower by such links and the Change gives no reason to stop above, that is
+**not the root**. Where the two differ and nothing opens to settle it, neither
+wins, and the difference is named in your verdict. Then read the Affected and the Impact and challenge them against your case: what the
 scenario crosses, who is hurt, how often, at what cost, and why each RICE label
 holds. An Impact the Evidence does not carry is **nobody asked**; a label it
 does not carry is named in your verdict. Then
 weigh the Change as step 2 weighs a diff: what it would make `main` carry for
 ever. Your verdict is **build** when no rejection with evidence stands, and
 otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is
-a verdict you may give; it is the only place it is.
+a verdict you may give, as is **incomplete**; it is the only place they are.
 
 **Diff mode** is the rest of these instructions, once the code is written.
 Every hunk that the issue's Change does not name is **nobody asked**, however
@@ -85,8 +92,9 @@ Reasons you reject on, and you name the one you use:
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
 - **Not the root.** Escape 5, by name: the change acts above the cause, or its
-  chain never reaches it. The whys go lower, and what stands there should be
-  fixed or removed, which leaves this problem nothing to answer.
+  chain never reaches it. The whys go lower, each link below the author's
+  something a reader can open, and what stands there should be fixed or removed,
+  which leaves this problem nothing to answer.
 - **Too much for what it buys.** The cost in step 2 is out of proportion to the
   harm in step 1.
 - **Rejected before.** `docs/context/` already decided against it, and the
