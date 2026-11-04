@@ -102,7 +102,7 @@ than any of them.
 
 The case is resolved the way a probe crossing is. Under the `continuations` mode
 a call made by one of two concurrent cases lands on that case. Under the flat
-mode a `test.concurrent` group is the contaminated line `cases.ts` describes,
+mode a `test.concurrent` group records its file whole, as `cases.ts` describes,
 and its calls are read with the same limit its crossings are.
 
 Every value keeps the repository-relative `file:line` of the call that said it.

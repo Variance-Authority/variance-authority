@@ -39,6 +39,13 @@ failed for them. A metric the project coins needs its observation class —
 observed, co-occurrence or inferred — and a base rate before anyone reads it as
 evidence.
 
+A research conclusion or a comparison with another tool is read by a reviewer
+with no other context before it is reported or published. Its author cannot see
+their own strawmen or overreach. Try the direct algorithm before a trained
+one ([prior art](../../docs/context/prior-art.md#where-the-field-contradicts-us)),
+and read a model's manual and a tool already working with it before the first
+experiment.
+
 **What already does this?** Before the task is a plan, it is a question about
 the code that exists: which command, function or rule already answers it, or
 answers most of it, and how the feature is reached from there — a call, an
@@ -148,6 +155,40 @@ model, on a reason the idea review could have seen — is an escape. Add it to
 [`escapes`](escapes.md) as the question that would have caught it, in the same
 change that closes it.
 
+## What comes first
+
+v1 is something a stranger adopts from npm and the public pages, on their own
+project; #942 lists its gaps. Rank that first, then `structural`, then
+`architecture`, then the rest. A wrong key, such as a name where a declaration
+belongs, outranks any missing feature, because every feature built on the wrong
+model inherits it.
+
+The project is one problem at depth: keep fine-grained evidence of what code
+did, at hundreds of thousands of files and tests, so a question is asked of the
+record instead of re-running everything. It is parts and principles a team
+arranges, not a complete product, and a source's own diff tool owns that
+source's diff. Two standing goals rank within that. Visual review gates in
+order: replace Percy, then Argos without its web interface, then Chromatic; the
+cross-browser grid of spec 0020 is parked, and flake prevention, detection and
+resolution come first. Test understanding has three pillars: every test knows
+what it tests, a catalogue can be generated from any angle, and names are
+maintained. What cannot be placed is flagged, and each pillar gates on a count.
+
+Prove an idea in throwaway JavaScript first: Rust is for a measured hot spot,
+since a contract settled in a rewrite costs a rewrite to change. Connect the
+crudest form of every layer end to end before deepening any one, because a gap
+between layers shows only when they join, and do not score orientation with
+questions you wrote yourself: real cycles judge it.
+
+An exploratory task gets one drafting pass and at most one bounded review pass.
+Its open findings are listed in the deliverable, and every step ends in
+something visible: a filed issue, a pushed commit. Loop-until-clean review
+belongs to code that ships.
+
+A design follows the world the product meets, not the fixtures that exist:
+absence from this repository is no reason to defer an integration, and a missing
+fixture is work to add.
+
 ## Decide, don't ask
 
 A rule that reads like accidental cruft against the goal — widening on absence,
@@ -157,6 +198,19 @@ change, on its own branch, as [change](change.md) draws the line. When two
 readings are both defensible, take the one the evidence supports; when it
 supports neither, take the smaller change and name the choice in the pull
 request's Assumptions. No task waits on the owner.
+
+Between options, pick the one that saves adopters the most time, not the one
+cheapest to build: zero-config beats an annotation, a precise selection beats a
+cheap one. Rank by what an adopter does and waits for.
+
+A third-party tool that fails outside our code while its siblings work is
+confirmed twice and then suppressed, not bisected: the cost of proving why
+somebody else's build fails is unbounded. Run it once again when a version bump
+lands.
+
+When the repository's own loop falls short, the fix changes `AGENTS.md`,
+`.agents/references/` and the published `variance-testing` skill in the same pull
+request, so the improvement reaches every user.
 
 A limitation is a bug or a position, never an apology. Classify it before
 writing "we cannot".

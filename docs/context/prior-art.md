@@ -576,6 +576,7 @@ naive count.
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
 | Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
 | An index saves the agent's exploration | SWE-grep: trained parallel grep matches frontier retrieval in about four turns, with no index | The claim needs an agent benchmark in tool calls and tokens before a product page quotes it |
+| A model trained on the history routes a question better than counting | Our own run: a small model on this repository's commits beat random and the prior, and lost to BM25 at the parent commit and to time-decayed kNN | Not enough labelled material; retry only with about ten times more, or a question direct algorithms cannot answer |
 | Structure is the import graph, rolled up | Oliva & Gerosa: 91% of co-change links have no structural dependency | Spec 0096's first definition of an edge; a structure reading names which signal it read |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a
