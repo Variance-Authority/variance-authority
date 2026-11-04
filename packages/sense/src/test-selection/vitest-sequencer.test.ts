@@ -172,7 +172,7 @@ describe('the sequencer that drops what a selection may skip', () => {
     const sorted = await new Sequencer(context(config, ['a.test.ts', 'b.test.ts'])).sort(['a.test.ts', 'b.test.ts'].map(spec));
 
     expect(sorted).toEqual([]);
-    expect(lines).toEqual(['variance-authority: selected none of 2']);
+    expect(lines).toEqual(['variance-authority: selected none of 2, so none of them runs']);
     expect(config.passWithNoTests).toBe(true);
   });
 
