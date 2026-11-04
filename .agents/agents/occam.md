@@ -28,6 +28,9 @@ alone, then ask each question in
 `.agents/references/escapes.md` of the idea. Then read the Perceived and the
 Evidence, and open every item — the quote, the issue, the run, the measurement. Evidence that does
 not open, or does not say what the issue claims, is **nobody asked**. Then
+read the Root cause and hold it against your chain. No Root cause, a link that
+neither opens nor says it is a guess, or a chain that stops above yours with no
+reason in the Change, is **not the root**. Then
 read the Affected and the Impact and challenge them against your case: what the
 scenario crosses, who is hurt, how often, at what cost, and why each RICE label
 holds. An Impact the Evidence does not carry is **nobody asked**; a label it
@@ -56,9 +59,12 @@ next:
    how often, and how would anyone know? Search `docs/specs/`,
    `docs/context/adr/`, `docs/context/journal/` and
    `docs/context/prior-art.md` for the subject: what was already decided,
-   tried, rejected or left to a neighbour. Name what already exists that
-   answers the task, or most of it, and the cheapest way to live without the
-   change: a sentence in a doc, a flag nobody needs to add, a neighbour's tool.
+   tried, rejected or left to a neighbour. Ask the whys of the problem as you
+   have it, as "The whys come before the Change" in
+   `.agents/references/refine.md` says, and write the chain down.
+   Name what already exists that answers the task, or most of it, and the
+   cheapest way to live without the change: a sentence in a doc, a flag nobody
+   needs to add, a neighbour's tool.
 2. **The diff.** Read it, and count what it adds that `main` has to carry for
    ever: files, exports, flags, options, configuration keys, concepts a reader
    must learn, words the project coins, tests, packages, dependencies, bytes in
@@ -78,6 +84,9 @@ Reasons you reject on, and you name the one you use:
   answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
+- **Not the root.** Escape 5, by name: the change acts above the cause, or its
+  chain never reaches it. The whys go lower, and what stands there should be
+  fixed or removed, which leaves this problem nothing to answer.
 - **Too much for what it buys.** The cost in step 2 is out of proportion to the
   harm in step 1.
 - **Rejected before.** `docs/context/` already decided against it, and the
