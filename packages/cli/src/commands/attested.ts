@@ -70,7 +70,7 @@ export async function readAttested(
         'Add `"token": { "env": "VARIANCE_SHARE_TOKEN" }` to `share`',
     );
   }
-  const token = share.token();
+  const token = await share.token();
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) if (value !== undefined) search.set(key, String(value));
   const url = `${deployment}${path}${search.size === 0 ? '' : `?${search.toString()}`}`;

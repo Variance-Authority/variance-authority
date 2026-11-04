@@ -895,8 +895,9 @@ your machine needs. The names below are the deployment's settings, not yours:
   review settled — the changelog of approved baselines, every decision, and the
   concerns reviewers raised — for `variance changelog`, `variance ask decisions`
   and `variance ask concerns`, and it never decides or raises a concern.
-- **The review token is refused under `/share/`** with 403. It is the token a
-  reviewer approves and rejects with, and nothing that reads a share holds it.
+- **A reviewer's sign-in is refused under `/share/`** with 403. It is the
+  credential a reviewer approves and rejects with, and nothing that reads a
+  share holds it.
 
 **Then check the deployment's API.** The share needs `"api": 3` or higher, and
 reading what review settled needs `"api": 5`:
@@ -906,7 +907,7 @@ curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.exampl
 ```
 
 ```text
-{"service":"variance-authority-tribunal","api":6,"schema":21}
+{"service":"variance-authority-tribunal","api":7,"schema":21}
 ```
 
 `/version` answers any of the deployment's tokens and refuses any other with
@@ -920,9 +921,8 @@ npx variance share
 ```
 
 It prints `mainline <name> evaluated at <commit>…`, or a line that says why it
-found nothing. Then read what review settled, which only the share token and
-the review token can do. The review token is the one a reviewer decides with,
-and your machine is not given it:
+found nothing. Then read what review settled, which only the share token and a
+signed-in reviewer can do. Your machine reads with the share token:
 
 ```bash
 npx variance ask decisions --subject cart/empty

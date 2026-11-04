@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BASELINE_FIND_PATH, BASELINE_PUT_PATH, CACHE_FIND_PATH, CACHE_PUT_PATH } from '@variance-authority/remote/store';
-import { CloudflareError, MACHINE_PREFIXES, NOT_AUTHORIZED, type AccessApp, type Cloudflare } from './cloudflare.js';
-import { provision, type Command, type Provisioning } from './provision.js';
+import type { Cloudflare } from './cloudflare.js';
+import type { AppRequest } from './github-app.js';
+import { provision, type Command, type ProvisionRequest, type Provisioning } from './provision.js';
+
+const TOKEN_MODE = '"vars": { "PROJECT": "shop", "INGEST_CREDENTIALS": "token", "REVIEW_CREDENTIALS": "access" },';
 
 const CONFIG = `{
   "name": "tribunal-example",
@@ -19,9 +21,13 @@ interface World {
   workerSecrets: Map<string, string>;
   githubSecrets: Map<string, string>;
   githubVariables: Map<string, string>;
-  teamDomain: string | undefined;
-  providers: string[];
-  apps: AccessApp[];
+  /** The Apps a person made and installed at the browser. */
+  apps: AppRequest[];
+  /** The person leaves the browser without finishing. */
+  appAbandoned: boolean;
+  owner: string;
+  deploys: number;
+  serving: boolean;
   authorized: boolean;
   logins: number;
   migrations: number;
@@ -46,9 +52,11 @@ function world(overrides: Partial<World> = {}): World {
     workerSecrets: new Map(),
     githubSecrets: new Map(),
     githubVariables: new Map(),
-    teamDomain: undefined,
-    providers: [],
     apps: [],
+    appAbandoned: false,
+    owner: 'User acme',
+    deploys: 0,
+    serving: false,
     authorized: true,
     logins: 0,
     migrations: 0,
@@ -65,28 +73,14 @@ function world(overrides: Partial<World> = {}): World {
 
 const ok = (stdout = ''): Command => ({ code: 0, stdout, stderr: '' });
 
-function harness(state: World, text = CONFIG) {
-  const files = new Map([['wrangler.jsonc', text]]);
+function harness(state: World, text: string | null = CONFIG) {
+  const files = new Map(text === null ? [] : [['wrangler.jsonc', text]]);
   const said: string[] = [];
   let minted = 0;
 
   const api: Cloudflare = {
     accounts: async () => state.accounts,
-    email: async () => 'owner@example.dev',
     workersSubdomain: async () => 'acme',
-    teamDomain: async () => {
-      if (!state.authorized) throw new CloudflareError([NOT_AUTHORIZED], 403, 'Authentication error');
-      return state.teamDomain;
-    },
-    createOrganization: async () => (state.teamDomain = 'frosty-moon-7a3b.cloudflareaccess.com'),
-    identityProviderTypes: async () => state.providers,
-    createOneTimePin: async () => void state.providers.push('onetimepin'),
-    apps: async () => state.apps,
-    createApp: async (body) => {
-      const app = { id: `id${state.apps.length}`, aud: `aud${state.apps.length}`, ...body } as unknown as AccessApp;
-      state.apps.push(app);
-      return app;
-    },
   };
 
   const io: Provisioning = {
@@ -95,11 +89,20 @@ function harness(state: World, text = CONFIG) {
     say: (line) => void said.push(line),
     mint: () => `token${++minted}`,
     cloudflare: () => api,
+    exists: async (path) => files.has(path),
+    installed: '/repo/node_modules/@variance-authority/tribunal',
+    register: async (request) => {
+      if (state.appAbandoned) throw new Error('the browser was closed');
+      state.apps.push(request);
+      return { clientId: 'Iv1.client', clientSecret: 'app-secret', slug: 'shop-tribunal' };
+    },
+    serving: async () => state.serving,
     run: async (program, args, options) => {
       const line = [program, ...args].join(' ');
-      if (program !== 'gh' && !line.includes('auth token')) {
+      if (program !== 'gh' && !line.includes('auth token') && args[1] !== 'login') {
         expect(options?.env).toEqual({ CLOUDFLARE_ACCOUNT_ID: 'acc' });
       }
+      if (program === 'gh' && args[0] === 'api') return ok(`${state.owner}\n`);
       if (program === 'gh' && args[0] === 'variable') {
         const variables = state.githubVariables;
         if (args[1] === 'list') return ok(JSON.stringify([...variables.keys()].map((name) => ({ name }))));
@@ -119,7 +122,14 @@ function harness(state: World, text = CONFIG) {
         return ok();
       }
       const [verb, noun] = args.slice(1);
-      if (line.includes('auth token')) return ok(JSON.stringify({ type: 'oauth', token: 'cf' }));
+      if (line.includes('auth token')) {
+        return state.authorized ? ok(JSON.stringify({ type: 'oauth', token: 'cf' })) : { code: 1, stdout: '', stderr: 'Not logged in' };
+      }
+      if (verb === 'deploy') {
+        state.deploys += 1;
+        state.serving = true;
+        return ok();
+      }
       if (verb === 'login') {
         state.logins += 1;
         state.authorized = true;
@@ -162,13 +172,15 @@ function harness(state: World, text = CONFIG) {
     },
   };
 
-  const run = (rotate = false, mount?: string) =>
-    provision(io, { config: 'wrangler.jsonc', repository: 'acme/shop', rotate, ...(mount === undefined ? {} : { mount }) });
+  const run = (rotate = false, extra: Partial<ProvisionRequest> = {}) =>
+    provision(io, { config: 'wrangler.jsonc', repository: 'acme/shop', rotate, ...extra });
   return { run, files, said };
 }
 
+const TOKENS = CONFIG.replace('"vars": { "PROJECT": "shop" },', TOKEN_MODE);
+
 describe('provision', () => {
-  it('provisions a fresh account end to end and never prints the ingest token', async () => {
+  it('provisions a fresh account end to end: GitHub sign-in, Actions push, deployed', async () => {
     const state = world();
     const { run, files, said } = harness(state);
 
@@ -177,99 +189,161 @@ describe('provision', () => {
     expect(state.databases).toEqual([{ name: 'db', uuid: 'uuid-1' }]);
     expect(state.buckets).toEqual(['bucket']);
     expect(state.migrations).toBe(1);
-    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token1');
-    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('token1');
-    expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
-    expect(said.join('\n')).not.toContain('token1');
+    expect(state.apps).toEqual([{ name: 'tribunal-example', host: 'tribunal.example.dev' }]);
+    expect(state.workerSecrets.get('GITHUB_CLIENT_SECRET')).toBe('app-secret');
+    expect(state.workerSecrets.get('GITHUB_SESSION_SECRET')).toBe('token1');
+    expect(state.workerSecrets.has('INGEST_TOKEN')).toBe(false);
+    expect(state.githubSecrets.size).toBe(0);
+    expect(state.deploys).toBe(1);
 
     const written = files.get('wrangler.jsonc')!;
     expect(written).toContain('"database_id": "uuid-1"');
-    expect(written).toContain('"ACCESS_TEAM_DOMAIN": "frosty-moon-7a3b.cloudflareaccess.com"');
-    expect(written).toContain('"ACCESS_AUD": "aud0"');
-    expect(state.providers).toEqual(['onetimepin']);
+    expect(written).toContain('"INGEST_CREDENTIALS": "github-actions"');
+    expect(written).toContain('"REVIEW_CREDENTIALS": "github"');
+    expect(written).toContain('"GITHUB_REPOSITORY": "acme/shop"');
+    expect(written).toContain('"GITHUB_ACTIONS_REPOSITORIES": "acme/shop"');
+    expect(written).toContain('"GITHUB_ACTIONS_AUDIENCE": "https://tribunal.example.dev"');
+    expect(written).toContain('"GITHUB_CLIENT_ID": "Iv1.client"');
+
+    const printed = said.join('\n');
+    expect(printed).not.toContain('app-secret');
+    expect(printed).not.toContain('token1');
+    expect(printed).toContain('id-token: write');
+    expect(printed).toContain('"audience": "https://tribunal.example.dev"');
   });
 
-  it('puts Access in front of the pages and bypasses the machine paths', async () => {
+  it('writes a config for the packaged Worker when the deployment has none', async () => {
     const state = world();
+    const { run, files } = harness(state, null);
+
+    expect(await run(false, { config: '/repo/deploy/wrangler.jsonc' })).toBe(0);
+
+    const written = files.get('/repo/deploy/wrangler.jsonc')!;
+    expect(written).toContain('"name": "shop-tribunal"');
+    expect(written).toContain('"main": "../node_modules/@variance-authority/tribunal/dist/worker-entry.js"');
+    expect(written).toContain('"directory": "../node_modules/@variance-authority/tribunal/dist/public"');
+    expect(state.deploys).toBe(1);
+  });
+
+  it('registers the App under the organization that owns the repository', async () => {
+    const state = world({ owner: 'Organization acme' });
     await harness(state).run();
-
-    const [pages, machines] = state.apps as unknown as Record<string, unknown>[];
-    expect(pages).toMatchObject({
-      type: 'self_hosted',
-      domain: 'tribunal.example.dev',
-      policies: [{ decision: 'allow', include: [{ email: { email: 'owner@example.dev' } }] }],
-    });
-    expect(machines).toMatchObject({ policies: [{ decision: 'bypass', include: [{ everyone: {} }] }] });
-    expect((machines!['destinations'] as { uri: string }[]).map((each) => each.uri)).toEqual([
-      'tribunal.example.dev/baseline',
-      'tribunal.example.dev/cache',
-      'tribunal.example.dev/review',
-      'tribunal.example.dev/share',
-      'tribunal.example.dev/version',
-      'tribunal.example.dev/v1',
-    ]);
+    expect(state.apps[0]!.organization).toBe('acme');
   });
 
-  it('bypasses the machine paths under the mount the API is served at', async () => {
-    const state = world();
-    await harness(state).run(false, '/api');
-    const machines = state.apps[1] as unknown as { destinations: { uri: string }[] };
-    expect(machines.destinations[0]!.uri).toBe('tribunal.example.dev/api/baseline');
-  });
-
-  it('bypasses every path the remote client calls', () => {
-    for (const path of [BASELINE_FIND_PATH, BASELINE_PUT_PATH, CACHE_FIND_PATH, CACHE_PUT_PATH]) {
-      expect(MACHINE_PREFIXES.some((prefix) => path.startsWith(`${prefix}/`))).toBe(true);
-    }
-  });
-
-  it('protects the workers.dev host when no custom domain is routed', async () => {
+  it('serves the workers.dev host when no custom domain is routed', async () => {
     const state = world();
     await harness(state, CONFIG.replace(/ {2}"routes".*\n/, '')).run();
-    expect(state.apps[0]!.domain).toBe('tribunal-example.acme.workers.dev');
+    expect(state.apps[0]!.host).toBe('tribunal-example.acme.workers.dev');
+  });
+
+  it('leaves nothing that reads as finished when the person stops at the browser', async () => {
+    const state = world({ appAbandoned: true });
+    const { run, files } = harness(state);
+
+    await expect(run()).rejects.toThrow('the browser was closed');
+    expect(files.get('wrangler.jsonc')).not.toContain('GITHUB_CLIENT_ID');
+    expect(state.deploys).toBe(0);
+
+    state.appAbandoned = false;
+    expect(await run()).toBe(0);
+    expect(state.apps).toHaveLength(1);
+    expect(state.deploys).toBe(1);
   });
 
   it('changes nothing on a second run', async () => {
     const state = world();
     const { run, files, said } = harness(state);
     await run();
-    const before = { config: files.get('wrangler.jsonc'), secrets: new Map(state.workerSecrets), apps: state.apps.length };
+    const before = { config: files.get('wrangler.jsonc'), secrets: new Map(state.workerSecrets) };
     said.length = 0;
 
     expect(await run()).toBe(0);
 
     expect(files.get('wrangler.jsonc')).toBe(before.config);
     expect(state.workerSecrets).toEqual(before.secrets);
-    expect(state.apps).toHaveLength(before.apps);
+    expect(state.apps).toHaveLength(1);
+    expect(state.deploys).toBe(1);
     expect(state.migrations).toBe(2);
-    expect(said.at(-1)).toMatch(/already provisioned/);
+    expect(said).toEqual(['applying migrations', 'Nothing to do — already provisioned.']);
   });
 
-  it('sets the review token the Worker requires and shows it to nobody', async () => {
+  it('deploys again when nothing changed but the Worker is not serving', async () => {
     const state = world();
-    const { run, said } = harness(state);
+    const { run } = harness(state);
+    await run();
+    state.serving = false;
+
+    await run();
+
+    expect(state.deploys).toBe(2);
+  });
+
+  it('adds a second repository to the ones that may push, and keeps the first', async () => {
+    const state = world();
+    const { run, files } = harness(state);
+    await run();
+
+    await run(false, { repository: 'acme/other' });
+
+    expect(files.get('wrangler.jsonc')).toContain('"GITHUB_ACTIONS_REPOSITORIES": "acme/shop,acme/other"');
+    expect(files.get('wrangler.jsonc')).toContain('"GITHUB_REPOSITORY": "acme/shop"');
+    expect(state.apps).toHaveLength(1);
+  });
+
+  it('makes no App for a deployment that declares another mechanism', async () => {
+    const state = world();
+    const { run, files } = harness(state, TOKENS);
 
     expect(await run()).toBe(0);
 
-    expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
-    expect(said.join('\n')).not.toContain('token2');
+    expect(state.apps).toEqual([]);
+    expect(files.get('wrangler.jsonc')).not.toContain('GITHUB_');
+    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token1');
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('token1');
   });
 
-  it('mints both tokens into a Worker that was never deployed', async () => {
-    const state = world({ worker: 'never deployed' });
+  it('leaves publishing to a deployment with its own build', async () => {
+    const state = world();
+    const { run, said } = harness(state);
+
+    expect(await run(false, { skipDeploy: true })).toBe(0);
+
+    expect(state.deploys).toBe(0);
+    expect(said.join('\n')).toContain("your deployment's own deploy step");
+  });
+
+  it('asks the mount for whether the Worker serves, and tells CI the same address', async () => {
+    const { run, said } = harness(world());
+    await run(false, { mount: '/api' });
+    expect(said.join('\n')).toContain('"endpoint": "https://tribunal.example.dev/api"');
+  });
+
+  it('replaces the session key on --rotate, and signs nobody in with the old one', async () => {
+    const state = world();
     const { run } = harness(state);
+    await run();
+
+    await run(true);
+
+    expect(state.workerSecrets.get('GITHUB_SESSION_SECRET')).toBe('token2');
+    expect(state.deploys).toBe(2);
+  });
+
+  it('mints an ingest token into a Worker that was never deployed', async () => {
+    const state = world({ worker: 'never deployed' });
+    const { run } = harness(state, TOKENS);
 
     expect(await run()).toBe(0);
 
     expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token1');
-    expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
   });
 
   it('replaces no token when the Worker cannot be asked what it holds', async () => {
     const state = world({ worker: 'unreachable' });
     state.workerSecrets.set('INGEST_TOKEN', 'old');
     state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
-    const { run } = harness(state);
+    const { run } = harness(state, TOKENS);
 
     await expect(run()).rejects.toThrow('fetch failed');
 
@@ -279,22 +353,20 @@ describe('provision', () => {
 
   it('mints a new ingest token when the repository lost its copy', async () => {
     const state = world();
-    const { run } = harness(state);
+    const { run } = harness(state, TOKENS);
     await run();
     state.githubSecrets.clear();
 
     await run();
 
-    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('token3');
-    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token3');
-    expect(state.workerSecrets.get('REVIEW_TOKEN')).toBe('token2');
+    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('token2');
+    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token2');
   });
 
-  it('logs in again with the Access scopes when the login lacks them, once', async () => {
+  it('logs in when wrangler has no login, once', async () => {
     const state = world({ authorized: false });
     expect(await harness(state).run()).toBe(0);
     expect(state.logins).toBe(1);
-    expect(state.teamDomain).toBe('frosty-moon-7a3b.cloudflareaccess.com');
   });
 
   it("takes the login's only account when the config names none, and writes it", async () => {
@@ -318,12 +390,6 @@ describe('provision', () => {
     expect(said.join('\n')).toContain('https://dash.cloudflare.com/acc/r2');
     expect(state.workerSecrets.size).toBe(0);
   });
-  it('lets Cloudflare pick the Access team domain, which is unique across accounts', async () => {
-    const state = world();
-    const { run, files } = harness(state);
-    expect(await run()).toBe(0);
-    expect(files.get('wrangler.jsonc')).toContain('"ACCESS_TEAM_DOMAIN": "frosty-moon-7a3b.cloudflareaccess.com"');
-  });
 
   it('finds the bucket by name, however many buckets the account has', async () => {
     const state = world({ buckets: [...Array.from({ length: 25 }, (_, index) => `other${index}`), 'bucket'] });
@@ -344,14 +410,14 @@ describe('provision', () => {
     state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
     state.workerRefuses = true;
 
-    await expect(harness(state).run(true)).rejects.toThrow(/secret put INGEST_TOKEN failed/);
+    await expect(harness(state, TOKENS).run(true)).rejects.toThrow(/secret put INGEST_TOKEN failed/);
 
     expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
   });
 
   it('replaces both copies on the next run after a rotation stopped between them', async () => {
     const state = world();
-    const { run, said } = harness(state);
+    const { run, said } = harness(state, TOKENS);
     await run();
     state.githubRefuses = true;
 
@@ -374,35 +440,9 @@ describe('provision', () => {
     state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
     state.variablesRefused = true;
 
-    await expect(harness(state).run(true)).rejects.toThrow(/gh variable set/);
+    await expect(harness(state, TOKENS).run(true)).rejects.toThrow(/gh variable set/);
 
     expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('old');
     expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
-  });
-
-  it('stops on a machines application that does not bypass every machine path', async () => {
-    const state = world();
-    const { run, said } = harness(state);
-    await run();
-    const machines = state.apps[1] as unknown as { destinations: { uri: string }[] };
-    machines.destinations = machines.destinations.slice(1);
-    said.length = 0;
-
-    expect(await run()).toBe(1);
-
-    expect(said.join('\n')).toContain('tribunal.example.dev/baseline');
-  });
-
-  it('stops on a review application that does not admit the reviewer', async () => {
-    const state = world();
-    const { run, said } = harness(state);
-    await run();
-    const pages = state.apps[0] as unknown as { policies: unknown[] };
-    pages.policies = [{ name: 'others', decision: 'allow', include: [{ email: { email: 'someone@else.dev' } }] }];
-    said.length = 0;
-
-    expect(await run()).toBe(1);
-
-    expect(said.join('\n')).toContain('owner@example.dev');
   });
 });

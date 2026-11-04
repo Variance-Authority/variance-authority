@@ -61,6 +61,7 @@ import { BuildsPage } from './builds.js';
 import { BuildPage } from './docket.js';
 import { ChangelogPage } from './history.js';
 import { useRoute } from './navigation.js';
+import { Reading } from './reading.js';
 import type { Route } from './route.js';
 import { Nowhere } from './shell.js';
 
@@ -78,8 +79,11 @@ export { Look, frameOf, sightings, type Frame, type Sighting } from './look.js';
 
 export interface ReviewAppProps {
   readonly client: ReviewClient;
-  /** Recorded on every decision. There are no accounts here; this is a name. */
-  readonly reviewer: string;
+  /**
+   * Who decides here, as the deployment recognized them. Absent is somebody it
+   * lets read: the surface shows the evidence and offers no move that writes.
+   */
+  readonly reviewer?: string | undefined;
   /** How many builds to list. The server's own default applies when absent. */
   readonly limit?: number;
   /**
@@ -126,5 +130,9 @@ export function ReviewApp({
     );
   }
 
-  return <BuildPage client={client} reviewer={reviewer} route={here} go={go} />;
+  return (
+    <Reading.Provider value={reviewer === undefined}>
+      <BuildPage client={client} reviewer={reviewer ?? ''} route={here} go={go} />
+    </Reading.Provider>
+  );
 }

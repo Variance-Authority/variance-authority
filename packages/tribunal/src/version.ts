@@ -23,7 +23,7 @@ import { SCHEMA_VERSION } from './schema.js';
  * `worker.ts` authenticates before it routes, on the argument that an
  * unauthenticated 404 hands a stranger a map of the API. This route is that map,
  * so it is inside the same gate — every capability may ask, because both halves
- * of a mismatch need to hear it and only one of them ever holds the review token.
+ * of a mismatch need to hear it and only one of them ever holds the review capability.
  */
 
 /**
@@ -47,13 +47,16 @@ import { SCHEMA_VERSION } from './schema.js';
  *   and the ingest token reads none of them.
  * - **6** — a stored baseline keeps the snapshot of its nodes, and
  *   `keepsSnapshot` on a baseline's description says whether it did.
+ * - **7** — the deployment declares who it recognizes: `GET /auth/me` says who is
+ *   asking, a run may arrive under a GitHub Actions identity, and a decision is
+ *   recorded under the name the credential carries, never one the body offers.
  *
  * A client that speaks 2 against a service that speaks 1 works, slowly and with
  * that identity caveat. A client that speaks 1 against a service that speaks 2
  * works, and sends more than it needs to. Neither is an error; both are worth a
  * line on the way past.
  */
-export const TRIBUNAL_API = 6;
+export const TRIBUNAL_API = 7;
 
 export const VERSION_PATH = '/version';
 

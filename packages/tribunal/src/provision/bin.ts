@@ -2,11 +2,13 @@
 // compass: variance-authority.review
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { cloudflare } from './cloudflare.js';
+import { registerApp } from './github-app.js';
 import { provision, type Command, type ProvisionRequest, type RunOptions } from './provision.js';
 
 /**
@@ -16,13 +18,13 @@ import { provision, type Command, type ProvisionRequest, type RunOptions } from 
  *     npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config deploy/wrangler.jsonc
  *
  * `--repository owner/name` names the repository whose CI pushes builds; the
- * one `gh` sees in the working directory when absent. `--reviewer <email>` is
- * who may sign in to review; the Cloudflare login's email when absent.
- * `--mount /api` is where the deployment serves the API, when not at the root.
- * `--rotate` replaces both tokens.
+ * one `gh` sees in the working directory when absent. `--mount /api` is where the
+ * deployment serves the API, when not at the root. `--skip-deploy` leaves
+ * publishing to a deployment with its own build. `--rotate` replaces the session
+ * key, and the ingest token where `token` is declared.
  */
 
-const USAGE = 'usage: variance-authority-tribunal-provision [--config wrangler.jsonc] [--repository owner/name] [--reviewer email] [--mount /api] [--rotate]';
+const USAGE = 'usage: variance-authority-tribunal-provision [--config wrangler.jsonc] [--repository owner/name] [--mount /api] [--skip-deploy] [--rotate]';
 
 export async function readRequest(argv: readonly string[], run = runCommand): Promise<ProvisionRequest | 'help'> {
   const { values } = parseArgs({
@@ -30,9 +32,9 @@ export async function readRequest(argv: readonly string[], run = runCommand): Pr
     options: {
       config: { type: 'string', default: 'wrangler.jsonc' },
       repository: { type: 'string' },
-      reviewer: { type: 'string' },
       rotate: { type: 'boolean', default: false },
       mount: { type: 'string' },
+      'skip-deploy': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
     strict: true,
@@ -51,8 +53,8 @@ export async function readRequest(argv: readonly string[], run = runCommand): Pr
     config: values.config,
     repository,
     rotate: values.rotate,
-    ...(values.reviewer === undefined ? {} : { reviewer: values.reviewer }),
     ...(values.mount === undefined ? {} : { mount: values.mount }),
+    ...(values['skip-deploy'] ? { skipDeploy: true } : {}),
   };
 }
 
@@ -72,20 +74,40 @@ export function runCommand(program: string, args: readonly string[], options: Ru
   });
 }
 
+const OPENER: Readonly<Record<string, string>> = { darwin: 'open', win32: 'explorer' };
+
+async function serving(url: string): Promise<boolean> {
+  const response = await fetch(url).catch(() => null);
+  return response?.headers.get('content-type')?.includes('json') === true;
+}
+
 async function main(): Promise<void> {
   const request = await readRequest(process.argv.slice(2));
   if (request === 'help') {
     process.stdout.write(`${USAGE}\n`);
     return;
   }
+  const say = (line: string): void => void process.stdout.write(`${line}\n`);
   process.exitCode = await provision(
     {
       run: runCommand,
       read: (path) => readFile(path, 'utf8'),
-      write: (path, text) => writeFile(path, text),
-      say: (line) => void process.stdout.write(`${line}\n`),
+      write: async (path, text) => {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, text);
+      },
+      exists: (path) => access(path).then(() => true, () => false),
+      say,
       mint: () => randomBytes(24).toString('hex'),
       cloudflare: (token, account) => cloudflare(token, account, fetch),
+      installed: fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, ''),
+      register: (app) =>
+        registerApp(app, {
+          say,
+          // The address is also said, so a run with no browser to open still works.
+          open: async (url) => void (await runCommand(OPENER[process.platform] ?? 'xdg-open', [url])),
+        }),
+      serving,
     },
     request,
   );

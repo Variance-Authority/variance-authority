@@ -1,56 +1,64 @@
 # Set up or check a Cloudflare tribunal
 
-Run one command from the directory that holds the deployment's
-`wrangler.jsonc`, or name the file:
+Run one command from the repository the tribunal is for. It needs no config: it
+writes one when there is none.
 
 ```bash
 npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config deploy/wrangler.jsonc
 ```
 
-Do not ask the person for an id, a token, a team domain or an AUD. The command
+Do not ask the person for an id, a token, a client id or a secret. The command
 makes or reads each one and writes it where it belongs:
 
+- `wrangler.jsonc`, when absent, for the packaged Worker. Its paths point into the
+  installed package, so an upgrade is an install and a deploy;
 - the D1 database and the R2 bucket the config names, and the database's id
   into `database_id`;
 - the schema, by `d1 migrations apply --remote`;
-- an Access organization, one-time PIN sign-in, an application in front of the
-  review pages that admits `--reviewer` (the Cloudflare login's email when
-  absent), and a bypass application on the paths CI and share links call with
-  a bearer token;
-- `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` into the config's `vars`;
-- `INGEST_TOKEN` into the Worker and the same value into the repository's
-  `VARIANCE_INGEST_TOKEN` secret, through stdin. It is never printed;
-- `REVIEW_TOKEN` into the Worker, which refuses every request without one. It is
-  shown to nobody; do not ask for it. A person who needs one sets their own with
-  `wrangler secret put REVIEW_TOKEN`.
+- `INGEST_CREDENTIALS=github-actions` and `REVIEW_CREDENTIALS=github` into `vars`,
+  when absent, with `GITHUB_REPOSITORY`, `GITHUB_ACTIONS_REPOSITORIES` and
+  `GITHUB_ACTIONS_AUDIENCE`;
+- a GitHub App with read access to metadata and nothing else: `GITHUB_CLIENT_ID`
+  into `vars`, `GITHUB_CLIENT_SECRET` and `GITHUB_SESSION_SECRET` into the Worker;
+- the deploy itself, when anything changed or the Worker is not answering.
 
-`--repository owner/name` names the repository whose CI pushes builds; without
-it, the one `gh` sees in the working directory. It needs `wrangler` logged in
-and `gh` authenticated with permission to set that repository's secrets and
-variables.
+Those who can write to `GITHUB_REPOSITORY` decide, under their GitHub login.
+Workflows in `GITHUB_ACTIONS_REPOSITORIES` push with the token the runner issues,
+so no secret is stored for CI. The run ends by printing the `baselines` block for
+`variance.config`: write it there, and add `id-token: write` to the workflow's
+`permissions`. For an open source project, add `"VIEW": "public"` to `vars` and
+deploy: anybody can read, and only a person with write access can decide.
+
+`--repository owner/name` names the repository; without it, the one `gh` sees in
+the working directory. Running again with another repository adds it to the ones
+that may push. `--mount /api` is where a deployment serves the API when not at
+the root. `--skip-deploy` leaves publishing to a deployment with its own build,
+such as the console. `--rotate` replaces the session key, which signs everybody
+out. The run needs `gh` authenticated; `wrangler` is logged in by the run itself.
 
 The run asks before it makes anything, so a second run changes nothing and says
-`already provisioned`. A token missing on either side, the Worker or the
-repository, is minted again for both. `--rotate` mints both tokens regardless.
-Neither copy can be read back, so a rotation is journaled in the repository
-variable `VARIANCE_INGEST_ROTATION`: set before the Worker is written, deleted
-after the repository is. A rotation that fails between the two leaves CI with a
-token the Worker refuses, and the error says so; run the command again and it
-replaces both. A token changed by hand outside the command leaves no journal:
-run it with `--rotate`.
+`already provisioned`.
 
-An Access application already there is checked, not trusted: the review one
-must admit the reviewer, the machines one must bypass every machine path. A
-difference stops the run with exit 1 and names it; fix the application in the
-Zero Trust dashboard, or delete it and run again to have it made.
+What the config already declares is the deployer's. A deployment that declares
+`REVIEW_CREDENTIALS=access` gets no App: who passes Cloudflare Access, or the SSO
+behind it, is theirs, and so are `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. One that
+declares `INGEST_CREDENTIALS=token` gets `INGEST_TOKEN` in the Worker and the
+same value in the repository's `VARIANCE_INGEST_TOKEN` secret, through stdin, and
+never printed. A token missing on either side is minted again for both, and
+`--rotate` mints both regardless. Neither copy can be read back, so a rotation is
+journaled in the repository variable `VARIANCE_INGEST_ROTATION`: set before the
+Worker is written, deleted after the repository is. A rotation that fails between
+the two leaves CI with a token the Worker refuses, and the error says so; run the
+command again and it replaces both.
 
-Two steps need the person, and the command says which:
+Three steps need the person, and the command says which:
 
-- The Cloudflare login lacks Access. The command runs `wrangler login` with the
-  Access scopes added, and the person allows it in the browser window that
-  opens. This happens once per machine.
+- No Cloudflare login. The command runs `wrangler login`, and the person allows
+  it in the browser window that opens. This happens once per machine.
 - R2 is not enabled on the account. Enabling it is agreeing to a storage plan;
   the command prints the dashboard address and exits `1`. Run it again after.
+- The GitHub App. The browser opens on GitHub's page for it: the person confirms
+  it, then installs it on the repository. An organization's App needs an owner of
+  that organization. A run stopped here starts the App again next time.
 
-The command does not deploy. Commit the config it wrote, then run the
-deployment's own deploy step so the Worker serves the new `vars`.
+Commit the config the run wrote.

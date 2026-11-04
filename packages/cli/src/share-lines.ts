@@ -243,7 +243,7 @@ export async function lineCellOf(
   if (share.kind === 'http') {
     let token: string | undefined;
     try {
-      token = share.token?.();
+      token = await share.token?.();
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
       return { kind: 'unconfigured', detail: error.message };

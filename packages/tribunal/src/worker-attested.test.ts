@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { RunReport } from '@variance-authority/report';
 import { createTribunal, type Tribunal } from './worker.js';
-import { createMemoryR2, createSqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1 } from './testing.js';
 
 /**
  * What a machine holding the share token may read about review: what was
@@ -64,9 +64,7 @@ beforeEach(async () => {
     db: await createSqliteD1(),
     bucket: createMemoryR2(),
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
-    shareToken: SHARE,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW, share: SHARE }),
   });
 });
 
@@ -222,7 +220,7 @@ describe('the ingest token reads none of it', () => {
       const response = await call(path, INGEST);
       expect([path, response.status]).toEqual([path, 403]);
       const text = await response.text();
-      expect(text).toMatch(/CI holds the ingest token/);
+      expect(text).toMatch(/presented an ingest credential/);
       expect(text).toMatch(/the share token/);
     }
   });

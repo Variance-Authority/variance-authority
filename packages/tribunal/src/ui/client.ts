@@ -52,11 +52,11 @@ export interface ReviewClientOptions {
    */
   readonly endpoint: string;
   /**
-   * The review token, when the caller holds it directly.
+   * A bearer credential, when the caller holds one directly.
    *
-   * Omit it behind the Next.js adapter: there the server route holds the token
-   * and the browser never sees it, which is the entire reason that adapter exists.
-   * A review token shipped to a browser is a token in everybody's devtools.
+   * Omit it in a browser: a person is recognized by the session or the identity
+   * proxy the deployment declared, and a token shipped to a browser is a token in
+   * everybody's devtools.
    */
   readonly token?: string;
   readonly fetch?: typeof globalThis.fetch;

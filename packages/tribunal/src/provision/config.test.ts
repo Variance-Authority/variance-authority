@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readDeployment, withAccountId, withDatabaseId, withVariable } from './config.js';
+import { deploymentConfig, readDeployment, withAccountId, withDatabaseId, withVariable } from './config.js';
 
 const CONFIG = `{
   // the deployment
@@ -22,6 +22,7 @@ describe('readDeployment', () => {
       database: { name: 'variance-tribunal-example', id: 'REPLACE_WITH_ID' },
       bucket: 'variance-tribunal-example',
       host: 'tribunal-example.variance-authority.dev',
+      variables: { PROJECT: 'snkr-shop', ACCESS_AUD: '' },
     });
   });
 
@@ -91,3 +92,13 @@ function readVars(text: string): unknown {
     text.replace(/\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
   ).vars;
 }
+
+describe('deploymentConfig', () => {
+  it('reads back as a deployment with no database yet and nothing declared', () => {
+    const deployment = readDeployment(deploymentConfig('shop-tribunal', 'shop', '../node_modules/@variance-authority/tribunal'));
+    expect(deployment.name).toBe('shop-tribunal');
+    expect(deployment.database.name).toBe('shop-tribunal');
+    expect(deployment.bucket).toBe('shop-tribunal');
+    expect(deployment.variables).toEqual({ PROJECT: 'shop' });
+  });
+});

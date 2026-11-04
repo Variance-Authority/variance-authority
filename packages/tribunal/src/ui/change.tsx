@@ -33,6 +33,7 @@
  */
 
 import { useState, type ReactElement } from 'react';
+import { useReading } from './reading.js';
 import type { BuildDetail, Decision } from '../review-types.js';
 import {
   Arrival,
@@ -268,6 +269,7 @@ function Where({
   // printing `also CardFooter` next to `alongside CardFooter` spends the row's
   // width saying one name twice under two words that do not mean the same thing.
   const alongside = appearance.alongside.filter((name) => !also.includes(name));
+  const viewing = useReading();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | MovedBaseline | undefined>(undefined);
 
@@ -323,7 +325,7 @@ function Where({
         </span>
       )}
       {subject.decision === null ? (
-        <span className="va-where-act">
+        viewing ? null : <span className="va-where-act">
           <button
             type="button"
             className="va-approve"
@@ -384,7 +386,8 @@ function Batch({
   readonly open: readonly Appearance[];
   readonly settled: number;
   readonly onDecided: () => void | Promise<void>;
-}): ReactElement {
+}): ReactElement | null {
+  const viewing = useReading();
   const [busy, setBusy] = useState(false);
   // The render a refusal stopped at, beside what moved, so the notice can name it.
   const [failed, setFailed] = useState<string | Stopped | undefined>(undefined);
@@ -419,6 +422,8 @@ function Batch({
     }
   };
   const reload = (): Promise<void> => reading(setBusy, setFailed, onDecided);
+
+  if (viewing) return null;
 
   return (
     <div className="va-decide-act">

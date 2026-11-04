@@ -29,7 +29,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { serveTribunal } from '@variance-authority/tribunal/node';
-import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
+import { bearerPolicy, createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
 import { createReviewClient } from '@variance-authority/tribunal/ui';
 import { createTribunal } from '@variance-authority/tribunal/worker';
 
@@ -124,8 +124,7 @@ async function serve() {
     db: await createSqliteD1(),
     bucket: createMemoryR2(),
     project: PROJECT,
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW }),
     now: () => clock,
   });
   const ticking = {
@@ -139,16 +138,9 @@ async function serve() {
     tribunal: ticking,
     host: '127.0.0.1',
     port: 0,
-    authorize: capabilityOf,
-    tokens: { ingest: INGEST, review: REVIEW },
     ui: false,
   });
   return { tribunal, service };
-}
-
-function capabilityOf(request) {
-  const header = request.headers.get('authorization');
-  return header === `Bearer ${INGEST}` ? 'ingest' : header === `Bearer ${REVIEW}` ? 'review' : null;
 }
 
 /** The case's own config, pointed at one build of its Storybook and at the deployment. */

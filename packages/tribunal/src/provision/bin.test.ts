@@ -13,9 +13,9 @@ describe('readRequest', () => {
     });
   });
 
-  it('keeps a named repository and reviewer', async () => {
-    const request = await readRequest(['--repository', 'a/b', '--reviewer', 'r@x.dev', '--rotate'], gh('', 1));
-    expect(request).toEqual({ config: 'wrangler.jsonc', repository: 'a/b', reviewer: 'r@x.dev', rotate: true });
+  it('keeps a named repository', async () => {
+    const request = await readRequest(['--repository', 'a/b', '--skip-deploy', '--rotate'], gh('', 1));
+    expect(request).toEqual({ config: 'wrangler.jsonc', repository: 'a/b', skipDeploy: true, rotate: true });
   });
 
   it('refuses when no repository can be named', async () => {

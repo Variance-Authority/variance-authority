@@ -17,7 +17,7 @@ import {
 import type { RunReport } from '@variance-authority/report';
 import { TRIBUNAL_API, createTribunal, type Tribunal } from './worker.js';
 import { SCHEMA_VERSION } from './schema.js';
-import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
 const INGEST = 'ingest-token-0123456789';
 const REVIEW = 'review-token-0123456789';
@@ -68,8 +68,7 @@ beforeEach(async () => {
     db,
     bucket,
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW }),
   });
 });
 
@@ -292,7 +291,7 @@ describe('two tokens, and what each one may do', () => {
 
     const decided = await call('/review/builds/ci-1/subjects/story:a/decision', {
       token: INGEST,
-      body: { decision: 'approved', by: 'ci' },
+      body: { decision: 'approved', by: 'marina' },
     });
 
     // Approving promotes a baseline. Anything that can read a build log must not
@@ -396,7 +395,7 @@ describe('two tokens, and what each one may do', () => {
     const decide = (id: string, body: Record<string, unknown>) =>
       call(`/review/builds/${id}/subjects/story:a/decision`, { token: REVIEW, body });
 
-    expect((await decide('ci-2', { decision: 'approved', by: 'anton' })).status).toBe(200);
+    expect((await decide('ci-2', { decision: 'approved', by: 'marina' })).status).toBe(200);
     const stale = await decide('ci-1', { decision: 'approved', by: 'marina', baselineVersion: null });
 
     expect(stale.status).toBe(409);
@@ -463,17 +462,69 @@ describe('authentication happens before routing', () => {
     expect(wrong.status).toBe(401);
     expect(await wrong.text()).toBe(await none.text());
   });
+});
 
-  it('refuses to start with a token short enough to guess', () => {
-    expect(() =>
-      createTribunal({ db, bucket, project: 'p', ingestToken: 'short', reviewToken: REVIEW }),
-    ).toThrow(/shorter than 16/);
+describe('who may read and who may decide', () => {
+  const READ_ROUTES = ['/review/builds', '/review/builds/ci-1', '/review/builds/ci-1/subjects/story:a/after.png'];
+
+  function viewing(): Tribunal {
+    return createTribunal({
+      db,
+      bucket,
+      project: 'p',
+      policy: {
+        principal: (request) =>
+          request.headers.get('authorization') === `Bearer ${REVIEW}`
+            ? { capability: 'review', name: 'marina' }
+            : { capability: 'view' },
+        signIn: '/auth/github/login',
+      },
+    });
+  }
+
+  it.each(READ_ROUTES)('answers nobody at %s when nobody is recognized', async (path) => {
+    expect((await worker.fetch(new Request(`https://t.example${path}`))).status).toBe(401);
   });
 
-  it('refuses to start when both tokens are one secret', () => {
-    expect(() =>
-      createTribunal({ db, bucket, project: 'p', ingestToken: INGEST, reviewToken: INGEST }),
-    ).toThrow(/one secret and not two/);
+  it('lets a viewer read and refuses the viewer a decision', async () => {
+    const open = viewing();
+
+    expect((await open.fetch(new Request('https://t.example/review/builds'))).status).toBe(200);
+    const refused = await open.fetch(
+      new Request('https://t.example/review/builds/ci-1/subjects/story:a/decision', {
+        method: 'POST',
+        body: JSON.stringify({ decision: 'approved', by: 'somebody' }),
+      }),
+    );
+    expect(refused.status).toBe(403);
+  });
+
+  it('refuses a viewer the share', async () => {
+    const refused = await viewing().fetch(new Request('https://t.example/share/mainline/main/manifest.json'));
+
+    expect(refused.status).toBe(403);
+  });
+
+  it('refuses a decision whose body names somebody else', async () => {
+    const refused = await call('/review/builds/ci-1/subjects/story:a/decision', {
+      token: REVIEW,
+      body: { decision: 'approved', by: 'somebody-else' },
+    });
+
+    expect(refused.status).toBe(403);
+    expect(await refused.text()).toMatch(/marina/);
+  });
+
+  it('introduces the caller and says where to sign in', async () => {
+    const me = async (headers: Record<string, string>) =>
+      (await viewing().fetch(new Request('https://t.example/auth/me', { headers }))).json();
+
+    expect(await me({})).toEqual({ capability: 'view', signIn: '/auth/github/login' });
+    expect(await me({ authorization: `Bearer ${REVIEW}` })).toEqual({
+      capability: 'review',
+      name: 'marina',
+      signIn: '/auth/github/login',
+    });
   });
 });
 

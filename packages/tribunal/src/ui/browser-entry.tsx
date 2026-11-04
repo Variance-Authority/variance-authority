@@ -13,13 +13,14 @@ import { ReviewApp } from './review.js';
  * that turns it into the surface.
  *
  * Bundled at this repository's build time by `tools/tribunal-ui.mjs` into
- * `dist/ui/review.bundle.js`, for the reason recorded in
+ * `dist/public/ui/review.js`, for the reason recorded in
  * [`node/ui-assets.ts`](../node/ui-assets.ts).
  *
  * It reads its configuration from the document rather than taking it baked in,
  * because the bundle is built once and every deployment mounts the API somewhere
- * else. It reads **no token**: the host attaches the capability, and this script
- * calls its own origin with no credential.
+ * else. It holds **no token**: who is looking is what `/auth/me` says, from a
+ * session the browser sends by itself, and a person nobody recognized goes to
+ * sign in before anything is drawn.
  */
 
 const mount = document.getElementById('variance-review');
@@ -32,16 +33,29 @@ if (configuration === null) {
   throw new Error('the review page has no #variance-config script to read its endpoint from');
 }
 
-const { endpoint, reviewer } = JSON.parse(configuration.textContent ?? '{}') as {
-  readonly endpoint?: string;
-  readonly reviewer?: string;
-};
+const { endpoint = '' } = JSON.parse(configuration.textContent ?? '{}') as { readonly endpoint?: string };
 
-createRoot(mount).render(
-  <StrictMode>
-    <ReviewApp
-      client={createReviewClient({ endpoint: endpoint ?? '' })}
-      reviewer={reviewer ?? 'reviewer'}
-    />
-  </StrictMode>,
-);
+interface Introduced {
+  readonly capability?: string;
+  readonly name?: string;
+  readonly signIn?: string;
+}
+
+const me = (await (await fetch(`${endpoint}/auth/me`)).json()) as Introduced;
+const signIn =
+  me.signIn === undefined
+    ? undefined
+    : `${endpoint}${me.signIn}?return=${encodeURIComponent(location.pathname + location.search)}`;
+
+if (me.capability === undefined && signIn !== undefined) {
+  location.assign(signIn);
+} else if (me.capability === undefined) {
+  mount.textContent = 'This deployment does not recognize you.';
+} else {
+  createRoot(mount).render(
+    <StrictMode>
+      {me.capability === 'view' && signIn !== undefined ? <a href={signIn}>Sign in to decide</a> : null}
+      <ReviewApp client={createReviewClient({ endpoint })} reviewer={me.name} />
+    </StrictMode>,
+  );
+}

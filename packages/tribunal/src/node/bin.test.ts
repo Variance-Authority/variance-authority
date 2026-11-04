@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DATABASE_VARIABLE,
   HOST_VARIABLE,
@@ -9,24 +9,16 @@ import {
   PORT_VARIABLE,
   PROJECT_VARIABLE,
   RETENTION_VARIABLE,
-  REVIEW_TOKEN_VARIABLE,
   REVIEWER_VARIABLE,
   SHARE_TOKEN_VARIABLE,
   STORAGE_VARIABLE,
   TRUST_NETWORK_VARIABLE,
-  authorizeFor,
+  policyFor,
   readArguments,
   readConfig,
   start,
   type RunningTribunal,
 } from './bin.js';
-
-import { grant } from '../worker-auth.js';
-
-vi.mock('../worker-auth.js', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../worker-auth.js')>();
-  return { ...real, grant: vi.fn(real.grant) };
-});
 
 /**
  * The refusals, without binding a port — and then one start that does.
@@ -36,13 +28,11 @@ vi.mock('../worker-auth.js', async (importOriginal) => {
  */
 
 const INGEST = 'ingest-token-0123456789';
-const REVIEW = 'review-token-0123456789';
 
 function env(overrides: Readonly<Record<string, string>> = {}): Record<string, string> {
   return {
     [PROJECT_VARIABLE]: 'todomvc',
     [INGEST_TOKEN_VARIABLE]: INGEST,
-    [REVIEW_TOKEN_VARIABLE]: REVIEW,
     ...overrides,
   };
 }
@@ -81,7 +71,7 @@ describe('what it will not start without', () => {
     expect(readConfig(env()).retentionDays).toBeUndefined();
   });
 
-  it('leaves the token rules to the constructor rather than restating them', () => {
+  it('leaves the token rules to the policy rather than restating them', () => {
     // A second copy of "sixteen characters, and not the same string" is a second
     // place for it to be relaxed. `readConfig` passes them through; `start` fails.
     expect(() => readConfig(env({ [INGEST_TOKEN_VARIABLE]: 'short' }))).not.toThrow();
@@ -127,51 +117,38 @@ describe('who is allowed what', () => {
       headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
     });
 
-  it('gives a token-holder what the token is for', async () => {
-    const authorize = authorizeFor(readConfig(env()));
+  const principal = (config: ReturnType<typeof readConfig>, token?: string) =>
+    Promise.resolve(policyFor(config).principal(request(token)));
 
-    expect(await authorize(request(INGEST))).toBe('ingest');
-    expect(await authorize(request(REVIEW))).toBe('review');
+  it('gives the ingest token ingest', async () => {
+    expect(await principal(readConfig(env()), INGEST)).toEqual({ capability: 'ingest' });
   });
 
   it('gives the share token the share, and only when one was configured', async () => {
     const SHARE = 'share-token-0123456789';
-    const config = readConfig(env({ [SHARE_TOKEN_VARIABLE]: SHARE }));
 
-    expect(config.shareToken).toBe(SHARE);
-    expect(await authorizeFor(config)(request(SHARE))).toBe('share');
-    expect(readConfig(env()).shareToken).toBeUndefined();
-    expect(await authorizeFor(readConfig(env()))(request(SHARE))).toBeNull();
+    expect(await principal(readConfig(env({ [SHARE_TOKEN_VARIABLE]: SHARE })), SHARE)).toEqual({ capability: 'share' });
+    expect(await principal(readConfig(env()), SHARE)).toBeNull();
   });
 
   it('refuses a token it does not know, even on loopback', async () => {
-    const authorize = authorizeFor(readConfig(env()));
-
     // A caller that presented a credential is claiming one. Falling back to the
     // loopback grant would make a wrong token better than no token.
-    expect(await authorize(request('nonsense-token-01234'))).toBeNull();
+    expect(await principal(readConfig(env()), 'nonsense-token-01234')).toBeNull();
   });
 
-  it('compares a presented token the way the Worker does, in constant time', async () => {
-    const config = readConfig(env());
-    const presented = request(`${INGEST.slice(0, -1)}X`);
-    vi.mocked(grant).mockClear();
-
-    // A compare that stops at the first differing character answers sooner the
-    // less of a guess matched, so the time it takes would spell the token out.
-    expect(await authorizeFor(config)(presented)).toBeNull();
-    expect(vi.mocked(grant)).toHaveBeenCalledWith(presented, config);
-  });
-
-  it('lets the browser on this machine review with no credential', async () => {
-    expect(await authorizeFor(readConfig(env()))(request())).toBe('review');
+  it('lets the browser on this machine review, under the name it was given', async () => {
+    expect(await principal(readConfig(env({ [REVIEWER_VARIABLE]: 'marina' })))).toEqual({
+      capability: 'review',
+      name: 'marina',
+    });
   });
 
   it('grants nothing to an anonymous caller once the socket is on a network', async () => {
     const config = readConfig(env({ [HOST_VARIABLE]: '0.0.0.0', [TRUST_NETWORK_VARIABLE]: '1' }));
 
-    expect(await authorizeFor(config)(request())).toBeNull();
-    expect(await authorizeFor(config)(request(REVIEW))).toBe('review');
+    expect(await principal(config)).toBeNull();
+    expect(await principal(config, INGEST)).toEqual({ capability: 'ingest' });
   });
 });
 
@@ -209,7 +186,26 @@ describe('starting it', () => {
 
     // The startup line is a thing operators paste into issues.
     expect(said).not.toContain(INGEST);
-    expect(said).not.toContain(REVIEW);
+  });
+
+  it('serves the page on a network bind that opened reading, with nobody to decide', async () => {
+    const lines: string[] = [];
+    service = await start(
+      env({
+        [PORT_VARIABLE]: '0',
+        [HOST_VARIABLE]: '0.0.0.0',
+        [TRUST_NETWORK_VARIABLE]: '1',
+        [DATABASE_VARIABLE]: join(directory, 'tribunal.db'),
+        [STORAGE_VARIABLE]: join(directory, 'objects'),
+        VARIANCE_TRIBUNAL_VIEW: 'public',
+      }),
+      (line) => lines.push(line),
+    );
+
+    const page = await fetch(service.url);
+
+    expect(page.headers.get('content-type')).toContain('text/html');
+    expect(lines.join('')).toContain(`served at ${service.url} to anybody who reads`);
   });
 
   it('lets go of the database when the port refuses it', async () => {

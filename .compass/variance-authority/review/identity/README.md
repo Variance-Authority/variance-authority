@@ -43,9 +43,12 @@ capability has none to give.
 It holds no accounts. Absent configuration is refusal, never a
 default — with no configured identity source, nothing can tell one visitor from
 another, and the approve button stays undrawn rather than falling back to
-anonymous. There is likewise no anonymous read-only view, because the only thing
-that would buy is a second code path that has to stay in step with the first
-about which evidence is public, and none of it is.
+anonymous. A deployment that declares `VIEW=public` serves an anonymous reader,
+because its evidence is public by the deployer's say; that visitor still has no
+name, so nothing they send can decide.
+
+A person arrives through GitHub sign-in or Cloudflare Access, whichever the
+deployment declared, and the name is the login or the email that source proved.
 
 On a loopback bind it asserts nothing and takes the operator's word: anything
 that can open a loopback socket is already running as the person who started the
@@ -55,11 +58,12 @@ all — there would be nothing between an approve button and the internet.
 
 ## Implementation coordinates
 
-- `tribunal-cloudflare/app/access.ts` — `identify`, `tokenOf`, `verify`,
-  `published`; the per-isolate key cache, and the failure that is not cached as
-  *this team has no keys*
-- `tribunal-cloudflare/app/env.ts` — `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, whose
-  absence means no review surface
+- `packages/tribunal/src/issuer.ts` — the one verifier of a signed token, its
+  per-isolate key cache and the refetch on an unknown `kid`
+- `packages/tribunal/src/github-signin.ts` — the GitHub sign-in, the write check
+  and the signed session
+- `packages/tribunal/src/policy.ts` — `declaredPolicy`, which answers a principal
+  from what the deployment declared
 - `tribunal-cloudflare/app/page.tsx` — rendered per request, because who is asking
   is a per-request fact
 - `packages/tribunal/src/node/bin.ts` — `LOOPBACK`, `authorizeFor`,

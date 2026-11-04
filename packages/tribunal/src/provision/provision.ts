@@ -1,58 +1,35 @@
 // compass: variance-authority.review
+import { posix, relative, dirname, sep } from 'node:path';
+import type { Cloudflare } from './cloudflare.js';
 import {
-  CloudflareError,
-  MACHINE_PREFIXES,
-  NOT_AUTHORIZED,
-  type AccessApp,
-  type AccessPolicy,
-  type Cloudflare,
-} from './cloudflare.js';
-import { readDeployment, withAccountId, withDatabaseId, withVariable, type Deployment } from './config.js';
+  deploymentConfig,
+  readDeployment,
+  withAccountId,
+  withDatabaseId,
+  withVariable,
+  type Deployment,
+} from './config.js';
+import type { AppRequest, RegisteredApp } from './github-app.js';
 
 /**
  * Everything a Cloudflare tribunal needs from its account and its repository,
- * in one idempotent run.
+ * in one idempotent run, ending in a deployment that serves.
  *
  * Every value somebody would otherwise look up and paste is made or read here
- * and handed straight to the one place that needs it: the database id and the
- * two Access values into `wrangler.jsonc`, the ingest token into the Worker and
- * into the repository's `VARIANCE_INGEST_TOKEN` secret. The ingest token is
- * never printed. The review token is set because the Worker requires one, and
- * shown to nobody: a person who needs it sets their own with `wrangler secret put`.
+ * and handed straight to the one place that needs it. The happy path is the one
+ * GitHub users want: reviewers sign in with GitHub, those who can write to the
+ * repository decide, and the repository's workflows push with the token the runner
+ * issues them, so no secret is stored for CI at all.
+ *
+ * What the config already declares is the deployer's. `INGEST_CREDENTIALS` and
+ * `REVIEW_CREDENTIALS` are written only when absent, and a mechanism not declared
+ * is not provisioned: a deployment on `access` gets no App, and `token` is the one
+ * path that mints and shares an ingest token.
  *
  * The run asks before it makes anything, so running it again is how you check a
- * deployment is still provisioned. It does not deploy: the deployment's own
- * deploy step publishes what this wrote.
+ * deployment is still provisioned, and how a second repository is given the right
+ * to push. It stops only where a person has to agree to something.
  */
-
-/**
- * What `wrangler login` grants by default, plus Access. The default login
- * cannot read or make an Access organization, and Cloudflare answers that with
- * a bare `Authentication error`.
- */
-export const LOGIN_SCOPES: readonly string[] = [
-  'account:read',
-  'user:read',
-  'workers:write',
-  'workers_kv:write',
-  'workers_routes:write',
-  'workers_scripts:write',
-  'workers_tail:read',
-  'd1:write',
-  'pages:write',
-  'zone:read',
-  'ssl_certs:write',
-  'ai:write',
-  'queues:write',
-  'pipelines:write',
-  'secrets_store:write',
-  'containers:write',
-  'cloudchamber:write',
-  'connectivity:admin',
-  'access:write',
-  'teams:write',
-  'offline_access',
-];
 
 export const INGEST_SECRET = 'INGEST_TOKEN';
 /** Cloudflare's code for a Worker the account does not have. */
@@ -62,7 +39,9 @@ const BUCKET_NOT_FOUND = 10006;
 /** R2's code for an account with no R2 subscription. */
 const R2_NOT_ENTITLED = 10042;
 
-export const REVIEW_SECRET = 'REVIEW_TOKEN';
+/** The App's own secret, and the key sessions are signed with. */
+export const CLIENT_SECRET = 'GITHUB_CLIENT_SECRET';
+export const SESSION_SECRET = 'GITHUB_SESSION_SECRET';
 /** The repository secret the `variance` workflow reads. */
 export const REPOSITORY_INGEST_SECRET = 'VARIANCE_INGEST_TOKEN';
 /**
@@ -97,31 +76,51 @@ export interface Provisioning {
   say(line: string): void;
   mint(): string;
   cloudflare(token: string, account: string): Cloudflare;
+  exists(path: string): Promise<boolean>;
+  /** The directory this package is installed in. */
+  readonly installed: string;
+  /** Makes and installs the App, with the person at the browser. */
+  register(request: AppRequest): Promise<RegisteredApp>;
+  /** Whether the Worker is answering at this address, rather than a placeholder or nothing. */
+  serving(url: string): Promise<boolean>;
 }
 
 export interface ProvisionRequest {
   readonly config: string;
   /** `owner/name` of the repository whose CI pushes builds. */
   readonly repository: string;
-  /** Who may sign in to review. The Cloudflare login's own email when absent. */
-  readonly reviewer?: string;
   readonly rotate: boolean;
   /** Where the deployment serves the API, when not at the root: `/api`. */
   readonly mount?: string;
+  /** Leave publishing to a deployment with its own build, such as the console. */
+  readonly skipDeploy?: boolean;
 }
 
 class Stop extends Error {}
-/** A stop whose reason is the message, said before the run exits 1. */
-class Mismatch extends Stop {}
 
 /** Exit status: 0 provisioned, 1 stopped on something only a person can do. */
 export async function provision(io: Provisioning, request: ProvisionRequest): Promise<number> {
   const made: string[] = [];
+  const asked = () => io.run('npx', ['wrangler', 'auth', 'token', '--json', '--config', request.config]);
   const token = async (): Promise<string> => {
-    const result = await io.run('npx', ['wrangler', 'auth', 'token', '--json', '--config', request.config]);
+    const result = await asked();
     if (result.code !== 0) throw new Error(`wrangler auth token failed:\n${result.stderr}`);
     return (JSON.parse(result.stdout) as { token: string }).token;
   };
+
+  if (!(await io.exists(request.config))) {
+    const project = request.repository.split('/')[1]!;
+    const name = `${project.toLowerCase().replace(/[^a-z0-9-]+/g, '-')}-tribunal`;
+    const installed = relative(dirname(request.config), io.installed).split(sep).join(posix.sep);
+    await io.write(request.config, deploymentConfig(name, project, installed));
+    made.push(request.config);
+  }
+  if ((await asked()).code !== 0) {
+    io.say('Not logged in to Cloudflare. Allow it in the browser window that opens.');
+    const login = await io.run('npx', ['wrangler', 'login'], { interactive: true });
+    if (login.code !== 0) throw new Error('wrangler login did not complete');
+  }
+
   const deployment = await account(readDeployment(await io.read(request.config)), token, io, request.config, made);
   // The account goes in the environment too: `r2 bucket list` ignores the
   // config's `account_id` and refuses on a login that sees several accounts.
@@ -136,20 +135,39 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
     return result.stdout;
   };
 
+  let host: string;
+  let ingest: readonly string[];
   try {
     await database(deployment, must, io, request.config, made);
     await bucket(deployment, wrangler, must, io, made);
     io.say('applying migrations');
     await must(['d1', 'migrations', 'apply', deployment.database.name, '--remote']);
-    await access(deployment, wrangler, token, io, request, made);
-    await secrets(wrangler, must, io, request, made);
+    host =
+      deployment.host ??
+      `${deployment.name}.${await io.cloudflare(await token(), deployment.accountId).workersSubdomain()}.workers.dev`;
+    const declared = await declare(deployment, host, io, request, made);
+    ingest = declared.ingest;
+    const worker = await workerSecrets(wrangler);
+    if (declared.review.includes('github')) await signIn(deployment, host, worker, must, io, request, made);
+    if (ingest.includes('token')) await ingestToken(worker, wrangler, io, request, made);
   } catch (error) {
-    if (error instanceof Mismatch) io.say(error.message);
     if (error instanceof Stop) return 1;
     throw error;
   }
 
+  const site = `https://${host}${request.mount ?? ''}`;
+  if (request.skipDeploy === true) {
+    if (made.length > 0) io.say('Publish with your deployment\'s own deploy step.');
+  } else if (made.length > 0 || !(await io.serving(`${site}/auth/me`))) {
+    await must(['deploy']);
+    made.push(`Worker at ${site}`);
+  }
+
   io.say(made.length === 0 ? 'Nothing to do — already provisioned.' : `Provisioned: ${made.join(', ')}.`);
+  if (ingest.includes('github-actions') && made.length > 0) {
+    io.say(`To push from ${request.repository}, give the job \`id-token: write\` under \`permissions\` and this in variance.config:`);
+    io.say(`  "baselines": { "kind": "remote", "endpoint": "${site}", "token": { "github-actions": { "audience": "https://${host}" } } }`);
+  }
   return 0;
 }
 
@@ -223,124 +241,89 @@ async function bucket(deployment: Placed, wrangler: Wrangler, must: Must, io: Pr
   made.push(`R2 bucket ${deployment.bucket}`);
 }
 
-async function access(
-  deployment: Placed,
-  wrangler: Wrangler,
-  token: () => Promise<string>,
-  io: Provisioning,
-  request: ProvisionRequest,
-  made: string[],
-) {
-  const api = async (): Promise<Cloudflare> => io.cloudflare(await token(), deployment.accountId);
+/**
+ * Who the deployment recognizes, written into `vars`. A list the deployer wrote is
+ * kept, and a run for another repository adds it to the ones that may push.
+ */
+async function declare(deployment: Placed, host: string, io: Provisioning, request: ProvisionRequest, made: string[]) {
+  const held = deployment.variables;
+  const list = (value: string) => value.split(',').map((each) => each.trim()).filter((each) => each !== '');
+  const ingest = list(held['INGEST_CREDENTIALS'] ?? 'github-actions');
+  const review = list(held['REVIEW_CREDENTIALS'] ?? 'github');
 
-  let cloudflare = await api();
-  let teamDomain: string | undefined;
-  try {
-    teamDomain = await cloudflare.teamDomain();
-  } catch (error) {
-    if (!(error instanceof CloudflareError && error.codes.includes(NOT_AUTHORIZED))) throw error;
-    io.say('The Cloudflare login cannot manage Access. Logging in again with Access added —');
-    io.say('allow it in the browser window that opens.');
-    const login = await wrangler(['login', '--scopes', ...LOGIN_SCOPES], { interactive: true });
-    if (login.code !== 0) throw new Error('wrangler login did not complete');
-    cloudflare = await api();
-    teamDomain = await cloudflare.teamDomain();
+  const wanted: Record<string, string> = {
+    INGEST_CREDENTIALS: ingest.join(','),
+    REVIEW_CREDENTIALS: review.join(','),
+  };
+  if (ingest.includes('github-actions')) {
+    const pushing = list(held['GITHUB_ACTIONS_REPOSITORIES'] ?? '');
+    const named = pushing.some((each) => each.toLowerCase() === request.repository.toLowerCase());
+    wanted['GITHUB_ACTIONS_REPOSITORIES'] = (named ? pushing : [...pushing, request.repository]).join(',');
+    wanted['GITHUB_ACTIONS_AUDIENCE'] = held['GITHUB_ACTIONS_AUDIENCE'] ?? `https://${host}`;
   }
-
-  if (teamDomain === undefined) {
-    teamDomain = await cloudflare.createOrganization(deployment.name);
-    made.push(`Access organization ${teamDomain}`);
-  }
-  if (!(await cloudflare.identityProviderTypes()).includes('onetimepin')) {
-    await cloudflare.createOneTimePin();
-    made.push('one-time PIN sign-in');
-  }
-
-  const host = deployment.host ?? `${deployment.name}.${await cloudflare.workersSubdomain()}.workers.dev`;
-  const reviewer = request.reviewer ?? (await cloudflare.email());
-  const reviewers: AccessPolicy = { decision: 'allow', include: [{ email: { email: reviewer } }] };
-  const callers: AccessPolicy = { decision: 'bypass', include: [{ everyone: {} }] };
-  const paths = MACHINE_PREFIXES.map((prefix) => `${host}${request.mount ?? ''}${prefix}`);
-  const apps = await cloudflare.apps();
-  const pages = await app(apps, host, `${deployment.name} review`, cloudflare, made, {
-    body: { type: 'self_hosted', domain: host, session_duration: '24h', policies: [{ name: 'reviewers', ...reviewers }] },
-    drift: (found) => (admits(found, reviewers) ? [] : [`no allow policy admits ${reviewer}`]),
-  });
-  await app(apps, undefined, `${deployment.name} machines`, cloudflare, made, {
-    body: {
-      type: 'self_hosted',
-      destinations: paths.map((uri) => ({ type: 'public', uri })),
-      policies: [{ name: 'bearer and share callers', ...callers }],
-    },
-    drift: (found) => {
-      const uris = new Set((found.destinations ?? []).map((each) => each.uri));
-      return [
-        ...paths.filter((uri) => !uris.has(uri)).map((uri) => `no destination ${uri}`),
-        ...(admits(found, callers) ? [] : ['no bypass policy lets every caller through']),
-      ];
-    },
-  });
+  if (review.includes('github')) wanted['GITHUB_REPOSITORY'] = held['GITHUB_REPOSITORY'] ?? request.repository;
 
   let text = await io.read(request.config);
-  const before = text;
-  text = withVariable(text, 'ACCESS_TEAM_DOMAIN', teamDomain);
-  text = withVariable(text, 'ACCESS_AUD', pages.aud);
-  if (text !== before) {
+  const written = Object.entries(wanted).filter(([name, value]) => held[name] !== value);
+  for (const [name, value] of written) text = withVariable(text, name, value);
+  if (written.length > 0) {
     await io.write(request.config, text);
-    made.push('ACCESS_TEAM_DOMAIN and ACCESS_AUD');
+    made.push(written.map(([name]) => name).join(', '));
   }
+  return { ingest, review };
 }
 
-/**
- * The application of that domain or name, made when it is missing. One already
- * there is checked against what this run would make, and a difference stops the
- * run: an application that lets the wrong callers through, or misses a path, is
- * a deployment that looks provisioned and refuses CI or the reviewer.
- */
-async function app(
-  apps: readonly AccessApp[],
-  domain: string | undefined,
-  name: string,
-  cloudflare: Cloudflare,
-  made: string[],
-  expected: { body: Record<string, unknown>; drift: (found: AccessApp) => string[] },
-): Promise<AccessApp> {
-  const found = apps.find((each) => (domain === undefined ? each.name === name : each.domain === domain));
-  if (found === undefined) {
-    const created = await cloudflare.createApp({ name, ...expected.body });
-    made.push(`Access application ${name}`);
-    return created;
-  }
-  const drift = expected.drift(found);
-  if (drift.length > 0) {
-    throw new Mismatch(`Access application ${found.name} differs from what the tribunal needs:\n` +
-      drift.map((each) => `  ${each}`).join('\n') +
-      '\nFix it in the Zero Trust dashboard, or delete it and run this again to have it made.');
-  }
-  return found;
-}
-
-/** Whether one of the application's policies decides as `policy` does for its callers. */
-function admits(found: AccessApp, policy: AccessPolicy): boolean {
-  const wanted = policy.include.map((each) => JSON.stringify(each));
-  return (found.policies ?? []).some(
-    (each) =>
-      each.decision === policy.decision &&
-      wanted.every((rule) => each.include.some((include) => JSON.stringify(include) === rule)),
-  );
-}
-
-async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request: ProvisionRequest, made: string[]) {
-  // A Worker that was never deployed has no secrets to list and nothing to
-  // hold one; `secret put` makes it. Any other failure answers nothing, and a
-  // token replaced on no answer would cut off the CI that holds it.
+/** The secrets the Worker holds. A Worker never deployed holds none, and `secret put` makes it. */
+async function workerSecrets(wrangler: Wrangler): Promise<Set<string>> {
+  // Any other failure answers nothing, and a secret replaced on no answer would
+  // sign everybody out, or cut off the CI that holds it.
   const listed = await wrangler(['secret', 'list', '--format', 'json']);
   if (listed.code !== 0 && !listed.stderr.includes(`[code: ${WORKER_NOT_FOUND}]`)) {
     throw new Error(`wrangler secret list failed:\n${listed.stderr}`);
   }
-  const worker = new Set(
-    listed.code === 0 ? (JSON.parse(listed.stdout) as { name: string }[]).map((each) => each.name) : [],
-  );
+  return new Set(listed.code === 0 ? (JSON.parse(listed.stdout) as { name: string }[]).map((each) => each.name) : []);
+}
+
+/**
+ * The App and the session key. The client id goes into the config last, so a run
+ * that stops at the browser leaves nothing that reads as finished: the next run
+ * starts the App again rather than deploying a sign-in that goes nowhere.
+ */
+async function signIn(
+  deployment: Placed,
+  host: string,
+  worker: ReadonlySet<string>,
+  must: Must,
+  io: Provisioning,
+  request: ProvisionRequest,
+  made: string[],
+) {
+  if (request.rotate || !worker.has(SESSION_SECRET)) {
+    await must(['secret', 'put', SESSION_SECRET], { input: io.mint() });
+    made.push(SESSION_SECRET);
+  }
+  if (deployment.variables['GITHUB_CLIENT_ID'] !== undefined && worker.has(CLIENT_SECRET)) return;
+
+  const owner = await io.run('gh', ['api', `repos/${request.repository}`, '--jq', '.owner.type + " " + .owner.login']);
+  if (owner.code !== 0) throw new Error(`gh api repos/${request.repository} failed:\n${owner.stderr}`);
+  const [type, login] = owner.stdout.trim().split(' ');
+  const app = await io.register({
+    name: deployment.name,
+    host,
+    ...(type === 'Organization' ? { organization: login! } : {}),
+  });
+  await must(['secret', 'put', CLIENT_SECRET], { input: app.clientSecret });
+  await io.write(request.config, withVariable(await io.read(request.config), 'GITHUB_CLIENT_ID', app.clientId));
+  made.push(`GitHub App ${app.slug}`);
+}
+
+async function ingestToken(
+  worker: ReadonlySet<string>,
+  wrangler: Wrangler,
+  io: Provisioning,
+  request: ProvisionRequest,
+  made: string[],
+) {
   const github = await io.run('gh', ['secret', 'list', '-R', request.repository, '--json', 'name']);
   if (github.code !== 0) throw new Error(`gh secret list failed:\n${github.stderr}`);
   const repository = new Set((JSON.parse(github.stdout) as { name: string }[]).map((each) => each.name));
@@ -380,11 +363,5 @@ async function secrets(wrangler: Wrangler, must: Must, io: Provisioning, request
       );
     }
     made.push(`${INGEST_SECRET} (Worker and ${request.repository})`);
-  }
-
-  if (request.rotate || !worker.has(REVIEW_SECRET)) {
-    const token = io.mint();
-    await must(['secret', 'put', REVIEW_SECRET], { input: token });
-    made.push(REVIEW_SECRET);
   }
 }

@@ -253,7 +253,7 @@ export async function push(options: PushOptions): Promise<PushResult> {
   // the next forty seconds, and a sentence printed after the wait it describes
   // is a sentence nobody needed.
   const deployment = endpointOf(options.review);
-  const service = await reach(send, deployment, options.review.token());
+  const service = await reach(send, deployment, await options.review.token());
   const note = versionNote(service, {
     share: shareAt(options.share, deployment),
     baselines: baselinesAt(options.baselines, deployment),
@@ -349,13 +349,14 @@ export async function push(options: PushOptions): Promise<PushResult> {
   const endpoint = `${endpointOf(options.review)}/review/builds`;
   tell?.({ phase: 'sending', bytes: Buffer.byteLength(body, 'utf8') });
 
+  const token = await options.review.token();
   let response: Response;
   try {
     response = await send(endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${options.review.token()}`,
+        authorization: `Bearer ${token}`,
       },
       body,
     });

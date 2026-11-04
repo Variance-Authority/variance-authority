@@ -16,6 +16,8 @@ export interface Deployment {
   readonly bucket: string;
   /** The custom domain the Worker is routed on, when it has one. */
   readonly host?: string;
+  /** The config's `vars`: what the deployer has already declared. */
+  readonly variables: Readonly<Record<string, string>>;
 }
 
 interface Parsed {
@@ -24,6 +26,7 @@ interface Parsed {
   readonly d1_databases?: readonly { readonly binding?: unknown; readonly database_name?: unknown; readonly database_id?: unknown }[];
   readonly r2_buckets?: readonly { readonly binding?: unknown; readonly bucket_name?: unknown }[];
   readonly routes?: readonly { readonly pattern?: unknown; readonly custom_domain?: unknown }[];
+  readonly vars?: Readonly<Record<string, unknown>>;
 }
 
 /** What provisioning needs from the config, or why the config cannot answer. */
@@ -46,7 +49,41 @@ export function readDeployment(text: string): Deployment {
     },
     bucket: required(bucket.bucket_name, '`bucket_name` of `BUCKET`'),
     ...(route === undefined ? {} : { host: route.pattern as string }),
+    variables: Object.fromEntries(
+      Object.entries(parsed.vars ?? {}).filter((each): each is [string, string] => typeof each[1] === 'string'),
+    ),
   };
+}
+
+/**
+ * A config for the packaged Worker, for a deployment that has none. `installed` is
+ * the package as this config's directory reaches it, so an upgrade is an install
+ * and a deploy with nothing copied out of the package.
+ */
+export function deploymentConfig(name: string, project: string, installed: string): string {
+  return `{
+  // This repository's tribunal: the packaged Worker, a D1 database for rows and
+  // an R2 bucket for bytes. Who it recognizes is in \`vars\`; secrets are not here.
+  "$schema": "https://developers.cloudflare.com/schemas/wrangler.json",
+  "name": ${JSON.stringify(name)},
+  "main": ${JSON.stringify(`${installed}/dist/worker-entry.js`)},
+  "compatibility_date": "2026-08-05",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": ${JSON.stringify(name)},
+      "database_id": "",
+      "migrations_dir": ${JSON.stringify(`${installed}/migrations`)}
+    }
+  ],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": ${JSON.stringify(name)} }],
+  "assets": { "directory": ${JSON.stringify(`${installed}/dist/public`)} },
+  "vars": {
+    "PROJECT": ${JSON.stringify(project)}
+  },
+  "observability": { "enabled": true }
+}
+`;
 }
 
 /** The config with `DB`'s `database_id` set to `id`. */

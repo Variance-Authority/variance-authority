@@ -1,5 +1,7 @@
-import { createTribunal, type Tribunal } from './worker.js';
+import { declaredPolicy, createTribunal, type Tribunal } from './worker.js';
 import type { D1Like, R2Like } from './bindings.js';
+import { reviewPage } from './ui/page.js';
+import { isPagePath } from './ui/route.js';
 
 /**
  * The deployable Worker: the twenty lines that were missing between a package and
@@ -13,13 +15,13 @@ import type { D1Like, R2Like } from './bindings.js';
  * two are one adapter apart, and until now the adapter did not exist, so the
  * surface shipped and could not be deployed.
  *
- * This file is the only one in the package that reads an environment.
+ * This file is the only one in the Worker that reads an environment.
  *
  * ## Why the instance is memoised
  *
- * `createTribunal` validates the secrets and builds the routing table. An isolate
- * serves many requests, and rebuilding per request would re-run the token checks
- * on every call — which is not a correctness problem and is a pointless one. The
+ * `declaredPolicy` validates what was declared and `createTribunal` builds the
+ * routing table. An isolate serves many requests, and rebuilding per request would
+ * re-run those checks and refetch every issuer's keys on every call — which is not a correctness problem and is a pointless one. The
  * cache is keyed on the `env` object identity rather than held unconditionally,
  * so a different environment cannot be served by an instance built from another.
  *
@@ -28,8 +30,14 @@ import type { D1Like, R2Like } from './bindings.js';
  * A Worker that throws while constructing its module fails deployment-wide with a
  * platform error the operator has to go and find. Every refusal in this package
  * is a sentence, and the one an operator most needs — *your token is too short*,
- * *your two tokens are the same* — is worth more than an exception trace. So the
+ * *github is declared and needs GITHUB_CLIENT_SECRET* — is worth more than an exception trace. So the
  * construction happens inside `fetch` and its message is the body.
+ *
+ * ## The page, and what it loads
+ *
+ * The document is answered here so a fresh deployment has a review surface with
+ * nothing written by hand. `/ui/review.js` and the fonts are static files in the
+ * deployment's `assets` directory, which Cloudflare matches before this runs.
  */
 
 export interface TribunalEnv {
@@ -37,12 +45,6 @@ export interface TribunalEnv {
   readonly DB: D1Like;
   /** R2 binding. Holds baseline and candidate bytes; never a row. */
   readonly BUCKET: R2Like;
-  /** Written into CI. Writes builds, baselines and history. 16 characters or more. */
-  readonly INGEST_TOKEN: string;
-  /** Held by people. Reads the review surface and decides. 16 characters or more. */
-  readonly REVIEW_TOKEN: string;
-  /** Handed to machines that only read the share. Optional; 16 characters or more when set. */
-  readonly SHARE_TOKEN?: string;
   /**
    * Scopes every row and object.
    *
@@ -55,6 +57,8 @@ export interface TribunalEnv {
   readonly PROJECT?: string;
   /** Days of builds `POST /review/sweep` keeps. Absent means the package default. */
   readonly RETENTION_DAYS?: string;
+  /** Everything `declaredPolicy` reads: who this deployment recognizes. */
+  readonly [declared: string]: unknown;
 }
 
 const built = new WeakMap<object, Tribunal>();
@@ -68,9 +72,7 @@ function tribunalFor(env: TribunalEnv): Tribunal {
     db: env.DB,
     bucket: env.BUCKET,
     project: env.PROJECT ?? 'default',
-    ingestToken: env.INGEST_TOKEN ?? '',
-    reviewToken: env.REVIEW_TOKEN ?? '',
-    ...(env.SHARE_TOKEN === undefined ? {} : { shareToken: env.SHARE_TOKEN }),
+    policy: declaredPolicy(env),
     // `Number(undefined)` is NaN and `Number('')` is 0, and a retention of zero
     // days would sweep every build the first time anyone asked. Both fall back.
     ...(Number.isFinite(retentionDays) && retentionDays > 0 ? { retentionDays } : {}),
@@ -88,6 +90,11 @@ function tribunalFor(env: TribunalEnv): Tribunal {
 export default {
   async fetch(request: Request, env: TribunalEnv): Promise<Response> {
     try {
+      if (request.method === 'GET' && isPagePath(new URL(request.url).pathname)) {
+        return new Response(reviewPage({ endpoint: '' }), {
+          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+        });
+      }
       return await tribunalFor(env).fetch(request);
     } catch (error) {
       // Only construction failures reach here — `Tribunal.fetch` answers with a

@@ -39,14 +39,7 @@
 
   "vars": {
     // Scopes every row and object key. One deployment, one project.
-    "PROJECT": "default",
-
-    // Both must be set for the review surface to be served at all. The team
-    // domain is where the signing keys are published; the audience tag is this
-    // Access application's, so a token minted for another app in the same team
-    // is refused here.
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "PROJECT": "default"
   },
 
   "observability": {

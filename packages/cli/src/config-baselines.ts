@@ -10,6 +10,7 @@ import {
   resolveFrom,
   secret,
   url,
+  type Credential,
   type ParseOptions,
 } from './config-values.js';
 
@@ -71,7 +72,7 @@ export interface LfsBaselines {
 export interface RemoteBaselines {
   readonly kind: 'remote';
   readonly endpoint: string;
-  readonly token?: string;
+  readonly token?: string | Credential;
 }
 
 export function parseBaselines(value: unknown, options: ParseOptions): BaselinesConfig {

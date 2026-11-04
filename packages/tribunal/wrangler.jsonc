@@ -2,8 +2,8 @@
   // The deployment descriptor for `@variance-authority/tribunal`: a Worker, a D1
   // database for rows, and an R2 bucket for bytes.
   //
-  // Copy it, then fill `database_id` from `wrangler d1 create`. The secrets
-  // are not here and must never be — see the README for how they are set.
+  // `variance-authority-tribunal-provision --config <this file>` fills it in and
+  // sets the secrets. The secrets are not here and must never be.
   "$schema": "https://developers.cloudflare.com/schemas/wrangler.json",
   "name": "variance-tribunal",
   "main": "dist/worker-entry.js",

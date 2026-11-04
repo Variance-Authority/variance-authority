@@ -13,16 +13,12 @@ socket — without changing a route, a refusal or a status code.
 
 ## Inputs and outputs
 
-In: a runtime's own request shape, the deployment's configuration, and the
-operator's answer to *which **capability** is this caller allowed*. Out: the
+In: a runtime's own request shape and the deployment's configuration. Out: the
 runtime's own response shape, and the addresses the review surface is served at.
 
-A mount strips its own prefix — the handler knows only its own paths — and
-replaces the incoming authorization with the token that answer implies.
-Replaces, so a caller that sent its own bearer cannot choose its own capability
-and the policy stays binding rather than advisory. A refused caller is answered
-before the handler ever sees the request, which keeps the host's session and the
-deployment's secrets two separate things and asks neither to be the other.
+A mount strips its own prefix — the handler knows only its own paths — and leaves
+who is asking to the policy the handler holds, so a caller cannot choose its own
+capability and the policy stays binding rather than advisory.
 
 ## Depends on
 
@@ -77,14 +73,13 @@ advisory lock to serialize one running under concurrent load.
 - `packages/tribunal/src/node/database.ts`, `bucket.ts` — a file and a directory
   behind the two interfaces, each object written through a staging name so a
   reader never sees half of one
-- `packages/tribunal/src/provision/` — the Cloudflare account a deployment needs,
-  made by one idempotent command: the database, the bucket, the migrations, the
-  Access applications and the two values the Worker verifies them with, and the
-  ingest token in both the Worker and the repository secret. It runs only when
-  the operator runs it, never on a request
+- `packages/tribunal/src/provision/` — everything a deployment needs, made by one
+  idempotent command: the config, the database, the bucket, the migrations, the
+  declarations, the GitHub App and the first deploy, and the ingest token in both
+  the Worker and the repository secret where `token` is declared. It runs only
+  when the operator runs it, never on a request
 - `tribunal-cloudflare/app/tribunal.ts`, `tribunal-cloudflare/app/env.ts`,
-  `tribunal-cloudflare/app/api/[[...path]]/route.ts`,
-  `tribunal-cloudflare/wrangler.jsonc` — the deployed console
+  `tribunal-cloudflare/app/routes.ts`, `tribunal-cloudflare/wrangler.jsonc` — the deployed console
 
 ## Diagram
 

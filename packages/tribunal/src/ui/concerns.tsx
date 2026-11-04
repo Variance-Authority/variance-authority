@@ -13,6 +13,7 @@ import type { Concern, ConcernState, ConcernTally, RaiseConcern } from '../conce
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { ConcernForm, named } from './concern-form.js';
+import { useReading } from './reading.js';
 import { messageOf } from './shell.js';
 import { when } from './text.js';
 
@@ -169,6 +170,8 @@ export function Concerns({
   const move = (concern: Concern, state: ConcernState): void =>
     void write(() => client.moveConcern(concern.id, { state, by: reviewer }));
 
+  const viewing = useReading();
+
   return (
     <div className="va-concerns" ref={card}>
       {failed === null ? null : <p className="va-failure">{failed}</p>}
@@ -189,7 +192,7 @@ export function Concerns({
           ))
         : null}
 
-      {writing ? (
+      {viewing ? null : writing ? (
         <ConcernForm
           subject={subject}
           build={build}
@@ -241,6 +244,7 @@ export function ConcernTrail({
   readonly busy: boolean;
   readonly onMove: (state: ConcernState) => void;
 }): ReactElement {
+  const viewing = useReading();
   return (
     <article className={`va-concern va-concern-${concern.state}`}>
       <header>
@@ -275,7 +279,7 @@ export function ConcernTrail({
       </ol>
       <p className="va-actions">
         {NEXT[concern.state].map(([state, label]) => (
-          <button key={state} type="button" disabled={busy} onClick={() => onMove(state)}>
+          <button key={state} type="button" disabled={busy} hidden={viewing} onClick={() => onMove(state)}>
             {label}
           </button>
         ))}
