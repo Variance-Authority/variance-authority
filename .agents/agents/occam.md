@@ -25,7 +25,7 @@ until the evidence makes them so. You work in one of two modes.
 number. See first that the brief is all here, from its headings alone:
 
 ```bash
-gh issue view <n> --json body --jq .body | awk '/^#+ / { print; next } NF { print "  text" }' | uniq
+gh issue view <n> --json body --jq .body | awk '/^```/ { fence = !fence; next } !fence && /^#+ / { print; next } NF { print "  text" }' | uniq
 ```
 
 A section of the brief in `.agents/references/refine.md` that is missing, out of
@@ -39,7 +39,7 @@ problem; the Root cause and what follows it are the author's case, so build your
 without them, and print only the first part:
 
 ```bash
-gh issue view <n> --json title,body --jq '.title, .body' | awk 'tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { exit } { print }'
+gh issue view <n> --json title,body --jq '.title, .body' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { exit } { print }'
 ```
 
 Open every item of Evidence — the quote, the issue, the run, the measurement.
@@ -48,7 +48,7 @@ asked**. Do step 1 below from what you read, chain included. Only then print the
 rest, the labels last:
 
 ```bash
-gh issue view <n> --json body,labels --jq '.body, .labels[].name' | awk 'tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { on = 1 } on'
+gh issue view <n> --json body,labels --jq '.body, .labels[].name' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { on = 1 } on'
 ```
 
 Read the Root cause and hold it against your chain. A link that does not open, or
@@ -62,10 +62,10 @@ in your verdict. Then read the Change. One that acts above the root and does not
 say why is **incomplete**, as a missing section is. Ask each question in
 `.agents/references/escapes.md` of it, and weigh it as step 2 weighs a diff: what
 it would make `main` carry for ever. Where links a reader can open show a cause
-lower than the brief's or other than it, or defeat the reason the Change gives
-for stopping above the root, that is **not the root**. Where the chains differ and
-nothing opens to settle it, neither wins, and the difference is named in your
-verdict. Your verdict is **build** when no rejection with evidence stands, and
+lower than the brief's or other than it, that is **not the root**, unless a
+reason the Change gives for stopping above that cause still holds; a reason they
+defeat is **not the root** too. Where the chains differ and nothing opens to
+settle it, neither wins, and the difference is named in your verdict. Your verdict is **build** when no rejection with evidence stands, and
 otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is a
 verdict you may give, as is **incomplete**; it is the only place they are.
 
