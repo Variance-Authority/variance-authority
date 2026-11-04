@@ -1,21 +1,22 @@
 ---
 name: variance-testing
-description: Write, fix, debug, improve and shorten tests with the record Variance Authority keeps. Use it when a test fails, flakes or passes when it should not, when you need the tests an edit reaches, when you write tests for a change or improve a file's coverage, or when a test loads or renders more than it needs. Not for visual review.
+description: Write, fix, debug, improve and shorten tests with the record Variance Authority keeps. Use it before you change code, to start from a failing test, when a test fails, flakes or passes when it should not, when you need the tests an edit reaches, when you write tests for a change or improve a file's coverage, or when a test loads or renders more than it needs. Not for visual review.
 ---
 
 # Testing with Variance Authority
 
 A wrapped runner records which case ran which region of which module, on every
-run. This skill is the order to ask that record in while you work on tests. The
-flags, the refusals and the edge cases are in the `variance-authority` skill
-beside this one; each step links the reference that owns it.
+run. This skill is the order to ask that record in while you change code and
+work on its tests. The flags, the refusals and the edge cases are in the
+`variance-authority` skill beside this one; each step links the reference that
+owns it.
 
 Check the project first: its runner config calls `withTestSelection`, and
 `variance covering --file <a source file>` answers rather than refusing as
 `unrecorded`. If the runner is not wrapped, nothing below has a record to read,
-and wiring it is product work, not part of fixing a test.
+and wiring it is product work, not part of the change.
 
-## Before you edit: which tests stand on the line
+## Before you edit: turn the nearest test red
 
 ```bash
 variance covering --file src/cart.ts --function removeItem --hops
@@ -23,10 +24,25 @@ variance covering --file src/cart.ts --line 40-60
 ```
 
 No run is needed: this reads what the last run recorded. `--hops` puts the
-nearest test files first. Once your edit is in the file, pass the edited text
-with `--text <file>` so the ranges follow it. A range marked `alone` has one
-case standing on it; `hole` is unknown, never untested.
+nearest test files first. A range marked `alone` has one case standing on it;
+`hole` is unknown, never untested.
 [covering](../variance-authority/references/covering.md)
+
+A behaviour no case covers is pinned as it is first, green on the old code, so
+the edit shows up as the test it turns red.
+
+A change of behaviour then starts in the nearest test file, before the code:
+
+1. Amend the case that states the behaviour you are changing, or add one beside
+   it.
+2. Run it and see it fail on the code as it is, on the assertion it is for. A
+   test that passes here pins nothing the change does.
+3. Edit the code until it passes.
+
+Code that does not exist yet has no record, and `covering` says so. Ask it about
+the code that will call the new code and write the failing test there, or in a
+new test file beside the new one. A refactor changes no assertion: the tests
+`covering` named stay green.
 
 ## After each edit: run what it reached, nearest first
 
@@ -37,8 +53,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 
 Read the first stderr line: `selected N of M`, or `declined:` with the reason
 every file ran. Run both legs before you call the edit verified. Use the
-repository's own script when it has one.
-[test selection](../variance-authority/references/test-selection.md)
+repository's own script when it has one. To ask `covering` again once the edit
+is in the file, pass the edited text with `--text <file>` so the ranges follow
+it. [test selection](../variance-authority/references/test-selection.md)
 
 ## A test fails: find where it went
 
@@ -90,7 +107,9 @@ Playwright and Vitest and Rstest browser mode: record a Playwright test with
 what a page holds while it runs, see
 [live run](../variance-authority/references/live-run.md).
 
-## Write tests for a change
+## After the change: what it left unpinned
+
+The red test pins what the change is for. This reads what it did not reach:
 
 ```bash
 variance covering --since main
@@ -105,9 +124,6 @@ each region the change needs pinned, then check that it lands:
 2. Break the line it is for, run the cases `covering` names for that line, and
    see one fail. A test that passes on a broken line pins nothing. Restore the
    line.
-
-A test that pins changed behaviour fails on the code as it was, before the code
-changes.
 
 ## Improve a file's coverage
 

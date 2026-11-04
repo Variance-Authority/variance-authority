@@ -6,7 +6,7 @@ exits only on its own gate:
 | Loop | Runs | Exits when |
 |---|---|---|
 | Idea | brief → `occam` idea review → cut | the issue carries `idea: build`, or is closed |
-| Build | edit → `yarn test:loop` | the loop is green |
+| Build | `covering` → a red test, when behaviour changes → edit → `yarn test:loop` | the loop is green, and the red test with it |
 | Verify | `verify:near` → `verify:rules` | both stamped green on the pushed tree |
 | Review | four reviewers → fix | nothing blocks, or each finding left is set aside and named |
 | Outer | CI and CodeRabbit → correct | every check but `site` is green |
@@ -85,7 +85,9 @@ question `variance` could not answer, and that miss is a defect in `variance`:
 name it in your report.
 
 A subagent you dispatch works from its prompt. Put this rule in the prompt of
-every subagent you send to search code.
+every subagent you send to search code, and the order in
+[change](.agents/references/change.md) in the prompt of every subagent you send
+to change it: most edits are made there.
 
 ## 1. Refine the task — [refine](.agents/references/refine.md)
 
@@ -129,20 +131,23 @@ Look around:
   decided before you read why it does.
 - Whose answer you need — git, the manifest, the parser, or the recording — and
   whether a stage upstream of your change already computed it.
-- The tests that stand on those files: `yarn variance covering --file <path>`.
+- The tests that stand on that code, nearest first: `yarn variance covering
+  --file <path> --function <name> --hops`, or `--line <a>-<b>` for what is not a
+  function.
 - What landed on `origin/main` since your branch point.
 
-Leave with the files to change, the owner of every answer the change needs, and
-the tests that will judge it.
+Leave with the files to change, the owner of every answer the change needs, the
+test you will turn red first, and the tests that will judge it.
 
 ### 3. Change — [change](.agents/references/change.md)
 
 Look around:
 
-- The tests that stand on the code, from `yarn variance covering --file
-  <path>`. A test is amended or added first, and fails on the code as it is,
-  before the code changes. Behaviour nothing covers is pinned green first, in
-  addition to that test, not instead of it.
+- The tests that stand on the code, from `yarn variance covering --file <path>
+  --function <name> --hops`, or `--line <a>-<b>`. A change of behaviour amends
+  or adds a test first, and it fails on the code as it is, before the code
+  changes. Behaviour nothing covers is pinned green first, in addition to that
+  test, not instead of it.
 - Whether it changes how a record is carried, indexed by case, or read by a
   selection or a comparison. If it does, the PR names the contract clause it
   keeps and the carry journey that exercises it, and quotes the regression test

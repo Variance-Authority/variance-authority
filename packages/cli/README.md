@@ -268,8 +268,8 @@ agent, a container with no editor in it, somebody else's harness: all of them
 have a shell, and many of them cannot add a server. The skill this package ships
 at `skills/variance-authority/SKILL.md` routes an agent through these questions in order;
 the one at `skills/variance-testing/SKILL.md` is the order to ask them in while
-it writes, fixes or debugs a test. Link both into your agent's skills directory
-rather than copying them; `variance doctor` prints whether an agent can find
+it changes code, or writes, fixes or debugs a test. Link both into your agent's
+skills directory rather than copying them; `variance doctor` prints whether an agent can find
 each and prints the link when it cannot.
 
 Every answer exits `0`, including one that describes changes. `ask` reads; it

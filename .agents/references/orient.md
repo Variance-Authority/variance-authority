@@ -19,7 +19,8 @@ semantic change, implementation remapping, or implementation violation.
 entered the code you are about to change, and how far each is from it:
 
 ```bash
-yarn variance covering --file <path> [--function <name>] [--hops]
+yarn variance covering --file <path> --function <name> --hops
+yarn variance covering --file <path> --line <a>-<b> --hops
 ```
 
 After the edit, `yarn variance select --suite <slice>` answers the same

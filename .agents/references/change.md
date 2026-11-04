@@ -6,20 +6,25 @@ where each kind of writing goes.
 ## Look around
 
 **Which tests stand on it?** Before an edit, `yarn variance covering --file
-<path>` names the tests that entered the code, and the change starts there:
+<path> --function <name> --hops` names the tests that entered the code, nearest
+first; `--line <a>-<b>` asks the same of what is not a function. Every change
+that alters behaviour starts there, before any other writing.
 
-1. Amend the test that pins the behaviour being changed, or add one beside it,
-   so that it states the behaviour the change is for.
+A behaviour nothing covers is pinned as it is first: one test per edge case,
+green on the old code, so the change shows up as the tests it turns red. Then:
+
+1. Amend the test that pins the behaviour being changed, or add one beside it
+   in the nearest file, so that it states the behaviour the change is for.
 2. Run it and watch it fail on the code as it is. A test that passes before the
    change pins nothing the change does.
 3. Change the code until it passes, and the tests `covering` named still pass.
 
-A behaviour nothing covers is pinned as it is before it is changed: one test per
-edge case, green on the old code, so the change shows up as the tests it turns
-red, and the test the change is for is still written to fail first. `covering`
-answers from the last recording, so for a file it has never seen, put the edit
-in the tree and read `yarn variance select --suite <slice>`: it selects from the
-diff, and says nothing about a file that has not changed.
+`covering` answers from the last recording, so code it has never seen starts
+from a failing test too: ask about the code that will call it and write the test
+there, or in a new test file beside it. Once the edit is in the tree, `yarn
+variance select --suite <slice>` selects from the diff, and says nothing about a
+file that has not changed. A `refactor` or `perf` change moves no assertion: the
+tests `covering` named stay green on both sides.
 
 **Does existing code already answer it?** Before writing, ask `yarn variance
 ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
