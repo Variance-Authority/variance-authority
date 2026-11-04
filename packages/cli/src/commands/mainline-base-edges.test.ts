@@ -138,6 +138,23 @@ describe('a line that gave no record a moment ago', () => {
     expect(await base(NOW + MISS_STANDS_MS)).toMatchObject({ commit: first, fetched: at(NOW + MISS_STANDS_MS) });
   });
 
+  it('reads the record fetched here, and says why, when nothing names a mainline any more', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    // The configuration names no mainline, so `origin/HEAD` is all that names one, and deleting it leaves nothing.
+    await writeFile(join(ci, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: { kind: 'git' } }));
+    await git(ci, 'commit', '--quiet', '--all', '-m', 'the line is the remote\'s');
+    await git(ci, 'push', '--quiet', 'origin', 'main');
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, mainline: 'main', fetched: at(NOW) });
+    await git(dir, 'remote', 'set-head', 'origin', '--delete');
+
+    const kept = { commit: first, mainline: 'main', fetched: at(NOW) };
+    expect(await base(NOW + 1)).toMatchObject({ ...kept, earlier: { unanswered: { kind: 'unconfigured' } } });
+    const declared = declaredSuites(dir)?.find((one) => one.name === 'unit');
+    expect(await mainlineBase(dir, declared, { env: LOCAL, fetch: 'never' })).toMatchObject({ ...kept, earlier: { reused: 'offline' } });
+    expect(await suiteBase(dir, { suite: 'unit', env: LOCAL })).toMatchObject({ from: 'mainline', mainline: kept });
+  });
+
   it('is not asked again when a record was fetched earlier, and that record stands with the note\'s miss', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const { dir, base, reach, nowhere } = await laptop(origin);

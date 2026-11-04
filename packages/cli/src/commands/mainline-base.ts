@@ -159,11 +159,12 @@ export async function mainlineBase(
   const chosen = await readerMainline(place, env, root);
   const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
-  // A record fetched for another mainline answers nothing about this one, so it is no record here.
-  const held = last?.mainline === named?.name ? last : undefined;
+  // A record fetched for another mainline answers nothing about this one, so it is no record here. With no
+  // mainline named nothing says it is another's, and it stands, though only a named one is reused unasked.
+  const held = named === undefined || last?.mainline === named.name ? last : undefined;
   if (here.fetch !== 'always') {
     const mainline = named?.name;
-    if (held !== undefined) {
+    if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
       const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base);
       if (reused !== undefined) return earlier(held, { reused }, distance);
