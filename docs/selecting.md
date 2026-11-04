@@ -13,6 +13,8 @@ Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Every
 doubt but one widens the run, and the report explains each. A suite you do not yet
 trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
+Its `mode` sets [how much its record stores](#record-as-finely-as-you-select),
+and you can [change it at any time](#changing-mode).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
@@ -345,7 +347,9 @@ A suite declares its step in the configuration:
 ```
 
 Each step runs a test on its own evidence, answers fully from a record at
-least as fine as that evidence, and rests on its own assumption:
+least as fine as that evidence, and rests on its own assumption. How fine a
+record is comes from its `mode`, [an option of the
+runner](#record-as-finely-as-you-select):
 
 | `precision` | A test runs when | The `mode` to record | What it assumes |
 |---|---|---|---|
@@ -444,29 +448,56 @@ apply to it. Each option and its edges are in
 
 ### Changing `mode`
 
-Each `mode` records under its own probes, and a run can add only to a record
-made under the probes it places. So a change of `mode` ends the record you have,
-and what the next run does depends on where that record came from:
+Change the option and keep working. Your next run writes a new record in place
+of the old one, and you publish nothing first. The one exception is a record at
+a path you gave
+[`coverageFile`](../packages/sense/README.md#options-on-the-vitest-seam), the
+option that keeps a record outside the cache: delete that file first, or the run
+fails.
 
-| The record | The next run |
+A run can add only to a record made under its own recipe. Each `mode` has its
+own, and a record names the one it was made under, such as
+`sense:instrument/loads-v1`. A run's messages call the recipe "the probes", also
+for `loads`, which places no probe. So the old record cannot take the new run's
+results, but it still chooses the tests of your first selected run. What happens
+to it depends on where it came from:
+
+| The old record | Your first selected run under the new `mode` |
 |---|---|
-| in [your cache](cache.md), where it lives unless you name a path, and where CI restores it | replaces it, and prints one line naming the file and both probes |
-| at the path you gave [`coverageFile`](../packages/sense/README.md#options-on-the-vitest-seam), the option that keeps a record outside the cache | runs its tests, then fails with an error naming the file and both probes, and leaves the file as it was. Delete the file, or set `coverageFile` to a path with no file at it. If you never set the option, this row is not yours |
-| published by your mainline to a [share](sharing.md) | selects from it as before: the count of commits decides whether it is usable, and `mode` does not enter. It cannot add to that record, so it writes a new one and says so in one line |
-| carried from [a pull request's last push](#a-pull-requests-next-push) | is not laid over it. `variance carry take` either leaves that record and names it, so the push reads the mainline's, or takes it, and the run replaces it as in your cache |
+| in [your cache](cache.md), where it lives unless you name a path, and where CI restores it | chooses its tests from it, then replaces it and prints one line naming the file and both recipes. Your later runs read the new record |
+| published by your mainline to a [share](sharing.md), with no record of yours in the cache | chooses its tests from it, because the count of commits decides whether it is usable and `mode` does not. It then writes a new record in your cache and says so in one line. Your later runs read that one, and the share's record does not change |
+| carried from [a pull request's last push](#a-pull-requests-next-push) | depends on the recipe. `variance carry take` does not read `mode`, and it compares the record with the recipe of `presence`. It takes a record made under `presence`, and the run replaces it as in your cache. It leaves a record made under any other `mode` and names it in one line, and the push reads the mainline's record, as in the rows above |
 
-You publish nothing first. Change `mode` on a branch, and the mainline's record
-keeps answering at its own step until a push to the mainline publishes one under
-the new `mode`.
+**A record at a `coverageFile` path is yours, so no run replaces it.** The run
+under the new `mode` runs its tests and prints their results, then exits with an
+error naming the file and both recipes. CI reports a failed job, nothing the run
+recorded is kept, and the file stays as it was. Delete the file, or set
+`coverageFile` to a path with no file at it, and run again. That run writes what
+it ran as the whole record. Selection reads your cache or a share and never this
+file, so the change does not alter which tests run. Leave
+[`VARIANCE_AUTHORITY_SINCE`](test-an-edit.md) unset on that run, and the file
+lists the whole suite.
 
-The first run after the change is not a whole run unless you ask for one. It is
-selected from the old record as usual, and the record it writes holds only the
-tests that ran. As on [the first run](#the-first-run), a test file the record
-has never seen cannot be ruled out, so your next selected run takes the rest, and
-selection is back to normal after that. A run of the whole suite pays that pass
-at once. [After an upgrade](cache.md#after-an-upgrade) says what happens to
-the earlier cases and what your main branch saves, and a change of `mode` goes
-the same way.
+**The new record is complete after two selected runs, or after one whole run.**
+Your first selected run runs what the old record selects, and the new record
+lists only those tests. A test file a record does not list always runs, so your
+next selected run runs every test file the first one skipped. Selection is back
+to normal after it. To pay for that pass at once, run the suite with
+`VARIANCE_AUTHORITY_SINCE` unset: every file runs, and your next selected run is
+small. The total is about the same, so do this when you want the next selected
+run to be small. In CI, a pull request saves nothing, so each of its pushes
+selects from the record it restored until your mainline saves a new one.
+
+**Your mainline gets a new record after the change merges.** With a share, a
+mainline takes only
+[a record of the whole suite](sharing.md#a-suite-with-no-run-report). A push
+that ran a selection publishes nothing and the line keeps the record it had, so
+the first push that runs the whole suite publishes under the new `mode`. Without
+a share, the first run on your main branch saves what it ran to the CI cache.
+When that run was selected, a pull request that restores the record runs the
+rest as well, and the next run on your main branch completes it. The earlier
+cases go with the old record, as [after an upgrade](cache.md#after-an-upgrade)
+says.
 
 ### A record needs a module graph per test file
 
