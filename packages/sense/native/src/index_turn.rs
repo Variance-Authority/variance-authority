@@ -1,10 +1,10 @@
-//! One source index's heavy work at a time on a machine.
+//! One source index's heavy work at a time in a repository.
 //!
 //! An update and its follow-ups each spread over every core, so two of them at
 //! once — two checkouts, or a worktree beside its primary — do not finish
 //! twice as late but later still, each starving the other of the cache and the
 //! memory bandwidth it was sized for. So the work takes a turn: an exclusive
-//! lock on one file every index on the machine names, which the kernel lets go
+//! lock on one file every index of the repository names, which the kernel lets go
 //! when its process ends however it ends, so a crashed holder never strands
 //! the next one. `index-turn.ts` waits for it, and says whom it waits on.
 

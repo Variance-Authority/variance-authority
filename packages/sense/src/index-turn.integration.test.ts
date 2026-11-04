@@ -1,30 +1,39 @@
-import { spawn } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, statSync, symlinkSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
+import { afterEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
+import { repositoryLayers } from './test-selection/cache-layers.js';
 
-// Each test starts in a temporary directory of its own, which the suite's setup
-// (`tools/temporary-per-test.ts`) makes, so the only turn a test here waits on
-// is the one it took. The last test still moves to another one partway through:
-// it has spoiled the turn's directory with a mode of 0o777, and needs a fresh
-// temporary directory to plant a link where the turn's directory would be.
-// `tmpdir()` reads TMPDIR on POSIX and TEMP, then TMP, on Windows.
-const TEMPORARY = ['TMPDIR', 'TEMP', 'TMP'] as const;
-
-function temporaryAt(directory: string): void {
-  for (const name of TEMPORARY) process.env[name] = directory;
-}
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 
+/** A repository with one commit, in the spelling a process sees: the temporary directory is a symlink on macOS. */
+function repository(): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
+  execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root });
+  execFileSync('git', ['-c', 'user.email=fixture@example.test', '-c', 'user.name=Fixture', 'commit', '--quiet', '--allow-empty', '-m', 'the checkout'], { cwd: root });
+  return root;
+}
+
+/** A worktree of `primary`, beside it. */
+function worktreeOf(primary: string): string {
+  const worktree = `${primary}-worktree`;
+  execFileSync('git', ['worktree', 'add', '--quiet', '-b', 'beside', worktree], { cwd: primary });
+  return worktree;
+}
+
 describe('the index turn', () => {
-  it('holds another checkout\'s index until the process holding the turn lets go, naming that process and its checkout', async () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it('holds a worktree\'s index until the process holding its primary checkout\'s turn lets go, naming that process and its checkout', async () => {
+    const primary = repository();
+    const worktree = worktreeOf(primary);
     // The holder says so from inside its turn, and lets go on the first line it reads.
     const holder = spawn(process.execPath, ['--input-type=module', '-e', [
       "const { inIndexTurn } = await import('@variance-authority/sense');",
-      "await inIndexTurn('/elsewhere', () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));",
+      `await inIndexTurn(${JSON.stringify(primary)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));`,
     ].join('\n')], { cwd: PACKAGE, env: process.env });
     let stderr = '';
     holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
@@ -42,7 +51,7 @@ describe('the index turn', () => {
     const unheard = setTimeout(release, 2_000);
     onTestFinished(() => { clearTimeout(unheard); });
 
-    const ran = inIndexTurn('/here', async () => order.push('here'), (held) => {
+    const ran = inIndexTurn(worktree, async () => order.push('here'), (held) => {
       told.push(held);
       order.push('told');
       // Hold on for eight of the 25 ms pauses between tries, so a holder named
@@ -54,32 +63,50 @@ describe('the index turn', () => {
     });
 
     await ran;
-    expect(told).toEqual([{ pid: holder.pid, root: '/elsewhere' }]);
+    expect(told).toEqual([{ pid: holder.pid, root: primary }]);
     expect(order).toEqual(['told', 'here']);
   });
 
   it('is taken again once the work that held it is done, and let go when that work throws', async () => {
-    await expect(inIndexTurn('/here', () => Promise.reject(new Error('refused')))).rejects.toThrow('refused');
+    const root = repository();
+    await expect(inIndexTurn(root, () => Promise.reject(new Error('refused')))).rejects.toThrow('refused');
     const told: IndexTurnHolder[] = [];
-    expect(await inIndexTurn('/here', async () => 'ran', (held) => told.push(held))).toBe('ran');
+    expect(await inIndexTurn(root, async () => 'ran', (held) => told.push(held))).toBe('ran');
     expect(told).toEqual([]);
   });
 
-  // Windows has no owner, group and other bits, and a link needs a privilege there.
-  it.skipIf(process.platform === 'win32')('keeps its directory to this user, and refuses one that is a link or others may write in rather than open the lock through it', async () => {
-    expect(await inIndexTurn('/here', async () => 'ran')).toBe('ran');
-    const directory = dirname(indexTurnPath());
-    expect(statSync(directory).mode & 0o777).toBe(0o700);
+  it('is one file beside the worktrees\' layers in the repository\'s cache, whichever of its checkouts asks and from wherever inside one', () => {
+    const primary = repository();
+    const worktree = worktreeOf(primary);
+    const inside = join(worktree, 'packages');
+    mkdirSync(inside);
 
-    let ran = false;
-    chmodSync(directory, 0o777);
-    await expect(inIndexTurn('/here', async () => { ran = true; })).rejects.toThrow('alone may write in');
+    const path = join(repositoryLayers(primary).base, '.work', 'index-turn');
+    expect([indexTurnPath(primary), indexTurnPath(worktree), indexTurnPath(inside)]).toEqual([path, path, path]);
+  });
 
-    temporaryAt(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
-    const elsewhere = join(tmpdir(), 'elsewhere');
-    mkdirSync(elsewhere);
-    symlinkSync(elsewhere, dirname(indexTurnPath()));
-    await expect(inIndexTurn('/here', async () => { ran = true; })).rejects.toThrow('is not a directory this user owns');
-    expect(ran).toBe(false);
+  it('leaves another repository\'s index to run, even in one cache', async () => {
+    const [one, other] = [repository(), repository()];
+    expect(indexTurnPath(one)).not.toBe(indexTurnPath(other));
+    expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran'))).toBe('ran');
+  });
+
+  it('writes nothing in the temporary directory, which everybody on the machine shares', async () => {
+    const root = repository();
+    const temporary = mkdtempSync(join(tmpdir(), 'va-index-turn-machine-'));
+    vi.stubEnv('TMPDIR', temporary);
+
+    await inIndexTurn(root, async () => 'ran');
+    expect(readdirSync(temporary)).toEqual([]);
+  });
+
+  it('runs the work without the turn when the file system refuses it, and says so: the turn buys speed, and the work does not need it', async () => {
+    const root = repository();
+    const path = indexTurnPath(root);
+    mkdirSync(path, { recursive: true });
+    const refused: [string, string][] = [];
+
+    expect(await inIndexTurn(root, async () => 'ran', () => {}, (at, reason) => refused.push([at, reason]))).toBe('ran');
+    expect(refused).toEqual([[path, expect.any(String)]]);
   });
 });

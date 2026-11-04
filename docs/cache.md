@@ -94,6 +94,7 @@ over it, so a repository that names its cache keeps one answer for everyone.
                                  on, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
+    .work/index-turn             the lock that gives this repository's checkouts one index at a time
   renders/                       the images a run took, reused while they match
   suite/<project>/<commit>.bin   every run's suite index, by the commit it names
   share/<digest>.git             a git share's own repository, one per remote URL

@@ -1,10 +1,10 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
-import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
+import { indexTurnPath, prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import { main } from '../bin.fixture.js';
@@ -25,8 +25,7 @@ const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 const PACKAGE = fileURLToPath(new URL('../..', import.meta.url));
 
-// The machine's index turn sits in the temporary directory, which the suite's
-// setup (`tools/temporary-per-test.ts`) gives each test of its own.
+// A repository's index turn sits in its cache, so a test's own cache is its own turn.
 beforeEach(() => {
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-index-cache-')));
 });
@@ -126,12 +125,14 @@ describe('variance index', () => {
       .toBe(`source index updated: 2 files, 1 read again, at ${at}\n${unprepared(root)}`);
   });
 
-  it("waits while another checkout's index holds the machine's index turn, and names that process and its checkout once", async () => {
+  it("waits while another checkout's index holds the repository's index turn, and names that process and its checkout once", async () => {
     const root = checkout();
+    const elsewhere = `${root}-beside`;
+    execFileSync('git', ['worktree', 'add', '--quiet', '-b', 'beside', elsewhere], { cwd: root, stdio: 'pipe' });
     // The holder says so from inside its turn, and lets go on the first line it reads.
     const holder = spawn(process.execPath, ['--input-type=module', '-e', [
       "const { inIndexTurn } = await import('@variance-authority/sense');",
-      "await inIndexTurn('/elsewhere', () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));",
+      `await inIndexTurn(${JSON.stringify(elsewhere)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));`,
     ].join('\n')], { cwd: PACKAGE, env: process.env });
     let stderr = '';
     holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
@@ -158,8 +159,37 @@ describe('variance index', () => {
       }
     } });
 
-    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing /elsewhere: one index at a time uses this machine's cores\n`]);
+    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing ${elsewhere}: an index uses every core, so this repository's checkouts take turns\n`]);
     expect(output).toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
+  });
+
+  // Windows has no owner, group and other bits.
+  it.skipIf(process.platform === 'win32')('indexes on a machine whose temporary directory holds a turn directory others may write in, and leaves that directory as it found it', async () => {
+    const root = checkout();
+    // A temporary directory of the test's own: the machine's is not this test's to change.
+    const temporary = mkdtempSync(join(tmpdir(), 'va-index-machine-'));
+    vi.stubEnv('TMPDIR', temporary);
+    const left = join(temporary, `variance-authority-${process.getuid?.()}`);
+    mkdirSync(left);
+    chmodSync(left, 0o777);
+
+    expect(await indexOutput({ cwd: root }))
+      .toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
+    expect(statSync(left).mode & 0o777).toBe(0o777);
+    expect(readdirSync(left)).toEqual([]);
+  });
+
+  it('indexes without the turn when the file system refuses it, and says so', async () => {
+    const root = checkout();
+    const path = indexTurnPath(root);
+    mkdirSync(path, { recursive: true });
+    const told: string[] = [];
+
+    expect(await indexOutput({ cwd: root, waiting: (text) => told.push(text) }))
+      .toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
+    // The update and the follow-ups each ask for the turn.
+    const refused = expect.stringMatching(new RegExp(`^no index turn at ${escaped(path)} \\(EISDIR\\), so this index may run beside another of this repository\\n$`, 'u'));
+    expect(told).toEqual([refused, refused]);
   });
 
   it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {

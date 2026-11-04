@@ -7,22 +7,15 @@ import { afterAll, beforeEach, type RunnerTask } from 'vitest';
  * Every test gets a temporary directory of its own, set through the variables
  * `tmpdir()` already reads: TMPDIR on POSIX, and TEMP, then TMP, on Windows.
  *
- * The temporary directory is shared by every process this user runs, and the
- * product keeps one thing there on purpose: `variance index` takes the
- * machine's index turn at a fixed path under it
- * (`packages/sense/src/index-turn.ts`), so that two checkouts do not index at
- * once. With the machine's directory, a test that indexes waits whenever
- * another test file, or the developer's own `variance index`, holds that turn,
- * and the recording credits the test with the waiting path. Which test waited
- * was decided by scheduling, so the recording, and every selection read from
- * it, was decided by scheduling too.
+ * The temporary directory is shared by every process this user runs, so what
+ * one test leaves in it another reads, and what the recording credits a test
+ * with is decided by scheduling.
  *
  * So the file gets a directory of its own when this loads, and each test gets
  * one inside it before it runs. The module's top level and a `beforeAll` at the
  * top of the file write in the file's directory. A `beforeAll` inside a
  * `describe` that comes after a test writes in that test's directory, which is
- * still inside the file's. A process a test starts inherits the directory. The
- * only turn a test waits on is one it took on purpose.
+ * still inside the file's. A process a test starts inherits the directory.
  *
  * When the file ends, the variables are put back. That matters only in a run
  * without isolation (`--no-isolate`), where the same worker runs the next file,
@@ -46,10 +39,6 @@ function failed(task: RunnerTask): boolean {
 const file = mkdtempSync(join(tmpdir(), 'va-test-'));
 temporaryAt(file);
 
-// TODO: a test that starts a process with an environment built from scratch,
-// without TMPDIR, TEMP and TMP, gives it the machine's temporary directory and
-// the machine's index turn, and nothing refuses that — needs a check over the
-// `env` every spawn in a test file is given.
 beforeEach(() => {
   temporaryAt(mkdtempSync(join(file, 'case-')));
 });

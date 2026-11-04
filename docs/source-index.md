@@ -93,17 +93,25 @@ lines. `variance index
 step's log is where its lines are read, and nothing may outlive the step that
 saves the cache.
 
-One index works at a time on a machine. The update and the follow-ups each use
-every core, so two checkouts indexing at once would each take longer than they
-do one after the other. The second waits for the first and prints that on
-stderr:
+One index works at a time in a repository. The update and the follow-ups each
+use every core, so two of its checkouts indexing at once would each take longer
+than they do one after the other. The second waits for the first and prints that
+on stderr:
 
 ```text
-waiting for process 48213, which is indexing /home/you/other-checkout: one index at a time uses this machine's cores
+waiting for process 48213, which is indexing /home/you/other-checkout: an index uses every core, so this repository's checkouts take turns
 ```
 
 The turn is a lock the operating system holds for the process, so a process
-that crashes lets it go.
+that crashes lets it go. It is a file in the repository's
+[cache](cache.md), shared by every checkout and never in the temporary directory.
+Two repositories index at once: that is slower, not wrong. For the same reason
+a file system that refuses the lock does not stop the index. It runs and prints
+why:
+
+```text
+no index turn at <path> (EACCES), so this index may run beside another of this repository
+```
 
 When the file system refuses the index itself, the command prints
 `source index not written: <reason>, at <path>` and exits `2`. Every reader of

@@ -28,7 +28,7 @@
  * A worktree reads both layers and writes only its own. That is the whole of the
  * safety argument and it is the same argument as before: the base is read-only
  * to everyone who is not the primary checkout, so no two writers ever address
- * one byte. Nothing was given up to gain the sharing.
+ * one byte. The one exception records nothing: the lock in `index-turn.ts`.
  *
  * `.work` is dotted for the reason a run's scratch segments are
  * `.run-<pid>-<uuid>`: nothing a caller names begins with a dot.

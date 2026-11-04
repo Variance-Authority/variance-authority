@@ -61,7 +61,7 @@ export interface IndexRequest {
    * `--wait`.
    */
   readonly detach?: Detach;
-  /** Told once when another `index` holds the follow-ups, or another checkout's the machine's index turn, and this one waits for it. */
+  /** Told when another `index` holds the follow-ups or another checkout the repository's index turn, once for each wait, and at each turn the file system refuses. */
   readonly waiting?: (text: string) => void;
   /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
   readonly progress?: Progress;
@@ -109,17 +109,22 @@ async function written(request: IndexRequest): Promise<SourceUpdate> {
 }
 
 /**
- * `work` in the machine's index turn: an update and its follow-ups each use
+ * `work` in the repository's index turn: an update and its follow-ups each use
  * every core, so another checkout's index waits for this one rather than
  * starving it. The turn is let go between the update and the follow-ups, so a
  * short update elsewhere is not queued behind a long map here.
  */
 function turn<T>(request: IndexRequest, work: () => Promise<T>): Promise<T> {
-  return inIndexTurn(request.cwd, work, (holder) => request.waiting?.(turnLine(holder)));
+  return inIndexTurn(
+    request.cwd,
+    work,
+    (holder) => request.waiting?.(turnLine(holder)),
+    (path, reason) => request.waiting?.(`no index turn at ${path} (${reason}), so this index may run beside another of this repository\n`),
+  );
 }
 
 function turnLine({ pid, root }: IndexTurnHolder): string {
-  return `waiting for process ${pid}, which is indexing ${root}: one index at a time uses this machine's cores\n`;
+  return `waiting for process ${pid}, which is indexing ${root}: an index uses every core, so this repository's checkouts take turns\n`;
 }
 
 /**
