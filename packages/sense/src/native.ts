@@ -33,7 +33,7 @@ import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
-export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal, refusalAt } from './addon.js';
+export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
   NativeJourneyGraph,
   NativeJourneySelection,
@@ -162,8 +162,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
   /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
   seedSourceIndex(path: string, from: string): boolean;
-  /** The index turn at `path`, `holder` written beside it; `null` while another process holds it. Once `waited`, a file gone is a refusal (`native/src/index_turn.rs`). */
-  takeIndexTurn(path: string, holder: string, waited: boolean): { release(): void } | null;
+  /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
+  takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;

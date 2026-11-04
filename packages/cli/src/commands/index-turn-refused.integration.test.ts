@@ -55,7 +55,7 @@ describe('variance index, when the turn is refused', () => {
     chmodSync(dirname(path), 0o555);
     onTestFinished(() => { chmodSync(dirname(path), 0o755); });
 
-    expectIndexedAlone(indexed(root), path, `${path}.holder: Permission denied (os error 13)`);
+    expectIndexedAlone(indexed(root), path, 'writing its .holder: Permission denied (os error 13)');
   });
 
   it('indexes alone when a directory stands where the holder is named', () => {
@@ -63,7 +63,7 @@ describe('variance index, when the turn is refused', () => {
     const path = indexTurnPath(root);
     mkdirSync(`${path}.holder`, { recursive: true });
 
-    expectIndexedAlone(indexed(root), path, `${path}.holder: Is a directory (os error 21)`);
+    expectIndexedAlone(indexed(root), path, 'writing its .holder: Is a directory (os error 21)');
   });
 });
 

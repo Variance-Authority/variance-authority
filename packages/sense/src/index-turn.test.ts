@@ -8,15 +8,9 @@ import type { NativeScanner } from './native.js';
 
 vi.mock('./addon.js', async (actual) => ({ ...await actual<typeof import('./addon.js')>(), native: vi.fn(), nativeRefusal: vi.fn() }));
 
-/** The addon, answering each take from `answers` in turn: a turn, `null` while held, or what it throws. */
-function addon(...answers: readonly (Error | null)[]): void {
-  const takeIndexTurn = vi.fn();
-  for (const answer of answers) {
-    takeIndexTurn.mockImplementationOnce(() => {
-      if (answer !== null) throw answer;
-      return null;
-    });
-  }
+/** The addon, throwing `failure` from a take. */
+function addon(failure: Error): void {
+  const takeIndexTurn = vi.fn(() => { throw failure; });
   vi.mocked(native).mockReturnValue({ takeIndexTurn } as unknown as NativeScanner);
 }
 
@@ -34,13 +28,6 @@ describe('what the addon answers for the turn', () => {
 
     expect(await taken()).toBe('ran');
     expect(refused).toEqual([`${path} No locks available (os error 77)`]);
-  });
-
-  it('takes a refusal on a later try as it takes one on the first', async () => {
-    addon(null, new Error(`${path}: No such file or directory (os error 2)`));
-
-    expect(await taken()).toBe('ran');
-    expect(refused).toEqual([`${path} No such file or directory (os error 2)`]);
   });
 
   it('never reports a panic as a refusal: it names no path, and the work does not run on it', async () => {

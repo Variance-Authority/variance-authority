@@ -218,9 +218,10 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 ```
 
 A git worktree keeps its own index under
-`test-selection/<primary digest>/.work/<digest>/`, beneath the checkout it was
-cut from. Its first `variance index` starts from a copy of that checkout's
-index and reads only the files that differ between the two.
+`test-selection/<primary digest>/.work/<digest>/` in its own cache, where
+`<primary digest>` names the checkout it was cut from. Its first `variance
+index` starts from a copy of that checkout's index and reads only the files that
+differ between the two.
 `sourceIndexPath(root)` returns the path for a checkout. Cache the whole
 `<cache>` directory and you do not need to compute either.
 

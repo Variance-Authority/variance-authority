@@ -385,7 +385,9 @@ tree:
 
 `<cache>` is [your cache](cache.md), and
 `<repository-digest>` is a digest of the checkout's absolute path, so two
-checkouts never write one another's bytes. At the default location `git status`
+checkouts never write one another's records. The only files both write are the
+lock that lets [one checkout index at a time](source-index.md) and the file that
+names its holder. At the default location `git status`
 never sees it and it can never land in a pull request. Nothing in a head or a page writes a file; the
 driver merges into this one snapshot at teardown. [The execution
 record](execution-record.md) gives the reader to import and the cost of a

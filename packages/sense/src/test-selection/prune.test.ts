@@ -46,7 +46,7 @@ function owners(answers: Partial<PruneOwners> = {}): PruneOwners {
 }
 
 describe('planPrune', () => {
-  test('the index turn and its holder beside the layers are left however old they are: they are a lock, not a layer', async () => {
+  test('in a repository whose marked checkout is there, the index turn and its holder are left however old they are: they are a lock, not a layer', async () => {
     const root = await cache();
     const repository = join(root, 'test-selection', 'project');
     await marker(repository, '/checkout', '/checkout', 90 * DAY);

@@ -34,20 +34,16 @@ impl IndexTurn {
 /// The turn at `path` when no process holds it, with `holder` written beside
 /// it at `<path>.holder` for a process that waits to name; `None` while
 /// another holds it. The holder is a file of its own because a locked range
-/// cannot be read on every platform. Only the first try makes the file: once
-/// `waited`, a file gone is a refusal, or a waiter would lock a new one beside
-/// the holder's and run beside it unsaid. A refusal opens `<path>: `, which is
-/// how `index-turn.ts` tells it from a panic.
+/// cannot be read on every platform. A refusal opens `<path>: `, which is how
+/// `index-turn.ts` tells it from a panic.
 #[napi(catch_unwind)]
-pub fn take_index_turn(path: String, holder: String, waited: bool) -> napi::Result<Option<IndexTurn>> {
+pub fn take_index_turn(path: String, holder: String) -> napi::Result<Option<IndexTurn>> {
     let fail = |error: std::io::Error| napi::Error::from_reason(format!("{path}: {error}"));
-    let unnamed = |error: std::io::Error| napi::Error::from_reason(format!("{path}: {path}.holder: {error}"));
-    if !waited {
-        if let Some(parent) = Path::new(&path).parent() {
-            fs::create_dir_all(parent).map_err(fail)?;
-        }
+    let unnamed = |error: std::io::Error| napi::Error::from_reason(format!("{path}: writing its .holder: {error}"));
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent).map_err(fail)?;
     }
-    let lock = File::options().create(!waited).truncate(false).write(true).open(&path).map_err(fail)?;
+    let lock = File::options().create(true).truncate(false).write(true).open(&path).map_err(fail)?;
     match lock.try_lock() {
         Ok(()) => {}
         Err(TryLockError::WouldBlock) => return Ok(None),

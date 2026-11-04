@@ -28,17 +28,17 @@ export interface IndexTurnHolder {
 
 /**
  * The one file the checkouts sharing the cache of the repository at `root` take
- * their turn at. It sits as exposed as the index it paces, and beside the
- * worktrees' layers, where no carry takes it and no prune reads it.
+ * their turn at. It is in the primary checkout's cache, as exposed as the index
+ * it paces, and in `.work`, where no carry takes it and no prune reads it.
  */
 export function indexTurnPath(root: string): string {
   return join(workDirectory(repositoryLayers(root).base), 'index-turn');
 }
 
 /** The turn, `null` while another process holds it, or why the file system refuses it. A panic is thrown on. */
-function taken(addon: NativeScanner, path: string, holder: string, waited: boolean): { release(): void } | null | string {
+function taken(addon: NativeScanner, path: string, holder: string): { release(): void } | null | string {
   try {
-    return addon.takeIndexTurn(path, holder, waited);
+    return addon.takeIndexTurn(path, holder);
   } catch (error) {
     const refused = refusalAt(path, (error as Error).message);
     if (refused === undefined) throw error;
@@ -50,8 +50,8 @@ function taken(addon: NativeScanner, path: string, holder: string, waited: boole
  * Run `work` for the checkout at `root` in its repository's index turn, waiting
  * for any other process that holds it. `waiting` is told once, with the
  * holder, before the first pause. `alone` is told when the file system refuses
- * the turn, on the first try or a later one, as a sandbox holding a worktree
- * away from its primary's cache does, and `work` runs without it.
+ * the turn, as a sandbox holding a worktree away from its primary's cache does,
+ * and `work` runs without it.
  */
 export async function inIndexTurn<T>(
   root: string,
@@ -66,8 +66,8 @@ export async function inIndexTurn<T>(
   const path = indexTurnPath(root);
   const holder = JSON.stringify({ pid: process.pid, root } satisfies IndexTurnHolder);
   let told = false;
-  for (let waited = false; ; waited = true) {
-    const turn = taken(addon, path, holder, waited);
+  for (;;) {
+    const turn = taken(addon, path, holder);
     if (typeof turn === 'string') {
       alone(path, turn);
       return work();

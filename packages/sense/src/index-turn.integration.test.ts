@@ -1,7 +1,7 @@
 import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
@@ -81,7 +81,7 @@ describe('the index turn', () => {
     expect(told).toEqual([]);
   });
 
-  it('is one file beside the worktrees\' layers in the repository\'s cache, whichever of its checkouts asks and from wherever inside one', () => {
+  it('is one file in the primary checkout\'s cache, whichever of its checkouts asks and from wherever inside one', () => {
     const primary = repository();
     const worktree = worktreeOf(primary);
     const inside = join(worktree, 'packages');
@@ -116,21 +116,14 @@ describe('the index turn', () => {
     expect(refused).toEqual([[path, 'Is a directory (os error 21)']]);
   });
 
-  it('runs the work without the turn when the file a waiter polls goes from under it, rather than making a second file to lock beside the holder\'s', async () => {
+  it('names the lock once when the holder beside it is what the file system refuses', async () => {
     const root = repository();
     const path = indexTurnPath(root);
-    await heldTurn(root);
+    mkdirSync(`${path}.holder`, { recursive: true });
     const refused: [string, string][] = [];
-    const told: IndexTurnHolder[] = [];
 
-    const ran = await inIndexTurn(root, async () => 'ran', (held) => {
-      told.push(held);
-      rmSync(dirname(path), { recursive: true });
-    }, (at, reason) => refused.push([at, reason]));
-
-    expect(ran).toBe('ran');
-    expect(told).toHaveLength(1);
-    expect(refused).toEqual([[path, 'No such file or directory (os error 2)']]);
+    expect(await inIndexTurn(root, async () => 'ran', () => {}, (at, reason) => refused.push([at, reason]))).toBe('ran');
+    expect(refused).toEqual([[path, 'writing its .holder: Is a directory (os error 21)']]);
   });
 
   it('leaves what the work throws alone, whatever it says: only the take is guarded', async () => {
