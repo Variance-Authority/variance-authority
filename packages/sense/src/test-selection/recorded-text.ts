@@ -34,7 +34,7 @@
  * thousand times over. That has two costs, and they are bounded apart.
  *
  * Time is processes. So a text or an absent path comes from one `git cat-file
- * --batch` the addon leaves open, as `text_session.rs` describes, and asking
+ * --batch` the addon leaves open, as `commit_text.rs` describes, and asking
  * again costs an inflate and a pipe, in any order. What it cannot answer starts
  * processes at every read, about sixteen for a git-LFS pointer's content.
  *
@@ -47,8 +47,8 @@
  *
  * While everything asked of a reader fits `HELD_BYTES`, a path at a commit
  * reaches git once. Past it, a path at a commit reaches git again when more than
- * `HELD_BYTES` of other answers were asked since it was last asked: no bound can
- * do better, because the next ask may always be for what was let go of. A text
+ * `HELD_BYTES` of other answers were asked since it was last asked: no bound
+ * promises once, because the next ask may always be for what was let go of. A text
  * larger than `HELD_BYTES` reaches git at every ask, and lets go of nothing. A
  * read git refused holds nothing, and starts its processes and throws again.
  *
@@ -72,9 +72,10 @@ import type { NativeTextColumns } from '../native-commit-text.js';
  *
  * Holding a text saves an inflate and a pipe, under half a millisecond for
  * 210 KB. Holding a git-LFS pointer's content saves its processes, about 70 ms.
- * The four hundred paths a selection asked a hundred thousand times over are
- * about 4 MB of source, so 8 MB holds them. 128 MB adds about 690 MB to that
- * peak, for sets of paths no selection has been seen to ask.
+ * The four hundred paths one selection asked a hundred thousand times over are
+ * about 4 MB of source, so 8 MB holds them. A wider selection outgrows it and
+ * reads some again, a pipe each. 128 MB adds about 690 MB to that peak, for
+ * text that saves no process.
  */
 export const HELD_BYTES = 8 * 1024 * 1024;
 

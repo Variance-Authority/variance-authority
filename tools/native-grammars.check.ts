@@ -69,9 +69,9 @@ describe('the tree-sitter grammars', () => {
   // calls it unconditionally and turns its `null` into an unknown record with a
   // reason. A method that is gone is a `TypeError` in the middle of a scan.
   it('leave `readLanguage` answering nothing rather than gone', () => {
-    const read = readFileSync(join(NATIVE, 'src', 'language_read.rs'), 'utf8');
-    expect(read).toContain('#[cfg(not(feature = "grammars"))]');
-    expect(read.slice(read.indexOf('#[cfg(not(feature = "grammars"))]'))).toContain(
+    const lib = readFileSync(join(NATIVE, 'src', 'lib.rs'), 'utf8');
+    expect(lib).toContain('#[cfg(not(feature = "grammars"))]');
+    expect(lib.slice(lib.indexOf('#[cfg(not(feature = "grammars"))]'))).toContain(
       'pub fn read_language',
     );
   });
