@@ -1464,9 +1464,6 @@
   "packages/help/src/read.ts overview": [
     25
   ],
-  "packages/help/src/refresh-native.ts docblock": [
-    17
-  ],
   "packages/help/src/scan-scope.ts docblock": [
     13
   ],
