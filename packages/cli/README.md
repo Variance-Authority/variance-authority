@@ -180,7 +180,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
-| `covering` | names the tests that covered one source file, line or function, nearest first |
+| `covering` | names the tests that covered one source file, line or function, nearest first with `--hops` |
 | `review` | prints what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
@@ -269,8 +269,8 @@ have a shell, and many of them cannot add a server. The skill this package ships
 at `skills/variance-authority/SKILL.md` routes an agent through these questions in order;
 the one at `skills/variance-testing/SKILL.md` is the order to ask them in while
 it changes code, or writes, fixes or debugs a test. Link both into your agent's
-skills directory rather than copying them; `variance doctor` prints whether an agent can find
-each and prints the link when it cannot.
+skills directory rather than copying them; `variance doctor` prints whether an
+agent can find each and prints the link when it cannot.
 
 Every answer exits `0`, including one that describes changes. `ask` reads; it
 does not decide. The verdict stays with `run`, `report` and `adjudicate`, which

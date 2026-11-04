@@ -16,12 +16,16 @@ the chart. When chart and code disagree, classify before changing either side:
 semantic change, implementation remapping, or implementation violation.
 
 **The tests that stand on it.** Before an edit, ask the recording which tests
-entered the code you are about to change, and how far each is from it:
+entered the code you are about to change:
 
 ```bash
-yarn variance covering --file <path> --function <name> --hops
-yarn variance covering --file <path> --line <a>-<b> --hops
+yarn variance covering --file <path> --function <name>
+yarn variance covering --file <path> --line <a>-<b>
 ```
+
+Add `--hops` to either when the order of the candidates is useful: it ranks test
+files by import distance, and costs a scan of the tree. [Change](change.md) says
+how to choose among them.
 
 After the edit, `yarn variance select --suite <slice>` answers the same
 question for the diff. [Pre-verify](pre-verify.md) says how that selection is made.

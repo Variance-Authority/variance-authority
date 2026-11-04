@@ -16,33 +16,42 @@ Check the project first: its runner config calls `withTestSelection`, and
 `unrecorded`. If the runner is not wrapped, nothing below has a record to read,
 and wiring it is product work, not part of the change.
 
-## Before you edit: turn the nearest test red
+## Before you edit: choose a test and turn it red
 
 ```bash
-variance covering --file src/cart.ts --function removeItem --hops
+variance covering --file src/cart.ts --function removeItem
 variance covering --file src/cart.ts --line 40-60
 ```
 
-No run is needed: this reads what the last run recorded. `--hops` puts the
-nearest test files first. A range marked `alone` has one case standing on it;
-`hole` is unknown, never untested.
+No run is needed: this reads what the last run recorded. A range marked `alone`
+has one case standing on it; `hole` is unknown, never untested. Add `--hops`
+when the order of the candidates is useful: it puts the nearest test files first
+and costs a scan of the tree.
 [covering](../variance-authority/references/covering.md)
 
-A behaviour no case covers is pinned as it is first, green on the old code, so
-the edit shows up as the test it turns red.
+These tests are candidates. Choose the case whose assertion states the required
+behaviour, which may be a more distant integration test: proximity orders the
+list, it does not decide.
 
-A change of behaviour then starts in the nearest test file, before the code:
+Behaviour the change does not touch and no case covers is pinned as it is first,
+green on the old code, so a test that turns red shows what the edit broke. An
+assertion on the behaviour you are changing is amended or replaced, never
+pinned.
 
-1. Amend the case that states the behaviour you are changing, or add one beside
-   it.
-2. Run it and see it fail on the code as it is, on the assertion it is for. A
-   test that passes here pins nothing the change does.
+A change of behaviour then starts from the case you chose, before the code:
+
+1. Amend or replace it, or add one beside it.
+2. Run it and see it fail on the code as it is, at the assertion that states the
+   behaviour. A test that passes here pins nothing the change does.
 3. Edit the code until it passes.
 
 Code that does not exist yet has no record, and `covering` says so. Ask it about
 the code that will call the new code and write the failing test there, or in a
-new test file beside the new one. A refactor changes no assertion: the tests
-`covering` named stay green.
+new test file beside the new one. That test fails at import, compile, collection
+or the first call, and the failure names what is missing. That is the red state:
+write no stub to get an assertion failure. A failure from anything else, such as
+a typo, is not. A refactor changes no assertion: name the green tests and the
+invariants you preserve, and those tests stay green.
 
 ## After each edit: run what it reached, nearest first
 

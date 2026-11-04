@@ -131,23 +131,29 @@ Look around:
   decided before you read why it does.
 - Whose answer you need — git, the manifest, the parser, or the recording — and
   whether a stage upstream of your change already computed it.
-- The tests that stand on that code, nearest first: `yarn variance covering
-  --file <path> --function <name> --hops`, or `--line <a>-<b>` for what is not a
-  function.
+- The tests that stand on that code: `yarn variance covering --file <path>
+  --function <name>`, or `--line <a>-<b>` for what is not a function. Add
+  `--hops` when the order of the candidates is useful.
 - What landed on `origin/main` since your branch point.
 
-Leave with the files to change, the owner of every answer the change needs, the
-test you will turn red first, and the tests that will judge it.
+Leave with the files to change, the owner of every answer the change needs, and
+the tests that will judge it. A change of behaviour names the test you will turn
+red first. A `refactor` or `perf` change names the existing green tests and the
+invariants it preserves.
 
 ### 3. Change — [change](.agents/references/change.md)
 
 Look around:
 
 - The tests that stand on the code, from `yarn variance covering --file <path>
-  --function <name> --hops`, or `--line <a>-<b>`. A change of behaviour amends
-  or adds a test first, and it fails on the code as it is, before the code
-  changes. Behaviour nothing covers is pinned green first, in addition to that
-  test, not instead of it.
+  --function <name>`, or `--line <a>-<b>`. These are candidates: choose the case
+  whose assertion states the required behaviour, which may be a more distant
+  integration test. A change of behaviour amends or adds that test first, and it
+  fails on the code as it is, before the code changes: at that assertion for
+  existing behaviour, or at import, compile, collection or the first call for an
+  API that does not exist yet. Behaviour the change does not touch and nothing
+  covers is pinned green first, in addition to that test, not instead of it. An
+  assertion on the behaviour being changed is amended or replaced, never pinned.
 - Whether it changes how a record is carried, indexed by case, or read by a
   selection or a comparison. If it does, the PR names the contract clause it
   keeps and the carry journey that exercises it, and quotes the regression test
