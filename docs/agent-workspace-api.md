@@ -355,13 +355,14 @@ name changed files too.
 A found `symbol` or `uses`, and a `docs_search` over either server, is read the
 same way when a file it rests on changed or went away after the generation: the
 rows `docs_search` prints, and for the other two the files that declare the name
-or pass it on. So an export you renamed is not given under its old name, and a
-declaration you moved is given at the line it holds today. An edit anywhere else
-waits for the hour: `uses` does not see an import you just added. The look is a
-stat of each file.
+or pass it on and the entry that publishes it, with each row `uses` lists. So an
+export you renamed is not given under its old name, a declaration you moved is
+given at the line it holds today, and a use is given at its line. An edit anywhere
+else waits for the hour: `uses` does not see an import you just added to a file
+it does not list. The look is a stat of each file.
 
 When the checkout cannot be read again, or a file the answer rests on is saved
-again during that read, the answer or the refusal names the generation time,
+during the read that answers it, the answer or the refusal names the generation time,
 says the checkout was not compared with it, and says why. Of a file written
 after the generation's read the answer gives what the generation recorded, a
 declaration and its members by name, and none of the file's text: its lines are
@@ -393,7 +394,10 @@ nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. Such a refresh reads the
 files you listed and no others, so the generation keeps the time of the read it
 refreshed: an answer given with the list prints a listed file's recorded names,
-and the next question without one that rests on that file reads the checkout.
+and the next question without one that rests on that file reads the checkout. A
+file you left off is unchanged for that request, and that next question is where
+it is looked at. With no generation to refresh, the read is whole and the list
+is not used.
 [Naming what changed](source-index.md#naming-what-changed) gives the file
 contract.
 

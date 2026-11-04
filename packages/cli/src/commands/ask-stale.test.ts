@@ -207,6 +207,50 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
   });
 
+  it('says why under a refusal when the file the name was in moved after the read that found it gone', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const held = await readWorkspaceForAnswer(root);
+    write(root, Object.fromEntries([TAX, IMPORTER].map((file) => [file, readFileSync(join(root, file), 'utf8').replaceAll('taxOf', 'dutyOf')])));
+
+    const answer = await askSource({
+      question: 'symbol',
+      name: 'taxOf',
+      source: async (_root, reading) => {
+        if (reading?.current !== true) return { help: held };
+        const help = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
+        write(root, { [TAX]: `// moved\n${readFileSync(join(root, TAX), 'utf8')}` });
+        return { help };
+      },
+    });
+
+    expect(answer).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
+    expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
+  });
+
+  it('reads the checkout again when a file a `uses` answer lists changed', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const before = await run(['ask', 'uses', '--name', 'taxOf']);
+    expect(before.out).toContain(`${IMPORTER}:`);
+    write(root, { [IMPORTER]: `// one\n// two\n// three\n${readFileSync(join(root, IMPORTER), 'utf8')}` });
+
+    const { out } = await run(['ask', 'uses', '--name', 'taxOf']);
+    expect(snapshotOf(out)).not.toBe(snapshotOf(before.out));
+  });
+
+  it('dates what a generation it could not save answers, and quotes no file written since it was read', async () => {
+    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const unsaved = await readWorkspaceForAnswer(root, { index: join(root, 'package.json', 'index'), refreshAfterMs: 0 });
+    write(root, { 'packages/kit/src/options.ts': `// one\n// two\n${OPTIONS}` });
+
+    const answer = await askSource({ question: 'symbol', name: 'Options', source: async () => ({ help: unsaved }) });
+
+    expect(snapshotOf(answer)).toBeDefined();
+    expect(answer).toContain('packages/kit/src/options.ts:3 — ci');
+  });
+
   it('reads no text of a file the look found changed, though each recorded line still spells its name', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS, [HIDDEN]: HIDDEN_TEXT });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

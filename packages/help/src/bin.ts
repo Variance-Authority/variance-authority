@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
-import { caughtUp, foundNothingAnswer, outlived, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
@@ -60,8 +61,10 @@ interface Answering {
   /** The answer, its date line saying `unseen` when the checkout was not compared with it for that reason. */
   readonly answer: (unseen?: string) => string;
   readonly at: string | undefined;
-  /** Whether the files the answer names changed since its generation, read before the request that began at `started` when one is named; absent for a reading that cannot say. */
-  readonly outlived?: (started?: number) => Promise<boolean>;
+  /** The workspace value the answer comes from, when it is one. */
+  readonly help?: Help;
+  /** Whether the files the answer names changed since its generation, as {@link outlived} says, for the request that began at `started`, a refusal resting on what it rested on in `before`; absent for a reading that cannot say. */
+  readonly outlived?: (started: number, before?: Help) => Promise<boolean>;
 }
 
 /** The longest verb and a gap, so a verb added later never runs into its description. */
@@ -176,7 +179,8 @@ if (asking(verb) && verb !== undefined) {
       return {
         answer: (unseen) => ask(help, verb, ownArgs, () => tree, root, unseen ?? justAnswer),
         at: workspaceGeneration(help),
-        outlived: (started) => outlived(tool.name, help, inputFrom(tool, ownArgs), { root, ...(tree === undefined ? {} : { tree }) }, started),
+        help,
+        outlived: (started, before) => outlived(tool.name, help, inputFrom(tool, ownArgs), { root, ...(tree === undefined ? {} : { tree }) }, started, before),
       };
     };
 
@@ -184,8 +188,9 @@ if (asking(verb) && verb !== undefined) {
     const read = await answering(false);
     // An answer whose named files changed since its generation is asked again
     // first; one that could not be, or whose files moved again, says so where it is dated.
-    const moved = async (subject: Answering): Promise<boolean> => (await subject.outlived?.()) === true;
-    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await caughtUp(read.at, started, root, answering, moved) : undefined;
+    const again = (from: Answering): ReturnType<typeof caughtUp<Answering>> =>
+      caughtUp(from.at, started, root, answering, async (subject = from) => (await subject.outlived?.(started, from.help)) === true);
+    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await again(read) : undefined;
     const first = looked?.subject ?? read;
     let answer: string;
     try {
@@ -194,8 +199,8 @@ if (asking(verb) && verb !== undefined) {
       // A refusal from a reused generation is asked again of one read now;
       // `--just-answer` and `search` read only what was published, so theirs stands.
       // A refusal whose checkout could not be compared says why.
-      const caught = justAnswer || tool === search ? undefined : await caughtUp(first.at, started, root, answering, moved);
-      const footer = caught?.footer ?? (justAnswer && first.at !== undefined ? snapshotLine(first.at, true) : undefined);
+      const caught = justAnswer || tool === search ? undefined : (looked ?? (await again(first)));
+      const footer = refusalFooter(caught, caught?.subject?.at ?? first.at, justAnswer);
       try {
         if (caught?.subject === undefined) throw refusal;
         answer = caught.subject.answer(caught.unseen);

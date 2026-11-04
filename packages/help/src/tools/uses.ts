@@ -1,12 +1,13 @@
-import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine, unresolvedLine } from './declared.js';
+import { FoundNothing } from './find.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
-import { symbol } from './symbol.js';
+import { symbol, usesRestsOn } from './symbol.js';
 import { UNCOUNTED, exportedAt } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing, othersLines, publishedAt, renamed } from './uses-declarations.js';
 import { type Counted, apart, counted, spokenSplit } from './uses-count.js';
@@ -219,23 +220,56 @@ export const uses: Tool<Help> = {
   run(help, input, invocation) {
     const spell = spellingOf(invocation);
     const shown: Shown = { limit: limitOf(input, SHOWN, spell), spell };
-    const answer = usesOf(help, input, invocation?.root, spell);
+    const answer = usesOnce(help, input, invocation?.root, spell);
     return [answered(answer, input, shown), ...narrowing(answer.files, answer.file, spell)].join('\n');
   },
 
-  // Every file importing the name, at each line that does, or every file
-  // declaring it as a member, read as `run` reads them; an index that did not
-  // read leaves the imports within the package unread.
-  files(help, input, invocation): FileSet {
-    const { namesakes, sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOf(help, input, invocation?.root, spellingOf(invocation));
-    const files = new Map<string, number[]>();
-    const others = namesakes.flatMap((one) => [...one.sites, ...one.inFile]);
-    for (const site of [...sites, ...inFile, ...others, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites, ...keptInFile]) {
-      files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
-    }
-    return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
-  },
+  files: usesFiles,
 };
+
+/**
+ * Every file importing the name, at each line that does, or every file
+ * declaring it as a member, read as `run` reads them; an index that did not
+ * read leaves the imports within the package unread.
+ */
+function usesFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): FileSet {
+  const { namesakes, sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOnce(help, input, invocation?.root, spellingOf(invocation));
+  const files = new Map<string, number[]>();
+  const others = namesakes.flatMap((one) => [...one.sites, ...one.inFile]);
+  for (const site of [...sites, ...inFile, ...others, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites, ...keptInFile]) {
+    files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
+  }
+  return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
+}
+
+/** The last answer of each generation, and what it was asked. */
+const lastAnswered = new WeakMap<Help, { readonly asked: string; readonly answer: Answer }>();
+
+/** One reading for an answer and the look at its files, which asks the same of the same generation just after it. */
+function usesOnce(help: Help, input: Readonly<Record<string, unknown>>, root: string | undefined, spell: Spelling): Answer {
+  const asked = JSON.stringify([input['name'], input['package'], input['file'], root]);
+  const last = lastAnswered.get(help);
+  if (last?.asked === asked) return last.answer;
+  const answer = usesOf(help, input, root, spell);
+  lastAnswered.set(help, { asked, answer });
+  return answer;
+}
+
+/**
+ * The files a `uses` answer rests on: those that declare and publish the name,
+ * and each it lists or counts, all rows and not only those shown. A name no file
+ * here declares has only the files it lists; a new importer no listed file
+ * reveals is the one thing a look at them cannot see.
+ */
+export function usesPrinted(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
+  const listed = usesFiles(help, input, invocation).files.keys();
+  try {
+    return [...usesRestsOn(help, input, invocation), ...listed];
+  } catch (refusal) {
+    if (refusal instanceof FoundNothing) return listed;
+    throw refusal;
+  }
+}
 
 /** The answer `docs_uses` gives, before the line on how to ask for one declaration. */
 function answered(answer: Answer, input: Readonly<Record<string, unknown>>, shown: Shown): string {

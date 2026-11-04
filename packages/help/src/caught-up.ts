@@ -8,44 +8,50 @@ import { workspaceReadStarted } from './snapshot.js';
 import { writtenSince } from './tools/as-read.js';
 import { FoundNothing } from './tools/find.js';
 import { printedFiles, search } from './tools/search.js';
-import { restsOn, symbol, usesRestsOn } from './tools/symbol.js';
-import { uses } from './tools/uses.js';
+import { restsOn, symbol } from './tools/symbol.js';
+import { uses, usesPrinted } from './tools/uses.js';
 
 /** The files an answer rests on, read as the answer read them. */
 type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help>) => Iterable<string>;
 
-/** What each answer that can say so rests on, by the question that gives it: `uses` on the files that declare the name, not those it lists. */
+/** What each answer that can say so rests on, by the question that gives it. */
 const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
   [symbol.name, restsOn],
   [search.name, printedFiles],
-  [uses.name, usesRestsOn],
+  [uses.name, usesPrinted],
 ]);
 
 /**
  * Whether the files an answer rests on changed after the generation it comes
  * from began its read, so that it goes to {@link caughtUp} as a refusal does:
  * a file gone, or an mtime after that read began, as `movedSince` in sense
- * compares one. A generation read during the request that began at `started` is
- * not looked at; with no `started` any is, which is how {@link caughtUp} looks at
- * the one it just read. A question its tool refuses has nothing to look at.
+ * compares one. A refresh limited to a list, made during the request that began
+ * at `started`, keeps the time of the read it refreshed and is taken at its word,
+ * so it is not looked at; any other generation is, the one read whole during the
+ * request as well. A question its tool refuses rests on what it rested on in
+ * `before`, the generation it was answered from; with none it has nothing to look at.
  */
 export async function outlived(
   asked: string | undefined,
   help: Help,
   input: Readonly<Record<string, unknown>>,
   invocation: ToolInvocation<Help> & { readonly root: string },
-  started?: number,
+  started: number,
+  before?: Help,
 ): Promise<boolean> {
   const printed = asked === undefined ? undefined : PRINTED.get(asked);
   const at = workspaceGeneration(help);
   const since = workspaceReadStarted(help);
-  if (printed === undefined || at === undefined || since === undefined || (started !== undefined && Date.parse(at) >= started)) return false;
-  let files: readonly string[];
-  try {
-    files = [...printed(help, input, invocation)];
-  } catch {
-    return false;
-  }
+  if (printed === undefined || at === undefined || since === undefined || (Date.parse(at) >= started && since < started)) return false;
+  const rested = (read: Help): readonly string[] | undefined => {
+    try {
+      return [...printed(read, input, invocation)];
+    } catch {
+      return undefined;
+    }
+  };
+  const files = rested(help) ?? (before === undefined ? undefined : rested(before));
+  if (files === undefined) return false;
   // A file saved during the read may be in the generation or not, so it counts:
   // the cost of counting one that is is a read, whose later time ends the question.
   const changed = await Promise.all(files.map((file) => stat(join(invocation.root, file)).then((held) => writtenSince(held.mtimeMs, since), () => true)));
@@ -58,15 +64,17 @@ export async function outlived(
  * package's binary and server. `refusedAt` is the generation it was answered
  * from, `lexiconRoot` the checkout whose lexicon this process may refresh, absent
  * for a host whose checkout is its own. `again` reads and asks once more, `current`
- * wanting a generation made now, and `still` looks once at what that read gave.
- * Undefined when nothing it read can have lagged the checkout, so the answer stands.
+ * wanting a generation made now, and `still` looks once at what that read gave, or
+ * with no subject at the generation `refusedAt` dates, when it was made during the
+ * question and is not read again. Undefined when nothing it read can have lagged
+ * the checkout, so the answer stands.
  */
 export async function caughtUp<Answer>(
   refusedAt: string | undefined,
   started: number,
   lexiconRoot: string | undefined,
   again: (current: boolean) => Promise<Answer>,
-  still?: (subject: Answer) => Promise<boolean>,
+  still?: (subject?: Answer) => Promise<boolean>,
 ): Promise<CaughtUp<Answer> | undefined> {
   if (refusedAt === undefined) return undefined;
   const reused = Date.parse(refusedAt) < started;
@@ -83,18 +91,23 @@ export async function caughtUp<Answer>(
       packages = `Installed packages not compared with the checkout: the dependency lexicon could not be refreshed (${messageOf(failure)}).`;
     }
   }
-  if (!reused && !refreshed) return packages === undefined ? undefined : { footer: packages };
+  const unread = (unseen: string): CaughtUp<Answer> => {
+    const source = snapshotLine(refusedAt, unseen);
+    return { footer: packages === undefined ? source : `${source}\n${packages}`, unseen };
+  };
+  // A file saved during a read may or may not be in it. It is not read again, so
+  // one read is what a request costs at most, and the next question reads.
+  if (!reused && !refreshed) {
+    if ((await still?.()) === true) return unread(MOVED);
+    return packages === undefined ? undefined : { footer: packages };
+  }
   try {
     const subject = await again(reused);
-    // A file saved during that read may or may not be in it. It is not read again,
-    // so one read is what a request costs at most, and the next question reads.
-    const moved = reused && (await still?.(subject)) === true;
+    const moved = (await still?.(subject)) === true;
     return { subject, ...(moved ? { unseen: MOVED } : {}), ...(packages === undefined ? {} : { footer: packages }) };
   } catch (failure) {
     // A refusal from a reading that could not be brought up to date is no fact about the checkout.
-    const unseen = `it could not be read again: ${messageOf(failure)}`;
-    const source = snapshotLine(refusedAt, unseen);
-    return { footer: packages === undefined ? source : `${source}\n${packages}`, unseen };
+    return unread(`it could not be read again: ${messageOf(failure)}`);
   }
 }
 
@@ -126,6 +139,14 @@ export function foundNothingFooter(caught: CaughtUp<unknown> | undefined, at: st
   const lines = caught?.unseen !== undefined && caught.subject === undefined ? [caught.footer] : [at === undefined ? undefined : snapshotLine(at, caught?.unseen ?? unseen), caught?.footer];
   const said = lines.filter((line) => line !== undefined);
   return said.length === 0 ? undefined : said.join('\n');
+}
+
+/**
+ * The lines under any other refusal, which carries a date only when the checkout
+ * was not compared with what it came from, and then says why as {@link foundNothingFooter} does.
+ */
+export function refusalFooter(caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
+  return caught?.unseen === undefined && !unseen ? caught?.footer : foundNothingFooter(caught, at, unseen);
 }
 
 /**

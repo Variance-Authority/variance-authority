@@ -1,13 +1,15 @@
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { Help } from '@variance-authority/package/help';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
 import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, snapshotLine } from './caught-up.js';
-import { readWorkspace, workspaceGeneration } from './read.js';
-import { serveWorkspace } from './server.js';
+import { readWorkspace, readWorkspaceForAnswer, workspaceGeneration } from './read.js';
+import { serveWorkspace, type WorkspaceOptions } from './server.js';
+import { workspaceReadStarted } from './snapshot.js';
 import { FoundNothing } from './tools/find.js';
+import { uses } from './tools/uses.js';
 
 /**
  * A question about a name written after the last published generation, asked
@@ -20,10 +22,10 @@ const fixture = publishing();
 beforeEach(fixture.before);
 afterEach(fixture.after);
 
-async function served(root: string, justAnswer: boolean, name = 'keptOf'): Promise<{ text: string; isError?: boolean }> {
+async function served(root: string, justAnswer: boolean, name = 'keptOf', options: WorkspaceOptions = {}): Promise<{ text: string; isError?: boolean }> {
   const input = new PassThrough();
   const output = new PassThrough();
-  const stop = serveWorkspace(root, { input, output, justAnswer });
+  const stop = serveWorkspace(root, { ...options, input, output, justAnswer });
   try {
     const line = new Promise<string>((resolve) => output.once('data', (chunk: Buffer) => resolve(chunk.toString())));
     input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'docs_symbol', arguments: { name } } })}\n`);
@@ -67,19 +69,72 @@ describe('outlived', () => {
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
   });
 
-  it('has nothing to look at for a generation read during the request', async () => {
+  it('has nothing to look at for a refresh limited to a list, which keeps the time of the read it refreshed', async () => {
     const root = await fixture.published();
-    const help = await readWorkspace(root);
+    await readWorkspace(root);
     edit(root);
-    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, Date.parse(workspaceGeneration(help)!))).toBe(false);
+    const started = Date.now();
+    const help = await readWorkspaceForAnswer(root, { changed: [] });
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, started)).toBe(false);
   });
 
-  it('looks at a generation read during the request when no request is named, as the look after a read does', async () => {
+  it('looks at a generation read whole during the request, as at any other', async () => {
     const root = await fixture.published();
+    const started = Date.now();
+    const unchanged = await readWorkspace(root);
+    expect(await outlived('docs_symbol', unchanged, { name: 'taxOf' }, { root }, started)).toBe(false);
+    const moved = await readWorkspace(root, {
+      progress: (step) => {
+        if (step === 'publishing the questions') edit(root);
+        return () => {};
+      },
+    });
+    expect(await outlived('docs_symbol', moved, { name: 'taxOf' }, { root }, started)).toBe(true);
+  });
+
+  it('says so of a refusal whose name the generation before it held in a file that moved during the read', async () => {
+    const root = await fixture.published();
+    const before = await readWorkspace(root);
+    const tax = join(root, 'packages/kit/src/tax.ts');
+    writeFileSync(tax, readFileSync(tax, 'utf8').replace('taxOf', 'dutyOf'));
+    const started = Date.now();
+    const unchanged = await readWorkspace(root);
+    expect(await outlived('docs_symbol', unchanged, { name: 'taxOf' }, { root }, started, before)).toBe(false);
+    const help = await readWorkspace(root, {
+      progress: (step) => {
+        if (step === 'publishing the questions') edit(root);
+        return () => {};
+      },
+    });
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, started, before)).toBe(true);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, started)).toBe(false);
+  });
+
+  it('says so of an answer whose name the entry that publishes it stopped passing on', async () => {
+    const entry = { 'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }), 'packages/kit/src/index.ts': "export { taxOf } from './tax.js';\n" };
+    const root = await fixture.published(entry);
     const help = await readWorkspace(root);
-    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root })).toBe(false);
-    edit(root);
-    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root })).toBe(true);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(false);
+    writeFileSync(join(root, 'packages/kit/src/index.ts'), 'export {};\n');
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+    expect(await outlived('docs_uses', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
+  it('says so of a `docs_uses` answer when a file it lists changed', async () => {
+    const root = await fixture.published({ 'packages/kit/src/site.ts': "import { taxOf } from './tax.js';\nexport const levy = taxOf(1);\n" });
+    const help = await readWorkspace(root);
+    expect(await outlived('docs_uses', help, { name: 'taxOf' }, { root }, after(help))).toBe(false);
+    appendFileSync(join(root, 'packages/kit/src/site.ts'), '// moved\n');
+    expect(await outlived('docs_uses', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
+  it('says so of a `docs_uses` answer about a name no file here declares, when a file it lists changed', async () => {
+    const root = await fixture.published({ 'packages/app/package.json': JSON.stringify({ name: '@acme/app', dependencies: { '@acme/kit': '*' } }), 'packages/app/src/site.ts': "import { ghostOf } from '@acme/kit/src/tax';\nexport const here = ghostOf(1);\n" });
+    const help = await readWorkspace(root);
+    expect(uses.run(help, { name: 'ghostOf' }, { root })).toContain('site.ts');
+    expect(await outlived('docs_uses', help, { name: 'ghostOf' }, { root }, after(help))).toBe(false);
+    appendFileSync(join(root, 'packages/app/src/site.ts'), '// moved\n');
+    expect(await outlived('docs_uses', help, { name: 'ghostOf' }, { root }, after(help))).toBe(true);
   });
 
   it('leaves a name no file declares to its refusal, and any question that names no file as it is', async () => {
@@ -115,6 +170,18 @@ describe('caughtUp', () => {
     }, async (subject) => subject === 'asked again');
     expect(caught).toEqual({ subject: 'asked again', unseen: 'a file it rests on changed while it was read' });
     expect(reads).toEqual([true]);
+  });
+
+  it('gives the caveat, and reads nothing more, of a generation made during the question whose file moved during that read', async () => {
+    const started = Date.now();
+    const at = new Date(started + 1).toISOString();
+    const reads: boolean[] = [];
+    const caught = await caughtUp(at, started, undefined, async (current) => {
+      reads.push(current);
+      return 'asked again';
+    }, async () => true);
+    expect(reads).toEqual([]);
+    expect(caught).toEqual({ unseen: 'a file it rests on changed while it was read', footer: snapshotLine(at, 'a file it rests on changed while it was read') });
   });
 
   it('says nothing of the read when no file moved during it', async () => {
@@ -236,5 +303,40 @@ describe('the help server about a name written after the published generation', 
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`writtenNowhere` is not published by this workspace.*declares `writtenNowhere`/su);
     expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z\.$/u);
+  });
+
+  it('says why under a refusal, when the file the name was in moved during the read that found it gone', async () => {
+    const root = await fixture.published();
+    const tax = join(root, 'packages/kit/src/tax.ts');
+    writeFileSync(tax, readFileSync(tax, 'utf8').replace('taxOf', 'dutyOf'));
+    const answer = await served(root, false, 'taxOf', {
+      progress: (step) => {
+        if (step === 'publishing the questions') appendFileSync(tax, '// moved\n');
+        return () => {};
+      },
+    });
+    expect(answer.text).toMatch(/^`taxOf` is not published/u);
+    expect(answer.text).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
+    expect(answer.text.match(/Snapshot/gu)).toHaveLength(1);
+  });
+
+  it('keeps no copy of a reading after a call: no help question compares one call with the last', async () => {
+    const root = await fixture.published();
+    const copied = vi.spyOn(globalThis, 'structuredClone');
+    try {
+      await served(root, false, 'taxOf');
+      expect(copied).not.toHaveBeenCalled();
+    } finally {
+      copied.mockRestore();
+    }
+  });
+});
+
+describe('a generation that could not be saved', () => {
+  it('keeps its times, so what it answers is dated and its text gated', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root, { index: join(root, 'package.json', 'index') });
+    expect(workspaceGeneration(help)).toBeDefined();
+    expect(workspaceReadStarted(help)).toBeDefined();
   });
 });

@@ -28,8 +28,10 @@ export interface Answering {
   readonly unseen?: boolean;
   /** The published files that were there and did not open; absent when none failed. */
   readonly unopened?: readonly Unopened[];
-  /** Whether the files the answer names changed since its generation, read before the request that began at `started` when one is named; absent for a reading that cannot say. */
-  readonly outlived?: (started?: number) => Promise<boolean>;
+  /** The workspace value the answer comes from, when it is one. */
+  readonly help?: Help;
+  /** Whether the files the answer names changed since its generation, as `outlived` from the help package says, for the request that began at `started`, a refusal resting on what it rested on in `before`; absent for a reading that cannot say. */
+  readonly outlived?: (started: number, before?: Help) => Promise<boolean>;
 }
 
 export async function wholeSource(
@@ -45,7 +47,8 @@ export async function wholeSource(
     answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
-    outlived: (started) => outlived(tool.name, sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }, started),
+    help: sourced.help,
+    outlived: (started, before) => outlived(tool.name, sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }, started, before),
   };
 }
 

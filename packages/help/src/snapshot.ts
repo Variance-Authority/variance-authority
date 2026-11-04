@@ -223,14 +223,16 @@ export async function tryPublishWorkspaceSnapshot(
       exportedDigest: search.exported,
       help,
     };
+    // Before anything is written: a value that could not be saved was read all the
+    // same, and what it answers is dated, and its text gated, by these times.
+    generated.set(help, generatedAt);
+    const { help: _, ...held } = snapshot;
+    snapshots.set(help, held);
     await mkdir(dirname(at), { recursive: true });
     await writeFile(treeTemporary, tree);
     await rename(treeTemporary, treeAt);
     await writeFile(temporary, `${JSON.stringify(snapshot)}\n`, 'utf8');
     await rename(temporary, at);
-    generated.set(help, generatedAt);
-    const { help: _, ...held } = snapshot;
-    snapshots.set(help, held);
     await writeSearch(help, index ?? sourceIndexPath(root), search.bytes);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.

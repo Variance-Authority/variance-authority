@@ -112,7 +112,10 @@ export async function readWorkspaceForAnswer(
         { cause: error },
       );
     }
-    return readWorkspace(root, reading);
+    // With nothing to refresh a list is no read: the files it leaves out would come
+    // from the index, under a time that says they were read now.
+    const { changed: _, ...whole } = reading;
+    return readWorkspace(root, whole);
   }
 
   const at = workspaceGeneration(recorded);

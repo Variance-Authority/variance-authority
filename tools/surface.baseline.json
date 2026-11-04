@@ -1084,6 +1084,7 @@
         "readWorkspaceSnapshot": "function",
         "refreshDependencyLexicon": "function",
         "refreshWorkspace": "function",
+        "refusalFooter": "function",
         "serveWorkspace": "function",
         "snapshotLine": "function",
         "unopenedLine": "function",

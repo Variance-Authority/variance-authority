@@ -103,7 +103,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
           started,
           root,
           async (current) => (current ? readNow(0) : refused),
-          (read) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }),
+          (read = refused) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused),
         );
       },
       outlived: (asked: string | undefined, input: Readonly<Record<string, unknown>>, subject: Help, started: number) =>
@@ -111,6 +111,10 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     }),
     // A name nothing declares is the answer once it has been read again, said as `variance ask` says it.
     answered: (thrown: unknown, subject: Help, again) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer),
+    // No question here compares one call with the last, and a copy of the whole
+    // reading, held beside the one a changed file asks for, is what ran a large
+    // checkout's server out of heap.
+    remember: (help: Help) => help,
     subject: async () => {
       try {
         const at = cached === undefined ? undefined : workspaceGeneration(cached);

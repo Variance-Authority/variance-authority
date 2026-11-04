@@ -236,7 +236,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           started,
           root,
           async (current) => (current ? { ...refused, help: await readHelp(0) } : refused),
-          async (read) => read.help !== undefined && await outlived(asked, read.help, input, { root, ...(tree === undefined ? {} : { tree }) }),
+          async (read = refused) => read.help !== undefined && await outlived(asked, read.help, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused.help),
         );
       },
       outlived: async (asked: string | undefined, input: Readonly<Record<string, unknown>>, bench: Bench, started: number) =>

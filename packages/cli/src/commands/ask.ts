@@ -6,7 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
-import { caughtUp, foundNothingAnswer, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -271,18 +271,18 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // age, is not compared with the checkout, and every answer from it says so.
   // Every other one is the checkout's as it is by the time it refuses.
   const unseen = request.justAnswer === true || read.unseen === true;
-  const again = (at: string | undefined): ReturnType<typeof caughtUp<Answering>> =>
+  const again = (from: Answering): ReturnType<typeof caughtUp<Answering>> =>
     caughtUp(
-      at,
+      from.at,
       started,
       request.source === undefined ? process.cwd() : undefined,
       (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }),
-      async (subject) => (await subject.outlived?.()) === true,
+      async (subject = from) => (await subject.outlived?.(started, from.help)) === true,
     );
   // An answer whose named files changed since its generation is asked again
   // before it is given; one that could not be, or whose files moved again, says
   // so in the line that dates it.
-  const looked = !unseen && (await read.outlived?.(started)) === true ? await again(read.at) : undefined;
+  const looked = !unseen && (await read.outlived?.(started)) === true ? await again(read) : undefined;
   const answering = looked?.subject ?? read;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
@@ -299,8 +299,9 @@ export async function askSource(request: SourceRequest): Promise<string> {
     // and that answer stands.
     // A reading nothing compared with the checkout says so under its refusal,
     // and one that could not be compared says why.
-    const caught = unseen ? undefined : await again(answering.at);
-    const dated = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
+    // What the look already read is not read again, and why it was not compared stays with it.
+    const caught = unseen ? undefined : (looked ?? (await again(answering)));
+    const dated = refusalFooter(caught, caught?.subject?.at ?? answering.at, unseen);
     const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
     const said = footer === '' ? '' : `\n\n${footer}`;
     if (caught?.subject === undefined) {

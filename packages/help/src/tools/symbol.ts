@@ -180,18 +180,26 @@ export const symbol: Tool<Help> = {
 
 /**
  * The files an answer about a name rests on, to be compared with the checkout:
- * those {@link symbol}'s `files` gives, and every file that passes the name on,
- * whose imports the answer counts. Telling those two apart is the one reading
- * here that walks who imports the name, which costs seconds on a large
- * repository and is paid by every question, so a look does not make it.
+ * those {@link symbol}'s `files` gives, every file that passes the name on,
+ * whose imports the answer counts, and each entry that publishes it, whose import
+ * the answer teaches. Telling the first two apart is the one reading here that
+ * walks who imports the name, which costs seconds on a large repository and is
+ * paid by every question, so a look does not make it.
  */
 export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
-  return declaredIn(help, input, invocation, (exported) => exported).files.keys();
+  return [...declaredIn(help, input, invocation, (exported) => exported).files.keys(), ...publishingEntries(help, input, invocation)];
 }
 
 /** {@link restsOn} for `uses`, which says nothing of a name bound by `as`, and so rests on no such binding. */
 export function usesRestsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
-  return declaredIn(help, input, invocation, (exported) => exported, false).files.keys();
+  return [...declaredIn(help, input, invocation, (exported) => exported, false).files.keys(), ...publishingEntries(help, input, invocation)];
+}
+
+/** The entry file of each door a name is published through. */
+function publishingEntries(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): readonly string[] {
+  const from = input['package'];
+  const published = publishedDeclarations(help, invocation?.root, stringArg(input, 'name'), typeof from === 'string' && from !== '' ? from : undefined);
+  return published.flatMap((one) => one.doors.map(([, opening]) => opening.source));
 }
 
 /** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */

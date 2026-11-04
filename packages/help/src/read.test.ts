@@ -218,6 +218,23 @@ describe('reading a workspace through the source index', () => {
     }
   });
 
+  it('reads the whole tree, past a list, when no generation is there for it to refresh', async () => {
+    const { root, temporary } = await copyWorkspace('help-listed-no-generation-');
+    try {
+      const at = join(root, '.index');
+      await readWorkspace(root, { index: at });
+      await rm(workspaceSnapshotPath(at));
+      const values = join(root, 'packages/alpha/src/values.ts');
+      await writeFile(values, `${await readFile(values, 'utf8')}export const writtenLater = 1;\n`);
+
+      const read = await readWorkspaceForAnswer(root, { index: at, changed: ['packages/beta/src/other.ts'] });
+
+      expect(read.exported.map((name) => name.name)).toContain('writtenLater');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('republishes the recorded generation when the caller says nothing changed', async () => {
     const { root, temporary } = await copyWorkspace('help-unchanged-snapshot-');
     try {

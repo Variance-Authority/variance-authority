@@ -48,7 +48,8 @@ Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it, and a name a
 reused generation does not hold is looked for again in one made from the checkout
 now, so a function you just wrote is answered rather than reported missing. So
-is a `symbol` or `uses` whose declaring files, or a server's `docs_search` whose
+is a `symbol` or `uses` whose files, the ones that declare the name, the entry
+that publishes it and each row `uses` lists, or a server's `docs_search` whose
 printed files, changed after the generation, so a renamed export or a moved
 declaration is not answered from its old lines.
 `--just-answer` uses the last published generation regardless of age, and every
@@ -203,7 +204,9 @@ that the next question refreshes it. Run the binary or server with
 no freshness work. On `variance ask`, `--changed-file` belongs to the producer
 side: it supplies an authoritative newline-delimited file of scan-root-relative
 changed paths and cannot be combined with `--just-answer`. An empty file states
-that nothing changed.
+that nothing changed. A file left off is unchanged for that request, and the
+next question without a list looks. With no generation to refresh, the read is
+whole and the list is not used.
 
 ### Say where you are standing
 
@@ -476,7 +479,7 @@ whether to publish what this reading learned for the next one, on unless you say
 otherwise; `saveIndex`, whether that publication also writes the scan's records
 back to the source index, on unless you say otherwise, and off for a caller that
 has just published that index itself; `changed`, the authoritative scan-root-relative file list an editor,
-watcher or orchestrator already has, which skips Git status discovery; `taints`,
+watcher or orchestrator already has, which skips Git status discovery, and is not used when no generation is there to refresh; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
@@ -535,7 +538,8 @@ the same one-hour policy and asks a refused call, or a `docs_symbol`,
 `docs_uses` or `docs_search` whose files changed, again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A host
 of its own asks `caughtUp` whether a refusal is worth asking again, and is
 handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `snapshotLine` dates an answer. `outlived` says whether
+its refusal ends with; `refusalFooter` is that line with the reason a look gave
+for the refusal itself; `snapshotLine` dates an answer. `outlived` says whether
 the files a found answer names changed after its generation, which sends that
 answer to `caughtUp` too. A name nothing declares
 is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
