@@ -14,11 +14,12 @@ import { MARKDOWN, ROOT, type Fence, fencesIn, lineOf, prose } from './markdown.
  * server list. Each of those failed for a different reason before it was
  * printed: `variance serve` and `variance doctor` exit 2 with no config, and a
  * client launches a `command` from its own PATH, where a local install puts
- * nothing. So this follows the page: its `npx variance` lines in a fresh
- * repository with no config, then its server entry as a client would launch it,
- * and asks for the tools and the code map. Only the install line stands in, as
- * links to the packages built here, and the page's confirmation, which fetches
- * a client from the registry.
+ * nothing. So this follows the page: its shell lines in a fresh repository with
+ * no config, then its server entry as a client would launch it, and asks for the
+ * tools and the code map, in a repository of several packages and in one of a
+ * single package, whose answers differ. Only the install line stands in, as links
+ * to the packages built here, and the page's confirmation, which fetches a client
+ * from the registry.
  */
 
 const PAGE = 'docs/agent-workspace-api.md';
@@ -26,6 +27,11 @@ const HEADING = '## Connect your agent';
 
 /** Records of what happened, and what is not built, which quote the old wording rather than ask anything of a reader. */
 const HISTORY = /^(?:docs\/context\/|docs\/specs\/|backlog\/)/;
+
+/** The lines a reader runs that this cannot: one reaches the registry for us, the other for a client. */
+const STANDS_IN = /^npm install |@modelcontextprotocol\/inspector/;
+
+const ORIENT = 'npx variance ask orient';
 
 const made: string[] = [];
 
@@ -45,21 +51,34 @@ function printed(): readonly Fence[] {
 const shellLines = (fences: readonly Fence[]): readonly string[] =>
   fences.filter((fence) => fence.lang === 'bash').flatMap((fence) => fence.code.trim().split('\n'));
 
-/** A git repository of two packages with no variance config, the packages built here standing in for the install. */
-function repository(): string {
+const manifest = (name: string, more: object) =>
+  `${JSON.stringify({ name, version: '1.0.0', type: 'module', exports: './src/index.ts', ...more })}\n`;
+
+const SHAPES = {
+  'several packages': {
+    'package.json': '{"name":"shop","private":true,"type":"module","workspaces":["packages/*"]}\n',
+    'packages/price/package.json': manifest('@shop/price', {}),
+    'packages/price/src/index.ts': 'export const price = (net: number) => net * 1.2;\n',
+    'packages/cart/package.json': manifest('@shop/cart', { dependencies: { '@shop/price': '1.0.0' } }),
+    'packages/cart/src/index.ts': "import { price } from '@shop/price';\nexport const total = price(1);\n",
+  },
+  'one package': {
+    'package.json': manifest('shop', {}),
+    'src/index.ts': 'export const price = (net: number) => net * 1.2;\n',
+  },
+} as const;
+
+type Shape = keyof typeof SHAPES;
+
+/** A git repository with no variance config, the packages built here standing in for the install. */
+function repository(shape: Shape): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-agent-install-')));
   made.push(root);
   const write = (path: string, text: string) => {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
   };
-  const manifest = (name: string, more: object) =>
-    `${JSON.stringify({ name, version: '1.0.0', type: 'module', exports: './src/index.ts', ...more })}\n`;
-  write('package.json', '{"name":"shop","private":true,"type":"module","workspaces":["packages/*"]}\n');
-  write('packages/price/package.json', manifest('@shop/price', {}));
-  write('packages/price/src/index.ts', 'export const price = (net: number) => net * 1.2;\n');
-  write('packages/cart/package.json', manifest('@shop/cart', { dependencies: { '@shop/price': '1.0.0' } }));
-  write('packages/cart/src/index.ts', "import { price } from '@shop/price';\nexport const total = price(1);\n");
+  for (const [path, text] of Object.entries(SHAPES[shape])) write(path, text);
   write('.gitignore', 'node_modules\n');
   mkdirSync(join(root, 'node_modules/.bin'), { recursive: true });
   mkdirSync(join(root, 'node_modules/@variance-authority'));
@@ -122,11 +141,11 @@ async function connect(entry: Entry, cwd: string): Promise<Pick<Followed, 'tools
   }
 }
 
-/** Every `npx variance` line in the order the page prints them, then the printed server entry. */
-async function follow(fences: readonly Fence[]): Promise<Followed> {
-  const root = repository();
+/** Every shell line in the order the page prints them, then the printed server entry. */
+async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed> {
+  const root = repository(shape);
   const lines = shellLines(fences)
-    .filter((line) => line.startsWith('npx variance '))
+    .filter((line) => !STANDS_IN.test(line))
     .map((line) => {
       const run = spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' });
       return { line, status: run.status, out: run.stdout + run.stderr };
@@ -141,21 +160,51 @@ async function follow(fences: readonly Fence[]): Promise<Followed> {
 
 const fences = printed();
 // Awaited here rather than in a test: the run takes what the machine gives it, and no test timeout should judge that.
-const followed = fences.length === 0 ? undefined : await follow(fences);
+const followed = fences.length === 0 ? undefined : await follow(fences, 'several packages');
+const alone = fences.length === 0 ? undefined : await follow(fences, 'one package');
+
+/** An answer as the page prints it: a reader's index and repository are named for where they are, and the page cannot say. */
+const asPrinted = (answer: string | undefined): string =>
+  (answer ?? '')
+    .trim()
+    .replace(/\S+\/source-index\.bin/g, '…/source-index.bin')
+    .replace(/^# [^:]+:/, '# shop:');
+
+const orientOf = (run: Followed | undefined): string =>
+  asPrinted(run?.lines.find(({ line }) => line === ORIENT)?.out);
+
+const printedAnswers = fences
+  .filter((fence) => fence.lang === 'text')
+  .map((fence) => fence.code)
+  .join('\n');
 
 describe(`${PAGE} connects an agent with no variance config`, () => {
-  it('prints the install, the index and the check that the tools are listed', () => {
+  it('prints the install, the index, the check that the tools are listed and the skill link', () => {
     expect(shellLines(fences)).toEqual(
       expect.arrayContaining([
         'npm install --save-dev @variance-authority/cli @variance-authority/help',
         'npx variance index',
         expect.stringContaining('--method tools/list'),
+        expect.stringContaining('ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority'),
       ]),
     );
   });
 
   it('every command it prints exits 0 where no config exists', () => {
     expect(followed?.lines.filter((run) => run.status !== 0)).toEqual([]);
+    expect(alone?.lines.filter((run) => run.status !== 0)).toEqual([]);
+  });
+
+  it('tells the agent the questions exist before the section ends', () => {
+    const told = fences.filter((fence) => fence.lang === 'markdown').map((fence) => fence.code);
+    expect(told.join('\n')).toContain('npx variance ask uses');
+  });
+
+  it('prints the answer each shape of repository gets', () => {
+    expect(orientOf(followed)).toContain('2 packages in 2 dependency layers');
+    expect(orientOf(alone)).toContain('folded into no code map');
+    expect(printedAnswers).toContain(orientOf(followed));
+    expect(printedAnswers).toContain(orientOf(alone));
   });
 
   it('its entry serves the tools, each named on the page', () => {
@@ -164,8 +213,9 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
     expect(followed?.tools.filter((tool) => !page.includes(tool))).toEqual([]);
   });
 
-  it('docs_orient returns the code map', () => {
-    expect(followed?.map).toContain('2 packages in 2 dependency layers');
+  it('docs_orient returns what the shell printed', () => {
+    expect(asPrinted(followed?.map)).toContain(orientOf(followed));
+    expect(asPrinted(alone?.map)).toContain(orientOf(alone));
   });
 
   it('names no command that exits 2 without a config, unless the paragraph says it needs one', () => {

@@ -1,11 +1,12 @@
 # Find code through the workspace index
 
-`rg` tells you where text is written. This server tells you which name matches
-your words in the part of the import graph you are working in — an exported name
-first, then one a file keeps to itself — then gives you its declaration,
-signature and documentation, and for an exported name its import line and
-existing import sites. It answers from a dated workspace generation — no build,
-run, generated API site, or `variance.config.json` in between.
+`rg` tells you where text is written. The workspace index tells you, or your
+coding agent, which name matches your words in the part of the import graph you
+are working in — an exported name first, then one a file keeps to itself — then
+gives you its declaration, signature and documentation, and for an exported name
+its import line and existing import sites. `variance index` reads your source
+into it once, outside your tracked files. Your code is not built or run, and no
+generated API site or `variance.config.json` is involved.
 
 This is the source how-to and contract for
 [orientation](orientation.md). Start there when you need to choose between text
@@ -21,8 +22,14 @@ for another string.
 ## Connect your agent
 
 You need a git repository and Node 22.15 or newer. You do not need a
-`variance.config.json` or a run. Install the two packages, build the index and
-read the code map:
+`variance.config.json` or a run.
+
+Your agent asks the same questions by either of two routes.
+`@variance-authority/cli` gives it the shell, `npx variance ask`, and that is all
+an agent that runs commands needs. `@variance-authority/help` gives it MCP, for a
+client that reaches tools only through a server. Stopping at the shell, leave
+`help` out of the install and skip [the MCP step](#add-the-mcp-server). Either
+way, install, build the index and read the code map:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/help
@@ -30,20 +37,36 @@ npx variance index
 npx variance ask orient
 ```
 
-The last line waits for the map the index makes, then prints it:
+`variance index` takes about eight seconds on a checkout of 125,000 tracked
+paths. The index lives in `node_modules/.cache`, so it adds no tracked file. The
+last line waits for the map the index makes, then prints it. A repository of
+several packages gets them listed, here two:
 
 ```text
 # shop: 2 packages in 2 dependency layers (1 takes nothing), 2 source files, 0 areas
   packages: cart, price
 ```
 
-The map is of packages, so a repository with one has none, and the answer says
-so. Every other question still answers. The index lives in `node_modules/.cache`,
-so it adds no tracked file. That is the shell half: your agent can now run any
+The map is of packages, so a repository of one gets this instead, with your own
+path. Every other question still answers:
+
+```text
+The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
+```
+
+Either answer means the shell route works: your agent can run any
 `npx variance ask` question.
 
-For the MCP half, add this entry to the file your client keeps its servers in,
-`.mcp.json` at the repository root for Claude Code:
+You do not run `variance index` after an edit. A question about a name reuses the
+index for an hour, then refreshes it, and looks again in the checkout as it is
+when the index does not hold the name. Only `ask search` answers from the last
+index at any age, and its last line says so: run `variance index` when a search
+misses something you just wrote.
+
+### Add the MCP server
+
+Add this entry to the file your client keeps its servers in, `.mcp.json` at the
+repository root for Claude Code:
 
 ```json
 {
@@ -64,6 +87,10 @@ client starts in. A client that starts outside the repository takes its absolute
 path twice: `"args": ["--prefix", "/path/to/repo", "variance-authority-help",
 "/path/to/repo"]`.
 
+A workspace that already has a `variance.config.json` can declare `variance serve`
+instead of this entry: it carries the same tools under the same names, beside the
+ones about a run. With no config it exits 2.
+
 Check the entry before you open the client. This launches it from the same
 file and asks for the tools:
 
@@ -80,8 +107,40 @@ docs_test_composition docs_stack docs_gaps
 ```
 
 Then start the client, approve the server if it asks, and have your agent call
-`docs_orient` with no arguments. It returns the same map. To have the agent reach
-for these questions by itself, [point it at them](#point-an-agent-at-it).
+`docs_orient` with no arguments. It returns the answer `ask orient` printed.
+
+### Point an agent at it
+
+This step finishes setup on either route. Your agent can use these questions
+now, and it reaches for them once something tells it to. It reads `AGENTS.md` at
+the start of every session, and a skill only when its description matches the
+task. Put these lines in `AGENTS.md`, with `npx` changed to however your package
+manager runs a local binary:
+
+```markdown
+## Finding your way in the code
+
+Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` prints what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+```
+
+The skill is `variance-authority`. It ships in `@variance-authority/cli` at
+`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
+rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
+agents read `.agents/skills`. Link the skill into both rather than copying it,
+so it follows every update, then list what the links reach:
+
+```bash
+mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
+ls .agents/skills/variance-authority/SKILL.md .claude/skills/variance-authority/SKILL.md
+```
+
+Both paths print when the links reach the skill; a broken one prints `No such
+file or directory`. To see the step work, start a new session and ask who imports
+a name: the answer should come from `ask uses`, not a text search.
 
 ## Choose the cheapest entrance
 
@@ -89,20 +148,21 @@ for these questions by itself, [point it at them](#point-an-agent-at-it).
 | --- | --- |
 | An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
-| A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
+| A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
 | Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
 
 ## Search finds the name; the graph finds the area
 
-The workspace generation combines two different answers. Names and documentation
-find a candidate such as `createStore`. Resolved import edges decide whether that
+Each run of `variance index` publishes a dated generation of the index, and a
+generation combines two different answers. Names and documentation find a
+candidate such as `createStore`. Resolved import edges decide whether that
 candidate belongs to the code in question.
 
 Carry a path into the first search whenever you have one:
 
 ```bash
-variance ask search --query createStore --from src/fulfilment/ --just-answer
+variance ask search --query createStore --from src/fulfilment/
 ```
 
 `--from` walks along imports and keeps names used inside that closure. Use
@@ -289,8 +349,10 @@ changed](source-index.md#naming-what-changed) gives the file contract.
 
 ## Ask from the shell
 
-`variance-authority-help` answers the same questions on the command line, with
-no client and no server, and `npx` runs it without an install:
+Connecting your agent leaves the tools in your repository. To try one question
+before you add anything, `variance-authority-help` answers the same questions on
+the command line, with no client and no server, and `npx` runs it without an
+install:
 
 ```bash
 npx @variance-authority/help search viewport --root .
@@ -317,10 +379,7 @@ generation. An answer names a flag or a next question the same way —
 `docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
-A workspace with a `variance.config.json` can declare `variance serve` instead of
-the entry above: it carries the same tools under the same names, beside the ones
-about a run. With no config it exits 2. The rest of this page is the contract of
-those tools, whichever of the two serves them.
+The rest of this page is the contract of those tools, whichever route asks them.
 
 ## Read from entrypoint to symbol
 
@@ -595,35 +654,6 @@ what it does:
 
 Neither is a distance. How many hops separate two modules, and what selecting on
 that distance costs, is [`@variance-authority/sense`](distance.md).
-
-## Point an agent at it
-
-Your agent reads `AGENTS.md` at the start of every session, and a skill only
-when its description matches the task. Put these lines in `AGENTS.md`, with
-`npx` changed to however your package manager runs a local binary:
-
-```markdown
-## Finding your way in the code
-
-Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
-```
-
-The skill is `variance-authority`. It ships in `@variance-authority/cli` at
-`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
-rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
-agents read `.agents/skills`. Link the skill into both rather than copying it,
-so it follows every update:
-
-```bash
-mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
-mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
-```
-
-With a `variance.config.json`, `variance doctor` reports whether your agent can
-find it.
 
 The full tool and source-reading contract is in the
 [`@variance-authority/help` package
