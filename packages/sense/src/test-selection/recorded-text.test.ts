@@ -1,12 +1,13 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { nativeAvailable } from '../native.js';
+import { gitStarted } from './__fixtures__/git-started.js';
 import { changedLines } from './diff-lines.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
@@ -221,23 +222,6 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 });
-
-/** The Git commands `run` started, as argv, read from Git's own trace. */
-function gitStarted(root: string, run: () => void): string[][] {
-  const trace = resolve(root, '.git', 'variance-trace.json');
-  rmSync(trace, { force: true });
-  vi.stubEnv('GIT_TRACE2_EVENT', trace);
-  try {
-    run();
-  } finally {
-    vi.unstubAllEnvs();
-  }
-  const lines = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n') : [];
-  return lines
-    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
-    .filter((event) => event.event === 'start')
-    .map((event) => event.argv ?? []);
-}
 
 describe('the text at a recording of a path the caller never named', () => {
   it('is read for a hundred paths in as many processes as for ten', async () => {

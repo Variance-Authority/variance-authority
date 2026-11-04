@@ -21,13 +21,10 @@
  * bare mirror and a sandbox with no `git` at all each answer differently, and a
  * library that guessed would be trusted for an answer nobody checked.
  *
- * Shipping no implementation is the other error, and it is the one that was
- * made here. The check is opt-in, so a caller that does not know to wire it
- * gets `stale` empty — not because the frames agree but because nothing looked,
- * which reads identically and is the failure the option exists to prevent. This
- * is the answer for the ordinary case, a git checkout, and it is the read-side
- * counterpart of `commitOf`: that one writes the position, this one reads from
- * it.
+ * Shipping no implementation is the other error: the check is opt-in, so a
+ * caller that does not know to wire it gets `stale` empty, not because the frames
+ * agree but because nothing looked. This is the answer for the ordinary case, a
+ * git checkout, the read-side counterpart of `commitOf`.
  *
  * ## Why a window rather than a process a file or a buffer a diff
  *
@@ -41,8 +38,8 @@
  * files that is the largest thing in the process by a wide margin, for texts each
  * of which is wanted once, hashed, and never looked at again. So the fetch runs
  * over a window: one process for a slab of the diff, released whole before the
- * next slab is read. The peak is then the window rather than the diff, which is
- * the difference between a cost that grows with the change and one that does not.
+ * next slab is read. What a window reads for the first time is then resident
+ * for one slab rather than the whole diff; what is read again stays, below.
  *
  * The caller decides which paths are worth a window at all. `files` is the set
  * this expects to be asked about, and it is read in order as the asks arrive, so
@@ -59,14 +56,17 @@
  * two changed files, and a window dropped for each of them would leave every
  * changed file after it to be read alone.
  *
- * Those paths are mostly files the change did not touch, and a reading that
- * follows a changed export asks about every importer of it, a few hundred for a
- * shared module. At a process apiece that is seconds. So from the second such
- * path at a commit, the commit's tree is listed once, and a path whose bytes on
- * disk hash to the blob the commit holds there is answered from disk. The hash
- * is git's own object name for those bytes, so the answer is the commit's text
- * whatever happened on disk since; a path the hash does not match, or the
- * listing does not hold, is read from git alone, as before.
+ * Those paths are mostly files the change did not touch, a few hundred for a
+ * shared module's export, and at a process apiece that is seconds. So from the
+ * second such path at a commit, the commit's tree is listed once, and a path
+ * whose bytes on disk hash to the blob the commit holds there is answered from
+ * disk: git's own object name for those bytes, so the commit's text regardless.
+ *
+ * Any other path is read from git alone, and held, absent included, at its
+ * commit for as long as the reader lives: far from the record few files on disk
+ * match, and the same paths return thousands of times. A window's second read of
+ * a path is held too, so at a commit a path no window read reaches git once and
+ * one a window read at most twice. Nothing bounds this. A refused read throws again.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -103,6 +103,22 @@ function positionOf(sorted: readonly string[], file: string): number {
   return -1;
 }
 
+/** What a reader keeps of one commit, which a turn to another commit leaves alone. */
+interface Reading {
+  /** What the commit gave and stays held, `undefined` a path it does not hold. */
+  read: Map<string, string | undefined>;
+  /** The paths no window reads again. */
+  answered: Set<string>;
+  /** The paths a window has read. */
+  windowed: Set<string>;
+  /** How wide the next window is. */
+  width: number;
+  /** How many paths from outside the window were asked about. */
+  outside: number;
+  /** The commit's tree once the second such path arrived: `null` when git could not list it. */
+  listing: Listing | null | undefined;
+}
+
 /**
  * A `sourceAt` for this repository, reading a path at whatever position the
  * snapshot turns out to have been recorded at.
@@ -126,17 +142,12 @@ export function textAtRecording(
   // The list the selector named with its asks, once one has arrived: it
   // replaces `files`, because it is the part of them the selector reads.
   let named: readonly string[] | undefined;
+  const readings = new Map<string, Reading>();
+  // The window, and the commit it is of: one for the whole reader, so no two are
+  // ever resident together.
   let at: string | undefined;
-  // Which paths this commit's reading has answered, and how wide the next window
-  // is: both reset with the commit.
-  let answered = new Set<string>();
-  let width = FIRST_WINDOW;
   let held = new Map<string, string>();
   let asked = new Set<string>();
-  // How many paths from outside the window this commit was asked about, and its
-  // tree once the second arrived: `null` when git could not list it.
-  let outside = 0;
-  let listing: Listing | null | undefined;
 
   return (file, commit, asking) => {
     if (asking !== undefined && asking !== named) {
@@ -150,19 +161,22 @@ export function textAtRecording(
 
     if (at !== commit) {
       at = commit;
-      answered = new Set();
-      width = FIRST_WINDOW;
       held = new Map();
       asked = new Set();
-      outside = 0;
-      listing = undefined;
     }
+    let reading = readings.get(commit);
+    if (reading === undefined) {
+      reading = { read: new Map(), answered: new Set(), windowed: new Set(), width: FIRST_WINDOW, outside: 0, listing: undefined };
+      readings.set(commit, reading);
+    }
+    const { read, answered, windowed } = reading;
     // Asked about, and answered — including answered *missing*, which is a fact
     // about the commit and not a reason to ask again.
     if (asked.has(file)) {
       answered.add(file);
       return held.get(file);
     }
+    if (read.has(file)) return read.get(file);
 
     // A path the caller never named, or one asked again after its window went,
     // leaves the window where it is: the selector asks about a changed file's
@@ -171,25 +185,40 @@ export function textAtRecording(
     const from = answered.has(file) ? -1 : positionOf(expected, file);
     answered.add(file);
     if (from === -1) {
-      outside += 1;
-      if (outside > 1 && listing === undefined) listing = listed(root, commit);
-      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? textsAt(root, new Map([[commit, [file]]])).get(commit)!.get(file);
+      reading.outside += 1;
+      if (reading.outside > 1 && reading.listing === undefined) reading.listing = listed(root, commit);
+      const onDisk = reading.listing ? unchangedOnDisk(root, reading.listing, file) : undefined;
+      if (onDisk !== undefined) return onDisk;
+      // Set only once git has answered: a refused read throws, and asked again throws again.
+      const text = textsAt(root, new Map([[commit, [file]]])).get(commit)!.get(file);
+      read.set(file, text);
+      return text;
     }
     // Any other path opens a window over it and the paths after it not yet
     // answered: the selector asks a few paths ahead of the rest, so a window can
     // go before the paths it read are asked, and those paths are then read again
     // together rather than a process apiece.
-    const window = unanswered(expected, from, width, answered);
+    const window = unanswered(expected, from, reading.width, answered);
 
     // The previous window goes before the next one arrives, so no two are ever
     // resident together.
     held = new Map();
-    asked = new Set(window);
+    asked = new Set();
     held = textsAt(root, new Map([[commit, window]])).get(commit)!;
+    asked = new Set(window);
+    // A path read by a window for the second time is one no window kept until
+    // it was asked, so this read is held and no later window takes it.
+    for (const path of window) {
+      if (windowed.has(path)) {
+        read.set(path, held.get(path));
+        answered.add(path);
+      }
+      windowed.add(path);
+    }
 
     let bytes = 0;
     for (const text of held.values()) bytes += text.length;
-    width = Math.min(
+    reading.width = Math.min(
       WIDEST_WINDOW,
       Math.max(1, Math.round((WINDOW_BYTES * window.length) / Math.max(bytes, 1))),
     );
