@@ -25,22 +25,24 @@ npx variance run --config variance.config.json
 collector that mounts each UI state, is
 [run visual review from the command line](start-cli.md).
 
-The report contains one record per **subject** — one named UI state you asked for
-and can ask for again, identified by a stable id such as `checkout/empty` or
-`story:checkout--empty`.
-
 ## Serve the report to a client
 
-Use Node 22.15 or newer. From the directory in which the MCP client will launch
-the server, install the package:
+Use Node 22.15 or newer. In the repository that holds the report, install the
+package:
 
 ```bash
 npm install --save-dev @variance-authority/mcp
 ```
 
-Then add the server to the file your client keeps its server list in —
-`claude_desktop_config.json` for Claude Desktop, the equivalent file for any
-other client:
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so both entries below go through `npx`. Which one you write depends on
+the directory your client starts the server in, because `npx` looks for the
+binary there and a relative report path is read from there.
+
+### A client that starts in the repository
+
+Claude Code starts a server in the repository it was opened in, and keeps its
+list in `.mcp.json` at the repository root:
 
 ```json
 {
@@ -53,26 +55,89 @@ other client:
 }
 ```
 
-A client launches `command` from its own `PATH`, where a local install puts
-nothing, so the entry goes through `npx`. The relative report path is resolved
-from the server process's working directory. A client that starts outside the
-repository takes the absolute path of both: `"args": ["--prefix", "/path/to/repo",
-"variance-authority-mcp", "/path/to/repo/.variance/report.json"]`. The server
-validates the report at startup and re-reads it before each request, so a
-completed rerun is answered from the new report without reconnecting.
+### A client that starts anywhere else
+
+Claude Desktop keeps its list in `claude_desktop_config.json` and may start a
+server in any directory, `/` among them. Give that entry your repository's
+absolute path twice, once for `npx` and once in the report's path. It works from
+every directory, so write this one when your client's documentation does not say
+where it starts:
+
+```json
+{
+  "mcpServers": {
+    "variance": {
+      "command": "npx",
+      "args": [
+        "--prefix",
+        "/path/to/repo",
+        "variance-authority-mcp",
+        "/path/to/repo/.variance/report.json"
+      ]
+    }
+  }
+}
+```
+
+### Check the connection
+
+Check the entry before you open the client. This launches it from the file you
+wrote, so name that file after `--config`, and asks for the tools:
+
+```bash
+npx @modelcontextprotocol/inspector --cli --config .mcp.json --server variance --method tools/list
+```
+
+The answer lists these twelve:
+
+```text
+variance_summary variance_diff variance_changes variance_adjudicate
+variance_composition variance_locate variance_variations variance_changelog
+variance_describe variance_findings variance_trace_component
+variance_explain_verdict
+```
+
+The server reads the report as it starts, so a bad entry fails here, and a client
+holding the same entry shows a server that did not connect and keeps these lines
+in its log:
+
+| The output says | What is wrong |
+| --- | --- |
+| `npm error 404` for `variance-authority-mcp` | The entry ran outside the repository: write the entry for a client that starts anywhere else. |
+| `ENOENT: no such file or directory` | No report at that path: [produce one](#produce-a-report-first), or correct the path. |
+| `is not a variance-authority run report` | The path names some other file. |
+
+The server reads the report again before each request, so a completed rerun is
+answered from the new report without reconnecting.
 
 The same questions are available on the command line, where they need no client
 and no server: [ask a run from the command line](agent-cli.md).
 
 ## Ask from the run outward
 
-Ask in this order:
+The report holds one record per **subject**: one named UI state you asked for and
+can ask for again, identified by a stable id such as `checkout/empty` or
+`story:checkout--empty`. Each subject gets a **verdict**, the one word reported
+for it: `unchanged`, `changed`, `new` or `ignored`.
 
-- **Begin a report-file session with `variance_summary`.** It accounts for
-  planned subjects that were not observed as well as for the observations that
-  produced a **verdict** — the one word reported per subject: `unchanged`,
-  `changed`, `new` or `ignored` — so silence cannot be mistaken
-  for a clean run.
+Begin a report-file session with `variance_summary`, which takes no arguments:
+
+```text
+2 subject(s) observed, ephemeral run at 2026-08-01T10:00:00.000Z
+rendered by playwright-chromium (chromium@131.0.0, darwin/arm64, 1x)
+1 changed, 1 unchanged
+
+[changed] checkout/empty: 1530 pixel(s) differ across 1 region(s) in Toggle
+
+coverage: every planned subject was observed.
+```
+
+It lists what needs attention and counts the rest. Its last line accounts for
+planned subjects that were not observed, so silence cannot be mistaken for a
+clean run.
+
+Then ask in this order:
+
 - **If the summary names changes, ask `variance_changes` before opening an
   individual subject.** It groups shared causes across subjects.
 - Narrow to a subject, component, finding, [composition](composition.md), or

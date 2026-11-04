@@ -20,10 +20,43 @@ import { MARKDOWN, ROOT, type Fence, fencesIn, lineOf, prose } from './markdown.
  * single package, whose answers differ. Only the install lines stand in, as links
  * to the packages built here, and the lines that fetch from the registry: the
  * question to try before installing, and the page's confirmation.
+ *
+ * The page about a finished run is held the same way: both of its entries are
+ * launched, one from the repository and one from `/`, where a client that names
+ * no directory can start a server, and each is asked for the answer it prints.
  */
 
 const PAGE = 'docs/agent-workspace-api.md';
 const HEADING = '## Connect your agent';
+
+const RUN_PAGE = 'docs/agent-mcp.md';
+const RUN_SERVER = '## Serve the report to a client';
+const RUN_QUESTIONS = '## Ask from the run outward';
+
+/** A report as `variance run` leaves it, which states what it did not observe. */
+const RUN_REPORT = {
+  runVersion: 1,
+  at: '2026-08-01T10:00:00.000Z',
+  identity: {
+    renderer: 'playwright-chromium',
+    engine: 'chromium@131.0.0',
+    platform: 'darwin/arm64',
+    deviceScaleFactor: 1,
+    fonts: ['Inter/400/normal/abc'],
+  },
+  retention: 'ephemeral',
+  notObserved: [],
+  observations: [
+    {
+      subject: 'checkout/empty',
+      verdict: 'changed',
+      because: '1530 pixel(s) differ across 1 region(s) in Toggle',
+      changedPixels: 1530,
+      regions: [],
+    },
+    { subject: 'checkout/filled', verdict: 'unchanged', because: 'no pixels differ', changedPixels: 0, regions: [] },
+  ],
+};
 
 /** Records of what happened, and what is not built, which quote the old wording rather than ask anything of a reader. */
 const HISTORY = /^(?:docs\/context\/|docs\/specs\/|backlog\/)/;
@@ -40,13 +73,13 @@ afterAll(() => {
   for (const directory of made.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
-/** The fenced blocks of the section that prints the lines, or none when the page has no such section. */
-function printed(): readonly Fence[] {
-  const lines = prose(PAGE).split('\n');
-  const start = lines.indexOf(HEADING);
+/** The fenced blocks of a section, or none when the page has no such section. */
+function printed(page: string, heading: string): readonly Fence[] {
+  const lines = prose(page).split('\n');
+  const start = lines.indexOf(heading);
   if (start === -1) return [];
   const next = lines.findIndex((line, index) => index > start && line.startsWith('## '));
-  return fencesIn(PAGE).filter((fence) => fence.line > start && fence.line <= next);
+  return fencesIn(page).filter((fence) => fence.line > start && fence.line <= next);
 }
 
 const shellLines = (fences: readonly Fence[]): readonly string[] =>
@@ -86,6 +119,7 @@ function repository(shape: Shape): string {
   for (const [name, bin] of [
     ['cli', 'variance'],
     ['help', 'variance-authority-help'],
+    ['mcp', 'variance-authority-mcp'],
   ] as const) {
     symlinkSync(join(ROOT, 'packages', name), join(root, 'node_modules/@variance-authority', name));
     // A shell script for `npm install`'s link and mode: the build leaves `dist/bin.js` unexecutable.
@@ -114,11 +148,11 @@ interface Followed {
     readonly said: string;
   }[];
   readonly tools: readonly string[];
-  readonly map: string;
+  readonly answer: string;
 }
 
 /** Launch the entry the way a client does, from the repository, and ask it over stdio. */
-async function connect(entry: Entry, cwd: string): Promise<Pick<Followed, 'tools' | 'map'>> {
+async function connect(entry: Entry, cwd: string, tool: string): Promise<Pick<Followed, 'tools' | 'answer'>> {
   const server = spawn(entry.command, entry.args, { cwd, stdio: ['pipe', 'pipe', 'inherit'] });
   const replies = createInterface({ input: server.stdout })[Symbol.asyncIterator]();
   const send = (message: object) => server.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`);
@@ -139,14 +173,23 @@ async function connect(entry: Entry, cwd: string): Promise<Pick<Followed, 'tools
     });
     send({ method: 'notifications/initialized' });
     const listed = (await ask(2, 'tools/list', {})) as { tools: readonly { name: string }[] };
-    const called = (await ask(3, 'tools/call', { name: 'docs_orient', arguments: {} })) as {
+    const called = (await ask(3, 'tools/call', { name: tool, arguments: {} })) as {
       content: readonly { text: string }[];
     };
-    return { tools: listed.tools.map((tool) => tool.name), map: called.content.map((part) => part.text).join('\n') };
+    return {
+      tools: listed.tools.map(({ name }) => name),
+      answer: called.content.map((part) => part.text).join('\n'),
+    };
   } finally {
     server.kill();
   }
 }
+
+/** The server entries a section prints, in its order. */
+const entriesIn = (section: readonly Fence[]): readonly Entry[] =>
+  section
+    .filter((fence) => fence.lang === 'json')
+    .flatMap((fence) => Object.values((JSON.parse(fence.code) as { mcpServers: Record<string, Entry> }).mcpServers));
 
 /** Every shell line in the order the page prints them, then the printed server entry. */
 async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed> {
@@ -157,15 +200,12 @@ async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed>
       const run = spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' });
       return { line, status: run.status, out: run.stdout, said: run.stderr };
     });
-  const list = JSON.parse(fences.find((fence) => fence.lang === 'json')?.code ?? '{}') as {
-    mcpServers: Readonly<Record<string, Entry>>;
-  };
-  const [entry] = Object.values(list.mcpServers);
+  const [entry] = entriesIn(fences);
   if (entry === undefined) throw new Error(`${PAGE} prints no server entry under ${HEADING}`);
-  return { lines, ...(await connect(entry, root)) };
+  return { lines, ...(await connect(entry, root, 'docs_orient')) };
 }
 
-const fences = printed();
+const fences = printed(PAGE, HEADING);
 // Awaited here rather than in a test: the run takes what the machine gives it, and no test timeout should judge that.
 const followed = fences.length === 0 ? undefined : await follow(fences, 'several packages');
 const alone = fences.length === 0 ? undefined : await follow(fences, 'one package');
@@ -233,8 +273,8 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
   });
 
   it('docs_orient returns what the shell printed', () => {
-    expect(asPrinted(followed?.map)).toContain(orientOf(followed));
-    expect(asPrinted(alone?.map)).toContain(orientOf(alone));
+    expect(asPrinted(followed?.answer)).toContain(orientOf(followed));
+    expect(asPrinted(alone?.answer)).toContain(orientOf(alone));
   });
 
   it('names no command that exits 2 without a config, unless the paragraph says it needs one', () => {
@@ -243,6 +283,78 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
       (paragraph) => /variance (?:serve|doctor)/.test(paragraph) && !paragraph.includes('variance.config.json'),
     );
     expect(unqualified).toEqual([]);
+  });
+});
+
+const runServer = printed(RUN_PAGE, RUN_SERVER);
+const runAnswers = printed(RUN_PAGE, RUN_QUESTIONS)
+  .filter((fence) => fence.lang === 'text')
+  .map((fence) => fence.code)
+  .join('\n');
+
+/** A repository holding a finished run, and `report` written where the printed entries look for it. */
+function runRepository(report: string | undefined): string {
+  const root = repository('one package');
+  if (report !== undefined) {
+    mkdirSync(join(root, '.variance'));
+    writeFileSync(join(root, '.variance/report.json'), report);
+  }
+  return root;
+}
+
+const inTheRepository = entriesIn(runServer)[0];
+const fromAnywhere = entriesIn(runServer)[1];
+
+/** The entry for a client that names no directory, with the page's placeholder filled in as a reader fills it. */
+const filledIn = (entry: Entry, root: string): Entry => ({
+  command: entry.command,
+  args: entry.args.map((arg) => arg.replace('/path/to/repo', root)),
+});
+
+const served = JSON.stringify(RUN_REPORT);
+// Awaited here for the reason `followed` is: no test timeout should judge what the machine gives a launch.
+const started =
+  inTheRepository === undefined
+    ? undefined
+    : await connect(inTheRepository, runRepository(served), 'variance_summary');
+const startedElsewhere =
+  fromAnywhere === undefined
+    ? undefined
+    : await connect(filledIn(fromAnywhere, runRepository(served)), '/', 'variance_summary');
+
+/** What a client's log holds when the first entry is launched over `report`. */
+const failure = (report: string | undefined): string =>
+  inTheRepository === undefined
+    ? ''
+    : spawnSync(inTheRepository.command, inTheRepository.args, {
+        cwd: runRepository(report),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }).stderr;
+
+describe(`${RUN_PAGE} connects a client to a finished run`, () => {
+  it('prints an entry for a client in the repository and one for a client anywhere else', () => {
+    expect(entriesIn(runServer)).toHaveLength(2);
+  });
+
+  it('either entry serves the tools the page names', () => {
+    const page = runServer.map((fence) => fence.code).join('\n');
+    expect(started?.tools).toContain('variance_summary');
+    expect(startedElsewhere?.tools).toEqual(started?.tools);
+    expect(started?.tools.filter((tool) => !page.includes(tool))).toEqual([]);
+  });
+
+  it('either entry returns the answer the page prints for the first call', () => {
+    expect(startedElsewhere?.answer).toBe(started?.answer);
+    expect(runAnswers).toContain(started?.answer.trim() ?? 'no answer');
+  });
+
+  it('names what a start that failed prints', () => {
+    const page = prose(RUN_PAGE);
+    expect(failure(undefined)).toContain("ENOENT: no such file or directory, open '.variance/report.json'");
+    expect(page).toContain('ENOENT: no such file or directory');
+    expect(failure('{}')).toContain('is not a variance-authority run report');
+    expect(page).toContain('is not a variance-authority run report');
   });
 });
 
