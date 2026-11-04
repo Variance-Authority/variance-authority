@@ -156,10 +156,11 @@ The other recording options:
 - `unprobed`: modules that take the `loads` line instead of probes, inside a
   finer recording. Jest takes globs; Vitest and Rstest take a predicate.
 
-Under `'loads'`, `cadence`, `continuations` and stories do not apply. A run
-fails rather than lay itself over a record made under another `mode`:
-when you change `mode`, give the run a new `coverageFile` or delete the
-old record.
+Under `'loads'`, `cadence`, `continuations` and stories do not apply. Each
+`mode` records under its own probes, so when you change it the next run
+replaces the record in the cache and says so in one line. A run fails rather
+than lay itself over a `coverageFile` made under another `mode`: give it a new
+one, or delete the old record.
 
 ## What selection refuses to narrow
 

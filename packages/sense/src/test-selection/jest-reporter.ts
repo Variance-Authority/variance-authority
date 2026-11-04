@@ -55,13 +55,12 @@ import {
   type SelectionReporterConfig,
 } from './jest.js';
 import {
-  noteSeeded,
-  seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
 } from './index.js';
 import { recordsAlone } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 
 /**
  * Set beside the case directory to the checkout the record names files against,
@@ -262,7 +261,7 @@ class JestCoverageReporter {
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run,
     // and not asked by a shard that is a part of one whole run.
-    if (!this.#alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
+    await prepareRecord(coverageFile, root, current.instrumentation, { alone: this.#alone });
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.

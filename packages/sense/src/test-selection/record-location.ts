@@ -175,10 +175,8 @@ export async function seedTestCoverage(
   cacheRoot?: string,
 ): Promise<Seeded | undefined> {
   const layers = repositoryLayers(root, cacheRoot);
-  // A caller that named its own file owns it, and it is not a layer of
-  // anything: there is no base beneath a path somebody passed in.
-  const inside = relative(layers.top, file).split(sep).join('/');
-  if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return undefined;
+  const inside = cachedRecord(file, root, cacheRoot);
+  if (inside === undefined) return undefined;
   const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
   const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
   // A checkout with a record of its own has its base, and no other is asked.
@@ -228,6 +226,16 @@ export async function seedTestCoverage(
     ...(shared === undefined ? {} : { shared }),
     ...(passed === undefined ? {} : { passed }),
   };
+}
+
+/**
+ * Where `file` sits in this checkout's layer, when it is the checkout's cached
+ * record. Nothing for any other path: a caller that named its own file owns it,
+ * and it is not a layer of anything.
+ */
+export function cachedRecord(file: string, root: string, cacheRoot?: string): string | undefined {
+  const inside = relative(repositoryLayers(root, cacheRoot).top, file).split(sep).join('/');
+  return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
 }
 
 /**

@@ -174,8 +174,9 @@ function named(current: TestCoverage, names: ReadonlyMap<string, string>): TestC
 
 /**
  * The record at `file` refused by a run that would lay over it: one this build
- * cannot read, or one under other probes, is another build's, and a run
- * neither replaces it nor drops its evidence. Deleting it is the operator's.
+ * cannot read, or a handed-in one under other probes, is another build's, and a
+ * run neither replaces it nor drops its evidence. Deleting it is the operator's.
+ * A cached record under other probes never comes here: see `prepareRecord`.
  */
 export function anotherBuilds(file: string, error: unknown): Error {
   return new Error(

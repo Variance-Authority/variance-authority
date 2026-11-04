@@ -11,7 +11,6 @@ import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import {
   mainlineReadRoot,
-  noteSeeded,
   readTestCoverage,
   readableTestCoverage,
   RecordWithoutCoverage,
@@ -21,6 +20,8 @@ import {
   writeTestCoverage,
   type TestCoverage,
 } from './index.js';
+import { noteSeeded } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 
 async function checkout(): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-layers-'));
@@ -329,6 +330,25 @@ describe('the snapshot a checkout starts from', () => {
 
     // A run that lays no coverage lays over a base under any probes.
     await expect(seedTestCoverage(file, path, undefined, cacheRoot)).resolves.toEqual({ from: 'primary', file: base });
+  });
+
+  test('a checkout\'s own record under other probes gives way to the base the run can land on', async () => {
+    const at = await checkout();
+    const cacheRoot = resolve(at, 'cache');
+    const primary = resolve(at, 'primary');
+    const base = testCoverageFile(primary, { cacheRoot });
+    await writeTestCoverage(base, snapshot);
+    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
+    const file = testCoverageFile(path, { cacheRoot });
+    await mkdir(dirname(file), { recursive: true });
+    await writeTestCoverage(file, { ...snapshot, tests: [], instrumentation: 'older-recipe' });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await prepareRecord(file, path, snapshot.instrumentation, { cacheRoot });
+
+    expect(await readTestCoverage(file)).toMatchObject({ instrumentation: snapshot.instrumentation, tests: snapshot.tests });
+    expect(warn.mock.calls.map(([line]) => String(line))).toEqual([expect.stringContaining(`replaced the record at ${file}`)]);
+    warn.mockRestore();
   });
 
   test('a caller that named its own file is not seeded into', async () => {

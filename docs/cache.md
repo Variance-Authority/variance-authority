@@ -12,7 +12,10 @@ that takes a `cacheRoot` option read that one answer, so a recording written by
 `yarn test` is the recording `variance select` reads.
 
 Nothing in it is a baseline. Delete any part of it and the next run is slower,
-not wrong.
+not wrong. The same holds when you upgrade: the next run replaces a recording
+the cache holds under other probes, stays green, and prints one line naming the
+file and both sets of probes. A record you hand in by path stays yours: the run
+refuses it and leaves it as it is.
 
 ## Where it is
 

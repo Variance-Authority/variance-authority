@@ -2050,7 +2050,7 @@ import {
   combineRecords,
   landedCoverage,
   openTestCoverage,
-  seedTestCoverage,
+  prepareRecord,
   testCoverageFile,
   withIndexLock,
   writeCoverageBytes,
@@ -2060,7 +2060,7 @@ const combined = 'artifacts/coverage.bin';
 const { commit, tests } = combineRecords(['shard-1/coverage.bin', 'shard-2/coverage.bin'], combined);
 
 const file = testCoverageFile(process.cwd());
-await seedTestCoverage(file, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
+await prepareRecord(file, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
 const landed = await withIndexLock(file, async () => {
   let previous: Uint8Array | undefined;
   try {
@@ -2091,6 +2091,12 @@ replace it. `writeCoverageBytes` stages the bytes beside `file` and renames them
 over it, so a reader sees the previous record or this one. `withIndexLock` on
 `file` is the lock every seam takes to write the record, so no run writes it
 while you land.
+
+`prepareRecord` makes the record at `file` one the fold can land on. A record
+in the checkout's cache under other probes than the ones you pass is another
+build's and rebuilt by the next run, so it goes, with the files beside it, and
+one printed line names the file and both sets of probes. It then calls
+`seedTestCoverage`, which `{ alone: true }` skips for a shard recording no base.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the

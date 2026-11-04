@@ -119,8 +119,8 @@ export {
 } from './mainline-layer.js';
 export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.js';
 export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
+export { prepareRecord } from './replaced-record.js';
 export {
-  noteSeeded,
   type PassedOver,
   readableTestCoverage,
   recordFileFor,

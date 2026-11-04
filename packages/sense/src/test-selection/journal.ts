@@ -69,9 +69,8 @@ import {
 import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 import {
-  noteSeeded,
-  seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -407,7 +406,7 @@ export async function recordExecution(
   // earlier worker's whole contribution — silently, and in the unsafe direction.
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
-  noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation, options.cacheRoot));
+  await prepareRecord(coverageFile, root, current.instrumentation, { cacheRoot: options.cacheRoot });
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are
