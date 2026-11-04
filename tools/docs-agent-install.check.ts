@@ -33,6 +33,9 @@ const RUN_PAGE = 'docs/agent-mcp.md';
 const RUN_SERVER = '## Serve the report to a client';
 const RUN_QUESTIONS = '## Ask from the run outward';
 
+const LIVE_PAGE = 'docs/agent-live-run.md';
+const LIVE_SERVER = '## Start the watcher before the suite';
+
 /** A report as `variance run` leaves it, which states what it did not observe. */
 const RUN_REPORT = {
   runVersion: 1,
@@ -368,6 +371,46 @@ describe(`${RUN_PAGE} connects a client to a finished run`, () => {
     expect(page).toContain('ENOENT: no such file or directory');
     expect(failure('{}')).toContain('is not a variance-authority run report');
     expect(page).toContain('is not a variance-authority run report');
+  });
+});
+
+const liveRoot = repository('one package');
+const liveEntry = entriesIn(printed(LIVE_PAGE, LIVE_SERVER))[0];
+const liveProse = prose(LIVE_PAGE);
+/** The entry for a client that starts elsewhere is one line of prose, so it is read from there. */
+const liveArgs = /"args": (\["--prefix".*?\])/.exec(liveProse)?.[1];
+const liveElsewhere: Entry | undefined =
+  liveArgs === undefined
+    ? undefined
+    : { command: 'npx', args: (JSON.parse(liveArgs) as string[]).map((arg) => arg.replace('/path/to/repo', liveRoot)) };
+const watching = liveEntry === undefined ? undefined : await connect(liveEntry, liveRoot, 'variance_self');
+const watchingElsewhere = liveElsewhere === undefined ? undefined : await connect(liveElsewhere, '/', 'variance_self');
+
+describe(`${LIVE_PAGE} connects a client to a run in flight`, () => {
+  const answers = fencesIn(LIVE_PAGE).filter((fence) => fence.lang === 'text');
+
+  it('the entry reads the assignment out of `variance_self`, as the page prints it', () => {
+    const [opening, , assigning, , address] = (watching?.answer ?? '').split('\n');
+    expect(address).toMatch(/^ {2}VARIANCE_AUTHORITY_VANTAGE=http:\/\/127\.0\.0\.1:\d+$/);
+    expect(answers.some((fence) => fence.code.includes(`${opening}\n\n${assigning}`))).toBe(true);
+  });
+
+  it('the entry for a client elsewhere answers from `/`', () => {
+    expect(watchingElsewhere?.answer).toContain('VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:');
+  });
+
+  it('names the config the shell questions load, which `variance watch` does not', () => {
+    const asked = spawnSync('npx', ['variance', 'ask', 'self', '--at', 'http://127.0.0.1:9'], {
+      cwd: liveRoot,
+      encoding: 'utf8',
+    });
+    expect(asked.status).toBe(2);
+    expect(liveProse).toContain('`--config <path>`');
+  });
+
+  it('names both halves an announcement needs: `vae` in the application and `events` in the test', () => {
+    expect(liveProse).toContain('`vae`');
+    expect(liveProse).toContain('`events` fixture');
   });
 });
 
