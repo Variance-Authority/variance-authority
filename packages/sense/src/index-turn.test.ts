@@ -2,11 +2,11 @@ import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { native, nativeRefusal } from './addon.js';
+import { native } from './addon.js';
 import { inIndexTurn, indexTurnPath } from './index-turn.js';
 import type { NativeScanner } from './native.js';
 
-vi.mock('./addon.js', async (actual) => ({ ...await actual<typeof import('./addon.js')>(), native: vi.fn(), nativeRefusal: vi.fn() }));
+vi.mock('./addon.js', async (actual) => ({ ...await actual<typeof import('./addon.js')>(), native: vi.fn() }));
 
 /** The addon, throwing `failure` from a take. */
 function addon(failure: Error): void {
@@ -37,14 +37,5 @@ describe('what the addon answers for the turn', () => {
     await expect(taken()).rejects.toBe(panic);
     expect(refused).toEqual([]);
   });
-
-  it('marks an addon that did not load as the operator\'s, and names why', async () => {
-    vi.mocked(native).mockReturnValue(undefined);
-    vi.mocked(nativeRefusal).mockReturnValue('@variance-authority/sense-darwin-arm64 is not installed');
-
-    await expect(taken()).rejects.toMatchObject({
-      varianceOperatorError: true,
-      message: expect.stringContaining('which did not load: @variance-authority/sense-darwin-arm64 is not installed'),
-    });
   });
 });

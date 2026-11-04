@@ -34,7 +34,6 @@
 
 import {
   inIndexTurn,
-  refusalAt,
   prepareCodeMap,
   prepareJourneys,
   readySourceIndex,
@@ -110,7 +109,8 @@ async function written(request: IndexRequest, alone: Alone): Promise<SourceUpdat
   // A scan treats an unwritable cache as a cold next run. This step exists to
   // write it, so a refusal is the answer, and nothing after it has an index to read.
   if (update.refused !== undefined) {
-    throw new OperatorError(`source index not written: ${refusalAt(update.path, update.refused) ?? update.refused}, at ${update.path}`);
+    const reason = update.refused.startsWith(`${update.path}: `) ? update.refused.slice(update.path.length + 2) : update.refused;
+    throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
   }
   return update;
 }

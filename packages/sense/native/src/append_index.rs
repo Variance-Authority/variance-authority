@@ -27,15 +27,11 @@ use crate::log::{written, LogSegment, Over};
 #[napi(catch_unwind)]
 pub fn append_source_index(path: String, read: Vec<String>, legacy: bool, layers: Vec<Buffer>) -> Option<String> {
     let layers: Vec<&[u8]> = layers.iter().map(|bytes| bytes.as_ref()).collect();
-    // A chain that cannot be read says its own path, as the rest is told it here.
-    let chain = match read_chain(&path) {
-        Ok(chain) => chain,
-        Err(error) => return Some(error),
-    };
-    appended(&path, chain, &read, legacy, &layers).err().map(|error| format!("{path}: {error}"))
+    appended(&path, &read, legacy, &layers).err().map(|error| format!("{path}: {error}"))
 }
 
-fn appended(path: &str, chain: Option<Chain>, read: &[String], legacy: bool, layers: &[&[u8]]) -> Result<(), String> {
+fn appended(path: &str, read: &[String], legacy: bool, layers: &[&[u8]]) -> Result<(), String> {
+    let chain = read_chain(path)?;
     let references: Vec<LogSegment> = chain.as_ref().map(named).unwrap_or_default();
     let kept = read.len();
     if references.len() < kept || references[..kept].iter().zip(read).any(|(reference, digest)| reference.digest != *digest) {

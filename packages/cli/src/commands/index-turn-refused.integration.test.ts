@@ -5,14 +5,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { indexTurnPath, sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { indexOutput } from './index-command.js';
 
 /**
- * `variance index` where its turn, or the addon that takes it, is not to be had.
- * Through the binary for the line a person reads and the exit code, since a
- * thrown error reaches both only past `bin.ts`; through `indexOutput` for what a
- * caller that is no process hears.
+ * `variance index` where its turn is not to be had. Through the binary for the
+ * line a person reads and the exit code; through `indexOutput` for what a caller
+ * that is no process hears.
  */
 
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
@@ -112,28 +111,5 @@ describe('variance index, when the turn is refused', () => {
 
     expect(refusals(lines.join('\n'), path)).toEqual([lines[1]]);
     expect(lines[2]).toMatch(new RegExp(`^${next}`, 'u'));
-  });
-});
-
-describe('variance index, when the addon did not load', () => {
-  it('says what is wrong and what to do, as the operator\'s to fix', () => {
-    const root = checkout();
-    // No `.node` loads in this process, as on a machine no binary reached.
-    const preload = join(mkdtempSync(join(tmpdir(), 'va-turn-preload-')), 'no-addon.cjs');
-    writeFileSync(preload, [
-      "const Module = require('node:module');",
-      'const load = Module._load;',
-      'Module._load = function (request, ...rest) {',
-      "  if (/sense-[a-z0-9-]+$|\\.node$/u.test(request)) throw Object.assign(new Error(`Cannot find module '${request}'`), { code: 'MODULE_NOT_FOUND' });",
-      '  return load.call(this, request, ...rest);',
-      '};',
-    ].join('\n'));
-
-    const run = indexed(root, { NODE_OPTIONS: `--require ${preload}` });
-
-    expect(run.status).toBe(EXIT_OPERATOR);
-    expect(run.stderr).not.toContain('defect in the tool');
-    expect(run.stderr).not.toMatch(/^\s+at /mu);
-    expect(run.stderr).toMatch(/^the index turn is taken by the native addon, which did not load: \S+ is not installed\. Install again without `--omit=optional`, or, on a platform no package is published for, build the addon from the checkout with `cargo`\.$/mu);
   });
 });

@@ -450,7 +450,6 @@ describe('variance index', () => {
     expect(refused.code).toBe(EXIT_OPERATOR);
     expect(refused.out).toBe('');
     expect(refused.err).toMatch(new RegExp(`(^|\\n)source index not written: .+, at ${escaped(sourceIndexPath(root))}\\n`, 'u'));
-    expect(refused.err.split(sourceIndexPath(root))).toHaveLength(2);
     expect(refused.err).not.toContain('defect in the tool');
   });
 

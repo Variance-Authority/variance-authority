@@ -18,7 +18,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { native, nativeRefusal, refusalAt } from './addon.js';
 import type { NativeScanner } from './native.js';
-import { operatorError } from './operator.js';
 import { repositoryLayers, workDirectory } from './test-selection/cache-layers.js';
 
 /** Who holds the turn: the process and the checkout it indexes. */
@@ -61,9 +60,7 @@ export async function inIndexTurn<T>(
   alone: (path: string, reason: string) => void,
 ): Promise<T> {
   const addon = native();
-  if (addon === undefined) {
-    throw operatorError(`the index turn is taken by the native addon, which did not load: ${nativeRefusal()}. Install again without \`--omit=optional\`, or, on a platform no package is published for, build the addon from the checkout with \`cargo\`.`);
-  }
+  if (addon === undefined) throw new Error(`the index turn is taken by the native addon, which did not load: ${nativeRefusal()}`);
   const path = indexTurnPath(root);
   const holder = JSON.stringify({ pid: process.pid, root } satisfies IndexTurnHolder);
   let told = false;

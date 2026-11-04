@@ -13,9 +13,7 @@ the primary checkout, so one that does not ignore `node_modules` shows it as
 untracked. A worktree of a bare or `--separate-git-dir`
 repository has no primary checkout to find, so it waits for none. A file system
 that refuses the lock no longer stops the index, which runs and prints why on
-stdout, after the index's own line. An addon that did not load is reported with
-what to do rather than as a defect. `refusalAt` reads what the file system
-refused out of what the addon said. The old directory is left where it is, and
+stdout, after the index's own line. The old directory is left where it is, and
 nothing reads it.
 
 **Breaking:** `indexTurnPath(root)` in `@variance-authority/sense` takes the

@@ -1,18 +1,45 @@
 /**
  * Where a checkout keeps its cache, and where it reads one it did not write.
  *
- * A record is keyed by a digest of its checkout's path, so two checkouts share
- * none, and a new worktree would rebuild what the checkout it was cut from knows.
- * So a *repository* has one base, the primary checkout's directory, and every
- * other checkout a layer, `<repository>/.work/<workspace>/`, in its own cache:
- * inside the worktree at the default location, beside the base only under
- * `VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`. `.work` is dotted because
- * nothing a caller names begins with a dot. The base is keyed by the primary
- * checkout, not the git directory, so its cache stays where it always was.
+ * Everything under `test-selection` has always been keyed by a digest of the
+ * checkout's absolute path. That answers one question — *may these two processes
+ * write to the same bytes* — correctly and completely: two checkouts never
+ * share, so two agents working in two worktrees cannot corrupt each other's
+ * index, and nothing has to be locked for that to hold.
  *
- * A worktree reads both layers and writes only its own, so no two writers address
- * one byte. The one exception records nothing: the index turn's two files, which
- * `index-turn.ts` has every checkout write in the primary checkout's cache.
+ * It answers the other question badly. A worktree created this morning is a
+ * checkout of a repository that has been instrumented for months, and under a
+ * key that is its own path it inherits none of it: the first run in a new
+ * worktree re-transforms a world that is already sitting on disk a directory
+ * away. An agent that exists for an afternoon spends most of it rebuilding what
+ * the checkout it was cut from already knew.
+ *
+ * So the path splits into two. A *repository* has one base — the primary
+ * checkout's directory, unchanged, still exactly where it was — and every other
+ * checkout of it gets a directory of its own beneath that base:
+ *
+ * ```
+ * <cache>/test-selection/<repository>/
+ *   coverage.bin, suites/                 the base: the primary checkout's own
+ *   .work/<workspace>/                    one per worktree
+ *     coverage.bin, suites/
+ * ```
+ *
+ * A worktree reads both layers and writes a record only in its own. That is the
+ * whole of the safety argument: the base's records are read-only to everyone who
+ * is not the primary checkout, so no two writers ever address one byte. The index
+ * turn's files, which every checkout writes in the base, hold no record.
+ *
+ * `.work` is dotted for the reason a run's scratch segments are
+ * `.run-<pid>-<uuid>`: nothing a caller names begins with a dot.
+ *
+ * ## Why the base is the primary checkout and not the git directory
+ *
+ * The repository could be keyed by anything stable — the common git directory
+ * would do. Keying it by the primary checkout's path means the primary
+ * checkout's cache is where it has always been, byte for byte, so a repository
+ * that has been recording for months keeps its index across this change rather
+ * than starting cold to gain a feature about not starting cold.
  */
 
 // compass: variance-authority.reach
@@ -160,7 +187,7 @@ export function rootConfigOf(file: string, text: string): RootConfig {
  * `top` is the only one a record is written to. `base` is the repository's, and
  * in the primary checkout the two are the same directory — which is what makes
  * the cascade invisible there: one layer, written and read, as before. Outside
- * it, the index turn's two files are all a checkout writes under `base`.
+ * it, the index turn's files are all a checkout writes under `base`.
  */
 export interface CacheLayers {
   /** This checkout's own directory: the only one a run of it writes a record in. */
