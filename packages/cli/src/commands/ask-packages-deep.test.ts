@@ -215,7 +215,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(join(root, 'packages/lib/src/internal/math.ts'), 'export function addTax(amount: number): number {\n  return amount;\n}\n\nexport const unrelated = 1;\n');
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--just-answer']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).not.toContain('export const unrelated');
