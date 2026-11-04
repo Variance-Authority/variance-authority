@@ -9,14 +9,14 @@
  *    share, a mainline record read now whose commit HEAD contains replaces the
  *    milestone under every test this checkout did not run (`repinOwnLayer`).
  * 2. **The mainline's**, as CI published it, for a suite the root config gives
- *    to the share: fetched now, or the record fetched last on this machine,
- *    which `mainlineBase` reuses for a while and falls back to when the remote
+ *    to the share: fetched now, or the record fetched last for the mainline
+ *    selected on this machine, which `mainlineBase` reuses for a while and falls back to when the remote
  *    does not answer. It is published only when the runs record it carries
  *    shows the whole suite ran at the commit it names, and it is the same
  *    record every other checkout and every pull request measures from.
  * 3. **The primary checkout's**, in a worktree that has run nothing, and only
- *    when no record of the mainline selected was read now or fetched earlier. It is an offline
- *    fallback, and the reader says why the mainline's is not it.
+ *    when no record of the mainline selected was read now or fetched earlier.
+ *    It is an offline fallback, and the reader says why the mainline's is not it.
  *
  * A checkout's first run is laid on the same answer. The runner seams in
  * `@variance-authority/sense/test-selection` cannot fetch, so they lay the

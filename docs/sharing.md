@@ -602,12 +602,12 @@ Records are read in this order:
    only the newest, so it is asked once per merge base, and not at all while its
    record is past your merge base. The result that the line has none for you
    stands for 10 minutes, with the time of that result. When the remote does not answer,
-   the record fetched earlier is read, and the answer prints when it was
-   fetched and why it was not fetched again.
+   the record fetched earlier for that mainline is read, and the answer prints
+   when it was fetched and why it was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no record of
-   the mainline your checkout selects was fetched on this machine. It is what that checkout last ran,
-   so the answer names it as the offline fallback and prints why the mainline's
-   was not read.
+   the mainline your checkout selects was fetched on this machine. It is what
+   that checkout last ran, so the answer names it as the offline fallback and
+   prints why the mainline's was not read.
 
 The answer prints which one it read:
 
