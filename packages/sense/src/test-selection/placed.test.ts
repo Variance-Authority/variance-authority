@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
+import { changedLines } from './diff-lines.js';
 import { encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
-import { backThrough, hunksOf, placeAcross, placeInText, placeInTexts, placeThrough } from './placed.js';
+import { backThrough, changeInRecord, hunksByFile, hunksOf, placeAcross, placeInText, placeInTexts, placeThrough } from './placed.js';
 import { stateOf } from './range-state.js';
 import type { CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -75,6 +76,61 @@ const range = (tests: readonly CoveringTest[], short?: readonly ExecutionTest[],
   tests,
   ...(short === undefined ? {} : { stopped: short }),
   ...(loaded === undefined ? {} : { loaded }),
+});
+
+describe('a change read in the numbers of the commit a record was made at', () => {
+  const FILE = 'src/long.ts';
+  const diffOf = (...body: readonly string[]): string => [`diff --git a/${FILE} b/${FILE}`, `--- a/${FILE}`, `+++ b/${FILE}`, ...body, ''].join('\n');
+  const listed = (diff: string) => ({ lines: changedLines(diff), hunks: hunksByFile(diff) });
+  const read = (record: string, change: string) => changeInRecord(record, listed(change)).get(FILE);
+
+  it('carries a line the change wrote past what the tree put above it', () => {
+    const change = diffOf('@@ -5 +7 @@', '-five', '+FIVE');
+    const record = diffOf('@@ -0,0 +1,2 @@', '+new one', '+new two', '@@ -5 +7 @@', '-five', '+FIVE');
+
+    expect(read(diffOf('@@ -0,0 +1,2 @@', '+new one', '+new two'), change)).toEqual([{ start: 5, end: 5 }]);
+    expect(read(record, change)).toEqual([{ start: 5, end: 5 }]);
+  });
+
+  it('charges the lines around a removal the record still holds on neither side', () => {
+    const change = diffOf('@@ -5 +4,0 @@', '-five');
+
+    expect(read('', change)).toEqual([{ start: 4, end: 5 }]);
+  });
+
+  it('charges the first line for a removal above it', () => {
+    expect(read('', diffOf('@@ -1 +0,0 @@', '-one'))).toEqual([{ start: 1, end: 1 }]);
+  });
+
+  it('keeps the text of a gap the record does not hold, on the lines that gap opened', () => {
+    const inserted = diffOf('@@ -17,0 +18 @@', '+the change');
+
+    expect(read(inserted, inserted)).toEqual([{ start: 17, end: 18, added: 'the change' }]);
+  });
+
+  it('reads a hunk both sides wrote by what each of its lines was charged, a hunk being the grain', () => {
+    const record = diffOf('@@ -17,2 +17,2 @@', '-seventeen', '-eighteen', '+SEVENTEEN', '+the change');
+
+    expect(read(record, diffOf('@@ -18 +18 @@', '-eighteen', '+the change'))).toEqual([{ start: 17, end: 17 }, { start: 18, end: 18 }]);
+  });
+
+  it('keeps a hunk of the record no line of the change met out of the answer', () => {
+    const record = diffOf('@@ -2 +2 @@', '-two', '+TWO', '@@ -9 +9 @@', '-nine', '+NINE');
+
+    expect(read(record, diffOf('@@ -9 +9 @@', '-nine', '+NINE'))).toEqual([{ start: 9, end: 9 }]);
+  });
+
+  it('reads a file the record diff shows no hunk of at the grain that diff gives it', () => {
+    const binary = `diff --git a/${FILE} b/${FILE}\nBinary files differ\n`;
+
+    expect(read(binary, diffOf('@@ -9 +9 @@', '-nine', '+NINE'))).toEqual([]);
+  });
+
+  it('keeps every file the change listed, however little of it the record diff shows', () => {
+    const change = diffOf('@@ -9 +9 @@', '-nine', '+NINE');
+
+    expect([...changeInRecord('', listed(change)).keys()]).toEqual([FILE]);
+  });
 });
 
 describe('the one state a range is painted as', () => {

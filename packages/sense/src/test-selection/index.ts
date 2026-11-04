@@ -41,7 +41,7 @@ export { blocksOfTarget, functionsUnder, innermostAt, lineGrain, marksLoadTime }
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
-export { backThrough, hunksByFile, placeAcross, placeInText, placeInTexts, type HeldLines, type Hunk, type Placement } from './placed.js';
+export { changeInRecord, hunksByFile, placeAcross, placeInText, placeInTexts, type ChangeRead, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { reachOf, regionRecord, stateOf, type RangeState, type Reach, type ReachRecord } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';

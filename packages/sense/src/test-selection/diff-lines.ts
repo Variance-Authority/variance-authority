@@ -19,6 +19,9 @@ export interface LineRange {
   readonly added?: string;
 }
 
+/** The lines either side of a gap opened after `line`: the first line alone when no line stands above it. */
+export const gapAfter = (line: number): LineRange => ({ start: Math.max(line, 1), end: Math.max(line + 1, 1) });
+
 /**
  * The lines a diff actually changed, in the coordinates the journal is indexed
  * by. A file with no lines is one the diff names without any: a binary, a pure
@@ -130,7 +133,10 @@ export function changedLines(diff: string): ReadonlyMap<string, readonly LineRan
         // the branch on both readings; three lines replacing the brace that
         // closes it are the branch *and* what follows the brace, and reading
         // them as the branch alone skips every test that ran what follows.
-        if (addedRun > removedRun) mark(old - 1, old, line.slice(1));
+        if (addedRun > removedRun) {
+          const gap = gapAfter(old - 1);
+          mark(gap.start, gap.end, line.slice(1));
+        }
       } else if (!line.startsWith('\\')) {
         old += 1;
         removedRun = 0;

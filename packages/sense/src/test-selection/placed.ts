@@ -1,5 +1,5 @@
 import { askCoverageFile } from './coverage-file.js';
-import { diffPath } from './diff-lines.js';
+import { changedLines, diffPath, gapAfter, type LineRange } from './diff-lines.js';
 import { frameOf } from './frame.js';
 import { keptTexts } from './kept-texts.js';
 import { findModules } from './lookup.js';
@@ -132,14 +132,94 @@ export function hunksOf(diff: string): readonly Hunk[] {
  * a reader takes its lines where they were.
  */
 export function hunksByFile(diff: string): ReadonlyMap<string, readonly Hunk[]> {
-  const byFile = new Map<string, readonly Hunk[]>();
+  return new Map(fileParts(diff).map(([file, part]) => [file, hunksOf(part)]));
+}
+
+/** A diff cut by file, under the name {@link hunksByFile} gives each. */
+function fileParts(diff: string): readonly (readonly [string, string])[] {
+  const parts: (readonly [string, string])[] = [];
   for (const part of diff.split(/^(?=diff --git )/mu)) {
     const old = /^--- (.*)$/mu.exec(part);
     const added = /^\+\+\+ (.*)$/mu.exec(part);
     const file = (old === null ? undefined : diffPath(old[1]!)) ?? (added === null ? undefined : diffPath(added[1]!));
-    if (file !== undefined) byFile.set(file, hunksOf(part));
+    if (file !== undefined) parts.push([file, part]);
   }
-  return byFile;
+  return parts;
+}
+
+/** A `-U0` diff read for its lines and for the hunks that say where they stand on the new side. */
+export interface ChangeRead {
+  readonly lines: ReadonlyMap<string, readonly LineRange[]>;
+  readonly hunks: ReadonlyMap<string, readonly Hunk[]>;
+}
+
+/** A hunk, with the lines `changedLines` charged to it alone. */
+interface ChargedHunk {
+  readonly hunk: Hunk;
+  readonly lines: readonly LineRange[];
+}
+
+/** One file's part of a diff, hunk by hunk: `changedLines` reads each under the file's header. */
+function chargedHunks(part: string): readonly ChargedHunk[] {
+  const [header = '', ...bodies] = part.split(/^(?=@@ )/mu);
+  return bodies.map((body) => ({ hunk: hunksOf(body)[0]!, lines: [...changedLines(header + body).values()].flat() }));
+}
+
+/**
+ * A change listed from one commit, read in the numbers of another: `diff` runs
+ * from that other commit to the same tree. Every file listed stays. A line
+ * cannot be carried by {@link placeThrough} here: a line the record's side wrote
+ * has no place to go, and a hunk both sides wrote is read at its own grain.
+ */
+export function changeInRecord(diff: string, listed: ChangeRead): ReadonlyMap<string, readonly LineRange[]> {
+  const lines = changedLines(diff);
+  const hunks = new Map(fileParts(diff).map(([file, part]) => [file, chargedHunks(part)]));
+  return new Map([...listed.lines].map(([file, whole]) => [file, inRecord(lines.get(file), hunks.get(file) ?? [], listed.hunks.get(file), whole)]));
+}
+
+/**
+ * One listed file in the record's numbers. The record's own hunks that meet the
+ * change stay whole, as hunks are the grain where both sides wrote, and every
+ * other line of the change is carried back to the line the record holds it on.
+ * A file either diff shows no lines of, a binary, is held at file grain.
+ */
+function inRecord(ranges: readonly LineRange[] | undefined, hunks: readonly ChargedHunk[], change: readonly Hunk[] | undefined, whole: readonly LineRange[]): readonly LineRange[] {
+  if (change === undefined || change.length === 0) return ranges ?? whole;
+  if (ranges !== undefined && hunks.length === 0) return ranges;
+  const written = hunks.filter(({ hunk }) => change.some((other) => meet(hunk, other))).flatMap(({ lines }) => lines);
+  const held = hunks.map(({ hunk }) => hunk);
+  return [...written, ...change.flatMap((hunk) => carried(hunk, held))].sort((one, other) => one.start - other.start || one.end - other.end);
+}
+
+/** The lines the record holds that a hunk of the change stands on: a line a hunk from the record wrote has none, and a removal no such hunk met opens a gap there. */
+function carried(change: Hunk, hunks: readonly Hunk[]): readonly LineRange[] {
+  if (change.newCount === 0) {
+    if (hunks.some((hunk) => meet(hunk, change))) return [];
+    const line = backThrough(hunks, change.newStart);
+    return line === undefined ? [] : [gapAfter(line)];
+  }
+  const runs: { start: number; end: number }[] = [];
+  for (let at = change.newStart; at < change.newStart + change.newCount; at++) {
+    const line = backThrough(hunks, at);
+    if (line === undefined) continue;
+    const run = runs.at(-1);
+    if (run?.end === line - 1) run.end = line;
+    else runs.push({ start: line, end: line });
+  }
+  return runs;
+}
+
+/** Whether two hunks' new sides share a line of the tree. A pure removal has no line, so its position meets what touches it. */
+function meet(one: Hunk, other: Hunk): boolean {
+  const [from, to] = [treeSpan(one), treeSpan(other)];
+  if (one.newCount === 0 || other.newCount === 0) return from.start <= to.end && to.start <= from.end;
+  return from.start < to.end && to.start < from.end;
+}
+
+/** A hunk's new side as offsets between the tree's lines. Git names the line a pure removal follows, so its offset is that line's end. */
+function treeSpan(hunk: Hunk): { readonly start: number; readonly end: number } {
+  const start = hunk.newCount === 0 ? hunk.newStart : hunk.newStart - 1;
+  return { start, end: start + hunk.newCount };
 }
 
 /**
