@@ -66,20 +66,9 @@ npm install --save-dev @variance-authority/mcp
 }
 ```
 
-`npx` looks for the binary in the directory the client starts the server in. A
-client that starts anywhere else, such as Claude Desktop, needs your repository's
-path in [its own file](agent-mcp.md#a-client-that-starts-anywhere-else):
-
-```json
-{
-  "mcpServers": {
-    "variance-live": {
-      "command": "npx",
-      "args": ["--prefix", "/path/to/repo", "variance-authority-mcp", "--watch"]
-    }
-  }
-}
-```
+`npx` reads the directory the client starts the server in. A client that starts
+outside the repository, as Claude Desktop may, takes its absolute path:
+`"args": ["--prefix", "/path/to/repo", "variance-authority-mcp", "--watch"]`.
 
 Both listeners print the same assignment:
 

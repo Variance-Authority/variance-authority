@@ -38,15 +38,11 @@ package:
 npm install --save-dev @variance-authority/mcp
 ```
 
-A client launches `command` from its own `PATH`, where a local install puts
-nothing, so both entries below go through `npx`. Which one you write depends on
-the directory your client starts the server in, because `npx` looks for the
-binary there and a relative report path is read from there.
-
-### A client that starts in the repository
-
-Claude Code starts a server in the repository it was opened in, and keeps its
-list in `.mcp.json` at the repository root:
+Then add the server to the file your client keeps its server list in:
+`.mcp.json` at the repository root for Claude Code, `claude_desktop_config.json`
+for Claude Desktop, the equivalent file for any other client. A client launches
+`command` from its own `PATH`, where a local install puts nothing, so the entry
+goes through `npx`:
 
 ```json
 {
@@ -59,58 +55,10 @@ list in `.mcp.json` at the repository root:
 }
 ```
 
-### A client that starts anywhere else
-
-Claude Desktop may start a server in any directory, `/` among them. It keeps its
-list in `~/Library/Application Support/Claude/claude_desktop_config.json` on
-macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows. Give that
-entry your repository's absolute path twice, once for `npx` and once in the
-report's path. It works from every directory, so write this one when your
-client's documentation does not say where it starts:
-
-```json
-{
-  "mcpServers": {
-    "variance": {
-      "command": "npx",
-      "args": [
-        "--prefix",
-        "/path/to/repo",
-        "variance-authority-mcp",
-        "/path/to/repo/.variance/report.json"
-      ]
-    }
-  }
-}
-```
-
-### Check the connection
-
-Check the entry before you open the client. The check launches it from the file
-you wrote and asks for the tools, and it starts the server in the directory you
-run it from, so run it where your client starts. In the repository, an entry that
-works nowhere else passes. For a client that starts in the repository, run this
-at the repository root:
-
-```bash
-npx @modelcontextprotocol/inspector --cli --config .mcp.json --server variance --method tools/list
-```
-
-For a client that starts anywhere else, run it from outside the repository and
-name that client's file. For Claude Desktop on macOS:
-
-```bash
-cd / && npx @modelcontextprotocol/inspector --cli --config "$HOME/Library/Application Support/Claude/claude_desktop_config.json" --server variance --method tools/list
-```
-
-The answer lists these twelve:
-
-```text
-variance_summary variance_diff variance_changes variance_adjudicate
-variance_composition variance_locate variance_variations variance_changelog
-variance_describe variance_findings variance_trace_component
-variance_explain_verdict
-```
+Both `npx` and the relative report path read the directory the client starts the
+server in. A client that starts outside the repository, as Claude Desktop may,
+takes its absolute path twice: `"args": ["--prefix", "/path/to/repo",
+"variance-authority-mcp", "/path/to/repo/.variance/report.json"]`.
 
 The server validates the report at startup and re-reads it before each request,
 so a completed rerun is answered from the new report without reconnecting.
