@@ -113,6 +113,8 @@ export interface FinishedTestCase {
   readonly name: string | readonly string[];
   /** Milliseconds your runner reported the case took; left out, the case is untimed. */
   readonly duration?: number;
+  /** Milliseconds your runner allowed one attempt of the case; left out, the case has no recorded limit. */
+  readonly limit?: number;
 }
 
 export interface Recording {
@@ -184,6 +186,7 @@ export function startRecording(options: RecordingOptions = {}): Recording {
               typeof test.name === 'string' ? test.name : test.name.join(' > '),
               undefined,
               test.duration,
+              test.limit,
             )),
           }),
         })));

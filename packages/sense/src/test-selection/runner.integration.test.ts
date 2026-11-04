@@ -212,6 +212,13 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     expect(waited?.duration).toBeGreaterThanOrEqual(5);
   }, 60_000);
 
+  it('keeps the limit the runner passed to `finish` for each case it named', async () => {
+    const { coverageFile } = await record();
+
+    const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
+    expect(cases.map((test) => test.limit)).toEqual([5_000, 5_000, 5_000]);
+  }, 60_000);
+
   it('says so when no process instrumented anything, rather than writing a record that reaches nothing quietly', async () => {
     const { coverageFile, stderr } = await record('--no-hooks');
     // Its coverage is absent rather than empty.

@@ -6,7 +6,7 @@ beforeEach(() => {
 
 it('takes the alpha path', () => {
   expect(decide('alpha')).toBe('A');
-});
+}, 3210);
 
 it('ran after the project\'s own setup file', () => {
   expect((globalThis as { __FIXTURE_SETUP__?: string }).__FIXTURE_SETUP__).toBe('composed');

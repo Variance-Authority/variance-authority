@@ -114,6 +114,7 @@ export {
   type RecordedCaseDurations,
   type ScopeCounts,
   type RecordedDurations,
+  type RecordOrigin,
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';

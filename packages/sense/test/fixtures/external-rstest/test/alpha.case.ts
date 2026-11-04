@@ -3,7 +3,7 @@ import { decide } from '../src/decide';
 
 it('takes the alpha path', () => {
   expect(decide('alpha')).toBe('A');
-});
+}, 3210);
 
 it("ran after the project's own setup file", () => {
   expect(globalThis.__FIXTURE_SETUP__).toBe('composed');

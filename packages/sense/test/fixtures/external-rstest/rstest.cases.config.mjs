@@ -25,6 +25,7 @@ export default withTestSelection(
   {
     root,
     globals: false,
+    testTimeout: 4321,
     include: ['test/*.case.ts'],
     setupFiles: ['./test/setup.mjs'],
   },

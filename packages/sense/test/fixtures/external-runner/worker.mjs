@@ -44,7 +44,7 @@ for (const { name, body } of cases) {
       console.error(name, error);
     }
   }
-  timed.push({ name, duration: performance.now() - started });
+  timed.push({ name, duration: performance.now() - started, limit: 5_000 });
 }
 observer?.finish();
 console.log(JSON.stringify(timed));

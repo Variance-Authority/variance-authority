@@ -10,7 +10,8 @@ import type {
   ExecutionTest,
 } from './reverse.js';
 import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
-import { durationColumn, durationFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
+import { LAYOUT } from './record-layout.js';
+import { durationColumn, durationFrom, limitColumn, limitFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -161,6 +162,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
       'tests.stopped': column(stoppedColumn(index.tests)),
       'tests.duration': column(durationColumn(index.tests)),
+      [LAYOUT.cases.limit]: column(limitColumn(index.tests)),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -305,8 +307,11 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testStopped = found.has('tests.stopped') ? flags('tests.stopped') : undefined;
   // Version 5 on; a file before it timed no case.
   const testDuration = found.has('tests.duration') ? words('tests.duration') : undefined;
+  // A file before cases carried a limit names none.
+  const testLimit = found.has(LAYOUT.cases.limit) ? words(LAYOUT.cases.limit) : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
+  if (testLimit !== undefined && testLimit.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -315,6 +320,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
       ...durationFrom(testDuration, at),
+      ...limitFrom(testLimit, at),
     });
   }
 

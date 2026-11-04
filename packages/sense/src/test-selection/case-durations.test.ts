@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caseDurations, finishedCase, taskCases, UNTIMED } from './case-durations.js';
+import { caseDurations, caseLimits, finishedCase, taskCases, UNTIMED } from './case-durations.js';
 
 const root = '/repo';
 const file = '/repo/test/a.test.ts';
@@ -60,5 +60,24 @@ describe('each case\'s duration, joined to the case the scope recorded', () => {
     } as never)).toEqual({
       cases: [{ name: 'reads > twice', id: 't1', duration: 4 }, { name: 'writes', id: 't2' }],
     });
+  });
+});
+
+describe('the limit each case ran under, joined to the case the scope recorded', () => {
+  it('answers by file and name, the longest where two projects ran it, and nothing for a case with none', () => {
+    const limits = caseLimits([
+      { filepath: file, cases: [{ name: 'reads', limit: 5000 }, { name: 'writes' }] },
+      { filepath: file, cases: [{ name: 'reads', limit: 8000 }] },
+    ], root);
+
+    expect(limits(path, 'reads')).toBe(8000);
+    expect(limits(path, 'writes')).toBeUndefined();
+    expect(limits(path, 'never ran')).toBeUndefined();
+  });
+
+  it('says nothing for a name one file declares twice, since it cannot say which of the two it is', () => {
+    const limits = caseLimits([{ filepath: file, cases: [{ name: 'reads', limit: 5000 }, { name: 'reads', limit: 6000 }] }], root);
+
+    expect(limits(path, 'reads')).toBeUndefined();
   });
 });

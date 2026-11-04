@@ -84,6 +84,8 @@ export interface ObservedCase {
   readonly stopped?: boolean;
   /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
   readonly duration?: number;
+  /** {@link ExecutionTest.limit}: the runner's milliseconds, the longest of the attempts this source saw. */
+  readonly limit?: number;
   /**
    * What the case said it arranged, as {@link CaseJournal.said}: sites named
    * from the checkout, absent where the driver never listened.
@@ -275,6 +277,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       ...(observed.project === undefined ? {} : { project: observed.project }),
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
+      ...(observed.limit === undefined ? {} : { limit: observed.limit }),
       ...(observed.said === undefined ? {} : { said: observed.said }),
       ...(observed.lines === undefined ? {} : { lines: observed.lines }),
       modules: [

@@ -125,6 +125,7 @@
     "format": 3,
     "loadedSets": 2,
     "duration": "tests.duration",
+    "limit": "tests.limit",
     "lines": "lines.blob",
     "linesOffsets": "lines.off"
   }

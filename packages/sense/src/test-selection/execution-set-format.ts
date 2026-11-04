@@ -8,6 +8,8 @@ import {
   columnWords,
   durationColumn,
   durationFrom,
+  limitColumn,
+  limitFrom,
   fail,
   LOADED_SETS_FORMAT,
   members,
@@ -40,12 +42,10 @@ export type { SetColumns, StringTable, TestColumns } from './execution-set-colum
  * ExecutionBlock.loaded}); version 2 recorded the set of cases that loaded each
  * region, and is still read, as the flag its set implies.
  *
- * `tests.stopped` and `tests.duration` joined version 3 without a new number:
- * each is one optional column a reader looks for by name, and a file without
- * it — the addon's journeys among them — reads as cases that said nothing.
- * `blocks.owner` joined the same way, and a file without it names no region
- * around any. `blocks.overwrittenSet` did too, and a file without it holds no
- * overwritten case.
+ * `tests.stopped`, `tests.duration`, `tests.limit`, `blocks.owner` and
+ * `blocks.overwrittenSet` joined version 3 without a new number: each is one
+ * optional column a reader looks for by name, and a file without it — the
+ * addon's journeys among them — reads as holding none of it.
  */
 export const SET_EXECUTION_FORMAT = LAYOUT.cases.format;
 
@@ -158,6 +158,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     testName: Uint32Array.from(index.tests, (test) => id(test.name)),
     testStopped: stoppedColumn(index.tests),
     testDuration: durationColumn(index.tests),
+    testLimit: limitColumn(index.tests),
     testSaid: index.tests.map((test) => test.said),
     moduleFile,
     moduleBlocks,
@@ -186,9 +187,10 @@ function renamed(lines: readonly (CaseLines | undefined)[], order: readonly numb
 }
 
 /** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner, overwritten and lines columns. */
-export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testSaid' | 'testLines'> {
+export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testLimit' | 'testSaid' | 'testLines'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
+  readonly testLimit: Uint32Array;
   /** What each case said; `undefined` where none listened. */
   readonly testSaid: readonly (Said | undefined)[];
   /** Each case's lines, its modules named by their row; no column where no case recorded any. */
@@ -211,6 +213,7 @@ export function writeSetColumns(columns: WrittenSetColumns, pool: CrossingSetsPo
     'tests.name': column(columns.testName),
     'tests.stopped': column(columns.testStopped),
     'tests.duration': column(columns.testDuration),
+    [LAYOUT.cases.limit]: column(columns.testLimit),
     ...(laid?.said === undefined ? {} : { [SAID_SECTION]: column(laid.said) }),
     ...(laid?.read === undefined ? {} : { [READ_SECTION]: column(laid.read) }),
     ...(laid?.misused === undefined ? {} : { [MISUSED_SECTION]: column(laid.misused) }),
@@ -427,6 +430,7 @@ export function testAt(columns: TestColumns, at: number, string: (id: number) =>
     name: string(columns.testName[at]!),
     ...stoppedFrom(columns.testStopped, at),
     ...durationFrom(columns.testDuration, at),
+    ...limitFrom(columns.testLimit, at),
     ...(columns.testSaid?.[at] === undefined ? {} : { said: columns.testSaid[at] }),
   };
 }

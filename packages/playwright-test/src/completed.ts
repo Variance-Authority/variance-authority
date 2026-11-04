@@ -86,6 +86,7 @@ export const varianceCompletedFixtures: Fixtures<
         usableOutcome(testInfo.status),
         testOf(testInfo),
         testInfo.duration,
+        testInfo.timeout,
       );
     },
     { auto: true },

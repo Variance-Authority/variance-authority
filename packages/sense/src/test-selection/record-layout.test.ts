@@ -39,7 +39,7 @@ describe('the record layout both sides read', () => {
         sections: true, duration: true, phases: true, blob: true, phaseNames: true, parts: true, blockKinds: true, spared: true,
       },
       sets: { list: true, bits: true, runs: true, narrow: true },
-      cases: { format: true, loadedSets: true, duration: true, lines: true, linesOffsets: true },
+      cases: { format: true, loadedSets: true, duration: true, limit: true, lines: true, linesOffsets: true },
     };
     const keys = (value: object) => Object.keys(value).sort();
     expect(keys(LAYOUT)).toEqual(keys(top));

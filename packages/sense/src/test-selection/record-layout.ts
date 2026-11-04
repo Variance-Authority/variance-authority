@@ -55,6 +55,7 @@ export interface RecordLayout {
     readonly format: number;
     readonly loadedSets: number;
     readonly duration: string;
+    readonly limit: string;
     readonly lines: string;
     readonly linesOffsets: string;
   };

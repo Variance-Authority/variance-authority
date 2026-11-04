@@ -112,6 +112,8 @@ pub struct Cases {
     pub format: u8,
     /// Each case's duration, a word a case, `coverage.no_duration` where none was reported.
     pub duration: String,
+    /// Each case's limit in milliseconds, a word a case, `coverage.no_duration` where none is named.
+    pub limit: String,
     /// Each case's lines, a blob of one row a case.
     pub lines: String,
     pub lines_offsets: String,

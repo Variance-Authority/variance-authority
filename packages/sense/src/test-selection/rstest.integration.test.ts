@@ -95,6 +95,15 @@ describe('the Rstest integration', () => {
     ]);
   }, 120_000);
 
+  it('holds a case two projects ran to the longer of their limits', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-projects-'));
+    temporary.push(directory);
+    await run('rstest.projects.config.mjs', directory);
+
+    const index = decodeExecutionIndex(await readFile(resolve(directory, 'coverage.bin')));
+    expect(index.tests.map((test) => test.limit)).toEqual([6543, 3210, 6543]);
+  }, 120_000);
+
   it('names the individual cases of a file, and gives a branch only to the case that walked it', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-cases-'));
     temporary.push(directory);
@@ -113,6 +122,9 @@ describe('the Rstest integration', () => {
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
     ]);
+
+    // The case's own timeout where it gave one, and the run's otherwise.
+    expect(index.tests.map((test) => test.limit)).toEqual([4321, 3210, 4321]);
 
     const decide = index.modules.find((module) => module.file === at('src/decide.ts'));
     expect(decide).toBeDefined();

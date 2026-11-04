@@ -39,6 +39,7 @@ import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
+import { limitAcross } from './execution-set-columns.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -125,6 +126,12 @@ export interface RstestTestSelectionOptions {
    * before cuts existed.
    */
   readonly cadence?: boolean;
+}
+
+/** Where a case stands in its file, as Rstest names it to a reporter. */
+interface CaseNames {
+  readonly parentNames?: readonly string[];
+  readonly name?: string;
 }
 
 /** What one test file's run left behind, as Rstest's `onTestRunEnd` reports it. */
@@ -266,14 +273,25 @@ export function withTestSelection(
   const settle = foldRun(run, { coverageFile, shims: [setupId] });
   const story = askedForStories(coverageFile);
   let ended: number | undefined;
+  // What each case was held to. Rstest resolves it before the case starts and
+  // says it here alone: neither the case's context nor its result carries it.
+  // One reporter hears every project, so a case two ran in one cycle keeps the longer.
+  const limits = new Map<string, number | undefined>();
   const reporter = {
+    onTestCaseStart: (test: { readonly testPath: string; readonly timeout?: number } & CaseNames) => {
+      const key = `${test.testPath}\0${caseNameOf(test)}`;
+      limits.set(key, limitAcross(test.timeout, limits.get(key)).limit);
+    },
     // A watching Rstest starts every cycle here, after the last cycle's end.
     // Rstest builds the cycle's bundle, reading its files, before it announces
     // the start: the first cycle began when the run was made, and a rerun when
     // the last cycle ended.
     // FIXME: so a watching rerun counts the save that started it as a write
     // while it ran, and records the files it saved incomplete.
-    onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
+    onTestRunStart: () => {
+      limits.clear();
+      return reopenRun(run, ended ?? run.startedAt);
+    },
     onTestRunEnd: async (payload: RstestRunEnd) => {
       ended = Date.now();
       const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
@@ -284,7 +302,7 @@ export function withTestSelection(
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
-          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration)),
+          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration, limits.get(`${file.testPath}\0${caseNameOf(test)}`))),
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
@@ -437,7 +455,7 @@ function caseEnds(file: RstestFileResult) {
   }));
 }
 
-function caseNameOf(test: { readonly parentNames?: readonly string[]; readonly name?: string }): string {
+function caseNameOf(test: CaseNames): string {
   return [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > ');
 }
 
