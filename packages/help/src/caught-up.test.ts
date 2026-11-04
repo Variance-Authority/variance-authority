@@ -49,6 +49,13 @@ describe('outlived', () => {
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
   });
 
+  it('says so of an answer whose name a file passes on, when that file changed, without reading who imports the name', async () => {
+    const root = await fixture.published({ 'packages/kit/src/passing.ts': "export { taxOf } from './tax.js';\n" });
+    const help = await readWorkspace(root);
+    appendFileSync(join(root, 'packages/kit/src/passing.ts'), '// moved\n');
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
   it('has nothing to look at for a generation read during the request', async () => {
     const root = await fixture.published();
     const help = await readWorkspace(root);

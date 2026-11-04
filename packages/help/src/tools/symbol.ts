@@ -1,4 +1,4 @@
-import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
@@ -173,42 +173,57 @@ export const symbol: Tool<Help> = {
   // same readings `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
-    const name = stringArg(input, 'name');
-    const from = input['package'];
-    const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-    const published = publishedDeclarations(help, invocation?.root, name, wanted);
-    const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
-    if (at.length === 0) {
-      for (const site of sitesByPath(help, name, wanted)) {
-        const declared = declaration(help, name, site);
-        if (declared !== undefined) at.push([declared.at, declared.line]);
-      }
-    }
-    {
-      const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
-      for (const [held] of declaringExports(name, exported, invocation?.root)) {
-        at.push([held.at, held.line]);
-        const origin = originOf(help, invocation?.root, held);
-        if (origin !== undefined) at.push([origin.at, origin.line]);
-      }
-    }
-    const declared = declaredAt(invocation?.root, name, wanted);
-    at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
-    at.push(...localNames(help, invocation?.root, name, wanted).files);
-    // A member stands beside every other declaration, as `run` answers it.
-    const members = membersOf(invocation?.root, name, wanted);
-    at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
-    at.push(...members.declared.map((one) => [one.at, one.line] as const));
-    if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
-    const files = new Map<string, number[]>();
-    for (const [file, line] of at) {
-      const lines = files.get(file) ?? [];
-      if (!lines.includes(line)) lines.push(line);
-      files.set(file, lines);
-    }
-    return { files };
+    const root = invocation?.root;
+    return declaredIn(help, input, invocation, (exported) => declaringExports(stringArg(input, 'name'), exported, root).map(([held]) => held));
   },
 };
+
+/**
+ * The files an answer to `symbol` rests on, to be compared with the checkout:
+ * those {@link symbol}'s `files` gives, and every file that passes the name on,
+ * whose imports the answer counts. Telling those two apart is the one reading
+ * here that walks who imports the name, which costs seconds on a large
+ * repository and is paid by every question, so a look does not make it.
+ */
+export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
+  return declaredIn(help, input, invocation, (exported) => exported).files.keys();
+}
+
+/** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */
+function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[]): FileSet {
+  const name = stringArg(input, 'name');
+  const from = input['package'];
+  const wanted = typeof from === 'string' && from !== '' ? from : undefined;
+  const published = publishedDeclarations(help, invocation?.root, name, wanted);
+  const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
+  if (at.length === 0) {
+    for (const site of sitesByPath(help, name, wanted)) {
+      const declared = declaration(help, name, site);
+      if (declared !== undefined) at.push([declared.at, declared.line]);
+    }
+  }
+  const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
+  for (const held of exports(exported)) {
+    at.push([held.at, held.line]);
+    const origin = originOf(help, invocation?.root, held);
+    if (origin !== undefined) at.push([origin.at, origin.line]);
+  }
+  const declared = declaredAt(invocation?.root, name, wanted);
+  at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
+  at.push(...localNames(help, invocation?.root, name, wanted).files);
+  // A member stands beside every other declaration, as `run` answers it.
+  const members = membersOf(invocation?.root, name, wanted);
+  at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
+  at.push(...members.declared.map((one) => [one.at, one.line] as const));
+  if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
+  const files = new Map<string, number[]>();
+  for (const [file, line] of at) {
+    const lines = files.get(file) ?? [];
+    if (!lines.includes(line)) lines.push(line);
+    files.set(file, lines);
+  }
+  return { files };
+}
 
 /**
  * The member declarations of a name: one block for each of the first

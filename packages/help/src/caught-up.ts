@@ -6,14 +6,14 @@ import { refreshDependencyLexicon } from './dependency-lexicon.js';
 import { workspaceGeneration } from './read.js';
 import { FoundNothing } from './tools/find.js';
 import { printedFiles, search } from './tools/search.js';
-import { symbol } from './tools/symbol.js';
+import { restsOn, symbol } from './tools/symbol.js';
 
-/** The files an answer prints, read as the answer read them. */
+/** The files an answer rests on, read as the answer read them. */
 type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help>) => Iterable<string>;
 
-/** What each answer that names its files prints, by the question that gives it. */
+/** What each answer that names its files rests on, by the question that gives it. */
 const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
-  [symbol.name, (help, input, invocation) => symbol.files!(help, input, invocation).files.keys()],
+  [symbol.name, restsOn],
   [search.name, printedFiles],
 ]);
 
@@ -21,9 +21,10 @@ const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
  * Whether the files an answer names changed after the generation it comes from,
  * so that it goes to {@link caughtUp} as a refusal does. A generation's time
  * says how old it is; only the files say whether this answer still holds, and
- * looking costs a stat of each. Changed is an mtime at or after the generation,
- * or a file gone: a file touched and left as it was is read again, and that
- * reading finds nothing and publishes a later time.
+ * looking costs finding them, as the answer found them, and a stat of each.
+ * Changed is an mtime at or after the generation, or a file gone: a file
+ * touched and left as it was is read again, and that reading finds nothing and
+ * publishes a later time.
  *
  * `asked` is the question: only `symbol` and `search` name the files they print.
  * A generation read during this request (`started`) has nothing to look at, and

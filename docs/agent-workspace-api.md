@@ -61,7 +61,8 @@ command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 The source questions are also tools on `variance serve`, under the same names as below, so
 a workspace with the CLI declares one server for the run and the source
 together. The rest of this page is that contract, whichever of the two serves
-it.
+it, and the command line answers to it too, except that its `search` [does not
+look at the checkout](#what-an-answer-sees-after-you-edit).
 
 Without the CLI, configure the MCP client to launch this package's server with
 the workspace root:
@@ -168,14 +169,17 @@ service an adopter has to operate.
 
 Every answer from a generation ends with `Snapshot <time>.`, the time that
 generation was made. A generation is reused for one hour, so an edit you made
-inside that hour may not be in it. Whether you see the edit depends on the
-question:
+inside that hour may not be in it. A question is read again before the hour is
+up when the generation cannot answer it, which is a refusal: a name it does not
+hold, or a path it does not know. Reading again asks the question of a generation
+made from the checkout as it is, and the next question opens that one. Whether
+you see an edit depends on the question:
 
 | You ask | You see your edit | You do not see it |
 | --- | --- | --- |
 | `symbol`, on any surface | At once, when the answer names the file you edited. | When the edit is in a file the answer does not name, for up to an hour. |
 | `docs_search`, over either server | At once, when a row of the answer names the file you edited. | When its rows name other files or it finds nothing, for up to an hour: a name you just added is not found. |
-| `uses`, and every other question dated with a `Snapshot` | When the generation is over an hour old, or the question is refused. | Until then: an import you just added of a name `uses` already answers for is not listed. |
+| `uses`, and every other question dated with a `Snapshot` | When the generation is over an hour old, or the question is refused. | Until then, even in a file the answer names: an import you just added of a name `uses` already answers for is not listed. |
 | `search`, from `variance ask` or `variance-authority-help` | When the next generation is published. The hour does not apply. | Until then, at any age, and the answer says it was `not compared with the checkout`. |
 
 To see an edit now, publish a generation: run `variance index`, and the next
@@ -192,43 +196,70 @@ The answer comes from a generation made with those files read again, and the
 next question reads that generation. An empty file declares that nothing
 changed. An editor, watcher or orchestrator that knows its changed paths passes
 them the same way, replacing Git's changed-file discovery. [Naming what
-changed](source-index.md#naming-what-changed) gives the file contract. `variance
-index` and `--changed-file` belong to the CLI: with `@variance-authority/help`
-alone, the next generation comes from a question that reads the checkout.
+changed](source-index.md#naming-what-changed) gives the file contract.
 
-The command line's `search` opens a published search at any age because in CI
-the step before it already brought the index up to date and is the one that owns
-freshness. With no published generation, it reads the checkout and publishes the
-search, the way any other question does, and that answer is the checkout's.
+`variance index` and `--changed-file` belong to the CLI. With
+`@variance-authority/help` alone, ask `symbol` for the name you just wrote, or
+for any name the generation does not hold: that refusal publishes a generation,
+and every question after it reads that one, `search` included.
 
-A refusal from a reused generation is not taken as a fact about the checkout.
-Any source question but the command line's `search` is asked again, whether you
-ask through `variance ask`, `variance serve` or `variance-authority-help` and its
-server: the name is looked for again in a generation made from the checkout as
-it is, and in what your installed packages export, with that list built first
+The command line's `search` never looks, because it does not open the whole
+generation, which is what makes it the cheapest question below, and because in
+CI the step before it already brought the index up to date. At your editor that
+means a name you just added is not found and a name you just removed is still
+listed, under a line saying the answer was `not compared with the checkout`. So
+ask `symbol` about a row before you build on it, which looks at the file, or
+publish a generation first. With no published generation, `search` reads the
+checkout and publishes the search, the way any other question does, and that
+answer is the checkout's.
+
+Any source question but the command line's `search` is read again after a
+refusal, whether you ask through `variance ask`, `variance serve` or
+`variance-authority-help` and its server: the name is looked for in the checkout
+as it is, and in what your installed packages export, with that list built first
 when it is missing or behind. A function you wrote a minute ago, or a package you
 just installed, is answered rather than reported missing, under `--changed-file`
-too. An answer whose named files changed is read again the same way, so an export
-you renamed is not listed under its old name and a declaration you moved is given
-at the line it holds today.
+too. A `symbol` or `docs_search` whose named files changed is read again the same
+way, so an export you renamed is not listed under its old name and a declaration
+you moved is given at the line it holds today. `symbol` looks at one kind of file
+it does not print: a file that passes the name on with `export … from`, which its
+count of imports runs through.
 
 When the checkout cannot be read again, the answer or the refusal names the
 generation time, says the checkout was not compared with it, and says why. When
 the list of installed exports cannot be built, the refusal says the installed
 packages were not compared, and why.
 
-Looking at the named files costs a stat of each. What you wait for after an edit
-is the second reading, and you pay it once per edit: it publishes a generation,
-and the next question opens that one at the price of the first row below. Each
-figure is the median of seven runs of `variance ask symbol --name ToolbarButton`
-on Kibana at `2df7209048`, 125,911 tracked paths, on an Apple M4 Max with 64 GB,
-macOS 27.0.1, Node v24.21.0 and a warm filesystem cache:
+What you wait for after an edit is the second reading, and you pay it once per
+edit: it publishes a generation, and the next question opens that one at the
+price of the first row below. Looking at the named files is the small part: it
+finds them again and stats each, 0.6 s of that row. The rest of the row is the
+question itself: `symbol` and `uses` open the whole generation, 1.4 s here, and
+`symbol` then walks who imports the name, about 2 s, where `search` does neither.
+Each figure is the median of seven runs of `variance ask symbol --name
+ToolbarButton`, the same `uses`, and `ask search --query button`, on Kibana at
+`2df7209048`, 125,911 tracked paths, on an Apple M4 Max with 64 GB, macOS 27.0.1,
+Node v24.21.0 and a warm filesystem cache:
 
-| The answer's named files | Seconds |
-| --- | ---: |
-| are unchanged | 5.6 |
-| include one you edited | 13.3 |
-| include one you edited, and an installed package's manifest changed too, so the list of installed exports is rebuilt | 18.3 |
+| What happens, in seconds | `symbol` | `uses` | `search` |
+| --- | ---: | ---: | ---: |
+| Nothing it looks at changed, or it looks at nothing | 4.2 | 1.4 | 0.4 |
+| A file it names was edited, so it is read again | 13.3 | not looked at | not looked at |
+| The same, and an installed package's manifest changed too, so the list of installed exports is rebuilt | 18.3 | not looked at | not looked at |
+| It was refused, so it is read again | 9.6 | 9.9 | not read again |
+| The generation is over an hour old, so a new one is made first | 11.5 | 8.4 | not read again |
+| `--changed-file` names one edited path | 11.2 | 9.5 | not measured |
+| `--just-answer`, whatever changed | 3.6 | 1.4 | 0.4 |
+
+`search` is 0.4 s in this table and 122 ms in the one under
+[What a question costs](#what-a-question-costs), which was measured at another
+commit; compare each table's rows with each other.
+
+Publishing it yourself costs the same reading outside the question: `variance
+index --wait` takes 5.1 s after one edit and 1.5 s when nothing changed, and the
+next `symbol` takes 4.5 s. Without `--wait`, `variance index` returns in 0.6 s
+and finishes behind a lock, and a question asked before that reads the generation
+it finds.
 
 [After the first read](performance.md#after-the-first-read-you-do-not-read-it-again)
 prices the scan inside that reading, by how many files changed.
@@ -236,7 +267,9 @@ prices the scan inside that reading, by how many files changed.
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, nothing above is looked at, and every answer and
 refusal names the generation time and says the checkout was not compared with
-it; as JSON, `search` carries `compared: false` beside `generatedAt`. If no
+it; as JSON, `search` carries `compared: false` beside `generatedAt`. It saves the
+look, 0.6 s on `symbol` and nothing on `uses`, and after an edit it saves the
+second reading, 9.2 s, by answering from the generation without your edit. If no
 generation has been published, the command refuses, says the flag is why, and
 names the command to run, instead of silently turning the question into
 production work. It cannot be combined with `--changed-file`.
@@ -611,8 +644,8 @@ when its description matches the task. Put these lines in `AGENTS.md`, with
 
 Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
+`ask search --query <words>` finds a name by what it does, as of the last
+`variance index`. The `variance-authority` skill has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
