@@ -2004,10 +2004,9 @@ the suite it would have run anyway.
 
 `readableTestCoverage(root, options)` finds the record to read, nearest layer
 first, and says which layer held it. A record fetched for another mainline is no
-layer: a reader that knows the selected mainline passes it as `selected`, and
-`writeSelectedMainline(cacheRoot, suite, mainline)` leaves it where
-`lastFetchedMainline` reads it for one that cannot, so a runner seam and the first
-run in a checkout pass over what the last reader selected against.
+layer: a reader that knows the selected mainline passes it as `selected`, here
+and to `lastFetchedMainline` and `prepareRecord`. A caller with none to pass, such
+as a runner seam, takes what was fetched.
 
 ### Read where the loads drift from the walk
 

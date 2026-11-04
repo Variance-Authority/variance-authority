@@ -16,6 +16,7 @@ import { commitRunsFile } from './commit-runs.js';
 import { descriptor } from './coverage-file.js';
 import { foreignProbes } from './format-layer.js';
 import type { IndexLock } from './index-lock.js';
+import type { SelectedMainline } from './mainline-layer.js';
 import { ownLayerFile } from './own-layer.js';
 import { cachedRecord, noteSeeded, seedTestCoverage } from './record-location.js';
 
@@ -24,7 +25,8 @@ import { cachedRecord, noteSeeded, seedTestCoverage } from './record-location.js
  * land on: a cached record under other probes goes, in one printed line, and
  * the checkout's base is laid when it holds none. Does nothing for a record
  * outside the cache. A run that lays no coverage passes no probes (`laidProbes`)
- * and replaces nothing. `alone`, see `recordsAlone`, lays no base.
+ * and replaces nothing. `alone`, see `recordsAlone`, lays no base. `selected`
+ * is the mainline a caller worked out, which judges the base it lays.
  *
  * Inside the hold the run lands in, so no other writer's run can land between
  * the record going and the base arriving, and be copied over.
@@ -33,7 +35,7 @@ export async function prepareRecord(
   lock: IndexLock,
   root: string,
   instrumentation: string | undefined,
-  options: { readonly alone?: boolean; readonly cacheRoot?: string | undefined } = {},
+  options: { readonly alone?: boolean; readonly cacheRoot?: string | undefined; readonly selected?: SelectedMainline | undefined } = {},
 ): Promise<void> {
   const { file } = lock;
   if (cachedRecord(file, root, options.cacheRoot) === undefined) return;
@@ -44,7 +46,7 @@ export async function prepareRecord(
         `records under \`${instrumentation}\`, so this run cannot be laid over it.`,
     );
   }
-  if (options.alone !== true) noteSeeded(await seedTestCoverage(lock, root, instrumentation, options.cacheRoot));
+  if (options.alone !== true) noteSeeded(await seedTestCoverage(lock, root, instrumentation, options.cacheRoot, options.selected));
 }
 
 /**

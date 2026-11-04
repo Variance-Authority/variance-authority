@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +18,8 @@ import {
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.fixture.js';
+import { landSuite } from './journeys-command.js';
+import { landJourneys } from './land.js';
 import { cloneOf, git, published, ranWhole } from './mainline-fixture.js';
 import { probesGap } from './probes-gap.js';
 import { suiteBase } from './suite-base.js';
@@ -70,11 +72,17 @@ async function fetchedInto(checkout: string, recorded: string, pointer: FetchedM
   return kept;
 }
 
-/** {@link fetchedForRelease}, in a cache that keeps no note: `selected.json` is a directory, and a rename does not replace one. */
-async function unnotedForRelease() {
-  const fetched = await fetchedForRelease();
-  await mkdir(join(mainlineReadRoot(cacheRootFor(fetched.clone), 'unit'), 'selected.json'));
-  return fetched;
+/** A shard one run at `commit` left, to land. */
+async function shardAt(commit: string): Promise<string> {
+  const shard = join(home, 'shard.bin');
+  await writeTestCoverage(shard, {
+    version: 3,
+    instrumentation: 'fixture',
+    commit,
+    tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+    modules: [],
+  });
+  return shard;
 }
 
 const ask = async (argv: readonly string[]) => {
@@ -87,28 +95,54 @@ const ask = async (argv: readonly string[]) => {
 describe('a first run', () => {
   it('lays nothing of the other mainline through `variance journeys`, which selects before it lands', async () => {
     const { first, own } = await fetchedForRelease();
-    const shard = join(home, 'shard.bin');
-    await writeTestCoverage(shard, {
-      version: 3,
-      instrumentation: 'fixture',
-      commit: first,
-      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
-      modules: [],
-    });
 
-    const landed = await ask(['journeys', shard, '--suite', 'unit']);
+    const landed = await ask(['journeys', await shardAt(first), '--suite', 'unit']);
 
     expect(landed.err).not.toContain('release');
     expect((await readOwnLayer(own))?.pinned).toBeUndefined();
   });
 
-  it('lays nothing of it in a runner seam, once a reader here selected another mainline', async () => {
+  it('lays nothing of it through a landing `into` this checkout\'s own record', async () => {
+    const { clone, first, own } = await fetchedForRelease();
+
+    await landJourneys(clone, [await shardAt(first)], own);
+
+    expect((await readOwnLayer(own))?.pinned).toBeUndefined();
+  });
+
+  it('lays nothing of it through a fan-in that lands a suite', async () => {
+    const { clone, first, own } = await fetchedForRelease();
+
+    await landSuite(clone, [await shardAt(first)], 'unit');
+
+    expect((await readOwnLayer(own))?.pinned).toBeUndefined();
+  });
+
+  it('lands `--into` a file outside the cache whatever the root config says, which it never reads', async () => {
+    const { clone, first } = await fetchedForRelease();
+    await writeFile(join(clone, 'variance.config.json'), 'not json');
+    const into = join(home, 'elsewhere.bin');
+
+    await landJourneys(clone, [await shardAt(first)], into);
+
+    expect(existsSync(into)).toBe(true);
+  });
+
+  it('lays nothing of it for a caller that hands in the selection', async () => {
+    const { clone, own } = await fetchedForRelease();
+
+    await withIndexLock(own, (lock) => prepareRecord(lock, clone, 'fixture', { selected: { mainline: 'main' } }));
+
+    expect(existsSync(own)).toBe(false);
+  });
+
+  it('lays what was fetched in a runner seam, which has no selection to hand in, whatever a reader here worked out', async () => {
     const { clone, own } = await fetchedForRelease();
 
     expect(await suiteBase(clone, { env: {} })).toMatchObject({ from: 'none', missed: { mainline: 'main' } });
     await withIndexLock(own, (lock) => prepareRecord(lock, clone, 'fixture'));
 
-    expect(existsSync(own)).toBe(false);
+    expect((await readOwnLayer(own))?.pinned).toMatchObject({ mainline: 'release' });
   });
 });
 
@@ -165,58 +199,39 @@ describe('a read that fetches nothing', () => {
     expect(gap).not.toHaveProperty('current');
   });
 
-  it('is not read by a process with no command line, once a reader here selected another mainline', async () => {
+  it('is read by a process with no command line, which has no selection to judge it by, whatever a reader here worked out', async () => {
     const { clone } = await fetchedForRelease();
-    expect(recordedPaths(clone).length).toBeGreaterThan(0);
+    const unjudged = recordedPaths(clone);
+    expect(unjudged.length).toBeGreaterThan(0);
 
     await suiteBase(clone, { env: {} });
 
-    expect(recordedPaths(clone)).toEqual([]);
-    expect(lastFetchedMainline(clone, 'unit')).toBeUndefined();
+    expect(recordedPaths(clone)).toEqual(unjudged);
+    expect(lastFetchedMainline(clone, 'unit')).toMatchObject({ mainline: 'release' });
   });
 });
 
-describe('a selection the cache could not keep', () => {
-  it('is judged where it was computed, by a read that asks the share', async () => {
-    const { clone } = await unnotedForRelease();
+describe('a reader that computed a selection', () => {
+  it('judges by it, when it asks the share', async () => {
+    const { clone } = await fetchedForRelease();
 
     expect(await suiteBase(clone, { env: {} })).toMatchObject({ from: 'none', missed: { mainline: 'main' } });
   });
 
-  it('is judged where it was computed, by a read that fetches nothing', async () => {
-    const { clone } = await unnotedForRelease();
+  it('judges by it, when it fetches nothing', async () => {
+    const { clone } = await fetchedForRelease();
 
     expect(await suiteBase(clone, { env: {}, fetch: 'never' })).toMatchObject({ from: 'none', missed: { mainline: 'main' } });
   });
 
-  it('turns it away from `recordedSuite`', async () => {
-    const { clone, own } = await unnotedForRelease();
+  it('leaves nothing beside what was fetched, so the next reader works it out again', async () => {
+    const { clone } = await fetchedForRelease();
+    const kept = mainlineReadRoot(cacheRootFor(clone), 'unit');
+    const before = await readdir(kept);
 
-    expect((await recordedSuite(clone, 'unit')).file).toBe(own);
-  });
+    await suiteBase(clone, { env: {}, fetch: 'never' });
+    await recordedSuite(clone, 'unit');
 
-  it('turns it away from `variance coverage`', async () => {
-    const { clone } = await unnotedForRelease();
-
-    const answer = await ask(['coverage', '--root', clone, '--suite', 'unit', '--format', 'json']);
-
-    expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
-  });
-
-  it('turns it away from `variance covering`', async () => {
-    await unnotedForRelease();
-
-    const answer = await ask(['covering', '--file', 'src/total.ts', '--suite', 'unit', '--format', 'refs']);
-
-    expect(answer.out + answer.err).not.toContain('test/total.test.ts');
-  });
-
-  it('does not offer it as the record that would close a probes gap', async () => {
-    const { clone, kept } = await unnotedForRelease();
-    await writeTestCoverage(kept, { version: 3, instrumentation: PROBES, tests: [], modules: [] });
-    const record = join(home, 'older.bin');
-    await writeTestCoverage(record, { version: 3, instrumentation: 'retired-probes', tests: [], modules: [] });
-
-    expect(await probesGap(record, clone, 'unit')).not.toHaveProperty('current');
+    expect(await readdir(kept)).toEqual(before);
   });
 });

@@ -114,7 +114,6 @@ export {
   mainlineReadRoot,
   readFetchedMainline,
   writeFetchedMainline,
-  writeSelectedMainline,
   type FetchedMainline, type LastFetched, type SelectedMainline,
 } from './mainline-layer.js';
 export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.js';

@@ -52,10 +52,9 @@ fetched here, and the reader says so.**
   `test:since` would have read.
 - **A record fetched for one mainline is no record for another.** Only the CLI
   can work out which mainline is selected. A reader that works it out hands it to
-  `lastFetchedMainline`, which passes over a pointer for any other. It also
-  leaves it in `selected.json` in the checkout's cache, for a seam or a tool with
-  no command line, which is judged by the last selection noted. A checkout no
-  reader has asked in has no note, and its first run lays what was fetched.
+  `lastFetchedMainline`, which passes over a pointer for any other, and a
+  landing hands it to `prepareRecord` for the base it lays. A seam or a tool
+  with no command line has none to hand in, so it takes what was fetched.
 - **A fetched record stands until a nearer one can exist.** The best base is
   the record at `HEAD`'s merge base with the mainline. The line holds its
   newest record, and a share in git also keeps each mainline publish at its

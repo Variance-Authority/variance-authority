@@ -10,9 +10,8 @@
  * They meet here. A fetch keeps the record at
  * `<cache>/share/read/<suite>/<commit>/` and names it in `fetched.json`. A
  * record fetched for one mainline answers nothing about another, and only the
- * CLI can say which is selected. {@link lastFetchedMainline} takes that from a
- * reader that worked it out, and for the rest reads the last one a reader left
- * in `selected.json`, in the checkout's own cache.
+ * CLI can say which is selected, so {@link lastFetchedMainline} takes that from
+ * a reader that worked it out.
  */
 
 // compass: variance-authority.reach
@@ -36,9 +35,6 @@ import { declaredSuites } from './suites.js';
 
 /** The file a fetch names the mainline's record in, beside the commit directories it keeps. */
 export const FETCHED_MAINLINE = 'fetched.json';
-
-/** The file a reader names the mainline selected for this checkout in, beside what it fetched. */
-const SELECTED_MAINLINE = 'selected.json';
 
 /** What {@link FETCHED_MAINLINE} holds. */
 export interface FetchedMainline {
@@ -76,14 +72,10 @@ export async function writeFetchedMainline(
   suite: string,
   fetched: FetchedMainline,
 ): Promise<void> {
-  await writeNote(join(mainlineReadRoot(cacheRoot, suite), FETCHED_MAINLINE), fetched);
-}
-
-/** A reader in another process finds the old note or the new one, never half of one. */
-async function writeNote(file: string, note: object): Promise<void> {
+  const file = join(mainlineReadRoot(cacheRoot, suite), FETCHED_MAINLINE);
   await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(note)}\n`);
+  await writeFile(temporary, `${JSON.stringify(fetched)}\n`);
   await rename(temporary, file);
 }
 
@@ -100,37 +92,11 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 }
 
 /**
- * The mainline a reader worked out for this checkout, handed to a read in place
- * of the note. `mainline` absent is a reader that found none, so nothing is
- * another's.
+ * The mainline a reader worked out for this checkout, handed to a read.
+ * `mainline` absent is a reader that found none, so nothing is another's.
  */
 export interface SelectedMainline {
   readonly mainline?: string;
-}
-
-/**
- * Leave the mainline selected for `suite` where {@link lastFetchedMainline}
- * reads it for a party that cannot work it out; `undefined` when none is, which
- * removes the note. A note that
- * already says so is left alone, so a reader on a settled checkout writes nothing.
- *
- * FIXME: a `yarn test` in a checkout no reader has asked in finds no note and lays what was fetched, whichever mainline that was; moving the selection below the CLI closes it.
- */
-export async function writeSelectedMainline(cacheRoot: string, suite: string, mainline: string | undefined): Promise<void> {
-  const readRoot = mainlineReadRoot(cacheRoot, suite);
-  if (readSelectedMainline(readRoot) === mainline) return;
-  const file = join(readRoot, SELECTED_MAINLINE);
-  if (mainline === undefined) return await rm(file, { force: true });
-  await writeNote(file, { mainline });
-}
-
-function readSelectedMainline(readRoot: string): string | undefined {
-  try {
-    const { mainline } = JSON.parse(readFileSync(join(readRoot, SELECTED_MAINLINE), 'utf8')) as { readonly mainline?: unknown };
-    return typeof mainline === 'string' ? mainline : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -141,8 +107,9 @@ function readSelectedMainline(readRoot: string): string | undefined {
  * winning; a caller that names `cacheRoot` asks that one only. A pointer whose
  * record is not on disk or does not read in this build is passed over, and so
  * is one for another mainline than `selected`, which a reader that worked out
- * the selection hands in. Absent, the first cache's note stands for it, trailing
- * by the last reader that left one; with no note nothing says it is another's.
+ * the selection hands in. A caller with none to hand in takes the newest.
+ *
+ * FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it.
  *
  * Synchronous, as {@link nearestTestCoverage} cannot wait. It opens the record,
  * so a reader asks it only once the checkout's own layer has none.
@@ -151,10 +118,9 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const declared = declaredSuites(root);
   const name = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
-  const caches = fetchCaches(root, cacheRoot);
-  const mainline = selected === undefined ? readSelectedMainline(mainlineReadRoot(caches[0]!, name)) : selected.mainline;
+  const mainline = selected?.mainline;
   let newest: LastFetched | undefined;
-  for (const cache of caches) {
+  for (const cache of fetchCaches(root, cacheRoot)) {
     const readRoot = mainlineReadRoot(cache, name);
     const pointer = readFetchedMainline(readRoot);
     if (pointer === undefined || (mainline !== undefined && pointer.mainline !== mainline)) continue;

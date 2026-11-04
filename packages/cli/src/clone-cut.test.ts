@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { checkoutRead } from './commands/checkout-read.js';
+import { gitStarted } from './commands/mainline-fixture.js';
 import type { Config } from './config.js';
 import { distanceFrom, headPast, readerMainline } from './share-lines.js';
 
@@ -124,23 +124,6 @@ describe('a distance in a shallow clone that holds the record', () => {
   });
 });
 
-/** The argv of every git process `run` started, read from git's own trace. */
-async function gitStarted(at: string, run: () => Promise<unknown>): Promise<string[][]> {
-  const trace = join(at, '.git', 'variance-trace.json');
-  await rm(trace, { force: true });
-  vi.stubEnv('GIT_TRACE2_EVENT', trace);
-  try {
-    await run();
-  } finally {
-    vi.unstubAllEnvs();
-  }
-  const events = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n') : [];
-  return events
-    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
-    .filter((event) => event.event === 'start')
-    .map((event) => (event.argv ?? []).slice(1));
-}
-
 describe('the git a reader starts', () => {
   it('asks once whether HEAD contains a commit several states of the note were run at', async () => {
     const { clone, record } = await history();
@@ -156,9 +139,21 @@ describe('the git a reader starts', () => {
       });
     });
 
-    const asked = started.filter((argv) => argv.includes('--is-ancestor')).map((argv) => argv.at(-2));
-    expect(asked.sort()).toEqual([head, record].sort());
+    expect(started.filter((argv) => argv.includes('--is-ancestor'))).toEqual([]);
+    expect(started.filter((argv) => argv.includes('--stdin'))).toHaveLength(1);
     expect(said).toContain('4 test file(s) ran here');
+  });
+
+  it('says nothing of the branch for a commit this clone does not hold', async () => {
+    const { clone, record } = await history();
+    const absent = 'a'.repeat(40);
+
+    const said = await checkoutRead('unit', clone, {
+      layer: { pinned: { mainline: 'main', commit: record }, ran: [{ commit: absent, files: ['a.test.ts'] }] },
+    });
+
+    expect(said).toContain(`a.test.ts at ${absent.slice(0, 12)}`);
+    expect(said).not.toContain('not on this branch');
   });
 
   it('counts nothing for a record at the merge base itself', async () => {

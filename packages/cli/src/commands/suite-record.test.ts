@@ -128,8 +128,8 @@ describe('the record a one-runner command reads in a worktree that has not run',
     await writeTestCoverage(base, { version: 3, instrumentation: 'probe-recipe', tests: [], modules: [] });
 
     expect(await suiteRecord(path)).toBe(base);
-    expect(await landingRecord(path)).toBe(testCoverageFile(path, { suite: 'unit' }));
-    expect(await landingRecord(path)).not.toBe(base);
+    expect((await landingRecord(path)).file).toBe(testCoverageFile(path, { suite: 'unit' }));
+    expect((await landingRecord(path)).file).not.toBe(base);
   });
 
   test('is what `variance select` reads, rather than reporting nothing recorded', async () => {

@@ -4,9 +4,7 @@
  *
  * The selection needs the share's config and git, which only the CLI has, and
  * the rule that turns another mainline's record away is `lastFetchedMainline`'s,
- * below it. A read that works the selection out hands it to that rule, so what
- * it reads never rests on a file. The note it leaves is for the parties with no
- * command line, which read the selection the last reader made.
+ * below it. A read that works the selection out hands it to that rule.
  */
 
 import { dirname } from 'node:path';
@@ -42,15 +40,12 @@ export interface MainlineSelection {
 }
 
 /**
- * The mainline selected for `suite`, left beside this checkout's fetched
- * records for the parties that cannot work it out. Leaving it is best effort:
- * no reader here depends on it. `unconfigured` is a share section that does not
- * parse. An unset token is not one of these: it is read when the share is
- * asked, and arrives as that share's miss.
+ * The mainline selected for this checkout. `unconfigured` is a share section
+ * that does not parse. An unset token is not one of these: it is read when the
+ * share is asked, and arrives as that share's miss.
  */
 export async function selectMainline(
   root: string,
-  suite: string,
   here: { readonly env?: Env; readonly cacheRoot?: string } = {},
 ): Promise<MainlineSelection | { readonly unconfigured: string }> {
   const selection = await import('@variance-authority/sense/test-selection');
@@ -64,21 +59,26 @@ export async function selectMainline(
   const cacheRoot = here.cacheRoot ?? selection.cacheRootFor(root);
   const chosen = await readerMainline(share === undefined ? {} : { share }, here.env ?? process.env, root);
   const named = 'missing' in chosen ? undefined : chosen;
-  await selection.writeSelectedMainline(cacheRoot, suite, named?.name).catch(() => undefined);
   return { share, cacheRoot, ...(named === undefined ? { selected: {} } : { named, selected: { mainline: named.name } }) };
 }
 
 /**
  * {@link selectMainline} for a read that goes to a fetched record without
  * `mainlineBase`: the selection to hand it. Nothing for a suite not given to
- * the share, or a share section that does not parse, where the note stands and
- * that reader says so where it asks the share.
+ * the share, or a share section that does not parse, which that reader says
+ * where it asks the share.
  */
-export async function noteSelectedMainline(root: string, suite: string | undefined): Promise<SelectedMainline | undefined> {
+export async function selectedMainline(root: string, suite: string | undefined): Promise<SelectedMainline | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   const declared = selection.declaredSuites(root);
   const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
-  const selected = await selectMainline(root, name);
+  const selected = await selectMainline(root);
   return 'unconfigured' in selected ? undefined : selected.selected;
+}
+
+/** The nearest record of `suite`, judged by the mainline selected for it. */
+export async function selectedRecord(root: string, suite: string | undefined): Promise<string> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  return selection.readableTestCoverage(root, { suite, selected: await selectedMainline(root, suite) });
 }

@@ -34,7 +34,6 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt, CoveringQuestion, CoveringSource } from '../covering-args.js';
-import { noteSelectedMainline } from './mainline-selected.js';
 
 /** A recorded range where it stands in the held text, and the one state it is painted as. */
 export interface CoveringRange extends SourceTestRange {
@@ -80,7 +79,9 @@ export async function recordOf(
 }
 
 /**
- * The snapshot beside the record the question reads.
+ * The snapshot beside the record the question reads, which every question but
+ * `--execution` has already found. That one names its record, so nothing is
+ * asked of the share.
  *
  * Undefined for an index handed in by path in a repository that declares
  * suites and a question that names none: no declared record is that index's,
@@ -92,11 +93,9 @@ export async function recordOf(
 export async function snapshotFor(request: CoveringRead): Promise<string | undefined> {
   if (request.record !== undefined) return request.record;
   try {
-    const selected = await noteSelectedMainline(request.root, request.suite);
-    return await readableTestCoverage(request.root, { suite: request.suite, selected });
-  } catch (error) {
-    if (request.execution !== undefined) return undefined;
-    throw error;
+    return await readableTestCoverage(request.root, { suite: request.suite });
+  } catch {
+    return undefined;
   }
 }
 

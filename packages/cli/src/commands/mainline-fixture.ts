@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { vi } from 'vitest';
@@ -407,4 +407,21 @@ async function reportAt(home: string, commit: string): Promise<string> {
 
 export async function git(at: string, ...args: string[]): Promise<string> {
   return (await run('git', args, { cwd: at })).stdout.trim();
+}
+
+/** The argv of every git process `work` started in the checkout at `at`, read from git's own trace. */
+export async function gitStarted(at: string, work: () => Promise<unknown>): Promise<string[][]> {
+  const trace = join(at, '.git', 'variance-trace.json');
+  await rm(trace, { force: true });
+  vi.stubEnv('GIT_TRACE2_EVENT', trace);
+  try {
+    await work();
+  } finally {
+    vi.stubEnv('GIT_TRACE2_EVENT', undefined);
+  }
+  const events = (await readFile(trace, 'utf8').catch(() => '')).trim().split('\n').filter((line) => line !== '');
+  return events
+    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
+    .filter((event) => event.event === 'start')
+    .map((event) => (event.argv ?? []).slice(1));
 }

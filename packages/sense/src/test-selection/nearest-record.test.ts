@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
-import { mainlineReadRoot, writeFetchedMainline, writeSelectedMainline, writeTestCoverage } from './index.js';
+import { mainlineReadRoot, writeFetchedMainline, writeTestCoverage } from './index.js';
 import { nearestRecord } from './record-location.js';
 
 const temporary: string[] = [];
@@ -55,14 +55,10 @@ describe('whose record answers a worktree', () => {
     await writeFetchedMainline(asked.cacheRoot, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
     expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
 
-    await writeSelectedMainline(asked.cacheRoot, 'unit', 'release');
-    expect(nearestRecord(worktree, asked)).toEqual({ file: below, origin: 'primary' });
-    // A reader that worked the selection out is not told otherwise by what was left.
+    // A reader that worked the selection out judges by it; one that found none, or never asked, takes what was fetched.
     expect(nearestRecord(worktree, { ...asked, selected: { mainline: 'main' } })).toEqual({ file: mainline, origin: 'mainline' });
-    expect(nearestRecord(worktree, { ...asked, selected: {} })).toEqual({ file: mainline, origin: 'mainline' });
-    await writeSelectedMainline(asked.cacheRoot, 'unit', undefined);
-    expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
     expect(nearestRecord(worktree, { ...asked, selected: { mainline: 'release' } })).toEqual({ file: below, origin: 'primary' });
+    expect(nearestRecord(worktree, { ...asked, selected: {} })).toEqual({ file: mainline, origin: 'mainline' });
 
     await hold(own);
     expect(nearestRecord(worktree, asked)).toEqual({ file: own, origin: 'own' });

@@ -176,6 +176,7 @@ export async function seedTestCoverage(
   root: string,
   instrumentation: string | undefined,
   cacheRoot?: string,
+  selected?: SelectedMainline,
 ): Promise<Seeded | undefined> {
   const { file } = lock;
   const layers = repositoryLayers(root, cacheRoot);
@@ -189,7 +190,7 @@ export async function seedTestCoverage(
   if (present(file)) return undefined;
   let mainline: PassedOver | undefined;
   if (shared !== undefined) {
-    const record = lastFetchedMainline(root, shared, cacheRoot);
+    const record = lastFetchedMainline(root, shared, cacheRoot, selected);
     if (record !== undefined) {
       mainline = passedOver(record.coverage, await readFile(record.coverage).catch(() => undefined), instrumentation);
       if (mainline === undefined && (await layFetchedMainline(record, lock))) return { from: 'mainline', record };

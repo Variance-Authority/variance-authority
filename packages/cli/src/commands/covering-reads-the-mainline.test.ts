@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import { readableTestCoverage, testCoverageFile, writeSelectedMainline } from '@variance-authority/sense/test-selection';
+import { readableTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -12,8 +12,9 @@ import { changeSince, listedChange } from './covering-since.js';
 import { coveringAnswer } from './covering-suites.js';
 import { main } from '../bin.fixture.js';
 import { mainlineBase } from './mainline-base.js';
-import { cloneOf, DISCOUNTS, git, publishTo, published, PUSH, recordIn } from './mainline-fixture.js';
+import { cloneOf, DISCOUNTS, git, gitStarted, publishTo, published, PUSH, recordIn } from './mainline-fixture.js';
 import { GapRefusal } from './evidence-gap.js';
+import { readerMainline } from '../share-lines.js';
 import { diffSince } from './since.js';
 import { suiteBase } from './suite-base.js';
 
@@ -31,7 +32,12 @@ vi.mock('./mainline-base.js', async (original) => {
 });
 vi.mock('@variance-authority/sense/test-selection', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
-  return { ...actual, readableTestCoverage: vi.fn(actual.readableTestCoverage), writeSelectedMainline: vi.fn(actual.writeSelectedMainline) };
+  return { ...actual, readableTestCoverage: vi.fn(actual.readableTestCoverage) };
+});
+// Spied, not replaced: whether a read worked out a selection at all is what is under test.
+vi.mock('../share-lines.js', async (original) => {
+  const actual = await original<typeof import('../share-lines.js')>();
+  return { ...actual, readerMainline: vi.fn(actual.readerMainline) };
 });
 
 /**
@@ -429,12 +435,48 @@ describe('one answer', () => {
     await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
     const text = join(clone, 'held.ts');
     await writeFile(text, 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
-    vi.mocked(writeSelectedMainline).mockClear();
+    vi.mocked(readerMainline).mockClear();
 
     const answer = await asked(['--file', 'src/total.ts', '--suite', 'unit', '--text', text]);
 
     expect(answer.source).toMatchObject({ from: 'checkout' });
-    expect(vi.mocked(writeSelectedMainline)).not.toHaveBeenCalled();
+    expect(vi.mocked(readerMainline)).not.toHaveBeenCalled();
+  });
+
+  it('selects no mainline under `--execution`, which names its record', async () => {
+    const { clone, second } = await behindTheMainline({ publish: true });
+    await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
+    const named = testCoverageFile(clone, { suite: 'unit' });
+    vi.mocked(readerMainline).mockClear();
+
+    await asked(['--file', 'src/total.ts', '--execution', named]);
+
+    expect(vi.mocked(readerMainline)).not.toHaveBeenCalled();
+  });
+
+  it('starts the same git on a repaint however many commits its ledger holds', async () => {
+    const { clone, second } = await behindTheMainline({ publish: true });
+    await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
+    const own = testCoverageFile(clone, { suite: 'unit' });
+    const text = join(clone, 'held.ts');
+    await writeFile(text, 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
+    const commits = [second];
+    for (const name of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      await git(clone, '-c', 'user.email=fixture@example.test', '-c', 'user.name=Fixture', 'commit', '--quiet', '--allow-empty', '-m', name);
+      commits.push(await git(clone, 'rev-parse', 'HEAD'));
+    }
+    const repaint = async (ledger: readonly string[]) => {
+      const ran = ledger.map((commit, at) => ({ commit, files: [`test/${String(at)}.test.ts`] }));
+      await writeFile(own.replace(/\.bin$/u, '.layer.json'), JSON.stringify({ pinned: { mainline: 'main', commit: second }, ran }));
+      return gitStarted(clone, () => asked(['--file', 'src/total.ts', '--suite', 'unit', '--text', text]));
+    };
+
+    // The first read of a checkout does work no repaint repeats, so it measures nothing here.
+    await repaint(commits);
+    const few = await repaint(commits.slice(0, 2));
+    const many = await repaint(commits);
+
+    expect(many.length).toBe(few.length);
   });
 });
 

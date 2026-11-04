@@ -1,9 +1,9 @@
 // compass: variance-authority.reach
 
-import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, Precision, SelectedMainline, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
-import { noteSelectedMainline, onlySuite } from './mainline-selected.js';
+import { onlySuite, selectedMainline, selectedRecord } from './mainline-selected.js';
 
 /**
  * The one record a command scoped to one runner reads: `--suite`'s, or the only
@@ -60,13 +60,20 @@ export async function ownRecord(root: string, suite?: string): Promise<string> {
 }
 
 /**
- * Where a command that writes the record lands it: {@link ownRecord}, with the
- * selection noted, because a first landing lays its base by the note.
+ * Where a command that writes the record lands it, and the mainline selected,
+ * which judges the base a first landing lays: {@link ownRecord}, or `into`. A
+ * target `into` names outside the cache lays no base and reads no config, so a
+ * config that does not read refuses nothing here; a target inside it is refused
+ * where the base is laid.
  */
-export async function landingRecord(root: string, suite?: string): Promise<string> {
+export async function landingRecord(
+  root: string,
+  suite?: string,
+  into?: string,
+): Promise<{ readonly file: string; readonly selected: SelectedMainline | undefined }> {
+  if (into !== undefined) return { file: into, selected: await selectedMainline(root, suite).catch(() => undefined) };
   const file = await ownRecord(root, suite);
-  await noteSelectedMainline(root, suite);
-  return file;
+  return { file, selected: await selectedMainline(root, suite) };
 }
 
 /**
@@ -100,11 +107,9 @@ export async function selectingRecord(
  * whether the share holds one.
  */
 export async function recordedSuite(root: string, suite?: string): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
-  const selection = await import('@variance-authority/sense/test-selection');
   const { name, declared } = await namedSuite(root, suite);
   try {
-    const selected = await noteSelectedMainline(root, name);
-    const file = await selection.readableTestCoverage(root, { suite: name, selected });
+    const file = await selectedRecord(root, name);
     return declared === undefined ? { file } : { file, declared };
   } catch (error) {
     if (error instanceof OperatorError) throw error;

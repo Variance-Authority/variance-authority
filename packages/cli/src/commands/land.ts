@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, rm } from 'node:fs/promises';
-import type { CommitRuns, TestCoverageView } from '@variance-authority/sense/test-selection';
+import type { CommitRuns, SelectedMainline, TestCoverageView } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -53,9 +53,9 @@ export async function landJourneys(
   root: string,
   shards: readonly string[],
   into?: string,
+  suite?: string,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const at = into ?? (await landingRecord(root));
   if (into !== undefined && selection.writesBase(selection.repositoryLayers(root), into)) {
     throw new OperatorError(
       `${into} is the record the primary checkout's runs write, which this worktree's runs are laid over and never write. ` +
@@ -63,11 +63,12 @@ export async function landJourneys(
     );
   }
 
+  const { file: at, selected } = await landingRecord(root, suite, into);
   // The combine is staged beside the target, so the rename below never crosses
   // a file system, and the staged name ends in `.tmp` for prune to find.
   const combinedAt = `${at}.${process.pid}-${randomUUID()}-combined.tmp`;
   try {
-    return await landCombined(selection, root, shards, at, combinedAt);
+    return await landCombined(selection, root, shards, at, combinedAt, selected);
   } finally {
     await rm(combinedAt, { force: true });
   }
@@ -81,6 +82,7 @@ async function landCombined(
   shards: readonly string[],
   at: string,
   combinedAt: string,
+  selected: SelectedMainline | undefined,
 ): Promise<LandedJourneys> {
   let combined;
   try {
@@ -136,11 +138,11 @@ async function landCombined(
   const stagedRuns = `${runsAt}.${stage}`;
   const locked = await selection.withIndexLock(at, async (lock) => {
     // A checkout's first landing starts from the base its first `yarn test`
-    // would: the mainline's record as last fetched here, else the primary
-    // checkout's. Without the copy the fold would land over nothing and stand for
+    // would: the selected mainline's record as last fetched here, else the
+    // primary checkout's. Without the copy the fold would land over nothing and stand for
     // the whole suite. A cached record under other probes is replaced first. A
     // no-op for `--into`, and after the first landing.
-    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation);
+    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected });
     let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
       over = await readFile(at);

@@ -140,7 +140,7 @@ export async function mainlineBase(
   const suite = declared.name;
   // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
   // for every distance measured below, and the fetch keeps the merge base.
-  const chosen = await selectMainline(root, suite, here);
+  const chosen = await selectMainline(root, here);
   if ('unconfigured' in chosen) return { suite, miss: { kind: 'unconfigured', detail: chosen.unconfigured }, shareAsked: false };
   const read = await readMainline(root, suite, chosen, here);
   return 'miss' in read ? { ...read, selected: chosen.selected } : read;

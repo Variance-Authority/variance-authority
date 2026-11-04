@@ -10,9 +10,10 @@
  *    record of the selected mainline was read. It is an offline fallback, and
  *    the reader says why the mainline's is not it.
  *
- * A checkout's first run is laid on the same answer, as `lastFetchedMainline`
- * gives it to a seam, by what the last reader noted. `mainlineBase` owns the fetch and `readableTestCoverage`
- * which layer holds a record; this decides the order, and says whose it gave.
+ * A checkout's first run is laid from what `lastFetchedMainline` gives a seam,
+ * which has no selection to judge it by. `mainlineBase` owns the fetch and
+ * `readableTestCoverage` which layer holds a record; this decides the order,
+ * and says whose it gave.
  */
 
 import { readFile, stat } from 'node:fs/promises';
