@@ -37,6 +37,10 @@ pub struct NamedExport {
     #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
+    /// The name the export binds in its own file, by `own_binding`; absent for
+    /// an `export … from` and for a name the file imports.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bound: Option<String>,
     /// The kind of the declaration the export binds in its own file, as the
     /// parse records it (`function`, `class`, `const` …); absent for an
     /// `export … from`, whose declaration is another file's.
@@ -118,6 +122,13 @@ pub(crate) fn kind_of(at: &str) -> &'static str {
     if file.contains(".stories.") { "story" }
     else if file.contains(".test.") || file.contains(".spec.") || file.contains(".check.") { "test" }
     else { "source" }
+}
+
+/// `ownBinding` in `package/src/use.ts`: the export's local name, the slot
+/// `default` for an anonymous `export default`, and none for a name the file imports.
+fn own_binding<'a>(local: Option<&'a str>, imported: &HashSet<&str>) -> Option<&'a str> {
+    let name = local.unwrap_or("default");
+    (!imported.contains(name)).then_some(name)
 }
 
 /// `requested` in `package/src/manifest.ts`: `"<package> .<rest>"`.
@@ -206,12 +217,19 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
         // The file is read only when an export of it is documented or binds a
         // declaration: the index holds where each span is, and the text is the file's.
         let mut source: Option<Vec<u16>> = None;
+        let imported_here: HashSet<&str> = parses.requests.range(row)
+            .flat_map(|request| parses.request_bindings.range(request))
+            .map(|binding| text.text(parses.binding_local.at(binding)))
+            .collect();
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
             let Some(name) = text.optional(id) else { continue };
+            let local = text.optional(parses.export_local.at(export));
+            let passed_on = text.optional(parses.export_from.at(export)).is_some();
+            let own = if passed_on { None } else { own_binding(local, &imported_here) };
             // The TypeScript reader spans an export's doc on the export; the
             // others span it on the declaration the export binds, by its name.
-            let bound = text.optional(parses.export_local.at(export)).filter(|_| text.optional(parses.export_from.at(export)).is_none()).and_then(|local| {
+            let bound = local.filter(|_| !passed_on).and_then(|local| {
                 // One name may be declared twice, `const Kind` and `type Kind`: an
                 // export takes the declaration on its own line, else the first.
                 let line = parses.export_line.at(export);
@@ -233,7 +251,7 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 let head = head.strip_suffix(';').unwrap_or(head);
                 (!head.is_empty()).then(|| head.to_owned())
             });
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), declaration, doc, signature });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), bound: own.map(str::to_owned), declaration, doc, signature });
         }
     }
     let first = parses.requests.at(row) as usize;

@@ -36,6 +36,52 @@ async function uses(...more: readonly string[]): Promise<string> {
   return out;
 }
 
+// `Reach` is published by `@acme/a`, and exported by a file of `@acme/h` that its entry does not open.
+const REACH = {
+  'packages/a/package.json': JSON.stringify({ name: '@acme/a', type: 'module', exports: { '.': './src/index.ts' } }),
+  'packages/a/src/index.ts': '/** How far a signal travels, in metres. */\nexport interface Reach { readonly metres: number; }\n',
+  'packages/h/package.json': JSON.stringify({ name: '@acme/h', type: 'module', exports: { '.': './src/index.ts' }, dependencies: { '@acme/a': '*' } }),
+  'packages/h/src/reach.ts': '/** How many hops a message may still take. */\nexport type Reach = number;\n',
+  'packages/h/src/index.ts':
+    "import type { Reach as Far } from '@acme/a';\nimport type { Reach } from './reach.js';\nexport const hops: Reach = 3;\nexport const far: Far = { metres: 1 };\n",
+};
+
+/** `variance ask uses --name Reach` straight after each of three `variance index` runs, its generation's stamp cut. */
+async function afterEachIndex(): Promise<readonly string[]> {
+  const answers: string[] = [];
+  for (let runs = 0; runs < 3; runs += 1) {
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'Reach']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    answers.push(out.replace(/^Snapshot .*$/m, ''));
+  }
+  return answers;
+}
+
+describe('variance ask uses after `variance index` ran again', () => {
+  it('names an exported namesake of a published name each time', async () => {
+    checkout(REACH);
+
+    const [first, second, third] = await afterEachIndex();
+    expect(first).toContain('`Reach` is exported, without being published, at packages/h/src/reach.ts:2 as well, which is another declaration.');
+    expect(first).toMatch(/^packages\/h\/src\/index\.ts:2 — @acme\/h \(type only\); used on line 3$/m);
+    expect(first).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
+
+  it('names a namesake published only inside `export * as ns` each time', async () => {
+    checkout({ ...REACH, 'packages/h/src/index.ts': "export * as ns from './reach.js';\n" });
+
+    const [first, second, third] = await afterEachIndex();
+    expect(first).toContain('packages/h/src/reach.ts:2');
+    expect(first).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
+});
+
 describe('variance ask uses over a name several files declare', () => {
   it('names an exported namesake of a published name and how to ask for it alone', async () => {
     checkout(NAMESAKES);

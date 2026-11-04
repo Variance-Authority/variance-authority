@@ -22,7 +22,7 @@ export interface SnapshotOptions {
 }
 
 export const SNAPSHOT_FORMAT = 'variance-authority-help';
-export const SNAPSHOT_VERSION = 11;
+export const SNAPSHOT_VERSION = 12;
 
 interface WorkspaceSnapshot {
   readonly format: typeof SNAPSHOT_FORMAT;
