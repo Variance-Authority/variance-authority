@@ -96,6 +96,8 @@ Look around:
 - Whether a GitHub issue already holds it, and what its parent is
   ([tasks](#tasks-are-github-issues), below). If none does, file one as the
   [idea loop](.agents/references/refine.md#the-idea-loop)'s brief.
+- Why the problem exists at all: [the whys](.agents/references/refine.md#the-idea-loop)
+  asked down to the root, and whether what stands there should exist.
 - For non-local work — crossing a boundary, changing a rule or an invariant,
   adding a party, building a capability: what the architecture chart in
   `.compass/` says owns it.
