@@ -67,11 +67,13 @@ The source index at …/source-index.bin was folded into no code map, because th
 
 A name the index does not hold is looked for again in the checkout as it is, so
 a function you just wrote is answered with no step from you. A name it does hold
-is answered from the index, which a question reuses for an hour before refreshing
-it: after you change the signature or the imports of an existing name, an answer
-can show the old one until then. `ask search` answers from the last index at any
-age, and its last line says so. Run `variance index` when the next answer has to
-match your edit.
+is answered from the index, which a question reuses for an hour, so that answer
+can be behind your edit. Run `variance index` when the next answer has to match
+it: who imports a name, and which names exist, are then current. The signature
+and comment of a name that stays exported are not. A question reads them again
+once the index is over an hour old, and a `variance index` that read a changed
+file restarts that hour, so read the file itself for those. `ask search` answers
+from the last index at any age, and its last line says so.
 
 Your agent can now run any `npx variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
