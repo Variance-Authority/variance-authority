@@ -26,21 +26,21 @@ workspace to read; omit it when you are standing in that workspace.
 
 Your agent asks the same questions by either of two routes: the shell, `npx
 variance ask`, for an agent that runs commands, and MCP, for a client that reaches
-tools only through a server. Both start here, because `@variance-authority/cli`
-builds the index. Install it, build the index and ask about a name, with one your
-code exports in place of `price`, then read the code map:
+tools only through a server. Both start here: `@variance-authority/cli` builds
+the index and `@variance-authority/help` is the server. Install them, build the
+index and ask about a name, with one your code exports in place of `price`, then
+read the code map:
 
 ```bash
-npm install --save-dev @variance-authority/cli
+npm install --save-dev @variance-authority/cli @variance-authority/help
 npx variance index
 npx variance ask symbol --name price
 npx variance ask orient
 ```
 
-`variance index` takes about eight seconds on a checkout of 125,000 tracked
-paths. The index lives in `node_modules/.cache`, so it adds no tracked file.
-`ask symbol` is the check: it answers with the name, the line that imports it,
-where it is declared and who uses it, above its signature.
+The index lives in `node_modules/.cache`, so it adds no tracked file. `ask symbol`
+is the check: it answers with the name, the line that imports it, where it is
+declared and who uses it, above its signature.
 
 ```text
 price [const]
@@ -76,12 +76,6 @@ Your agent can now run any `npx variance ask` question, and one step is left:
 through a server adds the server first.
 
 ### Add the MCP server
-
-`@variance-authority/help` is the server. Install it beside the CLI:
-
-```bash
-npm install --save-dev @variance-authority/help
-```
 
 Add this entry to the file your client keeps its servers in, `.mcp.json` at the
 repository root for Claude Code:
@@ -193,7 +187,7 @@ candidate belongs to the code in question.
 Carry a path into the first search whenever you have one:
 
 ```bash
-variance ask search --query createStore --from src/fulfilment/
+variance ask search --query createStore --from src/fulfilment/ --just-answer
 ```
 
 `--from` walks along imports and keeps names used inside that closure. Use

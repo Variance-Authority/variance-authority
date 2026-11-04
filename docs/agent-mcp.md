@@ -25,6 +25,10 @@ npx variance run --config variance.config.json
 collector that mounts each UI state, is
 [run visual review from the command line](start-cli.md).
 
+The report contains one record per **subject** — one named UI state you asked for
+and can ask for again, identified by a stable id such as `checkout/empty` or
+`story:checkout--empty`.
+
 ## Serve the report to a client
 
 Use Node 22.15 or newer. In the repository that holds the report, install the
@@ -108,59 +112,28 @@ variance_describe variance_findings variance_trace_component
 variance_explain_verdict
 ```
 
-The server reads the report as it starts, so a bad entry fails here, and a client
-holding the same entry shows a server that did not connect and keeps these lines
-in its log:
-
-| The output says | What is wrong |
-| --- | --- |
-| `npm error 404` for `variance-authority-mcp` | The entry ran outside the repository: write the entry for a client that starts anywhere else. |
-| `ENOENT: no such file or directory` | No report at that path: [produce one](#produce-a-report-first), or correct the path. |
-| `is not a variance-authority run report` | The path names some other file. |
-
-The server reads the report again before each request, so a completed rerun is
-answered from the new report without reconnecting.
+The server validates the report at startup and re-reads it before each request,
+so a completed rerun is answered from the new report without reconnecting.
 
 The same questions are available on the command line, where they need no client
 and no server: [ask a run from the command line](agent-cli.md).
 
 ## Ask from the run outward
 
-The report holds one record per **subject**: one named UI state you asked for and
-can ask for again, identified by a stable id such as `checkout/empty` or
-`story:checkout--empty`. Each subject gets a **verdict**, the one word reported
-for it: `unchanged`, `changed`, `new` or `ignored`.
+Ask in this order:
 
-On the server above, begin with `variance_summary`, which takes no arguments; a
-connection [another integration set up](#evidence-other-integrations-supply)
-begins elsewhere. The summary reads:
-
-```text
-2 subject(s) observed, ephemeral run at 2026-08-01T10:00:00.000Z
-rendered by playwright-chromium (chromium@131.0.0, darwin/arm64, 1x)
-1 changed, 1 unchanged
-
-[changed] checkout/empty: 1530 pixel(s) differ across 1 region(s) in Toggle
-
-coverage: every planned subject was observed.
-```
-
-It lists what needs attention and counts the rest. Its last line accounts for
-planned subjects that were not observed, so silence cannot be mistaken for a
-clean run.
-
-Then ask in this order:
-
+- **Begin a report-file session with `variance_summary`.** It accounts for
+  planned subjects that were not observed as well as for the observations that
+  produced a **verdict** — the one word reported per subject: `unchanged`,
+  `changed`, `new` or `ignored` — so silence cannot be mistaken
+  for a clean run.
 - **If the summary names changes, ask `variance_changes` before opening an
   individual subject.** It groups shared causes across subjects.
 - Narrow to a subject, component, finding, [composition](composition.md), or
   verdict explanation only when the question requires that detail.
-- **After replacing the report with a completed rerun, ask `variance_diff`
-  before anything else.** Each successful tool call leaves the report it answered
-  from in the server's memory, and `variance_diff` compares the current report
-  with that one, so any other call after the rerun leaves nothing to compare. A
-  server with no such call answers `No previous invocation was recorded` and
-  keeps the current report: to compare a rerun, ask something before it.
+- **After replacing the report with a completed rerun, ask `variance_diff`.** It
+  compares the current supplied state with the one kept from the preceding
+  successful tool call.
 
 A question that names a thing rather than a subject id goes to
 [`variance_locate`](locate.md). It finds subjects from a description over every

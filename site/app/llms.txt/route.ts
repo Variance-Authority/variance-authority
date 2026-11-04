@@ -50,7 +50,7 @@ function index(): string {
     "## Start here",
     "",
     "- Install the CLI: `npm install --save-dev @variance-authority/cli`. It installs the `variance` command and ships the agent skills under `node_modules/@variance-authority/cli/skills/`.",
-    `- [Link the agent skills](${url(markdownPath("/agents/cli"))}#link-the-skills-into-your-agent) into your agent's own skills directory.`,
+    `- [Link the agent skills](${url(markdownPath("/agents/cli"))}#point-an-agent-at-it) into your agent's own skills directory.`,
     entry("/agents", "Choose an agent workflow"),
     entry("/start", "Visual review integrations"),
     `- [Source](${GITHUB}): every package's README, beside the code it documents.`,

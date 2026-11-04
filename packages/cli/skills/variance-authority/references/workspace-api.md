@@ -84,8 +84,8 @@ Run `variance-authority-help <verb> --root <dir>` on the other checkout. When
 the binary is not installed, ask the package runner for the package
 `@variance-authority/help`, never for the command `variance-authority-help`:
 that is not a package name, and the registry reports it missing. Inside a
-package script, `variance-authority-help` is the program name; an MCP `command`
-must resolve the installed binary ([MCP](mcp.md#writing-the-client-config)).
+package script, `variance-authority-help` is the program name; an MCP entry
+launches it through `npx` ([MCP](mcp.md#writing-the-client-config)).
 
 The target needs no manifest at its root, no `workspaces` field and no build. A
 repository that publishes nothing answers entirely from the exported half: every

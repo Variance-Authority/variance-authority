@@ -27,7 +27,7 @@ as the investigation grows.
 
 | What do you need to do? | Start here |
 | --- | --- |
-| Give your coding agent these answers | [Connect it](#connect-your-coding-agent): one install and one index, with no config and no test run, then a few lines in `AGENTS.md`. |
+| Give your coding agent these answers | [Connect it](docs/agent-workspace-api.md#connect-your-agent): one install and one index, with no config and no test run, then a few lines in `AGENTS.md`. |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
@@ -37,67 +37,20 @@ as the investigation grows.
 | Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |
 | Check whether the work did what you intended | [Compare the intentions declared before an edit](docs/reasoning.md) with its observed effects: what landed, what did not, and what changed outside the declared scope. |
 
-## Connect your coding agent
+## Give your coding agent the same evidence
 
 Your agent keeps its editor, shell, and test runner. Variance supplies the
 source facts and observations it reads, through the interfaces it already has.
 
-Start with your source, which takes a git repository and Node 22.15 or newer,
-and no config or test run. Install the CLI, build the index, and ask about a
-name, with one your code exports in place of `price`:
+- [**From the shell**](docs/agent-cli.md) — query the current workspace, a
+  completed report, or a live watcher from the command line.
+- [**Over MCP**](docs/agent-mcp.md) — the observations you supply become
+  callable tools, including a test paused at an authored inspection point.
+- [**As guided workflows**](docs/agent-workflows.md) — source discovery, live
+  investigation, UI review, test selection, and test reduction, each carried
+  through an edit and a check.
 
-```bash
-npm install --save-dev @variance-authority/cli
-npx variance index
-npx variance ask symbol --name price
-```
-
-This is what your agent gets back on your code: the name, the line that imports
-it, where it is declared, and who uses it.
-
-```text
-price [const]
-import { price } from '@shop/price';
-declared at packages/price/src/index.ts:1
-used by 1 package: @shop/cart — 1 import by published path
-```
-
-The same install says which files an edit reaches over imports,
-[in every language it reads](#it-reads-more-than-javascript), one per line and
-with no test run:
-
-```bash
-npx variance reach --since origin/main
-```
-
-Your agent reaches for these once something tells it to. It reads `AGENTS.md` at
-the start of every session, so put these lines there, with `npx` changed to
-however your package manager runs a local binary:
-
-```markdown
-## Finding your way in the code
-
-Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
-```
-
-That connects an agent that runs commands.
-[Linking the skill those lines name](docs/agent-workspace-api.md#point-an-agent-at-it)
-gives it the rest, and a client that reaches tools only through a server first
-[adds the MCP entry](docs/agent-workspace-api.md#add-the-mcp-server).
-
-Those answers read your source. What your code did comes from your runs: a
-question about a test or a screenshot needs a report, which `npx variance run`
-writes once [your first run](docs/start.md) is set up, or a suite
-[reporting to a watcher](docs/agent-live-run.md) while it runs.
-[Choose an agent workflow](docs/agent-workflows.md) matches your question to what
-it needs and the route that reaches it, [the shell](docs/agent-cli.md) or
-[MCP](docs/agent-mcp.md), which alone releases a test stopped at a line you chose.
-
-An agent finding its own way can start from
-[`llms.txt`](https://variance-authority.dev/llms.txt), the index of every page.
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## One change, traced end to end
 
@@ -134,8 +87,8 @@ runners.
 
 ## Add it to a Playwright test
 
-The fastest way into a visual check is a test that already gets the app into the
-UI state you care about. Two installs, one call, one assertion:
+The fastest way in is a test that already gets the app into the UI state you
+care about. Two installs, one call, one assertion:
 
 ```bash
 npm install --save-dev @variance-authority/playwright-test @playwright/test

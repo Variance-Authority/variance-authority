@@ -49,9 +49,7 @@ npx variance watch
 ```
 
 From an MCP client, install the server and add it to the client's server list,
-which is `.mcp.json` at the repository root for Claude Code. [A client that
-starts anywhere else](#a-client-that-starts-anywhere-else), such as Claude
-Desktop, takes the entry at the end of this section.
+which is `.mcp.json` at the repository root for Claude Code:
 
 ```bash
 npm install --save-dev @variance-authority/mcp
@@ -68,38 +66,6 @@ npm install --save-dev @variance-authority/mcp
 }
 ```
 
-You run no command to start it: the client starts the server when it connects to
-its servers, so open the client, or restart it if it was open. The watcher lasts
-as long as that connection, and a restarted client is a new watcher at a new
-address.
-
-`variance watch` prints the assignment in its terminal. The MCP server's start-up
-line goes to the client, which may not show it, so ask your agent to call
-`variance_self`. Its answer opens with the same assignment:
-
-```text
-Nothing has reported to this vantage yet.
-
-A run reports here when it is started with this in its environment:
-
-  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321
-```
-
-Copy the line your listener gave you — the port differs per listener — and start
-the suite with it in the environment, from any shell:
-
-```bash
-VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
-```
-
-`VARIANCE_AUTHORITY_VANTAGE` is a discovery address, not a project setting.
-Unset, each worker performs one environment read and sends nothing. Set, it
-names the watcher that owns this run. The listener takes an ephemeral loopback
-port, so concurrent suites, editor sessions and agents do not claim the same
-address. An address added after worker startup belongs to the next run.
-
-### A client that starts anywhere else
-
 `npx` looks for the binary in the directory the client starts the server in. A
 client that starts anywhere else, such as Claude Desktop, needs your repository's
 path in [its own file](agent-mcp.md#a-client-that-starts-anywhere-else):
@@ -115,6 +81,25 @@ path in [its own file](agent-mcp.md#a-client-that-starts-anywhere-else):
 }
 ```
 
+Both listeners print the same assignment:
+
+```bash
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321
+```
+
+Copy the line the listener printed — the port differs per listener — and start
+the suite with it in the environment:
+
+```bash
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
+```
+
+`VARIANCE_AUTHORITY_VANTAGE` is a discovery address, not a project setting.
+Unset, each worker performs one environment read and sends nothing. Set, it
+names the watcher that owns this run. The listener takes an ephemeral loopback
+port, so concurrent suites, editor sessions and agents do not claim the same
+address. An address added after worker startup belongs to the next run.
+
 ## Ask the same questions from either entrance
 
 Start with identity, then narrow to the test:
@@ -125,44 +110,19 @@ Start with identity, then narrow to the test:
 | Which tests opened, and which is still running? | `npx variance ask run-signals` | `variance_run_signals` |
 | What did one test announce, in order? | `npx variance ask test-signals --test <id>` | `variance_test_signals` |
 | What arrived since the previous reading? | `npx variance ask diff` | `variance_diff` |
-| Which tests have stopped for me to look at them? | `npx variance ask waiting` | `variance_waiting` |
+| Which tests have stopped for me to look at them? | — | `variance_waiting` |
 | Let a stopped test go on. | — | `variance_continue` |
 
-The last row answers only under MCP. A shell command owns no run, so there is
-nothing in it to release. The last two rows are the pair a test triggers with
+`--at <address>` selects a watcher and defaults to
+`VARIANCE_AUTHORITY_VANTAGE`. Ask `self` first: a suite reporting to a different
+address and a suite that never started both look quiet to every other question.
+
+The last two answer only under MCP. A shell command owns no run, so there is
+nothing in it to release. They are the pair a test triggers with
 `variance.snapshot()` and `await variance.observe()` — see [interrogate a test
 where it stands](agent-interrogate.md).
 
-`--at <address>` selects a watcher and defaults to
-`VARIANCE_AUTHORITY_VANTAGE`. Each shell question also loads a config it never
-reads, so it needs a valid `variance.config.json` in the directory or
-`--config <path>`, and exits 2 with neither. `variance watch` and the MCP tools
-need no config.
-
-Ask `self` first: a suite reporting to a different address and a suite that never
-started both look quiet to every other question. Once a suite has reported, `self`
-opens by counting its tests:
-
-```text
-Watching 2 test(s): 2 passed.
-```
-
-An answer that still opens `Nothing has reported to this vantage yet.` while the
-suite runs means the suite has another address, or none. The listing then names
-each test, with how many announcements it has heard:
-
-```text
-2 test(s) at http://127.0.0.1:54321 — 2 passed.
-
-  passed      the cart opens — tests/checkout.spec.ts — worker 0 — heard 0
-  passed      the upsell stays away — tests/checkout.spec.ts — worker 0 — heard 1
-```
-
-The fixture gives every test its open and close, and no announcements. An
-announcement comes from your application: a call to `vae` from
-[`@variance-authority/event`](https://variance-authority.dev/reference/packages/event)
-at a decision, heard by a test that takes the `events` fixture. A test missing
-either half lists with `heard 0`: a measured lifecycle with no application
+A listed test with no announcements is a measured lifecycle with no application
 signal, not a reconstructed empty trace. `test-signals` names the realm of each
 announcement — where the reporting code ran, whether that is the browser page,
 another process, or the runner's own — and pairs work starts with ends, so an

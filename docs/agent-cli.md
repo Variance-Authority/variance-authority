@@ -1,8 +1,7 @@
 # Ask about the code and its runs from the command line
 
-`variance ask` answers an agent's questions from a shell with no MCP client to
-set up, and [two skills the CLI ships](#link-the-skills-into-your-agent) tell the
-agent what to ask. Questions about the code read the checkout and need nothing
+`variance ask` answers an agent's questions from a shell, with no client
+configuration. Questions about the code read the checkout and need nothing
 else: with no run yet, start with `variance ask packages`, which lists what each
 package publishes and how much of it other packages import. Questions about a
 run read the report it wrote, or the report CI published for your branch or
@@ -20,84 +19,6 @@ variance ask
 
 The listing names each question, the arguments it takes, and what it answers.
 It reads no configuration, so it is available before a run exists.
-
-## Link the skills into your agent
-
-`@variance-authority/cli` ships two skills, under
-`node_modules/@variance-authority/cli/skills/`:
-
-- **`variance-authority`** covers reports, watchers and connections, choosing
-  which tests to run, and what a workspace publishes, and opens a reference
-  file for each only when the question needs it.
-- **`variance-testing`** is the order to ask in while you write, fix or debug a
-  test: which tests stand on a line, what an edit needs to run, where a failing
-  or flaky test went, what a change or a file's tests left untested, and how
-  much of a test can go. It links the
-  `variance-authority` references for its flags, so link both.
-
-Installing the package puts them on disk; your agent reads a skill only from
-its own skills directory, in the project or your home directory. Claude Code
-reads `.claude/skills`; most other agents read `.agents/skills`. Link them into
-both rather than copying them, so they follow every update:
-
-```bash
-mkdir -p .agents/skills && for s in variance-authority variance-testing; do ln -s ../../node_modules/@variance-authority/cli/skills/$s .agents/skills/$s; done
-mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -s ../../.agents/skills/$s .claude/skills/$s; done
-```
-
-### Check that your agent uses them
-
-Put the lines that send your agent to `variance ask` before it searches the code
-in `AGENTS.md`, which it reads every session: [finding code through the workspace
-index](agent-workspace-api.md#point-an-agent-at-it) prints them. Then start a new
-session and ask who imports a name. The answer should come from `ask uses`, not a
-text search. Without those lines a text search says nothing about the links: an
-agent opens a skill only when its description matches the task. With them, a text
-search sends you to the links.
-
-### Check that the links reach the files
-
-These two checks say the files are where your agent reads them, not that it will
-open them. List what the links reach. This needs no config:
-
-```bash
-for s in variance-authority variance-testing; do ls .agents/skills/$s/SKILL.md .claude/skills/$s/SKILL.md; done
-```
-
-```text
-.agents/skills/variance-authority/SKILL.md
-.claude/skills/variance-authority/SKILL.md
-.agents/skills/variance-testing/SKILL.md
-.claude/skills/variance-testing/SKILL.md
-```
-
-A link that reaches nothing prints `No such file or directory` for its path. The
-line reads the directory you run it in, so run it from your home directory for
-links you made there.
-
-With a `variance.config.json`, `variance doctor` reads the same directories and
-your home directory, and tells a link from a copy. It prints a block like this
-among its other findings, shown here with one skill linked in one directory, an
-old copy in the other, and the second skill missing:
-
-```bash
-npx variance doctor --config variance.config.json
-```
-
-```text
-skills: 1 of 2 where an agent reads them
-  shipped in node_modules/@variance-authority/cli/skills; agents read .agents/skills or .claude/skills, in the project or the home directory
-  variance-authority: .agents/skills/variance-authority — linked
-  variance-authority: .claude/skills/variance-authority — copy, stale; link the shipped one
-  variance-testing: not found. To serve it, link it rather than copy it:
-    mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-testing .agents/skills/variance-testing
-```
-
-`linked` is the state you want. A skill it cannot find prints the link that would
-serve it, which you run yourself. The count takes a skill found in either
-directory, so read the lines for the directory your agent reads: `2 of 2` from
-`.agents/skills` alone leaves Claude Code with nothing. These lines never move
-the exit code.
 
 ## Start with the code: no run needed
 
@@ -315,7 +236,7 @@ verdicts, `delivered`, `overreached`, `undelivered` and `unobservable`, are
 defined in [verdicts](information.md#verdicts). An `unclaimed` line is a change
 no claim names. The claims file's other forms are in
 the `variance-authority` skill the CLI ships, described
-[above](#link-the-skills-into-your-agent).
+[below](#point-an-agent-at-it).
 
 ### Group what changed, then narrow
 
@@ -484,7 +405,38 @@ contain the exact command that would settle a reviewed change; producing that
 command is evidence, and running it stays an explicit act by whoever owns the
 review loop.
 
-## Serve the same questions over MCP
+## Point an agent at it
+
+`@variance-authority/cli` ships two skills, under
+`node_modules/@variance-authority/cli/skills/`:
+
+- **`variance-authority`** covers reports, watchers and connections, choosing
+  which tests to run, and what a workspace publishes, and opens a reference
+  file for each only when the question needs it.
+- **`variance-testing`** is the order to ask in while you write, fix or debug a
+  test: which tests stand on a line, what an edit needs to run, where a failing
+  or flaky test went, what a change or a file's tests left untested, and how
+  much of a test can go. It links the
+  `variance-authority` references for its flags, so link both.
+
+Installing the package puts them on disk; your agent reads a skill only from
+its own skills directory, in the project or your home directory. Claude Code
+reads `.claude/skills`; most other agents read `.agents/skills`. Link them into
+both rather than copying them, so they follow every update:
+
+```bash
+mkdir -p .agents/skills && for s in variance-authority variance-testing; do ln -s ../../node_modules/@variance-authority/cli/skills/$s .agents/skills/$s; done
+mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -s ../../.agents/skills/$s .claude/skills/$s; done
+```
+
+An agent opens a skill only when its description matches the task, and it reads
+`AGENTS.md` every session. The lines that send it to `variance ask` before it
+searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
+
+With a `variance.config.json`, `variance doctor` lists which skills your agent
+can find, reports whether each is a link or a copy that has fallen behind, and
+prints the link for any it cannot find. It never writes the link for you. With no
+config it exits 2.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

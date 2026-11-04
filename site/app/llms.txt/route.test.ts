@@ -28,7 +28,7 @@ describe("llms.txt", () => {
     expect(index.indexOf("## Start here")).toBeLessThan(index.indexOf("## Documentation"));
     const block = await start();
     expect(block).toContain("npm install --save-dev @variance-authority/cli");
-    expect(block).toContain("/agents/cli/index.md#link-the-skills-into-your-agent");
+    expect(block).toContain("/agents/cli/index.md#point-an-agent-at-it");
     expect(block).toContain("/agents/index.md");
     expect(block).toContain("/start/index.md");
     expect(block).toContain(`(${GITHUB})`);
