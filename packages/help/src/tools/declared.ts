@@ -26,6 +26,8 @@ import type { DeclaredMatch, Matches } from './search-answer.js';
 import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
+import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
@@ -68,6 +70,9 @@ export function declarations(
   const names = read.names.filter((one) => one.name !== SLOT).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
   return { names, unread: read.unread };
 }
+
+/** The declarations of exactly `name`, read once for a generation's answer and the look at it. */
+export const declarationsNamed = askedOnce((_help: Help, root: string | undefined, name: string): Declarations => declarations(root, name));
 
 /**
  * One declaration, as `symbol` writes it: the name and its kind, where it is
@@ -213,13 +218,14 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
  * source index is not at hand, since a name nothing exports is then unknown.
  */
 export function declaredBlocks(
+  help: Help,
   root: string | undefined,
   name: string,
   wanted: string | undefined,
   spell: Spelling,
   from: readonly string[] = [],
 ): { readonly blocks: readonly string[] } {
-  const read = declarations(root, name);
+  const read = declarationsNamed(help, root, name);
   if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
@@ -252,8 +258,8 @@ function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): r
  * The file-private declarations of the name, source first, top-level or
  * inside a function as `isNested` tells; none when the index is not at hand.
  */
-export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
-  const read = declarations(root, name);
+export function declaredAt(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
+  const read = declarationsNamed(help, root, name);
   if ('refused' in read) return [];
   return read.names.filter((one) => wanted === undefined || one.by === wanted);
 }

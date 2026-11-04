@@ -448,7 +448,9 @@ describe('a server over a generation it reuses', () => {
     const root = await fixture.published();
     const first = await asked(root, 'docs_uses', { name: 'taxOf' });
     await rename(root);
-    expect(await asked(root, 'docs_uses', { name: 'taxOf' })).not.toBe(first);
+    const again = await asked(root, 'docs_uses', { name: 'taxOf' });
+    expect(again).not.toBe(first);
+    expect(again).toContain('`taxOf` is not');
   });
 });
 

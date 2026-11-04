@@ -6,7 +6,7 @@ import { refreshDependencyLexicon } from './dependency-lexicon.js';
 import { workspaceGeneration } from './read.js';
 import { FoundNothing } from './tools/find.js';
 import { printedFiles, search } from './tools/search.js';
-import { restsOn, symbol } from './tools/symbol.js';
+import { restsOn, symbol, usesRestsOn } from './tools/symbol.js';
 import { uses } from './tools/uses.js';
 
 /** The files an answer rests on, read as the answer read them. */
@@ -16,7 +16,7 @@ type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation
 const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
   [symbol.name, restsOn],
   [search.name, printedFiles],
-  [uses.name, restsOn],
+  [uses.name, usesRestsOn],
 ]);
 
 /**

@@ -8,7 +8,7 @@ import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { DECLARED_CAP, declarations, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
+import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, containerOf, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
@@ -76,7 +76,7 @@ export const symbol: Tool<Help> = {
     // export of the same name is another thing, so it never stands for this one.
     const at = startPointArg(input, 'from');
     const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
-    const { blocks: declared } = declaredBlocks(invocation?.root, name, wanted, spell, paths);
+    const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, paths);
 
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
@@ -96,7 +96,7 @@ export const symbol: Tool<Help> = {
     // A member of an interface, a type literal or a class is the workspace's
     // own declaration too, which no import names and the scan records. It
     // stands beside what a file's top level declares, never under it.
-    const members = membersOf(invocation?.root, name, wanted);
+    const members = membersOf(help, invocation?.root, name, wanted);
     const beside = memberBlocks(name, members, spell);
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
@@ -109,13 +109,13 @@ export const symbol: Tool<Help> = {
     ];
     // A name declared only as a member names the files whose declarations were
     // not read, since one may declare it at its top level; the declarations beside a member already did.
-    const read = kept.length === 0 && beside.length > 0 ? declarations(invocation?.root, name) : undefined;
+    const read = kept.length === 0 && beside.length > 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
     const alone = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
     // A published declaration is answered below, and the members after it.
     const own = found.length === 0 ? [...kept, ...beside, ...alone] : [];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
-    const asked = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
+    const asked = found.length === 0 && own.length === 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
     const unread = asked === undefined || 'refused' in asked ? [] : unreadLine(asked.unread);
 
     if (found.length === 0 && invocation?.root !== undefined) {
@@ -189,8 +189,13 @@ export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, in
   return declaredIn(help, input, invocation, (exported) => exported).files.keys();
 }
 
+/** {@link restsOn} for `uses`, which says nothing of a name bound by `as`, and so rests on no such binding. */
+export function usesRestsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
+  return declaredIn(help, input, invocation, (exported) => exported, false).files.keys();
+}
+
 /** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */
-function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[]): FileSet {
+function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[], aliases = true): FileSet {
   const name = stringArg(input, 'name');
   const from = input['package'];
   const wanted = typeof from === 'string' && from !== '' ? from : undefined;
@@ -208,11 +213,11 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
     const origin = originOf(help, invocation?.root, held);
     if (origin !== undefined) at.push([origin.at, origin.line]);
   }
-  const declared = declaredAt(invocation?.root, name, wanted);
+  const declared = declaredAt(help, invocation?.root, name, wanted);
   at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
-  at.push(...localNames(help, invocation?.root, name, wanted).files);
+  if (aliases) at.push(...localNames(help, invocation?.root, name, wanted).files);
   // A member stands beside every other declaration, as `run` answers it.
-  const members = membersOf(invocation?.root, name, wanted);
+  const members = membersOf(help, invocation?.root, name, wanted);
   at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
   at.push(...members.declared.map((one) => [one.at, one.line] as const));
   if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));

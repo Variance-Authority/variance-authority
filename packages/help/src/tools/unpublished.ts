@@ -17,6 +17,7 @@
 import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../native-use.js';
+import { askedOnce } from './asked-once.js';
 import { importsByPath } from './by-path.js';
 import { answers, says } from './declaration-key.js';
 
@@ -27,13 +28,13 @@ export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole
  * Every export of `name` from ordinary source, in `within` when one is named,
  * and every default export its declaration is named `name` by.
  */
-export function exportsNamed(help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] {
+export const exportsNamed = askedOnce((help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] => {
   const answering = help.exported.filter((held) => held.kind === 'source' && answers(help, root, held, name));
   // A file that exports the binding by the name is answered by that export, not by its other names.
   const spelled = answering.filter((held) => says(held.name, name));
   const keyed = answering.filter((held) => !says(held.name, name) && !spelled.some((other) => other.at === held.at));
   return [...spelled, ...keyed].filter((held) => within === undefined || held.by === within || fileOf(help, held, within));
-}
+});
 
 /**
  * Whether `within`, a specifier past `held`'s package name, names `held`'s file:

@@ -7,7 +7,7 @@ import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, PublishedMatch, SearchQuestion } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
-import { searched, searchedFiles } from './search-answer.js';
+import { type Searched, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
 
@@ -175,8 +175,11 @@ export function searchQuestionOf(input: Readonly<Record<string, unknown>>): Sear
 
 /** The search over an opened index — what `docs_search` answers, without the Help value. */
 export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
-  const question = searchQuestionOf(input);
-  const { answer, area } = searched(index, question, tree, root, importing);
+  return spoken(searched(index, searchQuestionOf(input), tree, root, importing), root);
+}
+
+/** What a search says of what it found. */
+function spoken({ answer, area }: Searched, root: string | undefined): string {
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
@@ -384,19 +387,33 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root, importingOf(help, invocation?.root)),
+  run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root),
 
   files: (help, input, invocation): FileSet => ({
     files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
 };
 
+/** The last search of each generation, and what it was asked. */
+const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: Tree | undefined; readonly found: Searched }>();
+
+/** One search for an answer and the look at its files, which asks the same of the same generation just after it. */
+function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Searched {
+  const question = searchQuestionOf(input);
+  const asked = JSON.stringify([question, invocation?.root]);
+  const last = lastSearched.get(help);
+  if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
+  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root));
+  lastSearched.set(help, { asked, tree: invocation?.tree, found });
+  return found;
+}
+
 /**
  * The files of the rows `run` prints. `search.files` is every match, a set
  * another question crosses; a row past the cap is no part of this answer.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
-  const { answer } = searched(searchIndexOf(help), searchQuestionOf(input), invocation?.tree, invocation?.root);
+  const { answer } = searchedOnce(help, input, invocation);
   const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.loose, answer.described];
   return new Set(sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []));
 }

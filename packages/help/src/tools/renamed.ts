@@ -15,6 +15,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { type Help, type Use, undecided } from '@variance-authority/package/help';
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
+import { askedOnce } from './asked-once.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
@@ -63,12 +64,12 @@ interface Original {
  * lines that declare both. `wanted` keeps the exports of that package. Nothing
  * when no import binds `local` to another name, or no source index is read.
  */
-export function localNames(
+export const localNames = askedOnce((
   help: Help,
   root: string | undefined,
   local: string,
   wanted: string | undefined,
-): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number])[] } {
+): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number])[] } => {
   if (root === undefined) return { blocks: [], files: [] };
   let aliases: readonly Alias[] | undefined;
   try {
@@ -109,7 +110,7 @@ export function localNames(
     files.push(...original.at);
   }
   return { blocks, files };
-}
+});
 
 /**
  * The export one import names: the published entry its specifier opens or

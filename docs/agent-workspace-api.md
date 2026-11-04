@@ -203,10 +203,7 @@ rows `docs_search` prints, and for the other two the files that declare the name
 or pass it on. So an export you renamed is not given under its old name, and a
 declaration you moved is given at the line it holds today. An edit anywhere else
 waits for the hour: `uses` does not see an import you just added. The look is a
-stat of each file, under a second of a found `symbol` and about 0.25 s of a found
-`uses` on Kibana at `2df7209048`, on an Apple M4 Max under Node v24.21.0. The
-reading after it took 13.3 s there, once per edit, because it publishes the
-generation the next question opens.
+stat of each file.
 
 When the checkout cannot be read again, the answer or the refusal names the
 generation time, says the checkout was not compared with it, and says why. When

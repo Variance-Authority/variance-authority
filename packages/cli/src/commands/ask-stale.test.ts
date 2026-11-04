@@ -162,6 +162,7 @@ describe('variance ask about a name whose file changed since the source index', 
     const { code, out } = await run(['ask', 'uses', '--name', 'taxOf']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).not.toContain(IMPORTER);
+    expect(out).toContain('`taxOf` is not');
     expect(Date.parse(snapshotOf(out)!)).toBeGreaterThan(Date.parse(before!));
   });
 
