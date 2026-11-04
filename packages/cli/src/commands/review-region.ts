@@ -19,8 +19,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
-  askCoverageFile,
-  casesCutApart,
   coveringChange,
   coveringTestsInFile,
   distanceToSource,
@@ -31,12 +29,13 @@ import {
   type LineRange,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
-import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import { unrunOf } from './covering-frame.js';
+import { rowsCut } from './record-rows-text.js';
 import { caseOrder } from './review-json.js';
 import type { Reach, ReviewRegion } from './review.js';
+import type { IndexNames } from './source-graph.js';
 
 /** The test files near a changed module, and those whose distance to it was not measured. */
 export interface Bearings {
@@ -231,26 +230,21 @@ export async function recordedRegions(
 }
 
 /**
- * The files the record ran as the tree holds them: the digest its snapshot
- * took of each module's text, against the text on disk. A file it holds no
- * module for, or that cannot be read, is not one, and neither is one `index`,
- * the case index read from the record, cut at other text than the snapshot: the
- * index names no text of its own, and one a landing wrote before the index
- * followed its rows can stand at lines the snapshot moved on from.
+ * The files the record ran as the tree holds them: those whose rows were cut
+ * from the text the source index names each by now, both git blob names
+ * ({@link rowsCut}). A file it holds no module for, or the index holds no name
+ * for, is not one, and neither is one whose rows' text is not known: `index`,
+ * the case index read from the record, names no text of its own, and one a
+ * landing wrote before the index followed its rows can stand at lines the
+ * snapshot moved on from. A row that names no text — one landed before
+ * landings named them, one the JVM agent wrote, one whose text the landing
+ * could not name — is not one either.
  */
-export async function ranAsTree(coverageFile: string, root: string, files: readonly string[], index: ExecutionIndex): Promise<ReadonlySet<string>> {
+export function ranAsTree(coverageFile: string, files: readonly string[], index: ExecutionIndex, names: IndexNames): ReadonlySet<string> {
   if (files.length === 0) return new Set();
-  const recorded = await askCoverageFile(coverageFile, (coverage) => {
-    const path = coverage.modulePath.all();
-    const source = coverage.moduleSource.all();
-    return new Map(Array.from(path, (held, module) => [coverage.string(held), coverage.string(source[module]!)]));
-  });
-  const asked = new Set(files);
-  const apart = casesCutApart(coverageFile, index.modules.filter((module) => asked.has(module.file)));
-  const ran = new Set<string>();
-  for (const file of files) {
-    const text = await readFile(resolve(root, file), 'utf8').catch(() => undefined);
-    if (text !== undefined && recorded.get(file) === digestString(text) && !apart.has(file)) ran.add(file);
-  }
-  return ran;
+  const cut = rowsCut(coverageFile, files, index);
+  return new Set(files.filter((file) => {
+    const rows = cut.get(file);
+    return rows !== undefined && !('unknown' in rows) && rows.blob !== undefined && rows.blob === names.get(file);
+  }));
 }

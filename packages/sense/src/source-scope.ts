@@ -25,6 +25,7 @@
  */
 
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseKey, Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
 import { directoryOf, type Entrypoints } from './test-selection/entrypoints.js';
@@ -46,7 +47,7 @@ export interface SourceScope {
  * points or, without them, from every file under it. Without `from`, every file.
  */
 export function sourceScope(records: readonly FileRecord[], from?: string, entrypoints?: Entrypoints): SourceScope {
-  const all = records.map((record) => record.file).sort(byCodeUnit);
+  const all = records.map((record) => record.file).sort(codeUnitOrder);
   if (from === undefined) return { seeds: 'everything', files: all };
   const dir = directoryOf(from);
   if (dir === undefined) throw new Error(`"${from}" is not a directory inside the repository`);
@@ -85,7 +86,7 @@ export function sourceScope(records: readonly FileRecord[], from?: string, entry
     ...(dir === '' ? {} : { from: dir }),
     seeds: patterns === undefined ? 'directory' : 'entrypoints',
     ...(unmatched === undefined ? {} : { unmatched }),
-    files: [...reached].sort(byCodeUnit),
+    files: [...reached].sort(codeUnitOrder),
   };
 }
 
@@ -152,8 +153,4 @@ function globOf(pattern: string): RegExp {
     else source += char.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   }
   return new RegExp(`^${source}$`, 'u');
-}
-
-function byCodeUnit(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

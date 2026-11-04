@@ -100,7 +100,9 @@ packages import them. When neither holds your words as written, two more
 follow, each labelled as the reading it is and both before any installed
 package: the names and files holding any of your words, matched by
 stem, a file by its name and the doc it opens with, ranked by how many of
-your words each holds, then by how many its name holds, then by how much of
+your words each holds — in its name over its doc, and its doc over the
+parameters and types its signature writes, which add to a name your words
+reached and reach none on their own — then by how many its name holds, then by how much of
 your phrase its doc writes; then the names your words reach written apart or one character off,
 exported or kept to their file. So `tsconfig custom conditions` answers
 `customConditionsFor` before the bundlers that also say those words, and
@@ -301,6 +303,30 @@ The suite reports to the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
 one boundary, whichever transport carries the question: [inspect a live
 run](agent-live-run.md).
+
+## Find the tests close to their limit
+
+```bash
+variance ask slowest-tests
+variance ask slowest-tests --from packages/checkout/
+variance ask slowest-tests --over 3s --from packages/checkout/
+```
+
+A test at 4.9 s of a 5 s limit has 0.1 s to spare, and a test at 40 s of 60 s has
+20 s, so `slowest-tests` ranks by how much of its limit each case ran. Each
+suite's answer opens with the record it read: whose it is, at which commit, and
+how long ago its latest run landed. A figure is that run's reading, not an average.
+
+Then come the cases closest to their limit, each as its run and its limit, and
+the test files and cases the run spent longest in. A row states the two figures
+and judges neither: the run spans hooks and every attempt, the limit one
+attempt, so a passing case can read above its limit.
+
+`--from` keeps the tests under the paths you name, and `--to` the tests that
+ran code in them. `--over 3s` keeps the cases that ran at least that long, counts
+the rest and leaves the files out. A case with no recorded limit is counted beside
+the ranking, and a record older than the column says so and lists its cases by
+time alone.
 
 ## Find where the suite's time goes
 

@@ -43,8 +43,8 @@ pub(crate) struct Folded {
 type Key = (String, String, String, Option<String>);
 
 /// Fold `shards`, whose cuts `case_shard::read_shard` gathered in `inventories`.
-/// `always_timed` writes the duration column where no case was timed, as a
-/// record's case index carries it.
+/// `always_timed` writes the duration and limit columns where no case has one,
+/// as a record's case index carries them.
 pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inventory>>, always_timed: bool) -> Result<Folded, String> {
     if shards.is_empty() {
         return Err("no case indexes were named".to_owned());
@@ -137,7 +137,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         landings.push(lands);
     }
     let rows: HashMap<&str, usize> = modules.iter().enumerate().map(|(at, module)| (module.file.as_str(), at)).collect();
-    let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
+    let mut extras = CaseExtras { durations: vec![None; tests.len()], limits: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
     // The parts of one case each hold the lines of the regions they crossed, so
     // a case two shards hold at different lines is joined over its crossings
     // once the sets are read: `joining` names each holding by shard and case.
@@ -161,6 +161,10 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             if let Some(duration) = shard.durations[local] {
                 let held = &mut extras.durations[global];
                 *held = Some(held.map_or(duration, |known| known.max(duration)));
+            }
+            if let Some(limit) = shard.limits[local] {
+                let held = &mut extras.limits[global];
+                *held = Some(held.map_or(limit, |known| known.max(limit)));
             }
             if shard.lines[local].is_empty() {
                 continue;
@@ -188,10 +192,12 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
     }
     let mut called_by_module = Vec::with_capacity(modules.len());
     let mut loaded_by_module = Vec::with_capacity(modules.len());
+    let mut overwritten_by_module = Vec::with_capacity(modules.len());
     let mut sets = SetPool::new(tests.len());
     let mut crossings = 0_u64;
     for (row, (module, lands)) in modules.iter().zip(&landings).enumerate() {
         let mut called_by_block = vec![Vec::new(); module.blocks.len()];
+        let mut overwritten_by_block = vec![Vec::new(); module.blocks.len()];
         let mut loaded = vec![false; module.blocks.len()];
         for (from, shard) in shards.iter().enumerate() {
             let Ok(at) = shard.modules.binary_search_by(|candidate| order::code_unit(&candidate.file, &module.file)) else {
@@ -207,23 +213,39 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
                     }
                 })?;
                 loaded[block] |= held.loaded[own];
+                if let Some(set) = held.overwritten.get(own) {
+                    append_members(shard, *set, &mut overwritten_by_block[block], |_| {})?;
+                }
             }
         }
         let mut called_ids = Vec::with_capacity(module.blocks.len());
-        for mut called in called_by_block {
+        let mut overwritten_ids = Vec::with_capacity(module.blocks.len());
+        for (mut called, mut overwritten) in called_by_block.into_iter().zip(overwritten_by_block) {
             called.sort_unstable();
             called.dedup();
+            // A case is one shard's: combine refuses a test file two shards
+            // hold, a stitch's journals flag no case, and the before layers
+            // carry one earlier index alike. An input that names a case both
+            // ways at a region is read by its called set; the two stay disjoint.
+            overwritten.retain(|test| called.binary_search(test).is_err());
+            overwritten.sort_unstable();
+            overwritten.dedup();
             crossings += called.len() as u64;
             called_ids.push(sets.intern(&called));
+            overwritten_ids.push(overwritten);
         }
         called_by_module.push(called_ids);
         loaded_by_module.push(loaded);
+        // Written only for a module that holds an overwritten case, so a fold
+        // of shards no layering cut writes the bytes it did before the column.
+        let held = overwritten_ids.iter().any(|overwritten| !overwritten.is_empty());
+        overwritten_by_module.push(if held { overwritten_ids.iter().map(|overwritten| sets.intern(overwritten)).collect() } else { Vec::new() });
     }
     join_lines(&tests, parts, &mut extras.lines)?;
     let encoded: Vec<EncodedModule<'_>> = modules
         .iter()
         .enumerate()
-        .map(|(at, module)| EncodedModule { module, called: &called_by_module[at], loaded: &loaded_by_module[at] })
+        .map(|(at, module)| EncodedModule { module, called: &called_by_module[at], loaded: &loaded_by_module[at], overwritten: &overwritten_by_module[at] })
         .collect();
     let gaps = union_gaps(&shards);
     let bytes = journey_format::encode(&tests, &extras, &encoded, &mut sets, gaps.as_ref())?;

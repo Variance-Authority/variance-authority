@@ -38,17 +38,27 @@ export function recordOfStories(directory: string): string {
   return `${directory.slice(0, -SUFFIX.length)}.bin`;
 }
 
-/** This checkout's story directories: beside its one record, or beside each declared suite's. */
-export function storyDirectories(root: string): string[] {
+/** This checkout's records: its one record, or each declared suite's. */
+export function checkoutRecords(root: string): string[] {
   const suites = declaredSuites(root);
-  const records = suites === undefined
+  return suites === undefined
     ? [testCoverageFile(root)]
     : suites.map(({ name }) => testCoverageFile(root, { suite: name }));
-  return records.map((record) => resolve(storyDirectory(record)));
 }
 
-/** The story directory beside `recordFile` when the environment asks for stories. */
-export function askedForStories(recordFile: string, environment: NodeJS.ProcessEnv = process.env): string | undefined {
+/** This checkout's story directories: beside its one record, or beside each declared suite's. */
+export function storyDirectories(root: string): string[] {
+  return checkoutRecords(root).map((record) => resolve(storyDirectory(record)));
+}
+
+/**
+ * The story directory beside `recordFile` when the environment asks for
+ * stories. A seam that places its record only when it closes hands the
+ * placing over, so a run that asks for none is not refused for a record it
+ * has not placed yet.
+ */
+export function askedForStories(recordFile: string | (() => string), environment: NodeJS.ProcessEnv = process.env): string | undefined {
   const asked = environment[STORY_VARIABLE];
-  return asked === undefined || asked === '' || asked === '0' ? undefined : storyDirectory(recordFile);
+  if (asked === undefined || asked === '' || asked === '0') return undefined;
+  return storyDirectory(typeof recordFile === 'string' ? recordFile : recordFile());
 }

@@ -91,11 +91,11 @@ describe('a case read by what its code read', () => {
   it('says what it kept by what the code read, beside what the cases recorded', async () => {
     const record = await recorded(CASES);
 
-    expect(formatCovering(await ask([['--read', 'flags:fee']], record), 'text'))
+    expect(formatCovering(await ask([['--read', 'flags:fee']], record), 'text', Date.now()))
       .toContain('Kept the 1 of 4 cases that covered line 2 of src/cart.ts and read flags:fee.\n');
-    expect(formatCovering(await ask([['--where', 'network:api=mocked'], ['--read', 'flags:express=true']], record), 'text'))
+    expect(formatCovering(await ask([['--where', 'network:api=mocked'], ['--read', 'flags:express=true']], record), 'text', Date.now()))
       .toContain('Kept the 1 of 4 cases that covered line 2 of src/cart.ts and recorded network:api=mocked and read flags:express=true.\n');
-    expect(formatCovering(await ask([['--read', 'flags:tip']], record), 'text'))
+    expect(formatCovering(await ask([['--read', 'flags:tip']], record), 'text', Date.now()))
       .toContain('Kept none of the 4 cases that covered line 2 of src/cart.ts: none read flags:tip.\n');
   });
 
@@ -104,9 +104,9 @@ describe('a case read by what its code read', () => {
 
     const read = await ask([['--read', 'flags:express']], record);
     expect(read.where).toMatchObject({ kept: 3, of: 5, unmeasured: 1 });
-    expect(formatCovering(read, 'text')).toContain('1 case was recorded without reads, so whether it ran under any of that is unmeasured.');
+    expect(formatCovering(read, 'text', Date.now())).toContain('1 case was recorded without reads, so whether it ran under any of that is unmeasured.');
     expect((await ask([['--where', 'network:api']], record)).where).toMatchObject({ kept: 3, of: 5, unmeasured: 0 });
-    const none = formatCovering(await ask([['--read', 'flags:tip']], record), 'text');
+    const none = formatCovering(await ask([['--read', 'flags:tip']], record), 'text', Date.now());
     expect(none).toContain('Kept none of the 5 cases that covered line 2 of src/cart.ts: none of the 4 with recorded reads read flags:tip.\n');
   });
 
@@ -123,7 +123,7 @@ describe('a misused breadcrumb on a covering case', () => {
       row('misuses only', [], [], [misused]),
     ]);
 
-    const text = formatCovering(await ask([], record), 'text');
+    const text = formatCovering(await ask([], record), 'text', Date.now());
     expect(text).toContain('ships express — read flags:express=true said nothing, misused varianceBreadcrumb at src/cart.ts:9: the key 7 is not a string');
     expect(text).toContain('misuses only — misused varianceBreadcrumb at src/cart.ts:9: the key 7 is not a string');
     const read = await ask([['--read', 'flags']], record);

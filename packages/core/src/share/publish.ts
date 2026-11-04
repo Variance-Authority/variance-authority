@@ -20,6 +20,7 @@ import {
   type ShareLine,
   type ShareMiss,
 } from './line.js';
+import { atCommit, type KeptCommits } from './at-commit.js';
 
 /**
  * Whether `descendant` strictly descends from `ancestor`, or `undefined` when
@@ -42,6 +43,11 @@ export interface Published {
   readonly unanswered: readonly string[];
   /** How many times the manifest was read before a write held. */
   readonly attempts: number;
+  /**
+   * On a mainline whose store lists lines, the commits its record was kept at.
+   * Absent anywhere else.
+   */
+  readonly atCommit?: KeptCommits;
 }
 
 export interface PublishOptions {
@@ -59,12 +65,46 @@ export interface PublishOptions {
  * any version — except on a mainline, where the held one is kept when its
  * commit strictly descends from the offered one: a slow run of an older commit
  * finishing last. A held entry in a newer format is kept on any line, so an old
- * CLI cannot take a line back a version. Every other held entry is left as it
- * is, which is how suites published by different jobs land on one line.
- *
- * A write that loses to another writer reads the line again and decides again.
+ * CLI cannot take a line back a version. Other held entries stay, which is how
+ * suites published by different jobs land on one line. A losing write reads
+ * the line again and decides again.
  */
 export async function publishLine(
+  cell: LineCell,
+  line: ShareLine,
+  entries: readonly ShareEntry[],
+  options: PublishOptions,
+): Promise<Published | ShareMiss> {
+  const latest = await publishOne(cell, line, entries, options);
+  if ('kind' in latest || line.kind !== 'mainline') return latest;
+  const kept = await keepAtCommits(cell, line, entries, options);
+  return kept === undefined ? latest : { ...latest, atCommit: kept };
+}
+
+/**
+ * A mainline's entries kept at the commits they were derived at, the same rules
+ * deciding on each, when the store can list lines (`at-commit.ts`). The latest
+ * is written first and stands whatever happens to those.
+ */
+async function keepAtCommits(
+  cell: LineCell,
+  line: ShareLine,
+  entries: readonly ShareEntry[],
+  options: PublishOptions,
+): Promise<KeptCommits | undefined> {
+  if (cell.commits === undefined) return undefined;
+  const byCommit = new Map<string, ShareEntry[]>();
+  for (const entry of entries) byCommit.set(entry.commit, [...(byCommit.get(entry.commit) ?? []), entry]);
+  const kept: string[] = [];
+  for (const [commit, group] of byCommit) {
+    const written = await publishOne(cell, atCommit(line, commit), group, options);
+    if ('kind' in written) return { kept, miss: written };
+    kept.push(commit);
+  }
+  return { kept };
+}
+
+async function publishOne(
   cell: LineCell,
   line: ShareLine,
   entries: readonly ShareEntry[],
@@ -264,12 +304,16 @@ export function findEntry(manifest: LineManifest, name: string): HeldEntry | Sha
  * A line cell in this process, for tests and for a run that shares with itself.
  *
  * Holds real versions, so a test can stage a writer that moves the line between
- * another writer's read and its write.
+ * another writer's read and its write, and reads `clock` for when a line was
+ * written, so a test can age what it keeps.
  */
-export function memoryLineCell(): LineCell & { readonly held: Map<string, Uint8Array> } {
+export function memoryLineCell(
+  clock: () => number = Date.now,
+): LineCell & { readonly held: Map<string, Uint8Array> } {
   const held = new Map<string, Uint8Array>();
   const versions = new Map<string, number>();
-  const key = (line: ShareLine): string => `${line.kind}\u0000${line.name}`;
+  const written = new Map<string, { readonly line: ShareLine; readonly at: number }>();
+  const key = (line: ShareLine): string => `${line.kind}\u0000${line.name}\u0000${line.at ?? ''}`;
   return {
     held,
     async load(line) {
@@ -290,7 +334,22 @@ export function memoryLineCell(): LineCell & { readonly held: Map<string, Uint8A
       }
       held.set(`${key(line)}\u0000manifest`, write.manifest.slice());
       versions.set(key(line), (current ?? 0) + 1);
+      written.set(key(line), { line, at: clock() });
       return 'written';
+    },
+    async commits(line) {
+      return [...written.values()]
+        .filter((one) => one.line.at !== undefined && one.line.kind === line.kind && one.line.name === line.name)
+        .map((one) => ({ commit: one.line.at!, written: one.at }));
+    },
+    async drop(lines) {
+      for (const line of lines) {
+        const prefix = `${key(line)}\u0000`;
+        for (const path of held.keys()) if (path.startsWith(prefix)) held.delete(path);
+        versions.delete(key(line));
+        written.delete(key(line));
+      }
+      return 'dropped';
     },
   };
 }

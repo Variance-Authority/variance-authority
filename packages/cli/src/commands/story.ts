@@ -1,27 +1,12 @@
 /**
- * The route one case took through the code.
- *
- * `covering` answers *which tests went here*; this answers the question from
- * the other end, for one test: *where does this case go, and in what order*.
- * It reads a story, which a run writes under `VARIANCE_AUTHORITY_STORY=1`, and
- * prints it as a route through declarations — the functions, handlers and top
- * levels the case passed through, a loop drawn once with how many times it went
- * round, modules loaded along the way named as one stop, and at each stop the
- * arms and loop bodies it went into.
- *
- * How much of it is shown is picked from how much there is: `story-levels.ts`
- * draws the part asked for from its packages down to every step and reads the
- * finest that fits. A long route is narrowed a part at a time — the steps
- * through one package or file, or around one step — and `story-view.ts` says
- * why a step number, and not a caller, is what joins the parts.
- *
- * A case keeps its last readings, and `--compare` sets them against each
- * other; several `--name` set cases against each other the same way:
- * `story-compare.ts` says what that answers and what it leaves out.
- *
- * Who runs the case is not this command's business. Any runner with the seam
- * installed writes a story for every case it runs under the variable, and
- * narrowing the run is the runner's own flag.
+ * The route one case took through the code, for one test: *where does this case
+ * go, and in what order* — `covering` asks the other way round. It reads the
+ * story a run writes under `VARIANCE_AUTHORITY_STORY=1` and prints a route
+ * through declarations, drawn at the finest level that fits (`story-levels.ts`)
+ * and narrowed a part at a time (`story-view.ts`). `--compare` sets readings
+ * against each other (`story-compare.ts`), or, with no story taped, the
+ * record's (`story-outcomes.ts`). Which runner writes the story is not its
+ * business: any runner with the seam installed does.
  */
 
 import {
@@ -40,6 +25,8 @@ import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
 import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
+import { formatOutcomes, recordedOutcomes, type RecordedOutcomes } from './story-outcomes.js';
+import { caseOf, storiesText } from './story-list.js';
 import { armTree } from './story-tree.js';
 import { numbered, through, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
@@ -60,6 +47,7 @@ export type StoryAnswer =
     };
   }
   | { readonly comparison: Comparison; readonly cases?: readonly ComparedCase[] }
+  | RecordedOutcomes
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
@@ -67,27 +55,33 @@ export function story(parsed: ParsedStory): StoryAnswer {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
+  const { compare } = parsed;
+  const recorded = compare === 'outcome' ? recordedOutcomes(parsed.root, all, parsed.name, file) : undefined;
+  if (recorded !== undefined) return recorded;
   if (all.length === 0) {
     throw new OperatorError(
       `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
     );
   }
-  const { compare } = parsed;
   if (typeof compare === 'object' && 'cases' in compare) {
-    return compareCases(parsed.root, all, compare.cases, { file, label: parsed.label });
+    return compareCases(parsed.root, all, compare.cases, { file, project: parsed.project, label: parsed.label });
   }
   const matching = all.filter(
     (entry) =>
       (file === undefined || entry.file === file)
       && (parsed.name === undefined || entry.name === parsed.name)
+      && (parsed.project === undefined || entry.project === parsed.project)
       && (parsed.label === undefined || labelled(entry) === parsed.label),
   );
   if (matching.length === 0) {
-    const asked = [parsed.file && `--file ${parsed.file}`, parsed.name && `--name ${parsed.name}`, parsed.label && `--label ${parsed.label}`].filter(Boolean);
+    const asked = [
+      parsed.file && `--file ${parsed.file}`, parsed.name && `--name ${parsed.name}`,
+      parsed.project && `--project ${parsed.project}`, parsed.label && `--label ${parsed.label}`,
+    ].filter(Boolean);
     throw new OperatorError(`no story is written for ${asked.join(' and ')}; ${all.length} ${all.length === 1 ? 'is' : 'are'} written here, and \`variance story\` alone lists them`);
   }
   // Readings are listed newest first within a case, so a case's first is its newest.
-  const cases = new Set(matching.map((entry) => `${entry.file}\0${entry.name}`));
+  const cases = new Set(matching.map(caseOf));
   if (cases.size > 1) return { stories: matching };
   const compared = compare === undefined ? undefined : compareStory(parsed.root, matching, compare);
   if (compared !== undefined && !('alone' in compared)) return { comparison: compared };
@@ -144,6 +138,7 @@ const AROUND = 3;
 
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
   if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.cases);
+  if ('outcomes' in answer) return formatOutcomes(answer.outcomes, format);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};
@@ -219,36 +214,6 @@ function size(text: readonly string[]): number {
   return text.reduce((sum, line) => sum + line.length + 1, 0);
 }
 
-/** The cases the flags name, one line each with the readings kept of it. */
-function storiesText(entries: readonly StoryEntry[], format: 'text' | 'json'): string {
-  const cases = new Map<string, StoryEntry[]>();
-  for (const entry of entries) {
-    const key = `${entry.file}\0${entry.name}`;
-    (cases.get(key) ?? cases.set(key, []).get(key)!).push(entry);
-  }
-  if (format === 'json') {
-    const stories = [...cases.values()].map((readings) => ({
-      file: readings[0]!.file,
-      name: readings[0]!.name,
-      readings: readings.map(({ visits, label, written, stopped }) => ({ visits, label, written, stopped })),
-    }));
-    return `${JSON.stringify({ stories }, null, 2)}\n`;
-  }
-  const lines = [`${cases.size} stories; name one with --file and --name`, ''];
-  for (const readings of cases.values()) {
-    const [newest] = readings;
-    const kept = readings.length === 1 ? '' : `, ${readings.length} readings${labels(readings)}`;
-    lines.push(`  ${newest!.file} > ${newest!.name}  (${newest!.visits} visits${kept})`);
-  }
-  return `${lines.join('\n')}\n`;
-}
-
-/** The labels a case's readings were written under, when any has one. */
-function labels(readings: readonly StoryEntry[]): string {
-  const named = [...new Set(readings.map(labelled))].sort();
-  return named.length === 1 && named[0] === '1' ? '' : ` labelled ${named.join(', ')}`;
-}
-
 /** Lines said before a part's first step, or at one step, listed before the rest are counted. */
 const SAID = 5;
 
@@ -256,6 +221,7 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   const files = route.files.length;
   const lines = [
     `story  ${route.file} > ${route.name}`,
+    ...(route.project === undefined ? [] : [`  under the project ${route.project}`]),
     `  goes through ${files} ${files === 1 ? 'file' : 'files'} in ${steps} ${steps === 1 ? 'step' : 'steps'}`,
   ];
   if (reading !== undefined && reading.of > 1) {
@@ -265,9 +231,16 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
   }
   if (reading?.unmatched !== undefined) lines.push(`  ${reading.unmatched}`);
   if (route.stopped === true) lines.push('  the test threw or rejected, so the route ends where it stopped');
+  if (route.lost === true) lines.push('  a page the test ran in was gone before what it ran there was read, so the route is missing that');
   if (route.untaped > 0) lines.push(`  the recording filled up, and ${route.untaped} later visits are not on this route`);
   if (route.interleaved > 0) {
     lines.push(`  another test's work ran in the middle of this one ${times(route.interleaved)}, and is left out`);
+  }
+  if (route.documents !== undefined) {
+    lines.push(
+      `  ran in ${route.documents} page documents, each said where the route moves into it; a ref is its own document's,`
+        + ' and what two of them did within one test line is in the order it reached the runner, not the order it ran',
+    );
   }
   if (route.unnoted !== undefined) lines.push(`  the recording kept its first lines said, and ${route.unnoted} later ones are not on this route`);
   for (const [part, said] of [['before the test', route.opening?.before], ['the test', route.opening?.route]] as const) {

@@ -397,15 +397,22 @@ by the region's address because the digests catch a mispair. The case index
 holds no digest, so the only evidence it has of what an edit touched is the edit
 itself: the `git diff -U0` hunks between the text it was cut from and the text
 you recorded. A region the hunks leave alone keeps its cases, at the lines the
-hunks place it. A region they touch carries none, so its tests count as changed
-and selection runs them; the module and every region around an edited one are
-touched with it. A region the edit wrote has no recorded cases of its own and
-takes those of the untouched region around it. Two regions that share a name,
+hunks place it. A region they touch takes the cases of the region with its
+address, and the module and every region around an edited one are touched with
+it. Those cases keep their crossing where the edit runs nothing differently in
+the region: at every region under an edit the selector reads as changing nothing
+that runs, and at the module's top level under an edit that changed only
+function bodies. Everywhere else they ran another text there, so the index keeps
+them as the region's `overwritten` cases: selection runs them for a change to
+the region, and `covering` says which case ran it is not known, never that no
+case did. A region the edit wrote has no recorded cases of its own and takes
+those of the region around it, by the same rule. Two regions that share a name,
 such as two `useEffect(() => …)` callbacks, are told apart by where the text
 puts them, and never by their order or their name: delete the first, write a new
 one behind the second, and the cases of the old second stay with the body that
-survives. When either text cannot be found, the whole file counts as changed and
-selection widens to every case that touched it.
+survives. When either text cannot be found, every case the index held for the
+file is kept as `overwritten` on every region of it, so a change anywhere in the
+file runs every case that touched it.
 
 ### From a crossing back to a line
 
@@ -483,6 +490,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
+| modules | `modules.blob` | the name git gives the module's text as a blob, as a string id, `0xffffffff` for a module recorded without one |
 | modules | `modules.instrumented` | one byte, `1` when the module has blocks |
 | modules | `modules.blocks` | range into the block rows |
 | blocks | `blocks.ordinal`, `blocks.kind`, `blocks.owner` | position, kind byte, and owning block's ordinal, `0xffffffff` at the root |
@@ -492,6 +500,18 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | blocks | `blocks.set` | the pooled set of tests that executed the block |
 | blocks | `blocks.loadedSet` | the pooled set of tests that had executed the block before their own file began, empty for most regions |
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
+
+**The text's git name.** `modules.blob` names the text the module's rows were
+cut from the way the source index names a file: `git:` and the object name git
+gives those bytes as a blob. The two names meet without reading the file, so
+`variance coverage` tells whether the checkout still holds the text a region
+was numbered in by comparing them, and reads a text only to diff two that the
+names say differ. A region whose text the checkout still holds is run over
+this text, though a module it calls may have changed since: the name says the
+region's code is the code that ran, not that its behaviour was checked. Both names are git's own, in the hash the repository uses,
+SHA-1 or SHA-256. A record of layout 11, written before the
+column, opens with every module unkeyed, and `variance coverage` counts what
+it ran as over a text not known.
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
 second clock: Vitest's file result, which is its cases alone, Jest's
@@ -543,6 +563,17 @@ under the file where the runner gives none. A path the file declares twice
 cannot be matched to one of the two cases, so neither is timed. A case index
 written before cases carried durations opens with every case untimed.
 
+A `tests.limit` column beside it is the time the case was allowed, in whole
+milliseconds: the timeout the runner enforced on its body, read by the harness
+while the case ran, under Vitest, Jest, Rstest and Playwright, and given as the
+case's `limit` to `startRecording().finish()` by any other runner. The limit is
+one attempt's, and a case recorded twice keeps the larger, where a runner's `0`
+for no limit counts as the larger. The duration
+above spans hooks and every attempt, so a passing case can read 5.3 s against a
+limit of 5 s, and a retried case more. A case with no limit is absent from the
+column, never `0`, and a case index written before the column opens with every
+case's limit absent.
+
 The case index also carries what each case said, its
 [case preconditions](case-preconditions.md), in a `tests.said` section. Each
 distinct `(name, value, site, level)` is one item, and the cases that said it are
@@ -560,8 +591,9 @@ each story, from its first collection to its decision: the same time
 recorded on the story's row and on its case, once however many times the story
 was read, and a story the run did not time is recorded without one.
 
-`variance ask slowest-tests` lists the slowest recorded files and the slowest
-recorded cases, anywhere or under the paths you name.
+`variance ask slowest-tests` opens with whose record it read, at which commit and
+how old, then lists the cases closest to their limit and the slowest recorded
+files and cases, anywhere or under the paths you name. `--over` lists cases alone.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -770,8 +802,10 @@ below is one stage of that call.
    declared file, or an importer that starts or stops loading one, is `load`,
    and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
-   charged nothing. An importer whose text cannot be read charges its module,
-   or, with no row, every test step 6's walk finds behind it. A `load` the
+   charged nothing. An importer with no row is read from the text the change
+   leaves it, which for a file the diff adds is its hunks alone. An importer
+   whose text cannot be read charges its module, or, with no row, every test
+   step 6's walk finds behind it. A `load` the
    parser gave charges the lines as step 4 does, and a line outside every
    function is in the module's own region, which every test that loaded the
    file ran; a `load` that `sideEffects` declared charges the module. Under

@@ -108,8 +108,9 @@ export function coverageAtDistance(
       for (const block of module.blocks) {
         const key = keyOf.get(block)!;
         for (const crossing of block.crossings) {
-          // Loading a module runs its top level for whoever imported it first, so it places nothing.
-          if (crossing.loaded === true) continue;
+          // Loading a module runs its top level for whoever imported it first, so it places nothing,
+          // and a case that ran the region in another text is not known to run this one.
+          if (crossing.loaded === true || crossing.overwritten === true) continue;
           ran.add(key);
           const hop = distance(index, crossing.test, module.file);
           if (hop !== undefined && hop < (nearest.get(key) ?? Infinity)) nearest.set(key, hop);

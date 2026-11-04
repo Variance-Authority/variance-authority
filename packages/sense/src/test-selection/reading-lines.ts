@@ -1,5 +1,5 @@
 /**
- * What the parser made of each changed file, as the lines a run prints.
+ * What the reader made of each changed file, as the lines a run prints.
  *
  * Two selectors print this: `variance run --since` and `variance select` in the
  * CLI. They share this function so the
@@ -12,14 +12,61 @@
  * rather than selected, and the fix is the missing edge.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { isUnasked, type ExecutionNarrowing, type Unasked } from './narrowing.js';
 import type { FileReading } from './reading.js';
 
 export type { FileReading };
 
+/** The lists a narrowing names its unread files in, and its readings. */
+type Listed = Pick<ExecutionNarrowing, 'unread' | 'declined' | 'stale' | 'ignored' | 'readings'>;
+
 /**
- * One line per changed file saying how it was read, or why it was not, and one
- * line per test that loaded it through an import the graph does not list.
- * Empty for no readings.
+ * The narrowing with a reading for every changed file: the readers' own, then
+ * one per file no reader was asked of, by the first list that names it, and
+ * `answered` for a file no list names. The selection projects every list with
+ * the `changed` files; `stale` holds recorded names, so a built twin is read
+ * back onto the changed file `knownAs` gives it. A caller that edits `unread`
+ * after it calls this again with neither, and the other lists' readings stand:
+ * a line never contradicts the count beside it.
+ */
+export function withEveryReading<N extends Listed>(
+  narrowing: N,
+  changed?: Iterable<string>,
+  knownAs: (file: string) => readonly string[] = (file) => [file],
+): N {
+  const readings = narrowing.readings ?? [];
+  const read = readings.filter((one) => one.verdict !== undefined || !isUnasked(one.unread));
+  const unasked = readings.filter(
+    (one): one is { readonly file: string; readonly unread: Unasked } => !read.includes(one),
+  );
+  const said = new Set(read.map((one) => one.file));
+  const more: FileReading[] = [];
+  const say = (unread: Unasked) => (file: string) => {
+    if (said.has(file)) return;
+    said.add(file);
+    more.push({ file, unread });
+  };
+  narrowing.unread.forEach(say('nothing'));
+  const files = [...(changed ?? [])];
+  if (changed === undefined) {
+    for (const one of unasked) if (one.unread !== 'nothing' && one.unread !== 'answered') say(one.unread)(one.file);
+  } else {
+    const owner = new Map<string, string>();
+    for (const file of files) for (const name of knownAs(file)) if (!owner.has(name)) owner.set(name, file);
+    (narrowing.declined ?? []).forEach(say('declined'));
+    [...new Set(narrowing.stale.map((name) => owner.get(name) ?? name))].sort(codeUnitOrder).forEach(say('stale'));
+    (narrowing.ignored ?? []).forEach(say('ignored'));
+  }
+  [...files, ...unasked.map((one) => one.file)].sort(codeUnitOrder).forEach(say('answered'));
+  return { ...narrowing, readings: [...read, ...more] };
+}
+
+/**
+ * One line per reading saying how its file was read, or why it was not, and
+ * one line per test that loaded it through an import the graph does not list.
+ * A selection gives every changed file a reading, so every one is named here;
+ * the summary notes count each kind and say its remedy. Empty for no readings.
  *
  * What a verdict charges is said once, on the first line that prints that
  * verdict, and the lines after it print the verdict alone: a change to forty
@@ -57,7 +104,7 @@ function verdictOf(reading: FileReading): string {
 
 /** The gloss a reading's line explains itself with, the first time that line is printed. */
 function glossOf(reading: FileReading): keyof typeof GLOSS {
-  if (reading.verdict === undefined) return reading.unread === 'exports' ? 'importers' : 'unread';
+  if (reading.verdict === undefined) return UNREAD_GLOSS[reading.unread] ?? 'unread';
   return reading.kept === true ? 'kept' : reading.verdict;
 }
 
@@ -74,7 +121,22 @@ const GLOSS = {
   // A file with no row has no lines to charge: the walk charges what imports it.
   importers: ' — every test that loaded its nearest measured importers is charged',
   unseen: ' by an import the file graph does not list; named, not selected',
+  keepsNone: ' — it keeps no test in the run',
+  stale: ' — every region of it is charged',
+  ignored: ' — only a test that declares it runs for it',
+  // The reason says it all: the record answers for the file without its text.
+  answered: '',
 } as const;
+
+/** The gloss an `unread` reason prints, when it is not `unread`'s own. */
+const UNREAD_GLOSS: Partial<Record<keyof typeof UNREAD, keyof typeof GLOSS>> = {
+  exports: 'importers',
+  nothing: 'keepsNone',
+  declined: 'keepsNone',
+  stale: 'stale',
+  ignored: 'ignored',
+  answered: 'answered',
+};
 
 const UNREAD = {
   source: 'no recorded text to read it against',
@@ -83,4 +145,9 @@ const UNREAD = {
   addon: 'no native scanner on this machine',
   language: 'not a JavaScript or TypeScript module',
   exports: 'it names no export to follow',
+  nothing: 'the record and the file graph hold nothing about it',
+  stale: 'recorded from a text nobody kept',
+  declined: 'the suite declines relations and its record did not measure it',
+  ignored: "the suite's `ignore` matches it",
+  answered: 'its rows, its preconditions, its importers or the install comparison answer for it',
 } as const;

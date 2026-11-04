@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Browser, type Page, type TestInfo } from '@playwright/test';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { RenderDocument, RenderIdentity } from '@variance-authority/core/format';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
@@ -18,6 +18,25 @@ import { CHROMIUM_RASTER_ARGS, createVariance } from './index.js';
  * settlement has to paint: a refusal there would return before anything reached
  * `promote`, and the flag would adopt nothing.
  */
+
+/**
+ * Every call to the encoder an accept keeps its baseline with. The wrapper
+ * passes the bytes through, so the tests below see the real encode; the last
+ * one reads the count. About 99% of runs change no pixel, so an encode on that
+ * path would be paid on almost every run for nothing.
+ */
+const encodes = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('@variance-authority/png-sharp', async (original) => {
+  const real = await original<typeof import('@variance-authority/png-sharp')>();
+  return {
+    ...real,
+    keepImage: async (bytes: Buffer) => {
+      encodes.count += 1;
+      return real.keepImage(bytes);
+    },
+  };
+});
 
 const BROWSER_AVAILABLE = ((): boolean => {
   try {
@@ -124,5 +143,28 @@ chromium_('deferred capture after a recipe-only upgrade', () => {
     expect(adopted.because).toContain('accepted under --update-snapshots');
     expect(adopted.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect((await observeCart(recipe, 'none', 'cart/moved')).verdict).toBe('unchanged');
+  }, 60_000);
+});
+
+chromium_('a kept baseline', () => {
+  it('is encoded when it is accepted, and not again by a run that changed no pixel', async () => {
+    await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
+    const recipe = 'v1:54323cded938fde38b41cdd3865368fe';
+    const before = encodes.count;
+    await observeCart(recipe, 'all', 'cart/kept');
+    const kept = encodes.count - before;
+
+    // The document moves and no pixel does, so each run below paints and
+    // compares rather than settling on the document alone.
+    await page!.setContent('<main><section id="cart" data-revision="2"><h1>Cart</h1><p>Empty</p></section></main>');
+    const compared = await observeCart(recipe, 'none', 'cart/kept');
+    const accepting = await observeCart(recipe, 'all', 'cart/kept');
+
+    expect({ kept, compared: compared.verdict, accepting: accepting.verdict, again: encodes.count - before - kept }).toEqual({
+      kept: 1,
+      compared: 'unchanged',
+      accepting: 'unchanged',
+      again: 0,
+    });
   }, 60_000);
 });

@@ -39,7 +39,7 @@ the code map, one per test suite for its journeys, and two for what
 ```text
 source index updated: 2215 files, 0 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
-journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253543 functions they ran (85%); 8895 calls, 204 package flows; 2 imports the index did not resolve were resolved by the walk
+journeys, suite unit: 5718 cases walked; a caller is placed for 216327 of the 253543 functions the cases entered, counted once per case that entered each (85%); 8895 distinct calls, 204 distinct package flows; 2 import specifiers the index did not resolve were resolved by the walk
 dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.bin
 questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
@@ -59,10 +59,15 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.js
   `variance ask orient --files` reads it for a file's callers, its callees and
   the [package flows](orientation.md#choose-the-entrance-from-what-you-have)
   its tests take. Unchanged inputs keep the journeys that are there. A suite
-  with no recording prints `not prepared: nothing is recorded at <path>`. The
-  line ends with what the walk resolved that the index did not, and anything it
-  could not read as the recording ran it, such as a runner config that did not
-  load.
+  with no recording prints `not prepared: nothing is recorded at <path>`. A
+  recording made at a commit this checkout cannot read, such as one a shallow
+  clone stops short of, prints `not prepared:` with git's reason, and
+  `variance index` exits `2` once every line is printed; on a workstation,
+  where the journeys are made in the background, that exit and the line are in
+  their log. Fetch the commit the line names, or deepen the clone, and run it
+  again. The line ends with what the walk resolved that the index did not,
+  and anything it could not read as the recording ran it, such as a runner
+  config that did not load.
 - **The last two lines.** What `variance ask` answers from: the third-party dependencies the checkout declares, and the
   value `ask search` and the other source questions read without scanning.
   Either one prints `not prepared` or `not published`, with the reason, when it
@@ -118,7 +123,10 @@ variance run --against <ref>
 
 Each one reads the index as it was last published. Run `variance index` after
 the checkout changes and before them — in CI, as its own step after the cache
-restore.
+restore. `variance select`, and a runner's selection through it, also brings
+the index up to the checkout before it measures hops, since a hop is an import
+the checkout holds now. When the index cannot be updated, a leg runs every
+selected test file and says why.
 
 When a reader finds no index, or one it can read only up to a bad segment, the
 answer depends on where it runs. In CI it exits with an error that names
@@ -335,7 +343,11 @@ index. To fix an index, delete it.
 An index another release wrote is named as such rather than as damaged, and
 `variance index` rebuilds it. `select`, `review` and the other commands that
 read the graph through `publishedSources` rebuild it on your workstation and say
-so, and refuse it in CI, naming `variance index` as the step to run first.
+so, and refuse it in CI, naming `variance index` as the step to run first. A
+whole index they read as it stands. `coverage`, `covering` and `review` name
+the checkout's texts by the index, so on your workstation they bring it up to
+the checkout first; when that update fails, they say why on stderr and count
+what ran as over a text not known.
 `readPublishedSources` rebuilds nothing: it returns the index with
 `state: 'other-version'` and the version that wrote it in `written`.
 `ask orient --files` refuses it, naming both versions and `variance index`.

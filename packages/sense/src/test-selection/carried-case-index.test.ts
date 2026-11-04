@@ -156,6 +156,8 @@ const whole = (file: string) => ({ file, complete: true });
 /**
  * The mainline's record over `text`, then `FILE` rewritten to `moved` and a run
  * of `THREE` landed over `recorded` alone, keeping its cases when `keeps` says so.
+ * One that keeps none runs `THREE` in part: a run that finished a test file and
+ * kept no cases leaves no case index to carry.
  */
 function landOver(text: string, moved: string, keeps: boolean, recorded = OTHER): Promise<Landed> {
   return inRepository(text, moved, async ({ root, cacheRoot, git }) => {
@@ -167,7 +169,8 @@ function landOver(text: string, moved: string, keeps: boolean, recorded = OTHER)
     });
     await writeFile(resolve(root, FILE), moved, 'utf8');
     const over = recorded === FILE ? moved : OTHER_TEXT;
-    await landRun(coverageFile, recording(recorded, over, [THREE], commit), root, cacheRoot, keeps
+    const run = recording(recorded, over, [THREE], commit);
+    await landRun(coverageFile, keeps ? run : { ...run, tests: run.tests.map((test) => ({ ...test, complete: false })) }, root, cacheRoot, keeps
       ? { fresh: casesOf(recorded, over, [THREE]), run: { tests: [whole(THREE)], commit } }
       : undefined);
     return coverageFile;

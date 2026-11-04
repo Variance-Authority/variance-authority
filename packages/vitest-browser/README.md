@@ -48,15 +48,11 @@ package install:
 npx playwright install chromium
 ```
 
-Vitest 4 and newer take their browser provider as a value, from a package of its
-own:
+Vitest takes its browser provider as a value, from a package of its own:
 
 ```bash
 npm install --save-dev @vitest/browser-playwright
 ```
-
-On Vitest 3 the provider is the string `'playwright'` and comes from
-`@vitest/browser`; both are inside this package's peer range.
 
 The line each changed region is reported at comes from a second plugin, which
 makes `react/jsx-dev-runtime` resolve to a runtime that keeps the location the
@@ -239,7 +235,7 @@ component behind them are printed as coordinates and marked unattributed. The
 plugin the component and the element are still named and the row is absent.
 Paths are absolute, and are made relative to `sourceRoot` when you pass one.
 
-The images are files. The approved baseline is the `.png` under the baseline
+The images are files. The approved baseline is the `.webp` under the baseline
 directory, beside a `.json` recording what painted it; the candidate this run
 painted is in `renders/` in the cache, named by the digest of the document it
 came from.

@@ -46,6 +46,7 @@
 import { access } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from './digest.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
@@ -214,7 +215,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   if (graph !== undefined) {
     for (const record of graphRecords(graph)) built.set(record.file, record);
   }
-  return [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  return [...built.values()].sort((a, b) => codeUnitOrder(a.file, b.file));
 }
 
 /** What {@link scanCount} counted, and the listing it took of the checkout. */

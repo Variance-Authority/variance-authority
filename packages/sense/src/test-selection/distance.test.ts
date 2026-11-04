@@ -177,6 +177,25 @@ describe('distanceFromView', () => {
     expect(of(kept, 'test/card.test.tsx')).toMatchObject({ hops: 3, from: file });
   });
 
+  it('measures a test the record never saw whole from no file the reading names without reading it', () => {
+    // A file read by no reader — stale, unmeasured, declined, ignored, or
+    // answered by its rows — is named for the report, and seeds no path.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const partial = {
+      ...narrowing,
+      entered: narrowing.entered.filter((test) => test !== 'test/card.test.tsx'),
+      because: narrowing.because.filter(({ test }) => test !== 'test/card.test.tsx'),
+      incomplete: ['test/card.test.tsx'],
+    };
+    const file = 'src/button/abstract-button.tsx';
+
+    for (const unread of ['nothing', 'stale', 'declined', 'ignored', 'answered'] as const) {
+      const distances = distanceFromView(coverage, { ...partial, readings: [{ file, unread }] }, { relations });
+      expect(distances.map(({ test }) => test)).not.toContain('test/card.test.tsx');
+    }
+  });
+
   it('measures a test the record never saw whole only from a changed file it loaded', () => {
     // The card test's record holds the card and the button's face, not the base
     // the edit is in. The graph has the face's edge to the base, but nothing

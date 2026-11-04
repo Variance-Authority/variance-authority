@@ -45,7 +45,7 @@ describe('a local run spread across workers', () => {
     temporary.push(directory);
     const coverageFile = resolve(directory, 'coverage.bin');
 
-    // Forks rather than threads, and a floor as well as a ceiling on the pool:
+    // Forks rather than threads, and a ceiling of a worker per file on the pool:
     // a worker per file is the arrangement where a per-process accumulator
     // would answer for one file and forget the rest.
     await execute(
@@ -56,7 +56,6 @@ describe('a local run spread across workers', () => {
         '--config',
         resolve(fixture, 'vitest.config.ts'),
         '--pool=forks',
-        '--minWorkers=3',
         '--maxWorkers=3',
       ],
       {

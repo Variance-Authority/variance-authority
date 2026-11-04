@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { collectStories, parseStoryIndex, toSubjects } from '@variance-authority/storybook';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * The adapter, against a Storybook it did not author.
@@ -104,7 +105,7 @@ const live = BUILT && BROWSER_AVAILABLE ? describe : describe.skip;
 // One line per unmet precondition. A single line covering two reasons sends a
 // reader to fix whichever one they guess.
 if (!BUILT || !BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (storybook): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (BUILT

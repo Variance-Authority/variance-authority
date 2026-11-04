@@ -1,5 +1,13 @@
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { backThrough, hunksOf, placeThrough } from './placed.js';
+import { digestString } from '../digest.js';
+import { encodeTestCoverage } from './format.js';
+import type { TestCoverage } from './index.js';
+import { backThrough, hunksOf, placeAcross, placeInText, placeInTexts, placeThrough } from './placed.js';
 import { stateOf } from './range-state.js';
 import type { CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -89,5 +97,86 @@ describe('the one state a range is painted as', () => {
     expect(stateOf(range([], [stopped]))).toBe('hole');
     expect(stateOf(range([], []))).toBe('unwalked');
     expect(stateOf(range([]))).toBeUndefined();
+  });
+});
+
+/**
+ * Two texts of one file, read the way `covering` reads where a test ran over
+ * another text than the one held: the held text's range is placed in the other
+ * text, and a range no hunk touched is the same in both.
+ */
+const HELD = ['export function pay(amount) {', '  return amount;', '}', 'export function fee() {', '  return 2;', '}', ''].join('\n');
+const RAN = ['export function pay(amount) {', '  return amount;', '}', 'export function fee() {', '  return 1;', '}', ''].join('\n');
+
+describe('a range of one text placed in another', () => {
+  it('is the same where no hunk touched it, and moved where one did', () => {
+    const place = placeAcross(HELD, RAN);
+    expect(place({ startLine: 1, endLine: 3 })).toEqual({ lines: { startLine: 1, endLine: 3 }, moved: false });
+    expect(place({ startLine: 4, endLine: 6 })?.moved).toBe(true);
+  });
+});
+
+/**
+ * A repository holding `src/pay.ts` and `src/same.ts` at {@link RAN}, and a
+ * snapshot at its commit with both instrumented over it, `src/env.ts` loaded
+ * uninstrumented, and `src/two.ts` cut from two texts.
+ */
+async function recorded(run: (root: string, snapshot: string) => Promise<void>): Promise<void> {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-placed-')));
+  try {
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src/pay.ts'), RAN);
+    await writeFile(join(root, 'src/same.ts'), RAN);
+    const git = async (...args: string[]) => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+    await git('init', '--quiet');
+    await git('config', 'user.email', 'fixture@example.invalid');
+    await git('config', 'user.name', 'Fixture');
+    await git('add', '--all');
+    await git('commit', '--quiet', '--message', 'ran');
+    const module = (file: string, sourceDigest: string, instrumented: boolean) => ({
+      file,
+      sourceDigest,
+      instrumented,
+      blocks: instrumented
+        ? [{ ordinal: 0, kind: 'module' as const, digest: `block:${file}`, name: '', path: 'module', startLine: 1, endLine: 6, source: true, testFiles: ['src/pay.test.ts'] }]
+        : [],
+    });
+    const coverage: TestCoverage = {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      commit: await git('rev-parse', 'HEAD'),
+      tests: [{ file: 'src/pay.test.ts', complete: true, preconditions: [{ name: 'src/pay.test.ts', digest: 'source:test' }] }],
+      modules: [
+        module('src/pay.ts', digestString(RAN), true),
+        module('src/same.ts', digestString(RAN), true),
+        module('src/env.ts', 'source:env', false),
+        module('src/two.ts', 'source:one', true),
+        module('src/two.ts', 'source:two', true),
+      ],
+    };
+    const snapshot = join(root, 'coverage.bin');
+    await writeFile(snapshot, encodeTestCoverage(coverage));
+    await run(root, snapshot);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+describe('the text a snapshot recorded each held file from', () => {
+  it('is the held text where the record is its own, the commit\'s where the commit holds it, and none where nothing does', async () => {
+    await recorded(async (root, snapshot) => {
+      const held = new Map([['src/pay.ts', HELD], ['src/same.ts', RAN], ['src/env.ts', HELD], ['src/two.ts', RAN], ['src/gone.ts', HELD]]);
+      const placed = placeInTexts(snapshot, root, held);
+      expect(Object.fromEntries([...placed].map(([file, placement]) => [file, { frame: placement.frame, recorded: placement.recorded }]))).toEqual({
+        'src/pay.ts': { frame: 'mapped', recorded: RAN },
+        'src/same.ts': { frame: 'recorded', recorded: RAN },
+        'src/two.ts': { frame: 'stale' },
+      });
+      expect(placed.get('src/two.ts')).not.toHaveProperty('recorded');
+      // No held line is a recorded one where the numbering text is not found, so neither a range nor a line is placed.
+      const stale = placed.get('src/two.ts')!;
+      expect([stale.place({ startLine: 1, endLine: 2 }), stale.recordedLine(1)]).toEqual([undefined, undefined]);
+      expect(placeInText(snapshot, root, 'src/pay.ts', HELD)?.recorded).toBe(RAN);
+    });
   });
 });

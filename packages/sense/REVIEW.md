@@ -23,3 +23,9 @@
   [lookup.test.ts](src/test-selection/lookup.test.ts).
 - **Two checkouts never share bytes.** Pinned by
   [cache-layers.test.ts](src/test-selection/cache-layers.test.ts).
+- **A held listing is the tree only while Watchman and git's inputs vouch for
+  it.** The newest segment's listing stands in for git's only when the same
+  server and roots report nothing since its clock but paths git ignores, and no
+  file git reads to list changed; anything else lists with git. Written in
+  [spec 0107](../../docs/specs/0107-the-index-asks-watchman-what-moved.md); pinned by
+  [change-source.integration.test.ts](src/change-source.integration.test.ts).

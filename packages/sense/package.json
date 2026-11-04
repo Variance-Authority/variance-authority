@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.21.0",
+  "version": "0.24.1",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",
@@ -140,7 +140,6 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/wire": "workspace:^",
-    "jest-util": "^30.5.1",
     "oxc-parser": "^0.144.0",
     "oxc-resolver": "^11.24.2",
     "picomatch": "^4.0.7"
@@ -155,7 +154,7 @@
     "@jest/globals": "^30.0.0",
     "jest": "^30.0.0",
     "jest-circus": "^30.0.0",
-    "vitest": "^2.1.9 || ^3.0.0 || ^4.0.0 || ^5.0.0"
+    "vitest": "^4.1.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@jest/globals": {
@@ -182,14 +181,16 @@
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@rspack/core": "^2.2.6",
+    "@rstest/browser": "0.12.0",
     "@rstest/core": "^0.12.0",
     "@sentry/node": "^11.0.0",
     "@swc/core": "^1.16.2",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",
+    "@vitest/browser-playwright": "5.0.5",
     "babel-plugin-react-compiler": "^1.0.0",
     "jest": "^30.5.1",
     "magic-string": "^0.30.21",
-    "vite": "^6.0.0"
+    "vite": "^6.4.3"
   }
 }

@@ -23,12 +23,19 @@ import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { DeclaredMatch, Matches } from './search-answer.js';
+import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
-const DECLARED_CAP = 5;
+export const DECLARED_CAP = 5;
+
+/** The line counting the `count` declarations of `name`, each a `noun`, past the first `DECLARED_CAP`; none when there are no more. */
+export function notShown(count: number, noun: string, name: string): readonly string[] {
+  const more = count - DECLARED_CAP;
+  return more > 0 ? [`${more} more ${noun}${more === 1 ? '' : 's'} of \`${name}\` not shown.`] : [];
+}
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -57,7 +64,8 @@ export function declarations(
   }
   if (read === undefined) return { refused: 'no source index is published; run `variance index`' };
   // Stable, so the index's file-then-line order holds within a kind.
-  const names = [...read.names].sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
+  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
+  const names = read.names.filter((one) => one.name !== SLOT).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
   return { names, unread: read.unread };
 }
 
@@ -145,8 +153,14 @@ export function declaredLine(held: DeclaredMatch): string {
   return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
 }
 
-/** How many unread files `unreadLine` names before it counts the rest. */
+/** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */
 const UNREAD_NAMED = 3;
+
+/** The first files of `files`, then how many more there are. */
+const firstNamed = (files: readonly string[]): string => {
+  const more = files.length - UNREAD_NAMED;
+  return `${files.slice(0, UNREAD_NAMED).join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
+};
 
 /**
  * The sentence that says some files' declarations were not read, and which,
@@ -156,10 +170,19 @@ const UNREAD_NAMED = 3;
 export function unreadLine(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   const files = unread.length === 1 ? '1 file' : `${unread.length} files`;
-  const named = unread.slice(0, UNREAD_NAMED).join(', ');
-  const more = unread.length - UNREAD_NAMED;
+  return [`The declarations of ${files} were not read into the source index, so a name declared there is not known: ${firstNamed(unread)}.`];
+}
+
+/**
+ * The sentence that names the files with an import the source index resolved
+ * to no file and that could take `name`, so a use there is not listed, or
+ * nothing when there is none.
+ */
+export function unresolvedLine(name: string, unresolved: readonly string[]): readonly string[] {
+  if (unresolved.length === 0) return [];
+  const one = unresolved.length === 1;
   return [
-    `The declarations of ${files} were not read into the source index, so a name declared there is not known: ${named}${more > 0 ? ` and ${more} more` : ''}.`,
+    `${one ? '1 file imports' : `${unresolved.length} files import`} a specifier the index could not resolve to a file, and ${one ? 'it' : 'each'} could take \`${name}\`, so a use there is not listed: ${firstNamed(unresolved)}.`,
   ];
 }
 
@@ -188,8 +211,6 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
  * `DECLARED_CAP` of them, a count of the rest, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
- * `topLevel` says whether one of them is a file's top-level declaration: one
- * inside a function is the workspace's too, and stands for no member.
  */
 export function declaredBlocks(
   root: string | undefined,
@@ -197,21 +218,20 @@ export function declaredBlocks(
   wanted: string | undefined,
   spell: Spelling,
   from: readonly string[] = [],
-): { readonly blocks: readonly string[]; readonly topLevel: boolean } {
+): { readonly blocks: readonly string[] } {
   const read = declarations(root, name);
-  if (root === undefined || 'refused' in read) return { blocks: [], topLevel: false };
+  if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
     from,
   );
-  if (held.length === 0) return { blocks: [], topLevel: false };
-  const more = held.length - DECLARED_CAP;
+  if (held.length === 0) return { blocks: [] };
   const blocks = [
     ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
-    ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
+    ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];
-  return { blocks, topLevel: held.some((one) => !isNested(one)) };
+  return { blocks };
 }
 
 /** Whether a function's body declares it, rather than its file's top level. */

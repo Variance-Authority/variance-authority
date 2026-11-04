@@ -13,6 +13,8 @@ export interface ParsedStory {
   readonly format: 'text' | 'json';
   /** How much of the route to read; absent, the overview of files and declarations. */
   readonly zoom?: StoryZoom;
+  /** The project the case ran under, for a runner that runs one case under several. */
+  readonly project?: string;
   /** Read the newest reading with this label rather than the newest of all. */
   readonly label?: string;
   /** Which readings to compare, of one case or of several, instead of reading one route. */
@@ -60,6 +62,7 @@ export function parseStory(flags: Flags): ParsedStory {
   }
   const name = names.length > 1 ? undefined : flags.values.get('--name');
   const label = flags.values.get('--label');
+  const project = flags.values.get('--project');
   const compare = names.length > 1 ? { cases: names } : compareOf(flags.values.get('--compare'));
   if (compare !== undefined && zooms.length > 0) {
     const comparing = names.length > 1 ? 'several --name compare cases and read' : '--compare reads';
@@ -73,6 +76,7 @@ export function parseStory(flags: Flags): ParsedStory {
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     ...(file === undefined ? {} : { file }),
     ...(name === undefined ? {} : { name }),
+    ...(project === undefined ? {} : { project }),
     format,
     ...(zoom === undefined ? {} : { zoom }),
     ...(label === undefined ? {} : { label }),

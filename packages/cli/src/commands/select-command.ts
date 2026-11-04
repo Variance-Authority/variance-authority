@@ -55,7 +55,7 @@ import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
-import { relationsFor } from './source-graph.js';
+import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
 import { headOf } from './suite-share.js';
@@ -238,11 +238,12 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   else {
     const groups = [undefined, ...stands];
     const asked = await Promise.all(groups.map(async (stand) => {
-      const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here);
+      const from = stand?.commit ?? commit;
+      const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(from!, [], here);
       const installed = stand === undefined ? reading?.installed : stand.installed;
       const ran = point === undefined || installed === undefined ? point : ranOn(point, installed, selection.keptTexts(request.root));
       const missing = ran !== undefined && 'missing' in ran;
-      const at = (stand?.commit ?? commit)?.slice(0, 12);
+      const at = from?.slice(0, 12);
       const note = missing
         ? `the suite ran over a ${ran.missing} that ${at} does not hold, and that text is not kept here, so the install is compared from ${at}`
         : undefined;
@@ -267,6 +268,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     }
   }
 
+  const stale = request.relations === undefined ? await indexUpToCheckout(here, undefined, !request.noGit) : undefined;
   const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
@@ -300,8 +302,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           ),
           handed ? { ...options, undone: false } : options,
         );
-  const asked = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
-  const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;
+  const charged = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
+  const narrowing: ExecutionNarrowing | undefined = charged?.narrowing;
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparisons above, which have already said what moved.
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
@@ -318,12 +320,13 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
       ? { kind: 'no-journal' }
       : {
           kind: 'read',
-          ...(request.atDistance === undefined || asked?.distances === undefined ? {} : { distances: asked.distances }),
+          ...(request.atDistance === undefined || charged?.distances === undefined ? {} : { distances: charged.distances }),
           ...(unrunAtHead.length === 0 ? {} : { unrunAtHead }),
-          narrowing: {
+          ...(request.atDistance === undefined || stale === undefined ? {} : { stale }),
+          narrowing: selection.withEveryReading({
             ...narrowing,
             unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),
-          },
+          }),
         };
 
   const answer = said({ ...rested, ground });

@@ -221,6 +221,12 @@ impl<'a> Parses<'a> {
         span(self.symbol_doc[0], self.symbol_doc[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
     }
 
+    /// What one declaration writes before its body, as a span in UTF-16
+    /// units of its file; absent when the reader spanned none.
+    pub fn signature_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.symbol_signature[0], self.symbol_signature[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
     fn lengths(&self) -> Result<(), String> {
         let rows = self.key.len();
         same_length(rows, &[

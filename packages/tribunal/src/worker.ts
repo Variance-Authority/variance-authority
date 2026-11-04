@@ -32,6 +32,7 @@ import {
   MethodNotAllowed,
   asRecordBody,
   count,
+  imageResponse,
   json,
   optional,
   requireMethod,
@@ -470,14 +471,7 @@ async function route(
       image[3] as 'before' | 'after' | 'diff',
     );
     if (bytes === null) return json(404, { error: 'this build kept no such image' });
-    return new Response(bytes, {
-      headers: {
-        'content-type': 'image/png',
-        // A build's images never change: the row is written once and the object
-        // with it. Anything a reviewer reloads is fetched again for nothing.
-        'cache-control': 'private, max-age=31536000, immutable',
-      },
-    });
+    return imageResponse(bytes);
   }
 
   return json(404, {

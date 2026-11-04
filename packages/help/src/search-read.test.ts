@@ -5,10 +5,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { ask, askSearch } from './ask.js';
+import { ask, askSearch, askSearchJson } from './ask.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath } from './read.js';
+import { countingShown } from './ask.js';
 import { readSearchForAnswer, unopenedLine } from './search-read.js';
 import { workspaceSearchPath } from './snapshot.js';
+import { importingOf } from './tools/published-match.js';
 
 /**
  * `search` answers from the file published beside the value, and answers what
@@ -63,7 +65,8 @@ describe('search from its published file', () => {
 
     expect([...(tree?.files ?? [])].length).toBeGreaterThan(0);
     expect([...(searchTree?.files ?? [])]).toEqual([...(tree?.files ?? [])]);
-    expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree))).toEqual(expected);
+    // The rows are counted against the value, which the whole value's answer holds and the search's is handed.
+    expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree, false, undefined, importingOf(help, undefined)))).toEqual(expected);
     expect(expected[0]).toContain('\nSnapshot ');
   });
 
@@ -76,7 +79,39 @@ describe('search from its published file', () => {
 
     await expect(access(workspaceSearchPath(other))).resolves.toBeUndefined();
     const help = await readWorkspaceForAnswer(root, { index: other, justAnswer: true });
-    expect(askSearch(search, ['--query', 'measure'])).toEqual(ask(help, 'search', ['--query', 'measure']));
+    expect(askSearch(search, ['--query', 'measure'], undefined, false, undefined, importingOf(help, undefined))).toEqual(ask(help, 'search', ['--query', 'measure']));
+  });
+
+  it('carries, as data, each published row counted as `uses` counts it beside the counts the search ranks by', async () => {
+    const counted = join(root, '.counted');
+    const help = await readWorkspace(root, { index: counted });
+    const { index: search } = await readSearchForAnswer(root, { index: counted });
+
+    const json = (importing?: ReturnType<typeof importingOf>): unknown => JSON.parse(askSearchJson(search, ['--query', 'measure'], undefined, false, undefined, importing));
+    const row = { source: 'published', name: 'measure', specifier: 'alpha', at: 'packages/alpha/src/values.ts', otherPackages: 1, otherImports: 1 };
+    // Named no checkout, the imports within a package are not read, and the answer says why once.
+    expect(json(importingOf(help, undefined))).toMatchObject({
+      published: { total: 1, shown: [{ ...row, importedIn: { places: 1, packages: 1 } }] },
+      importsUnread: 'this host named no checkout to read the source index of',
+    });
+    const uncounted = json() as { published: { shown: Record<string, unknown>[] } };
+    expect(uncounted.published.shown).toEqual([expect.objectContaining(row)]);
+    expect(uncounted.published.shown[0]).not.toHaveProperty('importedIn');
+    expect(uncounted).not.toHaveProperty('importsUnread');
+  });
+
+  it('opens the value only for a question that shows a published row', async () => {
+    const lazy = join(root, '.lazy');
+    await readWorkspace(root, { index: lazy });
+    // A value opened at all says it did not open.
+    await writeFile(workspaceSnapshotPath(lazy), 'not a value');
+    const reading = await readSearchForAnswer(root, { index: lazy });
+
+    expect(reading.unopened).toBeUndefined();
+    await expect(countingShown(reading, { query: 'nothing-is-called-this' }, undefined, root)).resolves.toEqual({});
+    await expect(countingShown(reading, { query: 'measure' }, undefined, root)).resolves.toEqual({
+      unopened: [{ published: 'value', at: workspaceSnapshotPath(lazy), reason: expect.stringMatching(/\S/u) }],
+    });
   });
 
   it('opens a published search at any age, and scans nothing', async () => {

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   cacheRootFor,
@@ -13,13 +13,14 @@ import {
   writeFetchedMainline,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
 import { changed } from './review-fixture.js';
+import { cutGap } from './probes-gap.js';
 import { indexPosition } from './since.js';
 
 function parse(argv: readonly string[]) {
@@ -33,8 +34,11 @@ const TESTS = ['a.test.ts', 'b.test.ts', 'c.test.ts'];
 
 const TOTAL = 'export function total() {\n  return 1;\n}\n';
 
-/** No sentence of a note may send the reader to run or record a suite: a whole run is often impossible where the question is asked. */
-const NO_RUN = /\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i;
+/**
+ * No sentence of a note may send the reader to run or record a suite: a whole run is often impossible where the question is asked.
+ * A perfect "have run it" says what ran, not what to do, so it is not one.
+ */
+const NO_RUN = /(?<!\bhave )\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i;
 
 type Block = {
   readonly kind: string;
@@ -100,6 +104,10 @@ async function checkout(suites?: Record<string, object>): Promise<{ root: string
 }
 
 describe('a record cut under probes this build does not place', () => {
+  // `changed` works from inside the checkout it lays down.
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
   it('answers which cases ran the file, and names both probes and the question the difference leaves open', async () => {
     const execution = await recorded(RETIRED);
 
@@ -110,7 +118,7 @@ describe('a record cut under probes this build does not place', () => {
     expect(answer.probes?.note).toContain(`was cut under the probes \`${RETIRED}\`, and this build places \`${INSTRUMENTATION_ID}\``);
     expect(answer.probes?.note).toContain('names no commit, so the text it was made over is not known');
     expect(answer.probes?.note).not.toMatch(NO_RUN);
-    expect(formatCovering(answer, 'text').split('\n')[0]).toBe(answer.probes?.note);
+    expect(formatCovering(answer, 'text', Date.now()).split('\n')[0]).toBe(answer.probes?.note);
   });
 
   it('says nothing of probes for a record this build cut', async () => {
@@ -231,6 +239,16 @@ describe('a record cut under probes this build does not place', () => {
     await recorded(RETIRED, { at: testCoverageFile(root), commit: head });
 
     expect(await indexPosition(root)).toEqual({ commit: head, changed: 0 });
+  });
+});
+
+describe('the cut of a file at a commit git cannot read', () => {
+  it("leaves the question open with git's reason, not as a file the commit lacks", async () => {
+    const { root } = await checkout();
+
+    const gap = await cutGap(root, 'f'.repeat(40), 'src/total.ts', []);
+
+    expect(gap).toEqual({ file: 'src/total.ts', unread: expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/) });
   });
 });
 

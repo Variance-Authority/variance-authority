@@ -50,6 +50,7 @@ import { relative, resolve } from 'node:path';
  * thing that can put a module in this group is somebody deciding it belongs.
  */
 export const SERIALIZED = [
+  'packages/sense/src/test-selection/case-preconditions',
   'packages/storybook/src/preview-globals',
   'packages/storybook/src/show-story',
   'packages/storybook/src/story-finished',

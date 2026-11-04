@@ -9,7 +9,6 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeExecutionIndex,
   writeTestCoverage,
-  type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -103,7 +102,7 @@ describe('what the last run moved', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'lost']]);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text).toContain(`Against the run before it at ${first.slice(0, 12)}: 1 lost.`);
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
     expect(text).toContain('total.test.ts no longer enters round in src/total.ts (1 region).');
@@ -177,7 +176,7 @@ describe('what the last run moved', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved).toBeUndefined();
-    expect(formatCovering(answer, 'text')).toContain('Nothing to compare:');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Nothing to compare:');
   });
 
   it('refuses cases it retired that name no commit, and says when that happens', async () => {
@@ -248,7 +247,7 @@ describe('what the runs at one commit moved', () => {
       ] },
     });
 
-    const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: 'c', landings: [{ files: ['flow.test.tsx', 'total.test.ts'] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions).toEqual([]);
@@ -273,7 +272,7 @@ describe('what the runs at one commit moved', () => {
       ] },
     });
 
-    const wrote = await runsWrote(execution, { commit: first, files: ['total.test.ts'] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: first, landings: [{ files: ['total.test.ts'] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'thinned']]);
@@ -306,8 +305,8 @@ describe('what a change moved against the base', () => {
 
     expect(answer.motion?.base).toMatchObject({ at: first, mergeBase: first, leftOut: [] });
     expect(answer.motion?.moved?.counts).toEqual({ lost: 1, hidden: 0, thinned: 0, gained: 0 });
-    expect(formatCovering(answer, 'text')).toContain(`Against ${against} at ${first.slice(0, 12)}: 1 lost`);
-    expect(JSON.parse(formatCovering(answer, 'json')).motion.moved.regions[0].name).toBe('round');
+    expect(formatCovering(answer, 'text', Date.now())).toContain(`Against ${against} at ${first.slice(0, 12)}: 1 lost`);
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).motion.moved.regions[0].name).toBe('round');
   });
 
   it('names the moved regions\' cases by the numbers of the refs table, and each case once', async () => {
@@ -318,7 +317,7 @@ describe('what a change moved against the base', () => {
 
     const refs = formatCovering(
       await covering(parse(['--since', 'main', '--against', against, '--execution', execution])),
-      'refs',
+      'refs', Date.now(),
     );
 
     expect(refs).toContain('  lost     src/total.ts 30-34 function round — was 1\n');
@@ -333,7 +332,7 @@ describe('what a change moved against the base', () => {
 
     const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
-    expect(formatCovering(answer, 'text')).toContain('no region moved.');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('no region moved.');
   });
 
   it('names a base row the diff put on a region of another path as not compared, with where it landed', () => {
@@ -379,7 +378,7 @@ describe('what a change moved against the base', () => {
 
     expect(answer.motion?.base.leftOut).toEqual(['src/other.ts']);
     expect(answer.motion?.moved?.regions).toEqual([]);
-    expect(formatCovering(answer, 'text')).toContain('Left out, changed on the base\'s branch between');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Left out, changed on the base\'s branch between');
   });
 
   it('reads the cases the run retired as the base, at the commit they were recorded at', async () => {

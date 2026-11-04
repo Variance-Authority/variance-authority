@@ -128,9 +128,13 @@ describe('a record without coverage', () => {
     expect(() => openTestCoverage(readFileSync(record))).toThrow(RecordWithoutCoverage);
   });
 
-  it('is laid over by a covered run as nothing to lay over, and keeps the cases', async () => {
+  it('is laid over by a covered run as nothing to lay over, and keeps the cases the run in part kept none of', async () => {
     await landRun(record, uninstrumented, root, undefined, fresh());
-    const covered: TestCoverage = { ...uninstrumented, modules: [{ file: 'src/a.ts', sourceDigest: 'd', instrumented: false, blocks: [] }] };
+    const covered: TestCoverage = {
+      ...uninstrumented,
+      tests: [{ file: 'a.test.ts', complete: false, preconditions: [] }],
+      modules: [{ file: 'src/a.ts', sourceDigest: 'd', instrumented: false, blocks: [] }],
+    };
 
     await landRun(record, covered, root);
 

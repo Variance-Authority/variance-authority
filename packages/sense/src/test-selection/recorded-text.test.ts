@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,7 @@ import { changedLines } from './diff-lines.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
-import { textAtRecording, textsAt } from './recorded-text.js';
+import { blobsAt, readBlobsAt, readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 import { narrowByExecutionFromView } from './select.js';
 
 /**
@@ -166,6 +166,53 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 
+  it('fails naming the commit when this clone does not hold it, rather than answering every path missing', async () => {
+    await checkout(async (root) => {
+      // A shallow checkout, or one fetched at depth 1, never held the recording's commit.
+      const absent = 'f'.repeat(40);
+
+      expect(() => textsAt(root, new Map([[absent, [path(0)]]]))).toThrow(/commit ffffffffffff is not in this checkout's object store/);
+    });
+  });
+
+  it('fails with git\'s reason when the tree names a blob the object store lacks, rather than answering it missing', async () => {
+    await checkout(async (root, commit) => {
+      const blob = execFileSync('git', ['rev-parse', `${commit}:${path(1)}`], { cwd: root, encoding: 'utf8' }).trim();
+      rmSync(resolve(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+
+      expect(() => textsAt(root, new Map([[commit, [path(0), path(1)]]]))).toThrow(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
+    });
+  });
+
+  it("names what git could not read by file and commit, beside the texts it could, for a reader that names the gap", async () => {
+    await checkout(async (root, commit) => {
+      const blob = execFileSync('git', ['rev-parse', `${commit}:${path(1)}`], { cwd: root, encoding: 'utf8' }).trim();
+      rmSync(resolve(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
+      const absent = 'f'.repeat(40);
+
+      const { texts, refused } = readTextsAt(root, new Map([[commit, [path(0), path(1), 'src/never.ts']], [absent, [path(0)]]]));
+
+      expect(texts).toEqual(new Map([[commit, new Map([[path(0), body(0)]])], [absent, new Map()]]));
+      expect(new Set(refused.keys())).toEqual(new Set([commit, absent]));
+      expect([...refused.get(commit)!.keys()]).toEqual([path(1)]);
+      expect(refused.get(commit)!.get(path(1))).toMatch(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
+      expect(refused.get(absent)).toEqual(new Map([[path(0), expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/)]]));
+    });
+  });
+
+  it('names each path\'s blob without reading it, and refuses a commit this clone does not hold rather than naming every path absent', async () => {
+    await checkout(async (root, commit) => {
+      const name = `git:${execFileSync('git', ['rev-parse', `${commit}:${path(0)}`], { cwd: root, encoding: 'utf8' }).trim()}`;
+      const absent = 'f'.repeat(40);
+
+      const { texts, refused } = readBlobsAt(root, new Map([[commit, [path(0), 'src/never.ts']], [absent, [path(0)]]]));
+
+      expect(texts).toEqual(new Map([[commit, new Map([[path(0), name]])], [absent, new Map()]]));
+      expect(refused).toEqual(new Map([[absent, new Map([[path(0), expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/)]])]]));
+      expect(() => blobsAt(root, new Map([[absent, [path(0)]]]))).toThrow(/commit ffffffffffff is not in this checkout's object store/);
+    });
+  });
+
   it('answers nothing at all without a position to read from', async () => {
     await checkout(async (root) => {
       const sourceAt = textAtRecording(root, [path(0)]);
@@ -197,9 +244,10 @@ describe('the text at a recording of a path the caller never named', () => {
     await checkout(async (root, commit) => {
       const asked = (count: number): string[][] => {
         const sourceAt = textAtRecording(root, [path(FILES - 1)]);
+        // Whether the checkout is a partial clone is asked once per checkout, by the first sample alone.
         return gitStarted(root, () => {
           for (const at of every(0, count)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
-        });
+        }).filter((argv) => argv[1] !== 'config');
       };
 
       const few = asked(10);
@@ -342,6 +390,96 @@ describe('the text at a recording in a partial clone', () => {
         process.env['PATH'] = searched;
       }
       expect(await requests()).toBe(1);
+    });
+  });
+
+  it.runIf(process.platform !== 'win32')('fails with git\'s own reason when no remote will serve a text, rather than answering it missing', async () => {
+    await partialClone(async (clone, commit) => {
+      // The remote that promised the blobs is gone.
+      await promisify(execFile)('git', ['config', 'remote.origin.uploadpack', '/nonexistent/upload-pack'], { cwd: clone });
+      const sourceAt = textAtRecording(clone, every(0, 5).map(path));
+
+      expect(() => sourceAt(path(0), commit)).toThrow(/^git could not read the files asked about at commit [0-9a-f]{12}: .*\S/s);
+    });
+  });
+});
+
+/** Whether git runs git-lfs here: a fixture that commits through LFS needs it. */
+const lfsInstalled = ((): boolean => {
+  try {
+    execFileSync('git', ['lfs', 'version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+const POINTER =
+  'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 22\n';
+
+type Git = (...args: string[]) => Promise<string>;
+
+/** A checkout holding `src/small.ts` and whatever `commit` adds through LFS. */
+async function lfsCheckout(commit: (root: string, git: Git) => Promise<void>, run: (root: string, commit: string) => void): Promise<void> {
+  const root = await mkdtemp(resolve(tmpdir(), 'variance-recorded-lfs-'));
+  try {
+    await mkdir(resolve(root, 'src'));
+    const git: Git = async (...args) => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+    await git('init', '--quiet');
+    await git('config', 'user.email', 'fixture@example.invalid');
+    await git('config', 'user.name', 'Fixture');
+    await writeFile(resolve(root, 'src/small.ts'), 'export const small = 1;\n', 'utf8');
+    await commit(root, git);
+    run(root, await git('rev-parse', 'HEAD'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+describe('the text at a recording of a file git-lfs tracks', () => {
+  it('is refused with the reason when git-lfs cannot give its content, rather than read as the source', async () => {
+    // A pointer committed with no object behind it: what a clone holds where the
+    // LFS objects were never pushed, or where git-lfs is not installed to fetch them.
+    await lfsCheckout(async (root, git) => {
+      await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+      await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
+      await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
+      await git('commit', '--quiet', '--message', 'a pointer with no object');
+    }, (root, commit) => {
+      expect(() => textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toThrow(
+        new RegExp(`src/big\\.ts at ${commit} is a git-LFS pointer, and git-lfs could not give its content: .+Run \`git lfs install --local\`, and \`git lfs fetch origin ${commit}\``, 's'),
+      );
+    });
+  });
+
+  it('is refused when the checkout holds the pointer too, rather than read from disk as the source', async () => {
+    // A checkout made without git-lfs: the bytes on disk are the commit's blob,
+    // and that blob is the pointer.
+    await lfsCheckout(async (root, git) => {
+      await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+      await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
+      await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
+      await git('commit', '--quiet', '--message', 'a pointer with no object');
+    }, (root, commit) => {
+      // Two paths the caller never named: the second is answered from disk when its bytes are the commit's.
+      const sourceAt = textAtRecording(root, []);
+      expect(sourceAt('src/small.ts', commit)).toBe('export const small = 1;\n');
+
+      expect(() => sourceAt('src/big.ts', commit)).toThrow(/src\/big\.ts at [0-9a-f]+ is a git-LFS pointer, and git-lfs could not give its content/);
+    });
+  });
+
+  it.runIf(lfsInstalled)('is the content git-lfs keeps for it, not the pointer git holds', async () => {
+    await lfsCheckout(async (root, git) => {
+      await git('lfs', 'install', '--local');
+      await git('lfs', 'track', 'src/big.ts');
+      await writeFile(resolve(root, 'src/big.ts'), 'export const big = 1;\n', 'utf8');
+      await git('add', '--all');
+      await git('commit', '--quiet', '--message', 'through LFS');
+    }, (root, commit) => {
+      expect(textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toEqual(
+        new Map([[commit, new Map([['src/big.ts', 'export const big = 1;\n'], ['src/small.ts', 'export const small = 1;\n']])]]),
+      );
     });
   });
 });

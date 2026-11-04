@@ -438,6 +438,11 @@ from it, and every path the run records is relative to the repository that
 contains it. Without a collector in the page, the run prints that on stderr and
 records nothing.
 
+Set `VARIANCE_AUTHORITY_STORY=1` for the run and `tests` also writes each
+story's [test story](https://variance-authority.dev/docs/test-stories): the
+code the preview ran for it, in order, with what it printed. `variance story`
+reads it with `--file` set to the `.stories` file and `--name` to the story's title and name, `Cart/Empty`.
+
 `mode` is the probe recipe, and it has to be the one the preview was built
 under: a snapshot names the recipe its ordinals were cut by, and a merge
 discards a layer cut by another one, so a preview probing under `entries` and a

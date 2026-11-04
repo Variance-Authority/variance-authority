@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { publishLine } from '@variance-authority/core/share';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage, type ExecutionIndex } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf } from '../share-lines.js';
@@ -82,7 +82,7 @@ async function ask(argv: readonly string[]) {
 
 beforeAll(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-coverage-two-bases-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   const origin = join(home, 'origin.git');
   const ci = join(home, 'ci');
   await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
@@ -110,7 +110,7 @@ beforeAll(async () => {
   await git(ci, 'push', '--quiet', 'origin', 'main');
 
   clone = await cloneOf(home, origin);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   await recorded(clone, 'unit');
   await recorded(clone, 'e2e');
   await writeFile(join(clone, 'README.md'), '# total\n\nDiscounts, once.\n');
@@ -122,7 +122,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 

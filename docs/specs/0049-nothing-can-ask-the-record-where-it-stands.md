@@ -69,8 +69,7 @@ The gap is that the question was never asked. What shipped:
   carries `distance: 0` (`packages/sense/src/test-selection/cases.ts:279`), which
   [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) requires
   and which makes the tool's own "ranked by observed call-stack depth"
-  (`packages/mcp/src/tools/source-tests.ts:13`) a promise about a number nothing
-  measured.
+  (its description at 0d0beb24a) a promise about a number nothing measured.
 - `variance_source_tests` is a working tool in a defined served set
   (`packages/mcp/src/tools.ts:116`, `packages/mcp/src/protocol.ts:65`) that **no
   binary serves**. `variance serve` serves the report set;

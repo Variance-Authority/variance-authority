@@ -30,6 +30,7 @@ mod case_owner;
 mod case_said;
 mod case_said_napi;
 mod case_shard;
+mod commit_text;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod large_alloc;
@@ -60,7 +61,10 @@ mod grammar;
 mod graph_dominators;
 mod graph_index;
 mod harvest;
+mod change_tree;
 mod held;
+#[cfg(unix)]
+mod held_listing;
 mod help_aliases;
 mod help_declared;
 mod help_in_file;
@@ -106,6 +110,7 @@ mod journeys_steps;
 mod journeys_walk;
 #[cfg(feature = "grammars")]
 mod languages;
+mod lfs;
 mod loads;
 mod log;
 mod louvain;
@@ -163,6 +168,8 @@ mod stored;
 mod text_digests;
 mod top_level;
 mod tree;
+#[cfg(unix)]
+mod watchman;
 mod witness;
 mod witness_aliases;
 
@@ -239,6 +246,9 @@ pub struct GitTree {
     /// The package manifests and `tsconfig*.json` files in each directory, made
     /// the first time a scan asks where built output comes from.
     listing: OnceLock<Arc<emitted::Listing>>,
+    /// How the tree was come by, when a change source other than git had a say.
+    #[cfg(unix)]
+    change: Option<held_listing::Change>,
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -289,6 +299,8 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         unhashed: snapshot.unhashed,
         seeds,
         listing: OnceLock::new(),
+        #[cfg(unix)]
+        change: None,
     }
 }
 
@@ -411,6 +423,8 @@ impl GitTree {
     /// side, or `null` when the JavaScript update has to (`source_update.rs`).
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        #[cfg(unix)]
+        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
         source_update::update(
             options,
             source_update::Tree {
@@ -419,6 +433,10 @@ impl GitTree {
                 oids: &self.oids,
                 seeds: &self.seeds,
                 listing: self.listing(),
+                regular: &self.regular,
+                unhashed: &self.unhashed,
+                #[cfg(unix)]
+                carry,
             },
         )
     }

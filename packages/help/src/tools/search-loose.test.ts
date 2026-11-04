@@ -46,7 +46,7 @@ describe('a name the substring cannot reach', () => {
     expect(text).toContain('measure');
     expect(text).toContain('loosely');
     // The fact about the substring is still told above the offer, as a miss of the text and not of the code.
-    expect(text).toContain('No name in this repository, nor the doc of one, writes `meesure` as typed. The nearest follow.');
+    expect(text).toContain('No name in this repository, nor the doc of one, writes `meesure`. The nearest follow.');
     expect(text).not.toContain('Nothing in this repository');
   });
 
@@ -107,7 +107,7 @@ describe('what it may never do', () => {
     // names in reach do not replace the way to widen.
     const text = ask({ query: 'meesure', from: 'packages/beta/src/again.ts' });
     expect(text).toContain('measure');
-    expect(text).toContain('No name in reach of that start point, nor the doc of one, writes `meesure` as typed');
+    expect(text).toContain('No name in reach of that start point, nor the doc of one, writes `meesure`');
     expect(text).toContain('ask again without `from`/`to` to search the whole workspace');
     expect(text).not.toContain('Nothing in reach');
   });

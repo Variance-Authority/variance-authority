@@ -4,7 +4,7 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
-import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } from './snapshot.js';
+import { readSearchSnapshot, readSearchTree, readWorkspaceSnapshot, searchOf, workspaceSearchPath } from './snapshot.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {
@@ -22,6 +22,28 @@ export interface SearchReading {
    * failure.
    */
   readonly unopened?: readonly Unopened[];
+  /**
+   * The value the search was written from, which the published rows shown are
+   * counted against as `uses` counts them. Read when first asked for and kept:
+   * opened beside a published search, it is the parse the search file exists to
+   * spare, so the shell asks for it only for a row it counts.
+   */
+  readonly value: () => Promise<ValueRead>;
+}
+
+/** The value a search was written from, or why the published one did not open; neither when none is published. */
+export interface ValueRead {
+  readonly help?: Help;
+  readonly unopened?: Unopened;
+}
+
+/** A value already in hand, as {@link SearchReading.value} hands it over. */
+const held = (help: Help): (() => Promise<ValueRead>) => () => Promise.resolve({ help });
+
+/** `read`, run the first time the thunk is called and never again. */
+function once<T>(read: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined;
+  return () => (pending ??= read());
 }
 
 /** A published file the reading tried, and why it did not open. */
@@ -38,7 +60,9 @@ export interface Unopened {
  */
 export function unopenedLine(unopened: readonly Unopened[] | undefined, compared: boolean): string | undefined {
   if (unopened === undefined) return undefined;
-  const instead = compared ? 'the checkout' : 'the published value';
+  // Only the value unopened beside a search that opened: the search answered, with the counts it carries.
+  const searched = !compared && unopened.every(({ published }) => published === 'value');
+  const instead = compared ? 'the checkout' : searched ? 'the published search, with the counts it carries,' : 'the published value';
   const tried = unopened.map(({ published, at, reason }) => `The published ${published} at ${at} did not open (${reason})`);
   return `${tried.join('. ')}; ${instead} was read instead.`;
 }
@@ -76,7 +100,8 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
-    return { index: await searchOf(await readWorkspaceForAnswer(root, options), index), compared: !justAnswer };
+    const help = await readWorkspaceForAnswer(root, options);
+    return { index: await searchOf(help, index), compared: !justAnswer, value: held(help) };
   }
 
   const searchAt = workspaceSearchPath(index);
@@ -84,7 +109,15 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   try {
     const search = await readSearchSnapshot(root, reading.index);
     if (reading.tree !== undefined) reading.tree(await readSearchTree(search, root, reading.index));
-    return { index: search, compared: false };
+    // The value is opened only for a published row shown; without one the search answers with the counts it carries, and says why.
+    const value = once(async (): Promise<ValueRead> => {
+      try {
+        return { help: await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index }) };
+      } catch (error) {
+        return absent(error) ? {} : { unopened: { published: 'value', at: workspaceSnapshotPath(index), reason: reasonOf(error) } };
+      }
+    });
+    return { index: search, compared: false, value };
   } catch (error) {
     // Not published says nothing; published and unopenable is said with the answer.
     if (!absent(error)) unopened = [{ published: 'search', at: searchAt, reason: reasonOf(error) }];
@@ -107,7 +140,8 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
         { cause },
       );
     }
-    return { index: await searchOf(await readWorkspace(root, reading), index), compared: true, ...(unopened === undefined ? {} : { unopened }) };
+    const read = await readWorkspace(root, reading);
+    return { index: await searchOf(read, index), compared: true, value: held(read), ...(unopened === undefined ? {} : { unopened }) };
   }
-  return { index: await searchOf(help, index), compared: false, ...(unopened === undefined ? {} : { unopened }) };
+  return { index: await searchOf(help, index), compared: false, value: held(help), ...(unopened === undefined ? {} : { unopened }) };
 }

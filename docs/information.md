@@ -312,11 +312,13 @@ Pixel bytes have three distinct homes:
 - **Render cache:** a disposable raster keyed by document digest and painter
   identity. The CLI places its local cache at `<cache>/renders`, in
   [your cache](cache.md). A miss or cache failure costs a paint.
-- **Run images:** candidate, baseline, and diff PNGs retained for review. They
-  default beside `.variance/report.json`, under `.variance/images`, and the
-  report references them by relative path. A CI job must upload the report and
-  the image directory together.
-- **Approved visual reference:** the authoritative PNG plus readable sidecar at
+- **Run images:** candidate and diff PNGs, and the baseline as its store
+  kept it (a WebP from a durable store), retained for review. They default beside
+  `.variance/report.json`, under `.variance/images`, and the report references
+  them by relative path. A CI job must upload the report and the image
+  directory together.
+- **Approved visual reference:** the authoritative image, a lossless WebP, plus
+  readable sidecar at
   a baseline key and painter partition. It lives in a configured directory, in
   Git LFS, or in a baseline service you deploy.
 
@@ -358,7 +360,10 @@ generation names its format, source contents, directory membership, and
 resolution and toolchain basis. Readers reject an incompatible, foreign,
 incomplete, or corrupt generation rather than accepting part of it as an empty
 graph: in CI they refuse and name `variance index`, and on a workstation they
-update it from the checkout first.
+update it from the checkout first. A whole generation is read as it stands,
+except by the commands that name the checkout's texts by it, which update it
+before they read, in CI too: a generation published at one commit is brought up
+to the checkout, paying only for the files that differ.
 
 The same binary generation can cross a CI cache or artifact boundary. No Sense
 service owns it and no process exchanges decoded object trees. Local and remote
@@ -373,9 +378,11 @@ The Vitest integration consolidates temporary worker journals into a versioned
 `<cache>/test-selection/<repository-digest>/coverage.bin`, in
 [your cache](cache.md). `coverageFile` gives it an explicit path when CI must
 publish, restore, or share the artifact. The runs record beside it,
-`coverage.runs.json` for `coverage.bin`, says which runs landed at the
-snapshot's commit and where they started; publish and restore the two
-together. A snapshot restored without its runs record is read with whatever
+`coverage.runs.json` for `coverage.bin`, says where the runs at the snapshot's
+commit started and, for each of them whose evidence the snapshot holds, the
+test files it finished, the ones it ran only in part with the cases it ran,
+when it landed, the install it ran on, and the digest of each uncommitted text
+it ran over; publish and restore the two together. A snapshot restored without its runs record is read with whatever
 record already lies beside it. Temporary journals are removed after
 consolidation.
 
@@ -386,8 +393,8 @@ cannot erase earlier evidence by silence. A changed instrumentation generation
 replaces the incompatible block universe.
 
 `ExecutionIndex` is the runner-independent query shape used for source-to-test
-questions. An MCP integration supplies it to the tool; the MCP server is not
-its store. The persisted Vitest coverage file and a supplied [execution
+questions, which `variance covering` asks of it. An MCP integration supplies it
+to `variance_distill`; the MCP server is not its store. The persisted Vitest coverage file and a supplied [execution
 index](execution-record.md) are two sources for the runtime domain, not copies
 of the visual run report.
 

@@ -121,7 +121,7 @@ string, and it has to be unique across the run — one id is one capture file, a
 the second write under the same id fails rather than overwriting. The slash in
 `button/save` is not a namespace; the whole string is the id, and it is what the
 report shows and what `variance accept` names. The baseline's file name spells it
-as a directory, `button/save-chromium.png`.
+as a directory, `button/save-chromium.webp`.
 
 `viewport` is required and is resolved here, in the unit process, because the
 renderer never sees this DOM: media queries in the applicable CSS are evaluated

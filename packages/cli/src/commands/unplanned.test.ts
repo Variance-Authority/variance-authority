@@ -15,6 +15,7 @@ import {
   VIEWPORT,
 } from './run-fixture.js';
 import type { Plan } from './run.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * The run's one report about subjects it did not look at (ADR-0063).
@@ -119,7 +120,7 @@ describe('unplanned widths', () => {
     const root = await mkdtemp(join(tmpdir(), 'va-unplanned-widths-'));
     const store = createDurableStore(root);
     for (const subject of subjects) {
-      await store.put(keyFor(subject), rasterFor(documentFor(subject.subject.id), IDENTITY));
+      await store.put(keyFor(subject), await keptRaster(rasterFor(documentFor(subject.subject.id), IDENTITY)));
     }
     return store;
   }

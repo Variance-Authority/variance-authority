@@ -45,13 +45,12 @@ pub struct JourneysAmong {
     /// Asked cases the recording does not hold.
     pub outside: Vec<u32>,
     pub commit: Option<String>,
-    pub tree: Option<String>,
     /// Most asked cases first, then in the order the file keeps them.
     pub calls: Vec<JourneysPlaced>,
 }
 
 fn refused(reason: &str) -> JourneysAmong {
-    JourneysAmong { not_prepared: Some(reason.to_owned()), cases: 0, outside: Vec::new(), commit: None, tree: None, calls: Vec::new() }
+    JourneysAmong { not_prepared: Some(reason.to_owned()), cases: 0, outside: Vec::new(), commit: None, calls: Vec::new() }
 }
 
 /// Every call the cases numbered `cases` placed, as the journeys prepared at
@@ -63,7 +62,7 @@ pub fn journeys_among(index: String, recording: String, out: String, cases: Vec<
         Err(reason) => return refused(reason),
     };
     match placed(&decoded, meta.cases, &cases) {
-        Ok((calls, outside)) => JourneysAmong { not_prepared: None, cases: meta.cases, outside, commit: meta.commit, tree: meta.tree, calls },
+        Ok((calls, outside)) => JourneysAmong { not_prepared: None, cases: meta.cases, outside, commit: meta.commit, calls },
         Err(error) => refused(&format!("they did not read ({error})")),
     }
 }

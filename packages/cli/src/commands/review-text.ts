@@ -20,9 +20,11 @@ import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
+import { LEGEND, MARK, notKnown, REACH_TEXT } from './review-words.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
 import { reviewJson } from './review-json.js';
+import { driftWords } from './review-drift.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
@@ -36,27 +38,6 @@ const EDITS = [
   ['values', 'top-level values'],
   ['load', 'what the module loads'],
 ] as const;
-
-/** Each answer in a few words, for a line that names a place: the handover's pointers. */
-export const REACH_WORD: Readonly<Record<Reach, string>> = {
-  near: 'near',
-  far: 'far',
-  unplaced: 'distance not measured',
-  loaded: 'ran only while its module loaded',
-  hole: 'no case',
-  unwalked: 'no case',
-  unknown: 'no case',
-};
-
-const REACH_TEXT: Readonly<Record<Reach, string>> = {
-  near: 'covered by a test that imports the file, or is the file',
-  far: 'covered only by tests further than one import away',
-  unplaced: 'covered by tests the import graph does not hold, so how far is not known',
-  loaded: 'ran only while its module loaded',
-  hole: 'no case covered it, and a case that could have stopped first',
-  unwalked: 'no case covered it',
-  unknown: 'no case covered it, and the record cannot say whether one stopped first',
-};
 
 /** A review in words. JSON is {@link reviewPieces}'s: it can spell more than one string holds. */
 export function formatReview(review: Review, format: Exclude<ReviewFormat, 'json'>): string {
@@ -78,7 +59,7 @@ export function* reviewPieces(review: Review, format: ReviewFormat): Generator<s
 
 /** What the record leaves open beside the answer, said before it. */
 function notes(review: Review): readonly string[] {
-  return [review.probes, review.runsUnread].filter((note) => note !== undefined);
+  return [review.probes, review.notUpdated, review.runsUnread].filter((note) => note !== undefined);
 }
 
 function text(review: Review): string {
@@ -93,6 +74,10 @@ function text(review: Review): string {
   lines.push(...casesText(review.files, (code) => code));
   lines.push(...beforeText(review, (code) => code), ...installLines(review, (code) => code, false));
   lines.push(...motionText(review.motion));
+  if (review.drift !== undefined) {
+    const drift = driftWords(review.drift, (code) => code);
+    lines.push('', drift.sentence, ...drift.lists.flatMap(({ label, items }) => [`${label}:`, ...items.map((item) => `  ${item}`)]));
+  }
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
       regionKind(region)
@@ -108,29 +93,6 @@ function text(review: Review): string {
 function editText(file: string, region: ReviewRegion): string {
   return region.edit !== 'moved' ? region.edit : region.movedFrom === undefined || region.movedFrom === file ? 'moved within the file' : `moved from ${region.movedFrom}`;
 }
-
-/**
- * One mark per answer, so a row in the table and a count in the per-file fold
- * read the same way: red is changed code no case covered, yellow and orange are
- * covered from further away than the file's own importers, green is covered
- * from one import away, white ran only while its module loaded.
- */
-export const MARK: Readonly<Record<Reach, string>> = {
-  near: '🟢',
-  far: '🟡',
-  unplaced: '🟠',
-  loaded: '⚪',
-  hole: '🔴',
-  unwalked: '🔴',
-  unknown: '🔴',
-};
-
-/** What each mark says, once, under the first table that uses it. */
-const LEGEND = '🟢 a test importing the file ran it · 🟡 only tests further away ran it · 🟠 tests outside the import graph ran it · ' +
-  '⚪ ran only while its module loaded · 🔴 no case ran it';
-
-/** Code this change wrote that no run has reached yet: read before it ran, so no case was expected. */
-export const FRESH_MARK = '🔵';
 
 /**
  * The comment, disclosed a level at a time. The first screen is the verdict:
@@ -163,6 +125,8 @@ function markdown(review: Review): string {
     } it before any import.`));
   }
   lines.push(...installLines(review, code, true));
+  const drift = review.drift === undefined ? undefined : driftWords(review.drift, code);
+  if (drift?.changed === true) lines.push('', `🧭 ${drift.sentence} Each row is under drift from the walk below.`);
   const uncovered = uncoveredMarkdown(review, mark);
   const functions = functionsMarkdown(review, mark);
   if (changed.length === 0 && uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
@@ -181,6 +145,12 @@ function markdown(review: Review): string {
     said.push('cases moved against the base');
     more.push('', '<details><summary>🔀 Cases moved against the base</summary>', '', '```', ...motion, '```', '', '</details>');
   }
+  if (drift !== undefined) {
+    said.push('drift from the walk');
+    more.push('', `<details><summary>🧭 Drift from the walk</summary>`, '', drift.sentence);
+    for (const { label, items } of drift.lists) more.push('', `${label}:`, '', ...items.map((item) => `- ${item}`));
+    more.push('', '</details>');
+  }
   const files = review.files.filter((file) => file.regions !== undefined || file.verdict !== undefined || file.unread !== undefined || file.created === true);
   if (files.length > 0) {
     said.push('each changed file');
@@ -198,7 +168,8 @@ function markdown(review: Review): string {
 /**
  * The verdict as a GitHub alert, in functions a reader knows by name: a
  * warning when changed code ran under no case, a note when the record, made
- * before the change, holds no case for it.
+ * before the change, holds no case for it, or when the only gap is code a case
+ * ran in a text an edit wrote over, which no case is known to have run.
  */
 function calloutMarkdown(review: Review): readonly string[] {
   const regions = review.files.flatMap(outermost);
@@ -209,14 +180,20 @@ function calloutMarkdown(review: Review): readonly string[] {
     }.`];
   }
   const ran = review.record === 'ran';
-  const { total, names } = uncoveredFunctions(review);
+  const { total, names, overwritten } = uncoveredFunctions(review);
+  const has = (count: number) => (count === 1 ? 'has' : 'have');
+  const of = (count: number) => `${count} of ${total} changed function${total === 1 ? '' : 's'} ${has(count)}`;
+  const lost = overwritten.length === 0 ? [] : [`> **${names.length > 0 ? `${overwritten.length} more ${has(overwritten.length)}` : of(overwritten.length)} code ${
+    notKnown(ran)
+  }:** ${namedList(overwritten)}.`];
   if (names.length > 0) {
-    const has = names.length === 1 ? 'has' : 'have';
     return [
       ran ? '> [!WARNING]' : '> [!NOTE]',
-      `> **${names.length} of ${total} changed function${total === 1 ? '' : 's'} ${has} code ${ran ? 'no case ran' : 'the record holds no case for'}:** ${namedList(names)}.`,
+      `> **${of(names.length)} code ${ran ? 'no case ran' : 'the record holds no case for'}:** ${namedList(names)}.`,
+      ...lost,
     ];
   }
+  if (lost.length > 0) return ['> [!NOTE]', ...lost];
   const every = total === 0 ? `${regions.length} changed region${regions.length === 1 ? '' : 's'}` : `${total} changed function${total === 1 ? '' : 's'}`;
   return ['> [!TIP]', `> Every one of the ${every} ${ran ? 'ran under a case' : 'has a case in the record'}.`];
 }
@@ -385,12 +362,13 @@ function summary(review: Review, code: (value: string) => string): readonly stri
     ];
   }
   const uncovered = regions.filter((region) => region.reach === 'hole' || region.reach === 'unwalked' || region.reach === 'unknown');
-  const far = regions.filter((region) => region.reach === 'far');
+  const unknown = regions.filter((region) => region.reach === 'overwritten');
   const holding = review.files.filter((file) => outermost(file).length > 0).length;
   const lines = [
     `${regions.length} changed region${regions.length === 1 ? '' : 's'} in ${holding} file${holding === 1 ? '' : 's'}: ${edits(regions)}.`,
     `- ${uncovered.length} no case covered${uncovered.length === 0 ? '' : `: ${edits(uncovered)}`}.`,
-    `- ${far.length} covered only by tests further than one import away.`,
+    ...(unknown.length === 0 ? [] : [`- ${unknown.length} no case is known to have covered: ${edits(unknown)}.`]),
+    `- ${regions.filter((region) => region.reach === 'far').length} covered only by tests further than one import away.`,
   ];
   const unplaced = regions.filter((region) => region.reach === 'unplaced').length;
   if (unplaced > 0) lines.push(`- ${unplaced} covered by tests the import graph does not hold, so how far is not known.`);

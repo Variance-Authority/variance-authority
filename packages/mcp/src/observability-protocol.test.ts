@@ -5,7 +5,6 @@ import {
   PRESENTATIONS,
   REPORTS,
   SCENARIOS,
-  SOURCE_TESTS,
   handle,
 } from './protocol.js';
 import { OBSERVABILITY_TOOLS } from './tools.js';
@@ -28,13 +27,16 @@ describe('the all-instrument MCP surface', () => {
       'variance_observability',
       'variance_summary',
       'variance_presentations',
-      'variance_source_tests',
       'variance_run_signals',
       'variance_test_attention',
       'variance_distill',
       'variance_scenarios',
       'variance_diff',
     ]));
+    // Which cases entered a place, and which a change reached, is asked of
+    // `variance covering` alone.
+    expect(names).not.toContain('variance_source_tests');
+    expect(names).not.toContain('variance_changed_tests');
   });
 
   it('teaches an agent the discovery call and the limit of a distillation answer', () => {
@@ -52,7 +54,6 @@ describe('the all-instrument MCP surface', () => {
 
   it('routes every retained-only connection to the producer that supplies it', () => {
     expect(REPORTS.instructions!({} as never)).toContain('`variance run`');
-    expect(SOURCE_TESTS.instructions!({ tests: [], modules: [] })).toContain('no producer');
     expect(EYES.instructions!({ eyesVersion: 1, tests: [] })).toContain('before `react-dom` loads');
     expect(PRESENTATIONS.instructions!([])).toContain('different, smaller reading');
     expect(SCENARIOS.instructions!([])).toContain('archive entrypoint');

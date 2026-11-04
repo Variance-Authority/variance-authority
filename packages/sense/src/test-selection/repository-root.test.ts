@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SELECTION_REPORTER, SELECTION_TRANSFORM, withJourneyCoverage, withTestSelection } from './jest.js';
+import { SELECTION_REPORTER, SELECTION_RUNTIME, SELECTION_TRANSFORM, withJourneyCoverage, withTestSelection } from './jest.js';
 import { repositoryRoot } from './repository-root.js';
 
 let temporary: string;
@@ -69,7 +69,7 @@ describe('a Jest configuration whose rootDir is a package', () => {
 
     expect(configured.rootDir).toBe(rootDir);
     expect(configured.transform).toEqual({
-      '\\.tsx?$': [SELECTION_TRANSFORM, { root: repository, transformer: '@swc/jest' }],
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: repository, runtime: SELECTION_RUNTIME, transformer: '@swc/jest' }],
     });
     expect(configured.reporters?.at(-1)).toEqual([
       SELECTION_REPORTER,

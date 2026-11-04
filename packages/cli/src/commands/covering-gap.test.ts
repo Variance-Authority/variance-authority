@@ -92,11 +92,11 @@ describe('a line the record holds at file grain', () => {
       ],
       cost: { tests: 3, files: 2 },
     });
-    expect(JSON.parse(formatCovering(answer, 'json')).gap).toEqual(answer.gap);
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).gap).toEqual(answer.gap);
   });
 
   it('says the gap last in the text, with its reason, its remedy, its cost and the commands', async () => {
-    const text = formatCovering(await ask('--line', '20'), 'text');
+    const text = formatCovering(await ask('--line', '20'), 'text', Date.now());
 
     expect(text.trimEnd().endsWith([
       'Gap (coarse) on line 20 of src/ledger.ts: which of the nearest 3 ran it, and in what order. Known: 4 named tests loaded src/ledger.ts, and 1 past the nearest 3 stays unread.',
@@ -129,8 +129,8 @@ describe('an answer that leaves nothing open', () => {
     const answer = await ask('--line', '7');
 
     expect(answer.gap).toBeUndefined();
-    expect(formatCovering(answer, 'text')).not.toContain('Gap');
-    expect(JSON.parse(formatCovering(answer, 'json'))).not.toHaveProperty('gap');
+    expect(formatCovering(answer, 'text', Date.now())).not.toContain('Gap');
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now()))).not.toHaveProperty('gap');
   });
 
   it('prints no gap for lines no recorded region holds, since no record could hold them', async () => {
@@ -146,18 +146,19 @@ describe('a line written since the recording', () => {
     framed = mapped([20]);
     const answer = await ask('--line', '19-20');
 
-    expect(answer.written).toEqual([{ startLine: 20, endLine: 20 }]);
+    // A record that names no commit says nothing of which text its cases ran over.
+    expect(answer.unknown).toEqual({ lines: [{ startLine: 20, endLine: 20 }], why: 'the record names no commit' });
     expect(answer.gap).toEqual({
       question: 'which tests run it now',
       scope: 'lines 19-20 of src/ledger.ts',
-      known: 'line 20 was written since the recording',
+      known: 'line 20 is of a text the record cannot say a case ran over',
       reason: 'stale',
       remedy: 'record',
       run: { files: ['book.test.ts', 'ledger.test.ts', 'load.test.ts'] },
       next: [],
       cost: { tests: 4, files: 3 },
     });
-    expect(formatCovering(answer, 'text')).toContain("Next, Record, 4 tests in 3 test files:\n  Run with the suite's own runner: book.test.ts ledger.test.ts load.test.ts");
+    expect(formatCovering(answer, 'text', Date.now())).toContain("Next, Record, 4 tests in 3 test files:\n  Run with the suite's own runner: book.test.ts ledger.test.ts load.test.ts");
   });
 });
 

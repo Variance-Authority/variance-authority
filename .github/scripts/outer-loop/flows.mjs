@@ -62,8 +62,9 @@ export const FLOWS = {
       message: 'chore(variance): regenerate baselines',
       // The layout cli 0.15.0 writes: `baselines/v1-<identity digest>/` and the
       // page without `.html`. `commitProblems` carries the marker for the
-      // change that moves it.
-      files: [/^baselines\/v1-[0-9a-f]{32}\/pricing\.png$/, /^baselines\/v1-[0-9a-f]{32}\/pricing\.json$/],
+      // change that moves it. The image is a `.webp` from the release that
+      // keeps baselines as WebP, and a `.png` from the releases before it.
+      files: [/^baselines\/v1-[0-9a-f]{32}\/pricing\.(?:webp|png)$/, /^baselines\/v1-[0-9a-f]{32}\/pricing\.json$/],
     },
     // The accept commit is pushed with the example's VARIANCE_PUSH_TOKEN; a
     // commit pushed with GITHUB_TOKEN starts no workflow, so it gets no check.

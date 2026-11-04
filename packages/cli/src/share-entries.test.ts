@@ -246,6 +246,9 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
       ['no-files', (commit) => ({ ...ran(commit, []), files: undefined }), 'has no list of the test files that ran at its commit'],
       ['standing-not-a-list', (commit) => ({ ...ran(commit), standing: { [commit]: ['test/kept.test.ts'] } }), 'holds a `standing` that is not a list'],
       ['entry-without-files', (commit) => ran(commit, [{ commit: 'c'.repeat(40) } as { commit: string; files: string[] }]), 'holds a `standing` entry with no list of test files'],
+      ['entry-without-commit', (commit) => ran(commit, [{ files: [] } as unknown as { commit: string; files: string[] }]), 'holds a `standing` entry that names no commit'],
+      ['landings-not-a-list', (commit) => ({ commit, latest: at, runs: 1, landings: {}, standing: [] }), 'holds `landings` that is not a list'],
+      ['landing-without-files', (commit) => ({ commit, latest: at, runs: 1, landings: [{ latest: at }], standing: [] }), 'holds a landing with no list of the test files it finished'],
     ];
 
     for (const [name, runs, lacks] of shapes) {
@@ -256,6 +259,15 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
         });
       }
     }
+  });
+
+  it('reads the test files a whole run finished off the landings of its runs record', async () => {
+    const landed = (commit: string) => ({ commit, latest: at, runs: 2, landings: [{ files: ['test/kept.test.ts'] }, { files: ['test/new.test.ts'] }], standing: [] });
+    const { root, commit } = await ranAt('landed', landed);
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts', 'test/new.test.ts']) })).toMatchObject({
+      name: 'suite-v1/unit',
+    });
   });
 
   it('is not published for a mainline when nothing says the whole suite ran, and says what was missing', async () => {

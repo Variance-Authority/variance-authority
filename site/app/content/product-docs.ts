@@ -69,6 +69,7 @@ import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
+import selectionSafety from "../../../docs/selection-safety.md?raw";
 import selectionTanstackQuery from "../../../docs/selection-tanstack-query.md?raw";
 import selectionZod from "../../../docs/selection-zod.md?raw";
 import sharding from "../../../docs/sharding.md?raw";
@@ -171,6 +172,7 @@ const documents = [
   ["changes-before-and-beyond", changesBeforeAndBeyond, "docs/changes-before-and-beyond.md"],
   ["test-an-edit", testAnEdit, "docs/test-an-edit.md"],
   ["selecting", selecting, "docs/selecting.md"],
+  ["selection-safety", selectionSafety, "docs/selection-safety.md"],
   ["coverage-test-selection", coverageTestSelection, "docs/coverage-test-selection.md"],
   ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],
   ["selection-zod", selectionZod, "docs/selection-zod.md"],

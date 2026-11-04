@@ -48,6 +48,7 @@ export function relined(held: SetExecutionModule, recorded: SetExecutionModule):
     called: Uint32Array.from(kept, (from) => held.called[from]!),
     loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
     ...(held.owner === undefined ? {} : { owner: keptOwners(held.owner, kept) }),
+    ...(held.overwritten === undefined ? {} : { overwritten: Uint32Array.from(kept, (from) => held.overwritten![from]!) }),
   };
 }
 
@@ -63,6 +64,19 @@ export function cutAlike(held: Cut, recorded: Cut): boolean {
     if (held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine) return false;
   }
   return true;
+}
+
+/**
+ * Whether two cuts hold the same regions at the same lines, in one order: one
+ * cut of one text, read without pairing a region. A run that re-cut nothing
+ * leaves most modules so.
+ */
+export function sameCut(left: Cut, right: Cut): boolean {
+  return left.blocks.length === right.blocks.length && left.blocks.every((block, at) => {
+    const other = right.blocks[at]!;
+    return block.startLine === other.startLine && block.endLine === other.endLine &&
+      block.kind === other.kind && block.name === other.name && block.path === other.path;
+  });
 }
 
 /** Whether some region of `held` lands on one of `recorded`: the two cuts hold an address in common. */

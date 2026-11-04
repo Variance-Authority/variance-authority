@@ -8,6 +8,7 @@ import { openTestCoverage } from './format-view.js';
 import { carriedSources } from './carried-sources.js';
 import { sourceCut } from './coverage-rows.js';
 import { editReadings, type EditReadings } from './edit-readings.js';
+import { landedNames, type LandedTree } from './kept-texts.js';
 import type { CoverageModule, TestCoverage } from './index.js';
 
 /**
@@ -68,17 +69,19 @@ export function foreignProbes(previous: Uint8Array, run: string | undefined): st
  * (`carriedSources`); those modules are cut again in it here, under the
  * snapshot's own recipe, and the lay carries their crossings onto the fresh
  * regions. `readings` says what each edit reached ({@link editReadings}).
+ * `names` is git's name for each re-cut text ({@link landedNames}).
  */
 export function layCoverage(
   previous: Uint8Array | undefined,
   current: TestCoverage,
   onDisk: ReadonlyMap<string, string> = new Map(),
   readings?: EditReadings,
+  names: ReadonlyMap<string, string> = new Map(),
 ): Buffer {
   const encoded = encodeTestCoverage(current);
   if (previous === undefined) return encoded;
   return layRecord(previous, encoded, {
-    ...(onDisk.size === 0 ? {} : { recut: cutRecord(current.instrumentation, onDisk) }),
+    ...(onDisk.size === 0 ? {} : { recut: cutRecord(current.instrumentation, onDisk, names) }),
     ...(readings === undefined ? {} : { readings }),
   });
 }
@@ -87,14 +90,17 @@ export function layCoverage(
  * Each module of `onDisk` cut in the text it has now, as a record under the
  * probes `instrumentation` with no tests: a module whose text does not cut, or
  * under a recipe this build does not know or one that cuts nothing (`loads`), is one held not instrumented.
+ * Each is named by `names`, git's name for its text, where that holds one.
  */
-export function cutRecord(instrumentation: string, onDisk: ReadonlyMap<string, string>): Buffer {
+export function cutRecord(instrumentation: string, onDisk: ReadonlyMap<string, string>, names: ReadonlyMap<string, string> = new Map()): Buffer {
   const mode = instrumentModeOf(instrumentation);
   const modules = [...onDisk].map(([file, text]): CoverageModule => {
     const fresh = mode === undefined || !probesRegions(mode) ? undefined : sourceCut(text, file, mode);
+    const name = names.get(file);
+    const named = name === undefined ? {} : { sourceBlob: name };
     return fresh === undefined
-      ? { file, sourceDigest: digestString(text), instrumented: false, blocks: [] }
-      : { file, sourceDigest: fresh.sourceDigest, instrumented: true, blocks: fresh.rows };
+      ? { file, sourceDigest: digestString(text), ...named, instrumented: false, blocks: [] }
+      : { file, sourceDigest: fresh.sourceDigest, ...named, instrumented: true, blocks: fresh.rows };
   });
   return encodeTestCoverage({ version: 3, instrumentation, tests: [], modules });
 }
@@ -127,21 +133,43 @@ export async function recordBytes(file: string): Promise<Buffer | undefined> {
   }
 }
 
-/** {@link layeredCoverage} over `previous`, the bytes already read off `file`. */
+/**
+ * {@link layeredCoverage} over `previous`, the bytes already read off `file`.
+ *
+ * Every row it writes is named by git's name for the text it was cut from, as
+ * `tree`, the checkout the run lands in, holds it ({@link landedNames}): the
+ * run's modules, and the carried ones cut again in the text they have now. A
+ * recorder names nothing; with no `tree`, nothing is named.
+ */
 export async function layeredOver(
   file: string,
   previous: Buffer | undefined,
   current: TestCoverage,
   root: string,
   cacheRoot?: string,
+  tree?: LandedTree,
 ): Promise<Buffer> {
-  if (previous === undefined) return encodeTestCoverage(current);
+  if (previous === undefined) return encodeTestCoverage(named(current, await landedNames(tree, current.modules, new Map())));
   try {
     const onDisk = await carriedSources(root, previous, current);
-    return layCoverage(previous, current, onDisk, await editReadings(root, previous, current, onDisk, cacheRoot));
+    const names = await landedNames(tree, current.modules, onDisk);
+    const run = named(current, names);
+    return layCoverage(previous, run, onDisk, await editReadings(root, previous, run, onDisk, cacheRoot), names);
   } catch (error) {
     throw anotherBuilds(file, error);
   }
+}
+
+/** `current` with each module named by `names`, git's name for its text, where that holds one. */
+function named(current: TestCoverage, names: ReadonlyMap<string, string>): TestCoverage {
+  if (names.size === 0) return current;
+  return {
+    ...current,
+    modules: current.modules.map((module) => {
+      const name = names.get(module.file);
+      return name === undefined ? module : { ...module, sourceBlob: name };
+    }),
+  };
 }
 
 /**

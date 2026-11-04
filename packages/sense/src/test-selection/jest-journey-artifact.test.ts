@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable, type NativeJourneyModule } from '../native.js';
+import caseOwner from './case-owner.cjs';
 import preconditions from './case-preconditions.cjs';
 import { rowOf } from './case-said.js';
 import { packCase, packFrames } from './cases.js';
@@ -19,12 +20,12 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-type Said = Parameters<typeof preconditions.packHeard>[1]['said'];
+type Said = Parameters<typeof caseOwner.packHeard>[1]['said'];
 
 const file = '/repo/test/pay.test.ts';
 
 function owner(name: string, said?: Said): string {
-  return said === undefined ? packCase(file, name, name) : preconditions.packHeard(packCase(file, name, name), { said: said });
+  return said === undefined ? packCase(file, name, name) : caseOwner.packHeard(packCase(file, name, name), { said: said });
 }
 
 /** One shard's journey artifact, folded by the addon from the frames it wrote. */
@@ -113,8 +114,8 @@ describe.runIf(nativeAvailable())('stitched shard artifacts', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-stitch-'));
     temporary.push(root);
     const modules = [pay()];
-    const first = (said: Said) => preconditions.packHeard(packCase(file, 'pays', '0'), { said: said });
-    const second = (said: Said) => preconditions.packHeard(packCase(file, 'pays', '1'), { said: said });
+    const first = (said: Said) => caseOwner.packHeard(packCase(file, 'pays', '0'), { said: said });
+    const second = (said: Said) => caseOwner.packHeard(packCase(file, 'pays', '1'), { said: said });
     const live: Said = [['fixture:network', '"live"', `${file}:3`, preconditions.CASE_LEVEL]];
     const mocked: Said = [['fixture:network', '"mocked"', `${file}:9`, preconditions.CASE_LEVEL]];
     const both = await shard(root, 'both', [[first(live), entering(1)], [second(mocked), entering(2)]], modules);

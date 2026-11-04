@@ -1,4 +1,4 @@
-import { run } from './ask-packages-fixture.js';
+import { run } from './ask-packages.fixture.js';
 
 /**
  * The facts `variance ask symbol`, `ask uses` and `ask search` answer, read

@@ -5,12 +5,11 @@ import { fetchWithin } from './transport.js';
 /**
  * The deadline, and the runtime quirk that made it two code paths.
  *
- * **These run in order and share module state on purpose.** `fetchWithin`
- * remembers whether this process's `fetch` accepted this process's
- * `AbortSignal`, because the answer is a property of the runtime rather than of
- * a call — so the demotion below is permanent for the rest of this file, and the
- * last test is what checks that it stuck. Reordering them is not a
- * rearrangement, it is a different test.
+ * `fetchWithin` remembers whether this process's `fetch` accepted this
+ * process's `AbortSignal`, because the answer is a property of the runtime
+ * rather than of a call, so a demotion is permanent for the module. The test
+ * that checks it stuck makes the refused call itself, so it holds run alone or
+ * after a reset that gives each test the module as it loaded.
  */
 
 /** A `fetch` that honours the signal, as a real one does. */
@@ -72,6 +71,7 @@ describe('fetchWithin', () => {
     // The point of the memory. Retrying a call the runtime has already refused,
     // on every request, would turn one quirk into a permanent double round-trip
     // on the phase this project offloads in order to make it cheaper.
+    await expect(fetchWithin(refusesForeignSignals([]), 'http://x/y', { method: 'POST' }, 20)).rejects.toThrow();
     const seen: RequestInit[] = [];
 
     await expect(

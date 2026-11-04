@@ -43,6 +43,7 @@
  */
 
 import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
@@ -167,10 +168,10 @@ export interface DistanceOptions {
  * `none` — whitespace, a comment — is no seed either: that verdict says the
  * change reaches no test through it. A `none` the record's kept text decided
  * (`kept`) is, because a partial run over an edit reads its own edit that way.
- * Every other reading seeds, an `unread` one included ({@link reachesThrough}).
- * A changed file with no reading seeds nothing: a stale one, or one whose text
- * was checked and that has no line ranges, such as a rename, mode or binary
- * change. A test the walk could not measure (`unmeasured`) is left out with the
+ * Every other reading a reader gave seeds, an `unread` one included
+ * ({@link reachesThrough}); a file no reader was asked of seeds nothing, nor
+ * does a changed file with no reading, whose text was checked and that has no
+ * line ranges, such as a rename, mode or binary change. A test the walk could not measure (`unmeasured`) is left out with the
  * rest.
  */
 export function distanceFromView(
@@ -203,7 +204,7 @@ export function nearestFirst(left: TestDistance, right: TestDistance): number {
     if (right.hops === undefined) return -1;
     return left.hops - right.hops;
   }
-  return left.test < right.test ? -1 : left.test > right.test ? 1 : 0;
+  return codeUnitOrder(left.test, right.test);
 }
 
 /**

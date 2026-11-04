@@ -77,7 +77,7 @@ interface Holder {
 /** Where the runner half of the seam finds the scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
-/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-trace-environment.cts`. */
+/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-runtime.cts`. */
 const TRACE = Symbol.for('variance-authority.test-selection.trace');
 
 /** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
@@ -304,7 +304,6 @@ function scoped(
     },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
     siteNamed,
-    true,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
@@ -321,7 +320,7 @@ function scoped(
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
     const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
-    frames.push(journals.encodeLog(heard === undefined ? owner : preconditions.packHeard(owner, heard), view));
+    frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);
     return view;
   };
@@ -375,11 +374,23 @@ function scoped(
     }
     if (!bucket.closed) close(bucket, bucket.key);
     if (tap === undefined || bucket.key === AMBIENT) return;
-    story!(bucket.key, stories.encodeStory(tap.read(), bucket.key, stopped.get(bucket.key)));
+    // A case's story is its attempt, the hooks after its body with it: where
+    // the runner said an attempt began, the story waits for it to end.
+    if (owed !== undefined) owed.push(bucket.key);
+    else tell([bucket.key]);
+  };
+  const tell = (keys: readonly string[]): void => {
+    for (const key of keys) story!(key, stories.encodeStory(tap!.read(), key, stopped.get(key)));
     // The tape starts again once no case is running, so it holds one case at a
     // time where cases run one at a time, and never cuts one that is running.
     for (const [key, open] of buckets) if (key !== AMBIENT && open.open) return;
-    tap.reset();
+    tap!.reset();
+  };
+  // The cases settled in the attempt the runner said is on, while one is.
+  let owed: string[] | undefined;
+  const ended = (): void => {
+    if (owed !== undefined && owed.length > 0) tell(owed);
+    owed = undefined;
   };
   // A case is over when its body settles, not when it returns: an async case
   // returns a promise at its first await and everything past that await is
@@ -436,12 +447,15 @@ function scoped(
     : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
   const { phase, within, where } = recorder;
   // One edge starts an attempt for both: what a `beforeEach` said for a case
-  // that never ran is forgotten, and Eyes attends the attempt from here.
+  // that never ran is forgotten, and Eyes attends the attempt from here. One
+  // the runner never said was over ends as the next begins.
   const begin = (token?: unknown): void => {
+    ended();
+    owed = [];
     recorder.begin(token);
     attention?.scope.begin();
   };
-  const leave = (): void => attention?.scope.leave();
+  const leave = (): void => { ended(); attention?.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
     enter, journey, phase, within, where, ...attention?.scope, begin, leave,
   };
@@ -466,6 +480,7 @@ function scoped(
       return view === undefined ? new Map() : presenceOf(view);
     },
     finish(testFile) {
+      ended();
       for (const [key, bucket] of buckets) {
         // A body still running when its file ends never settled: the runner
         // timed it out and moved on, and its journey stopped where it stood.

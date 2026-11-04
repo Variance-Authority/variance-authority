@@ -1,12 +1,13 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
-import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
+import { durationColumn, limitColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
 import { below, mergedDictionary } from './format-dictionary.js';
 import { NO_DURATION, NO_OWNER } from './format-layout.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import { stringBound } from './lookup.js';
 import type { ExecutionTest } from './reverse.js';
+import { EMPTY } from './set-translation.js';
 
 /**
  * A case index a run is laid over, held as the columns it is stored in.
@@ -112,6 +113,8 @@ export interface CarriedModule {
   readonly row: number;
   readonly called: Uint32Array;
   readonly loaded: Uint8Array;
+  /** Its overwritten sets translated, where the index holds the column. */
+  readonly overwritten?: Uint32Array;
 }
 
 /** A module of a layer's output: a held one carried as integers, or one built as an object. */
@@ -177,11 +180,13 @@ export function writeLaid(
 
   const objectStopped = stoppedColumn(objects);
   const objectDuration = durationColumn(objects);
+  const objectLimit = limitColumn(objects);
   const testId = new Uint32Array(tests.length);
   const testFile = new Uint32Array(tests.length);
   const testName = new Uint32Array(tests.length);
   const testStopped = new Uint8Array(tests.length);
   const testDuration = new Uint32Array(tests.length);
+  const testLimit = new Uint32Array(tests.length);
   for (let at = 0, object = 0; at < tests.length; at += 1) {
     const test = tests[at]!;
     if (typeof test === 'number') {
@@ -190,6 +195,7 @@ export function writeLaid(
       testName[at] = remap[columns.testName[test]!]!;
       testStopped[at] = columns.testStopped?.[test] ?? 0;
       testDuration[at] = columns.testDuration?.[test] ?? NO_DURATION;
+      testLimit[at] = columns.testLimit?.[test] ?? NO_DURATION;
       continue;
     }
     testId[at] = id(test.id);
@@ -197,6 +203,7 @@ export function writeLaid(
     testName[at] = id(test.name);
     testStopped[at] = objectStopped[object]!;
     testDuration[at] = objectDuration[object]!;
+    testLimit[at] = objectLimit[object]!;
     object += 1;
   }
 
@@ -213,11 +220,16 @@ export function writeLaid(
   // An owner is carried where either side recorded one; a region neither did names none.
   const owned = columns.blockOwner !== undefined || modules.some((module) => !('row' in module) && module.owner !== undefined);
   const blockOwner = owned ? new Uint32Array(blockCount).fill(NO_OWNER) : undefined;
+  // The output pool is a translation's, whose first set is the empty one.
+  const blockOverwritten = modules.some((module) => module.overwritten?.some((set) => set !== EMPTY) === true)
+    ? new Uint32Array(blockCount).fill(EMPTY)
+    : undefined;
   let block = 0;
   for (const [at, module] of modules.entries()) {
     moduleBlocks[at] = block;
     blockCalled.set(module.called, block);
     blockLoaded.set(module.loaded, block);
+    if (module.overwritten !== undefined) blockOverwritten?.set(module.overwritten, block);
     if ('row' in module) {
       const first = columns.moduleBlocks[module.row]!;
       if (columns.blockOwner !== undefined) blockOwner?.set(columns.blockOwner.subarray(first, columns.moduleBlocks[module.row + 1]!), block);
@@ -249,10 +261,10 @@ export function writeLaid(
 
   return writeSetColumns({
     strings: { blob: dictionary.blob, offsets: dictionary.offsets },
-    testId, testFile, testName, testStopped, testDuration,
+    testId, testFile, testName, testStopped, testDuration, testLimit,
     testSaid: tests.map((test) => (typeof test === 'number' ? columns.testSaid?.[test] : test.said)),
     moduleFile, moduleBlocks,
-    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner,
+    blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner, blockOverwritten,
     testLines: lines,
   }, sets);
 }

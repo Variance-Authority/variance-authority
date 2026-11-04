@@ -80,24 +80,29 @@ describe('the sequencer that drops what a selection may skip', () => {
   });
 
   it('chains Vitest\'s own sequencer when the project names none', async () => {
-    const Sequencer = selectingSequencer(undefined, {
-      root,
-      configRoot: process.cwd(),
-      selection: async () => selection(['a.test.ts']),
-      say: () => {},
-    });
-    // Vitest's own sort runs the largest file first when no results are cached.
-    const size = new Map([['b.test.ts', 1], ['c.test.ts', 3], ['d.test.ts', 2]]);
-    const cache = {
-      getFileTestResults: () => undefined,
-      getFileStats: (key: string) => ({ size: size.get(key.slice(key.indexOf(':') + 1)) ?? 0 }),
-    };
-    const sequencer = new Sequencer({ config: { root }, cache } as SequencerContext);
-    const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'].map((file) => ({ ...spec(file), project: { name: '' } }));
+    // Vitest's own sort runs the largest file first when no results are cached,
+    // and it reads each file's size from the disk.
+    const dir = await mkdtemp(resolve(tmpdir(), 'va-sequencer-'));
+    try {
+      for (const [file, size] of [['b.test.ts', 1], ['c.test.ts', 3], ['d.test.ts', 2]] as const) {
+        await writeFile(resolve(dir, file), 'x'.repeat(size));
+      }
+      const Sequencer = selectingSequencer(undefined, {
+        root: dir,
+        configRoot: process.cwd(),
+        selection: async () => selection(['a.test.ts']),
+        say: () => {},
+      });
+      const cache = { getTestSpecificationResult: () => undefined };
+      const sequencer = new Sequencer({ config: { root: dir }, cache } as SequencerContext);
+      const files = ['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts'].map((file) => ({ moduleId: resolve(dir, file), project: { name: '', config: { sequence: { groupOrder: 0 }, isolate: true } } }));
 
-    const sorted = await sequencer.sort(files);
+      const sorted = await sequencer.sort(files);
 
-    expect(names(sorted)).toEqual(['c.test.ts', 'd.test.ts', 'b.test.ts']);
+      expect(sorted.map((one) => one.moduleId.slice(dir.length + 1))).toEqual(['c.test.ts', 'd.test.ts', 'b.test.ts']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('hands a shard call that asks for no shard to the project\'s sequencer', async () => {

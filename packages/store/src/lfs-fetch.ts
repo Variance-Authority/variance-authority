@@ -1,9 +1,9 @@
 // compass: variance-authority.retention
 import { readFile, realpath } from 'node:fs/promises';
 import { relative, sep } from 'node:path';
+import { isLfsPointer } from '@variance-authority/core';
 import { messageOf, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { ImageReader } from './durable.js';
-import { isLfsPointer } from './lfs-pointer.js';
 import type { CommandRunner } from './lfs.js';
 
 /**

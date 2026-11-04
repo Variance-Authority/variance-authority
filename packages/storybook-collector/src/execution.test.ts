@@ -5,6 +5,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
@@ -14,7 +15,8 @@ import {
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import { storyDirectory } from '@variance-authority/sense/story';
+import { describe, expect, it, vi } from 'vitest';
 import { createStoryRecorder } from './execution.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
@@ -67,6 +69,29 @@ async function inRoot(
 }
 
 describe('a Storybook run records what each story executed', () => {
+  it('writes each story\'s story beside the record, once however many times it was read, where the run asked for stories', async () => {
+    const story = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: [moduleId('price.js', SOURCE)], counts: [1], bases: [0] } };
+    const taped = (...hits: number[]): ExecutionJournal => ({ ...journal(...hits), story });
+    for (const asked of [true, false]) {
+      await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
+        if (asked) vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+        try {
+          const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
+          expect(recorder.storyPage !== undefined).toBe(asked);
+          await recorder.note(pageReporting(taped(0)), 'story:price--premium', true);
+          await recorder.note(pageReporting(taped(0)), 'story:price--premium', true);
+          await recorder.note(pageReporting(taped(1)), 'story:price--plain', false);
+          await recorder.close();
+
+          const directory = storyDirectory(coverageFile);
+          expect(existsSync(directory) ? readdirSync(directory).length : 0).toBe(asked ? 2 : 0);
+        } finally {
+          vi.unstubAllEnvs();
+        }
+      });
+    }
+  });
+
   it('names the story that entered the region, for a run that asked', async () => {
     await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
       const recorder = await createStoryRecorder(index, {

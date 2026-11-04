@@ -9,10 +9,10 @@
  * other.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { AMBIENT, type CaseJournal } from './cases.js';
 import type { ObservedEyes } from './eyes-record.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutedModule, ExecutionJournal } from './probes.js';
 import { summedPhases, type FilePhases } from './reported-time.js';
@@ -84,6 +84,8 @@ export interface ObservedCase {
   readonly stopped?: boolean;
   /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
   readonly duration?: number;
+  /** {@link ExecutionTest.limit}: the runner's milliseconds, the longest of the attempts this source saw. */
+  readonly limit?: number;
   /**
    * What the case said it arranged, as {@link CaseJournal.said}: sites named
    * from the checkout, absent where the driver never listened.
@@ -275,6 +277,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       ...(observed.project === undefined ? {} : { project: observed.project }),
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
+      ...(observed.limit === undefined ? {} : { limit: observed.limit }),
       ...(observed.said === undefined ? {} : { said: observed.said }),
       ...(observed.lines === undefined ? {} : { lines: observed.lines }),
       modules: [

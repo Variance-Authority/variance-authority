@@ -40,7 +40,7 @@ fn recorded() -> JourneyMasks {
     let encoded: Vec<EncodedModule<'_>> = modules
         .iter()
         .enumerate()
-        .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at] })
+        .map(|(at, module)| EncodedModule { module, called: &called[at], loaded: &loaded[at], overwritten: &[] })
         .collect();
     let bytes = encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
     JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap()

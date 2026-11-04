@@ -32,7 +32,7 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { writeCoverageBytes } from './record-location.js';
 
 /** The ledger beside a checkout's record. */

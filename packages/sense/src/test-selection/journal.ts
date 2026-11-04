@@ -44,6 +44,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
@@ -62,7 +63,6 @@ import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
-  codeUnitOrder,
   isMissing,
   projectPath,
 } from './instrumented-modules.js';
@@ -121,7 +121,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
-export { preconditionText, SAID_NOTHING, saidAcross, type CasePrecondition, type Said } from './case-said.js';
+export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,

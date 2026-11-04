@@ -196,7 +196,7 @@ function unmatchedSection(located: Located): string {
 }
 
 /** `a`, `a and b`, `a, b and c`. */
-function conjoined(values: readonly string[]): string {
+export function conjoined(values: readonly string[]): string {
   return values.length < 2 ? (values[0] ?? '') : `${values.slice(0, -1).join(', ')} and ${values.at(-1)}`;
 }
 

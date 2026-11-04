@@ -34,6 +34,9 @@
       "path": "../playwright"
     },
     {
+      "path": "../png"
+    },
+    {
       "path": "../raster"
     },
     {

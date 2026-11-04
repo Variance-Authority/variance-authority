@@ -12,8 +12,9 @@
  * Which regions a place lands on is the record's reading in
  * `source-target.ts`, shared with selection's line rule. What this module adds
  * is the held text: each asked line is carried to the record's coordinates
- * first, and the answer says which lines it could not carry, and which ones
- * the record holds at no finer grain than the file.
+ * first, and the answer says which ones the record holds at no finer grain
+ * than the file. Which asked lines no case is known to have run is decided
+ * once, over these lines and the texts the cases ran over (`covering-lines.ts`).
  */
 
 import {
@@ -23,6 +24,7 @@ import {
   functionsUnder,
   lineGrain,
   marksLoadTime,
+  overwrittenOn,
   ranWhileLoading,
   stateOf,
   stoppedBefore,
@@ -42,6 +44,7 @@ import type { Narrowing } from './covering-reach.js';
 import { outermostOf, unrunOf } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { Covering, CoveringTarget } from './covering.js';
+import type { AskedLines } from './covering-lines.js';
 import type { Graph } from './gap-selection.js';
 
 /** What the command already read before the question narrowed past the file. */
@@ -63,52 +66,71 @@ export interface ReadForTarget {
  *
  * @param reach Handed the cases the question reached before `--where`
  * narrowed them, when it narrowed them.
+ * @param reading Handed the asked lines as the case index reads them, for the
+ * status of each to be decided once the texts the cases ran over are read.
  */
 export async function coveringAt(
   request: CoveringAt,
   read: ReadForTarget,
   reach?: (tests: readonly ExecutionTest[]) => void,
+  reading?: (lines: AskedLines) => void,
 ): Promise<Covering | undefined> {
   const { index, before, module, from, placement, near } = read;
   const file = request.file;
   let target: SourceTestTarget;
   let asked: CoveringTarget;
-  let grain: Pick<Covering, 'grain' | 'fileGrain' | 'outside' | 'written'> = {};
+  let grain: Pick<Covering, 'grain' | 'fileGrain' | 'outside'> = {};
+  let onRecord: readonly RecordedLine[];
+  let unplaced: readonly number[] = [];
   if (request.line !== undefined || request.lines !== undefined) {
     const held = request.lines ?? { startLine: request.line!, endLine: request.line! };
     const lines = recordedLines(held, module, placement);
     asked = request.lines === undefined ? { line: held.startLine } : { lines: held };
     if (lines.lines.length === 0) {
       // No asked line is in a recorded region: each is new, or has none to be covered, and saying which is the answer.
+      // No line is placed, so the case index is asked of none of them.
+      reading?.({ placed: [], unplaced: lines.unplaced });
       return {
         file,
         target: asked,
         tests: [],
-        ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
-        ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
+        ...(lines.outside.length === 0 ? {} : { outside: runsOfLines(lines.outside) }),
         ...(placement === undefined ? {} : { frame: placement.frame }),
         from,
         ...countOf(near, 0, 0),
       };
     }
     target = request.lines === undefined ? { file, line: lines.lines[0]! } : { file, lines: lines.lines };
+    onRecord = lines.held.map((line, at) => ({ held: line, recorded: lines.lines[at]! }));
+    unplaced = lines.unplaced;
     const whole = lines.fileGrain.length === lines.lines.length;
     grain = {
       ...(whole ? { grain: 'file' as const } : {}),
-      ...(whole || lines.fileGrain.length === 0 ? {} : { fileGrain: runsOf(lines.fileGrain) }),
-      ...(lines.outside.length === 0 ? {} : { outside: runsOf(lines.outside) }),
-      ...(lines.written.length === 0 ? {} : { written: runsOf(lines.written) }),
+      ...(whole || lines.fileGrain.length === 0 ? {} : { fileGrain: runsOfLines(lines.fileGrain) }),
+      ...(lines.outside.length === 0 ? {} : { outside: runsOfLines(lines.outside) }),
     };
   } else if (request.function !== undefined) {
     const named = request.function;
     if (functionsUnder(module.blocks, named).length === 0) throw noFunction(file, named, module);
     target = { file, function: named };
     asked = { function: named };
+    onRecord = functionLines(module, named, placement);
   } else {
     return undefined;
   }
 
   const graph = await loadersOf(before ?? index, file, read.graph, target);
+  const unknown = overwrittenOn(before ?? index, target, graph);
+  // Each placed line is read on its own: a call into one of its regions outranks a flag there, whatever the rest of the target holds.
+  const line = (recorded: number): SourceTestTarget => ({ file, line: recorded });
+  reading?.({
+    placed: onRecord.map(({ held, recorded }) => ({
+      held,
+      called: () => coveringTests(before ?? index, line(recorded), graph).length > 0,
+      flagged: () => overwrittenOn(before ?? index, line(recorded), graph) !== undefined,
+    })),
+    unplaced,
+  });
   const found = coveringTests(index, target, graph);
   const kept = near.whole ? found : found.filter(near.keep);
   const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
@@ -116,16 +138,24 @@ export async function coveringAt(
   const stopped = stoppedBefore(before ?? index, target, graph);
   // Parts are read over every case, so whether any case entered the function is asked before `--at-distance` narrows them.
   const entered = (): boolean => (before === undefined ? found : coveringTests(before, target, graph)).length > 0;
-  const unrun = 'function' in asked && entered() ? unrunParts(before ?? index, module, asked.function, graph, placement) : [];
+  // Under a stale frame no recorded line is a place in the held text, so no part of the function is one either.
+  const placed = placement?.frame !== 'stale';
+  const unrun = 'function' in asked && placed && (entered() || unknown !== undefined)
+    ? unrunParts(before ?? index, module, asked.function, graph, placement)
+    : [];
+  // Only a mapped frame tells an edit apart from none: a recorded one holds no edit, and under a stale one no line is placed.
+  const moved = 'function' in asked && placement?.frame === 'mapped' &&
+    functionsUnder(module.blocks, asked.function).some((block) => placement.place(block)?.moved !== false);
   return {
     file,
     target: asked,
     tests: kept,
     ...(stopped === undefined ? {} : { stopped }),
     ...(unrun.length === 0 ? {} : { unrun }),
-    ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped),
+    ...(moved ? { moved: true as const } : {}),
+    ...stateFor(reached, ranWhileLoading(before ?? index, target, graph), stopped, unknown?.tests),
     ...grain,
-    ...(placement === undefined || 'function' in asked ? {} : { frame: placement.frame }),
+    ...(placement === undefined ? {} : { frame: placement.frame }),
     from,
     ...countOf(near, kept.length, found.length),
   };
@@ -143,6 +173,8 @@ export interface UnrunPart {
   readonly endLine: number;
   /** `hole` when a case that could have reached it stopped, `unwalked` when every one finished; absent when the record cannot tell. */
   readonly state?: RangeState;
+  /** An edit since the recording touched the part; its lines are the ones it spans now. */
+  readonly moved?: true;
 }
 
 /**
@@ -163,7 +195,8 @@ function unrunParts(
     .map((region) => ({ region, kind: region.kind, startLine: region.startLine, endLine: region.endLine, reach: unrunOf(region) ?? ('entered' as const) }));
   const parts: UnrunPart[] = [];
   for (const { region, reach } of outermostOf(regions)) {
-    if (reach === 'entered' || reach === 'loaded') continue;
+    // A part a case ran in another text is not one no case ran: its lines are said as `overwritten`.
+    if (reach === 'entered' || reach === 'loaded' || reach === 'overwritten') continue;
     const where = placement === undefined ? { lines: region, moved: false } : placement.place(region);
     // A part every line of which an edit removed has nowhere in the held text to be named.
     if (where === undefined) continue;
@@ -173,6 +206,7 @@ function unrunParts(
       startLine: where.lines.startLine,
       endLine: where.lines.endLine,
       ...(reach === 'unknown' ? {} : { state: reach }),
+      ...(where.moved ? { moved: true as const } : {}),
     });
   }
   return parts;
@@ -190,16 +224,24 @@ export function runsText(runs: readonly HeldLines[]): string {
   return runs.map((run) => (run.startLine === run.endLine ? `${run.startLine}` : `${run.startLine}-${run.endLine}`)).join(', ');
 }
 
+/** An asked line a recorded region holds: where it stands in the held text, and the recorded line it is placed at. */
+interface RecordedLine {
+  readonly held: number;
+  readonly recorded: number;
+}
+
 /** The asked lines, sorted by what the record holds them at. */
 interface ReadLines {
   /** In the record's coordinates: every asked line a recorded region holds. */
   readonly lines: readonly number[];
+  /** In the held text: each of {@link ReadLines.lines}, at the same position. */
+  readonly held: readonly number[];
   /** In the held text: the lines of {@link ReadLines.lines} whose edit charges the module's own region. */
   readonly fileGrain: readonly number[];
   /** In the held text: the recorded lines no region holds. */
   readonly outside: readonly number[];
-  /** In the held text: the lines written since the recording. */
-  readonly written: readonly number[];
+  /** In the held text: the lines the record has no place for. */
+  readonly unplaced: readonly number[];
 }
 
 /**
@@ -209,13 +251,14 @@ interface ReadLines {
  */
 function recordedLines(held: HeldLines, module: ExecutionModule, placement: Placement | undefined): ReadLines {
   const lines: number[] = [];
+  const asked: number[] = [];
   const fileGrain: number[] = [];
   const outside: number[] = [];
-  const written: number[] = [];
+  const unplaced: number[] = [];
   for (let at = held.startLine; at <= held.endLine; at += 1) {
     const line = placement === undefined ? at : placement.recordedLine(at);
     if (line === undefined) {
-      written.push(at);
+      unplaced.push(at);
       continue;
     }
     const grain = lineGrain(module.blocks, line);
@@ -224,9 +267,27 @@ function recordedLines(held: HeldLines, module: ExecutionModule, placement: Plac
       continue;
     }
     lines.push(line);
+    asked.push(at);
     if (grain === 'file') fileGrain.push(at);
   }
-  return { lines, fileGrain, outside, written };
+  return { lines, held: asked, fileGrain, outside, unplaced };
+}
+
+/**
+ * The lines of a function, as asked: each held line of its recorded extent
+ * that the record places in a recorded region, ascending. A function is named,
+ * not numbered, so a line written inside it is not asked: `moved` says it.
+ */
+function functionLines(module: ExecutionModule, named: string, placement: Placement | undefined): readonly RecordedLine[] {
+  const held = new Set<number>();
+  for (const block of functionsUnder(module.blocks, named)) {
+    const where = placement === undefined ? block : placement.place(block)?.lines;
+    for (let line = where?.startLine ?? 1; where !== undefined && line <= where.endLine; line += 1) held.add(line);
+  }
+  return [...held].sort((left, right) => left - right).flatMap((line) => {
+    const recorded = placement === undefined ? line : placement.recordedLine(line);
+    return recorded === undefined || lineGrain(module.blocks, recorded) === undefined ? [] : [{ held: line, recorded }];
+  });
 }
 
 /** A name no recorded function has, and no recorded function is under. */
@@ -243,7 +304,7 @@ function noFunction(file: string, named: string, module: ExecutionModule): Opera
 }
 
 /** Ascending line numbers as the runs they make. */
-function runsOf(lines: readonly number[]): readonly HeldLines[] {
+export function runsOfLines(lines: readonly number[]): readonly HeldLines[] {
   const runs: HeldLines[] = [];
   for (const line of lines) {
     const last = runs.at(-1);
@@ -255,14 +316,21 @@ function runsOf(lines: readonly number[]): readonly HeldLines[] {
 
 /**
  * The state of one place, from the cases that entered it, whether it ran while
- * its module evaluated, and the cases that stopped, before `--where`.
+ * its module evaluated, the cases that stopped, and the cases whose run of it is
+ * not known, before `--where`.
  */
 function stateFor(
   tests: readonly CoveringTest[],
   loaded: boolean,
   stopped: readonly ExecutionTest[] | undefined,
+  overwritten: readonly ExecutionTest[] | undefined,
 ): Pick<Covering, 'state'> {
-  const state = stateOf({ tests, ...(loaded ? { loaded: true as const } : {}), ...(stopped === undefined ? {} : { stopped }) });
+  const state = stateOf({
+    tests,
+    ...(loaded ? { loaded: true as const } : {}),
+    ...(stopped === undefined ? {} : { stopped }),
+    ...(overwritten === undefined ? {} : { overwritten }),
+  });
   return state === undefined ? {} : { state };
 }
 

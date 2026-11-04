@@ -61,6 +61,18 @@ describe('tierMoves', () => {
     ]);
   });
 
+  it('tells the cause that carried most first, then causes by name, whatever order the maps give them in', () => {
+    const base = sized({ engine: { own: 28000 }, util: { own: 40 }, form: { own: 500, takes: ['util'] }, zeta: { own: 900 }, alpha: { own: 900 } }).reverse();
+    const head = sized({
+      engine: { own: 28000 },
+      util: { own: 40, takes: ['engine'] },
+      form: { own: 500, takes: ['util'] },
+      zeta: { own: 1500 },
+      alpha: { own: 1500 },
+    }).reverse();
+    expect(tierMoves(base, head, tiers).causes.map((cause) => [cause.package, cause.carried])).toEqual([['util', ['form']], ['alpha', []], ['zeta', []]]);
+  });
+
   it('does not read a known tier turning into a lower bound of the same number as a move', () => {
     const moves = tierMoves(sized({ util: { own: 900 } }), sized({ util: { own: 900, unsizedFiles: 1 } }), tiers);
     expect(moves.causes).toEqual([]);

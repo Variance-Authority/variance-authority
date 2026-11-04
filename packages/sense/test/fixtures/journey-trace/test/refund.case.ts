@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 import { services } from './services';
 
 const shop = services();

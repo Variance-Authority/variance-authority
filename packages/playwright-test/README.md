@@ -491,10 +491,13 @@ destructures only `page` is recorded the same way, because recording reads the
 test's browser context rather than a fixture. It reads after every `afterEach`
 and before the context closes, from every frame of every page the test opened.
 That covers a story running inside Storybook's `#storybook-preview-iframe` and a
-second tab opened with `context.newPage()`. A document the test replaced is
-gone by then: a second `goto`, a `reload()`, a frame the application removed,
-or a page that closed or crashed. What it executed after its last read is lost,
-so the spec is recorded as incomplete and the next selection runs it. A spec
+second tab opened with `context.newPage()`. A document the test replaced by a
+second `goto`, a `reload()` or a link hands what it executed to the next
+document of the same origin in its frame, through that frame's session storage,
+and the next read takes it. A document no later one took over is lost: one
+replaced by another origin's, a frame the application removed, or a page that
+closed or crashed. What it executed after its last read is lost with it, so the
+spec is recorded as incomplete and the next selection runs it. A spec
 [cut statement by statement](#record-which-spec-line-reached-each-region) is
 also read before each statement, so what is lost is only what the document did
 during the statement that replaced it.
@@ -683,7 +686,7 @@ statement runs is charged to that later statement: a request `click` started
 and the page answered during the next `expect` lands on the `expect`. A body
 declared in another file, such as a page object's method, is not waited on, and
 what it reached is charged to the spec statement that called it. A statement
-in `beforeEach` or `afterEach` is recorded as the case's own line. Lines keep
+in a hook is recorded as a hook's line, as the Node runners record it. Lines keep
 their numbers and Babel's map names the file as you wrote it, so an inline
 aria snapshot lands where you wrote it.
 
@@ -710,12 +713,17 @@ tests of 20 statements each, every click entering five of 88 regions, they add
 but lines-dense cases, so the share is the high end. Over three runs with one
 worker, it took 18.6–18.7 s with the cut and 18.7–19.9 s without it.
 
-Because a document is drained before the statement that replaces it, what it
-reached is in the case's crossings; with `cadence: false` only the teardown
-drain reads the page, and a document a `goto` replaced is gone by then.
+What a document reached before a statement replaced it is charged to that
+statement, as what the next document did is: the next read takes both.
 
 Pass `cadence: false` to compile your specs as Playwright would and write no
 lines.
+
+With `VARIANCE_AUTHORITY_STORY=1`, each case also writes a [test
+story](https://variance-authority.dev/docs/test-stories): the code its pages
+ran, in order, each stretch opened by the spec line whose statement ran it.
+It needs nothing beyond what this section sets up. Name one spec and `-g` the
+test, as you would record any story.
 
 ### Keep what each test looked at
 

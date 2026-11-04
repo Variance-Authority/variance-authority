@@ -295,7 +295,7 @@ it. A changed value is charged to the tests that ran a function that reads it,
 in the same file or in a file that imports it, not to every test that loaded
 the file.
 
-**What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
+**A test file the record cannot answer for runs, and a change it cannot connect is printed.** A test file the
 record did not observe whole always runs. A changed file the record has no data for is
 parsed the same way; if parsing cannot decide, the tests of the recorded files
 that import it are selected. A file
@@ -305,7 +305,7 @@ modules that import it. A test that loaded a changed file through an edge the
 graph does not list is printed by name and is not selected: the missing edge is
 the thing to fix. Every run prints one line per changed file saying how it was
 read, or why it could not be.
-[Where selection widens](selecting.md#where-selection-widens) lists each case.
+[What a skipped test promises](selection-safety.md) lists each case.
 
 The record is columnar and stores each repeated set of tests once. In a
 checkout of around 400,000 files, close to the size of Chromium's, the
@@ -503,9 +503,10 @@ A record describes the commit it was recorded at. A change is measured from
 that commit rather than from your branch point, so a record several commits old
 selects for every change made since. Record a run of the whole suite at every
 commit and the record is never more than one commit old. A run of some of the
-tests also stamps the record with its commit, and the tests it left out keep
-the rows they recorded on an older text. Each of those is measured from the
-commit it last ran at: what changed after that commit is read from both texts,
+tests also stamps the record with its commit, and the test files it left out
+keep the rows they recorded on an older text, as do the cases it did not run of
+a test file it ran only in part. Each of those test files is measured from the
+commit a run last finished it at: what changed after that commit is read from both texts,
 the way a change in your tree is, so a test runs for an edit to a region it
 entered and not for one elsewhere in the same file. The install is compared from
 that commit too. A patch you hand in with `--diff` is read as the whole change

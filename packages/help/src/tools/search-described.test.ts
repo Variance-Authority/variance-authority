@@ -137,7 +137,7 @@ describe('which names the described section holds, and in what order', () => {
     // No name holds two of `cache`, `chart` and `palette`; `cacheEntries` holds one.
     const said = await ask('cache chart palette');
     expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
-    expect(said).toContain('No name in this repository, nor the doc of one, writes `cache chart palette` as typed. The nearest follow.');
+    expect(said).toContain('No name in this repository, nor the doc of one, writes `cache chart palette`. The nearest follow.');
     expect(said).not.toContain('Nothing in this repository');
   });
 
@@ -148,7 +148,7 @@ describe('which names the described section holds, and in what order', () => {
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'painted frogs dance' }, treeOf([], root), root);
     expect(said).toMatch(/src\/frogs\.ts \[file\].*\[holds: dance, frogs, painted\]/u);
-    expect(said).toContain('No name in this repository, nor the doc of one, writes `painted frogs dance` as typed. The nearest follow.');
+    expect(said).toContain('No name in this repository, nor the doc of one, writes `painted frogs dance`. The nearest follow.');
     expect(said).not.toContain('No name or doc');
   });
 

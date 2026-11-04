@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type {
   FilePhases,
   CoverageBlock,
@@ -7,8 +8,10 @@ import type {
   TestCoverage,
 } from './index.js';
 import {
+  BLOB,
   BLOCK_KINDS,
   MODEL,
+  NO_BLOB,
   NO_DURATION,
   NO_OWNER,
   PHASE_NAMES,
@@ -89,6 +92,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
 
   const modulePaths = new Uint32Array(normalized.modules.length);
   const moduleSource = new Uint32Array(normalized.modules.length);
+  const moduleBlob = new Uint32Array(normalized.modules.length);
   const moduleInstrumented = new Uint8Array(normalized.modules.length);
   const moduleBlocks = new Uint32Array(normalized.modules.length + 1);
   const blockOrdinal = new Uint32Array(blockCount);
@@ -125,6 +129,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   for (const [moduleIndex, module] of normalized.modules.entries()) {
     modulePaths[moduleIndex] = stringId(module.file);
     moduleSource[moduleIndex] = stringId(module.sourceDigest);
+    moduleBlob[moduleIndex] = module.sourceBlob === undefined ? NO_BLOB : stringId(module.sourceBlob);
     moduleInstrumented[moduleIndex] = module.instrumented ? 1 : 0;
     moduleBlocks[moduleIndex] = blockIndex;
     for (const block of module.blocks) {
@@ -168,6 +173,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'preconditions.digest': column(preconditionDigest),
     'modules.path': column(modulePaths),
     'modules.source': column(moduleSource),
+    [BLOB]: column(moduleBlob),
     'modules.instrumented': column(moduleInstrumented),
     'modules.blocks': column(moduleBlocks),
     'blocks.ordinal': column(blockOrdinal),
@@ -260,6 +266,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   }
   const modulePath = view.modulePath.all();
   const moduleSource = view.moduleSource.all();
+  const moduleBlob = view.moduleBlob?.all();
   const moduleInstrumented = view.moduleInstrumented.all();
   const moduleBlocks = view.moduleBlocks.all();
   const blockOrdinal = view.blockOrdinal.all();
@@ -304,6 +311,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
     modules.push({
       file: string(modulePath[module]!),
       sourceDigest: string(moduleSource[module]!),
+      ...(moduleBlob === undefined || moduleBlob[module] === NO_BLOB ? {} : { sourceBlob: string(moduleBlob[module]!) }),
       instrumented: moduleInstrumented[module] === 1,
       blocks,
     });
@@ -331,6 +339,7 @@ function dictionary(coverage: TestCoverage): readonly string[] {
   for (const module of coverage.modules) {
     values.add(module.file);
     values.add(module.sourceDigest);
+    if (module.sourceBlob !== undefined) values.add(module.sourceBlob);
     for (const block of module.blocks) {
       values.add(block.name);
       values.add(block.path);
@@ -443,8 +452,4 @@ function uniquePreconditions(
   if (standing) return preconditions;
   const keyed = new Map(preconditions.map((value) => [`${value.name}\0${value.digest}`, value]));
   return [...keyed.values()].sort(order);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

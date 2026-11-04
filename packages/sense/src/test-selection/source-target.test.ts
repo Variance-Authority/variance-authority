@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { coveringTests, stoppedBefore, type ExecutionIndex } from './reverse.js';
-import { functionsUnder, lineGrain } from './source-target.js';
+import { functionsUnder, innermostAt, lineGrain } from './source-target.js';
 
 // A module whose top level every case loaded, a class of two methods, a
 // callback inside one of them, and a function whose name begins like the class's.
@@ -42,6 +42,16 @@ describe('the grain the record holds a line at', () => {
     expect(lineGrain(module.blocks, 9)).toBe('file');
     // The callback on line 13 opens inside a method, so it charges the method and not the module.
     expect(lineGrain(module.blocks, 13)).toBe('region');
+  });
+});
+
+describe('the regions a line lands on', () => {
+  it('are the narrowest that hold it, every one of a span two regions share, and none outside every region', () => {
+    const names = (blocks: readonly { readonly name: string }[]) => blocks.map((block) => block.name);
+    // Line 13 sits in the module, in `Ledger/first` and in its callback: only the callback is narrowest.
+    expect([13, 20, 41].map((line) => names(innermostAt(module.blocks, line)))).toEqual([['Ledger/first/find.arg0'], [''], []]);
+    const twin = { ...module.blocks[2]!, name: 'Ledger/first#twin' };
+    expect(names(innermostAt([...module.blocks, twin], 15))).toEqual(['Ledger/first', 'Ledger/first#twin']);
   });
 });
 

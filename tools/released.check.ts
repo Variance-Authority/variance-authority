@@ -225,6 +225,50 @@ describe('the release workflow', () => {
     expect(job('publish')).not.toMatch(/- run: yarn build\s*$/m);
   });
 
+  // An adopter names the action the way every action is named: by its own
+  // repository and the major of its inputs, `uses: Variance-Authority/action@v1`.
+  // The action calls whatever CLI the adopter installed, so no release pairs the
+  // two and a CLI version names nothing there. A path into this repository is
+  // not an install.
+  it('publishes the action to its own repository, under the major of its inputs', () => {
+    const publish = job('publish');
+    const action = publish.slice(publish.indexOf('tools/released.mjs --registry'));
+    expect(action).toContain('Variance-Authority/action');
+    expect(action).toContain('+refs/tags/$ACTION_MAJOR:refs/tags/$ACTION_MAJOR');
+    expect(action).not.toContain('cli-version');
+    expect(action).not.toContain('"v$version"');
+  });
+
+  // npm cannot be taken back, so what the action's half needs is asked before
+  // the first name is sent: a key that reaches the repository, a `main` to push
+  // onto, and write access, which a dry-run push asks of GitHub.
+  it("asks the action's repository for everything its push needs before anything reaches npm", () => {
+    const publish = job('publish');
+    const ready = publish.indexOf("The action's repository takes a push");
+    expect(ready, 'a step that asks first').toBeGreaterThan(-1);
+    expect(ready).toBeLessThan(publish.indexOf('node tools/publish.mjs'));
+    const asks = publish.slice(ready, publish.indexOf('- name:', ready + 1));
+    expect(asks).toContain('ACTION_DEPLOY_KEY');
+    expect(asks).toMatch(/ls-remote --exit-code "\$remote" refs\/heads\/main/);
+    expect(asks).toMatch(/push --dry-run/);
+    expect(asks).toMatch(/ACTION_MAJOR=v\d+/);
+  });
+
+  // A pushed tag is not believed until it is read back: every file the action
+  // directory tracks is at the major tag, byte for byte.
+  it('reads the published action back at its major tag', () => {
+    const publish = job('publish');
+    const back = publish.slice(publish.indexOf('Variance-Authority/action is what an adopter installs'));
+    expect(back).toMatch(/clone --depth 1 --branch "\$ACTION_MAJOR"/);
+    expect(back).toMatch(/for file in \$\(git -C \.github\/actions\/variance ls-files\); do/);
+    expect(back).toMatch(/cmp -s/);
+  });
+
+  it('tags this repository by package only', () => {
+    const tagging = WORKFLOW.slice(WORKFLOW.indexOf('yarn changeset tag'), WORKFLOW.indexOf('git push origin --tags'));
+    expect(tagging).not.toMatch(/git tag\b/);
+  });
+
   it('tags from a step that can fail, and checks the tags arrived', () => {
     expect(WORKFLOW).toContain('yarn changeset tag');
     expect(WORKFLOW).toContain('git push origin --tags');

@@ -58,8 +58,8 @@ describe('import hops a snapshot from another run cannot measure', () => {
 
     expect(answer.tests).toEqual([]);
     expect(answer.narrowed).toEqual({ kept: 0, of: 2, notes: [UNREAD] });
-    expect(formatCovering(answer, 'text')).toContain(`0 of 2 named tests kept.\n  ${UNREAD}\n`);
-    expect(formatCovering(answer, 'text')).not.toMatch(/record once|ask again/);
+    expect(formatCovering(answer, 'text', Date.now())).toContain(`0 of 2 named tests kept.\n  ${UNREAD}\n`);
+    expect(formatCovering(answer, 'text', Date.now())).not.toMatch(/record once|ask again/);
   });
 
   it('lists the test files with no hops under `--hops`, and says why', async () => {
@@ -67,7 +67,7 @@ describe('import hops a snapshot from another run cannot measure', () => {
 
     expect(answer.files?.map((file) => [file.file, file.hops])).toEqual([['a.test.ts', undefined], ['b.test.ts', undefined]]);
     expect(answer.hopsGap).toBe(UNREAD);
-    expect(formatCovering(answer, 'text')).toContain(`\nImport${UNREAD.slice('import'.length)}.\n`);
-    expect(formatCovering(answer, 'refs')).toContain(`\nImport${UNREAD.slice('import'.length)}.\n`);
+    expect(formatCovering(answer, 'text', Date.now())).toContain(`\nImport${UNREAD.slice('import'.length)}.\n`);
+    expect(formatCovering(answer, 'refs', Date.now())).toContain(`\nImport${UNREAD.slice('import'.length)}.\n`);
   });
 });

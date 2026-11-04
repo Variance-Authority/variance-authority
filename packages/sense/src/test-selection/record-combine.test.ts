@@ -7,6 +7,7 @@ import { digestString } from '../digest.js';
 import { lastCaseRunOf, layCases } from './case-landing.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { encodeRecordedEyes } from './eyes-record.js';
+import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { landRun } from './commit-runs.js';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
@@ -38,8 +39,10 @@ afterEach(async () => {
  * The record one run of `files` writes, every part of it through the
  * TypeScript writers: the coverage through `format.ts`, the case index and the
  * last-run layer through `case-landing.ts`, and Eyes through `eyes-record.ts`.
+ * The cases of `overwritten` ran `greet` in a text an edit wrote over, as a
+ * layering cut to the edited text keeps them (`landedThrough`).
  */
-async function recordOf(name: string, files: readonly string[]): Promise<string> {
+async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = []): Promise<string> {
   const tests = files.map((file) => ({ id: `${file} > greets`, file, name: 'greets', stopped: false }));
   const blocks = [
     { ordinal: 0, kind: 'module' as const, digest: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [], loadedBy: [...files] },
@@ -49,7 +52,9 @@ async function recordOf(name: string, files: readonly string[]): Promise<string>
   const fresh = encodeAsSetExecutionIndex({
     tests,
     modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
-      ...block, crossings: block.kind === 'function' ? tests.map((_, test) => ({ test, distance: 0 })) : [],
+      ...block, crossings: block.kind === 'function'
+        ? tests.map(({ file }, test) => ({ test, distance: 0, ...(overwritten.includes(file) ? { overwritten: true as const } : {}) }))
+        : [],
     })) }],
   });
   const eyes = {
@@ -89,6 +94,19 @@ describe('combineRecords against the TypeScript writers', () => {
       expect(readable(combined)).toEqual(readable(whole));
       expect(Buffer.compare(combined, whole)).toBe(0);
     }
+  });
+
+  it('carries a case a shard ran over another text of a region as overwritten, never as absent', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts'], ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    const index = decodeExecutionIndex(caseSectionsOf(await readFile(into)).index!);
+    const greet = index.modules[0]!.blocks.find((block) => block.name === 'greet')!;
+    // The case index lists a region's called cases before its overwritten ones.
+    expect(greet.crossings.map(({ test, overwritten }) => [index.tests[test]!.file, overwritten === true])).toEqual([
+      ['b.test.ts', false],
+      ['a.test.ts', true],
+    ]);
   });
 
   it('folds legacy and compact last-run membership into the unsharded spelling', async () => {
@@ -134,6 +152,33 @@ describe('combineRecords against the TypeScript writers', () => {
       watched: ['a.test.ts > greets', 'b.test.ts > greets'],
       journals: ['a.test.ts', 'b.test.ts'].map((file) => ({ case: `${file} > greets`, attempt: 1, journal: { shots: [`${file}.png`], closed: true } })),
     })).toString());
+  });
+
+  it('carries the readings each shard kept of its cases into the combined record', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const kept = (file: string) => ({ cases: { [`${file} > greets`]: [{ count: 1, stopped: false }, { count: 2, stopped: true, gone: [0] }] } });
+    for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
+      const bytes = await readFile(shard);
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(kept(file))) }));
+    }
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+  });
+
+  it('takes a case its readings and its file its inputs from the shard that ran it, over what another carried from its seed', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const ran = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: true }, { count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'two' } };
+    const carried = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'one', 'b.test.ts': 'one' } };
+    for (const [shard, section] of [[shards[0]!, ran], [shards[1]!, carried]] as const) {
+      const bytes = await readFile(shard);
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(section)) }));
+    }
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
   });
 
   // Each shard restores the cached record and runs over it; a shard's record

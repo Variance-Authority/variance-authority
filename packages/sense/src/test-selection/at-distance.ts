@@ -52,6 +52,7 @@
  * place.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { TestDistance } from './distance.js';
 
 /** Every test the change reached in `hops` hops. */
@@ -158,8 +159,4 @@ function furthestOrOpen(distances: readonly TestDistance[]): number {
   let furthest = -1;
   for (const { hops } of distances) if (hops !== undefined && hops > furthest) furthest = hops;
   return furthest === -1 ? Number.MAX_SAFE_INTEGER : furthest;
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

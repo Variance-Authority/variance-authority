@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { main, parseArgs } from './bin.js';
+import { parseArgs } from './bin.js';
+import { main } from './bin.fixture.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
 import { SKILL_NAME, skillPath } from './skill.js';
 

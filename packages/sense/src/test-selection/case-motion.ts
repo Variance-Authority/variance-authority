@@ -1,7 +1,9 @@
 // compass: variance-authority/runtime/attention
 import type { Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { addressKey } from './carried-rows.js';
 import { placeThrough, type Hunk } from './placed.js';
+import { sameCut } from './region-landing.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import type { Stand } from './stands.js';
 import { stoppedIn } from './stopped.js';
@@ -206,14 +208,14 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       else if (before.length === 0 && after.length > 0) regions.push({ ...moved, motion: 'gained' });
     }
   }
-  regions.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
+  regions.sort((left, right) => (codeUnitOrder(left.file, right.file) || left.startLine - right.startLine));
   const counts = { lost: 0, hidden: 0, thinned: 0, gained: 0 };
   for (const region of regions) counts[region.motion] += 1;
   const testFiles = [...reach]
     .map(([file, { entered, left }]) => ({ file, entered: inOrder(entered), left: inOrder(left) }))
-    .sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
-  mismatched.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
-  unmeasured.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
+    .sort((left, right) => codeUnitOrder(left.file, right.file));
+  mismatched.sort((left, right) => (codeUnitOrder(left.file, right.file) || left.startLine - right.startLine));
+  unmeasured.sort((left, right) => (codeUnitOrder(left.file, right.file) || left.startLine - right.startLine));
   return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered), mismatched, unmeasured };
 }
 
@@ -372,18 +374,10 @@ function keptCallers(
   return (block) => callers(retained, held.blocks[at.get(block)!]!);
 }
 
-function sameCut(left: ExecutionModule, right: ExecutionModule): boolean {
-  return left.blocks.length === right.blocks.length && left.blocks.every((block, at) => {
-    const other = right.blocks[at]!;
-    return block.kind === other.kind && block.name === other.name && block.path === other.path &&
-      block.startLine === other.startLine && block.endLine === other.endLine;
-  });
-}
-
-/** The cases that called into a region, once each, in record order. */
+/** The cases that called into a region, once each, in record order; one that ran it in another text (`overwritten`) is not known to. */
 function callers(index: ExecutionIndex, block: ExecutionBlock): readonly ExecutionTest[] {
   const at = new Set<number>();
-  for (const crossing of block.crossings) if (crossing.loaded !== true) at.add(crossing.test);
+  for (const crossing of block.crossings) if (crossing.loaded !== true && crossing.overwritten !== true) at.add(crossing.test);
   return [...at].sort((left, right) => left - right).map((test) => index.tests[test]!);
 }
 
@@ -393,6 +387,6 @@ function filesOf(tests: readonly ExecutionTest[]): ReadonlySet<string> {
 
 function inOrder(regions: readonly MovedRegion[]): readonly MovedRegion[] {
   return [...regions].sort((left, right) =>
-    left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine,
+    codeUnitOrder(left.file, right.file) || left.startLine - right.startLine,
   );
 }

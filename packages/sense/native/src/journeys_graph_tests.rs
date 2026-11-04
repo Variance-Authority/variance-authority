@@ -23,7 +23,6 @@ fn graph(files: &[(&str, &str)]) -> Graph {
         targets: Vec::new(),
         calls_from: Vec::new(),
         fell_back: 0,
-        tree: None,
     };
     for (file, text) in files {
         let id = graph.intern(file);
@@ -141,8 +140,127 @@ fn a_file_moved_since_the_commit_is_read_under_the_path_the_commit_had() {
     assert!(!then.contains_key("notes.md"), "only source files are read from the commit");
 
     let missing = text_at(root.to_str().unwrap(), "0123456789abcdef0123456789abcdef01234567").unwrap_err();
-    assert_eq!(missing, "commit 0123456789ab is not in this checkout's object store");
+    assert_eq!(
+        missing,
+        "commit 0123456789ab is not in this checkout's object store. \
+         Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out every commit: \
+         `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`"
+    );
     std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_file_the_commit_does_not_hold_is_absent_though_it_is_on_disk_and_unchanged() {
+    let root = std::env::temp_dir().join(format!("sense-journeys-untracked-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    std::fs::write(root.join("main.ts"), "import { help } from './helper';\nhelp();\n").unwrap();
+    git(&root, &["init", "--quiet"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "-m", "a"]);
+    let recorded = git(&root, &["rev-parse", "HEAD"]);
+    // Written after the commit and never added: git's diff does not list it.
+    std::fs::write(root.join("helper.ts"), "export function help() {}\n").unwrap();
+    std::fs::create_dir_all(root.join("fresh")).unwrap();
+    std::fs::write(root.join("fresh/deep.ts"), "export function deep() {}\n").unwrap();
+    std::fs::write(root.join(".gitignore"), "built/\n").unwrap();
+    std::fs::create_dir_all(root.join("built")).unwrap();
+    std::fs::write(root.join("built/out.ts"), "export function out() {}\n").unwrap();
+
+    let then = text_at(root.to_str().unwrap(), &recorded).unwrap();
+    assert_eq!(then.get("helper.ts"), Some(&None), "a file the commit never held is not read from disk");
+    assert_eq!(then.get("fresh/deep.ts"), Some(&None), "nor is one in a directory the commit never held");
+    assert_eq!(then.get("built/out.ts"), Some(&None), "nor is one git ignores");
+    assert_eq!(then.get("main.ts"), None, "a file the commit holds unchanged is read from disk");
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_pointer_git_lfs_hands_back_unsmudged_is_refused_rather_than_read() {
+    if !Command::new("git").args(["lfs", "version"]).output().is_ok_and(|out| out.status.success()) {
+        return;
+    }
+    let root = std::env::temp_dir().join(format!("sense-journeys-lfs-excluded-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    git(&root, &["init", "--quiet"]);
+    git(&root, &["lfs", "install", "--local"]);
+    git(&root, &["lfs", "track", "b.ts"]);
+    std::fs::write(root.join("b.ts"), "export function b() {}\n").unwrap();
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "-m", "b"]);
+    let recorded = git(&root, &["rev-parse", "HEAD"]);
+    std::fs::remove_dir_all(root.join(".git/lfs/objects")).unwrap();
+    // With the path left out of what git-lfs fetches, `git lfs smudge` succeeds
+    // and writes the pointer it was handed.
+    git(&root, &["config", "lfs.fetchexclude", "b.ts"]);
+    std::fs::write(root.join("b.ts"), "export function c() {}\n").unwrap();
+
+    let refused = text_at(root.to_str().unwrap(), &recorded).unwrap_err();
+    assert!(refused.contains(&format!("b.ts at {recorded} is a git-LFS pointer")), "the pointer is named, never read as source: {refused}");
+    assert!(refused.contains("gave the pointer back"), "the refusal says git-lfs did not give the content: {refused}");
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_file_git_holds_as_an_lfs_pointer_is_read_as_its_content_or_not_at_all() {
+    let root = std::env::temp_dir().join(format!("sense-journeys-lfs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    // A pointer to an object no LFS store holds, committed as the blob itself:
+    // what a repository whose `.gitattributes` sends `.ts` to LFS holds in git.
+    let pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 22\n";
+    std::fs::write(root.join("a.ts"), pointer).unwrap();
+    git(&root, &["init", "--quiet"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "-m", "a"]);
+    let recorded = git(&root, &["rev-parse", "HEAD"]);
+    std::fs::write(root.join("a.ts"), "export function a() {}\n").unwrap();
+
+    let refused = text_at(root.to_str().unwrap(), &recorded).unwrap_err();
+    assert!(refused.contains(&format!("a.ts at {recorded} is a git-LFS pointer")), "the pointer is named, never read as source: {refused}");
+    assert!(
+        refused.contains(&format!("Run `git lfs install --local`, and `git lfs fetch origin {recorded}`")),
+        "the refusal says how to give git-lfs the content: {refused}"
+    );
+
+    // Where git-lfs is installed and holds the object, the text is its content.
+    if Command::new("git").args(["lfs", "version"]).output().is_ok_and(|out| out.status.success()) {
+        git(&root, &["lfs", "install", "--local"]);
+        git(&root, &["lfs", "track", "b.ts"]);
+        std::fs::write(root.join("b.ts"), "export function b() {}\n").unwrap();
+        git(&root, &["add", "-A"]);
+        git(&root, &["commit", "--quiet", "-m", "b"]);
+        let tracked = git(&root, &["rev-parse", "HEAD"]);
+        assert!(git(&root, &["cat-file", "-p", "HEAD:b.ts"]).starts_with("version https://git-lfs"));
+        std::fs::write(root.join("b.ts"), "export function c() {}\n").unwrap();
+        let then = text_at(root.to_str().unwrap(), &tracked).unwrap();
+        assert_eq!(then.get("b.ts"), Some(&Some("export function b() {}\n".to_owned())));
+    }
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn a_file_checked_out_as_an_lfs_pointer_fails_the_read_rather_than_parsing_as_empty() {
+    let root = std::env::temp_dir().join(format!("sense-journeys-lfs-disk-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    // What a checkout made without git-lfs holds on disk: the pointer itself.
+    let pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 22\n";
+    std::fs::write(root.join("a.ts"), pointer).unwrap();
+    std::fs::write(root.join("b.ts"), "export function b() {}\n").unwrap();
+    let root = root.to_str().unwrap();
+
+    let refused = on_disk(root, "a.ts").unwrap_err();
+    assert!(refused.starts_with("a.ts is a git-LFS pointer, not its content"), "the pointer is named, never parsed: {refused}");
+    assert!(refused.contains("`git lfs install --local` and `git lfs pull`"), "the refusal says how to give git-lfs the content: {refused}");
+    assert_eq!(on_disk(root, "b.ts"), Ok(Some("export function b() {}\n".to_owned())));
+    assert_eq!(on_disk(root, "gone.ts"), Ok(None), "a file the checkout does not hold is no text");
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 /// A clone of a five-file history made with `--filter=<filter>`, holding only
@@ -188,8 +306,8 @@ fn partial_clone(name: &str, filter: &str, refuse_first: bool) -> (std::path::Pa
 }
 
 #[cfg(unix)]
-fn read_in_order(texts: &HashMap<String, Option<String>>) -> String {
-    (0..5).map(|at| texts[&format!("f{at}.ts")].clone().unwrap_or_default()).collect()
+fn read_in_order(texts: &Then) -> String {
+    (0..5).map(|at| texts.get(&format!("f{at}.ts")).cloned().flatten().unwrap_or_default()).collect()
 }
 
 #[cfg(unix)]
@@ -219,5 +337,19 @@ fn a_treeless_clone_fetches_the_trees_and_then_the_texts_in_two_requests() {
     let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
     assert_eq!(read_in_order(&texts), expected);
     assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 2, "one request for the trees, one for the blobs");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}
+
+/// A promisor remote that answers nothing: every request after the clone is
+/// refused, so a text the clone lacks cannot be read at all.
+#[cfg(unix)]
+#[test]
+fn a_text_no_remote_will_serve_fails_the_read_with_gits_own_reason() {
+    let (clone, then, _, _) = partial_clone("unserved", "blob:none", false);
+    let serve = clone.parent().unwrap().join("serve");
+    std::fs::write(&serve, "#!/bin/sh\necho 'the server is gone' >&2\nexit 1\n").unwrap();
+    let why = text_at(clone.to_str().unwrap(), &then).expect_err("a text git could not fetch is neither absent nor the working tree's");
+    assert!(why.starts_with("git could not read the files changed since commit "), "{why}");
+    assert!(why.contains("the server is gone"), "git's own reason is carried: {why}");
     std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
 }

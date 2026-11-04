@@ -36,8 +36,8 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * Ordered by how much of the question it holds, each word weighed by how rare it
  * is among everything the description reached — {@link rarity}, of the `N`
  * reached and the `n` holding it, counted in this one question and stored nowhere
- * — times the weight of where it holds it, three in its name and two in a doc, as
- * a field-weighted ranking weighs a title over a body. A doc word also counts by
+ * — times the weight of where it holds it, {@link FIELD_WEIGHTS}, as a
+ * field-weighted ranking weighs a title over a body. A doc word also counts by
  * how long the doc is, BM25's length term with a held word's count of one: a doc
  * of the mean length or shorter counts as two, a longer one less, the mean taken
  * over the doc of every row, declaration and file reached. A long doc holds most
@@ -49,7 +49,7 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * and a tie is a tie (ADR-0057). `N` is everything reached, the names another
  * section shows included, so the weight of a word does not move with what is
  * left. Then the words its name holds, then how many of the question's adjacent
- * word pairs its doc writes adjacent, then how many rows publish or export it, in
+ * word pairs its doc writes as a phrase, then how many rows publish or export it, in
  * an area those {@link rowWithin} it, then the name's own rank. A word every doc
  * says in passing tells nothing about which of them was meant:
  * `find the repository root` is asked of `repositoryRoot`, not of every doc that
@@ -72,7 +72,9 @@ export interface DescribedKey {
   readonly words: readonly string[];
   /** Those of them its name holds. */
   readonly named: readonly string[];
-  /** How many of the question's adjacent word pairs its doc writes adjacent. */
+  /** Those of them only its signature holds, neither its name nor its doc; absent on a file, which has no signature. */
+  readonly signed?: readonly string[];
+  /** How many of the question's adjacent word pairs its doc writes, by {@link nearOfNative}. */
   readonly near: number;
   /** Rows that publish or export it, in an area only those {@link rowWithin} it. */
   readonly rows: number;
@@ -131,7 +133,7 @@ export type ReachedName = Omit<DescribedName, 'near'> & Counted & {
    * The rows it can be shown through: the one it is weighed through, then each
    * other row with a doc weighing as much, by {@link RowOrder}.
    */
-  readonly tied: readonly Pick<DescribedName, 'through' | 'words' | 'docLength'>[];
+  readonly tied: readonly Pick<DescribedName, 'through' | 'words' | 'signed' | 'docLength'>[];
 };
 
 /** What one reached thing counts for in every word's rarity and the mean doc length: the same whichever row it is weighed through. */
@@ -180,6 +182,8 @@ export function describedNames(
   // Per published or exported row, the stems its doc holds: one row's doc
   // counts for a name, never two rows' docs added up.
   const docs = new Map<string, Set<number>>();
+  // Per row, the stems its signature holds, which reach no name on their own.
+  const signatures = new Map<string, Set<number>>();
   const reached = new Set<number>();
   const mark = <K>(into: Map<K, Set<number>>, key: K, position: number): void => {
     into.set(key, (into.get(key) ?? new Set<number>()).add(position));
@@ -198,13 +202,23 @@ export function describedNames(
       }
       for (const row of index.termPublished(term)) markRow(index.publishedName(row), 'published', row, position);
       for (const row of index.termExported(term)) markRow(index.exportedName(row), 'exported', row, position);
+      for (const row of index.termPublishedSignature(term)) mark(signatures, `published:${row}`, position);
+      for (const row of index.termExportedSignature(term)) mark(signatures, `exported:${row}`, position);
     }
   });
 
   const wordsOf = (positions: ReadonlySet<number> | undefined): string[] =>
     asked.filter((_, position) => positions?.has(position) === true).map(([, word]) => word);
-  const heldThrough = (name: number, row: DescribedRow): Set<number> =>
+  // Held by the row's name or doc, the words that reach a name.
+  const saidThrough = (name: number, row: DescribedRow): Set<number> =>
     new Set([...(named.get(name) ?? []), ...(docs.get(`${row.kind}:${row.row}`) ?? [])]);
+  const signatureOf = (row: DescribedRow): ReadonlySet<number> => signatures.get(`${row.kind}:${row.row}`) ?? new Set();
+  const heldThrough = (name: number, row: DescribedRow): Set<number> => new Set([...saidThrough(name, row), ...signatureOf(row)]);
+  // Held by the row's signature alone: neither its name nor its doc holds it.
+  const signedThrough = (name: number, row: DescribedRow): Set<number> => {
+    const said = saidThrough(name, row);
+    return new Set([...signatureOf(row)].filter((position) => !said.has(position)));
+  };
   const candidates = [...reached].map((name) => {
     const rows: DescribedRow[] = [
       ...[...rowsWithin(index, 'published', index.publishedOf(name), within)].map((row) => ({ kind: 'published' as const, row })),
@@ -219,7 +233,9 @@ export function describedNames(
   const weight = weightOf([...candidates, ...others.map(countedOf)]);
   return candidates.map(({ name, rows, holds, docLengths }): ReachedName => {
     const own = wordsOf(named.get(name));
-    const picks = rows.map((row) => ({ through: row, words: wordsOf(heldThrough(name, row)), named: own, ...docLengthOf(rowDocLength(index, row)) }));
+    const picks = rows.map((row) => ({
+      through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)),
+    }));
     const chosen = picks.reduce((best, one) => ((weight(best) - weight(one) || order(one.through, best.through)) < 0 ? one : best));
     // A row with no doc writes no phrase, so it never comes before the row chosen.
     const most = weight(chosen);
@@ -227,6 +243,9 @@ export function describedNames(
     return { name, ...chosen, rows: rows.length, rank: index.rank(name), holds, docLengths, tied: [chosen, ...alike.sort((a, b) => order(a.through, b.through))] };
   });
 }
+
+/** Whether a row's name or doc holds `word`: a word only its signature holds reaches no name, and shows no row. */
+const says = (row: Pick<DescribedKey, 'words' | 'signed'>, word: string): boolean => row.words.includes(word) && row.signed?.includes(word) !== true;
 
 /**
  * The `count` rows of `reached` to show, best first by {@link describedOrderBy} the weight of what they reached:
@@ -258,7 +277,7 @@ export function describedShown(
     while (at < levels.length && level(levels[from] as Reached, levels[at] as Reached) === 0) read.add(levels[at++] as Reached);
   }
   // A name may be shown through any of the rows it weighs as much through.
-  const holding = (one: Reached, word: string): boolean => ('tied' in one ? one.tied : [one]).some((row) => row.words.includes(word));
+  const holding = (one: Reached, word: string): boolean => ('tied' in one ? one.tied : [one]).some((row) => says(row, word));
   for (const word of words) {
     const best = levels.find((one) => holding(one, word));
     if (best === undefined) continue;
@@ -266,7 +285,7 @@ export function describedShown(
   }
 
   const rows = [...read].flatMap((one) => ('tied' in one ? one.tied : []));
-  // One word has no pair to write adjacent, so no doc is decoded for it.
+  // One word has no pair to write as a phrase, so no doc is decoded for it.
   const near = words.length > 1 ? nearOfNative(query, rows.map((one) => rowDoc(index, one.through) ?? '')) : [];
   let at = 0;
   const order = describedOrderBy(weight);
@@ -280,11 +299,11 @@ export function describedShown(
 
   const shown = weighed.slice(0, count);
   for (const word of words) {
-    if (shown.some((one) => one.words.includes(word))) continue;
-    const holder = weighed.find((one) => one.words.includes(word));
-    // The last row whose every word another row shown also holds gives its place.
+    if (shown.some((one) => says(one, word))) continue;
+    const holder = weighed.find((one) => says(one, word));
+    // The last row whose every word it says another row shown also says gives its place.
     let gives = shown.length - 1;
-    while (gives >= 0 && !(shown[gives] as Described).words.every((held) => shown.some((other, at) => at !== gives && other.words.includes(held)))) gives -= 1;
+    while (gives >= 0 && !(shown[gives] as Described).words.every((held) => !says(shown[gives] as Described, held) || shown.some((other, at) => at !== gives && says(other, held)))) gives -= 1;
     if (holder === undefined || gives < 0) continue;
     shown.splice(gives, 1);
     shown.push(holder);
@@ -384,19 +403,29 @@ export function fileMatch(root: string | undefined, file: DescribedFile): FileMa
 const kindOrder = (one: Described): number => ('match' in one ? 1 : 'file' in one ? 2 : 0);
 
 /** The keys a row's weight is read from. */
-type Weighed = Pick<DescribedKey, 'words' | 'named' | 'docLength'>;
+type Weighed = Pick<DescribedKey, 'words' | 'named' | 'signed' | 'docLength'>;
 
 /** How much of the question one row holds. */
 type Weight = (key: Weighed) => number;
 
-/** The weight of a word by where a row holds it: its name, as a title, over its doc. */
-const FIELD_WEIGHTS = { name: 3, doc: 2 } as const;
+/**
+ * The weight of a word by where a row holds it: its name, as a title, over its
+ * doc, over its signature — what its declaration writes before its body, the
+ * names of its parameters and of the types they are written with, as the source
+ * writes them, a comment in it included. A signature's word weighs below
+ * a doc of up to eight times the mean length, and reaches no name on its own, so
+ * `coverageTest(task: FinishedFile)` answers `finished test file` before a name
+ * holding only `test`, and after a row whose doc holds the words.
+ */
+const FIELD_WEIGHTS = { name: 3, doc: 2, signature: 0.5 } as const;
 
 /**
  * The weight of what a row holds of the question: each word's {@link rarity}
  * among `population`, by what each holds anywhere, times what the place it holds it in counts — its name
  * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
- * the doc's {@link lengthCount}, never more than a doc of the mean length —
+ * the doc's {@link lengthCount}, never more than a doc of the mean length, its
+ * signature alone its weight, a quarter of a mean doc's and as much as a doc
+ * eight times the mean length counts —
  * summed by {@link heldWeight}, times the rarities of the words held summed
  * alone: how much of the question the row holds, wherever it holds it. That is
  * Lucene's coordination factor weighed by rarity, so a word's rarity weighs in
@@ -417,6 +446,7 @@ function weightOf(population: readonly Counted[]): Weight {
   }
   const rare = new Map([...holders].map(([word, n]) => [word, rarity(population.length, n)]));
   const name = FIELD_WEIGHTS.name * 1000;
+  const signature = FIELD_WEIGHTS.signature * 1000;
   return (key) => {
     // A doc longer than most counts less than one of the mean length, and a
     // shorter one as much: a doc's word, never a name's. An unmeasured doc is
@@ -425,7 +455,8 @@ function weightOf(population: readonly Counted[]): Weight {
     const doc = FIELD_WEIGHTS.doc * counted;
     // How much of the question it holds, wherever: a coordination factor by rarity.
     const covered = heldWeight(key.words, (word) => rare.get(word) ?? 0, () => 1);
-    return covered * heldWeight(key.words, (word) => rare.get(word) ?? 0, (word) => (key.named.includes(word) ? name : doc));
+    const field = (word: string): number => (key.named.includes(word) ? name : key.signed?.includes(word) === true ? signature : doc);
+    return covered * heldWeight(key.words, (word) => rare.get(word) ?? 0, field);
   };
 }
 

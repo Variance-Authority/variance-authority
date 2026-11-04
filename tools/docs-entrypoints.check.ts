@@ -1,7 +1,7 @@
 import { statSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
+import { type Link, PUBLIC_MARKDOWN, ROOT, lineOf, linksIn, prose } from './markdown.js';
 
 interface Concept {
   readonly name: string;
@@ -47,26 +47,7 @@ const CONCEPTS: readonly Concept[] = [
   { name: 'FSD', pattern: /\bFSD\b/, owner: 'docs/reasoning.md' },
 ];
 
-const PUBLIC_PAGES = MARKDOWN.filter((file) => /^docs\/[^/]+\.md$/.test(file))
-  .filter((file) => file !== 'docs/AGENTS.md' && file !== 'docs/visual-guidelines.md');
-
-interface Link {
-  readonly start: number;
-  readonly end: number;
-  readonly labelStart: number;
-  readonly labelEnd: number;
-  readonly target: string;
-}
-
-function linksIn(text: string): readonly Link[] {
-  return [...text.matchAll(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map((match) => ({
-    start: match.index,
-    end: match.index + match[0].length,
-    labelStart: match.index + 1,
-    labelEnd: match.index + 1 + match[1]!.length,
-    target: match[2]!,
-  }));
-}
+const PUBLIC_PAGES = PUBLIC_MARKDOWN.filter((file) => file.startsWith('docs/'));
 
 function headingsBlanked(text: string): string {
   return text.replace(/^#{1,6}\s+.*$/gm, (heading) => heading.replace(/[^\n]/g, ' '));
@@ -76,12 +57,11 @@ function inlineCodeBlanked(text: string): string {
   return text.replace(/`[^`\n]+`/g, (code) => code.replace(/[^\n]/g, ' '));
 }
 
-function targetFile(from: string, target: string): string | undefined {
-  if (/^(?:https?:|mailto:)/.test(target)) return undefined;
-  const [path] = target.split('#') as [string];
-  let absolute = path === '' ? resolve(ROOT, from) : resolve(dirname(resolve(ROOT, from)), path);
-  if (statSync(absolute).isDirectory()) absolute = resolve(absolute, 'README.md');
-  return relative(ROOT, absolute).replaceAll('\\', '/');
+/** The page a link opens: a directory opens its README. */
+function opened(link: Link): string | undefined {
+  if (link.inside === undefined) return undefined;
+  const absolute = resolve(ROOT, link.inside);
+  return statSync(absolute).isDirectory() ? `${link.inside}/README.md` : link.inside;
 }
 
 function firstMention(pattern: RegExp, text: string, links: readonly Link[]): RegExpExecArray | undefined {
@@ -101,7 +81,7 @@ function firstMention(pattern: RegExp, text: string, links: readonly Link[]): Re
 describe('every public page introduces project vocabulary through its owner', () => {
   it.each(PUBLIC_PAGES)('%s', (file) => {
     const text = inlineCodeBlanked(headingsBlanked(prose(file)));
-    const links = linksIn(text);
+    const links = linksIn(file);
     const missing: string[] = [];
 
     for (const concept of CONCEPTS) {
@@ -112,7 +92,7 @@ describe('every public page introduces project vocabulary through its owner', ()
       const link = links.find(
         (candidate) => match.index >= candidate.labelStart && match.index < candidate.labelEnd,
       );
-      if (link === undefined || targetFile(file, link.target) !== concept.owner) {
+      if (link === undefined || opened(link) !== concept.owner) {
         missing.push(`${file}:${lineOf(text, match.index)} → ${concept.name} should link to ${concept.owner}`);
       }
     }

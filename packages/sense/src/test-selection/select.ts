@@ -11,6 +11,7 @@ import { ignoreMatcher } from './route.js';
 import { byRelations, withGraph } from './precision.js';
 import { arrivedAt, chargeMeasured, namedAs, readUnmeasured, routed, runOf, seenThrough, selectAnswered, walked } from './stages.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
+import { withEveryReading } from './reading-lines.js';
 
 /** Both halves of the question, from one pass over the same columns. */
 export function narrowByExecutionFromView(
@@ -176,14 +177,16 @@ function readDiff(
   const declining = options.unmeasured === 'nothing';
 
   const because = causesOf(coverage, run.selected);
+  const stale = [...run.stale].sort(codeUnitOrder);
+  const readings = seenThrough(withRanOver(run.readings, ranOver), through);
 
-  return {
+  return withEveryReading({
     entered: because.map((cause) => cause.test),
     unread: declining ? [] : unmeasured,
     ...(declining ? { declined: unmeasured } : {}),
     ...(asked.ignore === undefined ? {} : { ignored: ignoring }),
-    stale: [...run.stale].sort(codeUnitOrder),
+    stale,
     because,
-    readings: seenThrough(withRanOver(run.readings, ranOver), through),
-  };
+    readings,
+  }, changed.keys(), knownAs);
 }

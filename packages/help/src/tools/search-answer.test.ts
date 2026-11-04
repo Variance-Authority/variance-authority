@@ -36,7 +36,7 @@ describe('searchNames', () => {
     expect(answer.query).toBe('measure');
     const measure = answer.published?.shown.find((match) => match.name === 'measure');
     expect(measure).toMatchObject({ source: 'published', specifier: expect.any(String), at: expect.any(String) });
-    expect(measure?.packages).toBeGreaterThan(0);
+    expect(measure?.otherPackages).toBeGreaterThan(0);
     expect(measure?.inArea).toBeUndefined();
     expect(answer.area).toBeUndefined();
     // The substring answered, so the loose pass was never run — absent, not empty.

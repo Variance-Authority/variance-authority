@@ -107,6 +107,7 @@ const WORKSPACE: Help = {
           entries: [
             {
               name: 'viewport',
+              declared: 'viewport',
               kind: 'function',
               at: 'packages/alpha/src/viewport.ts',
               line: 7,

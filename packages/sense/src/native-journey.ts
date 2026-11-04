@@ -53,6 +53,8 @@ export interface NativeJourneyProjection {
       readonly source: boolean;
       readonly loaded: boolean;
       readonly tests: readonly number[];
+      /** The cases whose crossing of the region is not known, none of them in `tests`; absent from an addon built before it carried them. */
+      readonly overwritten?: readonly number[];
     }[];
   }[];
   /** Every file the journey holds a row for. */

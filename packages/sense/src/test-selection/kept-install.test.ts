@@ -5,9 +5,10 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
-import { commitRunsAfter, commitRunsFile, readCommitRuns, type RecordedTests } from './commit-runs.js';
-import { installAfter, installKey, keepRecordedInstall, sameInstall, shardsInstall } from './kept-install.js';
+import { commitRunsAfter, commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
+import { installKey, keepRecordedInstall, sameInstall, shardsInstall, shardsTexts, type KeptInstall } from './kept-install.js';
 import { keptTexts, landedTree } from './kept-texts.js';
+import { whatLanded } from './landings.js';
 
 /**
  * The install a run ran on is the lockfiles and manifests on disk while it ran.
@@ -77,65 +78,77 @@ describe('the install a run ran on', () => {
 
 describe('the install the runs at one commit ran on', () => {
   const bumped = { 'yarn.lock': 'digest:bumped' };
+  const at = (commit: string, files: readonly string[]) => ({
+    instrumentation: 'fixture',
+    commit,
+    tests: files.map((file) => ({ file, complete: true })),
+  });
+  /** A run of `a` at `head` over `one`, then a run of `second` there over `two`. */
+  const twice = (one: KeptInstall | undefined, two: KeptInstall | undefined, second = ['b.test.ts']) => {
+    const first = commitRunsAfter(at('base', ['a.test.ts', 'b.test.ts']), undefined, at('head', ['a.test.ts']), one);
+    return commitRunsAfter(at('head', ['a.test.ts', 'b.test.ts']), first, at('head', second), two);
+  };
+  /** What the record's landings say together, the install among it. */
+  const landed = (runs: CommitRuns) => whatLanded(runs.landings);
 
   it('stays when another run lands over the same install', () => {
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['b.test.ts'], { ...bumped })).toEqual(bumped);
+    expect(landed(twice(bumped, { ...bumped })).installed).toEqual(bumped);
   });
 
-  it('is the latest run\'s when that run observed every test the earlier runs did', () => {
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['a.test.ts', 'b.test.ts'], {})).toEqual({});
-    expect(installAfter({ files: ['a.test.ts'] }, ['a.test.ts'], bumped)).toEqual(bumped);
+  it('is the latest run\'s when that run finished every test the earlier runs did', () => {
+    expect(landed(twice(bumped, {}, ['a.test.ts', 'b.test.ts'])).installed).toEqual({});
+    expect(landed(twice(undefined, bumped, ['a.test.ts'])).installed).toEqual(bumped);
   });
 
   it('is unknown when the runs at one commit ran on two installs', () => {
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['b.test.ts'], {})).toBeUndefined();
-    expect(installAfter({ files: ['a.test.ts'] }, ['b.test.ts'], bumped)).toBeUndefined();
-    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['a.test.ts'], undefined)).toBeUndefined();
+    expect(landed(twice(bumped, {}))).not.toHaveProperty('installed');
+    expect(landed(twice(undefined, bumped))).not.toHaveProperty('installed');
+    expect(landed(twice(bumped, undefined, ['a.test.ts']))).not.toHaveProperty('installed');
   });
 
-  it('is written into the runs record, and left out where it is not known', () => {
-    const at = (commit: string, files: readonly string[]): RecordedTests => ({
-      instrumentation: 'fixture',
-      commit,
-      tests: files.map((file) => ({ file })),
-    });
+  it('is written into the landing of the run that ran on it, and left out where it is not known', () => {
     const first = commitRunsAfter(at('base', ['a.test.ts']), undefined, at('head', ['a.test.ts']), bumped);
-    expect(first.installed).toEqual(bumped);
+    expect(first.landings).toMatchObject([{ files: ['a.test.ts'], installed: bumped }]);
 
     const partial = commitRunsAfter(at('head', ['a.test.ts', 'b.test.ts']), first, at('head', ['b.test.ts']), {});
-    expect(partial).not.toHaveProperty('installed');
+    expect(landed(partial)).not.toHaveProperty('installed');
 
     const shards = commitRunsAfter(at('head', ['a.test.ts']), undefined, at('next', ['a.test.ts']));
-    expect(shards).not.toHaveProperty('installed');
+    expect(shards.landings).toHaveLength(1);
+    expect(shards.landings[0]).not.toHaveProperty('installed');
   });
 
   it('goes with the tests a later run leaves standing, for as long as they stand', () => {
-    const at = (commit: string, files: readonly string[]): RecordedTests => ({
-      instrumentation: 'fixture',
-      commit,
-      tests: files.map((file) => ({ file })),
-    });
     const ran = commitRunsAfter(at('base', ['a.test.ts', 'b.test.ts']), undefined, at('head', ['a.test.ts', 'b.test.ts']), bumped);
     const next = commitRunsAfter(at('head', ['a.test.ts', 'b.test.ts']), ran, at('next', ['a.test.ts']), {});
-    expect(next.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped }]);
+    const { first, latest } = ran.landings[0]!;
+    expect(next.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped, first, latest, runs: 1 }]);
 
     const later = commitRunsAfter(at('next', ['a.test.ts', 'b.test.ts']), next, at('later', ['a.test.ts']), {});
-    expect(later.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped }]);
+    expect(later.standing).toEqual([{ commit: 'head', files: ['b.test.ts'], installed: bumped, first, latest, runs: 1 }]);
   });
 
   it('is read as unknown when the record holds something other than an install', async () => {
     const scratch = await mkdtemp(resolve(tmpdir(), 'variance-kept-install-read-'));
     try {
       const coverage = resolve(scratch, 'coverage.bin');
-      const install = (installed: unknown) => ({ commit: 'head', first: '', latest: '', runs: 1, files: [], installed });
+      const install = (installed: unknown) => ({ commit: 'head', latest: '', runs: 1, landings: [{ files: ['a.test.ts'], installed }] });
       for (const installed of [null, 'yarn.lock', ['yarn.lock'], { 'yarn.lock': 7 }]) {
         await writeFile(commitRunsFile(coverage), JSON.stringify({ ...install(installed), standing: [{ commit: 'base', files: ['b.test.ts'], installed }] }));
         const read = await readCommitRuns(coverage);
-        expect(read).not.toHaveProperty('installed');
+        expect(read?.landings).toEqual([{ files: ['a.test.ts'] }]);
         expect(read?.standing).toEqual([{ commit: 'base', files: ['b.test.ts'] }]);
       }
       await writeFile(commitRunsFile(coverage), JSON.stringify(install({ 'yarn.lock': null })));
-      expect((await readCommitRuns(coverage))?.installed).toEqual({ 'yarn.lock': null });
+      expect(whatLanded((await readCommitRuns(coverage))!.landings).installed).toEqual({ 'yarn.lock': null });
+      // Texts name a digest for every path: a module deleted is no text a test ran over.
+      const ran = (texts: unknown) => ({ commit: 'head', latest: '', runs: 1, landings: [{ files: ['a.test.ts'], texts }] });
+      for (const texts of [null, 'src/a.ts', { 'src/a.ts': null }]) {
+        await writeFile(commitRunsFile(coverage), JSON.stringify({ ...ran(texts), standing: [{ commit: 'base', files: ['b.test.ts'], texts }] }));
+        const read = await readCommitRuns(coverage);
+        expect(read?.landings).toEqual([{ files: ['a.test.ts'] }]);
+        expect(read?.standing).toEqual([{ commit: 'base', files: ['b.test.ts'] }]);
+      }
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
@@ -144,10 +157,15 @@ describe('the install the runs at one commit ran on', () => {
 
 describe('the install a fold of shards ran on', () => {
   const bumped = { 'yarn.lock': 'digest:bumped' };
-  const shard = (files: readonly string[], runs: { commit?: string; runs?: number; files?: readonly string[]; installed?: typeof bumped }) => ({
-    tests: { commit: 'head', tests: files.map((file) => ({ file })) },
-    runs: { commit: 'head', runs: 1, files, installed: bumped, ...runs },
-  });
+  // A shard's record says what its landings finished, and the install they ran on.
+  const shard = (files: readonly string[], runs: { commit?: string; runs?: number; files?: readonly string[]; installed?: typeof bumped }) => {
+    const { files: finished = files, installed: _installed, ...record } = runs;
+    const installed = 'installed' in runs ? runs.installed : bumped;
+    return {
+      tests: { commit: 'head', tests: files.map((file) => ({ file })) },
+      runs: { commit: 'head', runs: 1, ...record, landings: [{ files: finished, ...(installed === undefined ? {} : { installed }) }] },
+    };
+  };
 
   it('is the one every shard\'s record names, whatever order its paths were written in', () => {
     const two = { 'package.json': 'digest:root', 'yarn.lock': 'digest:bumped' };
@@ -165,10 +183,22 @@ describe('the install a fold of shards ran on', () => {
       shard(['b.test.ts'], { installed: {} }),
       shard(['b.test.ts'], { installed: undefined }),
       { ...shard(['b.test.ts'], {}), runs: undefined },
-      shard(['b.test.ts'], { files: {} as unknown as string[] }),
     ]) {
       expect(shardsInstall([fine, other])).toBeUndefined();
     }
+  });
+
+  it('reads the texts the shards ran over as it reads the install', () => {
+    const edited = { 'src/a.ts': 'digest:edited' };
+    // A shard's own landing names its texts; its record names none of its own.
+    const ran = (files: readonly string[], texts?: typeof edited) => ({
+      ...shard(files, {}),
+      runs: { ...shard(files, {}).runs, landings: [{ files, first: '', latest: '', runs: 1, ...(texts === undefined ? {} : { texts }) }] },
+    });
+    expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'], { ...edited })])).toEqual(edited);
+    expect(shardsTexts([ran(['a.test.ts'], {}), ran(['b.test.ts'], {})])).toEqual({});
+    expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'], {})])).toBeUndefined();
+    expect(shardsTexts([ran(['a.test.ts'], edited), ran(['b.test.ts'])])).toBeUndefined();
   });
 });
 

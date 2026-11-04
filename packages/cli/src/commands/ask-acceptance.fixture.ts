@@ -1,12 +1,12 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, expect } from 'vitest';
+import { afterAll, beforeAll, expect, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
- * The files `ask-acceptance-*.test.ts` add over `ask-packages-fixture`'s
+ * The files `ask-acceptance-*.test.ts` add over `ask-packages.fixture`'s
  * checkout: one shape per fact the four code questions are held to by
  * spec 0104, `docs/specs/0104-the-four-code-questions.md`. Each
  * name below is spelled for the one case it carries, so a test reads the case
@@ -62,6 +62,8 @@ const ACCEPTANCE: Readonly<Record<string, string>> = {
     '',
   ].join('\n'),
   'apps/app/src/loud.ts': "import { text } from '@acme/core';\nexport const loud = text.shout('hi');\n",
+  'apps/app/src/covered.ts': "import type { Coverage } from '@acme/core';\nexport const covered = (coverage: Coverage): number => coverage.lines;\n",
+  'apps/app/src/reviewed.ts': "import type { Coverage } from '@acme/review';\nexport const reviewed = (coverage: Coverage): boolean => coverage.approved;\n",
   'apps/app/src/hello.test.ts': "import { greet } from '@acme/lib';\nexport const greeted = greet('test');\n",
 };
 
@@ -69,12 +71,12 @@ const ACCEPTANCE: Readonly<Record<string, string>> = {
 export function indexAcceptance(label: string): void {
   const cwd = process.cwd();
   beforeAll(async () => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), `va-acceptance-${label}-`));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), `va-acceptance-${label}-`)));
     checkout(ACCEPTANCE);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
   });
   afterAll(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 }

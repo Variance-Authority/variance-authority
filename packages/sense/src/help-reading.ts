@@ -26,6 +26,8 @@ export interface PublishedRows {
   readonly spec: string[];
   readonly kind: string[];
   readonly doc: (string | null)[];
+  /** What each row's declaration writes before its body; null when its entry holds none. */
+  readonly signature: (string | null)[];
   readonly at: string[];
   readonly usedBy: number[];
   readonly uses: number[];
@@ -158,6 +160,7 @@ export interface NativeHelp {
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
+  outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
   membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -221,6 +224,16 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return entry('importersOf')(root, index, [...files], name) ?? undefined;
+}
+
+/**
+ * Every specifier, as written and in code-unit order, that names a package or
+ * a runtime module the index at `index` resolved to no file, and out of which
+ * an import takes `name`; `undefined` when no index was published. Throws
+ * when the index does not read.
+ */
+export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
+  return entry('outsideSourcesOf')(root, index, name) ?? undefined;
 }
 
 /**
@@ -303,7 +316,7 @@ export interface DeclaredName {
   readonly held?: readonly number[] | null;
   /** Asked by `declaredDescribedOf`: the positions, ascending, of those its name holds. */
   readonly named?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
+  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes as a phrase, by `near`. */
   readonly near?: number | null;
   /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
   readonly docLength?: number | null;
@@ -325,7 +338,7 @@ export interface DescribedFile {
   readonly held: readonly number[];
   /** The positions, ascending, of those its name holds. */
   readonly named: readonly number[];
-  /** How many of the question's adjacent word pairs its module doc writes adjacent. */
+  /** How many of the question's adjacent word pairs its module doc writes as a phrase. */
   readonly near: number;
   /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
   readonly docLength?: number | null;
@@ -366,7 +379,7 @@ export function declaredOf(
  * `describedWordsNative` cuts `query` by, hold any of `stems`, in any
  * order; only in `files`, repo-relative, when they are named.
  * Each carries the positions of the stems it holds, how many its name holds,
- * and how many of the question's adjacent word pairs its doc writes adjacent.
+ * and how many of the question's adjacent word pairs its doc writes as a phrase.
  * Beside them, the files whose name and module doc hold any, the same way.
  * `undefined` when no index was published; throws when the index does not read.
  */

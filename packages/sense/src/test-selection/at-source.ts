@@ -64,6 +64,7 @@
  * number would be sorting by nothing.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { BlockKind } from '../instrument/index.js';
 import { BLOCK_KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
@@ -320,10 +321,6 @@ const ENTRY = 'entry';
 
 function span(coverage: TestCoverageView, block: number): number {
   return coverage.blockEnd.at(block) - coverage.blockStart.at(block);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

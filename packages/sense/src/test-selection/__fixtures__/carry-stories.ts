@@ -11,7 +11,8 @@
 import { expect } from 'vitest';
 import { caseSectionsAt } from '../case-record.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
-import { caseOf, commit, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import { caseOf, commit, flagged, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import type { Ran, Stood } from './carry-ran.js';
 
 export const A = 'test/a.test.ts';
 export const B = 'test/b.test.ts';
@@ -259,6 +260,37 @@ export async function ranOverThenKeptForgotten(ask: Ask, forget: (walk: Walk) =>
 }
 
 /**
+ * A run of one test over an uncommitted edit inside the region only the other
+ * test entered, asked of the tree as that run left it and of edits to it.
+ *
+ * The landing lays the record in the edited text, where the edit wrote over
+ * the second effect and the function around it: B ran them in another text,
+ * so whether B runs these is not known. The record names A alone on the
+ * function, which A ran in the edited text, no case on the second effect, and
+ * keeps B on both flagged and owed a run, so no reader takes B's absence as
+ * evidence: an ambiguous correspondence never becomes measured absence. The
+ * module's region holds both, since the edit wrote no line of it. The tree is
+ * asked as a pipeline asks it, from the text the record was laid in: that
+ * text itself changes nothing, and an edit to the second effect or the
+ * function selects B.
+ */
+export async function ranOverAnotherTestsRegion(ask: Ask): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B]);
+    const over = touching(walk.text, 'second');
+    await runTests(walk, [A], { over });
+
+    check(walk, 'the cases that ran each region', (await held(walk)).cases, { top: [A, B], outer: [A], first: [A], second: [] });
+    check(walk, 'the cases not known to have run it', await flagged(walk), { outer: [B], second: [B] });
+    check(walk, 'owed', await owed(walk), [B]);
+    check(walk, 'the text A ran over', await ask(walk, over), []);
+    check(walk, 'an edit in the second effect', await ask(walk, touching(over, 'second')), [B]);
+    check(walk, 'an edit in the first effect', await ask(walk, touching(over, 'first')), [A]);
+    check(walk, 'an edit in the function', await ask(walk, touching(over, 'outer')), [A, B]);
+  });
+}
+
+/**
  * A run of both tests over an uncommitted edit inside a region both entered,
  * and the texts landings kept forgotten.
  *
@@ -275,5 +307,91 @@ export async function bothRanOverAnUnkeptEdit(ask: Ask, forget: (walk: Walk) => 
 
     check(walk, 'owed', await owed(walk), []);
     check(walk, 'the edit, no text kept', await ask(walk, edited), [A, B]);
+  });
+}
+
+/**
+ * A run of both tests over an uncommitted edit inside `outer`, the texts
+ * landings kept forgotten, and a run of A over another edit inside the second
+ * effect, asked of the tree as that run left it and of edits to it.
+ *
+ * The landing cannot find the text B ran over, so where B's regions stand in
+ * the text A ran is not known: B is held flagged at every region of the module,
+ * never dropped, and owed a run, so every edit runs it. An edit to a region B
+ * entered in its own text selects it there; one to the first effect, which B
+ * never entered, selects A and runs B as owed. A text that cannot be found
+ * never becomes measured absence.
+ */
+export async function ranOverAnUnkeptTextThenAnother(ask: Ask, forget: (walk: Walk) => Promise<void>): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B], { over: touching(walk.text, 'outer') });
+    await forget(walk);
+    const over = touching(walk.text, 'second');
+    await runTests(walk, [A], { over });
+
+    check(walk, 'the cases that ran each region', (await held(walk)).cases, { top: [A], outer: [A], first: [A], second: [] });
+    check(walk, 'the cases not known to have run it', await flagged(walk), { top: [B], outer: [B], first: [B], second: [B] });
+    check(walk, 'owed', await owed(walk), [B]);
+    check(walk, 'the text A ran over', await ask(walk, over), []);
+    check(walk, 'an edit in the second effect', await ask(walk, touching(over, 'second')), [B]);
+    check(walk, 'an edit in the first effect', await ask(walk, touching(over, 'first')), [A]);
+    check(walk, 'an edit in the function', await ask(walk, touching(over, 'outer')), [A, B]);
+  });
+}
+
+/**
+ * A run of both tests over an uncommitted edit inside `outer`, a commit of
+ * another edit inside the first effect, a run of A alone, a run of other
+ * tests, and the texts landings kept forgotten, with each step asked where,
+ * when and over which text the test files a line names last ran.
+ *
+ * B last ran in the first landing, over the uncommitted text, and nothing
+ * since ran it: the later landings carry it, and none re-dates it or says it
+ * ran over the asked text. A ran over HEAD's text, the one asked. The record
+ * holds the text B ran over while it is kept, and once it is forgotten still
+ * says B ran over another text, holding none. Whether a region is the same in
+ * both texts is `covering`'s verdict, and is asked of it.
+ */
+export async function ranOverThenCommittedElsewhere(ask: Ran, forget: (walk: Walk) => Promise<void>): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    const landings: [string, number, number][] = [];
+    const landing = async (name: string, body: () => Promise<void>): Promise<void> => {
+      const from = Date.now();
+      await body();
+      landings.push([name, from, Date.now()]);
+    };
+    const commits: Record<string, string> = {};
+    const named = (when: string): string => landings.find(([, from, to]) => from <= Date.parse(when) && Date.parse(when) <= to)?.[0] ?? when;
+    const edit = touching(walk.text, 'outer');
+    // Each stand by the commit and the landings the walk named, so a landing
+    // that re-dated it or said it ran over the asked text shows as the wrong name.
+    const read = (stood: Readonly<Record<string, Stood>>): Record<string, unknown> => Object.fromEntries(Object.entries(stood).map(([test, { commit, landed, text, held }]) => [test, {
+      commit: commits[commit] ?? commit,
+      landed: landed === undefined ? 'not held' : `${named(landed.first)} to ${named(landed.latest)}, runs ${String(landed.runs)}`,
+      ran: text === undefined ? 'not said' : text === 'asked' ? 'the asked text' : 'another text',
+      ...(held === undefined ? {} : { held: held ? 'a text' : 'no text' }),
+    }]));
+    const lines = walk.text.split('\n');
+    const second = { line: lines.findIndex((line) => line.includes("hit('second')")) + 1 };
+    const component = { lines: { startLine: lines.findIndex((line) => line.startsWith('export function component')) + 1, endLine: lines.lastIndexOf('}') + 1 } };
+
+    commits[walk.head] = 'the first commit';
+    await landing('both over an edit', () => runTests(walk, [A, B], { over: edit }));
+    await commit(walk, touching(walk.text, 'first'), 'an edit inside the first effect');
+    commits[walk.head] = 'the second commit';
+    await landing('A alone', () => runTests(walk, [A]));
+
+    const b = { commit: 'the first commit', landed: 'both over an edit to both over an edit, runs 1', ran: 'another text', held: 'a text' };
+    check(walk, 'the second effect', read(await ask(walk, second)), { [B]: b });
+    check(walk, 'the component', read(await ask(walk, component)), {
+      [A]: { commit: 'the second commit', landed: 'A alone to A alone, runs 1', ran: 'the asked text' },
+      [B]: b,
+    });
+
+    await landing('elsewhere', () => runElsewhere(walk));
+    check(walk, 'the second effect after a run of other tests', read(await ask(walk, second)), { [B]: b });
+
+    await forget(walk);
+    check(walk, 'the second effect, no text kept', read(await ask(walk, second)), { [B]: { ...b, held: 'no text' } });
   });
 }

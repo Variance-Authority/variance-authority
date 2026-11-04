@@ -23,9 +23,12 @@ question open:
   failed on a value made elsewhere, or a test passes when it should not. Find
   the step where the route left the path you expected, or the `✗` on the
   branch the test is named for.
-- **A test fails on some runs and passes on others.** Record it until it has
-  both passed and thrown, twice each if you can, then ask
-  `story --name <name> --compare outcome`. Do not diff two routes yourself:
+- **A test fails on some runs and passes on others.** Ask
+  `story --name <name> --compare outcome` first: with no story recorded, it
+  compares the runs the coverage record kept of the test over the same code,
+  by the regions each reached and the test line each was charged to. When that
+  names nothing, record the test until it has both passed and thrown, twice
+  each if you can, and ask again. Do not diff two routes yourself:
   async code runs in a different order on every run, so most of what differs is
   not the cause. The comparison lists only what every run on one side did and
   no run on the other did.
@@ -102,7 +105,9 @@ whole name as the runner reports it, its `describe` blocks and its own name
 joined with ` > `. Neither is matched as text: a path or a name no story was
 written for is answered as that. When `--file` alone names a file with several
 recorded tests, the answer lists them with their visit counts and readings and
-prints no route; add the `--name` of the one you want. `--root
+prints no route; add the `--name` of the one you want. A test that ran under
+several Playwright projects is listed once for each; `--project <name>` names
+one, here and on every side of a comparison. `--root
 <path>` reads the stories of the checkout at that path.
 
 In the JSON, every declaration and every branch carries `at`, its
@@ -160,7 +165,8 @@ The answer prints a key for its marks. What the key leaves out:
   runs one line is `covering`'s question.
 - A `switch` names its cases by line, a `try` its `catch` and `finally`.
 - `before the test` is the code the runner ran outside the test just before
-  it, such as code a `beforeEach` or the previous test's `afterEach` called.
+  it, such as code a `beforeEach` called. What the test's own `afterEach`
+  called closes its story, under the hook's line.
   Test files are not recorded by default, so the hook itself is not a step.
 - `» text` under a step is a line the code emitted at that step: a `console`
   line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
@@ -233,7 +239,14 @@ not show, it names in the header:
 - *another test's work ran in the middle of this one* — under a runner that
   tracks tests through async context, that work is left out.
 - *the test threw or rejected* — the route ends where it stopped.
+- *a page the test ran in was gone before what it ran there was read* — a page
+  closed or replaced mid-statement; what it ran since the statement before is
+  not on the route.
+- *ran in N page documents* — the route says where it moves into each. A ref is
+  its own document's, and what two documents did within one test line is in the
+  order it reached the runner, so `--compare` counts no order between them.
 
-A story covers the test's own process, under Vitest, Jest and Rstest. A test
-run in a browser page (Vitest browser mode) or by Playwright writes none, and
-code the test calls in another process, such as a server, is not on it.
+A story covers the test's own process under Vitest, Jest, Rstest and a runner
+recorded through `@variance-authority/sense/runner`, and the
+page under Playwright, Storybook's collector and Vitest and Rstest browser mode. Code the test calls in another
+process, such as a server, is not on it.

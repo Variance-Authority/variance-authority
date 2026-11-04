@@ -1,8 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { caseSectionsAt, commitRunsFile, encodeExecutionIndex, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { parseReviewArgs } from '../review-args.js';
@@ -11,6 +11,9 @@ import { AFTER, BEFORE, DISCOUNTS, block, changed, git } from './review-fixture.
 import { formatHandover, HANDOVER_END, HANDOVER_LINES, HANDOVER_START } from './review-handover.js';
 import type { Review, ReviewRegion } from './review.js';
 import { REVIEW_MARKER } from './review-text.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 function parse(argv: readonly string[]) {
   return parseReviewArgs(readFlags(argv, 'review', flagsFor('review'), synopsisFor('review')));
@@ -251,6 +254,27 @@ describe('a review handed over in the pull request body, before CI', () => {
     expect(formatHandover([{ suite: 'integration', review: at('before', { 'src/b.ts': [region('total', 'far', 2)], 'src/c.ts': [region('sum', 'near', 1)] }) },
       { suite: 'unit', review: at('ran', { 'src/d.ts': [region('mean', 'near', 1)] }) }]))
       .toContain('3 changed functions, every one reached by a case, 2 only in the record before the change</summary>');
+  });
+
+  it('says of a part no case is known to have run that none is known to, not that none ran', () => {
+    const part = (startLine: number, endLine: number, reach: ReviewRegion['reach'], tests: readonly string[]): ReviewRegion => ({
+      kind: 'function', name: 'total', startLine, endLine, reach, edit: 'modified', changedLineCases: tests.length, cases: tests.length, tests, called: [],
+    });
+    const at = (record: string, regions: readonly ReviewRegion[]) =>
+      ({ from: 'a'.repeat(40), record, base: 'since', files: [{ file: 'src/a.ts', recorded: true, regions }] }) as unknown as Review;
+    const pointers = (out: string) => out.split('\n').filter((line) => line.startsWith('- '));
+
+    const ran = formatHandover([{ suite: 'unit', review: at('ran', [part(5, 20, 'near', ['test/a.test.ts']), part(8, 9, 'overwritten', [])]) }]);
+    const before = formatHandover([{ suite: 'unit', review: at('before', [part(5, 9, 'overwritten', [])]) }]);
+    // A record silent on which cases stopped still measured that none entered: that part is one no case ran.
+    const silent = formatHandover([{ suite: 'unit', review: at('ran', [part(5, 20, 'near', ['test/a.test.ts']), part(8, 9, 'unknown', [])]) }]);
+
+    expect(pointers(ran)).toEqual(['- ❔ `total` in `src/a.ts` — a part no case is known to have run; the rest 1 case, near: `test/a.test.ts`']);
+    expect(ran).toContain('1 changed function, 1 with code no case is known to have run</summary>');
+    expect(pointers(before)).toEqual(['- ❔ `total` in `src/a.ts` — no case in the record is known to have run it']);
+    expect(before).toContain('1 changed function, 1 with code no case in the record is known to have run</summary>');
+    expect(pointers(silent)).toEqual(['- 🔴 `total` in `src/a.ts` — a part no case ran; the rest 1 case, near: `test/a.test.ts`']);
+    expect(silent).toContain('1 changed function, 1 with code no case ran</summary>');
   });
 
   it('names a function a suite ran on the change without a case, though a suite read from before counts it new', () => {

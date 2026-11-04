@@ -24,7 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
-export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, wordStemsNative } from './dependency-lexicon.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, phraseOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
@@ -53,6 +53,7 @@ export {
 export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
 
 export {
+  decidesResolution,
   treeShapeOf,
   memoryRecordCache,
   openRecordCache,
@@ -80,6 +81,7 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
@@ -112,6 +114,7 @@ export {
   type RecordedCaseDurations,
   type ScopeCounts,
   type RecordedDurations,
+  type RecordOrigin,
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
@@ -202,6 +205,7 @@ export {
 } from './journeys.js';
 
 export { gitDigests } from './tree.js';
+export { seedPaths } from './files.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
   aliasesOf,
@@ -215,6 +219,7 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
+  outsideSourcesOf,
   readHelp,
   type Alias,
   type ContainerMember,

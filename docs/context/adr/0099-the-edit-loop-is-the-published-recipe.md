@@ -60,6 +60,32 @@ lost by it: a new file is reached only through an import an edit added, and
 that edited importer charges every test that loaded it. Checked by adding a new
 module and its import, then reading the loop and `variance select` after it.
 
+## Amended 2026-10-31 — a reader updates an index older than its question
+
+The consequence above does not hold: no run writes the source index, so the
+graph a selection reads is the last `variance index`, whatever ran since. A
+file added after it had no hops, and the test that imports it was placed only
+in the open leg. An edit to the new file alone then selected nothing at `0-1`
+([#777](https://github.com/Variance-Authority/variance-authority/issues/777)).
+
+The line stays as published. A selection brings the source index up to the
+checkout before it reads the graph, as a reader of the checkout's names does:
+the update pays only for what moved, about 60 ms with nothing to read on this
+repository's 3,700 files. Updating only when the index lacks a changed file
+was tried first and left a test that moved its import between two indexed
+files measured on the old edge. When the update is refused, the hops are
+measured on a graph that is not the checkout's, so a leg cuts nothing by them:
+it runs every selected test file and its first note says why.
+
+`yarn test:loop` hands its arguments to the runner and reads its leg from
+`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset; the waves keep
+their fixed legs, since a gate stamped for a leg must have run it. A flag
+Vitest does not take fails before any test runs, where it used to reach
+`tools/needs.mjs` unread
+([#855](https://github.com/Variance-Authority/variance-authority/issues/855));
+the leg's notes under a seam name the variable, which is how the same run asks
+for another leg.
+
 ## Amended 2026-10-28 — a green run ends with what a new function needs
 
 After the tests pass, the loop prints the existing functions that need what

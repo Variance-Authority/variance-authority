@@ -106,6 +106,14 @@ describe('what a finished test file is worth', () => {
     expect(reportedComplete(reported(), true)).toBe(false);
   });
 
+  it('counts no skip a cancel wrote into the result, and still counts the file\'s own', () => {
+    // Vitest 5's cancel also writes `skip` into the result of every test it had
+    // not reached, so the result says no more than the mode about who skipped it.
+    const cut: RunnerTask = { tasks: [test('pass'), { mode: 'skip', result: { state: 'skip' } }] };
+    expect(taskComplete(cut, true)).toBe(false);
+    expect(taskComplete(cut, false)).toBe(true);
+  });
+
   it('reads a filter or a cancel off the runner, and no runner as either', () => {
     expect(runnerSkipped({ config: { watch: true } })).toBe(false);
     expect(runnerSkipped({ config: { testNamePattern: /alpha/ } })).toBe(true);

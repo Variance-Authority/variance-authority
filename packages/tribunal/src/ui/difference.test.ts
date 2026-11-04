@@ -148,7 +148,7 @@ describe('the mask the page computes', () => {
   it('is pixel-identical to the one the run would have written', async () => {
     const blob = await differenceOf(serving(BEFORE, AFTER), 'ci-1', 'story:card');
 
-    expect(pixelsOf(Buffer.from(await blob.arrayBuffer()))).toEqual(pixelsOf(diffImage(BEFORE, AFTER)));
+    expect(pixelsOf(Buffer.from(await blob.arrayBuffer()))).toEqual(pixelsOf(await diffImage(BEFORE, AFTER)));
   });
 
   it('pads onto the union box exactly as the run does', async () => {
@@ -158,7 +158,7 @@ describe('the mask the page computes', () => {
 
     const made = PNG.sync.read(Buffer.from(await blob.arrayBuffer()));
     expect({ width: made.width, height: made.height }).toEqual({ width: 40, height: 44 });
-    expect(new Uint8Array(made.data)).toEqual(pixelsOf(diffImage(BEFORE, TALLER)));
+    expect(new Uint8Array(made.data)).toEqual(pixelsOf(await diffImage(BEFORE, TALLER)));
   });
 
   it('declines every colour conversion on the way in', async () => {

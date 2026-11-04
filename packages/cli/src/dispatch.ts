@@ -52,6 +52,7 @@ import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
 import { runCollect, runCollectMerge } from './commands/collect-command.js';
+import { runSharePurge } from './commands/share-purge.js';
 import { runSuiteShare } from './commands/suite-share.js';
 import type { Configless } from './commands/configless.js';
 import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } from './commands/doctor-report.js';
@@ -81,6 +82,7 @@ export async function dispatch(
   // A suite's record alone: the root config declares the suite and its share,
   // and no project config is read.
   if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
+  if (parsed.command === 'share' && parsed.purgeOlderThan !== undefined) return runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
   if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
 
   const config = await loadConfig(parsed.config);

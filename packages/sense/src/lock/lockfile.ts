@@ -23,6 +23,8 @@
  * seed, not one a lockfile can close.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
+
 /** A lockfile read down to names. */
 export interface Lockfile {
   /** Which reader answered — printed when a run widens, never matched on. */
@@ -97,7 +99,7 @@ export class Packages {
   done(format: string): Lockfile {
     const identities = new Map<string, string>();
     for (const [name, instances] of this.identities) {
-      identities.set(name, [...instances].sort(byCodeUnit).join(' '));
+      identities.set(name, [...instances].sort(codeUnitOrder).join(' '));
     }
 
     const dependencies = new Map<string, readonly string[]>();
@@ -106,7 +108,7 @@ export class Packages {
       // than kept as a name with no identity: it can never change, so an edge to
       // it could never carry anything, and it would show up in the graph as a
       // package nothing installed.
-      const edges = [...on].filter((to) => this.identities.has(to)).sort(byCodeUnit);
+      const edges = [...on].filter((to) => this.identities.has(to)).sort(codeUnitOrder);
       if (edges.length > 0) dependencies.set(name, edges);
     }
 
@@ -134,7 +136,7 @@ export function changedPackages(before: Lockfile, after: Lockfile): readonly str
     if (mixed || before.identities.get(name) !== after.identities.get(name)) changed.push(name);
   }
 
-  return changed.sort(byCodeUnit);
+  return changed.sort(codeUnitOrder);
 }
 
 /**
@@ -148,13 +150,9 @@ export function changedPackages(before: Lockfile, after: Lockfile): readonly str
 export function packageRelations(lock: Lockfile): readonly (readonly [string, string])[] {
   const pairs: (readonly [string, string])[] = [];
 
-  for (const [name, on] of [...lock.dependencies].sort(([a], [b]) => byCodeUnit(a, b))) {
+  for (const [name, on] of [...lock.dependencies].sort(([a], [b]) => codeUnitOrder(a, b))) {
     for (const to of on) pairs.push([name, to]);
   }
 
   return pairs;
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

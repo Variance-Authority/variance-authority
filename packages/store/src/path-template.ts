@@ -51,7 +51,7 @@ export interface BaselinePathTemplate {
   /**
    * Whether a directory of the path is spelled out in the template, like
    * `__baselines__`, so that its glob takes baselines and nothing else. Without
-   * one, the default template's `.gitattributes` pattern is `*-*.png`, which under a root shared
+   * one, the default template's `.gitattributes` pattern is `*-*.webp`, which under a root shared
    * with the code also takes every hyphenated image in the repository.
    */
   readonly anchored: boolean;
@@ -173,7 +173,7 @@ function parse(source: string): readonly (readonly Part[])[] {
   if (source.startsWith('/') || source.includes('\\')) {
     refuse('is not a relative path with `/` separators; it is read under `baselines.root`');
   }
-  if (/\.(png|json)$/i.test(source)) refuse('ends in an extension; the store adds `.png` and `.json` itself');
+  if (/\.(png|webp|json)$/i.test(source)) refuse('ends in an extension; the store names the image and its `.json` itself');
 
   const segments = source.split('/').map((segment) => {
     if (segment === '' || segment === '.' || segment === '..') {

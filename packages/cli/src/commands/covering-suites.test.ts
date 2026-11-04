@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { formatCoveringAnswer } from './covering-suites.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
@@ -278,7 +278,7 @@ describe('several suites that never loaded the file', () => {
         unloaded('stories', 'visual'),
         { suite: 'unit', kind: 'unit', file: 'src/pay.ts', target: { line: 12 }, tests: [], from: '/cache/unit.bin' },
       ],
-    }, 'text');
+    }, 'text', Date.now());
 
     expect(said.startsWith('unit (unit):\n')).toBe(true);
     expect(said.endsWith(`\n${NOT_LOADED('checkout (e2e), stories (visual)')}\n`)).toBe(true);

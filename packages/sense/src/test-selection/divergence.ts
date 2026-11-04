@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { BlockKind, CoverageModule, TestCoverage } from './index.js';
 import { isWritten } from './written-lines.js';
 
@@ -184,9 +185,4 @@ function observersOf(
 
 function inSourceOrder(left: JourneyRegion, right: JourneyRegion): number {
   return left.startLine - right.startLine || left.endLine - right.endLine;
-}
-
-/** The order every other list in this package is sorted by. */
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

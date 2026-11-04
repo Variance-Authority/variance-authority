@@ -5,9 +5,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
-import { main } from '../bin.js';
+import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
+import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
 import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, reserveFollowUps } from './index-follow-ups.js';
@@ -28,12 +28,12 @@ const PACKAGE = fileURLToPath(new URL('../..', import.meta.url));
 // The machine's index turn sits in the temporary directory, which the suite's
 // setup (`tools/temporary-per-test.ts`) gives each test of its own.
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-index-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 /** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
@@ -60,6 +60,22 @@ function checkout(): string {
   process.chdir(root);
   // The path the process sees, which is the one a recording is keyed by: the temporary directory is a symlink on macOS.
   return realpathSync(root);
+}
+
+/** A recording at a commit this checkout's object store does not hold, which no walk can read. */
+function unwalkable(root: string): void {
+  const at = testCoverageFile(root);
+  mkdirSync(dirname(at), { recursive: true });
+  const coverage = encodeTestCoverage({
+    version: 3, instrumentation: 'fixture', tests: [], modules: [], commit: '0123456789abcdef0123456789abcdef01234567',
+  });
+  const block = { kind: 'function', name: 'unit', path: 'unit', startLine: 1, endLine: 1, source: true };
+  writeFileSync(at, withCaseSections(coverage, {
+    index: encodeAsSetExecutionIndex({
+      tests: [{ id: 'test/unit.test.ts > one', file: 'test/unit.test.ts', name: 'one', stopped: false }],
+      modules: [{ file: 'src/unit.ts', blocks: [{ ...block, crossings: [{ test: 0, distance: 0 }] }] }],
+    }),
+  }));
 }
 
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
@@ -183,6 +199,42 @@ describe('variance index', () => {
     expect(indexed.code).toBe(EXIT_CLEAN);
     expect(indexed.out.split('\n')[0]).toBe(`source index built: 2 files, at ${at}`);
     expect(indexed.out.split('\n')[1]).toMatch(new RegExp(`^code map: not prepared: the code map at ${at}\\.map did not read: `, 'u'));
+  });
+
+  // Nothing recorded is an absence and exits clean; a recording git cannot walk
+  // is a fault, and a pipeline that reads only the exit code must see it.
+  it('exits as the operator\'s when git cannot read the commit the recording ran at, after every line', async () => {
+    const root = checkout();
+    unwalkable(root);
+
+    const { code, out } = await run(['index']);
+
+    expect(out.split('\n')).toContain("journeys: not prepared: commit 0123456789ab is not in this checkout's object store. Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out every commit: `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`");
+    expect(out).toContain('questions: published at');
+    expect(code).toBe(EXIT_OPERATOR);
+  });
+
+  // A detached walk exits after the command that started it, so its failure is
+  // kept in its lock and told by the next command that reads the follow-ups.
+  it('keeps a detached walk git cannot read in its lock, and the next reader of the follow-ups names it and exits as the operator\'s', async () => {
+    const root = checkout();
+    unwalkable(root);
+    const index = sourceIndexPath(root);
+    holdFollowUps(index, { pid: process.pid, log: followUpsLogPath(index) });
+
+    const detached = await run(['index', '--follow-ups']);
+
+    expect(detached.code).toBe(EXIT_OPERATOR);
+    expect(heldBy(index)?.failed).toEqual([expect.stringContaining('commit 0123456789ab is not in this checkout\'s object store')]);
+
+    const searched = await run(['ask', 'search', '--query', 'widget']);
+
+    expect(searched.out).toContain('widget');
+    expect(searched.err).toContain(`process ${process.pid} could not walk the journeys \`variance index\` left to it: commit 0123456789ab is not in this checkout's object store`);
+    expect(searched.err).not.toContain('so it is made now');
+    expect(searched.code).toBe(EXIT_OPERATOR);
+    expect(existsSync(followUpsLockPath(index))).toBe(false);
+    expect((await run(['ask', 'search', '--query', 'widget'])).code).toBe(EXIT_CLEAN);
   });
 
   it("names the primary checkout's index a worktree's first update built on", async () => {
@@ -374,7 +426,7 @@ describe('variance index', () => {
     const root = checkout();
     const cache = join(mkdtempSync(join(tmpdir(), 'va-index-unwritable-')), 'cache');
     writeFileSync(cache, 'not a directory\n');
-    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
 
     const refused = await run(['index']);
 

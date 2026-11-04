@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { encodeExecutionIndex, recordOfCases, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { journeyAgainst, recordedJourneys } from './resources.js';
 import { selectOutput } from './select-command.js';
@@ -13,11 +13,11 @@ import { selectOutput } from './select-command.js';
  */
 describe('a record without coverage', () => {
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-uncovered-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-uncovered-cache-')));
   });
 
   afterEach(() => {
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   /** A checkout whose record holds the cases of `a.test.ts` and no coverage, as `landRun` writes it. */

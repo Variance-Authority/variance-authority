@@ -2,6 +2,7 @@ import { describe, it } from 'vitest';
 import { comparedByCli } from './__fixtures__/carry-comparison.js';
 import { lastCasesByCli, selectedByCli } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
+import { ranByCli } from './__fixtures__/carry-ran.js';
 import {
   bothRanOverAnUnkeptEdit,
   branchDeletedThenRun,
@@ -10,6 +11,9 @@ import {
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
   lastRunAfterCarry,
+  ranOverAnUnkeptTextThenAnother,
+  ranOverAnotherTestsRegion,
+  ranOverThenCommittedElsewhere,
   ranOverThenKeptForgotten,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
@@ -48,6 +52,18 @@ describe('a record carried through a history, asked by the CLI after a restart',
 
   it('charges every loader when both tests ran over an uncommitted edit and no text was kept, since the digest cannot stand in for it', async () => {
     await bothRanOverAnUnkeptEdit(selectedByCli, forgetKept);
+  });
+
+  it('keeps the case that ran a region in another text on it, run by an edit there and named by no reader, when a run over an edit inside it did not enter it', async () => {
+    await ranOverAnotherTestsRegion(selectedByCli);
+  });
+
+  it('holds every case of a module flagged at each of its regions when a run lands over a text no landing kept, never as measured absence', async () => {
+    await ranOverAnUnkeptTextThenAnother(selectedByCli, forgetKept);
+  });
+
+  it('dates a test file by the landing it last ran in, never by a later one that carried it, and holds the text it ran over only while it is kept or committed', async () => {
+    await ranOverThenCommittedElsewhere(ranByCli, forgetKept);
   });
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {

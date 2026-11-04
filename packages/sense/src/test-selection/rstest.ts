@@ -28,15 +28,18 @@ import { probesRegions } from '../instrument/identity.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
 import { AFTER_LOADER, SELECTION_LOADER, unprobedFiles } from './rstest-loaders.js';
 import { carriedJournal, statusesComplete } from './finished-files.js';
+import { pageTaping, writeCarriedStories } from './carried-stories.js';
 import { reportedDuration } from './reported-time.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { attendingSource, browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
+import { browserSetupSource, setupSource } from './worker-source.js';
+import { attendingSource, caseGlobalsSource } from './rstest-case-source.js';
 import { recordFileFor } from './record-location.js';
 import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
+import { limitAcross } from './execution-set-columns.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -125,6 +128,12 @@ export interface RstestTestSelectionOptions {
   readonly cadence?: boolean;
 }
 
+/** Where a case stands in its file, as Rstest names it to a reporter. */
+interface CaseNames {
+  readonly parentNames?: readonly string[];
+  readonly name?: string;
+}
+
 /** What one test file's run left behind, as Rstest's `onTestRunEnd` reports it. */
 export interface RstestFileResult {
   readonly testPath: string;
@@ -135,6 +144,9 @@ export interface RstestFileResult {
     readonly name?: string;
     readonly parentNames?: readonly string[];
     readonly duration?: number;
+    readonly testId?: string;
+    /** What the case's context put on its `meta`, carried from wherever it ran. */
+    readonly meta?: object;
   }>;
   /** What the file's own `afterAll` put on its context, carried from wherever it ran. */
   readonly meta?: object;
@@ -259,28 +271,38 @@ export function withTestSelection(
   if (config.projects !== undefined) run.runConfig = '';
 
   const settle = foldRun(run, { coverageFile, shims: [setupId] });
+  const story = askedForStories(coverageFile);
   let ended: number | undefined;
+  // What each case was held to. Rstest resolves it before the case starts and
+  // says it here alone: neither the case's context nor its result carries it.
+  // One reporter hears every project, so a case two ran in one cycle keeps the longer.
+  const limits = new Map<string, number | undefined>();
   const reporter = {
+    onTestCaseStart: (test: { readonly testPath: string; readonly timeout?: number } & CaseNames) => {
+      const key = `${test.testPath}\0${caseNameOf(test)}`;
+      limits.set(key, limitAcross(test.timeout, limits.get(key)).limit);
+    },
     // A watching Rstest starts every cycle here, after the last cycle's end.
     // Rstest builds the cycle's bundle, reading its files, before it announces
     // the start: the first cycle began when the run was made, and a rerun when
     // the last cycle ended.
     // FIXME: so a watching rerun counts the save that started it as a write
     // while it ran, and records the files it saved incomplete.
-    onTestRunStart: () => reopenRun(run, ended ?? run.startedAt),
-    onTestRunEnd: (payload: RstestRunEnd) => {
+    onTestRunStart: () => {
+      limits.clear();
+      return reopenRun(run, ended ?? run.startedAt);
+    },
+    onTestRunEnd: async (payload: RstestRunEnd) => {
       ended = Date.now();
       const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
-      return unprobedAtEnd(run) ?? settle(cycleResults(run, payload).map((file) => ({
+      const files = cycleResults(run, payload);
+      await writeCarriedStories(story, files.flatMap(caseEnds));
+      return unprobedAtEnd(run) ?? settle(files.map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
-          cases: file.results.map((test) => finishedCase(
-            [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > '),
-            undefined,
-            test.duration,
-          )),
+          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration, limits.get(`${file.testPath}\0${caseNameOf(test)}`))),
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
@@ -320,13 +342,13 @@ export function withTestSelection(
           root,
           continuations: options.continuations === true,
           scope,
-          story: askedForStories(coverageFile),
+          story,
           cases: probesRegions(mode),
         }),
       ),
       ...setupFiles,
     ],
-    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode)],
+    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode, story !== undefined)],
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,
@@ -398,17 +420,19 @@ function nameFiltersOf(run: SelectionRun): Set<() => unknown> {
  * configuration with the command line merged in, so it is read there, and so is
  * `-t`, which skips every test it does not name.
  */
-function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
+function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, taping: boolean) {
   return {
     name: 'variance-authority:test-selection',
-    setup(api: RsbuildPluginApi): void {
+    async setup(api: RsbuildPluginApi): Promise<void> {
       const exposed = api.useExposed('rstest');
       // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
       if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
       if (exposed?.getRstestConfig().browser?.enabled !== true) return;
-      writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
-      // TODO: record cases in a page — a drain per test, carried on each
-      // test's `meta` as the file's is.
+      writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API, taping ? await pageTaping() : undefined));
+      // A test line reaches the record through a case's story alone in a page:
+      // a page that does not tape cuts nothing.
+      if (!taping) run.cadence = undefined;
+      // TODO: record cases in a page in the case index, as each case's story is.
       if (run.cases) {
         run.cases = false;
         console.warn(
@@ -418,6 +442,21 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
       }
     },
   };
+}
+
+/**
+ * How one file's cases ended, under the names its result gives them: the
+ * file's path, and the describe path joined as `currentTestName` joins it for a
+ * case in Node.
+ */
+function caseEnds(file: RstestFileResult) {
+  return (file.results ?? []).map((test) => ({
+    file: file.testPath, name: caseNameOf(test), id: test.testId, project: file.project, meta: test.meta, stopped: test.status === 'fail',
+  }));
+}
+
+function caseNameOf(test: CaseNames): string {
+  return [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > ');
 }
 
 function array<T>(value: T | readonly T[] | undefined): T[] {

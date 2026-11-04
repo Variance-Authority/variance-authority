@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -28,6 +28,21 @@ export const MARKDOWN: readonly string[] = execFileSync('git', ['ls-files', '*.m
   .trim()
   .split('\n')
   .filter((file) => !GENERATED.test(file));
+
+/**
+ * Pages published as product documentation, rather than repository context for
+ * contributors and maintainers. The action's README is the front page of the
+ * repository the action is installed from.
+ */
+export const PUBLIC_MARKDOWN = MARKDOWN.filter(
+  (file) =>
+    (file === 'README.md' ||
+      file === '.github/actions/variance/README.md' ||
+      /^docs\/[^/]+\.md$/.test(file) ||
+      /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file)) &&
+    file !== 'docs/AGENTS.md' &&
+    file !== 'docs/visual-guidelines.md',
+);
 
 /** Markdown with fenced blocks blanked out, so a prose rule cannot read an example. */
 export function prose(file: string): string {
@@ -58,6 +73,57 @@ export function flat(file: string): string {
 export function lineOf(text: string, index: number): number {
   return text.slice(0, index).split('\n').length;
 }
+
+export interface Link {
+  /** The target as written. */
+  readonly target: string;
+  /** Line of the link in the markdown, 1-based. */
+  readonly line: number;
+  /** The file the target names, relative to the root; absent for a URL or a mail address. */
+  readonly inside?: string;
+  /** The heading the target names after `#`, when it names one. */
+  readonly anchor?: string;
+  /** Offsets of the whole link and of its label in the page's {@link prose}. */
+  readonly start: number;
+  readonly end: number;
+  readonly labelStart: number;
+  readonly labelEnd: number;
+}
+
+/**
+ * Every `[text](target)` link in a page's prose, resolved against the page.
+ *
+ * A fenced block is shown, not followed: a sample of generated markdown carries
+ * the links of the artifact it depicts, not of this document. A bare `#anchor`
+ * resolves to the page itself.
+ */
+export function linksIn(file: string): readonly Link[] {
+  const text = prose(file);
+  const found: Link[] = [];
+  for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const target = match[2]!;
+    const at = {
+      target,
+      line: lineOf(text, match.index),
+      start: match.index,
+      end: match.index + match[0].length,
+      labelStart: match.index + 1,
+      labelEnd: match.index + 1 + match[1]!.length,
+    };
+    if (/^(?:https?:|mailto:)/.test(target)) {
+      found.push(at);
+      continue;
+    }
+    const [path, anchor] = target.split('#') as [string, string | undefined];
+    const inside = path === '' ? file : relative(ROOT, resolve(dirname(resolve(ROOT, file)), path));
+    found.push({ ...at, inside, ...(anchor === undefined ? {} : { anchor }) });
+  }
+  return found;
+}
+
+/** Our raw files and our `.github` on GitHub: a URL a reader fetches or copies from. */
+export const INTO_GITHUB =
+  /https?:\/\/(?:github\.com\/Variance-Authority\/variance-authority\/(?:blob|tree|raw)|raw\.githubusercontent\.com\/Variance-Authority\/variance-authority)\/[^/\s]+\/\.github\/[^\s)>`'"]*/gi;
 
 export interface Fence {
   readonly file: string;

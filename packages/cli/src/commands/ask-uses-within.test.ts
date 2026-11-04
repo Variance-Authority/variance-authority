@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` and `ask symbol` over the imports of a name within its
@@ -17,12 +17,12 @@ import { checkout, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-within-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-within-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const UNCOUNTED_LINE = 'A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.';
@@ -47,7 +47,8 @@ describe('variance ask over the imports of a name within its own package', () =>
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`greet` [function] is imported in 5 places: 1 from another package and 4 inside @acme/lib.');
+    // `other.ts` declares another `greet`, so the headline names the declaration it counts.
+    expect(out).toContain('`greet` [function] is imported in 5 places: 1 from another package and 4 inside @acme/lib, published by @acme/lib, declared at packages/lib/src/greet.ts:2.');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib; used on line 2$/m);
     expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib; used on line 3$/m);

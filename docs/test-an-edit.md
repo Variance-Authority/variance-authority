@@ -68,8 +68,9 @@ starts any of them, and prints one line to stderr first:
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
-Set and empty, the variable measures each test from the commit it last ran at,
-which the record keeps per test file. Set to a ref, such as `origin/main`, it
+Set and empty, the variable measures each test file from the commit a run last
+finished it at, which the record keeps per test file: a later run that ran only
+some of its cases does not change it. Set to a ref, such as `origin/main`, it
 names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select, and
 neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
@@ -136,10 +137,11 @@ runs whole when the record cannot say which of its cases your edit reached:
   the test file, which every case of the file waits on;
 - the record holds the file as running the changed code, but none of its cases
   entering it;
-- a test of the suite last ran at an earlier commit than the latest run. Once
-  you commit between runs, the tests a selected run left out keep the commit
-  they last ran at, and every selected file runs whole until one run takes the
-  suite to a single commit.
+- a test file of the suite was last finished at an earlier commit than the
+  latest run. Once you commit between runs, the test files a selected run left
+  out or ran only some cases of keep the commit a run last finished them at,
+  and every selected file runs whole until one run takes the suite to a single
+  commit.
 
 Within a file that is cut, a case that shares its full name with a case your
 edit reached runs too, because the runner skips by name.
@@ -155,10 +157,10 @@ File grain is the default, and `VARIANCE_AUTHORITY_GRAIN=file` names it.
 
 ## Each run moves the starting point
 
-A selected run lands in the record like a full one. The tests it ran are
-measured from what they just ran, and the tests it left out keep the commit
-they last ran at, so the next edit is charged only to the tests that have not
-seen it:
+A selected run lands in the record like a full one. The test files it finished
+are measured from what they just ran, and the ones it left out or ran only some
+cases of keep the commit a run last finished them at, so the next edit is
+charged only to the tests that have not seen it:
 
 - **A test a run left out still owes the edit.** If you edit a function and run
   only the near leg, the far tests that executed that function run next time.
@@ -203,8 +205,8 @@ ways:
 - **No test runs.** The run prints `selected none of 340` and exits 0. No
   recorded test ran the code you changed, the tests that did already ran the
   text you have now, or they sit further than one import away. The lines under
-  it say which: a file left for a later leg is counted with the range that
-  runs it, `2-`, which is `VARIANCE_AUTHORITY_AT_DISTANCE=2-` in this line.
+  it say which: a file left for a later leg is counted with the setting that
+  runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
   Exit 0 here says nothing near the edit failed, not that the change is done.
 - **Some tests run.** The run prints `selected 1 of 340`, runs that file, and
   exits with its result.
@@ -241,23 +243,12 @@ times.
 
 ## When it runs everything
 
-Selection only ever removes files it can prove your edit did not reach, so
-everything the record cannot speak for runs:
-
-- **A test file the record has never seen.** A new test runs until a run
-  records it.
-- **An edit the record cannot read.** No record on this machine, a diff git
-  would not produce, or a lockfile that cannot be compared at the base: the run
-  prints `declined:` and runs every file.
-- **A file nothing imports.** A runner configuration or a setup file is read
-  like any other file unless you name it as
-  [before reach](changes-before-and-beyond.md); named, a change to it runs the
-  whole suite.
-
-A file the record holds nothing about, such as a README or a fixture a test
-reads with `fs`, keeps no test in the run, and stderr names it. If a test does
-read that fixture, name it in the seam's `preconditions` option, and from the
-next recording on a change to it runs every test that declared it.
+A new test file runs until a run records it, and every doubt about the record
+prints `declined:` and runs every file;
+[what a skipped test promises](selection-safety.md) lists each doubt, and the
+changed files that keep no test. If a test reads a fixture with `fs`, name it in
+the seam's `preconditions` option, and from the next recording on a change to it
+runs every test that declared it.
 
 ## What a selection costs
 

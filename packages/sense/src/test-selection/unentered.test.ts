@@ -37,6 +37,18 @@ describe('a region no case entered, on lines a region around it charges', () => 
     expect(coveringTestsInFile(alone, 'src/cart.ts')).toEqual([{ startLine: 6, endLine: 6, tests: [], stopped: [] }]);
   });
 
+  it('is not one a case ran in another text there, which is not known not to have entered it', () => {
+    const tests = [...index.tests, { id: 'a.test.ts > rounds', file: 'a.test.ts', name: 'rounds', stopped: false }];
+    const overwritten: ExecutionIndex = { tests, modules: [{ file: 'src/cart.ts', blocks: [
+      index.modules[0]!.blocks[0]!,
+      { ...index.modules[0]!.blocks[1]!, crossings: [{ test: 1, distance: 0, overwritten: true }] },
+    ] }] };
+
+    const branch = coveringTestsInFile(overwritten, 'src/cart.ts').find((range) => range.startLine === 6);
+    expect(branch?.unentered).toBeUndefined();
+    expect(branch?.overwritten).toEqual([tests[1]]);
+  });
+
   it('is named on the opening line of a longer region, whose other lines say it on their own', () => {
     const longer: ExecutionIndex = { ...index, modules: [{ file: 'src/cart.ts', blocks: [
       { kind: 'function', name: 'total', path: 'entry', startLine: 3, endLine: 10, source: true, crossings: [{ test: 0, distance: 0 }] },

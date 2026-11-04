@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { collectStories, collectStory, harnessPage, readParameters } from '@variance-authority/storybook';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * The end of a render, against a Storybook that has one.
@@ -129,7 +130,7 @@ afterAll(async () => {
 const live = BUILT && BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BUILT || !BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (finish): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (BUILT

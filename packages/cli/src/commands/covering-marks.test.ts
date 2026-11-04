@@ -53,6 +53,15 @@ describe('the marks of a file every declared suite answered about', () => {
     ])).toEqual([{ startLine: 1, endLine: 1, suites: ['unit', 'checkout'] }]);
   });
 
+  it('read a case one suite ran in another text as not known on the lines, unless another suite says it called in', () => {
+    const flagged = { ...unit, ranges: [{ startLine: 1, endLine: 2, tests: [], stopped: [], overwritten: [test('pays')] }] };
+    const other = (tests: readonly ReturnType<typeof test>[]) =>
+      ({ ...e2e, ranges: [{ startLine: 1, endLine: 2, tests, stopped: [], ...(tests.length === 0 ? { state: 'unwalked' as const } : {}) }] });
+    expect(marksOf([flagged, other([])])).toEqual([{ startLine: 1, endLine: 2, suites: ['unit', 'checkout'] }]);
+    expect(marksOf([flagged, other([test('pays')])])).toEqual([{ startLine: 1, endLine: 2, state: 'alone', suites: ['unit', 'checkout'] }]);
+    expect(marksOf([flagged, other([test('ships')])])).toEqual([{ startLine: 1, endLine: 2, state: 'walked', suites: ['unit', 'checkout'] }]);
+  });
+
   it('are absent when no suite answered with ranges, as a question about one line', () => {
     expect(marksOf([{ ...unit, target: { line: 2 }, tests: [] }, { ...e2e, refused: 'unloaded', reason: 'never loaded' }]))
       .toBeUndefined();

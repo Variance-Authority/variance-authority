@@ -93,8 +93,9 @@ yarn vitest run cases/incumbent-case/src/locale.chromium.test.ts
 The first two read that report; the third asks a question of one render and needs
 only the bundle and the browser. All three skip loudly, with the command
 attached, when the browser, the bundle or the incumbent's report is missing, or
-when the bundle is older than its sources. A silently skipped head-to-head reads
-in a summary exactly like one that ran and agreed.
+when the bundle is older than its sources, and on CI they fail with the same
+message instead. A silently skipped head-to-head reads in a summary exactly like
+one that ran and agreed.
 
 The other files in this directory: [`src/scenarios.ts`](src/scenarios.ts) (the
 corpus, declared before either side ran), [`src/surface.tsx`](src/surface.tsx)

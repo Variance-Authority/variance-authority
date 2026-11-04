@@ -27,6 +27,7 @@
  */
 
 import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { TestCoverage } from '../test-selection/index.js';
 import type { Tainted } from './index.js';
 
@@ -120,7 +121,7 @@ export function auditTaints(
 
   return found.sort(
     (left, right) =>
-      byCodeUnit(left.test, right.test) || byCodeUnit(left.module, right.module) || byCodeUnit(left.kind, right.kind),
+      codeUnitOrder(left.test, right.test) || codeUnitOrder(left.module, right.module) || codeUnitOrder(left.kind, right.kind),
   );
 }
 
@@ -160,8 +161,4 @@ function hold(into: Map<string, Set<string>>, test: string, file: string): void 
   const held = into.get(test) ?? new Set<string>();
   held.add(file);
   into.set(test, held);
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

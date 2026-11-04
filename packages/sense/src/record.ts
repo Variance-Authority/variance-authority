@@ -11,6 +11,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
 import { keyFor, languageFor, parseWay, type ParseWay } from './files.js';
@@ -172,7 +173,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       ...(read.declares === undefined ? {} : { declares: read.declares }),
       ...(unresolved.length === 0
         ? {}
-        : { unresolved: [...new Set(unresolved)].sort(byCodeUnit) }),
+        : { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) }),
       ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
     },
     read,
@@ -330,11 +331,7 @@ function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] 
       seen.add(key);
       return true;
     })
-    .sort((a, b) => byCodeUnit(a.to, b.to) || byCodeUnit(a.kind, b.kind));
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
 }
 
 function messageOf(error: unknown): string {

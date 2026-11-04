@@ -33,14 +33,23 @@ export function declaredEffects(
   imported: readonly string[],
 ): readonly string[] {
   const scanner = native();
-  if (root === undefined || scanner?.declaredEffects === undefined || scanner.resolveSources === undefined) return [];
-  const targets = imported.length === 0
-    ? []
-    : scanner.resolveSources(root, file, [...imported], listedIn(relations), declaredTsconfig(root)).filter(Boolean);
+  if (root === undefined || scanner?.declaredEffects === undefined) return [];
+  const targets = resolvedImports(root, relations, file, imported)?.filter(Boolean) ?? [];
   const loaded = new Set(targets.flatMap((target) => loadedFrom(relations, [target])));
   for (const already of loadedFrom(relations, unchangedImports(relations, file, targets))) loaded.delete(already);
   loaded.delete(file);
   return scanner.declaredEffects(root, [file, ...[...loaded].sort()]);
+}
+
+/**
+ * Where each of `specifiers`, written in `file`, lands at the checkout, in
+ * order: a root-relative file, an absolute path outside the checkout, or `''`
+ * where it lands nowhere. `undefined` without the addon.
+ */
+export function resolvedImports(root: string, relations: Relations | undefined, file: string, specifiers: readonly string[]): readonly string[] | undefined {
+  const scanner = native();
+  if (scanner?.resolveSources === undefined) return undefined;
+  return specifiers.length === 0 ? [] : scanner.resolveSources(root, file, [...specifiers], listedIn(relations), declaredTsconfig(root));
 }
 
 const LISTED = new WeakMap<Relations, string[]>();
@@ -90,7 +99,8 @@ function loadedFrom(relations: Relations | undefined, files: readonly string[]):
   return loaded;
 }
 
-function runtimeTargets(relations: Relations, id: NodeId): readonly NodeId[] {
+/** The files `id` loads at runtime, itself left out. */
+export function runtimeTargets(relations: Relations, id: NodeId): readonly NodeId[] {
   const { offset, target, kind } = relations.depends;
   const targets: NodeId[] = [];
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {

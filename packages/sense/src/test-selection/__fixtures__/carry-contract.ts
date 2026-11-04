@@ -333,7 +333,7 @@ export function caseOf(file: string): string {
 
 /** What the record holds of the subject, by the label each region stands for. */
 export interface Held {
-  /** The test files whose cases the case index holds on each labelled region. */
+  /** The test files whose cases the case index holds as having run each labelled region. */
   readonly cases: Readonly<Record<string, readonly string[]>>;
   /** The test files the snapshot's row of each labelled region names. */
   readonly rows: Readonly<Record<string, readonly string[]>>;
@@ -380,10 +380,27 @@ export async function held(walk: Walk): Promise<Held> {
   if (sections.index !== undefined) {
     const index = decodeExecutionIndex(sections.index);
     const module = index.modules.find((one) => one.file === SUBJECT);
-    for (const block of module?.blocks ?? []) put(cases, block, block.crossings.map((crossing) => index.tests[crossing.test]!.file));
+    for (const block of module?.blocks ?? []) {
+      put(cases, block, block.crossings.filter((crossing) => crossing.overwritten !== true).map((crossing) => index.tests[crossing.test]!.file));
+    }
   }
   const loadedBy = [...(row?.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [])].sort();
   return { cases, rows, loadedBy };
+}
+
+/**
+ * The test files whose cases the case index holds flagged on each labelled
+ * region, which ran another text there; only the regions that hold one.
+ */
+export async function flagged(walk: Walk): Promise<Readonly<Record<string, readonly string[]>>> {
+  const named = namer(walk);
+  const index = decodeExecutionIndex(caseSectionsAt(walk.coverageFile).index!);
+  const found: Record<string, string[]> = {};
+  for (const block of index.modules.find((one) => one.file === SUBJECT)?.blocks ?? []) {
+    const tests = block.crossings.filter((crossing) => crossing.overwritten === true).map((crossing) => index.tests[crossing.test]!.file);
+    if (tests.length > 0) found[named(block)] = [...new Set(tests)].sort();
+  }
+  return found;
 }
 
 /**
@@ -426,6 +443,13 @@ export function cliEnv(walk: Walk): NodeJS.ProcessEnv {
   return { ...process.env, VARIANCE_AUTHORITY_CACHE: walk.cacheRoot };
 }
 
+/** Runs `variance index` into the walk's cache once per HEAD, as a pipeline indexes a commit before it asks. */
+export async function indexedByCli(walk: Walk): Promise<void> {
+  if (walk.indexed === walk.head) return;
+  await run(process.execPath, [BIN, 'index', '--wait'], { cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024 });
+  walk.indexed = walk.head;
+}
+
 /**
  * {@link selected}, asked of the CLI in a process of its own that opens the
  * record cold, after `variance index` has indexed HEAD into the walk's cache,
@@ -436,10 +460,7 @@ export async function selectedByCli(walk: Walk, next: string): Promise<readonly 
   const patch = resolve(walk.scratch, `change-${walk.actions.length}.patch`);
   await writeFile(patch, diff, 'utf8');
   const options = { cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024 };
-  if (walk.indexed !== walk.head) {
-    await run(process.execPath, [BIN, 'index', '--wait'], options);
-    walk.indexed = walk.head;
-  }
+  await indexedByCli(walk);
   const { stdout } = await run(process.execPath, [BIN, 'select', '--execution', walk.coverageFile, '--diff', patch, '--format', 'json'], options);
   walk.actions.push({ action: 'select through the CLI', next, stdout });
   return testsOf(JSON.parse(stdout) as unknown);
@@ -469,6 +490,7 @@ export async function lastCases(walk: Walk): Promise<readonly string[]> {
 
 /** The same scope read by a fresh CLI process, including its before comparison. */
 export async function lastCasesByCli(walk: Walk): Promise<readonly string[]> {
+  await indexedByCli(walk);
   const { stdout } = await run(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--execution', walk.coverageFile, '--cases', 'last', '--format', 'json'], {
     cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
   });

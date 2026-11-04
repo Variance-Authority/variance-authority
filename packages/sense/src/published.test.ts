@@ -113,8 +113,8 @@ describe('the published source index', () => {
     await updateSourceIndex(root, { index: at, progress });
     // The git listing is its own step: on a large checkout it is most of the update.
     expect(told).toEqual([
-      `start listing ${listed} with git`,
-      `end listing ${listed} with git`,
+      `start listing ${listed}`,
+      `end listing ${listed}`,
       'start reading the files that changed since the last index',
       'end reading the files that changed since the last index',
     ]);

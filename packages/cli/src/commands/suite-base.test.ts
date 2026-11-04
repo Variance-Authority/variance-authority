@@ -4,7 +4,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
 import {
   commitRunsFile,
@@ -44,7 +44,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -55,7 +55,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 /** Point every cache read and write in this process at `name` under the test's directory. */
 function cacheOf(name: string): string {
   const cache = join(home, name);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
   return cache;
 }
 
@@ -152,9 +152,9 @@ describe('the record a worktree that has run nothing measures from', () => {
     expect(laid).toEqual({ laid: own });
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(keepsCases(own)).toBe(true);
-    // The mainline's runs record, as a seed: none of its runs are this checkout's.
-    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
-    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
+    // The mainline's runs record, as a seed: none of its runs are this checkout's, and they landed when they landed.
+    const published = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0 });
     expect(await suiteBase(fresh, { env: LOCAL })).toEqual({
       from: 'own',
       suite: 'unit',
@@ -280,8 +280,9 @@ describe('`variance share --suite unit`', () => {
   it('publishes the record alone, and says so the way `share --publish` does', async () => {
     const { ci } = await mainline({ publish: false });
     const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
-    expect(lines).toHaveLength(1);
+    expect(lines).toHaveLength(2);
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
+    expect(lines[1]).toMatch(/^kept the record at [0-9a-f]{40} beside the latest\.$/u);
   });
 
   it('says which test files it retired because the suite no longer collects them', async () => {
@@ -289,9 +290,9 @@ describe('`variance share --suite unit`', () => {
     const collected = join(home, 'collected-other.txt');
     await writeFile(collected, 'test/other.test.ts\n');
     const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected }, { env: PUSH });
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(3);
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
-    expect(lines[1]).toBe('retired 1 test file(s) from suite-v1/unit that the suite no longer collects, test/total.test.ts among them.');
+    expect(lines[2]).toBe('retired 1 test file(s) from suite-v1/unit that the suite no longer collects, test/total.test.ts among them.');
   });
 
   it('says nothing was published when this checkout holds no record at this commit', async () => {
@@ -378,8 +379,8 @@ describe('every reader of a worktree that has run nothing starts from the same r
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);
     expect(await readFile(own)).not.toEqual(record);
-    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
-    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
+    const published = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0 });
   });
 
   it('`variance select` reads the mainline\'s record, and says so, where the primary checkout holds one too', async () => {

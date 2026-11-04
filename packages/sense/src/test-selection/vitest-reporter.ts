@@ -3,7 +3,7 @@
  * major announces it, narrowed to which files finished and how.
  */
 
-import type { Reporter } from 'vitest/reporters';
+import type { Reporter } from 'vitest/node';
 import {
   carriedJournal,
   reportedComplete,
@@ -14,13 +14,15 @@ import {
   type RunnerTask,
 } from './finished-files.js';
 import { reportedDuration, reportedPhases } from './reported-time.js';
-import { reportedCases, taskCases } from './case-durations.js';
+import { namedTasks, reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
+import { writeCarriedStories } from './carried-stories.js';
 
 export function selectionReporter(
   run: SelectionRun,
   settle: (files: readonly FinishedFile[]) => Promise<void>,
+  story?: string,
 ): Reporter {
   // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
   // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over
@@ -51,7 +53,14 @@ export function selectionReporter(
     // keeps the start the run was made at, before the configuration loaded.
     onWatcherRerun: () => reopenRun(run, Date.now()),
     onTestRunStart: () => reopenRun(run, run.settled ? Date.now() : run.startedAt),
-    onFinished: (files: readonly RunnerTask[]) => settle(
+    onFinished: async (files: readonly RunnerTask[]) => {
+      // The end is announced through both hooks; the first to arrive writes.
+      if (!run.settled) await writeCarriedStories(story, files.flatMap((file) => namedTasks(file).map(({ task, name }) => ({
+        file: file.filepath, name, id: task.id, project: file.projectName,
+        meta: task.meta,
+        stopped: task.result?.state === 'fail',
+      }))));
+      await settle(
       files.flatMap((file) => file.filepath === undefined
         ? []
         : [{
@@ -69,8 +78,15 @@ export function selectionReporter(
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
         }]),
-    ),
-    onTestRunEnd: (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => settle(
+      );
+    },
+    onTestRunEnd: async (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => {
+      if (!run.settled) await writeCarriedStories(story, reported.flatMap((module) => [...module.children.allTests()].map((test) => ({
+        file: module.moduleId, name: test.fullName, id: test.id, project: module.project?.name,
+        meta: test.meta?.(),
+        stopped: test.result().state === 'failed',
+      }))));
+      await settle(
       reported.map((module) => ({
         filepath: module.moduleId,
         complete: reportedComplete(module, runnerSkipped(runner, reason)),
@@ -80,7 +96,8 @@ export function selectionReporter(
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),
-    ),
+      );
+    },
   } as Reporter;
 }
 

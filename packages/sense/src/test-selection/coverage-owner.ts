@@ -101,7 +101,8 @@ export function* calledRegions(suites: readonly CountedSuite[]): Generator<Calle
         const called: string[] = [];
         for (const crossing of block.crossings) {
           const test = index.tests[crossing.test]?.file;
-          if (crossing.loaded !== true && test !== undefined) called.push(test);
+          // A case that ran the region in another text (`overwritten`) is not known to call into this one.
+          if (crossing.loaded !== true && crossing.overwritten !== true && test !== undefined) called.push(test);
         }
         yield { suite, file: module.file, key, tests: called };
       }

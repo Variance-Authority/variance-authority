@@ -32,3 +32,11 @@ export function digestString(input: string): Digest {
 export function digestBytes(bytes: Uint8Array): Digest {
   return digestOfSha256(createHash('sha256').update(bytes).digest('hex'));
 }
+
+/** Git's name for `bytes` as a blob, in the repository's hash: a SHA-256 name is 64 digits. */
+export function blobName(bytes: Buffer, digits: number): string {
+  return createHash(digits === 64 ? 'sha256' : 'sha1')
+    .update(`blob ${bytes.length}\0`)
+    .update(bytes)
+    .digest('hex');
+}

@@ -17,12 +17,27 @@
  */
 export type ResetHandler = () => void;
 
+/**
+ * What a test runs in, for a party that keeps state per test rather than
+ * resetting it: the isolator's sessions. Each member is called by the driver.
+ */
+export interface TestScope {
+  /** A test file starts, before it is collected: drop what the file before it left. */
+  enterFile(): void;
+  /** A test starts, before its `beforeEach` hooks. */
+  enterTest(): void;
+  /** A test ended, after its `afterEach` hooks. */
+  leaveTest(): void;
+}
+
 export interface ResetRealm {
   /** Whether a test setup has installed a driver in this realm. */
   configured: boolean;
   /** The handlers a reset will run, read at reset time so late imports count. */
   handlers: Set<ResetHandler>;
-  /** The first handler that registered before a driver existed, for the error. */
+  /** The scopes the driver enters and leaves, read when it does. */
+  scopes: Set<TestScope>;
+  /** The first handler or scope that registered before a driver existed, for the error. */
   early: ResetHandler | undefined;
   /** How many did, so the error can say whether it is one module or forty. */
   earlyCount: number;
@@ -41,5 +56,8 @@ type Host = typeof globalThis & { [REALM]?: ResetRealm };
  */
 export const realm = (): ResetRealm => {
   const host = globalThis as Host;
-  return (host[REALM] ??= { configured: false, handlers: new Set(), early: undefined, earlyCount: 0 });
+  const state = (host[REALM] ??= { configured: false, handlers: new Set(), scopes: new Set(), early: undefined, earlyCount: 0 });
+  // A realm an older copy of this package made has no scopes yet.
+  state.scopes ??= new Set();
+  return state;
 };

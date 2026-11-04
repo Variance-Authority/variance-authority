@@ -4,8 +4,7 @@ import { isAbsolute, join } from 'node:path';
 import type { Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import { readModule, type Read } from '../read.js';
-import { declaredTsconfig } from '../typescript.js';
-import { listedIn } from './effects.js';
+import { resolvedImports } from './effects.js';
 
 /** Where one file references what it imports, by the repository file each import lands on. */
 export interface FileReferences {
@@ -44,7 +43,7 @@ export interface FileReferences {
  */
 export function importReferences(root: string, relations: Relations | undefined, file: string): FileReferences | undefined {
   const scanner = native();
-  if (scanner?.moduleReferences === undefined || scanner.resolveSources === undefined) return undefined;
+  if (scanner?.moduleReferences === undefined) return undefined;
   let text: string;
   try {
     text = readFileSync(join(root, file), 'utf8');
@@ -54,7 +53,8 @@ export function importReferences(root: string, relations: Relations | undefined,
   const found = scanner.moduleReferences(file, text);
   if (found === null) return undefined;
   const sources = found.sources;
-  const landed = sources.length === 0 ? [] : scanner.resolveSources(root, file, sources, listedIn(relations), declaredTsconfig(root));
+  const landed = resolvedImports(root, relations, file, sources);
+  if (landed === undefined) return undefined;
   // An absolute path lands outside the checkout, and `''` nowhere.
   const at = new Map(sources.flatMap((source, index) => {
     const target = landed[index];

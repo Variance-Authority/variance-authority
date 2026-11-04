@@ -19,7 +19,6 @@ export {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
-  innermostAt,
   ranWhileLoading,
   stoppedBefore,
   type CoveringChange,
@@ -35,13 +34,14 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
-export { functionsUnder, lineGrain, marksLoadTime } from './source-target.js';
+export { blocksOfTarget, functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseHeard, heardSplit, heldText, heldValues, readSplit, readsOf, rowOf, saidAcross, saidRow, valued, type CaseHeard, type CasePrecondition, type Misuse, type Said } from './case-said.js';
-export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
+export { hunksByFile, placeAcross, placeInText, placeInTexts, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { reachOf, regionRecord, stateOf, type RangeState, type Reach, type ReachRecord } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';
@@ -61,21 +61,16 @@ export {
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
-export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause } from './distill-native.js';
-export { type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause, type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
-export {
-  EXECUTION_FORMAT,
-  decodeExecutionIndex,
-  encodeExecutionIndex,
-  isEncodedExecutionIndex,
-} from './execution-format.js';
+export { formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
+export { limitAcross } from './execution-set-columns.js';
+export { EXECUTION_FORMAT, decodeExecutionIndex, encodeExecutionIndex, isEncodedExecutionIndex } from './execution-format.js';
 export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
-export { readingLines, type FileReading } from './reading-lines.js';
+export { readingLines, withEveryReading, type FileReading } from './reading-lines.js';
 export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
 export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
@@ -87,10 +82,10 @@ export { hunksOf } from './patch.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
-export { textAtRecording, textsAt } from './recorded-text.js';
-export { keptDigests, keptTexts } from './kept-texts.js';
+export { blobsAt, readBlobsAt, readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
+export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept.
-export { shardsInstall, type KeptInstall } from './kept-install.js';
+export { shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
@@ -108,6 +103,7 @@ export {
   layeredFiles,
   repositoryLayers,
   rootConfig,
+  rootConfigOf,
   writesBase,
   type CacheLayers, type RootConfig,
 } from './cache-layers.js';
@@ -138,6 +134,7 @@ export {
   CARRIERS,
   SUITE_KINDS,
   SuitesError,
+  beforeIn,
   beforeOf,
   declaredSuites,
   parseBefore,
@@ -181,43 +178,43 @@ export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFil
 export { openTestCoverage, type TestCoverageView } from './format-view.js';
 // What a landing of shards reads of the record they combined into, and the coverage it lands.
 export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
-export { BLOCK_KINDS, NO_DURATION, PHASE_NAMES } from './format-layout.js';
+export { BLOCK_KINDS, NO_BLOB, NO_DURATION, PHASE_NAMES } from './format-layout.js';
 export type { FilePhases } from './reported-time.js';
 export { timeBeforeCases } from './file-cost.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
 export { withIndexLock } from './index-lock.js';
-export { landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
+export { casesRan, landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';
-export { editsBetween } from './region-edit.js';
+export { editsBetween, regionTouched, type Edit, type TextNames } from './region-edit.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
-export {
-  commitRunsAfter,
-  commitRunsFile,
-  heldCommitRuns,
-  landRun,
-  readCommitRuns,
-  writeCommitRuns,
-  type CommitRuns,
-  type RecordedTests,
-  type StandingEntry,
-} from './commit-runs.js';
+export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
+export { commitRunsIn } from './commit-runs-text.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
+export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
+export { ago, whatLanded, type WhatLanded } from './landings.js';
+export { baseEdgesOf, undone, type BaseEdges, type ChangedText } from './base-edges.js';
+export { driftChange, type DriftChange, type DriftSide, type NotCompared } from './drift-change.js';
+export { driftFromWalk, type Drift, type DriftRow, type LoadedModule } from './drift.js';
+export { ranOver, readsTheSnapshot, type HeldNames, type NotHeld, type RanOver, type RanOverEvidence } from './place-text.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,
   coverageChange,
   regionRun,
+  textAsks,
   type CountedSuite,
   type CoverageCount,
   type KindOverlap,
   type RegionRun,
   type RegionTally,
+  type RegionText,
+  type RunOver,
   type SuiteChange,
   type SuiteCount,
 } from './coverage-count.js';
@@ -278,6 +275,12 @@ export interface CoverageModule {
    * whether those coordinates still hold.
    */
   readonly sourceDigest: string;
+  /**
+   * The git blob name of that same text, as the source index names a file: a
+   * reader asks the index whether the tree still holds the text the blocks were
+   * cut from. Absent where the row was recorded without one.
+   */
+  readonly sourceBlob?: string;
   /** False records module-level unknown evidence; consumers widen without consulting its blocks. */
   readonly instrumented: boolean;
   readonly blocks: readonly CoverageBlock[];

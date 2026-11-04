@@ -16,7 +16,7 @@ import { UNCOVERED } from './merge.js';
 import { censusOf, examplesOf, lexiconReportFrom, type LexiconReading } from './compose.js';
 import { reportsFor } from './report-read.js';
 import { isSlice, suitePartPath, type CliRunReport } from './run-report.js';
-import { describePublish, publishKept, shareLines, suiteIndexPath, type Here } from './share.js';
+import { describePublish, publishKept, refusedUnkept, shareLines, suiteIndexPath, type Here } from './share.js';
 
 /**
  * One shard's share of the suite index, and the fold that makes the index whole.
@@ -263,7 +263,7 @@ export async function publishComposed(
     // A cache this machine could not write is a cache this machine does without.
   }
   const done = await publishKept(config, { commit, index }, { report: merged }, here);
-  return [`suite index at ${commit}, composed from ${String(parts.length)} shard(s): ${path}`, ...describePublish(config, done)];
+  return refusedUnkept(done, [`suite index at ${commit}, composed from ${String(parts.length)} shard(s): ${path}`, ...describePublish(config, done)]);
 }
 
 /**

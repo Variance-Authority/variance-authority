@@ -444,9 +444,12 @@ and a region already covered by then is recorded as **loaded** by that file:
 that and nothing finer, for a suite that needs the signal at the price of one
 probe per function.
 
-**For one unit test that fails on some runs, compare its runs.** Record the
-test's [story](test-stories.md) on each run: the functions and branches it ran,
-in order. The order of async code is different on every run, so two stories
+**For one unit test that fails on some runs, compare its runs.** The coverage
+record keeps the runs of each test over the same code, and `variance story
+--compare outcome` compares them by the regions each run reached and the test
+line each was charged to, with nothing recorded first. When that names nothing,
+record the test's [story](test-stories.md) on each run: the functions and
+branches it ran, in order. The order of async code is different on every run, so two stories
 of one test always differ, and a different order is not the flake. `variance
 story --compare outcome` lists only what is true of every run that passed and
 of no run that threw — a branch, a line the code printed, or two steps in the
@@ -662,10 +665,10 @@ registerResetHandler(() => {
 
 ```ts
 // the first entry in setupFiles
-import { beforeEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
-configureResetHandler(beforeEach);
+configureResetHandler(beforeEach, afterEach);
 ```
 
 `beforeEach` and not `afterEach`. A failing test does run its `afterEach` — that
@@ -692,7 +695,10 @@ time instead: its Jest transformer and its loader for Rspack and webpack give
 every module-level `let` the module writes and does not export, and every object
 it keeps to itself,
 one value per test, and the
-same driver starts each test on a copy of what the module held once it loaded. A declaration marked
+same driver starts each test on a copy of what its
+file left there while it was collected and in its `beforeAll` hooks. Its Vite plugin does
+the same under Vitest, and in a Storybook build, where each switch to a story,
+before its file is imported, starts it on one page from what every module held once it loaded. A declaration marked
 `@isolator-ignore` stays shared.
 
 What this does not cover is a memoized value inside a package you do not author.
@@ -729,14 +735,6 @@ recorded seed finds a failure nobody can reproduce, and the order that broke it
 is gone the moment the process exits. Both runners accept a seed back, and both
 report the one they used — Jest prints it under `--randomize`, which is the same
 thing as `--showSeed`.
-
-Under [test selection](coverage-test-selection.md) on Vitest 2 and 3.0, a
-`--reporter` you name on the command line leaves the seed out of Vitest's
-banner. The run prints it on stderr instead, on a line that starts with
-`variance-authority:`. On Vitest 2, a run you start from code rather than from
-the `vitest` command reads `--sequence.shuffle.files` as no shuffle and
-`--sequence.shuffle.tests` as a shuffle of files too; write the object in the
-config file, `sequence: { shuffle: { files, tests } }`, to have it read whole.
 
 Jest's `--randomize` needs the default `jest-circus` runner, and shuffles within
 each `describe` block rather than across the file.

@@ -244,9 +244,6 @@
   "docs/sharding.md lead": [
     18
   ],
-  "docs/sharing.md lead": [
-    26
-  ],
   "docs/source-index.md lead": [
     17
   ],
@@ -518,7 +515,7 @@
     6
   ],
   "packages/cli/src/commands/covering.ts docblock": [
-    13
+    11
   ],
   "packages/cli/src/commands/covering.ts overview": [
     25
@@ -569,7 +566,7 @@
     6
   ],
   "packages/cli/src/commands/index-command.ts overview": [
-    27
+    25
   ],
   "packages/cli/src/commands/index-follow-ups.ts overview": [
     21
@@ -601,9 +598,6 @@
   ],
   "packages/cli/src/commands/layers-command.ts overview": [
     16
-  ],
-  "packages/cli/src/commands/mainline-base.ts overview": [
-    32
   ],
   "packages/cli/src/commands/merge.ts block": [
     9
@@ -712,9 +706,6 @@
   "packages/cli/src/commands/review-suites.ts docblock": [
     11
   ],
-  "packages/cli/src/commands/review.ts block": [
-    11
-  ],
   "packages/cli/src/commands/run-context.ts docblock": [
     12,
     11
@@ -791,9 +782,6 @@
     20
   ],
   "packages/cli/src/commands/story-tree.ts overview": [
-    19
-  ],
-  "packages/cli/src/commands/story.ts overview": [
     19
   ],
   "packages/cli/src/commands/suite-base.ts docblock": [
@@ -1331,12 +1319,6 @@
   "packages/core/src/shard/placement.ts overview": [
     18
   ],
-  "packages/core/src/share/index.ts overview": [
-    21
-  ],
-  "packages/core/src/share/line.ts overview": [
-    16
-  ],
   "packages/distill/src/attribution.ts docblock": [
     12
   ],
@@ -1591,9 +1573,6 @@
   "packages/ioc/src/reset/index.ts docblock": [
     31
   ],
-  "packages/ioc/src/reset/setup.ts docblock": [
-    24
-  ],
   "packages/ioc/src/reset/state.ts docblock": [
     13
   ],
@@ -1638,16 +1617,13 @@
     11
   ],
   "packages/mcp/src/tools.ts docblock": [
-    14
+    13
   ],
   "packages/mcp/src/tools.ts overview": [
     61
   ],
   "packages/mcp/src/tools/adjudicate.ts docblock": [
     17
-  ],
-  "packages/mcp/src/tools/changed-tests.ts docblock": [
-    15
   ],
   "packages/mcp/src/tools/changelog.ts overview": [
     26
@@ -1845,12 +1821,6 @@
   "packages/playwright-test/src/docket.ts docblock": [
     15
   ],
-  "packages/playwright-test/src/documents.ts docblock": [
-    14
-  ],
-  "packages/playwright-test/src/documents.ts overview": [
-    18
-  ],
   "packages/playwright-test/src/execution.ts block": [
     10,
     6,
@@ -2007,9 +1977,6 @@
   ],
   "packages/png/src/change.ts docblock": [
     19
-  ],
-  "packages/png/src/compare.ts docblock": [
-    14
   ],
   "packages/png/src/difference.test.ts block": [
     7
@@ -2538,9 +2505,6 @@
   "packages/sense/src/index.ts overview": [
     16
   ],
-  "packages/sense/src/instrument/cadence.ts docblock": [
-    14
-  ],
   "packages/sense/src/instrument/index.ts docblock": [
     28,
     12
@@ -2727,11 +2691,7 @@
     6
   ],
   "packages/sense/src/test-selection/case-landing.ts docblock": [
-    35,
     26
-  ],
-  "packages/sense/src/test-selection/case-layer.ts block": [
-    6
   ],
   "packages/sense/src/test-selection/case-layer.ts docblock": [
     30,
@@ -2744,14 +2704,8 @@
     11,
     11
   ],
-  "packages/sense/src/test-selection/case-preconditions.cts docblock": [
-    11
-  ],
   "packages/sense/src/test-selection/case-preconditions.cts overview": [
     26
-  ],
-  "packages/sense/src/test-selection/case-record.ts docblock": [
-    19
   ],
   "packages/sense/src/test-selection/cases.ts docblock": [
     17
@@ -2774,11 +2728,8 @@
     24
   ],
   "packages/sense/src/test-selection/commit-runs.ts docblock": [
-    21,
-    13,
     12,
-    11,
-    11
+    12
   ],
   "packages/sense/src/test-selection/commit-runs.ts overview": [
     35
@@ -2801,7 +2752,7 @@
     11
   ],
   "packages/sense/src/test-selection/covering-change-text.ts block": [
-    14
+    8
   ],
   "packages/sense/src/test-selection/crossing-fold.ts overview": [
     19
@@ -2864,11 +2815,7 @@
     26,
     20,
     19,
-    17,
     12
-  ],
-  "packages/sense/src/test-selection/format-layout.ts docblock": [
-    32
   ],
   "packages/sense/src/test-selection/format-view.ts docblock": [
     11
@@ -2946,9 +2893,6 @@
   ],
   "packages/sense/src/test-selection/jest-setup.cts overview": [
     28
-  ],
-  "packages/sense/src/test-selection/jest-trace-environment.cts overview": [
-    20
   ],
   "packages/sense/src/test-selection/jest-transform.ts block": [
     6
@@ -3105,9 +3049,6 @@
   "packages/sense/src/test-selection/ran-over.ts docblock": [
     11
   ],
-  "packages/sense/src/test-selection/range-state.ts docblock": [
-    13
-  ],
   "packages/sense/src/test-selection/react-compiler.integration.test.ts block": [
     7,
     6,
@@ -3130,17 +3071,11 @@
     26,
     11
   ],
-  "packages/sense/src/test-selection/recorded-text.ts block": [
-    6
-  ],
   "packages/sense/src/test-selection/recorded-text.ts docblock": [
     11
   ],
   "packages/sense/src/test-selection/recorded-text.ts overview": [
     56
-  ],
-  "packages/sense/src/test-selection/region-edit.ts block": [
-    19
   ],
   "packages/sense/src/test-selection/region-landing.ts block": [
     13,
@@ -3150,7 +3085,6 @@
     14
   ],
   "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block": [
-    10,
     6
   ],
   "packages/sense/src/test-selection/reverse.test.ts block": [
@@ -3302,7 +3236,6 @@
   ],
   "packages/sense/src/test-selection/worker-source.ts docblock": [
     31,
-    23,
     12
   ],
   "packages/sense/src/text-digests.ts block": [
@@ -3422,8 +3355,7 @@
     6
   ],
   "packages/store/src/lfs.ts docblock": [
-    17,
-    11
+    17
   ],
   "packages/store/src/lfs.ts overview": [
     31
@@ -4102,9 +4034,6 @@
     7,
     6
   ],
-  "tools/skips.check.ts docblock": [
-    12
-  ],
   "tools/skips.check.ts overview": [
     22
   ],
@@ -4127,9 +4056,6 @@
   ],
   "tools/take-base.mjs overview": [
     16
-  ],
-  "tools/take-carried.mjs overview": [
-    23
   ],
   "tools/temporary-per-test.ts overview": [
     22

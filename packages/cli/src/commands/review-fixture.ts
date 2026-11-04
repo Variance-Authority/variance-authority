@@ -15,6 +15,10 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
+/** The name `git hash-object` gives `text`, as a landing names the text a record's rows were cut from and the source index names a file. */
+export const hashObject = (text: string): string =>
+  `git:${execFileSync('git', ['hash-object', '--stdin'], { input: text, encoding: 'utf8' }).trim()}`;
+
 /**
  * A change a review reads: `main` at the base, the change in the working tree,
  * and the run after it recorded, for the review command's tests.
@@ -166,6 +170,7 @@ export async function recordTotal(coverageFile: string, record: {
     modules: [{
       file: 'src/total.ts',
       sourceDigest: digestString(record.text ?? AFTER),
+      sourceBlob: hashObject(record.text ?? AFTER),
       instrumented: true,
       blocks: [
         { ordinal: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount', startLine: lines.applyDiscount[0], endLine: lines.applyDiscount[1], source: true, testFiles: record.entered.applyDiscount },

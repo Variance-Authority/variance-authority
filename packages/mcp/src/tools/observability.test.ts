@@ -100,8 +100,8 @@ describe('the composite observability surface', () => {
   it('lifts native tools and refuses to manufacture an empty missing subject', () => {
     expect(observabilityToolByName('variance_test_attention')!.run({ eyes: EYES }, {}))
       .toContain('1 Eyes test(s)');
-    expect(() => observabilityToolByName('variance_source_tests')!.run({}, { file: 'src/panel.tsx' }))
-      .toThrow('runtime journey evidence is unavailable');
+    expect(() => observabilityToolByName('variance_presentations')!.run({}, {}))
+      .toThrow('presentation readings evidence is unavailable');
   });
 
   it('joins Eyes and Sense only by exact test id and calls reduction targets candidates', () => {

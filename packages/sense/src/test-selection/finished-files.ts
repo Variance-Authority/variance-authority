@@ -50,10 +50,7 @@ export interface RunnerTask {
   readonly collectDuration?: number;
 }
 
-/**
- * Vitest 3 and 4's reported test module, structurally: a type from the runner's
- * own package would pin the build to a version the project need not have.
- */
+/** Vitest 3 and 4's reported test module, structurally, so the build pins no runner version. */
 export interface ReportedModule {
   readonly moduleId: string;
   readonly children: {
@@ -62,6 +59,7 @@ export interface ReportedModule {
       readonly id?: string;
       readonly fullName?: string;
       diagnostic?: () => { readonly duration?: number } | undefined;
+      meta?: () => object;
     }>;
     /** Vitest 3 and 4 only; a suite holds the errors its own hooks threw. */
     allSuites?: () => Iterable<{ errors?: () => { readonly length: number } }>;
@@ -249,27 +247,19 @@ const stopped = (task: RunnerTask): boolean =>
 /**
  * A test's outcome as the runner itself reads one it never started.
  *
- * Vitest 2 returns from a test whose mode is not `run` before it writes any
- * result: an `it.todo`, an `it.skip`, everything under a closed `describe.skip`
- * gate. The tree it hands over holds that test's mode and no state, so the mode
- * is the only outcome the runner has, and it is carried rather than read as a
- * test that went missing. Vitest 3 and 4 answer the same absence the same way —
- * their reported test is `skipped` when it has no result and its mode is `skip`
- * or `todo` — which is what {@link reportedComplete} is handed. A test the run
- * meant to run and left with no result still has no usable outcome: its mode is
- * `run`.
- *
- * The file's text is not the only thing that writes that mode. A name filter
- * rewrites every test it leaves out to `skip` at collection, and a cancelled
- * run rewrites every test it had not reached, in the worker's copy of the tree.
- * Neither is the skip {@link usableOutcome} argues for, and the mode does not
- * say which wrote it, so in a run where either may have happened — see
- * {@link runnerSkipped} — a `skip` with no result is not an outcome. A `todo`
- * still is: neither rewrite writes one.
+ * A test the run never started has no result, only its mode: a `todo` or a
+ * `skip` the file's text wrote is carried as the outcome, as Vitest 3 and later
+ * report it to {@link reportedComplete}, and `run` with no result has none. A
+ * name filter and a cancel also write `skip`, into the mode and, on Vitest 5's
+ * cancel, into the result, and neither is the skip {@link usableOutcome} argues
+ * for. Where either may have happened ({@link runnerSkipped}), a `skip` is not
+ * an outcome. A `todo` still is: neither writes one.
  */
-const outcome = (task: RunnerTask, runnerSkipped: boolean): string =>
-  task.result?.state
-    ?? (task.mode === 'todo' || (task.mode === 'skip' && !runnerSkipped) ? task.mode : 'missing');
+const outcome = (task: RunnerTask, runnerSkipped: boolean): string => {
+  const state = task.result?.state
+    ?? (task.mode === 'todo' || task.mode === 'skip' ? task.mode : 'missing');
+  return state === 'skip' && runnerSkipped ? 'missing' : state;
+};
 
 /**
  * @param runnerSkipped Whether the runner may have skipped a test the file did

@@ -18,6 +18,8 @@ pub(crate) struct Shard {
     pub tests: Vec<Test>,
     /// Each case's duration in whole milliseconds, where its runner reported one.
     pub durations: Vec<Option<u32>>,
+    /// Each case's limit in milliseconds, where the record names one.
+    pub limits: Vec<Option<u32>>,
     /// Each case's lines as stored, its modules named by their row in this
     /// shard; empty where the case recorded none.
     pub lines: Vec<Vec<u8>>,
@@ -34,6 +36,9 @@ pub(crate) struct ShardModule {
     pub inventory: usize,
     pub called: Vec<u32>,
     pub loaded: Vec<bool>,
+    /// Each region's overwritten set, empty where the shard has no
+    /// `journey_format::OVERWRITTEN` column.
+    pub overwritten: Vec<u32>,
 }
 
 /// One way a file was cut, with the owners that cut named where known.
@@ -60,11 +65,12 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let runners = optional_words(case_id::COLUMN)?;
     let projects = optional_words(case_id::PROJECT_COLUMN)?;
     let durations = optional_words(&cases.duration)?;
+    let limits = optional_words(&cases.limit)?;
     let lines = if decoded.has(&cases.lines) { Some((decoded.bytes(&cases.lines)?, decoded.words(&cases.lines_offsets)?)) } else { None };
     if files.len() != count
         || names.len() != count
         || settled.len() != count
-        || [&runners, &projects, &durations].into_iter().flatten().any(|column| column.len() != count)
+        || [&runners, &projects, &durations, &limits].into_iter().flatten().any(|column| column.len() != count)
         || lines.as_ref().is_some_and(|(_, offsets)| offsets.len() != count + 1)
     {
         return Err("test columns disagree".to_owned());
@@ -83,6 +89,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
         .collect::<Result<_, String>>()?;
     let no_duration = LAYOUT.coverage.no_duration;
     let durations = (0..count).map(|at| durations.as_ref().map(|column| column[at]).filter(|word| *word != no_duration)).collect();
+    let limits = (0..count).map(|at| limits.as_ref().map(|column| column[at]).filter(|word| *word != no_duration)).collect();
     let lines = match &lines {
         None => vec![Vec::new(); count],
         Some((blob, offsets)) => offsets
@@ -120,12 +127,15 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let sources = decoded.held("blocks.source")?;
     // A shard written before regions named their owners has no owner column.
     let owners = optional_words(journey_format::OWNER)?;
+    // A shard no layering cut to another text holds no overwritten column.
+    let overwritten = optional_words(journey_format::OVERWRITTEN)?;
     if module_blocks.len() != module_files.len() + 1 || called.len() != loaded.len() {
         return Err("module columns disagree".to_owned());
     }
     if [block_names.len(), paths.len(), starts.len(), ends.len(), sources.len(), called.len()]
         .into_iter()
         .chain(owners.as_ref().map(Vec::len))
+        .chain(overwritten.as_ref().map(Vec::len))
         .any(|length| length != kinds.len())
     {
         return Err("block columns disagree".to_owned());
@@ -155,12 +165,14 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
             inventory,
             called: called[first..last].to_vec(),
             loaded: loaded[first..last].to_vec(),
+            overwritten: overwritten.as_ref().map_or_else(Vec::new, |column| column[first..last].to_vec()),
         });
     }
     Ok(Shard {
         name: String::new(),
         tests,
         durations,
+        limits,
         lines,
         modules,
         set_bytes,

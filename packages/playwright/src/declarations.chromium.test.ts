@@ -44,7 +44,8 @@ const APP = [
   "  capture() { return '{}'; },",
   "  declared: { id: 't1', names: ['Button', 'Vendor', 'Plain'], functions: [Button, Vendor, Plain] },",
   '};',
-  `//# sourceMappingURL=data:application/json;base64,${MAP}`,
+  // Split, or the transform reads this line as the test file's own inline map.
+  `//${'#'} sourceMappingURL=data:application/json;base64,${MAP}`,
 ].join('\n');
 
 const VENDOR = 'function Vendor() { return null; }';

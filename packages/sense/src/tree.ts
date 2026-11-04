@@ -30,6 +30,7 @@ import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString, type Digest } from './digest.js';
 import { native, type NativeGitTree } from './native.js';
 import { directoriesOf } from './witness.js';
@@ -82,6 +83,17 @@ export async function gitDigests(
   else await overlayKnownChanges(root, digests, changed, prefix);
 
   return digests;
+}
+
+/**
+ * The name git gives the bytes on disk at each of `paths`, spelled from the top
+ * of the checkout at `repository`, as {@link gitDigests} names a file the
+ * working tree changed: one `hash-object --stdin-paths`, which cleans each file
+ * on the way in (`core.autocrlf`, a filter) and names it in the repository's
+ * own hash. A path that is not a file on disk has none. Never throws.
+ */
+export async function namesOnDisk(repository: string, paths: readonly string[]): Promise<ReadonlyMap<string, Digest>> {
+  return hashOnDisk(repository, '', await filesAmong(repository, paths.filter((path) => !path.includes('\n'))));
 }
 
 /** Whether `HEAD` names a branch nobody has committed to yet; asked only after `ls-tree` failed. */
@@ -289,11 +301,23 @@ export async function gitTreeOf(
   return digests === undefined ? undefined : treeOf(digests);
 }
 
+/**
+ * The tree an update of the index at `index` over `dirs` is made against: the
+ * listing the index carries when Watchman reports nothing moved since it was
+ * taken, else git's (spec 0107). `undefined` where {@link gitTreeOf} answers it.
+ */
+export async function changeTreeOf(root: string, index: string, dirs: readonly string[]): Promise<Tree | undefined> {
+  const addon = native();
+  if (addon === undefined) return gitTreeOf(root, dirs);
+  const held = addon.changeTree(root, index, [...dirs]);
+  return held === null ? undefined : nativeTree(held);
+}
+
 /** A tree over digests somebody else computed — a caller's own map, or the one `gitDigests` read. */
 export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
   let sorted: readonly string[] | undefined;
   const paths = (): readonly string[] =>
-    (sorted ??= [...digests.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+    (sorted ??= [...digests.keys()].sort(codeUnitOrder));
 
   return {
     get size() {
@@ -342,7 +366,7 @@ function nativeTree(held: NativeGitTree): Tree {
  * both sides of the boundary; the literal names come from the caller, because
  * [`reuse.ts`](./reuse.ts) owns that list.
  */
-function isNamed(path: string, names: readonly string[]): boolean {
+export function isNamed(path: string, names: readonly string[]): boolean {
   const name = path.slice(path.lastIndexOf('/') + 1);
 
   return names.includes(name) || (name.startsWith('tsconfig') && name.endsWith('.json'));

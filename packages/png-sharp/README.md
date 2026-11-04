@@ -2,7 +2,7 @@
 
 # @variance-authority/png-sharp
 
-> Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.
+> Faster image decoding for Variance Authority through sharp, and the lossless WebP an accepted baseline is kept as, for runtimes that can load a native addon.
 
 Part of [Variance Authority](https://variance-authority.dev).
 Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
@@ -54,7 +54,8 @@ that costs you:
   an image built for it.
 - A runtime that cannot load a `.node` file at all — a Cloudflare Worker, an
   edge runtime, a bundle that cannot contain one — cannot use this package. Use
-  `@variance-authority/png` alone there; it needs only `Buffer`.
+  `@variance-authority/png` alone there; it needs only `Buffer`, and compares,
+  but cannot accept a baseline.
 
 [Native code](https://variance-authority.dev/docs/native-code) has the full
 picture, including what a CI image needs.
@@ -199,6 +200,36 @@ The failure `auto` catches is at load time: `sharp` throws when it cannot
 resolve an addon for the platform, so importing this package throws, and the CLI
 falls back there. Under `decoder: "sharp"` that same failure is reported with
 the resolution error attached.
+
+## Keep an accepted baseline
+
+`keepImage` turns an accepted capture into the bytes a baseline store keeps: a
+lossless WebP, encoded by libwebp at effort 2 — about a quarter of the
+bytes of the PNG, in about 170 ms for a full page. You rarely call it
+yourself: `keptRaster` in `@variance-authority/store/keep` calls it for every
+accept, before `put`, and loads this package only then, so a run that accepts
+nothing never loads `sharp`.
+
+Before it returns, it decodes its own output and compares it with the capture,
+and throws rather than keep anything that differs. Every pixel with any
+opacity must match in all four channels; a fully transparent pixel must stay
+fully transparent, and the colour under it is not kept, because sharp's
+encoder does not keep it and no comparison can see it. A lossless WebP passes
+through untouched, and a lossy one is refused. A WebP holds at most 16,383
+pixels on a side, so a larger capture is refused, read from its header before
+any pixel is decoded.
+
+```js
+import { keepImage } from '@variance-authority/png-sharp';
+
+const kept = await keepImage(capturedPng); // a lossless WebP Buffer
+```
+
+The same pixels encode to the same bytes under one libwebp, but a `sharp`
+upgrade that brings a new libwebp can write different bytes for them. A
+comparison reads pixels, never kept bytes, so no verdict moves; a baseline
+rewritten after the upgrade, though, shows in git as a changed file whose
+pixels did not change.
 
 ## The two decoders produce the same pixels
 

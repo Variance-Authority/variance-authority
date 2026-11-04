@@ -224,7 +224,7 @@ try {
         write(`${safe(mutation.id)}--${safe(story)}.png`, shots.get(story));
         write(
           `${safe(mutation.id)}--${safe(story)}--diff.png`,
-          diffImage(baselines.get(story), shots.get(story)),
+          await diffImage(baselines.get(story), shots.get(story)),
         );
       }
     }
@@ -269,7 +269,7 @@ try {
     write(`probe--${safe(probe.id)}--before.png`, before);
     write(`probe--${safe(probe.id)}--after.png`, after);
     if (comparison.changed.default > 0) {
-      write(`probe--${safe(probe.id)}--diff.png`, diffImage(before, after));
+      write(`probe--${safe(probe.id)}--diff.png`, await diffImage(before, after));
     }
     probes.push({ probe, comparison });
   }

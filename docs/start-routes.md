@@ -58,11 +58,11 @@ export default routeCollector({
 
 **The id is yours.** Choose one that survives a renamed route, and keep it out
 of the URL's shape. The id is also the baseline's path: under the default
-`baselines.path`, `checkout/empty` is written as `checkout/empty-chromium.png`,
+`baselines.path`, `checkout/empty` is written as `checkout/empty-chromium.webp`,
 each `/` a directory, so the folder you review reads like your list of routes.
 A site root, `/`, has no segment to name a file after, so it is
-written as `index-chromium.png`, the file a server answers `/` with, and at a
-declared width as `index-1280-chromium.png`.
+written as `index-chromium.webp`, the file a server answers `/` with, and at a
+declared width as `index-1280-chromium.webp`.
 Ids are also what `ignore` rules glob over, so `checkout/empty` and
 `checkout/one-item` are both matched by `checkout/*`.
 
@@ -135,7 +135,7 @@ change what the run sees.
 
 With `baselines.kind: "directory"`, the images under `.variance/baselines` are
 ordinary tracked files, and committing them is how the next run and CI find the
-approved state. Each subject gets a `.png` and a `.json` beside it — the image,
+approved state. Each subject gets a `.webp` and a `.json` beside it — the image,
 and the record of which renderer painted it and what it may be compared against.
 
 If your repository ignores `.variance/`, exclude its contents rather than the
@@ -330,7 +330,7 @@ reviewer has something to open.
 
 Approval itself arrives as a commit. With committed baselines, somebody checks
 out the branch, opens the report, runs `variance accept` for the ids they
-intend to keep, and commits the changed `.png` and `.json` files — so the new
+intend to keep, and commits the changed `.webp` and `.json` files — so the new
 approved image is a diff in the pull request, reviewed and merged like any other
 change. A remote baseline store moves that approval out of the repository;
 [baseline placement](placement.md) covers what it costs.

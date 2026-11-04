@@ -147,8 +147,9 @@ tests in how many test files it takes. The reason in parentheses is
 one of three:
 
 - `absent`: no run of the suite is recorded;
-- `stale`: the record was made over a different version of the file than the
-  one you have checked out, or before the file existed;
+- `stale`: the record, or what it holds of the lines you asked about, was made
+  over a different version of the file than the one you have checked out, or
+  before the file existed;
 - `coarse`: the record holds the line only at file grain, so it knows which
   tests loaded the file but not which of them ran the line.
 
@@ -195,9 +196,11 @@ where it was:
   mainline's record when the root config gives the suite `"carry": "share"`.
   Otherwise wire the suite's producer and record one run: that first run is
   the record.
-- **Lines written since the recording, in a file the record holds**: run the
-  test files the gap names: the ones `variance select` runs for the file under
-  the suite's own `relations`, `ignore` and `before`.
+- **Lines written since the recording, or recorded over another text since, in
+  a file the record holds**: run the test files the gap names: the ones
+  `variance select` runs for the file under the suite's own `relations`,
+  `ignore` and `before`, among them every test file the record holds only in
+  part.
 - **A file the record is older than**, so a new file: run the recorded test
   files `variance select` runs for it by reach. `variance reach --since
   <commit>`, from the commit the record was made at, then takes every file

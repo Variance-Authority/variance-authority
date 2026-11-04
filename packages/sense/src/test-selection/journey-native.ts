@@ -19,11 +19,12 @@
 
 import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
-import type { ExecutionIndex } from './reverse.js';
+import type { ExecutionCrossing, ExecutionIndex } from './reverse.js';
 import { ignoredBy, withoutPaths } from './route.js';
 import type { ExecutionNarrowing } from './narrowing.js';
 
@@ -126,7 +127,10 @@ export async function projectJourneyFile(
         endLine: block.endLine,
         source: block.source,
         ...(block.loaded ? { loaded: true as const } : {}),
-        crossings: block.tests.map((test) => ({ test, distance: 0 })),
+        crossings: [
+          ...block.tests.map((test): ExecutionCrossing => ({ test, distance: 0 })),
+          ...(block.overwritten ?? []).map((test): ExecutionCrossing => ({ test, distance: 0, overwritten: true })),
+        ],
       })),
     })),
   };
@@ -137,10 +141,6 @@ export interface JourneyProjection {
   readonly index: ExecutionIndex;
   /** Every file the journey holds a row for, which `index.modules` no longer is. */
   readonly files: readonly string[];
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

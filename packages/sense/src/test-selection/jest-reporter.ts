@@ -18,6 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '../digest.js';
 import { runTexts } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
@@ -36,7 +37,6 @@ import { landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
-  codeUnitOrder,
   crossingsOf,
   loadedOf,
   projectPath,
@@ -96,8 +96,6 @@ export interface JestTestContext {
     /** Resolved by Jest: a path for a file of the project's, and for a package, into its install. */
     readonly setupFiles?: readonly string[];
     readonly setupFilesAfterEnv?: readonly string[];
-    readonly testEnvironment?: string;
-    readonly testEnvironmentOptions?: { readonly varianceAuthority?: { readonly environment?: string } };
   };
 }
 
@@ -376,21 +374,20 @@ function coverageTest(
 }
 
 /**
- * The setup and environment files one Jest project rests on, as Jest resolved
- * them for the test it ran.
+ * The setup files one Jest project rests on, as Jest resolved them for the
+ * test it ran. The environment is not one of them: a test file can name its
+ * own, so the runtime records the one Jest built for it, with its inputs.
  *
  * A project of an inline `projects` list governs its own tests: a change to a
  * browser project's environment does not change what a node project's test
  * ran. So each test is charged its own project's files, asked of the context
- * Jest ran it in rather than matched back to a project here. A package — the
- * environment `node`, `jest-canvas-mock` — resolves into the install, which is
+ * Jest ran it in rather than matched back to a project here. A package —
+ * `jest-canvas-mock` — resolves into the install, which is
  * no file a diff of the project can carry, and this seam's own two files are no
  * precondition of anybody's.
  */
 function projectPreconditions(config: JestTestContext['config']): readonly string[] {
-  const environment = config.testEnvironmentOptions?.varianceAuthority?.environment ?? config.testEnvironment;
   return [
-    ...(environment === undefined ? [] : [environment]),
     ...(config.setupFiles ?? []),
     ...(config.setupFilesAfterEnv ?? []),
   ].filter((file) =>

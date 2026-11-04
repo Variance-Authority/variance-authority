@@ -278,7 +278,7 @@ pub fn journeys_for(root: String, index: String, recording: String, out: String,
         Err(error) => return refused(&format!("they did not read ({error})")),
     };
     let files = asks.into_iter().map(|ask| answer(&root, &meta, &prepared, ask)).collect();
-    JourneysAnswer { not_prepared: None, cases: meta.cases, commit: meta.commit.clone(), tree: meta.tree.clone(), files }
+    JourneysAnswer { not_prepared: None, cases: meta.cases, commit: meta.commit.clone(), files }
 }
 
 fn answer(root: &str, meta: &Meta, prepared: &Prepared, ask: JourneysAsk) -> JourneysFile {

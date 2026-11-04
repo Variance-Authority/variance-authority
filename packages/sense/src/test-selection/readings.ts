@@ -20,10 +20,11 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { native, nativeRefusal } from '../addon.js';
 import { captureModule, heldOriginal, pathOf } from './captured-modules.js';
-import { codeUnitOrder, fileOrNone, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
+import { fileOrNone, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 
 /** Where one reading's ordinals are in its file's record. */
@@ -73,7 +74,8 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>, cut
     const fits = (module: CapturedModule) => module.instrumented && module.sourceDigest === own?.sourceDigest;
     if (own === undefined || !own.instrumented || !read.every(fits)) {
       const id = own?.id ?? ids[0]!;
-      joined.set(id, { file, id, sourceDigest: own?.sourceDigest ?? read[0]!.sourceDigest, instrumented: false, blocks: [] });
+      const text = own ?? read[0]!;
+      joined.set(id, { file, id, sourceDigest: text.sourceDigest, instrumented: false, blocks: [] });
       for (const each of ids) readings.set(each, { id, lands: [] });
       continue;
     }

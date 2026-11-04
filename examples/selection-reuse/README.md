@@ -32,7 +32,7 @@ is skipped because `Badge` imports neither.
 
 You need a checkout, `yarn install`, `yarn build` (the demo imports the built
 `@variance-authority/core` and `@variance-authority/sense`), `git` on your `PATH`,
-and Node 22 or newer. The package is `private`; there is nothing to install from
+and Node 22.12 or newer. The package is `private`; there is nothing to install from
 npm.
 
 From the repository root:

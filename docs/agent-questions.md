@@ -27,7 +27,7 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | What are the parts of this repository, and which packages does each one put in front? | `variance ask orient [--area <id>]` | `docs_orient` with no `files` on the workspace API server |
 | current workspace source | Which packages are these files in, what crosses their edges, which tests ran them, and what calls into them? | `variance ask orient --files <path>[:<line>][,...]` | `docs_orient` on the workspace API server |
 | current workspace source | Which third-party packages can this file already use, does the code import them, and which [agent skills](tech-stack.md#read-the-skills-a-package-ships) do they ship? | `variance ask stack --from <path> [--limit <n>] [--offset <n>]` | `docs_stack` on the workspace API server |
-| a recorded test run | Which test files and test cases did the runner spend longest in, under these tests or in the tests that entered this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
+| a recorded test run | Which test cases are closest to their limit, and which test files and cases did the runner spend longest in, under these tests or in the tests that ran this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--over <time>] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 
@@ -54,10 +54,9 @@ TypeScript. Members are read from JavaScript and TypeScript files only, so a
 Python class's methods and a Rust struct's fields and `impl` methods are not;
 top-level declarations are read in every language the index reads:
 JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. `symbol` answers a top-level
-declaration of the name first, in any of those languages; on a name that no
-top-level declaration or import has, it names each container that declares it
-as a member, with the member's `file:line`, and points to `uses`, which lists
-the members beside any top-level declaration.
+declaration of the name first, in any of those languages, then each container
+that declares it as a member, with the member's `file:line`, and points to
+`uses`. A dotted name, `Tree.has`, asks for the member `has` of `Tree` alone.
 When the workspace also holds Python, Rust, Java, Kotlin or Swift files,
 an answer of `symbol` or `uses` that looked for members ends with a sentence
 that names those languages, whether or not it found one: a member of theirs

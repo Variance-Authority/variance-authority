@@ -6,6 +6,8 @@
  * installed.
  */
 
+import { copied, copies, fanned } from './copies.js';
+import { endLoad, inEverySession, startLoad } from './realm.js';
 import { currentSession } from './session.js';
 
 /** How a variable was declared, which decides what reading it early does. */
@@ -48,30 +50,32 @@ const UNSET = Symbol('unset');
 
 /**
  * The frame of one module. `kinds` names every variable it owns, so a read
- * before its declaration runs answers as the module would: a `let` or `const`
- * throws, a `var` is `undefined`.
- *
- * Every declaration runs once, as the module loads, and what the module holds
- * when it has loaded is kept as it is. Every session, the one it loaded in
- * too, takes a copy of that the first time it reads the module: arrays, plain
- * objects and the values of a `Map` are copied as deep as they go, one copy
- * per object, so two names for one object stay two names for one copy. What a
- * `Set` holds, a `Map`'s keys, a frozen object and an instance of a class are
- * the same objects in every session.
+ * before its declaration runs answers as the module would. Every session copies
+ * what the module held once it loaded (see {@link copied}); what another module
+ * writes as it loads lands in that and in every copy already made.
  */
 export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
+  startLoad();
   const base = create(kinds, undefined);
-  const copies = new WeakMap<object, Copy>();
+  const held = copies(base, (from) => create(kinds, from.raw));
   let loading = true;
   let lastSession: object | undefined;
   let lastCopy: Copy = base;
 
+  // Another module running its top level writes into every session, the load
+  // and each copy already made, as it would on every fresh page that loads it;
+  // it reads what the current session holds.
+  const everywhere = (): Copy => {
+    const { first, rest } = held.loading(currentSession());
+    return { raw: first.raw, values: fanned(first.values, rest.map((copy) => copy.raw)), init: first.init };
+  };
+
   const own = (): Copy => {
     if (loading) return base;
     const session = currentSession();
+    if (inEverySession(session)) return everywhere();
     if (session === lastSession) return lastCopy;
-    let copy = copies.get(session);
-    if (copy === undefined) copies.set(session, (copy = create(kinds, base.raw)));
+    const copy = held.of(session);
     lastSession = session;
     lastCopy = copy;
     return copy;
@@ -89,6 +93,7 @@ export function frame(kinds: Readonly<Record<string, Kind>>): Frame {
     },
     loaded() {
       loading = false;
+      endLoad();
     },
   };
 }
@@ -120,35 +125,4 @@ function create(kinds: Readonly<Record<string, Kind>>, from: Readonly<Record<str
     });
   }
   return copy;
-}
-
-/** `value` for another session: see {@link frame} for what is copied and what is shared. */
-function copied(value: unknown, seen: Map<object, unknown>): unknown {
-  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
-  if (seen.has(value)) return seen.get(value);
-  const prototype = Object.getPrototypeOf(value) as object | null;
-  if (prototype === Map.prototype) {
-    const map = new Map<unknown, unknown>();
-    seen.set(value, map);
-    for (const [key, entry] of value as Map<unknown, unknown>) map.set(key, copied(entry, seen));
-    return map;
-  }
-  if (prototype === Set.prototype) {
-    const set = new Set(value as Set<unknown>);
-    seen.set(value, set);
-    return set;
-  }
-  if (prototype === Array.prototype || prototype === Object.prototype || prototype === null) {
-    const object = (prototype === Array.prototype ? [] : Object.create(prototype)) as object;
-    seen.set(value, object);
-    // Every own key, symbols and an array's `length` among them, as it is described.
-    for (const key of Reflect.ownKeys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
-      if ('value' in descriptor) descriptor.value = copied(descriptor.value, seen);
-      Object.defineProperty(object, key, descriptor);
-    }
-    if (!Object.isExtensible(value)) Object.preventExtensions(object);
-    return object;
-  }
-  return value;
 }

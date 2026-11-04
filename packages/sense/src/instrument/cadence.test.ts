@@ -217,6 +217,33 @@ describe('an awaited cut, for a collector outside the test realm', () => {
 });
 
 describe('a test body registered under another name', () => {
-  it.todo('is cut when `test.extend` made the registrar — needs the cut to follow a binding from `test.extend` back to `BODIES`');
-  it.todo('is cut when the registrar was imported under another name — needs the cut to read the import specifier that bound the local name');
+  /** The lines a cut file hands the collector, in the order they are written. */
+  const cutLines = (source: string): number[] =>
+    [...(cadence(source, 'e2e/a.spec.ts')?.code ?? '').matchAll(/__vaC\((\d+)(?:,1)?\)/g)].map(([, line]) => Number(line));
+
+  it('is cut when `test.extend` made the registrar, however many times over', () => {
+    expect(cutLines([
+      "import { test as base } from '@playwright/test';",
+      'const withCart = base.extend({ cart: async ({}, use) => use([]) });',
+      'const signedIn = withCart.extend({});',
+      "signedIn('pays', async ({ cart }) => {",
+      '  cart.push(1);',
+      '});',
+      "signedIn.beforeEach(() => {",
+      '  reset();',
+      '});',
+    ].join('\n'))).toEqual([5, 8]);
+  });
+
+  it('is cut when the registrar was imported under another name', () => {
+    expect(cutLines([
+      "import { it as scenario, beforeEach as before } from 'vitest';",
+      "before(() => {\n  reset();\n});",
+      "scenario('pays', () => {\n  pay();\n});",
+    ].join('\n'))).toEqual([3, 6]);
+  });
+
+  it('is not cut for a name extended from something that registers no test', () => {
+    expect(cadence("const shop = cart.extend({});\nshop('x', () => {\n  pay();\n});\n", 'e2e/a.spec.ts')).toBeUndefined();
+  });
 });

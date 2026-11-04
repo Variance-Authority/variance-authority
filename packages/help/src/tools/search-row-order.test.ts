@@ -161,7 +161,7 @@ describe('the order one name\'s rows are shown in', () => {
         'app': { 'index.ts': `import type { PlacementKit } from '${first}';\nexport type Used = PlacementKit;\n` },
       }, { app: [first] });
       const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'zebra rides' }).published?.shown;
-      return JSON.parse(JSON.stringify(shown?.map((one) => [one.specifier, one.packages, one.summary])).replaceAll(first, '<renamed>'));
+      return JSON.parse(JSON.stringify(shown?.map((one) => [one.specifier, one.otherPackages, one.summary])).replaceAll(first, '<renamed>'));
     };
     const expected = [['b-kit', 0, 'The kit for zebra rides.'], ['<renamed>', 1, 'A kit.']];
     expect(await listed('a-kit')).toEqual(expected);

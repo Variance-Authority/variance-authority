@@ -64,13 +64,12 @@ verb: `docs_slowest_tests` is `slowest-tests`, `docs_journey_map` is
 
 ## Tools no binary serves
 
-`variance_distill`, `variance_test_attention`, `variance_source_tests`,
-`variance_changed_tests` and `variance_observability` belong to the
-`OBSERVABILITY` tool set that `@variance-authority/mcp/protocol` exports. None
-of the servers above serves them. A host serves them by passing that set to
-`serve` from `@variance-authority/mcp` with its own `ObservabilitySubject`, as
-the package README shows. Hand `serve` a `tree` and a `root` as well:
-`variance_changed_tests` reads the file graph off the tree, and without it a case
-whose file mocked a changed module is listed under it. On such a connection, ask `variance_observability`
-first to see which domains are present; [distill](distill.md) and
-[covering](covering.md) own the questions behind the others.
+`variance_distill`, `variance_test_attention` and `variance_observability`
+belong to the `OBSERVABILITY` tool set that `@variance-authority/mcp/protocol`
+exports. None of the servers above serves them. A host serves them by passing
+that set to `serve` from `@variance-authority/mcp` with its own
+`ObservabilitySubject`, as the package README shows. On such a connection, ask
+`variance_observability` first to see which domains are present;
+[distill](distill.md) owns the question behind the others. Which cases covered a
+place, and which a change reached, is `variance covering`'s, on the command line
+([covering](covering.md)); no MCP tool answers it.

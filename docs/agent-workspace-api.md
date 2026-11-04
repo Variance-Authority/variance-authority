@@ -89,11 +89,9 @@ every language the index reads, Python, Rust, Java, Kotlin and Swift
 included, and a function or an arrow function declared inside another
 function's body is read in JavaScript and TypeScript and answered with the
 function that holds it. `ask symbol` answers a top-level declaration of the
-name first, in any of those languages; on a name that no top-level declaration
-or import has, it names each container that declares it as a member, with the
-member's `file:line`, beside any function that declares it inside its body, and
-points to `uses`, which lists the members beside any top-level
-declaration. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+name first, in any of those languages, then each container that declares it as
+a member, with the member's `file:line`, and points to `uses`. A dotted name,
+`Tree.has`, asks for the member `has` of `Tree` alone. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, an answer that looked for members ends with a sentence that names those
 languages, whether or not it found one, and sends you to their language
 server's workspace symbols. The graph does not record that one
@@ -414,7 +412,9 @@ its imports alone.
 Each file that declares a name declares another thing, so `docs_uses` answers
 for every one of them, each kept apart: under the line naming each file that
 exports the name without publishing it come that declaration's own imports, as
-the uses of a kept one come under its own heading. Pass `file`, the file one of
+the uses of a kept one come under its own heading. The lines under the
+headline name every other declaration by file and line, so the count the
+headline gives is read as one declaration's. Pass `file`, the file one of
 them is declared in, to answer for that declaration alone: `variance ask uses
 --name greet --file packages/lib/src/greet.ts`. A `file` that only passes the
 name on with `export … from` answers for the declaration it reaches, and a
@@ -449,13 +449,34 @@ read the name, marked "passed on whole", and counted apart too. Neither is an
 import of the name, so neither makes a name look used, and a name with only
 these is unknown rather than unused: the catalogue says where it may be read.
 
+`docs_uses` answers who depends on a declaration of this workspace. For a name
+no file here declares that your code imports from a package outside the
+workspace or a runtime module, whether or not it is installed, such as
+`parseSync` from `oxc-parser`, it names each package or module the name is
+imported from and the next question to ask: `variance ask discover --imports
+oxc-parser#parseSync`, run in the checkout, lists every file that imports
+`parseSync` from `oxc-parser`, with the line of each import. The server holds
+no scan of the names your files import, so `docs_discover` refuses that
+question.
+
+An import whose specifier the source index resolved to no file, such as
+`./gone.js` after the file was moved, is not read, so a use behind it is not
+listed. When such an import could take the name, because it is relative or
+names the package that declares the name, the answer names each file that
+holds one, the first three and a count of the rest. Fix the specifier, or read
+those files for the name.
+
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.
 
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
 ranking. Several words also match a name written in those words, in any order,
-so `kept reading` finds `keptReading` in that answer. Where your words land on a
+so `kept reading` finds `keptReading` in that answer, and so does a doc that
+writes them as a phrase: in order by stem, each as many words after the last as
+in your question, a possessive or punctuation between them counting for none.
+So `page sink` finds the doc "installs the page's sink" and not "a page and its
+sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
 after that answer and never inside it. So do the names holding any of your

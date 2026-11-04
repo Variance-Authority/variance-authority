@@ -2,7 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 
 async function ask(argv: readonly string[]) {
   let out = '';

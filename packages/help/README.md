@@ -106,27 +106,29 @@ This package is for the workspace that does not run one.
 
 ### What you get
 
-Text, on stdout. `search` answers in two sections: the names a manifest
-publishes, ranked by where they hold your words (the name, then the doc's
-first paragraph, then the rest of it) and then by how many packages import
-them; then the names the source exports without publishing. A third follows
-when your words match a name they do not contain. Run against this repository, abridged to the first few lines of
-each section:
+Text, on stdout. `search` answers in two sections. The first holds the names a
+manifest publishes, ranked by where they hold your words: the name, then the
+doc's first paragraph, then the rest of it. Each is labelled with the places
+that import it and the packages those places sit in, counted as `uses` counts
+them, and the rows shown are ordered by those packages, then those places. The
+second holds the names the source exports without publishing. A third follows
+when your words match a name they do not contain. Run against this repository,
+abridged to the first few lines of each section:
 
 ```
-12 published matches for `viewport`
+16 published matches for `viewport`
 
-@variance-authority/core/format · Viewport [interface] 17 packages, 60 imports — UNDOCUMENTED
-@variance-authority/core/format · documentDigest [function] 12 packages, 27 imports — Content address of a document: *what is to be painted*.
-@variance-authority/dom · conditionsFor [function] 1 packages, 1 imports — The condition environment a capture of this document would be flattened against.
-@variance-authority/storybook · harnessPage [function] 1 packages, 1 imports — Drive the page a harness already owns.
-@variance-authority/cli · ConfigError [class] 0 packages, 0 imports — A refusal that names the field.
+@variance-authority/core/format · Viewport [interface] imported in 68 places in 18 packages — UNDOCUMENTED
+@variance-authority/storybook · StoryViewport [interface] imported in 1 place in 1 package — A per-story viewport override.
+@variance-authority/storybook · declarationOf [function] imported in 2 places in 2 packages — One story's `parameters.variance`, checked against the run's viewport.
+@variance-authority/core/format · documentDigest [function] imported in 33 places in 13 packages — Content address of a document: *what is to be painted*.
+@variance-authority/core/format · PageRegion [interface] imported in 16 places in 6 packages — The timezone a page's clock reads in and the language it formats for, as Playwright names them.
 
-4 more names are exported somewhere in the repository without being published:
+22 more names are exported somewhere in the repository without being published:
 
+viewport — site · site/app/layout.tsx:48
 CORPUS_VIEWPORT — @variance-authority/example-kitchen-sink · examples/kitchen-sink/src/jsdom-profile.ts:21
-VIEWPORT — @variance-authority/cli · packages/cli/src/commands/run-fixture.ts:48
-parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:241
+parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:194
 ```
 
 A published name is API and comes with the specifier you would import it from.
@@ -156,22 +158,24 @@ packages/core/src/format/environment.ts:98 — readonly colorScheme: 'light' | '
 
 ## The questions
 
-Ranking is one number: how many packages in the repository import the name. A
+Ranking counts the other packages that import the name by a published path: a
 frequently imported name leads; a name nothing outside its own package imports
-stays available without taking space from the first answer.
+stays available without taking space from the first answer. A `search` row is
+labelled with every place that imports it and the packages those places sit in,
+and the rows on a page are reordered by that label.
 
 | verb / tool | takes | answers |
 |---|---|---|
 | `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
-| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Twelve rows of each list, unless `limit` says more |
+| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Then the files whose import the source index resolved to no file and could take the name, since a use there is not listed: the first three, and how many more, whatever `limit` says. For a name no file here declares that a file imports from a package outside the workspace or a runtime module, each source and the `discover --imports <source>#<name>` question that lists those files. Twelve rows of each list, unless `limit` says more |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding any of its words by stem and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
-| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have none |
+| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have run (`to`), a time the cases ran at least (`over`), and how many rows to list | the record it read, whose run, at which commit and how old; the cases closest to their limit, each as its run and its limit; then the test files and cases that run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have no duration or limit; with `over`, cases alone |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
@@ -252,12 +256,12 @@ repository's own fixture and the substring finds nothing, which is printed
 first, as a miss of the text you typed rather than of the code:
 
 ```
-No name in this repository, nor the doc of one, writes `meesure` as typed. The nearest follow.
+No name in this repository, nor the doc of one, writes `meesure`. The nearest follow.
 
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
-alpha · measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.
+alpha · measure [function] imported in 1 place in 1 package — Measures the thing, and says how much of it there was.
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,
@@ -268,8 +272,9 @@ a word that was written stays exactly as short as it was. It obeys `from` and
 can find a name you did not type and never a file you ruled out. A name its file
 declares and does not export is reached the same way, after every exported one.
 
-Inside it the order is the order above — by how many packages import the name,
-then by name. Membership is the only decision the looser reading makes, because
+Inside it the order is the order above — by the other packages that import the
+name by a published path, then within the page by the places and packages its
+label counts, then by name. Membership is the only decision the looser reading makes, because
 you can check why a name is on a list and can only trust where it sits on one.
 
 ### Where the declaration is undocumented
@@ -562,18 +567,25 @@ than as it was when the reading was taken.
 It does not rank on prose. `search` matches the query case-insensitively as a
 substring of a name or its doc, and a name also matches when it is written in
 every word of the query, each word by its start or its stem, so `instrumenting`
-reaches `instrumentModule`. A match is a fact about the text rather than an
-opinion about the query. When it matches nothing, the names holding any of
+reaches `instrumentModule`. A doc also matches when one of its paragraphs
+writes the query as a phrase: its words in order by stem, each as many words
+after the last as in the query. A function word such as `of`, or a word under three
+letters, holds its place and any word fills it; a possessive or punctuation holds
+none. So "installs the page's sink" matches `page sink`, "a page and its sink"
+does not, and "the text of the file" matches `text of a file`. A match is a
+fact about the text rather than an opinion about the query. When it matches nothing, the names holding any of
 the query's words, stemmed as installed packages are, in any order
 across the name and its doc, follow under their own heading, each with the
 words it holds. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
 the words each holds, each counted by how few of the names and files found
 hold it, three times over when the name holds it and twice when a doc of the
-mean length or a shorter one does, less for a longer one, and that sum times
+mean length or a shorter one does, less for a longer one, and a half when only
+its signature does — the words it writes before its body, its parameters, the
+types they are written with and a comment among them — and that sum times
 how much of the query the row holds wherever it holds it, the same rarities
 summed alone — then by how many of them its name holds, then by how many of the query's
-adjacent word pairs its doc writes adjacent: counts, never a score. A name
+adjacent word pairs its doc writes as a phrase, by the same rule: counts, never a score. A name
 published by two packages or exported from two files is weighed and shown
 through one of them, never through both docs added up: the one its words weigh
 most through, then the one writing more of those pairs. The published and
@@ -582,7 +594,9 @@ whatever either says. A word most docs say in passing tells you little about whi
 you meant, so `stopwords of a package` puts `describedNames`, whose doc says
 `stopword`, before `packageOf`, whose name says `package`. Every word one of them holds is held by a row shown, so the
 one name holding a rare word is shown however many holding a common one sort
-before it. A name weighed through a row holding fewer than half the words,
+before it. A word only a signature holds reaches no name and shows no row on its
+own: it adds weight to a name the name or a doc reached. A type alias writes no
+signature, since what follows its `=` is its body. A name weighed through a row holding fewer than half the words,
 which the loose reading reaches by every word, is told there instead, so on three words or
 more, names holding one common word never sort it out of sight.
 The words every package says about itself — `package`, `module`, `use`,

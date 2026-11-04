@@ -1,9 +1,11 @@
+import { readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
 import { moduleId } from '@variance-authority/sense/journal';
-import { decodeExecutionIndex, recordedEyesAt } from '@variance-authority/sense/test-selection';
+import { storyDirectory } from '@variance-authority/sense/story';
+import { decodeExecutionIndex, recordedEyesAt, recordFileFor } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import { createExecutionRecorder, type ExecutionRecorder } from './execution.js';
@@ -160,6 +162,26 @@ describe('the case a Playwright test runs as', () => {
     } finally {
       holder[CASE_SCOPE] = found;
       if (found === undefined) delete holder[CASE_SCOPE];
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes a case\'s story beside the record the run writes, wherever the layers live', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-case-scope-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    try {
+      await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
+      const recorder = createExecutionRecorder({ root, cacheRoot: resolve(root, 'cache') });
+      const story = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: [moduleId('price.js', SOURCE)], counts: [1], bases: [0] } };
+      const page = {
+        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('price.js', SOURCE), hits: [0], shared: [] }], story }),
+      } as unknown as Page;
+      await ran(recorder, root, {}, () =>
+        recorder.note(page, 'tests/checkout.spec.ts', { name: 'checkout > pays', id: 'runner-id-1', project: 'chromium' }));
+
+      expect(readdirSync(storyDirectory(recordFileFor(root, root, {})))).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
       await rm(root, { recursive: true, force: true });
     }
   });

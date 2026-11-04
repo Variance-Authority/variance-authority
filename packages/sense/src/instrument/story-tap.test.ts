@@ -225,6 +225,38 @@ describe('what a case says on the way', () => {
     expect(notes[3]![2].endsWith('…')).toBe(true);
   });
 
+  it('opens what a test line did with the line, the last of the cuts that did nothing', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { run } = load(tap.root);
+    tap.reset();
+
+    tap.root.c(3);
+    run(0);
+    tap.root.c(4);
+    tap.root.c(5);
+    tap.note('said');
+    tap.root.c(6);
+    tap.note('test line 7');
+
+    // A line is not a note: what the code printed stays what it printed. Each
+    // line counts the notes said before it, so one said at the same visit
+    // keeps its side of the line.
+    const { lines, notes } = tap.read();
+    const said = notes.findIndex(([, , text]) => text === 'said');
+    expect(lines).toEqual([[0, 'case', 3, 0], [3, 'case', 5, said], [3, 'case', 6, said + 1]]);
+    expect(notes.filter(([, , text]) => !text.startsWith('handed')).map(([, , text]) => text)).toEqual(['said', 'test line 7']);
+
+    tap.reset();
+    expect(tap.read().lines).toEqual([]);
+
+    // A hook's cut is marked, whichever realm it ran in.
+    tap.root.c(8, undefined, true);
+    run(0);
+    expect(tap.read().lines).toEqual([[0, 'case', 8, 0, 1]]);
+  });
+
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
     const engine = probeLog.createEngine(false);
     engine.use(engine.open('case'));
@@ -363,5 +395,3 @@ describe('what a function was handed, and what a module holds', () => {
     expect(run('__vaL')).toBeUndefined();
   });
 });
-
-it.todo('a case run in a page writes its story as a case run in Node does — needs a drain per case in a page, which the `config` hook of the Vitest seam does not install');

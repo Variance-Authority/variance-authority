@@ -365,8 +365,10 @@ export interface NativeDependencyLexicon {
   dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
   /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
   describedWords(query: string): [string, string][];
-  /** Per text, how many of the adjacent word pairs of `query` it writes adjacent. */
+  /** Per text, how many of the adjacent stem pairs of `query` it writes at the distance the question puts them. */
   nearOf(query: string, texts: string[]): number[];
+  /** Per text, the first paragraph writing the whole of `query`'s stems in order; null when none does. */
+  phraseOf(query: string, texts: string[]): (number | null)[];
   /** Each word's stem, in order. */
   wordStems(words: string[]): string[];
 }
@@ -423,6 +425,11 @@ export interface NativeImporters {
    * `shout` and `members` `['greet']`, the last member the name itself.
    */
   namespaces: NativeNamespace[];
+  /**
+   * Every file, in code-unit order, with an import the index resolved to no
+   * file that could take the name: a use there is not listed.
+   */
+  unresolved: string[];
 }
 
 /** A namespace one file passes a name on inside, under the name it exports it as. */
