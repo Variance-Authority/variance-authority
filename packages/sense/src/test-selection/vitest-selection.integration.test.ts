@@ -72,7 +72,7 @@ describe('a Vitest run over two projects, handed a selection', () => {
     const { stderr, ran } = await run('none', [at('unit/unit.case.ts'), at('dom/dom.case.ts')]);
 
     expect(ran).toEqual([]);
-    expect(stderr).toContain('variance-authority: selected none of 2');
+    expect(stderr).toContain('variance-authority: selected none of 2, so none of them runs');
   }, 30_000);
 
   it('fails the run, exiting 1, when the selection refuses the record it read', async () => {

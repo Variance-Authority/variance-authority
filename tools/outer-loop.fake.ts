@@ -94,7 +94,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
       const prose = `Not compared: \`${unit.untouched[0]}\` ran nothing this change touched.`;
       comment(pull.number, `${unit.might}\n### 🧭 What this change might do\n\n| | | | | | | |\n${change ? row : ''}\n\n${prose}\n`);
       comment(pull.number, `${unit.evidence}\n### Test evidence\n\n${change ? row : ''}\n\n${prose}\n`);
-      logs.set(id, change ? `${unit.selected}\n ✓ ${unit.tests[0]} (1 test)\n` : 'variance-authority: selected none of 2\n');
+      logs.set(id, change ? `${unit.selected}\n ✓ ${unit.tests[0]} (1 test)\n` : 'variance-authority: selected none of 2, so none of them runs\n');
     }
     if (flow.subjects !== undefined && !behaviour.unbuilt) {
       builds.push({

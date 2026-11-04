@@ -60,26 +60,29 @@ the exact signature this project exists to tell apart from a real one.
 ## The loop between waves
 
 `yarn test:loop` is what the edit loop runs after every edit, before any wave:
-`tsc --build && VARIANCE_AUTHORITY_SINCE=
+`oxlint && tsc --build && VARIANCE_AUTHORITY_SINCE=
 VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run
-"$@" && node tools/needs.mjs`. That is the compiler, then the unit tests at
-distance `0-1` (the tests that entered the change and those one import away;
-`VARIANCE_AUTHORITY_AT_DISTANCE` sets another), measured from the text each
-test last ran over. The first two steps are the loop
+"$@" && node tools/needs.mjs`. That is the lint `verify:near` starts with, the
+compiler, then the unit tests at distance `0-1` (the tests that entered the
+change and those one import away; `VARIANCE_AUTHORITY_AT_DISTANCE` sets
+another), measured from the text each test last ran over. The compiler and the
+runner are the loop
 [`docs/test-an-edit.md`](../../docs/test-an-edit.md#the-loop-an-agent-runs-after-each-edit)
-publishes, with no script of ours in them. A type error stops it before any
-test; an edit that keeps no test exits 0 in under a second with `selected none
-of` and the seam's reading: `none (the record was taken over this text)` means
-the tests that entered the edit already ran it, and a test further than one
-import is left for `verify:near`. To see why a file was kept, ask `yarn variance
+publishes, with no script of ours in them. Lint adds about 0.15 s, and it stops
+the run before the compiler, as a type error stops it before any test. An edit
+that keeps no test exits 0, and the words tell that exit from a green run:
+`selected none of 1075, so none of them runs` is the verdict, the runner's `No
+test files found` under it is the same answer, and the seam's reading says why. `none (the record was taken over this text)` means the tests
+that entered the edit already ran it, and a test further than one import is left
+for `verify:near`. To see why a file was kept, ask `yarn variance
 select --suite unit --at-distance 0-1`. Integration and chromium tests never
 run in it. A green run ends with the needs list: for each function new on the
 branch in the package sources, the scripts a package ships and `tools/`, with
 five needs or more, the existing functions there that need what it needs.
 Tests, `site/` and `examples/` are not read. The list adds about half a second
 with its cache warm and never changes the exit code; a red run ends at the
-test, before it. It is not lint and not a wave: `verify:near` still runs every
-slice once the change is whole.
+test, before it. The loop is not a wave: `verify:near` still runs every slice
+once the change is whole.
 
 ## The waves
 
@@ -167,7 +170,8 @@ hand Vitest a flag, run one slice with the variable set:
 `test:since` is `yarn test` with `VARIANCE_AUTHORITY_SINCE` set. The seam
 each slice's config is wrapped in reads the selection, the runner drops the
 files it skips before it starts any, and one line says what happened:
-`selected 12 of 676`, `selected none of 676`, or `declined: <why>`. The `read`
+`selected 12 of 676`, `selected none of 676, so none of them runs`, or
+`declined: <why>`. The `read`
 lines, one per changed file, are `variance select`'s; the run prints only its
 count and notes. Set to a ref, the variable also names the base for a recording
 that names no commit of its own.

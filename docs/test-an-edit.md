@@ -64,7 +64,8 @@ runner drops the files the record proves your edit did not reach before it
 starts any of them, and prints one line to stderr first:
 
 - `selected 12 of 340` — twelve test files run.
-- `selected none of 340` — your edit reached no recorded test, so none runs.
+- `selected none of 340, so none of them runs` — your edit reached no recorded
+  test.
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
@@ -202,11 +203,12 @@ ways:
 
 - **A type error.** The compiler prints it and exits non-zero before any test
   starts.
-- **No test runs.** The run prints `selected none of 340` and exits 0. No
-  recorded test ran the code you changed, the tests that did already ran the
-  text you have now, or they sit further than one import away. The lines under
-  it say which: a file left for a later leg is counted with the setting that
-  runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
+- **No test runs.** The run prints `selected none of 340, so none of them
+  runs`: no recorded test ran the code you changed, the tests that did already
+  ran the text you have now, or they sit further than one import away. Vitest
+  then exits 0. A lone Jest project exits 1 unless it sets `passWithNoTests`.
+  The lines under it say which: a file left for a later leg is counted with the
+  setting that runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
   Exit 0 here says nothing near the edit failed, not that the change is done.
 - **Some tests run.** The run prints `selected 1 of 340`, runs that file, and
   exits with its result.
@@ -238,8 +240,8 @@ Every selected file runs in one of `0-1` and `2-`, by the same rules that place
 it in `0-2` or `3-` above.
 
 This repository's own agents run that line after each edit, as
-`yarn test:loop`; [what a selection costs](#what-a-selection-costs) gives its
-times.
+`yarn test:loop`, with their linter in front of it. [What a selection
+costs](#what-a-selection-costs) gives the times of the line alone.
 
 ## When it runs everything
 
@@ -261,8 +263,8 @@ The whole loop on the same suite takes a few seconds. Change one statement in a
 function that nine of the suite's test files execute, and
 `VARIANCE_AUTHORITY_SINCE= yarn vitest run` prints `selected 9 of 686`, runs
 those nine and exits in 3.4 s. Run it again on the same tree and it prints
-`selected none of 686` and exits in 0.8 s. Each of those two times is the median
-of seven warm runs.
+`selected none of 686, so none of them runs` and exits in 0.8 s. Each of those
+two times is the median of seven warm runs.
 
 The agent loop on the same suite, grown to 1002 test files, puts the compiler
 first: a type error stops in 0.09 s, an edit no test needs answers in 0.73 s,

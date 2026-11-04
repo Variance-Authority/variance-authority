@@ -33,8 +33,8 @@ yarn vitest run --config vitest.integration.config.mts cases/vitest-4-case/src/s
 
 ## What it shows
 
-- A selection that skips both files prints `selected none of 2`, runs nothing
-  and exits 0.
+- A selection that skips both files prints `selected none of 2, so none of them
+  runs`, runs nothing and exits 0.
 - `--shard 2/2` over a selection that kept one file leaves the second shard
   nothing to run, and it exits 0.
 - A selection that skips one file runs the other, and records only that one.
