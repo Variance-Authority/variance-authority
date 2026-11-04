@@ -125,11 +125,11 @@ Start with identity, then narrow to the test:
 | Which tests opened, and which is still running? | `npx variance ask run-signals` | `variance_run_signals` |
 | What did one test announce, in order? | `npx variance ask test-signals --test <id>` | `variance_test_signals` |
 | What arrived since the previous reading? | `npx variance ask diff` | `variance_diff` |
-| Which tests have stopped for me to look at them? | — | `variance_waiting` |
+| Which tests have stopped for me to look at them? | `npx variance ask waiting` | `variance_waiting` |
 | Let a stopped test go on. | — | `variance_continue` |
 
-The last two rows answer only under MCP. A shell command owns no run, so there is
-nothing in it to release. They are the pair a test triggers with
+The last row answers only under MCP. A shell command owns no run, so there is
+nothing in it to release. The last two rows are the pair a test triggers with
 `variance.snapshot()` and `await variance.observe()` — see [interrogate a test
 where it stands](agent-interrogate.md).
 

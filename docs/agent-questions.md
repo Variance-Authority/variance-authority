@@ -120,11 +120,11 @@ reading with the preceding successful one.
 
 A suite in flight has no completed artifact. Its lifecycle and application
 announcements go to `variance watch` or `variance-authority-mcp --watch`.
-`self`, `run-signals`, `test-signals` and `diff` are available through both
-entrances. The connection, address model and lifetime boundary are in
+`self`, `run-signals`, `waiting`, `test-signals` and `diff` are available through
+both entrances. The connection, address model and lifetime boundary are in
 [inspect a live run](agent-live-run.md).
 
-`variance_waiting` and `variance_continue` are MCP-only, and answer about a test
+`waiting` and `variance_continue`, which is MCP-only, answer about a test
 that has stopped at a call its author wrote rather than about the run as a
 whole: where it stopped, what it sent from there, and when it may go on. The
 worked spec and tool sequence are in [interrogate a test where it
