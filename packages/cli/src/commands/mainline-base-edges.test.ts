@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,11 +13,11 @@ import {
   withCaseSections,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { MISS_STANDS_MS, mainlineBase, mainlineMissed } from './mainline-base.js';
-import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, git, gitPublished, ranWhole, recordIn } from './mainline-fixture.js';
+import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, git, gitPublished, published, publishTo, ranWhole, recordIn } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare } from './suite-share.js';
 
@@ -45,9 +45,9 @@ afterEach(async () => {
 });
 
 /** A clone of `origin` with a cache of its own, and what `mainlineBase` asks of it. */
-async function laptop(origin: string) {
+async function laptop(origin: string, ...clone: string[]) {
   const dir = join(home, 'clone');
-  await git(home, 'clone', '--quiet', origin, dir);
+  await git(home, 'clone', '--quiet', ...clone, clone.length === 0 ? origin : `file://${origin}`, dir);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   const declared = declaredSuites(dir)?.find((one) => one.name === 'unit');
   const readRoot = mainlineReadRoot(cacheRootFor(dir), 'unit');
@@ -66,15 +66,23 @@ async function pushed(ci: string): Promise<string> {
 /** A commit pushed to `ci`'s `main`, and the record CI made there published to the mainline. */
 async function publishedNext(ci: string): Promise<string> {
   const commit = await pushed(ci);
+  await publishedAt(ci, commit);
+  return commit;
+}
+
+/** The record CI made at `commit` published to the mainline: that commit's job finishing, whenever it does. */
+async function publishedAt(ci: string, commit: string): Promise<void> {
   const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+  await git(ci, 'checkout', '--quiet', commit);
   await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), commit);
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
+  await git(ci, 'checkout', '--quiet', 'main');
   if (reader === undefined) vi.unstubAllEnvs();
   else vi.stubEnv('VARIANCE_AUTHORITY_CACHE', reader);
-  expect(done).toMatchObject({ published: { written: [suiteEntry('unit')] } });
-  return commit;
+  // The latest keeps a newer commit's record when that job finished first.
+  expect(done).toMatchObject({ published: { atCommit: { kept: [commit] } } });
 }
 
 /** Take back the git cell's held answers under `cache`, as a minute passing would. */
@@ -185,7 +193,8 @@ describe('a line that gave no record a moment ago', () => {
   });
 });
 
-describe('a record fetched earlier, against this checkout\'s merge base with the mainline', () => {
+// Each mainline publish here also keeps its record at its commit: a push and a listing more apiece.
+describe('a record fetched earlier, against this checkout\'s merge base with the mainline', { timeout: 15_000 }, () => {
   it('stands at the merge base a day later, with the line not asked', async () => {
     const { origin, first } = await gitPublished(home);
     const { base, reach, nowhere } = await laptop(origin);
@@ -197,32 +206,153 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(kept).toMatchObject({ commit: first, distance: 0, fetched: at(NOW), earlier: { reused: 'nearest' } });
   });
 
-  it('stands past the merge base, because the line holds nothing nearer it', async () => {
-    const { ci, origin } = await gitPublished(home);
+  it('past the merge base, asks the line, which keeps the record at the merge base', async () => {
+    const { ci, origin, first } = await gitPublished(home);
     const next = await publishedNext(ci);
     const { dir, base, reach, nowhere } = await laptop(origin);
     expect(await base(NOW)).toMatchObject({ commit: next, distance: 0, fetched: at(NOW) });
     // A branch cut before the record: its merge base is one commit behind it.
     await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
+
+    const read = await base(NOW + DAY);
+    expect(read).toMatchObject({ commit: first, distance: 0, fetched: at(NOW + DAY) });
+    expect(read).not.toHaveProperty('earlier');
     await reach(nowhere);
 
-    const kept = await base(NOW + DAY);
-
-    expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'nearest' } });
+    expect(await base(NOW + 2 * DAY)).toMatchObject({ commit: first, distance: 0, earlier: { reused: 'nearest' } });
   });
 
-  it('is asked again once the merge base moves past it, and stands once asked there', async () => {
+  it('behind the merge base, reads the nearest record published behind it, and asks on every read until the merge base\'s is', async () => {
+    // Green main: every commit's job publishes its record, the merge base's
+    // too once its job finishes, and a later commit's may finish first.
+    const { ci, origin, first } = await gitPublished(home);
+    const second = await pushed(ci);
+    const third = await publishedNext(ci);
+    const { dir, base } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', second);
+
+    // Not the latest, which is past the merge base and charges the branch with `third`.
+    expect(await base(NOW)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW) });
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+    const again = await base(NOW + 60_000);
+    expect(again).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
+    expect(again).not.toHaveProperty('earlier');
+
+    await publishedAt(ci, second);
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+    const read = await base(NOW + 2 * 60_000);
+
+    expect(read).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 2 * 60_000) });
+    expect(third).not.toBe(second);
+  });
+
+  it('behind the merge base, passes over a record kept there by another suite\'s job', async () => {
+    const { ci, origin, first, record } = await gitPublished(home);
+    const second = await pushed(ci);
+    // The web suite's job at `second` finished; the unit suite's has not.
+    const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
+    if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
+    await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('web'), commit: second, bytes: frame([['coverage.bin', record]]) }], {
+      descends: async () => true,
+      image: async (digest) => { throw new Error(`no image ${digest}`); },
+    });
+    await publishedNext(ci);
+    const { dir, base } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', second);
+
+    expect(await base(NOW)).toMatchObject({ commit: first, distance: 1, fetched: at(NOW) });
+  });
+
+  it('behind a newer format, says so rather than reading an older record', async () => {
+    const { ci, origin, record } = await gitPublished(home);
+    const second = await pushed(ci);
+    const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
+    if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
+    await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: 'suite-v2/unit', commit: second, bytes: frame([['coverage.bin', record]]) }], {
+      descends: async () => true,
+      image: async (digest) => { throw new Error(`no image ${digest}`); },
+    });
+    await pushed(ci);
+    const { base } = await laptop(origin);
+
+    expect(await base(NOW)).toMatchObject({ miss: { kind: 'newer' } });
+  });
+
+  it('past the merge base, reads the latest and asks on every read, so the merge base\'s record is read once it is published', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const second = await pushed(ci);
+    const third = await publishedNext(ci);
+    // Neither is kept: the merge base's job has not finished, and the record behind it was purged.
+    await git(origin, 'update-ref', '-d', `refs/variance/at/${first}/mainline/main`);
+    const { dir, base } = await laptop(origin);
+    await git(dir, 'checkout', '--quiet', '-b', 'older', second);
+    expect(await base(NOW)).toMatchObject({ commit: third, distance: -1, fetched: at(NOW) });
+
+    await publishedAt(ci, second);
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+
+    expect(await base(NOW + 60_000)).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 60_000) });
+  });
+
+  it('is asked again on every read when this clone cannot count how far off the merge base it is', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    await pushed(ci);
+    // Cut at the merge base: no walk behind it, and no distance to the record.
+    const { base, reach, nowhere } = await laptop(origin, '--depth', '1');
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    await reach(nowhere);
+
+    const read = await base(NOW + 60_000);
+
+    expect(read).toMatchObject({ commit: first, fetched: at(NOW), earlier: { unanswered: { kind: 'unreachable' } } });
+    expect(read).not.toHaveProperty('distance');
+  });
+
+  it('is asked again once the merge base moves past it, and on every read while it is behind', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const { dir, base, reach, nowhere } = await laptop(origin);
     expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
     await pushed(ci);
     await git(dir, 'pull', '--quiet', '--ff-only');
 
-    // A minute later: the line holds nothing newer, and is asked for it all the same.
     const asked = await base(NOW + 60_000);
     expect(asked).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
     expect(asked).not.toHaveProperty('earlier');
     await reach(nowhere);
+
+    const kept = await base(NOW + 2 * 60_000);
+
+    expect(kept).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000), earlier: { unanswered: { kind: 'unreachable' } } });
+  });
+});
+
+describe('a record fetched earlier from a share that keeps the latest only', { timeout: 15_000 }, () => {
+  it('stands past the merge base, because the line holds nothing nearer it', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    const { dir: ci, origin } = await published(home);
+    const next = await pushed(ci);
+    await recordIn(ci, next, ['test/total.test.ts'], [DISCOUNTS]);
+    await publishTo(home, ci, next, PUSH, 'mainline main');
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: next, distance: 0, fetched: at(NOW) });
+    await git(dir, 'checkout', '--quiet', '-b', 'older', 'HEAD~1');
+
+    const kept = await base(NOW + DAY);
+
+    expect(kept).toMatchObject({ commit: next, distance: -1, fetched: at(NOW), earlier: { reused: 'nearest' } });
+  });
+
+  it('is asked once the merge base moves past it, and stands once asked there', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    const { dir: ci, origin, first } = await published(home);
+    const { dir, base } = await laptop(origin);
+    expect(await base(NOW)).toMatchObject({ commit: first, fetched: at(NOW) });
+    await pushed(ci);
+    await git(dir, 'pull', '--quiet', '--ff-only');
+
+    const asked = await base(NOW + 60_000);
+    expect(asked).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
+    expect(asked).not.toHaveProperty('earlier');
 
     const kept = await base(NOW + DAY);
 
@@ -281,6 +411,20 @@ describe('a record path the checkout cannot ask about', () => {
     await writeFile(dirname(own), '');
 
     await expect(suiteBase(dir, { env: LOCAL })).rejects.toMatchObject({ code: 'ENOTDIR' });
+  });
+});
+
+describe('`variance share --suite --publish` that cannot keep its record by commit', () => {
+  it('wrote the latest, says what it could not keep, and fails the command', async () => {
+    const { ci, origin } = await gitPublished(home, { publish: false });
+    await writeFile(join(origin, 'hooks/update'), '#!/bin/sh\ncase "$1" in refs/variance/at/*) exit 1;; esac\n');
+    await chmod(join(origin, 'hooks/update'), 0o755);
+
+    const done = await suiteShare(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
+
+    expect(done.exit).toBe(EXIT_OPERATOR);
+    expect(done.lines.join('\n')).toContain('stopped before it finished keeping records by commit');
+    expect(await git(ci, 'ls-remote', 'origin', 'refs/variance/mainline/main')).not.toBe('');
   });
 });
 

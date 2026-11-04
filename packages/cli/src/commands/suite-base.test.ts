@@ -280,8 +280,9 @@ describe('`variance share --suite unit`', () => {
   it('publishes the record alone, and says so the way `share --publish` does', async () => {
     const { ci } = await mainline({ publish: false });
     const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
-    expect(lines).toHaveLength(1);
+    expect(lines).toHaveLength(2);
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
+    expect(lines[1]).toMatch(/^kept the record at [0-9a-f]{40} beside the latest\.$/u);
   });
 
   it('says which test files it retired because the suite no longer collects them', async () => {
@@ -289,9 +290,9 @@ describe('`variance share --suite unit`', () => {
     const collected = join(home, 'collected-other.txt');
     await writeFile(collected, 'test/other.test.ts\n');
     const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected }, { env: PUSH });
-    expect(lines).toHaveLength(2);
+    expect(lines).toHaveLength(3);
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
-    expect(lines[1]).toBe('retired 1 test file(s) from suite-v1/unit that the suite no longer collects, test/total.test.ts among them.');
+    expect(lines[2]).toBe('retired 1 test file(s) from suite-v1/unit that the suite no longer collects, test/total.test.ts among them.');
   });
 
   it('says nothing was published when this checkout holds no record at this commit', async () => {

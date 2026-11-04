@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
+import { atCommit, findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
 import { createGitLineCell, gitDescends, headerEnv } from './share-git.js';
 
 const MAIN = { kind: 'mainline', name: 'release/2.0' } as const;
@@ -23,7 +23,8 @@ const descends = async (): Promise<boolean> => false;
  * Against a real bare repository over `file://`, which speaks the same
  * protocol a hosted remote does, filters and leases included.
  */
-describe('createGitLineCell', () => {
+// Every mainline publish here also keeps its record at its commit: a push and a listing more apiece.
+describe('createGitLineCell', { timeout: 15_000 }, () => {
   beforeEach(() => variancePrecondition('fixture', { remote: 'accepts' }));
   let home = '';
   let url = '';
@@ -172,6 +173,82 @@ describe('createGitLineCell', () => {
     expect(await descent(first, first)).toBe(false);
     expect(await descent('f'.repeat(40), first)).toBeUndefined();
     expect(await gitDescends({ url, gitDir: join(home, 'b') }, 'gone')(second, first)).toBeUndefined();
+  });
+  it('keeps a mainline record at its commit as its own ref, lists it and drops it', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    const two = 'b'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', two, 'two')], { descends, image });
+    expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim().split('\n'))
+      .toEqual([`refs/variance/at/${one}/mainline/release/2.0`, `refs/variance/at/${two}/mainline/release/2.0`]);
+
+    const reader = cellAt('b');
+    const read = await readLine(reader, atCommit(MAIN, one));
+    if ('kind' in read) throw new Error(read.kind);
+    const found = findEntry(read.manifest, 'report-v1');
+    if ('kind' in found) throw new Error(found.kind);
+    expect(await read.entry(found)).toEqual(ascii('one'));
+
+    const listed = await reader.commits!(MAIN);
+    if (!Array.isArray(listed)) throw new Error('not listed');
+    expect(listed.map((held) => held.commit).sort()).toEqual([one, two]);
+    expect(listed.every((held) => Math.abs(held.written - Date.now()) < 60_000)).toBe(true);
+
+    expect(await reader.drop!([atCommit(MAIN, one)])).toBe('dropped');
+    expect(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/variance/at/').trim())
+      .toBe(`refs/variance/at/${two}/mainline/release/2.0`);
+  });
+
+  it('lists what is kept at a commit once, whichever jobs wrote it', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('suite-v1/unit', one, 'unit')], { descends, image });
+    await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', one, 'web')], { descends, image });
+    const listed = await cellAt('b').commits!(MAIN);
+    if (!Array.isArray(listed)) throw new Error('not listed');
+    expect(listed.map((held) => held.commit)).toEqual([one]);
+  });
+
+
+  it('lists from the remote once within its reuse', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const [one, two] = ['a'.repeat(40), 'b'.repeat(40)];
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    const reader = createGitLineCell({ url, gitDir: join(home, 'reader'), reuseMs: 60_000 });
+    expect(await reader.commits!(MAIN)).toMatchObject([{ commit: one }]);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', two, 'two')], { descends, image });
+
+    expect(await reader.commits!(MAIN)).toMatchObject([{ commit: one }]);
+    expect(await cellAt('fresh').commits!(MAIN)).toHaveLength(2);
+  });
+
+  it('drops more lines than one push names', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    const record = git(remote, 'rev-parse', `refs/variance/at/${one}/mainline/release/2.0`).trim();
+    const refs = Array.from({ length: 1201 }, (_, index) => `refs/variance/at/${index.toString(16).padStart(40, '0')}/mainline/release/2.0`);
+    execFileSync('git', ['--git-dir', remote, 'update-ref', '--stdin'], { input: refs.map((ref) => `create ${ref} ${record}\n`).join('') });
+    const reader = cellAt('b');
+    const listed = await reader.commits!(MAIN);
+    if (!Array.isArray(listed)) throw new Error('not listed');
+    expect(listed).toHaveLength(1202);
+
+    expect(await reader.drop!(listed.map((held) => atCommit(MAIN, held.commit)))).toBe('dropped');
+    expect(git(remote, 'for-each-ref', 'refs/variance/at/').trim()).toBe('');
+  });
+
+  it('drops what another purge removed first', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    const one = 'a'.repeat(40);
+    await publishLine(cellAt('a'), MAIN, [entry('report-v1', one, 'one')], { descends, image });
+    const late = cellAt('b');
+    await late.commits!(MAIN);
+    expect(await cellAt('a').drop!([atCommit(MAIN, one)])).toBe('dropped');
+
+    expect(await late.drop!([atCommit(MAIN, one)])).toBe('dropped');
+    expect(await late.commits!(MAIN)).toEqual([]);
   });
 });
 

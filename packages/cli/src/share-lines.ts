@@ -14,10 +14,11 @@
  * own repository under the cache.
  */
 
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 import {
   httpLineCell,
   type Descends,
@@ -218,6 +219,11 @@ export interface Unconfigured {
   readonly detail: string;
 }
 
+/** Whether `share` keeps a record per commit beside the latest: the one store that answers `commits`. */
+export function keepsByCommit(share: Config['share']): boolean {
+  return share?.kind === 'git';
+}
+
 /**
  * The cell the configured share kind keeps its lines in.
  *
@@ -341,7 +347,25 @@ async function sinceMergeBase(
   return since === undefined ? { base } : { base, since };
 }
 
-async function mergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<string | undefined> {
+/**
+ * The commits of `kept` on `base`'s first-parent history, `base` included,
+ * nearest first: the mainline commits at or behind it that published a
+ * record. A reader stops at the first that answers, which ends the walk.
+ */
+export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: string): AsyncGenerator<string> {
+  if (kept.size === 0) return;
+  const child = spawn('git', ['rev-list', '--first-parent', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
+  try {
+    for await (const commit of createInterface({ input: child.stdout })) {
+      if (kept.has(commit)) yield commit;
+    }
+  } finally {
+    child.kill();
+  }
+}
+
+/** `HEAD`'s merge base with `mainline` as this clone last fetched it. */
+export async function mergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<string | undefined> {
   const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
   return base === undefined || base === '' ? undefined : base;
 }

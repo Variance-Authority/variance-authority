@@ -174,9 +174,9 @@ const NEW_AT_ONCE = 8;
  */
 const tops = new Map<string, Promise<string | undefined>>();
 
-/** Files a diff from `base` to the working tree names, one per record; `asked` are flags of the diff's own. */
-async function changedFiles(run: Run, repository: string, base: string, asked: readonly string[] = []): Promise<readonly string[]> {
-  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', ...asked, base], {
+/** Files a diff from `base` to the working tree names, one per record. */
+async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
+  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', base], {
     cwd: repository,
     maxBuffer: 32 * 1024 * 1024,
   });
@@ -197,21 +197,8 @@ async function untrackedFiles(run: Run, repository: string): Promise<readonly st
 }
 
 /** What the working tree changed from `base`, untracked files included, named from the top level `repository`. */
-async function changedAndNew(run: Run, repository: string, base: string, asked: readonly string[] = []): Promise<readonly string[]> {
-  return [...(await changedFiles(run, repository, base, asked)), ...(await untrackedFiles(run, repository))];
-}
-
-/**
- * {@link changedAndNew} from the commit `base`, a rename as the removal and the
- * addition it is: what a record names is the old path. `undefined` when git
- * cannot list it.
- */
-export async function changedFrom(base: string, repository: string): Promise<readonly string[] | undefined> {
-  try {
-    return await changedAndNew(promisify(execFile), repository, base, ['--no-renames']);
-  } catch {
-    return undefined;
-  }
+async function changedAndNew(run: Run, repository: string, base: string): Promise<readonly string[]> {
+  return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))];
 }
 
 /** The whole of a new file as one hunk of additions. `--no-index` exits 1 when the sides differ, which they do. */

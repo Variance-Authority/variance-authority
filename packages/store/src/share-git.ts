@@ -3,9 +3,12 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   decodeManifest,
+  keptAtOf,
+  keptAtPattern,
   linePath,
   manifestPaths,
   type Descends,
+  type KeptAt,
   type LineCell,
   type ShareLine,
   type ShareMiss,
@@ -35,6 +38,8 @@ export interface GitLineOptions {
 
 const REMOTE = 'share';
 const EMPTY = '0'.repeat(40);
+/** Refs one push deletes: every one is an argument, and a purge can name years of them. */
+const DROP_PER_PUSH = 500;
 
 type Git = (args: readonly string[], input?: Uint8Array, env?: Record<string, string>) => Promise<Ran>;
 
@@ -140,19 +145,20 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     return ref;
   };
 
+  const held = async (marker: string): Promise<boolean> => {
+    const reuse = options.reuseMs ?? 0;
+    return reuse > 0 && stat(marker).then((file) => Date.now() - file.mtimeMs < reuse, () => false);
+  };
+
   // FIXME: the remote keeps `branch/Feature` and `branch/feature` apart, but on
   // a disk that ignores case this cache's loose ref and its marker are one file
   // for both, so fetching one line overwrites the other's local ref, and `blob`
   // and a reused marker then answer the other line's commit.
   async function fetched(ref: string): Promise<string | ShareMiss> {
     const marker = join(options.gitDir, 'variance-fetched', ref);
-    const reuse = options.reuseMs ?? 0;
-    if (reuse > 0) {
-      const held = await stat(marker).then((file) => Date.now() - file.mtimeMs < reuse, () => false);
-      if (held) {
-        const at = (await readFile(marker, 'utf8')).trim();
-        return at === '' ? { kind: 'absent' } : at;
-      }
+    if (await held(marker)) {
+      const at = (await readFile(marker, 'utf8')).trim();
+      return at === '' ? { kind: 'absent' } : at;
     }
     const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', `--filter=blob:none`, REMOTE, `+${ref}:${ref}`]);
     let at: string | ShareMiss;
@@ -240,8 +246,9 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       const tree = await git(['write-tree', '--missing-ok'], undefined, env);
       await rm(index, { force: true });
       if (tree.code !== 0) return missOf(tree);
-      // No parent: a line is its latest, and what it replaced is the remote's to collect.
-      // TODO: nothing deletes a line, so a branch's ref outlives the branch, and
+      // No parent: a line is its latest, and what it replaced is the remote's to
+      // collect. A mainline's record at its commit is a line of its own.
+      // TODO: nothing deletes a branch's line, so a branch's ref outlives the branch, and
       // with it every image its tree names.
       const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`], undefined, IDENTITY);
       if (commit.code !== 0) return missOf(commit);
@@ -268,6 +275,41 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       }
       await git(['update-ref', ref, sha]);
       return 'written';
+    },
+    async commits(line) {
+      const pattern = `${namespace}/${keptAtPattern(line)}`;
+      const marker = join(options.gitDir, 'variance-fetched', 'listed', linePath(line));
+      if (!(await held(marker))) {
+        // Commits only, never a tree: when a record was written is its commit's date.
+        const ran = await git(['fetch', '--no-tags', '--no-write-fetch-head', '--prune', '--filter=tree:0', REMOTE, `+${pattern}:${pattern}`]);
+        if (ran.code !== 0) return missOf(ran);
+        await mkdir(dirname(marker), { recursive: true });
+        await writeFile(marker, '');
+      }
+      const listed = text((await git(['for-each-ref', '--format=%(refname) %(committerdate:unix)', `${namespace}/`])).stdout);
+      const kept: KeptAt[] = [];
+      for (const row of listed.split('\n')) {
+        const [ref, seconds] = row.split(' ');
+        if (ref === undefined || seconds === undefined) continue;
+        const commit = keptAtOf(line, ref.slice(namespace.length + 1));
+        if (commit !== undefined) kept.push({ commit, written: Number(seconds) * 1000 });
+      }
+      return kept;
+    },
+    async drop(lines) {
+      const refs: string[] = [];
+      for (const line of lines) {
+        const ref = refOf(line);
+        if (typeof ref !== 'string') return ref;
+        refs.push(ref);
+      }
+      for (let at = 0; at < refs.length; at += DROP_PER_PUSH) {
+        const part = refs.slice(at, at + DROP_PER_PUSH);
+        const pushed = await git(['push', '--no-verify', '--porcelain', REMOTE, ...part.map((ref) => `:${ref}`)]);
+        if (pushed.code !== 0) return missOf(pushed, refusalOf(pushed));
+        await git(['update-ref', '--stdin'], bytes(part.map((ref) => `delete ${ref}\n`).join('')));
+      }
+      return 'dropped';
     },
   };
 }

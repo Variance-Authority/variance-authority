@@ -167,7 +167,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
-variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
@@ -191,7 +191,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `doctor` | prints what this machine can observe, before a run, not after one; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
-| `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
+| `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |

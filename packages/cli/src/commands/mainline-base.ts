@@ -3,39 +3,11 @@
  * The mainline's record of a suite: fetched, kept where every reader and every
  * runner seam on this machine finds it, and reused until a nearer one can exist.
  *
- * `review` and `select` measure a change from a base, and a base taken from the
- * branch's own record would measure the change against itself, so the mainline
- * is the only line read. It is asked only for a suite the root config gives to
- * the share. `suiteBase` orders it against this checkout's own record and the
- * primary checkout's.
- *
- * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/`
- * in the cache, beneath every layer a run writes, and a `fetched.json` beside
- * the commit directories names the one fetched last. That file is where the
- * fetch hands the record to the runner seams in
- * `@variance-authority/sense/test-selection`: a checkout's first run lays that
- * copy under its own layer and lands on it, so a plain `yarn test` measures
- * from the same record this reads. A run never records over the read layer.
- * It is addressed by commit, like every record in the cache, so a second read
- * of the same commit writes the same bytes to the same place.
- *
- * A fetch costs a round trip to the remote, and on a network that hangs, the
- * whole of the store's timeout. The best base is the record at `HEAD`'s merge
- * base with the mainline, and the line holds only its newest record, so asking
- * can only help while the record fetched last is behind that merge base. The
- * record fetched last, by this checkout or by the primary checkout it was cut
- * from, stands without asking while the reader's mainline is the one it was
- * fetched from and either it is at or past the merge base, or the line was
- * asked at this same merge base. A merge base moves on a pull or a rebase, so
- * that is when the line is asked again; every reader of a checkout, and every
- * job of a CI run, which all share one merge base, reads the same record. When
- * the line does not answer, the record fetched last is still the base, and the
- * note says why it was not refreshed.
- *
- * A line that gave no record, because it could not be reached, held none, or
- * held one this version cannot keep, names no commit to place that answer by.
- * It stands for {@link MISS_STANDS_MS}, and the note says when it was given.
- * `variance share --suite <name>` always asks.
+ * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/` in
+ * the cache, beneath every layer a run writes, and `fetched.json` names the one
+ * fetched last, which is how the runner seams in
+ * `@variance-authority/sense/test-selection` lay it under a checkout's first run.
+ * When the record fetched last stands without asking is {@link reuseOf}'s to say.
  */
 
 import { readFileSync } from 'node:fs';
@@ -44,7 +16,7 @@ import { dirname, join } from 'node:path';
 import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
 import { ConfigError, messageOf } from '../config-values.js';
-import { distanceFrom, readerMainline, type Env } from '../share-lines.js';
+import { distanceFrom, keepsByCommit, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
@@ -71,8 +43,6 @@ export interface MainlineRecord {
   readonly commit: string;
   /** Commits the record is behind `HEAD`'s merge base with the mainline; negative when ahead. Absent when this clone cannot count. */
   readonly distance?: number;
-  /** The merge base `distance` is counted to, when it was counted. */
-  readonly base?: string;
   /** The coverage record, in the read layer. */
   readonly coverage: string;
   /** The record again, when it carries a case index that reads. */
@@ -84,11 +54,11 @@ export interface MainlineRecord {
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
   /**
-   * Present when it is the record fetched earlier: reused without asking, or
-   * kept because the mainline gave no record, now or, as `asked` says, earlier
-   * within {@link MISS_STANDS_MS}. It is reused when it is at or past `HEAD`'s
-   * merge base with the mainline (`nearest`), or else when the line was asked
-   * at this same merge base (`asked`).
+   * Present when it is the record fetched earlier: reused without asking
+   * because the line holds nothing nearer `HEAD`'s merge base with the mainline
+   * (`nearest`) or was asked at this same merge base (`asked`), or kept because
+   * the mainline gave no record, now or, as `asked` says, earlier within
+   * {@link MISS_STANDS_MS}.
    */
   readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
@@ -127,6 +97,19 @@ export interface MainlineAsk {
   readonly refetch?: boolean;
   /** The clock, for a test. */
   readonly now?: number;
+}
+
+/**
+ * Why the record fetched last stands without asking the line, if it does. A
+ * share that keeps by commit can still gain a record at the merge base, so only
+ * one already there stands. A share that keeps the latest only can hold nothing
+ * nearer once its record is past the merge base, and is asked once per merge
+ * base behind it.
+ */
+function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere: boolean): 'nearest' | 'asked' | undefined {
+  if (distance === 0) return 'nearest';
+  if (keptByCommit) return undefined;
+  return distance !== undefined && distance < 0 ? 'nearest' : askedHere ? 'asked' : undefined;
 }
 
 /**
@@ -174,11 +157,8 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      // At or past the merge base, nothing the line could hold is nearer it.
-      // Behind it, the line was asked here already when the merge base is the
-      // one it was asked at, the clone naming none then and now included.
-      const reused = distance !== undefined && distance <= 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
-      if (reused !== undefined) return earlier(last, { reused }, distance, named?.base);
+      const reused = reuseOf(distance, keepsByCommit(share), last.base === named?.base);
+      if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
@@ -256,7 +236,6 @@ export async function mainlineBase(
     mainline: found.mainline,
     commit: found.commit,
     ...(found.distance !== undefined ? { distance: found.distance } : {}),
-    ...(found.distance !== undefined && base !== undefined ? { base } : {}),
     coverage,
     ...(index !== undefined && casesUnread === undefined ? { cases: coverage } : {}),
     ...(casesUnread !== undefined ? { casesUnread } : {}),
@@ -274,15 +253,14 @@ async function measured(
   why: NonNullable<MainlineRecord['earlier']>,
   base: string | undefined,
 ): Promise<MainlineRecord> {
-  return earlier(last, why, await distanceFrom(place, last.mainline, last.commit, root, base), base);
+  return earlier(last, why, await distanceFrom(place, last.mainline, last.commit, root, base));
 }
 
-/** The record fetched earlier, as a base, `distance` commits behind this checkout's merge base `base`. */
+/** The record fetched earlier, as a base, `distance` commits behind this checkout's merge base. */
 async function earlier(
   last: LastFetched,
   why: NonNullable<MainlineRecord['earlier']>,
   distance: number | undefined,
-  base: string | undefined,
 ): Promise<MainlineRecord> {
   const { keepsCases } = await import('@variance-authority/sense/test-selection');
   return {
@@ -290,7 +268,6 @@ async function earlier(
     mainline: last.mainline,
     commit: last.commit,
     ...(distance !== undefined ? { distance } : {}),
-    ...(distance !== undefined && base !== undefined ? { base } : {}),
     coverage: last.coverage,
     ...(keepsCases(last.coverage) ? { cases: last.coverage } : {}),
     ...(last.runs === undefined ? {} : { runs: last.runs }),

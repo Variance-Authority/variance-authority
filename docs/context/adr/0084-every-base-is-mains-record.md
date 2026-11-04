@@ -50,16 +50,28 @@ fetched here, and the reader says so.**
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
-- **A fetched record stands until a nearer one can exist.** The line holds
-  only its newest record, and the best base is the record at `HEAD`'s merge
-  base with the mainline. `fetched.json` keeps the merge base the line was
-  asked at. The record stands without asking when it is at or past the merge
-  base, or when the line was asked at this same merge base. Otherwise a pull
-  or a rebase has moved the merge base, and the line is asked once. Every
-  reader of a checkout, and every CI job handed the read root, has one merge
-  base and reads one record. A remote that does not answer leaves the record
-  fetched earlier as the base, and the reader names when it was fetched and
-  why it was not fetched now. `variance share --suite <name>` always asks.
+- **A fetched record stands until a nearer one can exist.** The best base is
+  the record at `HEAD`'s merge base with the mainline. The line holds its
+  newest record, and a share in git also keeps each mainline publish at its
+  commit (`refs/variance/at/<commit>/mainline/<name>`). Nothing removes those
+  until somebody runs `variance share --purge-older-than <days>`; some never
+  will, and a remote's own expiry is theirs too. The reader asks for the record
+  at the merge base first. On a green main every commit's job publishes its
+  record, so until the merge base's has, the reader reads the newest kept behind
+  it that holds the suite's record, whichever jobs published there, which
+  charges the change with no commit of main's it lacks. The commits between that
+  record and the merge base count as changed with the checkout's own, because
+  that record cannot say what they made a test load. The newest of the line
+  answers only when nothing at or behind is kept, and a directory or an HTTP
+  store keeps the newest only. In a git share the record stands without asking
+  only when it is at the merge base, since nothing is nearer. Anywhere else the
+  line is asked on each read, because the merge base's job may publish yet. A
+  directory or an HTTP store has nothing nearer to offer, so its newest stands
+  once asked at this merge base, and past the merge base. Every reader of a
+  checkout, and every CI job handed the read root, has one merge base and reads
+  one record. A remote that does not answer leaves the record fetched earlier as
+  the base, and the reader names when it was fetched and why it was not fetched
+  now. `variance share --suite <name>` always asks.
 - **A miss stands for ten minutes** (`MISS_STANDS_MS`). The line's answer that
   it gave no record, unreachable, holding none, or holding one that does not
   read (`missed.json`), names no commit to place it by, so a clock does.
@@ -125,9 +137,13 @@ fetched here, and the reader says so.**
 
 ## Cost
 
-- A record main published after the line was asked at this merge base is not
-  read until the merge base moves, or `variance share --suite <name>` asks.
-  The older record selects more tests, never fewer.
+- Away from the merge base, every read asks the line until the merge base's
+  job publishes; a merge base whose job never does is asked at each read, at
+  most once a minute, until a pull moves it.
+- Kept records grow by one per green mainline commit until somebody purges.
+- A suite that publishes rarely costs a read per kept commit between it and the
+  merge base, and with nothing kept behind it the walk reads the whole
+  first-parent history. Neither is measured.
 - The publish job runs `vitest list` as well as the build.
 - A developer who never runs `variance share --suite <name>`, `test:since` or
   `select` has never fetched, and their seams lay the primary checkout's

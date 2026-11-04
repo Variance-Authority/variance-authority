@@ -1,41 +1,26 @@
 # Read CI's latest run from your checkout
 
 A **share** is a store where CI publishes what each run found, for commands on
-your checkout to read. `variance ask` and `variance serve` answer questions about
-CI's latest run from the report that run wrote, when your checkout has no run of
-its own. `variance select` names the test files a change lets you skip, and
-`variance review` counts the changed code no test covered; where your checkout
-has no recording to measure the change from, both read which tests ran which
-lines on your mainline, the branch your other branches merge into.
-`variance share` publishes a run, or prints how far the mainline's latest
-publish is from your checkout.
-
-A share keeps no history. For each branch it keeps one copy of each file a run
-publishes, and the next publish of that file replaces it, unless the branch is a
-mainline and has that file at a newer commit. It is stored as refs in the
-repository that hosts your code, in a directory, or behind an HTTP endpoint such
-as a deployment of [Tribunal](../packages/tribunal/README.md), the self-hosted
-review service.
-
-New here? Start with [your first run](start.md).
-
-The CLI is a devDependency, and every command below is run through it:
+your checkout to read: `variance ask` and `variance serve` answer from CI's
+latest report, and `variance select` and `variance review` measure a change
+from which tests ran which lines on your mainline, the branch your other
+branches merge into. It is stored as refs in the repository that hosts your
+code, in a directory, or behind an HTTP endpoint such as
+[Tribunal](../packages/tribunal/README.md), the self-hosted review service. New
+here? Start with [your first run](start.md). Every command below runs through
+the CLI, a devDependency:
 
 ```bash
 npm install --save-dev @variance-authority/cli
 ```
 
-A share does not replace [`baselines`](../packages/cli/README.md#configuration).
-The baselines are the images a run compares against, and `baselines.carry`,
-the [setting that names who takes a file to the next machine](#what-a-share-stores),
-refuses `"share"`. Everything in a share was derived from a commit the share
-names beside it, so losing a share costs you a run of the suite, and losing a
-baseline costs you the comparison.
-
 ## The words this page uses
 
 - **Line** — the place in a share for one branch: a manifest and the entries it
   lists. A publish replaces the entries it offers, so a line keeps one of each.
+  A share in git also keeps each mainline publish at the commit it ran at, so a
+  checkout behind the mainline's tip is measured against the record at its
+  merge base.
 - **Mainline** — a branch your other branches start from and merge into, such
   as `main`. Its line is `mainline/<name>`.
   [Which branches are mainlines](#which-branches-are-mainlines) says how the CLI
@@ -144,6 +129,13 @@ number — is the exception: it is digested before the lexicon is written, so th
 suite index never stores it as words. An ignore never changes an image, so a
 published run report's images still show it.
 
+A share does not replace [`baselines`](../packages/cli/README.md#configuration).
+The baselines are the images a run compares against, and `baselines.carry`,
+the [setting that names who takes a file to the next machine](#what-a-share-stores),
+refuses `"share"`. Everything in a share was derived from a commit the share
+names beside it, so losing a share costs you a run of the suite, and losing a
+baseline costs you the comparison.
+
 ## What a line keeps
 
 A share has three kinds of path, whatever it is stored in:
@@ -154,10 +146,12 @@ branch/<name>/      the record of each branch
 images/<digest>     every image a record names, stored once
 ```
 
-There is no history. Your branches are brought up to date with a mainline
-before they merge, by a merge queue, a required up-to-date branch or a rebase,
-so the question for your checkout is *what is mainline now, and how far am I
-from it*, and every lookup prints that distance.
+A directory keeps no history. Your branches are brought up to date with a
+mainline before they merge, by a merge queue, a required up-to-date branch or a
+rebase, so the question for your checkout is *what is mainline now, and how far
+am I from it*, and every lookup prints that distance. A [share in
+git](#the-repositorys-own-refs) also keeps each mainline publish at its
+commit, which answers a checkout that is not brought up to date.
 
 **A publish replaces only the entries it offers.** Two jobs that publish
 different suites at one commit leave both `suite-v1` entries on the line. Each
@@ -355,6 +349,7 @@ The publish prints what it did, and where:
 
 ```text
 wrote suite-index-v2, report-v1, subject-costs-v1 to mainline main in refs/variance on origin.
+kept the record at 3f1c9a2… beside the latest.
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
@@ -404,6 +399,7 @@ npx variance share --publish shard-1/report.json shard-2/report.json shard-3/rep
 ```text
 suite index at 3f1c…bd, composed from 3 shard(s): <cache>/suite/checkout-ui/3f1c…bd.bin
 wrote suite-index-v2, subject-costs-v1 to mainline main in refs/variance on origin.
+kept the record at 3f1c9a2… beside the latest.
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
@@ -434,7 +430,9 @@ at <cache>/suite/checkout-ui/3f1c9a2….bin
 ```
 
 `evaluated at` names the commit the publishing run ran at, which the manifest
-names. When this machine already has a suite index at that commit, the lookup
+names. A share in git answers with the record it keeps at your merge base when
+it has one, so the distance reads `at the merge base with this checkout`, and
+with the mainline's latest otherwise. When this machine already has a suite index at that commit, the lookup
 reads that one instead of fetching, and the first line ends in
 `read from this machine`. What the share returns is written under that commit,
 so the next command reads it from disk.
@@ -589,13 +587,17 @@ Records are read in this order:
    worktree's own, not the primary checkout's.
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
-   run writes, so it is never read as your checkout's own. The mainline keeps
-   only its newest record, and the nearest one you can use is at your `HEAD`'s
-   merge base with the mainline. A record fetched at or past that merge base
-   is read without asking the remote again, and so is one fetched while your
-   merge base was the one it is now. After a pull or a rebase moves it, the
-   remote is asked once. The result that the line has none for you stands for
-   10 minutes, with the time of that result. When the remote does not answer,
+   run writes, so it is never read as your checkout's own. The record read is
+   the one kept at your `HEAD`'s merge base with the mainline when the share
+   keeps one there. Until it does, because that commit's CI has not published
+   yet, it is the newest kept behind your merge base that holds your suite's
+   record, and the remote is asked again on each read, at most once a minute,
+   until your merge base's record is there. With nothing kept at or behind
+   your merge base, it is the mainline's newest. A record fetched at your merge
+   base is read without asking the remote again. A directory or HTTP share keeps
+   only the newest, so it is asked once per merge base, and not at all while its
+   record is past your merge base. The result that the line has none for you
+   stands for 10 minutes, with the time of that result. When the remote does not answer,
    the record fetched earlier is read, and the answer prints when it was
    fetched and why it was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline
@@ -645,25 +647,13 @@ wider run, never a narrower one. In CI, [merge the pull request with
 that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
 is the pull request's alone.
 
-A record behind your merge base leaves the mainline's changes to the mainline.
-A test the record selects runs when `file` precision over your own change from
-the merge base would select it too: imports reach it from a file you changed or
-a package you bumped, or the record says it entered a file you changed. A bump
-or a change to what the suite rests on counts only when you made it. Any other
-test is the mainline's, and the answer says how many:
-
-```text
-1 test file(s) left to mainline main: only its commits between the record's commit 3f1c9a2a07b8 and the merge base 8e01b44c5d21 reach them, and nothing this checkout changed from that base does.
-```
-
-A test that entered a file you deleted or renamed runs. So does one the
-mainline made import it, which the record never saw: when your change removes
-a path, every file whose imports the [source index](source-index.md) could not all resolve counts
-as reached. A load the import graph cannot follow, such as `import()` of a
-computed path, is not: a mainline change that turns one onto a file you changed
-leaves its test to the mainline, unless the record saw that load. Nothing is
-left on the mainline's own tip with nothing changed, whose run answers for it,
-or when the source index could not come up to your checkout.
+A record behind your merge base is read the same way: the mainline's commits
+between it and your merge base count as changed, and the tests they reach run
+with yours. That record cannot say what those commits made a test load, so a
+test they touch is never skipped on its word. The run grows with the distance
+until the merge base's own job publishes. A file no record holds and no import
+reaches selects nothing, here as for a file your branch adds: a directory scan
+onto a file added after the record is seen once the merge base's record is read.
 
 `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,
@@ -710,8 +700,11 @@ record](#a-suite-your-checkout-has-not-recorded).
 - `variance share --suite <name> --publish` on a mainline that wrote nothing,
   for a miss or a record it left out. Every checkout measures from that line's
   record, so an older one left in place has to show in CI.
+- `variance share --publish`, with or without `--suite`, on a mainline that
+  wrote the latest and could not keep it by commit. The latest stands, and the
+  job has to publish again for a checkout at that commit to find its record.
 
-Apart from that last case, `variance share` exits 0 on a miss, so a publish
+Apart from those last two cases, `variance share` exits 0 on a miss, so a publish
 that stopped working does not turn CI red.
 Watch the distance `npx variance share` prints: a mainline record forty commits
 behind your merge base is one nothing has published to since.
@@ -757,6 +750,13 @@ Tribunal deployment is an `http` share.
   fetch these refs and your branch list does not show them. `namespace` sets
   another prefix under `refs/`, for a repository that already uses
   `refs/variance/`.
+- **A mainline publish is also kept at its commit**, under
+  `refs/variance/at/<commit>/mainline/<name>`. A lookup reads the one at
+  `HEAD`'s merge base with the mainline first, then the newest kept behind it,
+  and the latest when none is kept at or behind it. Nothing removes them until
+  you ask: `variance share --purge-older-than <days>` deletes those written more
+  than that many days ago, and the latest stays. A directory and an HTTP store
+  keep the latest only.
 - **Every fetch and push runs in a bare repository of the share's own**, at
   `<cache>/share/<digest>.git`, one per remote URL, never in your clone. It
   fetches commits and trees, and an image only when something opens it, so a
@@ -1102,6 +1102,7 @@ jobs:
 
 ```text
 wrote suite-v1/unit to mainline main in refs/variance on origin.
+kept the record at 3f1c9a2… beside the latest.
 ```
 
 - **The artifact path is the [cache](cache.md)'s default location.** The

@@ -99,7 +99,9 @@ function crossers(record: TestCoverage): readonly string[] {
   return record.modules.find((module) => module.file === 'src/total.ts')?.blocks.flatMap((block) => block.testFiles) ?? [];
 }
 
-describe('the milestone under a checkout', () => {
+// Each test publishes two mainline records to a git share (`milestone-pin.fixture.ts`),
+// and each publish keeps its record at its commit too: a push and a listing more apiece.
+describe('the milestone under a checkout', { timeout: 15_000 }, () => {
   it('is never written by a local run, and the ledger lists exactly the tests that ran here', async () => {
     const { first, worktree, own } = await laidWorktree(home);
     const milestone = join(home, 'laptop-cache', 'share', 'read', 'unit', first, 'coverage.bin');
@@ -326,6 +328,8 @@ describe('the milestone under a checkout', () => {
     await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);
     const laid = await readFile(own);
     const next = await publishedNext(home, ci);
+    // Past the window: the share keeps no record at the merge base, so the newest answers.
+    await git(ci, 'push', '--quiet', 'origin', `:refs/variance/at/${first}/mainline/main`);
     // Fetched, and not merged: the branch does not contain it.
     await git(worktree, 'fetch', '--quiet', 'origin');
     await refetch(home, worktree, next);

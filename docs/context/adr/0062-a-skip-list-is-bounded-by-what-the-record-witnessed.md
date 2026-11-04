@@ -72,23 +72,12 @@ the tests that entered the module* — was built and measured: it dropped 3 of
 the answer, and `stale` and `unread` are reported by name. A widening a caller
 cannot see is a widening nobody will ever narrow again.
 
-**A cause only the mainline's commits gave is the mainline's.** A record behind
-the checkout's merge base M with its mainline is charged with every commit the
-mainline merged since the record, and the mainline's CI answers for M. So `select`
-compares the install from M, moves what the suite rests on before reach by the
-checkout's own change from M alone, and keeps a charged test only when `file`
-precision over that change, read from the same record and graph, selects it too.
-The record says what can differ since it ran, and `file` precision over the
-change says what the checkout can reach; a test is kept when both say so, so a
-record behind M never runs more than that precision would. A change that
-removes a path also reaches every file whose imports the scan could not all
-resolve: an import the mainline added after the record, of a path the checkout
-deletes, fails at the checkout and is in neither the record nor the graph. A
-load the graph cannot follow, a computed `import()`, is the named residue: a
-mainline change that turns one onto the checkout's change is left to the
-mainline unless the record saw it. The mainline's own
-tip with nothing changed answers for M and leaves nothing; so does a run whose
-graph could not come up to the checkout. `select` names how many tests it left.
+**A cause the mainline's commits gave still selects.** A record behind the
+checkout's merge base M is charged with every commit the mainline merged since
+the record, and every test those commits reach runs. Those commits can add a
+load no record saw and no graph follows, so a test they reach has no standing
+record: dropping it can skip a test the checkout's own change breaks. The cost
+is the mainline's reach since the record, and it ends when M's record publishes.
 
 ## Consequences
 
@@ -119,8 +108,7 @@ exists to do that before a human does.
   developer's checkout.
 - **An enrichment that replaces rather than adds.** Anything layered onto
   selection — a graph, a relation table, a heuristic — may add causes and may add
-  widenings. Removing one is a change to this ADR, not a refinement of a caller,
-  as the mainline's causes above are.
+  widenings. Removing one is a change to this ADR, not a refinement of a caller.
 - **Silent narrowing anywhere downstream.** A classification that decides an edit
   is inert, a merge that skips an unreadable input, a reporter that drops a module
   it could not identify: each must widen or fail loudly. None may quietly answer
