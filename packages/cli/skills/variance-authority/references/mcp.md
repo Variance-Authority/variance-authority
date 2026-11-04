@@ -52,9 +52,9 @@ twice: `"args": ["--prefix", "<workspace>", "variance-authority-help",
 `docs_orient` with no files reads the code map `variance index` makes, which needs
 `@variance-authority/cli` beside this package and no config.
 
-`npx @modelcontextprotocol/inspector --cli --config .mcp.json --server
+`npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server
 workspace-api --method tools/list` launches the entry and lists its tools, with
-no client open. It starts the server in the directory it runs from, so run it
+no client open. Version 2 needs Node 22.19, above what these packages declare. It starts the server in the directory it runs from, so run it
 where the client starts.
 
 ## Tool names and arguments

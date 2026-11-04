@@ -1,5 +1,5 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -166,10 +166,27 @@ async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed>
   return { lines, ...(await connect(entry, root)) };
 }
 
+/** The pages that print the Inspector, and the version they print: 2 needs Node 22.19, above what our packages declare. */
+const INSPECTED = [PAGE, 'packages/cli/skills/variance-authority/references/mcp.md'];
+const INSPECTOR = '@modelcontextprotocol/inspector@1 ';
+
+/** What `ask symbol` prints for a name, as indexed, after its signature changed, and after `variance index`. */
+function editedName(): { readonly indexed: string; readonly reused: string; readonly reindexed: string } {
+  const root = repository('one package');
+  const sh = (line: string) => spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' }).stdout;
+  sh('npx variance index');
+  const indexed = sh(SYMBOL);
+  writeFileSync(join(root, 'src/index.ts'), 'export const price = (net: number, rate: number) => net * rate;\n');
+  const reused = sh(SYMBOL);
+  sh('npx variance index');
+  return { indexed, reused, reindexed: sh(SYMBOL) };
+}
+
 const fences = printed(PAGE, HEADING);
 // Awaited here rather than in a test: the run takes what the machine gives it, and no test timeout should judge that.
 const followed = fences.length === 0 ? undefined : await follow(fences, 'several packages');
 const alone = fences.length === 0 ? undefined : await follow(fences, 'one package');
+const edited = editedName();
 
 /** An answer as the page prints it: a reader's index and repository are named for where they are, and the page cannot say. */
 const asPrinted = (answer: string | undefined): string =>
@@ -235,6 +252,17 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
   it('docs_orient returns what the shell printed', () => {
     expect(asPrinted(followed?.answer)).toContain(orientOf(followed));
     expect(asPrinted(alone?.answer)).toContain(orientOf(alone));
+  });
+
+  it('an edit to a name the index holds waits for `variance index`, as the page says', () => {
+    expect(edited.reused).toBe(edited.indexed);
+    expect(edited.reindexed).toContain('rate: number');
+    expect(prose(PAGE)).toContain('Run `variance index` when');
+  });
+
+  it.each(INSPECTED)('%s prints the Inspector every supported Node runs', (page) => {
+    const named = readFileSync(join(ROOT, page), 'utf8').match(/@modelcontextprotocol\/inspector\S* /g);
+    expect(named).toEqual([INSPECTOR]);
   });
 
   it.each([PAGE, 'docs/agent-cli.md'])(

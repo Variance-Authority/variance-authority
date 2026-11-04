@@ -65,11 +65,13 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-You do not run `variance index` after an edit. A question about a name reuses the
-index for an hour, then refreshes it, and looks again in the checkout as it is
-when the index does not hold the name. Only `ask search` answers from the last
-index at any age, and its last line says so: run `variance index` when a search
-misses something you just wrote.
+A name the index does not hold is looked for again in the checkout as it is, so
+a function you just wrote is answered with no step from you. A name it does hold
+is answered from the index, which a question reuses for an hour before refreshing
+it: after you change the signature or the imports of an existing name, an answer
+can show the old one until then. `ask search` answers from the last index at any
+age, and its last line says so. Run `variance index` when the next answer has to
+match your edit.
 
 Your agent can now run any `npx variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
@@ -109,10 +111,12 @@ from, so run it where your client starts, naming that client's file after
 `--config`:
 
 ```bash
-npx @modelcontextprotocol/inspector --cli --config .mcp.json --server workspace-api --method tools/list
+npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspace-api --method tools/list
 ```
 
-The answer lists these fourteen:
+Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
+runs on every Node these packages do. It prints a notice that version 1 is
+deprecated, then the answer, which lists these fourteen:
 
 ```text
 docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
