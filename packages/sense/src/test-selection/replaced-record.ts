@@ -34,7 +34,7 @@ export async function prepareRecord(
   if (replaced !== undefined) {
     console.warn(
       `variance-authority replaced the record at ${file}: it was written under the probes \`${replaced}\` and this run ` +
-        `records under \`${instrumentation}\`, so it could answer nothing for this build.`,
+        `records under \`${instrumentation}\`, so this run cannot be laid over it.`,
     );
   }
   if (options.alone !== true) noteSeeded(await seedTestCoverage(file, root, instrumentation, options.cacheRoot));

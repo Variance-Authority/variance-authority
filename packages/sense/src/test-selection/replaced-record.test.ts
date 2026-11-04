@@ -45,7 +45,7 @@ describe('prepareRecord', () => {
     await prepareRecord(file, root, 'newer', { cacheRoot });
 
     expect([await present(file), await present(commitRunsFile(file)), await present(ownLayerFile(file))]).toEqual([false, false, false]);
-    expect(warn.mock.calls).toEqual([[expect.stringMatching(/^variance-authority replaced the record at .*`older`.*`newer`/u)]]);
+    expect(warn.mock.calls).toEqual([[expect.stringMatching(/^variance-authority replaced the record at .*`older`.*`newer`, so this run cannot be laid over it\.$/u)]]);
   });
 
   it('replaces it once when two workers ask at once', async () => {
