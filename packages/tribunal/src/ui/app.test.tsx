@@ -169,8 +169,9 @@ describe('ReviewApp', () => {
     const text = host.textContent ?? '';
     expect(text).toContain('"endpoint": "https://review.example.com"');
     expect(text).toContain('VARIANCE_INGEST_TOKEN');
-    // And which token it is not: this is the moment somebody picks a secret for CI.
-    expect(text).toContain('review token');
+    // A deployment that trusts the runner takes the job's own token, and no secret.
+    expect(text).toContain('"github-actions"');
+    expect(text).not.toContain('review token');
   });
 
   it('lists what came back, and asks the service once', async () => {

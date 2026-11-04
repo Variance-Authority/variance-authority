@@ -117,8 +117,10 @@ export function createIssuer(options: IssuerOptions): Issuer {
       const key = await keyFor(header['kid']);
       if (key === undefined) return { refused: `the issuer publishes no key ${String(header['kid'])}` };
 
+      const presented = bytes(signature);
+      if (presented === null) return { refused: 'the signature is not base64url' };
       const signed = new TextEncoder().encode(`${head}.${body}`);
-      const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, buffer(bytes(signature)), buffer(signed));
+      const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, buffer(presented), buffer(signed));
       return ok ? { claims } : { refused: 'the signature does not verify' };
     },
   };
@@ -126,7 +128,7 @@ export function createIssuer(options: IssuerOptions): Issuer {
 
 function decoded(part: string): Record<string, unknown> | null {
   try {
-    const value: unknown = JSON.parse(new TextDecoder().decode(bytes(part)));
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes(part) ?? new Uint8Array()));
     return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
   } catch {
     return null;
@@ -138,10 +140,15 @@ function buffer(view: Uint8Array): ArrayBuffer {
   return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
 }
 
-function bytes(part: string): Uint8Array {
+/** Base64url, or `null` for what a stranger sent that is not. */
+export function bytes(part: string): Uint8Array | null {
   const padded = part.replaceAll('-', '+').replaceAll('_', '/');
-  const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '='));
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  try {
+    const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '='));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  } catch {
+    return null;
+  }
 }
 
 /** The `iss` of a token, unverified: it picks which keys are checked and grants nothing. */

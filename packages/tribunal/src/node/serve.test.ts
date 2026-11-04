@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { BASELINE_FIND_PATH } from '@variance-authority/remote/store';
 import type { RunReport } from '@variance-authority/report';
-import { createTribunal } from '../worker.js';
+import { createTribunal, type Tribunal } from '../worker.js';
 import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { declaredPolicy } from '../policy.js';
@@ -96,6 +96,18 @@ function call(
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
   });
 }
+
+describe('behind a proxy', () => {
+  const echoing = {
+    fetch: (request: Request) => Promise.resolve(Response.json({ url: request.url })),
+  } as unknown as Tribunal;
+
+  it('hands the service the address the deployer named, whatever the Host header says', async () => {
+    await serve({ tribunal: echoing, ui: false, origin: 'https://review.example.com' });
+
+    expect(await (await call('/auth/me')).json()).toEqual({ url: 'https://review.example.com/auth/me' });
+  });
+});
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tribunal-serve-'));

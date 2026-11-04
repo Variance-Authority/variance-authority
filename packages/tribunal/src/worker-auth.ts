@@ -12,9 +12,13 @@ import { Forbidden } from './worker-http.js';
 /** What a request may do. `view` reads what review reads and never writes. */
 export type Granted = 'ingest' | 'review' | 'share' | 'view';
 
-/** Who a request is. Only a reviewer has a name, because only a reviewer's actions are attributed. */
+/**
+ * Who a request is. Only a reviewer has a name, because only a reviewer's actions
+ * are attributed. `moves: false` is a run that writes itself and no baseline.
+ */
 export type Principal =
-  | { readonly capability: 'ingest' | 'share' | 'view' }
+  | { readonly capability: 'ingest'; readonly moves?: false }
+  | { readonly capability: 'share' | 'view' }
   | { readonly capability: 'review'; readonly name: string };
 
 /**
@@ -42,7 +46,13 @@ export const UNAUTHENTICATED = 'a valid bearer token is required';
 export const ME_PATH = '/auth/me';
 
 /** What {@link ME_PATH} answers. A page reads this to know whether to offer a decision or a sign-in. */
-export function introduced(principal: Principal | null, policy: Policy): Readonly<Record<string, string>> {
+export interface Introduced {
+  readonly capability?: Granted;
+  readonly name?: string;
+  readonly signIn?: string;
+}
+
+export function introduced(principal: Principal | null, policy: Policy): Introduced {
   return {
     ...(principal === null ? {} : { capability: principal.capability }),
     ...(principal?.capability === 'review' ? { name: principal.name } : {}),
@@ -110,6 +120,23 @@ export function requires(granted: Granted, needed: Granted, path: string): void 
             'is not something a build log can do'
           : 'Writing to this deployment is something CI does, not something a reviewer does'),
   );
+}
+
+/**
+ * Who may change what later runs compare against.
+ *
+ * A branch's workflow holds the same proof as the default branch's, and anybody who
+ * can push a branch can write that workflow, so a baseline moved from there would
+ * move it for everybody with no review. Its run is still taken.
+ */
+export function movesBaselines(principal: Principal, path: string): void {
+  requires(principal.capability, 'ingest', path);
+  if (principal.capability === 'ingest' && principal.moves === false) {
+    throw new Forbidden(
+      `${path} changes what later runs compare against, and this workflow ran on a ref other than ` +
+        'the one GITHUB_ACTIONS_BASELINE_REF names',
+    );
+  }
 }
 
 /**

@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { Introduced } from '../worker-auth.js';
 import { createReviewClient } from './client.js';
 import { ReviewApp } from './review.js';
 
@@ -35,27 +36,28 @@ if (configuration === null) {
 
 const { endpoint = '' } = JSON.parse(configuration.textContent ?? '{}') as { readonly endpoint?: string };
 
-interface Introduced {
-  readonly capability?: string;
-  readonly name?: string;
-  readonly signIn?: string;
-}
+const client = createReviewClient({ endpoint });
 
-const me = (await (await fetch(`${endpoint}/auth/me`)).json()) as Introduced;
-const signIn =
-  me.signIn === undefined
-    ? undefined
-    : `${endpoint}${me.signIn}?return=${encodeURIComponent(location.pathname + location.search)}`;
+const enter = (me: Introduced): void => {
+  const signIn =
+    me.signIn === undefined
+      ? undefined
+      : `${endpoint}${me.signIn}?return=${encodeURIComponent(location.pathname + location.search)}`;
 
-if (me.capability === undefined && signIn !== undefined) {
-  location.assign(signIn);
-} else if (me.capability === undefined) {
-  mount.textContent = 'This deployment does not recognize you.';
-} else {
-  createRoot(mount).render(
-    <StrictMode>
-      {me.capability === 'view' && signIn !== undefined ? <a href={signIn}>Sign in to decide</a> : null}
-      <ReviewApp client={createReviewClient({ endpoint })} reviewer={me.name} />
-    </StrictMode>,
-  );
-}
+  if (me.capability === undefined && signIn !== undefined) {
+    location.assign(signIn);
+  } else if (me.capability === undefined) {
+    mount.textContent = 'This deployment does not recognize you.';
+  } else {
+    createRoot(mount).render(
+      <StrictMode>
+        {me.capability === 'view' && signIn !== undefined ? <a href={signIn}>Sign in to decide</a> : null}
+        <ReviewApp client={client} reviewer={me.name} />
+      </StrictMode>,
+    );
+  }
+};
+
+await client.me().then(enter, (error: unknown) => {
+  mount.textContent = `This deployment did not say who you are: ${error instanceof Error ? error.message : String(error)}`;
+});

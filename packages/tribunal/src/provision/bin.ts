@@ -17,7 +17,7 @@ import { provision, type Command, type ProvisionRequest, type RunOptions } from 
  *
  *     npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config deploy/wrangler.jsonc
  *
- * `--repository owner/name` names the repository whose CI pushes builds; the
+ * `--repository owner/name` names the repository whose writers review and whose CI pushes builds; the
  * one `gh` sees in the working directory when absent. `--mount /api` is where the
  * deployment serves the API, when not at the root. `--skip-deploy` leaves
  * publishing to a deployment with its own build. `--rotate` replaces the session
@@ -76,9 +76,10 @@ export function runCommand(program: string, args: readonly string[], options: Ru
 
 const OPENER: Readonly<Record<string, string>> = { darwin: 'open', win32: 'explorer' };
 
-async function serving(url: string): Promise<boolean> {
-  const response = await fetch(url).catch(() => null);
-  return response?.headers.get('content-type')?.includes('json') === true;
+/** A placeholder answers 200 in text, and a Worker that cannot start answers 500 in JSON. */
+export async function serving(url: string, send: typeof fetch = fetch): Promise<boolean> {
+  const response = await send(url).catch(() => null);
+  return response?.ok === true && response.headers.get('content-type')?.includes('json') === true;
 }
 
 async function main(): Promise<void> {
@@ -101,13 +102,14 @@ async function main(): Promise<void> {
       mint: () => randomBytes(24).toString('hex'),
       cloudflare: (token, account) => cloudflare(token, account, fetch),
       installed: fileURLToPath(new URL('../..', import.meta.url)).replace(/\/$/, ''),
-      register: (app) =>
+      register: (app, created) =>
         registerApp(app, {
           say,
+          created,
           // The address is also said, so a run with no browser to open still works.
           open: async (url) => void (await runCommand(OPENER[process.platform] ?? 'xdg-open', [url])),
         }),
-      serving,
+      serving: (url) => serving(url),
     },
     request,
   );

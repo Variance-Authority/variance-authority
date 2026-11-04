@@ -9,6 +9,7 @@ import {
   withVariable,
   type Deployment,
 } from './config.js';
+import { CLIENT_SECRET, INGEST_SECRET, SESSION_SECRET, declaration } from '../policy.js';
 import type { AppRequest, RegisteredApp } from './github-app.js';
 
 /**
@@ -21,17 +22,16 @@ import type { AppRequest, RegisteredApp } from './github-app.js';
  * repository decide, and the repository's workflows push with the token the runner
  * issues them, so no secret is stored for CI at all.
  *
- * What the config already declares is the deployer's. `INGEST_CREDENTIALS` and
- * `REVIEW_CREDENTIALS` are written only when absent, and a mechanism not declared
- * is not provisioned: a deployment on `access` gets no App, and `token` is the one
- * path that mints and shares an ingest token.
+ * What the config already declares is the deployer's. A variable is written only
+ * when absent, and a mechanism not declared is not provisioned: a deployment on
+ * `access` gets no App, and `token` is the one path that mints and shares an ingest
+ * token. Who may push is widened by the deployer in the file, never by a run.
  *
  * The run asks before it makes anything, so running it again is how you check a
- * deployment is still provisioned, and how a second repository is given the right
- * to push. It stops only where a person has to agree to something.
+ * deployment is still provisioned, and how to read again what CI needs. It stops
+ * only where a person has to agree to something.
  */
 
-export const INGEST_SECRET = 'INGEST_TOKEN';
 /** Cloudflare's code for a Worker the account does not have. */
 const WORKER_NOT_FOUND = 10007;
 /** R2's code for a bucket the account does not have. */
@@ -39,20 +39,8 @@ const BUCKET_NOT_FOUND = 10006;
 /** R2's code for an account with no R2 subscription. */
 const R2_NOT_ENTITLED = 10042;
 
-/** The App's own secret, and the key sessions are signed with. */
-export const CLIENT_SECRET = 'GITHUB_CLIENT_SECRET';
-export const SESSION_SECRET = 'GITHUB_SESSION_SECRET';
 /** The repository secret the `variance` workflow reads. */
 export const REPOSITORY_INGEST_SECRET = 'VARIANCE_INGEST_TOKEN';
-/**
- * The repository variable that says an ingest rotation has begun and not
- * finished. Two writes in two services cannot be one transaction, so the run
- * journals: this goes in first, then the Worker copy, then the repository's,
- * and this comes out last. A failure between them leaves it, CI may hold a
- * token the Worker refuses, and the next run replaces both. Copies changed
- * outside the command leave no journal; `--rotate` makes a pair again.
- */
-export const ROTATION_JOURNAL = 'VARIANCE_INGEST_ROTATION';
 
 export interface Command {
   readonly code: number;
@@ -79,8 +67,8 @@ export interface Provisioning {
   exists(path: string): Promise<boolean>;
   /** The directory this package is installed in. */
   readonly installed: string;
-  /** Makes and installs the App, with the person at the browser. */
-  register(request: AppRequest): Promise<RegisteredApp>;
+  /** Makes and installs the App, with the person at the browser. `created` runs between the two. */
+  register(request: AppRequest, created: (app: RegisteredApp) => Promise<void>): Promise<RegisteredApp>;
   /** Whether the Worker is answering at this address, rather than a placeholder or nothing. */
   serving(url: string): Promise<boolean>;
 }
@@ -115,6 +103,7 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
     await io.write(request.config, deploymentConfig(name, project, installed));
     made.push(request.config);
   }
+  refuse(readDeployment(await io.read(request.config)), request.repository);
   if ((await asked()).code !== 0) {
     io.say('Not logged in to Cloudflare. Allow it in the browser window that opens.');
     const login = await io.run('npx', ['wrangler', 'login'], { interactive: true });
@@ -136,7 +125,7 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
   };
 
   let host: string;
-  let ingest: readonly string[];
+  let declared: Declared;
   try {
     await database(deployment, must, io, request.config, made);
     await bucket(deployment, wrangler, must, io, made);
@@ -145,11 +134,10 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
     host =
       deployment.host ??
       `${deployment.name}.${await io.cloudflare(await token(), deployment.accountId).workersSubdomain()}.workers.dev`;
-    const declared = await declare(deployment, host, io, request, made);
-    ingest = declared.ingest;
+    declared = await declare(deployment, host, io, request, made);
     const worker = await workerSecrets(wrangler);
     if (declared.review.includes('github')) await signIn(deployment, host, worker, must, io, request, made);
-    if (ingest.includes('token')) await ingestToken(worker, wrangler, io, request, made);
+    if (declared.ingest.includes('token')) await ingestToken(worker, wrangler, io, request, made);
   } catch (error) {
     if (error instanceof Stop) return 1;
     throw error;
@@ -164,11 +152,45 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
   }
 
   io.say(made.length === 0 ? 'Nothing to do — already provisioned.' : `Provisioned: ${made.join(', ')}.`);
-  if (ingest.includes('github-actions') && made.length > 0) {
-    io.say(`To push from ${request.repository}, give the job \`id-token: write\` under \`permissions\` and this in variance.config:`);
-    io.say(`  "baselines": { "kind": "remote", "endpoint": "${site}", "token": { "github-actions": { "audience": "https://${host}" } } }`);
-  }
+  if (declared.ingest.includes('github-actions')) tellCi(io, request.repository, site, declared.audience);
   return 0;
+}
+
+/** Said on every run: it is the half of the setup that lives in another repository. */
+function tellCi(io: Provisioning, repository: string, site: string, audience: string | undefined) {
+  const block = `"endpoint": "${site}", "token": { "github-actions": { "audience": "${audience}" } }`;
+  io.say(`To push from ${repository}, put this in variance.config:`);
+  io.say(`  "review": { ${block} },`);
+  io.say(`  "baselines": { "kind": "remote", ${block} }`);
+  io.say('and this in the job, with no secret to store:');
+  io.say('  permissions:');
+  io.say('    id-token: write');
+  io.say('  steps:');
+  io.say('    - run: npx variance push');
+}
+
+/** A mistake in the config, found while nothing has been made from it. */
+function refuse(deployment: Deployment, repository: string) {
+  const held = deployment.variables;
+  const { ingest, review } = declaration({ ...DEFAULTS, ...held });
+
+  const wanted = repository.toLowerCase();
+  const reviewed = held['GITHUB_REPOSITORY'];
+  if (review.includes('github') && reviewed !== undefined && reviewed.toLowerCase() !== wanted) {
+    throw new Error(
+      `GITHUB_REPOSITORY is ${reviewed}, and this run is for ${repository}. ` +
+        'One deployment reviews one repository: run this for that one, or change it in the config',
+    );
+  }
+  const pushing = held['GITHUB_ACTIONS_REPOSITORIES'];
+  if (!ingest.includes('github-actions') || pushing === undefined) return;
+  const covers = list(pushing).map((each) => each.toLowerCase());
+  if (!covers.includes(wanted) && !covers.includes(`${wanted.split('/')[0]}/*`)) {
+    throw new Error(
+      `GITHUB_ACTIONS_REPOSITORIES is ${pushing}, which does not cover ${repository}. ` +
+        'Who may push is a decision: add it in the config, then run this again',
+    );
+  }
 }
 
 type Placed = Deployment & { readonly accountId: string };
@@ -241,36 +263,56 @@ async function bucket(deployment: Placed, wrangler: Wrangler, must: Must, io: Pr
   made.push(`R2 bucket ${deployment.bucket}`);
 }
 
-/**
- * Who the deployment recognizes, written into `vars`. A list the deployer wrote is
- * kept, and a run for another repository adds it to the ones that may push.
- */
-async function declare(deployment: Placed, host: string, io: Provisioning, request: ProvisionRequest, made: string[]) {
-  const held = deployment.variables;
-  const list = (value: string) => value.split(',').map((each) => each.trim()).filter((each) => each !== '');
-  const ingest = list(held['INGEST_CREDENTIALS'] ?? 'github-actions');
-  const review = list(held['REVIEW_CREDENTIALS'] ?? 'github');
+const DEFAULTS = { INGEST_CREDENTIALS: 'github-actions', REVIEW_CREDENTIALS: 'github' };
 
-  const wanted: Record<string, string> = {
-    INGEST_CREDENTIALS: ingest.join(','),
-    REVIEW_CREDENTIALS: review.join(','),
-  };
+const list = (value: string) =>
+  value
+    .split(',')
+    .map((each) => each.trim())
+    .filter((each) => each !== '');
+
+interface Declared {
+  readonly ingest: readonly string[];
+  readonly review: readonly string[];
+  readonly audience?: string;
+}
+
+/** Who the deployment recognizes, written into `vars` where the deployer left a value out. */
+async function declare(
+  deployment: Placed,
+  host: string,
+  io: Provisioning,
+  request: ProvisionRequest,
+  made: string[],
+): Promise<Declared> {
+  const held = deployment.variables;
+  const { ingest, review } = declaration({ ...DEFAULTS, ...held });
+
+  const wanted: Record<string, string> = { ...DEFAULTS };
   if (ingest.includes('github-actions')) {
-    const pushing = list(held['GITHUB_ACTIONS_REPOSITORIES'] ?? '');
-    const named = pushing.some((each) => each.toLowerCase() === request.repository.toLowerCase());
-    wanted['GITHUB_ACTIONS_REPOSITORIES'] = (named ? pushing : [...pushing, request.repository]).join(',');
-    wanted['GITHUB_ACTIONS_AUDIENCE'] = held['GITHUB_ACTIONS_AUDIENCE'] ?? `https://${host}`;
+    wanted['GITHUB_ACTIONS_REPOSITORIES'] = request.repository;
+    wanted['GITHUB_ACTIONS_AUDIENCE'] = `https://${host}`;
+    if (held['GITHUB_ACTIONS_BASELINE_REF'] === undefined) {
+      wanted['GITHUB_ACTIONS_BASELINE_REF'] = `refs/heads/${await defaultBranch(io, request.repository)}`;
+    }
   }
-  if (review.includes('github')) wanted['GITHUB_REPOSITORY'] = held['GITHUB_REPOSITORY'] ?? request.repository;
+  if (review.includes('github')) wanted['GITHUB_REPOSITORY'] = request.repository;
 
   let text = await io.read(request.config);
-  const written = Object.entries(wanted).filter(([name, value]) => held[name] !== value);
+  const written = Object.entries(wanted).filter(([name]) => held[name] === undefined);
   for (const [name, value] of written) text = withVariable(text, name, value);
   if (written.length > 0) {
     await io.write(request.config, text);
     made.push(written.map(([name]) => name).join(', '));
   }
-  return { ingest, review };
+  const audience = held['GITHUB_ACTIONS_AUDIENCE'] ?? wanted['GITHUB_ACTIONS_AUDIENCE'];
+  return { ingest, review, ...(audience === undefined ? {} : { audience }) };
+}
+
+async function defaultBranch(io: Provisioning, repository: string): Promise<string> {
+  const asked = await io.run('gh', ['api', `repos/${repository}`, '--jq', '.default_branch']);
+  if (asked.code !== 0) throw new Error(`gh api repos/${repository} failed:\n${asked.stderr}`);
+  return asked.stdout.trim();
 }
 
 /** The secrets the Worker holds. A Worker never deployed holds none, and `secret put` makes it. */
@@ -285,9 +327,9 @@ async function workerSecrets(wrangler: Wrangler): Promise<Set<string>> {
 }
 
 /**
- * The App and the session key. The client id goes into the config last, so a run
- * that stops at the browser leaves nothing that reads as finished: the next run
- * starts the App again rather than deploying a sign-in that goes nowhere.
+ * The App and the session key. GitHub shows the App's secret once, so it is kept the
+ * moment GitHub hands it over, the client id last: a run stopped before that leaves
+ * nothing that reads as finished, and one stopped after it makes no second App.
  */
 async function signIn(
   deployment: Placed,
@@ -307,16 +349,20 @@ async function signIn(
   const owner = await io.run('gh', ['api', `repos/${request.repository}`, '--jq', '.owner.type + " " + .owner.login']);
   if (owner.code !== 0) throw new Error(`gh api repos/${request.repository} failed:\n${owner.stderr}`);
   const [type, login] = owner.stdout.trim().split(' ');
-  const app = await io.register({
-    name: deployment.name,
-    host,
-    ...(type === 'Organization' ? { organization: login! } : {}),
-  });
-  await must(['secret', 'put', CLIENT_SECRET], { input: app.clientSecret });
-  await io.write(request.config, withVariable(await io.read(request.config), 'GITHUB_CLIENT_ID', app.clientId));
-  made.push(`GitHub App ${app.slug}`);
+  const created = async (app: RegisteredApp) => {
+    await must(['secret', 'put', CLIENT_SECRET], { input: app.clientSecret });
+    await io.write(request.config, withVariable(await io.read(request.config), 'GITHUB_CLIENT_ID', app.clientId));
+    made.push(`GitHub App ${app.slug}`);
+    // Nothing asks GitHub for an installation later, so this is the one time it is said.
+    io.say(`Install it on ${request.repository}: https://github.com/apps/${app.slug}/installations/new`);
+  };
+  await io.register(
+    { name: deployment.name, host, ...(type === 'Organization' ? { organization: login! } : {}) },
+    created,
+  );
 }
 
+/** Nothing can read a secret back, so the two copies are taken to match when both exist. */
 async function ingestToken(
   worker: ReadonlySet<string>,
   wrangler: Wrangler,
@@ -327,41 +373,21 @@ async function ingestToken(
   const github = await io.run('gh', ['secret', 'list', '-R', request.repository, '--json', 'name']);
   if (github.code !== 0) throw new Error(`gh secret list failed:\n${github.stderr}`);
   const repository = new Set((JSON.parse(github.stdout) as { name: string }[]).map((each) => each.name));
+  if (!request.rotate && worker.has(INGEST_SECRET) && repository.has(REPOSITORY_INGEST_SECRET)) return;
 
-  const variables = await io.run('gh', ['variable', 'list', '-R', request.repository, '--json', 'name']);
-  if (variables.code !== 0) throw new Error(`gh variable list failed:\n${variables.stderr}`);
-  const unfinished = (JSON.parse(variables.stdout) as { name: string }[]).some((each) => each.name === ROTATION_JOURNAL);
-
-  // Nothing can read a secret back, so the copies are taken to match only when
-  // both exist and no rotation is journaled as unfinished.
-  if (unfinished) {
-    io.say(`A rotation of ${INGEST_SECRET} stopped between the Worker and ${request.repository}; replacing both.`);
+  const token = io.mint();
+  const put = await wrangler(['secret', 'put', INGEST_SECRET], { input: token });
+  if (put.code !== 0) {
+    throw new Error(`wrangler secret put ${INGEST_SECRET} failed, and no copy changed:\n${put.stderr || put.stdout}`);
   }
-  if (unfinished || request.rotate || !worker.has(INGEST_SECRET) || !repository.has(REPOSITORY_INGEST_SECRET)) {
-    const token = io.mint();
-    const begun = await io.run('gh', ['variable', 'set', ROTATION_JOURNAL, '-R', request.repository], {
-      input: 'begun',
-    });
-    if (begun.code !== 0) {
-      throw new Error(`gh variable set ${ROTATION_JOURNAL} failed, and no token was changed:\n${begun.stderr}`);
-    }
-    const recovery =
-      `The deployment needs recovery: CI may hold a token the Worker refuses. ${ROTATION_JOURNAL} in ` +
-      `${request.repository} records it, so run this again to replace both copies.`;
-    const put = await wrangler(['secret', 'put', INGEST_SECRET], { input: token });
-    if (put.code !== 0) {
-      throw new Error(`wrangler secret put ${INGEST_SECRET} failed:\n${put.stderr || put.stdout}\n${recovery}`);
-    }
-    const set = await io.run('gh', ['secret', 'set', REPOSITORY_INGEST_SECRET, '-R', request.repository], {
-      input: token,
-    });
-    if (set.code !== 0) throw new Error(`gh secret set ${REPOSITORY_INGEST_SECRET} failed:\n${set.stderr}\n${recovery}`);
-    const done = await io.run('gh', ['variable', 'delete', ROTATION_JOURNAL, '-R', request.repository]);
-    if (done.code !== 0) {
-      throw new Error(
-        `gh variable delete ${ROTATION_JOURNAL} failed:\n${done.stderr}\nBoth copies match; the next run replaces them again.`,
-      );
-    }
-    made.push(`${INGEST_SECRET} (Worker and ${request.repository})`);
+  const set = await io.run('gh', ['secret', 'set', REPOSITORY_INGEST_SECRET, '-R', request.repository], {
+    input: token,
+  });
+  if (set.code !== 0) {
+    throw new Error(
+      `gh secret set ${REPOSITORY_INGEST_SECRET} failed:\n${set.stderr}\n` +
+        `The Worker holds a new token and ${request.repository} the old one, so CI is refused until --rotate makes a pair.`,
+    );
   }
+  made.push(`${INGEST_SECRET} (Worker and ${request.repository})`);
 }

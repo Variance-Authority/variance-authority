@@ -37,6 +37,8 @@ export interface RegisteredApp {
 export interface AppHandoff {
   /** Sends the person's browser to the address. */
   open(url: string): Promise<void>;
+  /** Keeps the credentials, which GitHub shows once, before the person goes on to install. */
+  created(app: RegisteredApp): Promise<void>;
   say(line: string): void;
   readonly fetch?: typeof fetch;
 }
@@ -89,17 +91,22 @@ export function registerApp(request: AppRequest, handoff: AppHandoff): Promise<R
         );
       } else if (url.pathname === '/created') {
         if (url.searchParams.get('state') !== state) return answer(400, 'This is not the registration this run started.');
-        converted(url.searchParams.get('code') ?? '', send).then(
+        converted(url.searchParams.get('code') ?? '', send)
+          .then(async (app) => {
+            await handoff.created(app);
+            return app;
+          })
+          .then(
           (app) => {
             registered = app;
-            answer(302, '', { location: `https://github.com/apps/${app.slug}/installations/new` });
+            answer(302, '', { location: `https://github.com/apps/${app.slug}/installations/new?state=${state}` });
           },
           (error: unknown) => {
             answer(500, 'GitHub did not hand the App over. The command says why.');
             finish(() => reject(error));
           },
         );
-      } else if (url.pathname === '/installed' && registered !== undefined) {
+      } else if (url.pathname === '/installed' && registered !== undefined && url.searchParams.get('state') === state) {
         const app = registered;
         answer(200, 'Installed. You can close this tab.');
         finish(() => resolve(app));

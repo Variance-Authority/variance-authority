@@ -29,6 +29,7 @@ import {
   UNAUTHENTICATED,
   attributed,
   introduced,
+  movesBaselines,
   readable,
   requires,
   seen,
@@ -149,6 +150,8 @@ export interface TribunalOptions extends TribunalBindings {
  */
 export interface Tribunal {
   fetch(request: Request): Promise<Response>;
+  /** Removes what retention says has expired. A deployment's schedule calls this, and no person has to. */
+  sweep(): Promise<unknown>;
 }
 
 /**
@@ -213,6 +216,8 @@ export function createTribunal(options: TribunalOptions): Tribunal {
         return json(500, { error: error instanceof Error ? error.message : String(error) });
       }
     },
+
+    sweep: () => review.sweep(retentionDays),
   };
 }
 
@@ -269,7 +274,7 @@ async function route(
   }
 
   if (path === BASELINE_PUT_PATH) {
-    requires(granted, 'ingest', path);
+    movesBaselines(principal, path);
     requireMethod(request, 'POST');
     const body = await asRecordBody(request);
     const raster = rasterFrom(body['raster']);
@@ -315,7 +320,7 @@ async function route(
   }
 
   if (path === APPROVALS_PATH) {
-    requires(granted, 'ingest', path);
+    movesBaselines(principal, path);
     requireMethod(request, 'POST');
     await surfaces.history.appendApprovals(await asApprovals(request));
     return new Response(null, { status: 204 });
@@ -479,5 +484,5 @@ async function route(
 /** Re-exported so an entry can recognise a store failure, and read the contract the router answers with. */
 export { RasterStoreError };
 export { declaredPolicy, type PolicyOptions } from './policy.js';
-export type { Policy, Principal } from './worker-auth.js';
+export type { Introduced, Policy, Principal } from './worker-auth.js';
 export { TRIBUNAL_API, VERSION_PATH, serviceVersion, type ServiceVersion } from './version.js';

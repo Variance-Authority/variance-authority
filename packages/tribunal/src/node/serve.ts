@@ -45,9 +45,17 @@ export interface TribunalServiceOptions {
    *
    * Default `true`. Off is for a deployment that only ingests — a service behind
    * CI with no reviewer on it — where a page nobody opens is a page nobody has to
-   * authorize.
+   * recognize anybody at.
    */
   readonly ui?: boolean;
+  /**
+   * The address people reach this at, when a proxy stands in front of it.
+   *
+   * Absent, a request's own `Host` says, which is right for a socket somebody
+   * reaches directly. Behind TLS termination it says `http` and the inner host, and
+   * sign-in would hand GitHub a callback nobody can reach.
+   */
+  readonly origin?: string;
 }
 
 export interface TribunalService {
@@ -97,7 +105,7 @@ export function createRequestListener(
   return (incoming: IncomingMessage, outgoing: ServerResponse): void => {
     void (async () => {
       try {
-        const request = await requestOf(incoming);
+        const request = await requestOf(incoming, options.origin);
 
         const asset = serveUi ? await pageOrAsset(request) : null;
         const response = asset ?? (await mounted[method(request)](request));
@@ -169,8 +177,8 @@ function method(request: Request): 'GET' | 'POST' | 'PUT' | 'HEAD' {
 }
 
 /** `IncomingMessage` → `Request`, with the body read to a ceiling. */
-async function requestOf(incoming: IncomingMessage): Promise<Request> {
-  const url = new URL(incoming.url ?? '/', `http://${incoming.headers.host ?? 'localhost'}`);
+async function requestOf(incoming: IncomingMessage, origin: string | undefined): Promise<Request> {
+  const url = new URL(incoming.url ?? '/', origin ?? `http://${incoming.headers.host ?? 'localhost'}`);
 
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {

@@ -1,3 +1,4 @@
+import type { Introduced } from '@variance-authority/tribunal/worker';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { Review } from './review';
@@ -12,15 +13,11 @@ import { tribunal } from './tribunal';
  */
 export const dynamic = 'force-dynamic';
 
-interface Introduced {
-  readonly capability?: string;
-  readonly name?: string;
-  readonly signIn?: string;
-}
-
 export default async function ReviewPage(): Promise<React.ReactElement> {
   const asked = new Request('https://review.invalid/auth/me', { headers: await headers() });
-  const me = (await (await tribunal().fetch(asked)).json()) as Introduced;
+  const answer = await tribunal().fetch(asked);
+  if (!answer.ok) throw new Error(`/auth/me answered ${answer.status}`);
+  const me = (await answer.json()) as Introduced;
 
   if (me.capability === undefined && me.signIn !== undefined) redirect(`/api${me.signIn}?return=/`);
   if (me.capability !== 'review' && me.capability !== 'view') {

@@ -35,6 +35,14 @@ describe('one issuer verifier', () => {
     expect(verified).toMatchObject({ claims: { repository: 'Owner/name' } });
   });
 
+  it('refuses a signature that is not base64url, rather than failing', async () => {
+    const [head, body] = (await key.sign(claims)).split('.');
+
+    expect(await issuer(() => [key.jwk]).verify(`${head}.${body}.@@@`, AUDIENCE)).toEqual({
+      refused: 'the signature is not base64url',
+    });
+  });
+
   it('finds the keys through the discovery document', async () => {
     const fetched: string[] = [];
     await issuer(() => [key.jwk], fetched).verify(await key.sign(claims), AUDIENCE);

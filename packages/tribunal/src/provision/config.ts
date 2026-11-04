@@ -81,6 +81,8 @@ export function deploymentConfig(name: string, project: string, installed: strin
   "vars": {
     "PROJECT": ${JSON.stringify(project)}
   },
+  // Removes what retention expired, so keeping within it is nobody's chore.
+  "triggers": { "crons": ["17 3 * * *"] },
   "observability": { "enabled": true }
 }
 `;

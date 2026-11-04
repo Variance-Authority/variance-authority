@@ -18,6 +18,7 @@ import type {
   TribunalChangelog,
   TribunalChangelogQuery,
 } from '../review.js';
+import type { Introduced } from '../worker-auth.js';
 import type {
   Concern,
   ConcernQuery,
@@ -72,6 +73,8 @@ export interface ReviewClient {
    * and a list must not need an address to render.
    */
   readonly endpoint?: string;
+  /** Who this deployment takes the asker for, and where to sign in when it takes them for nobody. */
+  me(): Promise<Introduced>;
   builds(limit?: number): Promise<readonly BuildSummary[]>;
   build(id: string): Promise<BuildDetail>;
   /** Why the baselines are what they are, grouped by shape. */
@@ -184,6 +187,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
   return {
     endpoint: base,
+    me: () => call<Introduced>('/auth/me'),
 
     async builds(limit): Promise<readonly BuildSummary[]> {
       const body = await call<{ readonly builds: readonly BuildSummary[] }>(

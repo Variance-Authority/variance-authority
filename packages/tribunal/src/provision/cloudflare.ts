@@ -1,8 +1,9 @@
 // compass: variance-authority.review
 
 /**
- * The two Cloudflare answers `wrangler` has no command for: which accounts a login
- * sees, and the subdomain a Worker with no custom domain is served on.
+ * The two Cloudflare answers read from the API, with the token the login already
+ * holds: which accounts it sees, and the subdomain a Worker with no custom domain
+ * is served on.
  */
 
 const API = 'https://api.cloudflare.com/client/v4';

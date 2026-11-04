@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { serveTribunal, type TribunalService } from './serve.js';
-import { declaredPolicy } from '../policy.js';
+import { declaration, declaredPolicy } from '../policy.js';
 import { createTribunal } from '../worker.js';
 import type { Policy } from '../worker-auth.js';
 
@@ -52,6 +52,7 @@ export const REVIEW_CREDENTIALS_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS
 export const RETENTION_VARIABLE = 'VARIANCE_TRIBUNAL_RETENTION_DAYS';
 export const REVIEWER_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEWER';
 export const TRUST_NETWORK_VARIABLE = 'VARIANCE_TRIBUNAL_TRUST_NETWORK';
+export const ORIGIN_VARIABLE = 'VARIANCE_TRIBUNAL_ORIGIN';
 
 /** Every name `declaredPolicy` reads arrives under this, so one environment can hold several services. */
 const PREFIX = 'VARIANCE_TRIBUNAL_';
@@ -75,6 +76,8 @@ export interface TribunalConfig {
   /** What `declaredPolicy` reads: the environment's names, unprefixed, defaults applied. */
   readonly declared: Readonly<Record<string, string>>;
   readonly retentionDays?: number;
+  /** The address people reach this at, when a proxy stands in front of it. */
+  readonly origin?: string;
   /**
    * Whether the socket is reachable only from this machine.
    *
@@ -132,6 +135,8 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
     );
   }
 
+  const origin = originOf(env[ORIGIN_VARIABLE]);
+
   return {
     port,
     host,
@@ -141,7 +146,20 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
     project,
     declared: declaredIn(env, loopback),
     ...(retentionDays === undefined ? {} : { retentionDays }),
+    ...(origin === undefined ? {} : { origin }),
   };
+}
+
+/** Sign-in sends GitHub back here, so an address with a path or no scheme is refused now rather than there. */
+function originOf(value: string | undefined): string | undefined {
+  const named = orDefault(value, '');
+  if (named === '') return undefined;
+
+  const parsed = URL.canParse(named) ? new URL(named) : null;
+  if (parsed === null || !/^https?:$/.test(parsed.protocol) || parsed.href !== `${parsed.origin}/`) {
+    throw new Error(`${ORIGIN_VARIABLE} must be a scheme and a host, such as https://review.example.com; received "${named}"`);
+  }
+  return parsed.origin;
 }
 
 /**
@@ -162,7 +180,7 @@ function declaredIn(
   return {
     INGEST_CREDENTIALS: 'token',
     ...(loopback ? { REVIEW_CREDENTIALS: 'loopback', REVIEWER: defaultReviewer() } : {}),
-    ...Object.fromEntries(named.filter(([, value]) => value.trim() !== '')),
+    ...Object.fromEntries(named),
   };
 }
 
@@ -188,8 +206,7 @@ export async function start(
   write: (line: string) => void = (line) => process.stdout.write(line),
 ): Promise<RunningTribunal> {
   const config = readConfig(env);
-  const reviewers = (config.declared['REVIEW_CREDENTIALS'] ?? '').trim();
-  const readers = (config.declared['VIEW'] ?? '').trim() === 'public';
+  const { ingest, review, people } = declaration(config.declared);
   const database = await openDatabase(config.database);
 
   let service: TribunalService;
@@ -206,7 +223,8 @@ export async function start(
       tribunal,
       host: config.host,
       port: config.port,
-      ui: reviewers !== '' || readers,
+      ui: people,
+      ...(config.origin === undefined ? {} : { origin: config.origin }),
     });
   } catch (error) {
     // A refused declaration or a taken port leaves the database open otherwise, holding
@@ -221,13 +239,13 @@ export async function start(
       `  database: ${config.database} (schema version ${database.version})\n` +
       `  objects:  ${config.storage}\n` +
       `  review:   ${
-        reviewers !== ''
-          ? `served at ${service.url} to ${reviewers}`
-          : readers
+        review.length > 0
+          ? `served at ${service.url} to ${review.join(', ')}`
+          : people
             ? `served at ${service.url} to anybody who reads. ${REVIEW_CREDENTIALS_VARIABLE} declares nobody to decide`
             : `not served: ${REVIEW_CREDENTIALS_VARIABLE} declares nobody. The JSON API is up`
       }\n` +
-      `  ingest:   ${config.declared['INGEST_CREDENTIALS']}\n`,
+      `  ingest:   ${ingest.join(', ')}\n`,
   );
 
   return {

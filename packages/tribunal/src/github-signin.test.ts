@@ -97,7 +97,7 @@ describe('github sign-in', () => {
     expect(response.status).toBe(403);
   });
 
-  it.each(['//else.example', 'https://else.example', '/\\else.example'])('never returns to %s', async (back) => {
+  it.each(['//else.example', 'https://else.example', '/\\else.example', '/\t/else.example', '/\n/else.example', '/\r\\else.example'])('never returns to %s', async (back) => {
     expect((await finished(signIn(), back)).headers.get('location')).toBe('/');
   });
 
@@ -113,6 +113,13 @@ describe('github sign-in', () => {
     at += 3601_000;
     expect(await flow.login(new Request(ORIGIN, { headers: { cookie } }))).toBeNull();
   });
+
+  it.each(['variance_session=@@@.@@@', 'variance_session=e30.@@@', 'variance_session=@@@.e30'])(
+    'reads %s as nobody rather than failing',
+    async (cookie) => {
+      expect(await signIn().login(new Request(ORIGIN, { headers: { cookie } }))).toBeNull();
+    },
+  );
 
   it('answers nothing for any other path', async () => {
     expect(await signIn().serve(new Request(`${ORIGIN}/review/builds`))).toBeNull();

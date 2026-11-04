@@ -37,6 +37,22 @@ function env(overrides: Readonly<Record<string, string>> = {}): Record<string, s
   };
 }
 
+describe('what the deployer declared', () => {
+  it('takes an empty list as the decision it is', () => {
+    expect(readConfig(env({ VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS: '' })).declared['REVIEW_CREDENTIALS']).toBe('');
+  });
+
+  it('reads the address a proxy serves it at, and nothing that is not one', () => {
+    expect(readConfig(env({ VARIANCE_TRIBUNAL_ORIGIN: 'https://review.example.com/' })).origin).toBe(
+      'https://review.example.com',
+    );
+    expect(() => readConfig(env({ VARIANCE_TRIBUNAL_ORIGIN: 'review.example.com' }))).toThrow(/VARIANCE_TRIBUNAL_ORIGIN/);
+    expect(() => readConfig(env({ VARIANCE_TRIBUNAL_ORIGIN: 'https://review.example.com/app' }))).toThrow(
+      /VARIANCE_TRIBUNAL_ORIGIN/,
+    );
+  });
+});
+
 describe('what it will not start without', () => {
   it('refuses to invent a project', () => {
     expect(() => readConfig({ ...env(), [PROJECT_VARIABLE]: '' })).toThrow(
@@ -186,6 +202,20 @@ describe('starting it', () => {
 
     // The startup line is a thing operators paste into issues.
     expect(said).not.toContain(INGEST);
+  });
+
+  it('refuses a list that names nobody, before it says who it serves', async () => {
+    await expect(
+      start(
+        env({
+          [PORT_VARIABLE]: '0',
+          [DATABASE_VARIABLE]: join(directory, 'tribunal.db'),
+          [STORAGE_VARIABLE]: join(directory, 'objects'),
+          VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS: ' , ',
+        }),
+        () => undefined,
+      ),
+    ).rejects.toThrow(/names no mechanism/);
   });
 
   it('serves the page on a network bind that opened reading, with nobody to decide', async () => {

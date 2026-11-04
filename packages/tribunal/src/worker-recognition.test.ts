@@ -30,6 +30,24 @@ function call(path: string, init: { token: string; body: unknown }): Promise<Res
   );
 }
 
+describe('what a workflow on another ref may write', () => {
+  const onBranch = (): Tribunal =>
+    createTribunal({ db, bucket, project: 'p', policy: { principal: () => ({ capability: 'ingest', moves: false }) } });
+  const post = (path: string, body: unknown) =>
+    onBranch().fetch(new Request(`https://t.example${path}`, { method: 'POST', body: JSON.stringify(body) }));
+
+  it.each(['/baseline/put', '/v1/approvals'])('refuses %s before reading the body', async (path) => {
+    const refused = await post(path, {});
+
+    expect(refused.status).toBe(403);
+    expect(await refused.text()).toMatch(/GITHUB_ACTIONS_BASELINE_REF/);
+  });
+
+  it('still takes the run itself', async () => {
+    expect((await post('/v1/observations', {})).status).not.toBe(403);
+  });
+});
+
 describe('who may read and who may decide', () => {
   const READ_ROUTES = ['/review/builds', '/review/builds/ci-1', '/review/builds/ci-1/subjects/story:a/after.png'];
 

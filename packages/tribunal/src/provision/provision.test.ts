@@ -20,11 +20,10 @@ interface World {
   buckets: string[];
   workerSecrets: Map<string, string>;
   githubSecrets: Map<string, string>;
-  githubVariables: Map<string, string>;
   /** The Apps a person made and installed at the browser. */
   apps: AppRequest[];
-  /** The person leaves the browser without finishing. */
-  appAbandoned: boolean;
+  /** Where the person leaves the browser, when they do. */
+  appAbandoned: 'before making it' | 'at the install page' | null;
   owner: string;
   deploys: number;
   serving: boolean;
@@ -36,8 +35,6 @@ interface World {
   r2Unreachable: boolean;
   /** `gh secret set` refuses. */
   githubRefuses: boolean;
-  /** `gh variable set` refuses. */
-  variablesRefused: boolean;
   /** `wrangler secret put` refuses. */
   workerRefuses: boolean;
   accounts: { id: string; name: string }[];
@@ -51,9 +48,8 @@ function world(overrides: Partial<World> = {}): World {
     buckets: [],
     workerSecrets: new Map(),
     githubSecrets: new Map(),
-    githubVariables: new Map(),
     apps: [],
-    appAbandoned: false,
+    appAbandoned: null,
     owner: 'User acme',
     deploys: 0,
     serving: false,
@@ -63,7 +59,6 @@ function world(overrides: Partial<World> = {}): World {
     r2Enabled: true,
     r2Unreachable: false,
     githubRefuses: false,
-    variablesRefused: false,
     workerRefuses: false,
     accounts: [{ id: 'acc', name: 'Acme' }],
     worker: 'deployed',
@@ -91,10 +86,13 @@ function harness(state: World, text: string | null = CONFIG) {
     cloudflare: () => api,
     exists: async (path) => files.has(path),
     installed: '/repo/node_modules/@variance-authority/tribunal',
-    register: async (request) => {
-      if (state.appAbandoned) throw new Error('the browser was closed');
+    register: async (request, created) => {
+      if (state.appAbandoned === 'before making it') throw new Error('the browser was closed');
       state.apps.push(request);
-      return { clientId: 'Iv1.client', clientSecret: 'app-secret', slug: 'shop-tribunal' };
+      const app = { clientId: 'Iv1.client', clientSecret: 'app-secret', slug: 'shop-tribunal' };
+      await created(app);
+      if (state.appAbandoned === 'at the install page') throw new Error('the browser was closed');
+      return app;
     },
     serving: async () => state.serving,
     run: async (program, args, options) => {
@@ -102,14 +100,8 @@ function harness(state: World, text: string | null = CONFIG) {
       if (program !== 'gh' && !line.includes('auth token') && args[1] !== 'login') {
         expect(options?.env).toEqual({ CLOUDFLARE_ACCOUNT_ID: 'acc' });
       }
-      if (program === 'gh' && args[0] === 'api') return ok(`${state.owner}\n`);
-      if (program === 'gh' && args[0] === 'variable') {
-        const variables = state.githubVariables;
-        if (args[1] === 'list') return ok(JSON.stringify([...variables.keys()].map((name) => ({ name }))));
-        if (args[1] === 'delete') return ok(void variables.delete(args[2]!));
-        if (state.variablesRefused) return { code: 1, stdout: '', stderr: 'HTTP 403' };
-        variables.set(args[2]!, options?.input ?? '');
-        return ok();
+      if (program === 'gh' && args[0] === 'api') {
+        return ok(args.at(-1) === '.default_branch' ? 'trunk\n' : `${state.owner}\n`);
       }
       if (program === 'gh') {
         if (args[1] === 'list') return ok(JSON.stringify([...state.githubSecrets.keys()].map((name) => ({ name }))));
@@ -203,6 +195,7 @@ describe('provision', () => {
     expect(written).toContain('"GITHUB_REPOSITORY": "acme/shop"');
     expect(written).toContain('"GITHUB_ACTIONS_REPOSITORIES": "acme/shop"');
     expect(written).toContain('"GITHUB_ACTIONS_AUDIENCE": "https://tribunal.example.dev"');
+    expect(written).toContain('"GITHUB_ACTIONS_BASELINE_REF": "refs/heads/trunk"');
     expect(written).toContain('"GITHUB_CLIENT_ID": "Iv1.client"');
 
     const printed = said.join('\n');
@@ -210,6 +203,9 @@ describe('provision', () => {
     expect(printed).not.toContain('token1');
     expect(printed).toContain('id-token: write');
     expect(printed).toContain('"audience": "https://tribunal.example.dev"');
+    expect(printed).toContain('"review": { "endpoint": "https://tribunal.example.dev"');
+    expect(printed).toContain('"baselines": { "kind": "remote"');
+    expect(printed).toContain('variance push');
   });
 
   it('writes a config for the packaged Worker when the deployment has none', async () => {
@@ -238,17 +234,32 @@ describe('provision', () => {
   });
 
   it('leaves nothing that reads as finished when the person stops at the browser', async () => {
-    const state = world({ appAbandoned: true });
+    const state = world({ appAbandoned: 'before making it' });
     const { run, files } = harness(state);
 
     await expect(run()).rejects.toThrow('the browser was closed');
     expect(files.get('wrangler.jsonc')).not.toContain('GITHUB_CLIENT_ID');
     expect(state.deploys).toBe(0);
 
-    state.appAbandoned = false;
+    state.appAbandoned = null;
     expect(await run()).toBe(0);
     expect(state.apps).toHaveLength(1);
     expect(state.deploys).toBe(1);
+  });
+
+  it('keeps an App GitHub already made when the person stops at the install page', async () => {
+    const state = world({ appAbandoned: 'at the install page' });
+    const { run, files, said } = harness(state);
+
+    await expect(run()).rejects.toThrow('the browser was closed');
+
+    expect(state.workerSecrets.get('GITHUB_CLIENT_SECRET')).toBe('app-secret');
+    expect(files.get('wrangler.jsonc')).toContain('"GITHUB_CLIENT_ID": "Iv1.client"');
+    expect(said.join('\n')).toContain('https://github.com/apps/shop-tribunal/installations/new');
+
+    state.appAbandoned = null;
+    expect(await run()).toBe(0);
+    expect(state.apps).toHaveLength(1);
   });
 
   it('changes nothing on a second run', async () => {
@@ -265,7 +276,8 @@ describe('provision', () => {
     expect(state.apps).toHaveLength(1);
     expect(state.deploys).toBe(1);
     expect(state.migrations).toBe(2);
-    expect(said).toEqual(['applying migrations', 'Nothing to do — already provisioned.']);
+    expect(said.slice(0, 2)).toEqual(['applying migrations', 'Nothing to do — already provisioned.']);
+    expect(said.join('\n')).toContain('"baselines": { "kind": "remote"');
   });
 
   it('deploys again when nothing changed but the Worker is not serving', async () => {
@@ -279,16 +291,65 @@ describe('provision', () => {
     expect(state.deploys).toBe(2);
   });
 
-  it('adds a second repository to the ones that may push, and keeps the first', async () => {
+  it('refuses a repository the deployment does not cover, and widens nothing', async () => {
     const state = world();
     const { run, files } = harness(state);
     await run();
+    const before = files.get('wrangler.jsonc');
 
-    await run(false, { repository: 'acme/other' });
+    await expect(run(false, { repository: 'acme/other' })).rejects.toThrow(/acme\/other/);
 
-    expect(files.get('wrangler.jsonc')).toContain('"GITHUB_ACTIONS_REPOSITORIES": "acme/shop,acme/other"');
-    expect(files.get('wrangler.jsonc')).toContain('"GITHUB_REPOSITORY": "acme/shop"');
-    expect(state.apps).toHaveLength(1);
+    expect(files.get('wrangler.jsonc')).toBe(before);
+  });
+
+  it('says who may push when that is what stops the run', async () => {
+    const pinned = CONFIG.replace('"vars": { "PROJECT": "shop" },', '"vars": { "GITHUB_ACTIONS_REPOSITORIES": "acme/one, acme/two" },');
+    await expect(harness(world(), pinned).run()).rejects.toThrow(/GITHUB_ACTIONS_REPOSITORIES.*acme\/shop/);
+  });
+
+  it('takes a repository an owner-wide entry covers', async () => {
+    const state = world();
+    const covered = CONFIG.replace(
+      '"vars": { "PROJECT": "shop" },',
+      '"vars": { "GITHUB_ACTIONS_REPOSITORIES": "acme/*", "GITHUB_REPOSITORY": "Acme/Shop" },',
+    );
+    expect(await harness(state, covered).run()).toBe(0);
+  });
+
+  it.each([
+    ['a mechanism misspelled', '"REVIEW_CREDENTIALS": "gihub"', /gihub/],
+    ['a list that names nothing', '"INGEST_CREDENTIALS": " , "', /names no mechanism/],
+    ['a stale value', '"REVIEW_CREDENTIALS": "github", "ACCESS_TEAM_DOMAIN": "x.example"', /ACCESS_TEAM_DOMAIN/],
+    ['a reviewed repository the run is not for', '"GITHUB_REPOSITORY": "acme/other"', /GITHUB_REPOSITORY.*acme\/other/],
+  ])('refuses %s before it makes anything', async (_, vars, reason) => {
+    const state = world();
+    const { run } = harness(state, CONFIG.replace('"vars": { "PROJECT": "shop" },', `"vars": { ${vars} },`));
+
+    await expect(run()).rejects.toThrow(reason);
+
+    expect(state.databases).toEqual([]);
+    expect(state.logins).toBe(0);
+  });
+
+  it('leaves a list the deployer wrote as they wrote it', async () => {
+    const spaced = CONFIG.replace(
+      '"vars": { "PROJECT": "shop" },',
+      '"vars": { "INGEST_CREDENTIALS": "github-actions, token", "REVIEW_CREDENTIALS": "github" },',
+    );
+    const { run, files } = harness(world(), spaced);
+
+    await run();
+
+    expect(files.get('wrangler.jsonc')).toContain('"INGEST_CREDENTIALS": "github-actions, token"');
+  });
+
+  it('keeps a baseline ref the deployer chose', async () => {
+    const chosen = CONFIG.replace('"vars": { "PROJECT": "shop" },', '"vars": { "GITHUB_ACTIONS_BASELINE_REF": "refs/heads/release" },');
+    const { run, files } = harness(world(), chosen);
+
+    await run();
+
+    expect(files.get('wrangler.jsonc')).toContain('"GITHUB_ACTIONS_BASELINE_REF": "refs/heads/release"');
   });
 
   it('makes no App for a deployment that declares another mechanism', async () => {
@@ -415,34 +476,17 @@ describe('provision', () => {
     expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
   });
 
-  it('replaces both copies on the next run after a rotation stopped between them', async () => {
+  it('says --rotate makes a pair when the repository refuses the token the Worker took', async () => {
     const state = world();
-    const { run, said } = harness(state, TOKENS);
+    const { run } = harness(state, TOKENS);
     await run();
     state.githubRefuses = true;
 
-    await expect(run(true)).rejects.toThrow(/run this again/);
-    expect(state.workerSecrets.get('INGEST_TOKEN')).not.toBe(state.githubSecrets.get('VARIANCE_INGEST_TOKEN'));
+    await expect(run(true)).rejects.toThrow(/gh secret set VARIANCE_INGEST_TOKEN failed.*--rotate/s);
     state.githubRefuses = false;
-    said.length = 0;
 
-    expect(await run()).toBe(0);
+    await run(true);
 
     expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe(state.workerSecrets.get('INGEST_TOKEN'));
-    expect(state.githubVariables.size).toBe(0);
-    expect(said.join('\n')).toMatch(/stopped between/);
-    expect(said.at(-1)).not.toMatch(/already provisioned/);
-  });
-
-  it('touches no token when it cannot record that a rotation has begun', async () => {
-    const state = world();
-    state.workerSecrets.set('INGEST_TOKEN', 'old');
-    state.githubSecrets.set('VARIANCE_INGEST_TOKEN', 'old');
-    state.variablesRefused = true;
-
-    await expect(harness(state, TOKENS).run(true)).rejects.toThrow(/gh variable set/);
-
-    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('old');
-    expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
   });
 });

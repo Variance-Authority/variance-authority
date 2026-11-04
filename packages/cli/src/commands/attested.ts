@@ -6,9 +6,9 @@ import { shareAt } from '../version.js';
  * Reading what a review deployment settled — its changelog and its decision
  * history — with the share token, which reads and never decides.
  *
- * The CLI holds two of a deployment's three tokens and sends each for one
- * thing: `review.token` is the ingest token and only `push` sends it, and
- * `share.token` reads. Neither can approve, and the review token, which can,
+ * The CLI holds two credentials and sends each for one thing: `review.token` is
+ * the ingest credential and only `push` sends it, and `share.token` reads. Neither
+ * can approve, because only a person the deployment recognizes can, and a person
  * never appears in a config. So a machine — a laptop, an agent — asks what
  * reviewers decided with the token it already holds for the share, and the
  * deployment refuses that token at every route that decides.

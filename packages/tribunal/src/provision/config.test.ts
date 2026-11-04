@@ -101,4 +101,8 @@ describe('deploymentConfig', () => {
     expect(deployment.bucket).toBe('shop-tribunal');
     expect(deployment.variables).toEqual({ PROJECT: 'shop' });
   });
+
+  it('schedules the sweep', () => {
+    expect(deploymentConfig('shop-tribunal', 'shop', '.')).toContain('"triggers": { "crons": [');
+  });
 });

@@ -14,6 +14,8 @@
  * not travel on a cross-site POST.
  */
 
+import { bytes } from './issuer.js';
+
 export const SIGN_IN_PATH = '/auth/github/login';
 const CALLBACK_PATH = '/auth/github/callback';
 
@@ -66,7 +68,7 @@ export function createGithubSignIn(options: GithubSignInOptions): GithubSignIn {
     target.searchParams.set('redirect_uri', `${url.origin}${CALLBACK_PATH}`);
     target.searchParams.set('state', state);
 
-    const back = base64url(new TextEncoder().encode(returnOf(url.searchParams.get('return'))));
+    const back = base64url(new TextEncoder().encode(returnOf(url.searchParams.get('return'), url)));
     return new Response(null, {
       status: 302,
       headers: {
@@ -90,7 +92,7 @@ export function createGithubSignIn(options: GithubSignInOptions): GithubSignIn {
       return refusal(`${login} cannot write to ${options.repository}, so this deployment does not take their decisions.`);
     }
 
-    const headers = new Headers({ location: returnOf(new TextDecoder().decode(bytes(back ?? ''))) });
+    const headers = new Headers({ location: returnOf(new TextDecoder().decode(bytes(back ?? '') ?? new Uint8Array()), url) });
     headers.append('set-cookie', cookie(SESSION_COOKIE, await sealed(login), SESSION_SECONDS, url));
     headers.append('set-cookie', cookie(STATE_COOKIE, '', 0, url));
     return new Response(null, { status: 302, headers });
@@ -151,10 +153,13 @@ export function createGithubSignIn(options: GithubSignInOptions): GithubSignIn {
     async login(request) {
       const [body, signature] = (cookieOf(request, SESSION_COOKIE) ?? '').split('.');
       if (body === undefined || signature === undefined || body === '') return null;
+      const presented = bytes(signature);
+      const sealedBody = bytes(body);
+      if (presented === null || sealedBody === null) return null;
       const signed = new TextEncoder().encode(body);
-      if (!(await crypto.subtle.verify('HMAC', await key, bytes(signature) as BufferSource, signed))) return null;
+      if (!(await crypto.subtle.verify('HMAC', await key, presented as BufferSource, signed))) return null;
 
-      const session = JSON.parse(new TextDecoder().decode(bytes(body))) as {
+      const session = JSON.parse(new TextDecoder().decode(sealedBody)) as {
         readonly login: string;
         readonly exp: number;
       };
@@ -164,8 +169,12 @@ export function createGithubSignIn(options: GithubSignInOptions): GithubSignIn {
 }
 
 /** Only a path on this deployment: a sign-in must not be a way to send somebody elsewhere. */
-function returnOf(path: string | null): string {
-  return path !== null && /^\/(?![/\\])/.test(path) ? path : '/';
+function returnOf(path: string | null, url: URL): string {
+  // Resolved the way the browser will resolve it, which drops tabs and newlines
+  // and reads a backslash as a slash.
+  if (path === null || !path.startsWith('/') || !URL.canParse(path, url.origin)) return '/';
+  const target = new URL(path, url.origin);
+  return target.origin === url.origin ? `${target.pathname}${target.search}${target.hash}` : '/';
 }
 
 function refusal(sentence: string): Response {
@@ -187,9 +196,4 @@ export function cookieOf(request: Request, name: string): string | null {
 
 function base64url(view: Uint8Array): string {
   return btoa(String.fromCharCode(...view)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-}
-
-function bytes(part: string): Uint8Array {
-  const padded = part.replaceAll('-', '+').replaceAll('_', '/');
-  return Uint8Array.from(atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
 }

@@ -35,15 +35,25 @@ const REVIEW_MECHANISMS = ['access', 'github', 'loopback'];
 
 /** Configuration that means something only for one mechanism, so setting it without declaring that one is a mistake. */
 const COMMITTED: Readonly<Record<string, readonly string[]>> = {
-  'github-actions': ['GITHUB_ACTIONS_REPOSITORIES', 'GITHUB_ACTIONS_AUDIENCE', 'GITHUB_ACTIONS_ISSUER'],
+  'github-actions': [
+    'GITHUB_ACTIONS_REPOSITORIES',
+    'GITHUB_ACTIONS_AUDIENCE',
+    'GITHUB_ACTIONS_BASELINE_REF',
+    'GITHUB_ACTIONS_ISSUER',
+  ],
   access: ['ACCESS_TEAM_DOMAIN', 'ACCESS_AUD'],
   github: ['GITHUB_REPOSITORY', 'GITHUB_CLIENT_ID'],
 };
 
+export const INGEST_SECRET = 'INGEST_TOKEN';
+/** The App's own secret, and the key sessions are signed with. */
+export const CLIENT_SECRET = 'GITHUB_CLIENT_SECRET';
+export const SESSION_SECRET = 'GITHUB_SESSION_SECRET';
+
 /** Secrets are logged rather than refused when undeclared: rotating one out must not take a deployment down. */
 const SECRETS: Readonly<Record<string, readonly string[]>> = {
-  token: ['INGEST_TOKEN'],
-  github: ['GITHUB_CLIENT_SECRET', 'GITHUB_SESSION_SECRET'],
+  token: [INGEST_SECRET],
+  github: [CLIENT_SECRET, SESSION_SECRET],
 };
 
 export interface PolicyOptions {
@@ -56,13 +66,20 @@ export interface PolicyOptions {
 
 type Values = Readonly<Record<string, unknown>>;
 
+/** What a deployment declared, before any secret is asked for. */
+export interface Declaration {
+  readonly ingest: readonly string[];
+  readonly review: readonly string[];
+  /** Whether a person has any reason to open this deployment's page. */
+  readonly people: boolean;
+}
+
 /**
- * Who a deployment recognizes, read from `INGEST_CREDENTIALS`, `REVIEW_CREDENTIALS`
- * and the values their mechanisms need. A declaration that cannot be honoured throws,
- * so a host refuses to serve rather than recognizing somebody it was not told to.
+ * The declaration alone, for a host deciding what to serve and a provisioner
+ * deciding what to make. A host's defaults go in as values, so a mistake reads the
+ * same wherever it is made.
  */
-export function declaredPolicy(values: Values, options: PolicyOptions = {}): Policy {
-  const log = options.log ?? ((line: string) => console.warn(line));
+export function declaration(values: Values): Declaration {
   const ingest = declared(values, 'INGEST_CREDENTIALS', INGEST_MECHANISMS);
   const review = declared(values, 'REVIEW_CREDENTIALS', REVIEW_MECHANISMS);
   if (ingest.length + review.length === 0) {
@@ -81,6 +98,21 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
       }
     }
   }
+
+  const view = text(values, 'VIEW');
+  if (view !== null && view !== 'public') throw new Error(`VIEW is "${view}", and the one value it takes is public`);
+  return { ingest, review, people: review.length > 0 || view === 'public' };
+}
+
+/**
+ * Who a deployment recognizes, read from `INGEST_CREDENTIALS`, `REVIEW_CREDENTIALS`
+ * and the values their mechanisms need. A declaration that cannot be honoured throws,
+ * so a host refuses to serve rather than recognizing somebody it was not told to.
+ */
+export function declaredPolicy(values: Values, options: PolicyOptions = {}): Policy {
+  const log = options.log ?? ((line: string) => console.warn(line));
+  const { ingest, review } = declaration(values);
+  const mechanisms = new Set([...ingest, ...review]);
   for (const [mechanism, names] of Object.entries(SECRETS)) {
     if (mechanisms.has(mechanism)) continue;
     for (const name of names) {
@@ -90,7 +122,6 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
   if (text(values, 'REVIEW_TOKEN') !== null) log('REVIEW_TOKEN is set and nothing reads it: a decision needs a name');
 
   const view = text(values, 'VIEW');
-  if (view !== null && view !== 'public') throw new Error(`VIEW is "${view}", and the one value it takes is public`);
   if (mechanisms.has('loopback') && options.loopback !== true) {
     throw new Error('REVIEW_CREDENTIALS declares loopback and this deployment is reachable from elsewhere');
   }
@@ -120,10 +151,12 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
 
   async function machine(bearer: string): Promise<Principal | null> {
     if (actions !== null && unverifiedIssuer(bearer) === actions.issuer) {
-      const refused = await actions.refusal(bearer);
-      if (refused === null) return { capability: 'ingest' };
-      log(`github-actions refused: ${refused}`);
-      return null;
+      const run = await actions.read(bearer);
+      if ('refused' in run) {
+        log(`github-actions refused: ${run.refused}`);
+        return null;
+      }
+      return run.ref === actions.baselineRef ? { capability: 'ingest' } : { capability: 'ingest', moves: false };
     }
     // Both compared whichever matches, so which token this is costs the same.
     const isIngest = ingestToken !== null && (await equalTokens(bearer, ingestToken));
@@ -152,6 +185,7 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
 function githubActions(values: Values, options: PolicyOptions) {
   const issuer = text(values, 'GITHUB_ACTIONS_ISSUER') ?? GITHUB_ACTIONS_ISSUER;
   const audience = needed(values, 'GITHUB_ACTIONS_AUDIENCE', 'github-actions');
+  const baselineRef = needed(values, 'GITHUB_ACTIONS_BASELINE_REF', 'github-actions');
   const allowed = needed(values, 'GITHUB_ACTIONS_REPOSITORIES', 'github-actions')
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
@@ -160,15 +194,16 @@ function githubActions(values: Values, options: PolicyOptions) {
 
   return {
     issuer,
-    /** Why this token may not write, or `null` when it may. */
-    async refusal(token: string): Promise<string | null> {
+    baselineRef,
+    /** The ref this run is on, or why it may not write at all. */
+    async read(token: string): Promise<{ readonly ref: unknown } | { readonly refused: string }> {
       const verified = await verifier.verify(token, audience);
-      if ('refused' in verified) return verified.refused;
+      if ('refused' in verified) return verified;
       const repository = String(verified.claims['repository']).toLowerCase();
       const owner = String(verified.claims['repository_owner']).toLowerCase();
       return allowed.includes(repository) || allowed.includes(`${owner}/*`)
-        ? null
-        : `repository is ${repository}, which GITHUB_ACTIONS_REPOSITORIES does not name`;
+        ? { ref: verified.claims['ref'] }
+        : { refused: `repository is ${repository}, which GITHUB_ACTIONS_REPOSITORIES does not name` };
     },
   };
 }
@@ -206,10 +241,13 @@ function transport(options: PolicyOptions) {
 }
 
 function declared(values: Values, name: string, known: readonly string[]): readonly string[] {
-  const list = (text(values, name) ?? '')
+  const value = text(values, name);
+  if (value === null) return [];
+  const list = value
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry) => entry !== '');
+  if (list.length === 0) throw new Error(`${name} is "${value}", which names no mechanism`);
   for (const mechanism of list) {
     if (!known.includes(mechanism)) {
       throw new Error(`${name} declares "${mechanism}", and the mechanisms it takes are ${known.join(', ')}`);

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { declaredPolicy, type PolicyOptions } from './policy.js';
+import { declaration, declaredPolicy, type PolicyOptions } from './policy.js';
 import { signer, type Signer } from './testing-issuer.js';
 
 const NOW = 1_800_000_000;
@@ -30,6 +30,7 @@ const ACTIONS_VALUES = {
   INGEST_CREDENTIALS: 'github-actions',
   GITHUB_ACTIONS_REPOSITORIES: 'Owner/name, Org/*',
   GITHUB_ACTIONS_AUDIENCE: 'https://tribunal.example',
+  GITHUB_ACTIONS_BASELINE_REF: 'refs/heads/main',
 };
 const ACCESS_VALUES = {
   REVIEW_CREDENTIALS: 'access',
@@ -40,7 +41,7 @@ const ACCESS_VALUES = {
 const bearer = (token: string) => new Request('https://tribunal.example/', { headers: { authorization: `Bearer ${token}` } });
 const anonymous = () => new Request('https://tribunal.example/');
 const run = (claims: Record<string, unknown>) =>
-  ci.sign({ iss: ACTIONS, aud: 'https://tribunal.example', exp: NOW + 300, ...claims });
+  ci.sign({ iss: ACTIONS, aud: 'https://tribunal.example', exp: NOW + 300, ref: 'refs/heads/main', ...claims });
 
 describe('what a deployment declared', () => {
   it('refuses a deployment that declared nothing', () => {
@@ -52,6 +53,8 @@ describe('what a deployment declared', () => {
     ['a declared token that is not set', { INGEST_CREDENTIALS: 'token' }, /INGEST_TOKEN/],
     ['a weak token', { INGEST_CREDENTIALS: 'token', INGEST_TOKEN: 'short' }, /shorter/],
     ['a missing audience', { INGEST_CREDENTIALS: 'github-actions', GITHUB_ACTIONS_REPOSITORIES: 'o/n' }, /GITHUB_ACTIONS_AUDIENCE/],
+    ['a missing baseline ref', { INGEST_CREDENTIALS: 'github-actions', GITHUB_ACTIONS_REPOSITORIES: 'o/n', GITHUB_ACTIONS_AUDIENCE: 'a' }, /GITHUB_ACTIONS_BASELINE_REF/],
+    ['a list of nothing but commas', { INGEST_CREDENTIALS: ' , ', REVIEW_CREDENTIALS: 'loopback' }, /names no mechanism/],
     ['a missing sign-in secret', { REVIEW_CREDENTIALS: 'github', GITHUB_REPOSITORY: 'o/n', GITHUB_CLIENT_ID: 'i' }, /GITHUB_CLIENT_SECRET/],
     ['configuration for a mechanism not declared', { INGEST_CREDENTIALS: 'token', INGEST_TOKEN: INGEST, ACCESS_AUD: 'x' }, /ACCESS_AUD is set and access is not declared/],
     ['loopback on a network bind', { REVIEW_CREDENTIALS: 'loopback', REVIEWER: 'me' }, /loopback/],
@@ -71,6 +74,22 @@ describe('what a deployment declared', () => {
   });
 });
 
+describe('what a deployment declares', () => {
+  it('answers the lists and whether anybody reads a page, with no secret in hand', () => {
+    expect(declaration({ INGEST_CREDENTIALS: 'token' })).toEqual({ ingest: ['token'], review: [], people: false });
+    expect(declaration({ INGEST_CREDENTIALS: 'token', VIEW: 'public' }).people).toBe(true);
+    expect(declaration({ REVIEW_CREDENTIALS: 'github' })).toEqual({ ingest: [], review: ['github'], people: true });
+  });
+
+  it.each([
+    ['a misspelled mechanism', { INGEST_CREDENTIALS: 'github_actions' }, /"github_actions"/],
+    ['configuration left from another mechanism', { REVIEW_CREDENTIALS: 'github', ACCESS_AUD: 'x' }, /ACCESS_AUD/],
+    ['nothing declared', { INGEST_CREDENTIALS: '', REVIEW_CREDENTIALS: '' }, /recognizes nobody/],
+  ])('refuses %s before any secret is asked for', (_name, values, sentence) => {
+    expect(() => declaration(values)).toThrow(sentence);
+  });
+});
+
 describe('which credential a request is read as', () => {
   it('reads the ingest token and the share token by what they are for', async () => {
     const policy = declaredPolicy({ INGEST_CREDENTIALS: 'token', INGEST_TOKEN: INGEST, SHARE_TOKEN: SHARE });
@@ -87,6 +106,13 @@ describe('which credential a request is read as', () => {
     const policy = declaredPolicy(ACTIONS_VALUES, transport());
 
     expect(await policy.principal(bearer(await run(claims)))).toEqual({ capability: 'ingest' });
+  });
+
+  it('marks a workflow on any other ref as unable to move a baseline', async () => {
+    const policy = declaredPolicy(ACTIONS_VALUES, transport());
+    const branch = await run({ repository: 'owner/name', repository_owner: 'owner', ref: 'refs/heads/topic' });
+
+    expect(await policy.principal(bearer(branch))).toEqual({ capability: 'ingest', moves: false });
   });
 
   it('refuses a workflow in another repository, and logs which', async () => {

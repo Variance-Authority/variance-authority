@@ -46,7 +46,7 @@ export interface TribunalEnv {
    * deployment serves one project, and the whole of the problem at two.
    */
   readonly PROJECT?: string;
-  /** Days of builds `POST /review/sweep` keeps. Absent means the package default. */
+  /** Days of builds the sweep keeps. Absent means the package default. */
   readonly RETENTION_DAYS?: string;
   /** Everything `declaredPolicy` reads: who this deployment recognizes. */
   readonly [declared: string]: unknown;
@@ -76,17 +76,19 @@ function tribunalFor(env: TribunalEnv): Tribunal {
 /**
  * The module a Worker deployment names as its `main`, or re-exports from its
  * own: `export { default } from '@variance-authority/tribunal/worker-entry'`.
- * One `fetch`, over the tribunal built from that request's environment.
+ * `fetch` and the scheduled sweep, over the tribunal built from that environment.
  */
 export default {
   async fetch(request: Request, env: TribunalEnv): Promise<Response> {
     try {
+      // Built before the page too, so a deployment that cannot start says why at `/`.
+      const tribunal = tribunalFor(env);
       if (request.method === 'GET' && isPagePath(new URL(request.url).pathname)) {
         return new Response(reviewPage({ endpoint: '' }), {
           headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
         });
       }
-      return await tribunalFor(env).fetch(request);
+      return await tribunal.fetch(request);
     } catch (error) {
       // Only construction failures reach here — `Tribunal.fetch` answers with a
       // status rather than throwing. The message is the operator's, and it names
@@ -98,5 +100,10 @@ export default {
         { status: 500, headers: { 'content-type': 'application/json' } },
       );
     }
+  },
+
+  /** The schedule `wrangler.jsonc` names. Retention nobody has to remember. */
+  async scheduled(_controller: unknown, env: TribunalEnv): Promise<void> {
+    await tribunalFor(env).sweep();
   },
 };

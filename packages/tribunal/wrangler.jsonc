@@ -39,6 +39,9 @@
     "PROJECT": "default"
   },
 
+  // Removes what retention expired, so keeping within it is nobody's chore.
+  "triggers": { "crons": ["17 3 * * *"] },
+
   "observability": {
     "enabled": true
   }

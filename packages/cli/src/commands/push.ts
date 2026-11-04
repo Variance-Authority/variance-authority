@@ -73,10 +73,9 @@ import { type Reached, baselinesAt, reach, shareAt, versionNote } from '../versi
  * asks to see it. Builds pushed by earlier versions kept theirs and are still
  * served it.
  *
- * **The review token, ever.** {@link ReviewConfig} takes the ingest one, and a
- * deployment refuses two equal tokens at construction. Approving promotes a
- * baseline every later run is compared against; a value that could do that has
- * no business in a config a run reads.
+ * **A person's credential, ever.** {@link ReviewConfig} takes the ingest one.
+ * Approving promotes a baseline every later run is compared against; a value that
+ * could do that has no business in a config a run reads.
  *
  * **A candidate with no sidecar.** The `after` image is the only one that can be
  * promoted, and promoting it writes a baseline keyed on its document digest. The
