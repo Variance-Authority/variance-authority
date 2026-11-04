@@ -50,6 +50,11 @@ fetched here, and the reader says so.**
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
+- **A record fetched for one mainline is no record for another.** Only the CLI
+  can work out which mainline is selected, so it leaves that in `selected.json`
+  in the checkout's cache, and `lastFetchedMainline` passes over a pointer for
+  any other, for every reader and seam alike. A checkout no reader has asked in
+  has no note, and its first run lays what was fetched.
 - **A fetched record stands until a nearer one can exist.** The best base is
   the record at `HEAD`'s merge base with the mainline. The line holds its
   newest record, and a share in git also keeps each mainline publish at its

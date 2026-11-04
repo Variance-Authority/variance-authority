@@ -2954,6 +2954,7 @@
         "describedWordsNative": "function",
         "encodeSearch": "function",
         "existedAt": "function",
+        "existingAt": "function",
         "exportedDigest": "function",
         "fileCases": "function",
         "fileSizes": "function",
@@ -3524,6 +3525,7 @@
         "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
         "writeFetchedMainline": "function",
+        "writeSelectedMainline": "function",
         "writeTestCoverage": "function",
         "writesBase": "function"
       },

@@ -2003,10 +2003,10 @@ records no commit has nothing to diff against, so a caller with one runs
 the suite it would have run anyway.
 
 `readableTestCoverage(root, options)` finds the record to read, nearest layer
-first, and says which layer held it. Set `fetched` to `'passed'` when you judged
-the fetched record and turned it down, as `variance covering` does with a record
-fetched for another mainline: the layers under your checkout's are asked without
-it.
+first, and says which layer held it. A record fetched for another mainline is no
+layer: `writeSelectedMainline(cacheRoot, suite, mainline)` leaves the selected
+mainline where `lastFetchedMainline` reads it, so a reader, a runner seam and the
+first run in a checkout all pass the same record over.
 
 ### Read where the loads drift from the walk
 

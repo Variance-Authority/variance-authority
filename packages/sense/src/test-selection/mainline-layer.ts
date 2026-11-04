@@ -86,10 +86,14 @@ export async function writeFetchedMainline(
   suite: string,
   fetched: FetchedMainline,
 ): Promise<void> {
-  const file = join(mainlineReadRoot(cacheRoot, suite), FETCHED_MAINLINE);
+  await writeNote(join(mainlineReadRoot(cacheRoot, suite), FETCHED_MAINLINE), fetched);
+}
+
+/** A reader in another process finds the old note or the new one, never half of one. */
+async function writeNote(file: string, note: object): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(fetched)}\n`);
+  await writeFile(temporary, `${JSON.stringify(note)}\n`);
   await rename(temporary, file);
 }
 
@@ -117,10 +121,7 @@ export async function writeSelectedMainline(cacheRoot: string, suite: string, ma
   if (readSelectedMainline(readRoot) === mainline) return;
   const file = join(readRoot, SELECTED_MAINLINE);
   if (mainline === undefined) return await rm(file, { force: true });
-  await mkdir(readRoot, { recursive: true });
-  const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify({ mainline })}\n`);
-  await rename(temporary, file);
+  await writeNote(file, { mainline });
 }
 
 function readSelectedMainline(readRoot: string): string | undefined {

@@ -13,6 +13,14 @@ import { suiteBase } from './suite-base.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
 vi.mock('ci-info', () => ({ isCI: false }));
+// Cut because a commit git cannot read fails the diff from it first, so this answer reaches the read only from here.
+const commit = vi.hoisted(() => ({ unread: undefined as string | undefined }));
+vi.mock('@variance-authority/sense', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@variance-authority/sense')>();
+  const cut = <Ask extends (...args: never[]) => unknown>(ask: Ask) => (...args: Parameters<Ask>) =>
+    commit.unread === undefined ? ask(...args) : { unread: commit.unread };
+  return { ...original, existedAt: cut(original.existedAt), existingAt: cut(original.existingAt) };
+});
 
 /**
  * The change `--since` names is the merge base's diff to the tree, and the
@@ -29,6 +37,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  commit.unread = undefined;
   process.chdir(cwd);
   vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
@@ -277,5 +286,35 @@ describe('a question that does not fetch, once the mainline selected is another'
     expect(answer.at).not.toBe(first);
     expect(answer.at).toBe(primary);
     expect(answer.source?.says).toContain('primary checkout');
+  });
+});
+
+describe('a change of files the record\'s commit did not hold', () => {
+  /** A recorded clone with `count` new files staged in it. */
+  async function addedSinceTheRecord(count: number) {
+    const { clone, first } = await aClone();
+    await recordIn(clone, first, ['test/total.test.ts'], [DISCOUNTS]);
+    for (let at = 0; at < count; at++) await writeFile(join(clone, `src/added-${at}.ts`), `export const added = ${at};\n`);
+    await git(clone, 'add', '-A');
+    return { first };
+  }
+
+  it('asks git once for all of them, not once a file', async () => {
+    const { first } = await addedSinceTheRecord(12);
+    const trace = join(home, 'git-trace');
+    vi.stubEnv('GIT_TRACE', trace);
+
+    const answer = await asked(since);
+
+    expect(answer.changed).toHaveLength(12);
+    expect(answer.changed?.every((file) => file.absentAt === first)).toBe(true);
+    expect((await readFile(trace, 'utf8')).match(/built-in: git ls-tree .*src\/added-/gu)).toHaveLength(1);
+  });
+
+  it('refuses in git\'s words when git cannot read the commit, as the question of one file does', async () => {
+    await addedSinceTheRecord(1);
+    commit.unread = 'fatal: not a tree object';
+
+    await expect(asked(since)).rejects.toThrow(/git could not read \S+, the commit that record was made at/u);
   });
 });

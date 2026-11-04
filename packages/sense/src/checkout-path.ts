@@ -58,8 +58,41 @@ export function checkoutListing(root: string, path: string): CheckoutListing {
  * list the commit.
  */
 export function existedAt(root: string, commit: string, path: string): boolean | { readonly unread: string } {
-  const listed = gitNames(root, ['ls-tree', '-z', '--name-only', commit, '--', path]);
-  return 'unread' in listed ? listed : listed.length > 0;
+  const held = existingAt(root, commit, [path]);
+  return 'unread' in held ? held : held.size > 0;
+}
+
+/** The most bytes of path one listing carries: under every platform's limit on a command line. */
+const LISTED_BYTES = 24 * 1024;
+
+/**
+ * Which of `paths` `commit` held, as {@link existedAt} answers one, in one
+ * listing for as many paths as a command line carries. It reads trees alone, so
+ * a blob a partial clone left behind is no fetch and a submodule is held.
+ */
+export function existingAt(root: string, commit: string, paths: readonly string[]): ReadonlySet<string> | { readonly unread: string } {
+  const held = new Set<string>();
+  for (const batch of batchesOf(paths)) {
+    const listed = gitNames(root, ['ls-tree', '-z', '--name-only', commit, '--', ...batch]);
+    if ('unread' in listed) return listed;
+    for (const name of listed) held.add(name);
+  }
+  return held;
+}
+
+function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
+  const batches: string[][] = [];
+  let bytes = LISTED_BYTES;
+  for (const path of paths) {
+    const size = Buffer.byteLength(path) + 1;
+    if (bytes + size > LISTED_BYTES) {
+      batches.push([]);
+      bytes = 0;
+    }
+    batches[batches.length - 1]!.push(path);
+    bytes += size;
+  }
+  return batches;
 }
 
 /** The names a git listing gives, or the first line git gave for not answering. */

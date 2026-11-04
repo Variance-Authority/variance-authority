@@ -17,7 +17,7 @@ import {
   type ExecutionTest,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
-import { existedAt } from '@variance-authority/sense';
+import { existedAt, existingAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import type { CoveringAt, CoveringQuestion } from '../covering-args.js';
 import { readExecutionFor } from './execution-input.js';
@@ -63,12 +63,16 @@ export async function ask(
     // Both readings land on the same blocks in the same order: `--where` narrows the cases, never the regions.
     const reached = before === undefined ? answer : coveringChange(before, changed, { relations });
     if (before !== undefined) reach?.(listedIn({ changed: reached }));
+    // A path is the file: one the record's commit did not hold is not held, and that is no statement about the run.
+    const unrecorded = answer.filter((file) => !file.recorded && file.cases.length === 0).map((file) => file.file);
+    const held = at === undefined ? undefined : existingAt(request.root, at, unrecorded);
+    if (held !== undefined && 'unread' in held) throw unreadCommit(unrecorded[0]!, from, at!, held.unread);
+    const absent = held === undefined ? new Set<string>() : new Set(unrecorded.filter((path) => !held.has(path)));
     return {
       since: request.since,
       changed: answer.map((file, place) => ({
         ...file,
-        // A path is the file: one the record's commit did not hold is not held, and that is no statement about the run.
-        ...(at !== undefined && !file.recorded && file.cases.length === 0 && existedAt(request.root, at, file.file) === false ? { absentAt: at } : {}),
+        ...(absent.has(file.file) ? { absentAt: at! } : {}),
         regions: file.regions.map((region, of) => stated(region, reached[place]!.regions[of]!)),
       })),
       ...(at === undefined ? {} : { at }),
