@@ -7,17 +7,20 @@ it. Each is matched below to the reading it needs, the route that reaches it, an
 the guide that sets that reading up.
 
 A shell and MCP are the two routes, and each question says which of them reaches
-it. The shipped skill guides how an agent uses them alongside its own editor,
-shell, and test runner. In the [test reduction workflow](distill.md#the-agent-loop),
-the agent tries one reversible substitution, reruns the exact test, and compares
-what it still exercises before keeping the change.
+it. The shell route is `npx variance`. The MCP route is two servers your client
+launches: `variance-authority-help` answers about your source and
+`variance-authority-mcp` about a run, so a client that asks about both lists
+both. The shipped skill guides how an agent uses them alongside its own editor,
+shell, and test runner.
 
 ## Pick the question you are asking
 
-The shell route is `npx variance`, for an agent that runs commands. The MCP route
-is a server your client launches, for an agent that reaches tools only through
-one. A row that names one route is out of reach of the other. Once you have your
-row, [install what its route needs](#install-what-your-route-needs).
+An agent that can run commands takes the shell, even when it also speaks MCP: the
+shell reaches more rows, and MCP joins it for the one step only MCP takes,
+releasing a stopped test. An agent that reaches tools only through MCP takes the
+rows that name MCP. A row that names one route alone is out of reach of the
+other, and a row that splits says what each route keeps. Once you have your row,
+[install what its route needs](#install-what-your-route-needs).
 
 ### A suite that is still running: the watcher owns it
 
@@ -33,7 +36,7 @@ row, [install what its route needs](#install-what-your-route-needs).
 | What changed in my UI on a run, mine or a CI artifact, an archive or a colleague's, and what changed it? | The report `npx variance run` wrote, or one you name, plus any [execution record](execution-record.md) — the file a run writes naming which source each test covered — or archive supplied with it | Shell or MCP | [From a shell](agent-cli.md), [over MCP](agent-mcp.md) |
 | Why does this test fail, or fail only on some runs, and which value separates the runs? | A story of that one test, recorded by your wrapped Vitest, Jest or Rstest run, with the lines your code printed under each step | Shell | [Read what one test ran](test-stories.md) |
 | Which tests does my edit need to run, and which first? | The execution record your wrapped Vitest or Jest runs keep, read by the runner when `VARIANCE_AUTHORITY_SINCE` is set | Shell | [Run the tests an edit needs](test-an-edit.md) |
-| How much of this test can I delete without losing the behavior it witnesses? | One test's authored Arrange–Act–Assert attention from [Eyes](eyes.md) and its covered source from [Sense](../packages/sense), then a rerun that checks the cut | Shell; MCP only on a connection a producer supplies, not on the `variance-authority-mcp` command | [Distil a test](distill.md) |
+| How much of this test can I delete without losing the behavior it witnesses? | What one test touches as it arranges, acts and asserts, from [Eyes](eyes.md), and the source it covered, from [Sense](../packages/sense), then a rerun that checks the cut | Shell; over MCP only from a server you host on [`@variance-authority/mcp`](../packages/mcp), since neither server above carries it | [Distil a test](distill.md) |
 
 ### Your source: the checkout owns it
 
@@ -49,15 +52,32 @@ skill works through it, is [everything an agent can ask](agent-questions.md).
 
 ## Install what your route needs
 
-| Your question is about | Shell | MCP |
-| --- | --- | --- |
-| Your source | `@variance-authority/cli` | `@variance-authority/cli`, which builds the index, and `@variance-authority/help` |
-| A run or a running suite | `@variance-authority/cli` and a `variance.config.json` | `@variance-authority/mcp` |
+| Your question is about | What must exist first | Shell | MCP |
+| --- | --- | --- | --- |
+| Your source | A git repository | `@variance-authority/cli` | `@variance-authority/cli` and `@variance-authority/help` |
+| A finished run | A report | `@variance-authority/cli` and a `variance.config.json` | `@variance-authority/mcp` |
+| A running suite | A suite that reports to a watcher | `@variance-authority/cli` and a `variance.config.json` | `@variance-authority/mcp` |
 
-Reading needs no browser on either route.
+For your source over MCP, install both packages and build the index:
 
-For your source, [connect your agent](agent-workspace-api.md#connect-your-agent)
-prints the lines for both routes. They need no run and no config.
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/help
+npx variance index
+```
+
+Your client then launches `npx variance-authority-help .`. `variance index` reads
+your source into the [workspace index](agent-workspace-api.md) outside your
+tracked files. The server answers about a name without it, and only the code map
+waits for it. [Connect your agent](agent-workspace-api.md#connect-your-agent)
+prints each route's lines and the check for them. They need no run and no config.
+
+Both routes read a run and neither makes one. `npx variance run`, from the CLI,
+writes the report, and it is the step that takes a browser, with `npx playwright
+install chromium`, and a config: [your first run](start.md) sets them up. Reading
+takes no browser on either route. A running suite reports only when it extends
+`varianceFixtures` and starts with `VARIANCE_AUTHORITY_VANTAGE` set to the
+watcher's address: [inspect a suite while it is running](agent-live-run.md) sets
+up both ends.
 
 For a run or a running suite from a shell, install the CLI:
 
@@ -79,14 +99,10 @@ npm install --save-dev @variance-authority/mcp
 ```
 
 It installs a `variance-authority-mcp` binary that your client launches with the
-path to a report, or with `--watch` for a suite still running. It needs no CLI
-and no config. The client configuration is in
+path to a report, or with `--watch` to start a watcher for a suite still running.
+Reading needs neither the CLI nor a config. The client configuration is in
 [ask an agent about a finished run over MCP](agent-mcp.md) and
 [inspect a suite while it is running](agent-live-run.md).
-
-Both routes read a run and neither makes one. `npx variance run` writes the
-report, and it is the step that takes a browser, with `npx playwright install
-chromium`, and a config: [your first run](start.md) sets them up.
 
 ## What these workflows will not do
 
