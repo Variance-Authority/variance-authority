@@ -2,16 +2,16 @@
  * `yarn review:codex <n>`: a contextless review of an open pull request by
  * another model family (validate and correct, "Codex"). It prints the review
  * and posts nothing. A run counts only when it knew nothing but the pull
- * request, so a log that names a checkout of this repository fails it.
+ * request and read it, so a log that names a checkout of this repository, or
+ * no file of the pull request, fails it.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** Caught everything on the first pull request it read; a miss is what justifies raising either. */
 const MODEL = 'gpt-6.1-terra';
 const EFFORT = 'medium';
 /** Where the ChatGPT desktop app keeps the CLI, which it does not put on `PATH`. */
@@ -45,9 +45,9 @@ export const invocation = (url, out) => [
   `review ${url}`,
 ];
 
-/** The run's whole environment: built, not filtered, so nothing of the caller's reaches it. The login stays, in `CODEX_HOME`. */
-export const sealed = (home, codexHome) => ({
-  PATH,
+/** The run's whole environment: built, not filtered, so nothing of the caller's reaches it. */
+export const sealed = (home, codexHome, codex) => ({
+  PATH: `${dirname(codex)}:${PATH}`,
   HOME: home,
   CODEX_HOME: codexHome,
   GIT_CONFIG_GLOBAL: '/dev/null',
@@ -57,6 +57,9 @@ export const sealed = (home, codexHome) => ({
 
 /** The places a run's log names. */
 export const leaks = (log, places) => places.filter((place) => log.includes(place));
+
+/** Whether a run got to the pull request: a review that did names a file of it, one that could not fetch it names none. */
+export const reached = (log, files) => files.some(({ path }) => log.includes(path));
 
 /** A checkout's path, and the same path as a directory name: an agent's session directory spells the checkout it runs in. */
 export const places = (checkouts) => checkouts.flatMap((path) => [path, path.replaceAll('/', '-')]);
@@ -79,23 +82,26 @@ const fail = (reason) => {
 const main = () => {
   const codex = binary();
   if (!codex) fail(`no review made: no codex on PATH or at ${APP}.`);
-  const url = execFileSync('gh', ['pr', 'view', ...process.argv.slice(2), '--json', 'url', '--jq', '.url'], { encoding: 'utf8' }).trim();
+  const { url, files } = JSON.parse(execFileSync('gh', ['pr', 'view', ...process.argv.slice(2), '--json', 'url,files'], { encoding: 'utf8' }));
 
   const root = mkdtempSync(NEUTRAL);
-  const [work, home, out, logged] = ['work', 'home', 'review.md', 'run.jsonl'].map((name) => join(root, name));
-  mkdirSync(work);
-  mkdirSync(home);
+  const [work, home, codexHome, out, logged] = ['work', 'home', 'codex', 'review.md', 'run.jsonl'].map((name) => join(root, name));
+  for (const directory of [work, home, codexHome]) mkdirSync(directory);
+  // A link, not a copy: a refreshed login has to reach the file the owner's next run reads.
+  symlinkSync(join(homedir(), '.codex', 'auth.json'), join(codexHome, 'auth.json'));
   const log = openSync(logged, 'w');
   const run = spawnSync(codex, invocation(url, out), {
     cwd: work,
-    env: sealed(home, join(homedir(), '.codex')),
+    env: sealed(home, codexHome, codex),
     stdio: ['ignore', log, log],
   });
   closeSync(log);
 
   if (run.status !== 0) fail(`codex exited with ${run.error?.message ?? run.status ?? run.signal}; its log is ${logged}.`);
-  const named = leaks(readFileSync(logged, 'utf8'), places(checkouts()));
+  const text = readFileSync(logged, 'utf8');
+  const named = leaks(text, places(checkouts()));
   if (named.length > 0) fail(`the run does not count, its log names ${named.join(', ')}: ${logged}.`);
+  if (!reached(text, files)) fail(`no review made: the log names no file of the pull request: ${logged}.`);
   if (!existsSync(out)) fail(`codex wrote no review; its log is ${logged}.`);
   console.log(readFileSync(out, 'utf8'));
   rmSync(root, { recursive: true });

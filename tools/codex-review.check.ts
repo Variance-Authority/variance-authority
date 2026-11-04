@@ -1,5 +1,42 @@
-import { describe, expect, it } from 'vitest';
-import { invocation, leaks, places, sealed } from './codex-review.mjs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, describe, expect, it } from 'vitest';
+import { invocation, leaks, places, reached, sealed } from './codex-review.mjs';
+
+const checkout = dirname(dirname(fileURLToPath(import.meta.url)));
+const left: string[] = [];
+
+/** The command itself, against a `codex` that runs `body` and a `gh` that answers for a pull request of one file. */
+const review = (body: string) => {
+  const root = mkdtempSync(join(tmpdir(), 'codex-review-check-'));
+  left.push(root);
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  mkdirSync(join(root, '.codex'));
+  writeFileSync(join(root, '.codex', 'auth.json'), '{}');
+  writeFileSync(join(root, '.codex', 'memories_1.sqlite'), '');
+  const stub = (name: string, script: string) => {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${script}\n`);
+    chmodSync(join(bin, name), 0o755);
+  };
+  stub('gh', `echo '{"url":"https://github.com/o/r/pull/1","files":[{"path":"src/a.ts"}]}'`);
+  stub('codex', `while [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\n${body}`);
+  const run = spawnSync(process.execPath, [join(checkout, 'tools/codex-review.mjs'), '1'], {
+    cwd: checkout,
+    encoding: 'utf8',
+    env: { ...process.env, HOME: root, PATH: `${bin}:${process.env.PATH}` },
+  });
+  const kept = /\/tmp\/review-[^/]+/.exec(run.stderr)?.[0];
+  if (kept) left.push(kept);
+  return run;
+};
+
+afterEach(() => {
+  for (const path of left.splice(0)) rmSync(path, { recursive: true, force: true });
+});
 
 /**
  * A Codex review counts only when it knew nothing but the pull request. What
@@ -17,10 +54,57 @@ describe('the Codex run', () => {
     expect(args.filter((_, i) => args[i - 1] === '--disable')).toEqual(['plugins', 'apps']);
   });
 
-  it('holds no credential, temporary directory or agent variable', () => {
-    const env = sealed('/tmp/r/home', '/Users/me/.codex');
+  it('holds no GitHub or git credential, temporary directory or agent variable', () => {
+    const env = sealed('/tmp/r/home', '/tmp/r/codex', '/Applications/Codex/codex');
     expect(Object.keys(env).sort()).toEqual(['CODEX_HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_TERMINAL_PROMPT', 'HOME', 'PATH']);
     expect(env.HOME).toBe('/tmp/r/home');
+  });
+
+  it('finds what ships beside its own binary first', () => {
+    expect(sealed('h', 'c', '/Applications/Codex/codex').PATH.split(':')[0]).toBe('/Applications/Codex');
+  });
+});
+
+describe('the command', () => {
+  it('prints the review of a run that read the pull request', () => {
+    const run = review(`echo 'read src/a.ts'; echo 'one finding' > "$out"`);
+    expect(run.stdout).toContain('one finding');
+    expect(run.status).toBe(0);
+  });
+
+  it('gives the run the login and nothing else of the home it came from', () => {
+    const run = review(`echo 'read src/a.ts'; ls -A "$CODEX_HOME" > "$out"`);
+    expect(run.stdout.trim()).toBe('auth.json');
+  });
+
+  it('refuses a run whose log names a checkout, and prints no review', () => {
+    const run = review(`echo 'read src/a.ts in ${checkout}'; echo 'one finding' > "$out"`);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(checkout);
+    expect(run.stdout).toBe('');
+  });
+
+  it('refuses a run that exited clean without reaching the pull request', () => {
+    const run = review(`echo 'Could not resolve host: github.com'; echo 'no problems found' > "$out"`);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('no review made');
+    expect(run.stdout).toBe('');
+  });
+
+  it('is the script the outer loop names', () => {
+    const read = (path: string) => readFileSync(join(checkout, path), 'utf8');
+    expect(JSON.parse(read('package.json')).scripts['review:codex']).toBe('node tools/codex-review.mjs');
+    for (const page of ['AGENTS.md', '.agents/references/outer-loop.md']) expect(read(page)).toContain('yarn review:codex <n>');
+  });
+});
+
+describe('reaching the pull request', () => {
+  it('is a log that names one of its files', () => {
+    expect(reached('{"text":"diff --git a/src/a.ts"}', [{ path: 'src/b.ts' }, { path: 'src/a.ts' }])).toBe(true);
+  });
+
+  it('is not a log that names none', () => {
+    expect(reached('Could not resolve host: github.com', [{ path: 'src/a.ts' }])).toBe(false);
   });
 });
 

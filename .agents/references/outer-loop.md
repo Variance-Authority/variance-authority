@@ -90,15 +90,17 @@ from another family, knowing nothing but the PR:
 yarn review:codex <n>
 ```
 
-It runs once on the head that opens the PR, and again after a cycle pushes a fix
-to the code. It prints the review and posts nothing, since the run holds no
+It runs once per PR, in the first cycle on it that has `codex`, whoever opened the
+PR. It prints the review and posts nothing, since the run holds no GitHub or git
 credentials. The script owns what makes the run count: it starts from empty
-directories with an environment of its own, and fails when the log names a
-checkout of this repository, whose run is thrown away and made again. Reading `AGENTS.md` or
-`REVIEW.md` from the PR's own tree is the repository, not a leak. The model and
-effort stay as `tools/codex-review.mjs` sets them until a miss justifies more.
-A machine with no `codex` cannot make the run: the script says so, and the report
-names the review as not made, never waited for.
+directories with an environment of its own and the Codex login alone, and fails
+when the log names a checkout of this repository or no file of the PR. A leaked
+run is made once more. Reading `AGENTS.md` or `REVIEW.md` from the PR's own tree
+is the repository, not a leak, and neither is a path the PR's own text quotes,
+which fails the script all the same. The model and effort stay as
+`tools/codex-review.mjs` sets them until a miss justifies more. A run that could
+not happen, for a missing `codex`, an expired login, a spent quota or a second
+refusal, is named in the report as not made, never waited for.
 
 **What CI says the change does.** `check.yml` posts two comments: a coverage
 report, compared with the unit suite's base record when one was restored, and
@@ -142,8 +144,8 @@ against `AGENTS.md`, its references and the code. A real defect goes where
 [change](change.md) draws the line: in the task's diff or in work it needs, on
 this branch; otherwise on its own branch. A finding that contradicts a rule
 here, or misreads the code, is left as it is. Never reply to a thread, never
-resolve one, and never tick its autofix checkboxes. A Codex finding is classified
-the same way.
+resolve one, and never tick its autofix checkboxes. A Codex finding is
+classified the same way.
 
 **A comment on a top-layer page may be about its structure.** A reviewer asking
 why something is said, asking for an example, or adding a caveat to the first
@@ -163,6 +165,6 @@ A `site` still running is named as running.
 
 The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit
-and Codex findings you acted on and the ones you set aside, and why. It ends with the
-merge, which is the owner's, and nothing else asked of her: every other decision
+and Codex findings you acted on and the ones you set aside, and why. It ends with
+the merge, which is the owner's, and nothing else asked of her: every other decision
 was the loop's, and is named where it was made.
