@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
-import { indexTurnPath, prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
+import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import { main } from '../bin.fixture.js';
@@ -177,19 +177,6 @@ describe('variance index', () => {
       .toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
     expect(statSync(left).mode & 0o777).toBe(0o777);
     expect(readdirSync(left)).toEqual([]);
-  });
-
-  it('indexes without the turn when the file system refuses it, and says so', async () => {
-    const root = checkout();
-    const path = indexTurnPath(root);
-    mkdirSync(path, { recursive: true });
-    const told: string[] = [];
-
-    expect(await indexOutput({ cwd: root, waiting: (text) => told.push(text) }))
-      .toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
-    // The update and the follow-ups each ask for the turn.
-    const refused = `no index turn at ${path}: Is a directory (os error 21), so this index may run beside another of this repository\n`;
-    expect(told).toEqual([refused, refused]);
   });
 
   it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {

@@ -62,7 +62,7 @@ export interface IndexRequest {
    * `--wait`.
    */
   readonly detach?: Detach;
-  /** Told when another `index` holds the follow-ups or another checkout the repository's index turn, once for each wait, and at each turn the file system refuses. */
+  /** Told when another `index` holds the follow-ups or another checkout the repository's index turn, once for each wait. */
   readonly waiting?: (text: string) => void;
   /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
   readonly progress?: Progress;
@@ -79,11 +79,12 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
   if (request.detach === undefined) return inline(request);
   if (!(await reserveFollowUps(index, log, (lock) => request.waiting?.(waitingLine(lock))))) return inline(request);
   try {
-    const update = await written(request);
+    const alone: Alone = new Set();
+    const update = await written(request, alone);
     const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
-    if (pid === undefined) return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
+    if (pid === undefined) return report(update, alone, await followUps(request, update, alone));
     holdFollowUps(index, { pid, log });
-    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it, and exits as the operator's when a walk git could not read failed; their lines are written to ${log}\n`;
+    return report(update, alone, [`follow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it, and exits as the operator's when a walk git could not read failed; their lines are written to ${log}`]);
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
@@ -91,12 +92,18 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
 }
 
 async function inline(request: IndexRequest, readied?: () => void): Promise<string> {
-  const update = await written(request);
-  return `${[describe(update), ...(await followUps(request, update, readied))].join('\n')}\n`;
+  const alone: Alone = new Set();
+  const update = await written(request, alone);
+  return report(update, alone, await followUps(request, update, alone, readied));
 }
 
-async function written(request: IndexRequest): Promise<SourceUpdate> {
-  const update = await turn(request, () => updateSourceIndex(request.cwd, {
+/** The lines a run returns: the index's, why it ran without its turn when it did, then what came after. */
+function report(update: SourceUpdate, alone: Alone, after: readonly string[]): string {
+  return `${[describe(update), ...alone, ...after].join('\n')}\n`;
+}
+
+async function written(request: IndexRequest, alone: Alone): Promise<SourceUpdate> {
+  const update = await turn(request, alone, () => updateSourceIndex(request.cwd, {
     ...(request.noGit ? { packs: false } : {}),
     ...(request.progress === undefined ? {} : { progress: request.progress }),
   }));
@@ -108,18 +115,23 @@ async function written(request: IndexRequest): Promise<SourceUpdate> {
   return update;
 }
 
+/** Why a run went without its turn, one line per reason however many turns it asked for; empty while every turn was held. */
+type Alone = Set<string>;
+
 /**
  * `work` in the repository's index turn: an update and its follow-ups each use
  * every core, so another checkout's index waits for this one rather than
  * starving it. The turn is let go between the update and the follow-ups, so a
- * short update elsewhere is not queued behind a long map here.
+ * short update elsewhere is not queued behind a long map here. A refusal goes
+ * to `alone`, for the run's report: it is a fact about the run, which every
+ * caller gets back, and no caller is waiting for anything.
  */
-function turn<T>(request: IndexRequest, work: () => Promise<T>): Promise<T> {
+function turn<T>(request: IndexRequest, alone: Alone, work: () => Promise<T>): Promise<T> {
   return inIndexTurn(
     request.cwd,
     work,
     (holder) => request.waiting?.(turnLine(holder)),
-    (path, reason) => request.waiting?.(`no index turn at ${path}: ${reason}, so this index may run beside another of this repository\n`),
+    (path, reason) => { alone.add(`no index turn at ${path}: ${reason}, so this index may run beside another of this repository`); },
   );
 }
 
@@ -147,10 +159,10 @@ export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Pr
 }
 
 /** `readied` is told once the index is folded, before the map, the journeys, the lexicon and the questions. */
-async function followUps(request: IndexRequest, update: SourceUpdate, readied?: () => void): Promise<readonly string[]> {
+async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alone, readied?: () => void): Promise<readonly string[]> {
   const { cwd, progress } = request;
   const noGit = request.noGit === true;
-  return turn(request, async () => {
+  return turn(request, alone, async () => {
     // Readied first, so everything below reads the base the next update keeps and
     // the update itself never folds one while somebody waits on it.
     await stepped(progress, 'readying the index for the follow-ups', () => readySourceIndex(update.path));

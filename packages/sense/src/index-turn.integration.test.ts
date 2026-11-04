@@ -12,6 +12,9 @@ const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 /** What a test that does not listen to the turn gives it to say. */
 const ignored = (): void => {};
 
+/** What the file system said: its words are the platform's, so only that it said something is ours. */
+const CAUSE = expect.stringMatching(/\S/u);
+
 /** A repository with one commit, in the spelling a process sees: the temporary directory is a symlink on macOS. */
 function repository(): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
@@ -129,7 +132,8 @@ describe('the index turn', () => {
     const refused: [string, string][] = [];
 
     expect(await inIndexTurn(root, async () => 'ran', ignored, (at, reason) => refused.push([at, reason]))).toBe('ran');
-    expect(refused).toEqual([[path, 'Is a directory (os error 21)']]);
+    expect(refused).toEqual([[path, CAUSE]]);
+    expect(refused[0]![1]).not.toContain(path);
   });
 
   it('names the lock once when the holder beside it is what the file system refuses', async () => {
@@ -139,7 +143,8 @@ describe('the index turn', () => {
     const refused: [string, string][] = [];
 
     expect(await inIndexTurn(root, async () => 'ran', ignored, (at, reason) => refused.push([at, reason]))).toBe('ran');
-    expect(refused).toEqual([[path, 'writing its .holder: Is a directory (os error 21)']]);
+    expect(refused).toEqual([[path, expect.stringMatching(/^writing its \.holder: \S/u)]]);
+    expect(refused[0]![1]).not.toContain(path);
   });
 
   it('leaves what the work throws alone, whatever it says: only the take is guarded', async () => {

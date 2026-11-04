@@ -109,7 +109,8 @@ of a bare repository, or of one made with `--separate-git-dir`, has no primary
 checkout variance can find, so it waits for no other checkout. Two repositories
 index at once, even when they share a cache: that is slower, not wrong. For the
 same reason a file system that refuses the lock does not stop the index, as when
-a worktree cannot write its primary checkout's cache. It runs and prints why:
+a worktree cannot write its primary checkout's cache. It runs, and prints why
+on stdout after the index's own line:
 
 ```text
 no index turn at <path>: <reason>, so this index may run beside another of this repository
