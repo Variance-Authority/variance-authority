@@ -17,9 +17,9 @@ import { MARKDOWN, ROOT, type Fence, fencesIn, lineOf, prose } from './markdown.
  * nothing. So this follows the page: its shell lines in a fresh repository with
  * no config, then its server entry as a client would launch it, and asks for the
  * tools and the code map, in a repository of several packages and in one of a
- * single package, whose answers differ. Only the install line stands in, as links
- * to the packages built here, and the page's confirmation, which fetches a client
- * from the registry.
+ * single package, whose answers differ. Only the install lines stand in, as links
+ * to the packages built here, and the lines that fetch from the registry: the
+ * question to try before installing, and the page's confirmation.
  */
 
 const PAGE = 'docs/agent-workspace-api.md';
@@ -28,10 +28,11 @@ const HEADING = '## Connect your agent';
 /** Records of what happened, and what is not built, which quote the old wording rather than ask anything of a reader. */
 const HISTORY = /^(?:docs\/context\/|docs\/specs\/|backlog\/)/;
 
-/** The lines a reader runs that this cannot: one reaches the registry for us, the other for a client. */
-const STANDS_IN = /^npm install |@modelcontextprotocol\/inspector/;
+/** The lines a reader runs that this cannot: each reaches the registry, for us, for the published package or for a client. */
+const STANDS_IN = /^npm install |^npx @variance-authority\/help |@modelcontextprotocol\/inspector/;
 
 const ORIENT = 'npx variance ask orient';
+const SYMBOL = 'npx variance ask symbol --name price';
 
 const made: string[] = [];
 
@@ -176,8 +177,13 @@ const asPrinted = (answer: string | undefined): string =>
     .replace(/\S+\/source-index\.bin/g, '…/source-index.bin')
     .replace(/^# [^:]+:/, '# shop:');
 
-const orientOf = (run: Followed | undefined): string =>
-  asPrinted(run?.lines.find(({ line }) => line === ORIENT)?.out);
+const answerTo = (asked: string, run: Followed | undefined): string =>
+  asPrinted(run?.lines.find(({ line }) => line === asked)?.out);
+
+const orientOf = (run: Followed | undefined): string => answerTo(ORIENT, run);
+
+/** What a name is and who uses it, the lines above its signature, which the page prints. */
+const symbolOf = (run: Followed | undefined): string => answerTo(SYMBOL, run).split('\n\n')[0] ?? '';
 
 const printedAnswers = fences
   .filter((fence) => fence.lang === 'text')
@@ -188,7 +194,8 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
   it('prints the install, the index, the check that the tools are listed and the skill link', () => {
     expect(shellLines(fences)).toEqual(
       expect.arrayContaining([
-        'npm install --save-dev @variance-authority/cli @variance-authority/help',
+        'npm install --save-dev @variance-authority/cli',
+        'npm install --save-dev @variance-authority/help',
         'npx variance index',
         expect.stringContaining('--method tools/list'),
         expect.stringContaining('ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority'),
@@ -217,6 +224,12 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
     const page = fences.map((fence) => fence.code).join('\n');
     expect(followed?.tools).toContain('docs_orient');
     expect(followed?.tools.filter((tool) => !page.includes(tool))).toEqual([]);
+  });
+
+  it('a question about a name answers in either shape, and the page prints the answer', () => {
+    expect(symbolOf(followed)).toContain('declared at packages/price/src/index.ts:1');
+    expect(symbolOf(alone)).toContain('declared at src/index.ts:1');
+    expect(printedAnswers).toContain(symbolOf(followed));
   });
 
   it('docs_orient returns what the shell printed', () => {

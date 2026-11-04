@@ -13,22 +13,43 @@ generated API site or `variance.config.json` is involved.
 You need a git repository and Node 22.15 or newer. You do not need a
 `variance.config.json` or a run.
 
-Your agent asks the same questions by either of two routes.
-`@variance-authority/cli` gives it the shell, `npx variance ask`, and that is all
-an agent that runs commands needs. `@variance-authority/help` gives it MCP, for a
-client that reaches tools only through a server. Stopping at the shell, leave
-`help` out of the install and skip [the MCP step](#add-the-mcp-server). Either
-way, install, build the index and read the code map:
+To try one question first, `variance-authority-help` answers on the command
+line, with no client and no server, and `npx` runs it without an install:
 
 ```bash
-npm install --save-dev @variance-authority/cli @variance-authority/help
+npx @variance-authority/help search viewport --root .
+```
+
+Pass the package name to `npx`, not the binary name: `variance-authority-help`
+is not a package name and the registry will report it missing. `--root` is the
+workspace to read; omit it when you are standing in that workspace.
+
+Your agent asks the same questions by either of two routes: the shell, `npx
+variance ask`, for an agent that runs commands, and MCP, for a client that reaches
+tools only through a server. Both start here, because `@variance-authority/cli`
+builds the index. Install it, build the index and ask about a name, with one your
+code exports in place of `price`, then read the code map:
+
+```bash
+npm install --save-dev @variance-authority/cli
 npx variance index
+npx variance ask symbol --name price
 npx variance ask orient
 ```
 
 `variance index` takes about eight seconds on a checkout of 125,000 tracked
-paths. The index lives in `node_modules/.cache`, so it adds no tracked file. The
-last line waits for the map the index makes, then prints it. A repository of
+paths. The index lives in `node_modules/.cache`, so it adds no tracked file.
+`ask symbol` is the check: it answers with the name, the line that imports it,
+where it is declared and who uses it, above its signature.
+
+```text
+price [const]
+import { price } from '@shop/price';
+declared at packages/price/src/index.ts:1
+used by 1 package: @shop/cart — 1 import by published path
+```
+
+The last line waits for the map the index makes, then prints it. A repository of
 several packages gets them listed, here two:
 
 ```text
@@ -36,15 +57,13 @@ several packages gets them listed, here two:
   packages: cart, price
 ```
 
-The map is of packages, so a repository of one gets this instead, with your own
-path. Every other question still answers:
+The map is of packages, so a repository of one has none to draw and says so, with
+your own path. That is not a failure: every other question answers, as `ask
+symbol` just did.
 
 ```text
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
-
-Either answer means the shell route works: your agent can run any
-`npx variance ask` question.
 
 You do not run `variance index` after an edit. A question about a name reuses the
 index for an hour, then refreshes it, and looks again in the checkout as it is
@@ -52,7 +71,17 @@ when the index does not hold the name. Only `ask search` answers from the last
 index at any age, and its last line says so: run `variance index` when a search
 misses something you just wrote.
 
+Your agent can now run any `npx variance ask` question, and one step is left:
+[point it at them](#point-an-agent-at-it). A client that reaches tools only
+through a server adds the server first.
+
 ### Add the MCP server
+
+`@variance-authority/help` is the server. Install it beside the CLI:
+
+```bash
+npm install --save-dev @variance-authority/help
+```
 
 Add this entry to the file your client keeps its servers in, `.mcp.json` at the
 repository root for Claude Code:
@@ -142,8 +171,8 @@ search, indexed source search and observed-subject search.
 | An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
-| Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
-| Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
+| Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
+| Files in hand, and the code around them unknown | `ask orient --files <path>`, or `docs_orient` with `files`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
 
 ## Search finds the name; the graph finds the area
 
@@ -349,20 +378,7 @@ changed](source-index.md#naming-what-changed) gives the file contract.
 
 ## Ask from the shell
 
-Connecting your agent leaves the tools in your repository. To try one question
-before you add anything, `variance-authority-help` answers the same questions on
-the command line, with no client and no server, and `npx` runs it without an
-install:
-
-```bash
-npx @variance-authority/help search viewport --root .
-```
-
-Pass the package name to `npx`, not the binary name: `variance-authority-help`
-is not a package name and the registry will report it missing. `--root` is the
-workspace to read; omit it when you are standing in that workspace.
-
-A workspace with `@variance-authority/cli` installed asks the same questions on
+A workspace with `@variance-authority/cli` installed asks these questions on
 `variance ask`, beside the questions about a run, reading the checkout under the
 working directory:
 
