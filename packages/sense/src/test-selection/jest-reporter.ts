@@ -33,7 +33,7 @@ import { noteAnEmptyRecord, statusesComplete } from './finished-files.js';
 import { jestPhases, reportedDuration, type JestPerfStats } from './reported-time.js';
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
@@ -261,7 +261,7 @@ class JestCoverageReporter {
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run,
     // and not asked by a shard that is a part of one whole run.
-    await prepareRecord(coverageFile, root, current.instrumentation, { alone: this.#alone });
+    await prepareRecord(coverageFile, root, laidProbes(current), { alone: this.#alone });
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.

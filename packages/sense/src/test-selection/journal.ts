@@ -58,7 +58,7 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
@@ -406,7 +406,7 @@ export async function recordExecution(
   // earlier worker's whole contribution — silently, and in the unsafe direction.
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
-  await prepareRecord(coverageFile, root, current.instrumentation, { cacheRoot: options.cacheRoot });
+  await prepareRecord(coverageFile, root, laidProbes(current), { cacheRoot: options.cacheRoot });
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are

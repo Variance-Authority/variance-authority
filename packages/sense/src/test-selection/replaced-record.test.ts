@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { instrumentationId } from '../instrument/index.js';
 import { evaluate, SOURCE } from './__fixtures__/browser-page.js';
 import { commitRunsFile } from './commit-runs.js';
 import { readTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from './index.js';
@@ -106,6 +107,20 @@ describe('prepareRecord', () => {
 
     expect((await readTestCoverage(file)).tests.map((test) => test.file)).toEqual(['story:price--premium']);
     expect(warn.mock.calls.filter(([line]) => String(line).includes(`replaced the record at ${file}`))).toHaveLength(1);
+  });
+
+  it('leaves it for a recording of a page that placed no module, which lays no coverage', async () => {
+    await writeTestCoverage(file, recorded('older'));
+
+    await recordExecution({
+      root,
+      cacheRoot,
+      coverageFile: file,
+      subjects: [{ owner: 'story:price--premium', journal: { instrumentation: instrumentationId(), modules: [] } }],
+    });
+
+    expect((await readTestCoverage(file)).instrumentation).toBe('older');
+    expect(warn.mock.calls.filter(([line]) => String(line).includes('replaced the record'))).toEqual([]);
   });
 
   it('leaves a record at a path it was handed, whatever its probes', async () => {

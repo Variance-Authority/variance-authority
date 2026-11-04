@@ -3,6 +3,7 @@ import { native, nativeRefusal } from '../addon.js';
 import { digestString } from '../digest.js';
 import { instrumentModeOf } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
+import type { Bytes } from './columns.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { carriedSources } from './carried-sources.js';
@@ -50,7 +51,7 @@ export function layRecord(
  * coverage and passes no probes. Nothing, too, for a record this build cannot
  * read: that refusal is the caller's own, on its own terms.
  */
-export function foreignProbes(previous: Uint8Array, run: string | undefined): string | undefined {
+export function foreignProbes(previous: Uint8Array | Bytes, run: string | undefined): string | undefined {
   if (run === undefined) return undefined;
   let written: string;
   try {

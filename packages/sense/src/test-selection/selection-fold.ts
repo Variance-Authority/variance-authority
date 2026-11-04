@@ -17,7 +17,7 @@ import { instrumentationId, type InstrumentMode, type ModuleId } from '../instru
 import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import {
   crossingsOf,
   loadedOf,
@@ -150,7 +150,7 @@ export function foldRun(
     // onto nothing. A no-op in the primary checkout and after the first run,
     // and not asked by a shard that is a part of one whole run. A cached record
     // under other probes goes first, whichever run this is.
-    await prepareRecord(coverageFile, root, current.instrumentation, { alone: run.alone });
+    await prepareRecord(coverageFile, root, laidProbes(current), { alone: run.alone });
     // In the record, with the coverage, in one write. `run.cases` is whether
     // the run could record a case: one whose files ran in a page could not.
     // One that could, and recorded no case and finished no file — no worker

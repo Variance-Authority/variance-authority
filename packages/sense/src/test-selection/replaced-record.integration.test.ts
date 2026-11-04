@@ -45,20 +45,20 @@ async function older(file: string): Promise<Buffer> {
 const runners = {
   Vitest: {
     fixture: 'packages/sense/test/fixtures/idle-case-vitest',
-    command: (args: readonly string[]) => [resolve(repository, 'node_modules/vitest/vitest.mjs'), 'run', '--config', 'vitest.config.ts', ...args],
+    command: (args: readonly string[], config = 'vitest.config.ts') => [resolve(repository, 'node_modules/vitest/vitest.mjs'), 'run', '--config', config, ...args],
     ran: 'packages/sense/test/fixtures/idle-case-vitest/test/add.case.ts',
   },
   Jest: {
     fixture: 'packages/sense/test/fixtures/external-jest',
-    command: (args: readonly string[]) => [resolve(repository, 'node_modules/jest/bin/jest.js'), '--config', 'jest.config.mjs', '--watchman=false', ...args],
+    command: (args: readonly string[], config = 'jest.config.mjs') => [resolve(repository, 'node_modules/jest/bin/jest.js'), '--config', config, '--watchman=false', ...args],
     ran: 'packages/sense/test/fixtures/external-jest/test/alpha.case.ts',
   },
 } as const;
 
 /** One real run recording at `file`, and what it printed on stderr. Rejects when the run exits other than 0. */
-async function run(runner: keyof typeof runners, file: string, args: readonly string[] = []): Promise<string> {
+async function run(runner: keyof typeof runners, file: string, args: readonly string[] = [], config?: string): Promise<string> {
   const { fixture, command } = runners[runner];
-  const { stderr } = await execute(process.execPath, [...command(args)], {
+  const { stderr } = await execute(process.execPath, [...command(args, config)], {
     cwd: resolve(repository, fixture),
     env: {
       ...process.env,
@@ -96,6 +96,21 @@ describe.each(['Vitest', 'Jest'] as const)('a %s run over a record under other p
     await expect(run(runner, file)).rejects.toThrow(/this run cannot be laid over the record at .*It was written by another build/su);
 
     expect(Buffer.compare(await readFile(file), before)).toBe(0);
+  }, 120_000);
+});
+
+describe('a run that instruments no module, over a cached record under other probes', () => {
+  it.each([
+    ['Vitest', 'vitest.unprobed.config.ts'],
+    ['Jest', 'jest.idle.config.mjs'],
+  ] as const)('leaves it under its probes and says nothing of a replacement, from %s', async (runner, config) => {
+    const file = testCoverageFile(repository, { cacheRoot: directory, suite: 'unit' });
+    await older(file);
+
+    const said = await run(runner, file, [], config);
+
+    expect((await readTestCoverage(file)).instrumentation).toBe(OLDER);
+    expect(said).not.toContain('replaced the record');
   }, 120_000);
 });
 
