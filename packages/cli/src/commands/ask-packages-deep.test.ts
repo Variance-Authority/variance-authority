@@ -215,10 +215,23 @@ describe('variance ask over a private app that reaches into another package', ()
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(join(root, 'packages/lib/src/internal/math.ts'), 'export function addTax(amount: number): number {\n  return amount;\n}\n\nexport const unrelated = 1;\n');
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--just-answer']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).not.toContain('export const unrelated');
+  });
+
+  it('leaves out the line of an unpublished export the checkout has since rewritten, though it still spells the name', async () => {
+    const file = 'packages/lib/src/internal/passes.ts';
+    const root = checkout({ [file]: "export { passedOn } from 'not-installed';\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    expect((await run(['ask', 'symbol', '--name', 'passedOn', '--just-answer'])).out).toContain("export { passedOn } from 'not-installed';");
+    writeFileSync(join(root, file), '// passedOn went elsewhere\n');
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'passedOn', '--just-answer']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(`exported, without being published, at ${file}:1 by @acme/lib`);
+    expect(out).not.toContain('went elsewhere');
   });
 
   it('answers a name nothing declares on stdout, with what it read and where else the name may be written', async () => {

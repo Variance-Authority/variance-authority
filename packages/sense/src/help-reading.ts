@@ -61,8 +61,12 @@ export interface HelpPublish {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
+  /** When the read behind the value began, before any of it was read. */
+  readonly readStartedAt: string;
   /** The digest of the index manifest the reading was made from. */
   readonly indexDigest: string;
+  /** What {@link forwardsDigest} states of the reading's `forwards`. */
+  readonly forwardsDigest: string;
   /** JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`. */
   readonly packages: string;
   readonly deep: string;
@@ -76,6 +80,8 @@ export interface HelpPublish {
 export interface HelpReading {
   /** The export list as a set, as `EncodedSearch.exported` states it. */
   readonly exportedDigest: string;
+  /** The rows of the export list that `files` write; the rest stays with the addon. */
+  exportedOf(files: string[]): NativeIndexedUsage['exported'];
   /** The uses, deep requests and unreadable files, handed over once; `exported` is empty. */
   usage(): NativeIndexedUsage;
   /** Write the graph, the value and its search; a graph already written under its digest is kept. */
@@ -159,6 +165,7 @@ export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
+  digestForwards?(forwards: string[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
@@ -205,6 +212,11 @@ export function encodeSearch(published: PublishedRows, exported: readonly NamedE
 /** The digest `HelpReading.exportedDigest` states, of a list JavaScript holds. */
 export function exportedDigest(exported: readonly NamedExport[]): string {
   return entry('digestExported')([...exported]);
+}
+
+/** The `export … from` rows of a reading as a set, which the export list does not hold. */
+export function forwardsDigest(forwards: readonly string[]): string {
+  return entry('digestForwards')([...forwards]);
 }
 
 /**

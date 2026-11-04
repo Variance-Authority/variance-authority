@@ -6,7 +6,8 @@ import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { type SearchReading, unopenedLine, type Unopened } from './search-read.js';
-import { searchNames, type SearchQuestion } from './tools/search-answer.js';
+import { searchNames } from './tools/search-answer.js';
+import type { SearchQuestion } from './tools/search-matches.js';
 import { answerSearch, search, searchQuestionOf } from './tools/search.js';
 import { importingOf, type ImportingOf, showsPublished } from './tools/published-match.js';
 import { wordsOf } from './words.js';
@@ -139,7 +140,7 @@ export function ask(
   args: readonly string[],
   walk?: () => Tree | undefined,
   root?: string,
-  unseen = false,
+  unseen: boolean | string = false,
 ): string {
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);

@@ -78,7 +78,7 @@ describe('a workspace whose members sit beside its root', () => {
   it('is refreshed from the index `variance index` keeps for it, with no scan', async () => {
     await readWorkspace(product, { index });
 
-    const generation = await publishWorkspaceFromIndex(product, { index });
+    const generation = await publishWorkspaceFromIndex(product, { index, readStartedAt: new Date().toISOString() });
 
     expect(generation).toEqual(expect.any(String));
     expect(users(await readWorkspaceSnapshot(product, { index }))).toEqual(['c see <- product/packages/a/src/index.ts']);

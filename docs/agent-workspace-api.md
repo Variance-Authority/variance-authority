@@ -56,9 +56,10 @@ The source index at …/source-index.bin was folded into no code map, because th
 
 A name the index does not hold is looked for again in the checkout as it is, so
 a function you just wrote is answered with no step from you. A name it does hold
-is answered from the index, which a question reuses for an hour, so that answer
-can be behind your edit. Run `variance index` when the next answer has to match
-it: who imports a name, and which names exist, are then current. What `ask symbol`
+is answered from the index, which a question reuses for an hour, and read again
+when a file the answer rests on changed since. An edit anywhere else can leave
+that answer behind. Run `variance index` when the next answer has to match it:
+who imports a name, and which names exist, are then current. What `ask symbol`
 prints from the declaration of a name that stays exported — its kind, line,
 signature and comment — can stay old. A question reads them again once the index
 is over an hour old, and a `variance index` that read a changed file restarts
@@ -256,7 +257,7 @@ The workspace producer pays for parsing and resolution, then publishes an
 answerable generation outside the checkout. The question path reads that value
 without scanning the repository again. Producing and answering are separate operations:
 a CI step can publish once, then every agent in that step can ask the same dated
-facts without making freshness checks part of query latency.
+facts.
 
 This path is measured on two public repositories. The first is seven copies of
 [Material UI](https://github.com/mui/material-ui) side by side in one checkout:
@@ -334,22 +335,43 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Without `--just-answer`, a source question other than `search` that a reused
-generation refuses is asked again, whichever command or server you ask through:
-the name is looked for again in a generation made from the checkout as it is,
+Without `--just-answer`, a source question that a reused generation refuses is
+asked again, whichever command or server you ask through, except the command
+line's `search`: the name is looked for again in a generation made from the checkout as it is,
 and in what your installed packages export, with that list built first when it
-is missing or behind. A function you wrote a minute ago, or a package you just installed,
-is answered rather than reported missing, and that holds when you name changed
-files too. Only a refusal pays for that reading; an answer that found its name
-comes from the generation it was found in. When the checkout cannot be read
-again, the refusal names the generation time, says the checkout was not
-compared with it, and says why. When the list of installed exports cannot be
-built, the refusal says the installed packages were not compared, and why.
+is missing or behind. A function you wrote a minute ago, or a package you just
+installed, is answered rather than reported missing, and that holds when you
+name changed files too.
+
+A found `symbol` or `uses`, and a `docs_search` over either server, is read the
+same way when a file it rests on changed or went away after the generation: the
+rows `docs_search` prints with the entry and each barrel that publish them, and
+for the other two the files that declare the name or pass it on and the entry
+that publishes it, with each row `uses` lists. So an export you renamed is not
+given under its old name, a name a barrel stopped passing on is not called
+published, a declaration you moved is given at the line it holds today, and a use
+is given at its line. An edit anywhere
+else waits for the hour: `uses` does not see an import you just added to a file
+it does not list. The look is a stat of each file.
+
+When the checkout cannot be read again, or the new read cannot be saved, or a
+file the answer rests on is saved during the read that answers it, the answer or
+the refusal names the generation time,
+says the checkout was not compared with it, and says why. Of a file written
+after the generation's read the answer gives what the generation recorded, a
+declaration and its members by name, and none of the file's text: its lines are
+no longer the ones that were read. A read that cannot be saved is dropped whole,
+because its names would meet the last read's lines. The next question reads
+again. When the list
+of installed exports cannot be built, the refusal says the installed packages
+were not compared, and why.
 
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, and every answer and refusal names the generation
 time and says the checkout was not compared with it; as JSON, `search` carries
-`compared: false` beside `generatedAt`. If no generation has been published,
+`compared: false` beside `generatedAt`. Text comes from a file only while that
+file is as old as the generation's read, so a newer one gives its recorded names.
+If no generation has been published,
 the command refuses instead of silently turning the question into production
 work.
 
@@ -365,8 +387,16 @@ When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
 nothing changed. This is producer input: it replaces Git's changed-file
-discovery and cannot be combined with `--just-answer`. [Naming what
-changed](source-index.md#naming-what-changed) gives the file contract.
+discovery and cannot be combined with `--just-answer`. Such a refresh reads the
+files you listed and no others, so the generation keeps the time of the read it
+refreshed: an answer given with the list gives a listed file's names at the lines
+the file holds now, with none of its text, and the next question without one that
+rests on that file reads the checkout. A
+file you left off is unchanged for that request, and that next question is where
+it is looked at. With no generation to refresh, the read is whole and the list
+is not used.
+[Naming what changed](source-index.md#naming-what-changed) gives the file
+contract.
 
 ## Ask from the shell
 

@@ -156,7 +156,7 @@ async function followUps(request: IndexRequest, update: SourceUpdate, readied?: 
       stepped(progress, 'writing the code map', () => codeMap(cwd, update)),
       stepped(progress, 'writing the journeys', () => journeys(cwd, update, request.failed)),
       stepped(progress, 'writing the dependency lexicon', () => lexicon(cwd)),
-      stepped(progress, 'writing the questions', () => answerable(cwd, update.path, noGit, progress)),
+      stepped(progress, 'writing the questions', () => answerable(cwd, update, noGit, progress)),
     ]);
     return [map, ...walks, names, questions];
   });
@@ -167,7 +167,7 @@ async function followUps(request: IndexRequest, update: SourceUpdate, readied?: 
  * answered. The step that exists to publish reads the value back instead, so a
  * cache it could not write is a line in the log rather than a later refusal.
  */
-async function answerable(root: string, index: string, noGit: boolean, progress: Progress | undefined): Promise<string> {
+async function answerable(root: string, { path: index, readStartedAt }: SourceUpdate, noGit: boolean, progress: Progress | undefined): Promise<string> {
   // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
   const { publishedGeneration, publishWorkspaceFromIndex, workspaceSnapshotPath } = await import('@variance-authority/help');
   const at = workspaceSnapshotPath(index);
@@ -176,6 +176,7 @@ async function answerable(root: string, index: string, noGit: boolean, progress:
     // reading the chain into records; a changed surface reads the way a first publish does.
     const generation = await publishWorkspaceFromIndex(root, {
       index,
+      readStartedAt,
       ...(noGit ? { packs: false } : {}),
       ...(progress === undefined ? {} : { progress }),
     });
