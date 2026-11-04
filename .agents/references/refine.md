@@ -89,7 +89,7 @@ section to a heading:
   evidence.
 - **Root cause**: why the Perceived happens, and why that does, one link to a
   line, down to the root. Each link is something a reader can open, as Evidence
-  is.
+  is, or says it is a guess.
 - **Affected**: the commands, packages, runners and `.compass/` blocks the
   scenario crosses.
 - **Impact**: who is hurt, how often, what it costs them, and what happens if
@@ -103,7 +103,8 @@ section to a heading:
 that should not stand, and a fix to it keeps that thing alive. Start at the
 Perceived and ask why, one cause to a link. Five is a habit, not a count: the
 root is where the next answer lies outside the project, or is a position that
-still holds. Two independent causes are two chains. Every link answers two
+still holds. A capability nobody built has a short chain: its root is that
+absence. Two independent causes are two chains. Every link answers two
 questions: would removing this cause remove the link above it, and should what
 it names exist at all? When it should not, that is the real problem: the issue
 is about removing it, as "Code is evidence, not a decision" in `AGENTS.md` says,
@@ -113,8 +114,7 @@ chain stops there and says so.
 The written chain belongs to the brief, so to a `feat`, `fix` or `perf`. A kind
 that skips this loop writes none: the look-around in `AGENTS.md` asks it the same
 question, and `occam` asks the whys in its diff mode, from the task sentence and
-the repository. That check comes after the code, and it is the only independent
-one a `refactor` gets.
+the repository, after the code exists.
 
 **Review.** A brief goes to review with every section written. The `occam`
 agent reviews the issue alone, in its idea mode: the issue number, and nothing
@@ -122,9 +122,9 @@ of your reasons. It opens every piece of evidence, asks the whys itself before
 it reads yours, weighs the case for nothing against the change, checks the change
 against [`escapes`](escapes.md), and gives one verdict:
 
-- **incomplete** — a section is missing, or a link of the Root cause neither
-  opens nor says it is a guess. Nothing was judged: complete the brief and ask
-  again. It is not a review, and it does not count toward the three below.
+- **incomplete** — a section is missing or says nothing. Nothing is decided:
+  complete the brief and ask again. It is not a review, and it does not count
+  toward the three below.
 - **build** — put `idea: build` on the issue. Code may start. An edit to the
   issue's body after that needs the review again, and CI enforces it.
 - **yes, but** — a part should not happen. Cut it from the issue. A cut taken
@@ -132,7 +132,7 @@ against [`escapes`](escapes.md), and gives one verdict:
   review is for. Answering the rejection with evidence instead, or changing
   the Change, is reviewed again.
 - **no, because** — close the issue as not planned, with the reason by its
-  name in the closing comment. Closed issues are where a declined idea is
+  name in the closing comment, and for **not the root** the cause it found. Closed issues are where a declined idea is
   found next time.
 
 Three reviews that end without **build** close the issue. Nobody else is asked:
