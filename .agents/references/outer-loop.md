@@ -93,8 +93,8 @@ yarn review:codex <n>
 It runs once on the head that opens the PR, and again after a cycle pushes a fix
 to the code. It prints the review and posts nothing, since the run holds no
 credentials. The script owns what makes the run count: it starts from empty
-directories with an environment of its own, and fails when the log shows a path
-of this machine, whose run is thrown away and made again. Reading `AGENTS.md` or
+directories with an environment of its own, and fails when the log names a
+checkout of this repository, whose run is thrown away and made again. Reading `AGENTS.md` or
 `REVIEW.md` from the PR's own tree is the repository, not a leak. The model and
 effort stay as `tools/codex-review.mjs` sets them until a miss justifies more.
 A machine with no `codex` cannot make the run: the script says so, and the report

@@ -2,7 +2,7 @@
  * `yarn review:codex <n>`: a contextless review of an open pull request by
  * another model family (validate and correct, "Codex"). It prints the review
  * and posts nothing. A run counts only when it knew nothing but the pull
- * request, so a log that names a path of this machine fails it.
+ * request, so a log that names a checkout of this repository fails it.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -55,15 +55,16 @@ export const sealed = (home, codexHome) => ({
   GIT_TERMINAL_PROMPT: '0',
 });
 
-/** The places of this machine a run's log names. */
+/** The places a run's log names. */
 export const leaks = (log, places) => places.filter((place) => log.includes(place));
 
-/** Every checkout of this repository, and the caller's temporary directory. */
-const places = () => {
-  const list = execFileSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8' });
-  const checkouts = list.split('\n').flatMap((line) => (line.startsWith('worktree ') ? [line.slice('worktree '.length)] : []));
-  return process.env.TMPDIR ? [...checkouts, process.env.TMPDIR] : checkouts;
-};
+/** A checkout's path, and the same path as a directory name: an agent's session directory spells the checkout it runs in. */
+export const places = (checkouts) => checkouts.flatMap((path) => [path, path.replaceAll('/', '-')]);
+
+const checkouts = () =>
+  execFileSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8' })
+    .split('\n')
+    .flatMap((line) => (line.startsWith('worktree ') ? [line.slice('worktree '.length)] : []));
 
 const binary = () => {
   const found = spawnSync('which', ['codex'], { encoding: 'utf8' }).stdout.trim();
@@ -93,7 +94,7 @@ const main = () => {
   closeSync(log);
 
   if (run.status !== 0) fail(`codex exited with ${run.error?.message ?? run.status ?? run.signal}; its log is ${logged}.`);
-  const named = leaks(readFileSync(logged, 'utf8'), places());
+  const named = leaks(readFileSync(logged, 'utf8'), places(checkouts()));
   if (named.length > 0) fail(`the run does not count, its log names ${named.join(', ')}: ${logged}.`);
   if (!existsSync(out)) fail(`codex wrote no review; its log is ${logged}.`);
   console.log(readFileSync(out, 'utf8'));

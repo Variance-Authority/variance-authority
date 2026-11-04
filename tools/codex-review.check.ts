@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { invocation, leaks, sealed } from './codex-review.mjs';
+import { invocation, leaks, places, sealed } from './codex-review.mjs';
 
 /**
  * A Codex review counts only when it knew nothing but the pull request. What
@@ -28,6 +28,16 @@ describe('the leak check', () => {
   it('names each place of ours the log mentions', () => {
     const log = '{"command":"cat /Users/me/dev/repo/AGENTS.md"}';
     expect(leaks(log, ['/Users/me/dev/repo', '/tmp/scratch'])).toEqual(['/Users/me/dev/repo']);
+  });
+
+  it('counts a directory whose name spells a checkout, which a run can decode back to it', () => {
+    const log = '{"command":"ls /private/tmp/agent/-Users-me-dev-repo/scratch"}';
+    expect(leaks(log, places(['/Users/me/dev/repo']))).toEqual(['-Users-me-dev-repo']);
+  });
+
+  it('passes the system temporary directory, which tools a run starts name on their own', () => {
+    const log = "git: error: couldn't create cache file '/var/folders/p_/T/xcrun_db-x'";
+    expect(leaks(log, places(['/Users/me/dev/repo']))).toEqual([]);
   });
 
   it('passes a log that read the repository from the pull request', () => {
