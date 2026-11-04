@@ -102,8 +102,9 @@ than any of them.
 
 The case is resolved the way a probe crossing is. Under the `continuations` mode
 a call made by one of two concurrent cases lands on that case. Under the flat
-mode a `test.concurrent` group records its file whole, as `cases.ts` describes,
-and its calls are read with the same limit its crossings are.
+mode a `test.concurrent` group records its file whole, as `cases.ts` describes:
+once two cases overlap the file writes no case, and every precondition said in
+it goes unrecorded with the frames, including one said before the overlap.
 
 Every value keeps the repository-relative `file:line` of the call that said it.
 That is the link from the recording into the test body, read from git at the
