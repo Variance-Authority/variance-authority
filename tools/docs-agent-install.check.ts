@@ -321,6 +321,8 @@ const startedElsewhere =
   fromAnywhere === undefined
     ? undefined
     : await connect(filledIn(fromAnywhere, runRepository(served)), '/', 'variance_summary');
+const firstDiff =
+  inTheRepository === undefined ? undefined : await connect(inTheRepository, runRepository(served), 'variance_diff');
 
 /** What a client's log holds when the first entry is launched over `report`. */
 const failure = (report: string | undefined): string =>
@@ -347,6 +349,17 @@ describe(`${RUN_PAGE} connects a client to a finished run`, () => {
   it('either entry returns the answer the page prints for the first call', () => {
     expect(startedElsewhere?.answer).toBe(started?.answer);
     expect(runAnswers).toContain(started?.answer.trim() ?? 'no answer');
+  });
+
+  it('checks each entry from where its client starts, or a wrong entry passes in the repository', () => {
+    const [inside, outside] = shellLines(runServer).filter((line) => line.includes('--method tools/list'));
+    expect(inside).toContain('--config .mcp.json');
+    expect(outside).toMatch(/^cd \/ && .*--config "[^"]*claude_desktop_config\.json"/);
+  });
+
+  it('names what `variance_diff` answers with nothing kept', () => {
+    expect(firstDiff?.answer).toContain('No previous invocation was recorded');
+    expect(prose(RUN_PAGE)).toContain('No previous invocation was recorded');
   });
 
   it('names what a start that failed prints', () => {

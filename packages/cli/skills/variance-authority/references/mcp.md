@@ -54,7 +54,8 @@ twice: `"args": ["--prefix", "<workspace>", "variance-authority-help",
 
 `npx @modelcontextprotocol/inspector --cli --config .mcp.json --server
 workspace-api --method tools/list` launches the entry and lists its tools, with
-no client open.
+no client open. It starts the server in the directory it runs from, so run it
+where the client starts.
 
 ## Tool names and arguments
 

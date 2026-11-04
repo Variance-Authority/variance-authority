@@ -57,11 +57,12 @@ list in `.mcp.json` at the repository root:
 
 ### A client that starts anywhere else
 
-Claude Desktop keeps its list in `claude_desktop_config.json` and may start a
-server in any directory, `/` among them. Give that entry your repository's
-absolute path twice, once for `npx` and once in the report's path. It works from
-every directory, so write this one when your client's documentation does not say
-where it starts:
+Claude Desktop may start a server in any directory, `/` among them. It keeps its
+list in `~/Library/Application Support/Claude/claude_desktop_config.json` on
+macOS and `%APPDATA%\Claude\claude_desktop_config.json` on Windows. Give that
+entry your repository's absolute path twice, once for `npx` and once in the
+report's path. It works from every directory, so write this one when your
+client's documentation does not say where it starts:
 
 ```json
 {
@@ -81,11 +82,21 @@ where it starts:
 
 ### Check the connection
 
-Check the entry before you open the client. This launches it from the file you
-wrote, so name that file after `--config`, and asks for the tools:
+Check the entry before you open the client. The check launches it from the file
+you wrote and asks for the tools, and it starts the server in the directory you
+run it from, so run it where your client starts. In the repository, an entry that
+works nowhere else passes. For a client that starts in the repository, run this
+at the repository root:
 
 ```bash
 npx @modelcontextprotocol/inspector --cli --config .mcp.json --server variance --method tools/list
+```
+
+For a client that starts anywhere else, run it from outside the repository and
+name that client's file. For Claude Desktop on macOS:
+
+```bash
+cd / && npx @modelcontextprotocol/inspector --cli --config "$HOME/Library/Application Support/Claude/claude_desktop_config.json" --server variance --method tools/list
 ```
 
 The answer lists these twelve:
@@ -120,7 +131,9 @@ can ask for again, identified by a stable id such as `checkout/empty` or
 `story:checkout--empty`. Each subject gets a **verdict**, the one word reported
 for it: `unchanged`, `changed`, `new` or `ignored`.
 
-Begin a report-file session with `variance_summary`, which takes no arguments:
+On the server above, begin with `variance_summary`, which takes no arguments; a
+connection [another integration set up](#evidence-other-integrations-supply)
+begins elsewhere. The summary reads:
 
 ```text
 2 subject(s) observed, ephemeral run at 2026-08-01T10:00:00.000Z
@@ -142,9 +155,12 @@ Then ask in this order:
   individual subject.** It groups shared causes across subjects.
 - Narrow to a subject, component, finding, [composition](composition.md), or
   verdict explanation only when the question requires that detail.
-- **After replacing the report with a completed rerun, ask `variance_diff`.** It
-  compares the current supplied state with the one kept from the preceding
-  successful tool call.
+- **After replacing the report with a completed rerun, ask `variance_diff`
+  before anything else.** Each successful tool call leaves the report it answered
+  from in the server's memory, and `variance_diff` compares the current report
+  with that one, so any other call after the rerun leaves nothing to compare. A
+  server with no such call answers `No previous invocation was recorded` and
+  keeps the current report: to compare a rerun, ask something before it.
 
 A question that names a thing rather than a subject id goes to
 [`variance_locate`](locate.md). It finds subjects from a description over every

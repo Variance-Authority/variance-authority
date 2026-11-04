@@ -110,7 +110,9 @@ instead of this entry: it carries the same tools under the same names, beside th
 ones about a run. With no config it exits 2.
 
 Check the entry before you open the client. This launches it from the same
-file and asks for the tools:
+file and asks for the tools. It starts the server in the directory you run it
+from, so run it where your client starts, naming that client's file after
+`--config`:
 
 ```bash
 npx @modelcontextprotocol/inspector --cli --config .mcp.json --server workspace-api --method tools/list
