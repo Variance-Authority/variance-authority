@@ -358,9 +358,10 @@ renamed since the record is read under the name the record holds, by git's own
 rename answer, and listed as `<file> — held by the record as <name>`, or `heldAs`
 under `--format json`. With no such answer the two names are two files, and the
 new one is listed with no row. With
-nothing changed behind the ref, each suite gives that as its reason at exit 0 and
-no record is fetched; a ref that does not read as a diff is one `undiffed`
-refusal at exit 2.
+nothing changed behind the ref, no record is fetched: each suite gives that as
+its reason at exit 0, and `--suite`, or a repository with no suites declared, is
+refused at exit 2. A ref that does not read as a diff is one `undiffed` refusal at
+exit 2.
 
 A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:
