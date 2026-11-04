@@ -107,7 +107,7 @@ xychart-beta horizontal
 The two text searches return every file that contains the string. Symbol search
 returns the exported names that match it, and `--from` keeps the ones reachable
 from one entry file. The chart is one warm reading of a large frontend monorepo;
-[the workspace guide](agent-workspace-api.md#search-finds-the-name-the-graph-finds-the-area)
+[the workspace guide](agent-workspace-api.md#what-a-question-costs)
 has what each answer cost in time and what producing the index costs.
 
 Variance does not do semantic search. Nothing is embedded, and the index does

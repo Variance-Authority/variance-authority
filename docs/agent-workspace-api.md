@@ -4,12 +4,15 @@
 your words in the part of the import graph you are working in — an exported name
 first, then one a file keeps to itself — then gives you its declaration,
 signature and documentation, and for an exported name its import line and
-existing import sites. It answers from a dated workspace generation — no build,
-run, generated API site, or `variance.config.json` in between.
+existing import sites. It answers from a workspace generation, the names,
+signatures and import edges one scan of the checkout published, with the time it
+was made: no build, run, generated API site, or `variance.config.json` in between.
 
 This is the source how-to and contract for
 [orientation](orientation.md). Start there when you need to choose between text
-search, indexed source search and observed-subject search.
+search, indexed source search and observed-subject search. [What an answer sees
+after you edit](#what-an-answer-sees-after-you-edit) says when a generation is
+read again.
 
 The difference matters when a checkout is too large to open again for every
 question. A [source index](source-index.md) parses and resolves a file once,
@@ -28,6 +31,65 @@ for another string.
 | Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
 | Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
 
+## Point the server at the workspace
+
+Use Node 22 or newer. Install the package in the TypeScript workspace:
+
+```bash
+npm install --save-dev @variance-authority/help
+```
+
+The package installs a `variance-authority-help` binary, which answers the same
+questions on the command line, with no client and no server:
+
+```bash
+npx @variance-authority/help search viewport --root .
+```
+
+Pass the package name to `npx`, not the binary name: `variance-authority-help`
+is not a package name and the registry will report it missing. `--root` is the
+workspace to read; omit it when you are standing in that workspace.
+
+A workspace that already has `@variance-authority/cli` installed needs neither
+this package nor its binary, over either transport. The same questions are on
+`variance ask`, beside the questions about a run, and read the checkout under
+the working directory:
+
+```bash
+npx variance ask search --query viewport
+npx variance ask symbol --name Viewport
+npx variance ask search --query viewport --from packages/app/
+```
+
+The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
+`--query`, `--from`, `--to` and `--limit`. An answer names a flag or a next question the same way —
+`--from`, `variance ask symbol` — where the tool over MCP says `from` and
+`docs_symbol`. [Ask about the code and its runs from the
+command line](agent-cli.md#find-a-name-in-the-source) shows each one.
+
+The source questions are also tools on `variance serve`, under the same names as below, so
+a workspace with the CLI declares one server for the run and the source
+together. The rest of this page is that contract, whichever of the two serves
+it.
+
+Without the CLI, configure the MCP client to launch this package's server with
+the workspace root:
+
+```json
+{
+  "mcpServers": {
+    "workspace-api": {
+      "command": "variance-authority-help",
+      "args": ["."]
+    }
+  }
+}
+```
+
+Here `.` is the server process's working directory. Pass the workspace's
+absolute path when the MCP client launches outside it. The configured command
+must resolve the installed package binary.
+
 ## Search finds the name; the graph finds the area
 
 The workspace generation combines two different answers. Names and documentation
@@ -37,7 +99,7 @@ candidate belongs to the code in question.
 Carry a path into the first search whenever you have one:
 
 ```bash
-variance ask search --query createStore --from src/fulfilment/ --just-answer
+variance ask search --query createStore --from src/fulfilment/
 ```
 
 `--from` walks along imports and keeps names used inside that closure. Use
@@ -104,13 +166,92 @@ dependencies and dependents are the same bounded operation over the recorded
 generation. The graph is the relationship data; its storage is not another
 service an adopter has to operate.
 
+## What an answer sees after you edit
+
+Every answer from a generation ends with `Snapshot <time>.`, the time that
+generation was made. A generation is reused for one hour, so an edit you made
+inside that hour may not be in it. Whether you see the edit depends on the
+question:
+
+| You ask | You see your edit | You do not see it |
+| --- | --- | --- |
+| `symbol`, on any surface | At once, when the answer names the file you edited. | When the edit is in a file the answer does not name, for up to an hour. |
+| `docs_search`, over either server | At once, when a row of the answer names the file you edited. | When its rows name other files or it finds nothing, for up to an hour: a name you just added is not found. |
+| `uses`, and every other question dated with a `Snapshot` | When the generation is over an hour old, or the question is refused. | Until then: an import you just added of a name `uses` already answers for is not listed. |
+| `search`, from `variance ask` or `variance-authority-help` | When the next generation is published. The hour does not apply. | Until then, at any age, and the answer says it was `not compared with the checkout`. |
+
+To see an edit now, publish a generation: run `variance index`, and the next
+question on any surface reads it. When you already have the changed paths,
+`variance ask` does this inside the question. Write them relative to the scan
+root, one per line, and pass that file to any source question:
+
+```bash
+printf 'src/fulfilment/order.ts\n' > /tmp/changed-paths
+variance ask uses --name createStore --changed-file /tmp/changed-paths
+```
+
+The answer comes from a generation made with those files read again, and the
+next question reads that generation. An empty file declares that nothing
+changed. An editor, watcher or orchestrator that knows its changed paths passes
+them the same way, replacing Git's changed-file discovery. [Naming what
+changed](source-index.md#naming-what-changed) gives the file contract. `variance
+index` and `--changed-file` belong to the CLI: with `@variance-authority/help`
+alone, the next generation comes from a question that reads the checkout.
+
+The command line's `search` opens a published search at any age because in CI
+the step before it already brought the index up to date and is the one that owns
+freshness. With no published generation, it reads the checkout and publishes the
+search, the way any other question does, and that answer is the checkout's.
+
+A refusal from a reused generation is not taken as a fact about the checkout.
+Any source question but the command line's `search` is asked again, whether you
+ask through `variance ask`, `variance serve` or `variance-authority-help` and its
+server: the name is looked for again in a generation made from the checkout as
+it is, and in what your installed packages export, with that list built first
+when it is missing or behind. A function you wrote a minute ago, or a package you
+just installed, is answered rather than reported missing, under `--changed-file`
+too. An answer whose named files changed is read again the same way, so an export
+you renamed is not listed under its old name and a declaration you moved is given
+at the line it holds today.
+
+When the checkout cannot be read again, the answer or the refusal names the
+generation time, says the checkout was not compared with it, and says why. When
+the list of installed exports cannot be built, the refusal says the installed
+packages were not compared, and why.
+
+Looking at the named files costs a stat of each. What you wait for after an edit
+is the second reading, and you pay it once per edit: it publishes a generation,
+and the next question opens that one at the price of the first row below. Each
+figure is the median of seven runs of `variance ask symbol --name ToolbarButton`
+on Kibana at `2df7209048`, 125,911 tracked paths, on an Apple M4 Max with 64 GB,
+macOS 27.0.1, Node v24.21.0 and a warm filesystem cache:
+
+| The answer's named files | Seconds |
+| --- | ---: |
+| are unchanged | 5.6 |
+| include one you edited | 13.3 |
+| include one you edited, and an installed package's manifest changed too, so the list of installed exports is rebuilt | 18.3 |
+
+[After the first read](performance.md#after-the-first-read-you-do-not-read-it-again)
+prices the scan inside that reading, by how many files changed.
+
+Pass `--just-answer` when the caller owns freshness: no Git status, generation,
+or regeneration is performed, nothing above is looked at, and every answer and
+refusal names the generation time and says the checkout was not compared with
+it; as JSON, `search` carries `compared: false` beside `generatedAt`. If no
+generation has been published, the command refuses, says the flag is why, and
+names the command to run, instead of silently turning the question into
+production work. It cannot be combined with `--changed-file`.
+
+## What a question costs
+
 Text search remains the shorter route when text is the answer. It has to scan
 content again for the next word, and it does not resolve the imports it finds.
 The workspace producer pays for parsing and resolution, then publishes an
 answerable generation outside the checkout. The question path reads that value
 without scanning the repository again. Producing and answering are separate operations:
 a CI step can publish once, then every agent in that step can ask the same dated
-facts without making freshness checks part of query latency.
+facts.
 
 This path is measured on two public repositories. The first is seven copies of
 [Material UI](https://github.com/mui/material-ui) side by side in one checkout:
@@ -186,113 +327,6 @@ measures what a scan costs on a public checkout with no index, unchanged, and
 with a few files edited. The index adds the facts
 that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
-
-Ordinary source questions reuse a generation for one hour, then refresh it.
-Without `--just-answer`, a source question other than `search` that a reused
-generation refuses is asked again, whether you ask through `variance ask`,
-`variance serve` or `variance-authority-help` and its server: the name is
-looked for again in a generation made from the checkout as it is, and in what
-your installed packages export, with that list built first when it is missing
-or behind. A function you wrote a minute ago, or a package you just installed,
-is answered rather than reported missing, and that holds when you name changed
-files too.
-
-An answer that found its name is looked at before it is given. `symbol`, and
-`search` over either server, name the files they print; when one of them
-changed or went away after the generation, the question is asked again the same
-way, so an export you renamed is not listed under its old name and a declaration
-you moved is given at the line it holds today. The look costs a stat of each
-named file: an answer whose files are unchanged reads nothing more and ends with
-the time of the generation it came from, as does every other question. A file
-the answer does not name is not looked at, so `uses` does not see an import
-you just added.
-
-When the checkout cannot be read again, the answer or the refusal names the
-generation time, says the checkout was not compared with it, and says why. When
-the list of installed exports cannot be built, the refusal says the installed
-packages were not compared, and why.
-
-Pass `--just-answer` when the caller owns freshness: no Git status, generation,
-or regeneration is performed, and every answer and refusal names the generation
-time and says the checkout was not compared with it; as JSON, `search` carries
-`compared: false` beside `generatedAt`. If no generation has been published,
-the command refuses instead of silently turning the question into production
-work.
-
-When no changed files are named and a search is published, `search` opens it
-at any age, because in CI the step before it already brought the index up to
-date and is the one that owns freshness. The answer says, as one under
-`--just-answer` does, that the checkout was not compared. With no published
-generation, `search` reads the checkout and publishes the search, the way any
-other question does, and that answer is the checkout's. Under `--just-answer`
-it refuses instead, says the flag is why, and names the command to run.
-
-When an editor, watcher, or orchestrator produces a generation and already has
-the changed paths, write their scan-root-relative paths to a newline-delimited
-file and pass that file through `--changed-file`. An empty file declares that
-nothing changed. This is producer input: it replaces Git's changed-file
-discovery and cannot be combined with `--just-answer`. [Naming what
-changed](source-index.md#naming-what-changed) gives the file contract.
-
-## Point the server at the workspace
-
-Use Node 22 or newer. Install the package in the TypeScript workspace:
-
-```bash
-npm install --save-dev @variance-authority/help
-```
-
-The package installs a `variance-authority-help` binary, which answers the same
-questions on the command line, with no client and no server:
-
-```bash
-npx @variance-authority/help search viewport --root .
-```
-
-Pass the package name to `npx`, not the binary name: `variance-authority-help`
-is not a package name and the registry will report it missing. `--root` is the
-workspace to read; omit it when you are standing in that workspace.
-
-A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The same questions are on
-`variance ask`, beside the questions about a run, and read the checkout under
-the working directory:
-
-```bash
-npx variance ask search --query viewport
-npx variance ask symbol --name Viewport
-npx variance ask search --query viewport --from packages/app/ --just-answer
-```
-
-The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
-`--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
-generation. An answer names a flag or a next question the same way —
-`--from`, `variance ask symbol` — where the tool over MCP says `from` and
-`docs_symbol`. [Ask about the code and its runs from the
-command line](agent-cli.md#find-a-name-in-the-source) shows each one.
-
-The source questions are also tools on `variance serve`, under the same names as below, so
-a workspace with the CLI declares one server for the run and the source
-together. The rest of this page is that contract, whichever of the two serves
-it.
-
-Without the CLI, configure the MCP client to launch this package's server with
-the workspace root:
-
-```json
-{
-  "mcpServers": {
-    "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
-    }
-  }
-}
-```
-
-Here `.` is the server process's working directory. Pass the workspace's
-absolute path when the MCP client launches outside it. The configured command
-must resolve the installed package binary.
 
 ## Read from entrypoint to symbol
 
