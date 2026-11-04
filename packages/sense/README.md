@@ -96,12 +96,12 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
 
 Set and empty, the variable reads each test from the commit the snapshot names.
 Set to a ref, it also names the base for a snapshot that names no commit.
-`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in
-[Take one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time),
-and a value that is not a range fails the run. Before the first file starts,
-stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
-`declined:` and the reason the selection could not be read, in which case
-every file runs. A test file the snapshot has never seen runs. A run the
+`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in [Take
+one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time), and
+a value that is not a range fails the run. Before the first file starts, stderr
+shows one line: `selected 12 of 340`, `selected none of 340, so none of them
+runs`, or `declined:` and the reason the selection could not be read, in which
+case every file runs. A test file the snapshot has never seen runs. A run the
 selection leaves nothing to run — `selected none`, or a shard that took none of
 the files kept — passes: the seam sets `passWithNoTests` for that run. A run
 that drops nothing keeps your setting.
