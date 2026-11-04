@@ -102,8 +102,9 @@ const main = () => {
   const named = leaks(text, places(checkouts()));
   if (named.length > 0) fail(`the run does not count, its log names ${named.join(', ')}: ${logged}.`);
   if (!reached(text, files)) fail(`no review made: the log names no file of the pull request: ${logged}.`);
-  if (!existsSync(out)) fail(`codex wrote no review; its log is ${logged}.`);
-  console.log(readFileSync(out, 'utf8'));
+  const review = existsSync(out) ? readFileSync(out, 'utf8').trim() : '';
+  if (!review) fail(`codex wrote no review; its log is ${logged}.`);
+  console.log(review);
   rmSync(root, { recursive: true });
 };
 

@@ -27,7 +27,7 @@ const review = (body: string) => {
   const run = spawnSync(process.execPath, [join(checkout, 'tools/codex-review.mjs'), '1'], {
     cwd: checkout,
     encoding: 'utf8',
-    env: { ...process.env, HOME: root, PATH: `${bin}:${process.env.PATH}` },
+    env: { ...process.env, GH_TOKEN: 'of-the-caller', HOME: root, PATH: `${bin}:${process.env.PATH}` },
   });
   const kept = /\/tmp\/review-[^/]+/.exec(run.stderr)?.[0];
   if (kept) left.push(kept);
@@ -77,6 +77,12 @@ describe('the command', () => {
     expect(run.stdout.trim()).toBe('auth.json');
   });
 
+  it('starts the run in an empty directory, with nothing of the caller\'s environment', () => {
+    const run = review(`echo 'read src/a.ts'; { pwd; ls -A; env; } > "$out"`);
+    expect(run.stdout).toMatch(/\/tmp\/review-[^/]+\/work\n(?!review)/);
+    expect(run.stdout).not.toContain('GH_TOKEN');
+  });
+
   it('refuses a run whose log names a checkout, and prints no review', () => {
     const run = review(`echo 'read src/a.ts in ${checkout}'; echo 'one finding' > "$out"`);
     expect(run.status).toBe(1);
@@ -88,6 +94,23 @@ describe('the command', () => {
     const run = review(`echo 'Could not resolve host: github.com'; echo 'no problems found' > "$out"`);
     expect(run.status).toBe(1);
     expect(run.stderr).toContain('no review made');
+    expect(run.stdout).toBe('');
+  });
+
+  it('refuses a run that failed', () => {
+    const run = review(`echo 'read src/a.ts'; echo 'one finding' > "$out"; exit 3`);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('codex exited with 3');
+    expect(run.stdout).toBe('');
+  });
+
+  it.each([
+    ['wrote no file', `echo 'read src/a.ts'`],
+    ['wrote an empty file', `echo 'read src/a.ts'; : > "$out"`],
+  ])('refuses a run that %s, which would read as no findings', (_, body) => {
+    const run = review(body);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('codex wrote no review');
     expect(run.stdout).toBe('');
   });
 
