@@ -23,6 +23,7 @@ import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
+import type { IndexLock } from './index-lock.js';
 import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
 import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
@@ -169,26 +170,27 @@ export type Seeded =
  * ask.
  */
 export async function seedTestCoverage(
-  file: string,
+  lock: IndexLock,
   root: string,
   instrumentation: string | undefined,
   cacheRoot?: string,
 ): Promise<Seeded | undefined> {
+  const { file } = lock;
   const layers = repositoryLayers(root, cacheRoot);
-  // A caller that named its own file owns it, and it is not a layer of
-  // anything: there is no base beneath a path somebody passed in.
-  const inside = relative(layers.top, file).split(sep).join('/');
-  if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return undefined;
+  const inside = cachedRecord(file, root, cacheRoot);
+  if (inside === undefined) return undefined;
   const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
   const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
   // A checkout with a record of its own has its base, and no other is asked.
+  // The lock makes this and the copy one step: a run landing between them would
+  // be copied over.
   if (present(file)) return undefined;
   let mainline: PassedOver | undefined;
   if (shared !== undefined) {
     const record = lastFetchedMainline(root, shared, cacheRoot);
     if (record !== undefined) {
       mainline = passedOver(record.coverage, await readFile(record.coverage).catch(() => undefined), instrumentation);
-      if (mainline === undefined && (await layFetchedMainline(record, file))) return { from: 'mainline', record };
+      if (mainline === undefined && (await layFetchedMainline(record, lock))) return { from: 'mainline', record };
     }
   }
   const passed = mainline === undefined ? undefined : ([mainline] as const);
@@ -228,6 +230,16 @@ export async function seedTestCoverage(
     ...(shared === undefined ? {} : { shared }),
     ...(passed === undefined ? {} : { passed }),
   };
+}
+
+/**
+ * Where `file` sits in this checkout's layer, when it is the checkout's cached
+ * record. Nothing for any other path: a caller that named its own file owns it,
+ * and it is not a layer of anything.
+ */
+export function cachedRecord(file: string, root: string, cacheRoot?: string): string | undefined {
+  const inside = relative(repositoryLayers(root, cacheRoot).top, file).split(sep).join('/');
+  return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
 }
 
 /**
@@ -328,8 +340,7 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  * it landed, stay the base's, as {@link readCommitRuns} reads them.
  *
  * The record is linked into place rather than renamed over it, so a runs record
- * already beside the snapshot when the link is made is kept. That protects this
- * file only: the snapshot and its case index are copied by {@link seedFrom}.
+ * already beside the snapshot when the link is made is kept.
  */
 async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
   const commit = snapshot.commit;
@@ -357,9 +368,6 @@ async function seedFrom(
   target: string,
   opens: (bytes: Uint8Array) => Uint8Array | undefined,
 ): Promise<boolean> {
-  // FIXME: the check and the copy are two steps, so two first writes in one
-  // worktree can both find `target` missing, and the later copy replaces a
-  // snapshot the earlier one already landed a run on.
   try {
     await stat(target);
     return false;

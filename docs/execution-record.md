@@ -193,7 +193,7 @@ they return are the ones this page describes.
 | Import from | Names |
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `probeRecipe`, `probeRuntime`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
-| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
+| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `prepareRecord`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `BLOCK_KINDS`, `caseSectionsAt`, `openSetColumns`, `selectTestFiles`, `narrowByExecution`, `landedCoverage`, `combineRecords`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CombinedRecord`, `CombinedShard`, `ExecutionIndex`, `SetColumns`, `TestColumns`, `StringTable` |
 | `@variance-authority/sense/journal` | `testSelectionProbes`, `testSelectionRule`, `drainExecution`, `recordExecution`, `joinObservations`, `moduleId`, `afterHook`, `EXECUTION_GLOBAL`; types `AfterHook`, `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `HookedPlugin`, `ObservedSubject`, `ProbePlacement`, `TestSelectionProbeOptions`, `TestSelectionRuleOptions` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
@@ -1037,10 +1037,12 @@ O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
 **Lay over the previous record.** The native addon's lay brings forward what
-the run did not observe, column to column, without decoding either record. A
-previous record under another instrumentation id, or one this build cannot
-read, is refused with the reason and left where it is: one build records under
-one set of probes and reads what it wrote, so either is another build's. A test the run observed replaces its previous row. A test the
+the run did not observe, column to column, without decoding either record. One
+build records under one set of probes and reads what it wrote, so a previous
+record under another instrumentation id is another build's. In the checkout's
+[cache](cache.md) it is replaced before the lay, in one printed line. At a path
+you handed in it is refused with the reason and left where it is, as is any
+record this build cannot read. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless no region it crossed survives in the
 new table or a region it crossed has a new digest, in which case it is demoted
 to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows

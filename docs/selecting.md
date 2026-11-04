@@ -439,9 +439,10 @@ probes go:
 | `unprobed` | none | the modules you name, such as one whose functions a test hands to `page.evaluate`, run with the `loads` line and no probe inside a finer recording, so a change to one selects every test that loaded it, as at `file-use`. Jest takes globs, Vitest and Rstest a predicate |
 
 A `loads` record has no cases, so `cadence`, `continuations` and stories do not
-apply to it. A run fails rather than lay itself over a record made under another
-`mode`, so when you change `mode`, give the run a new `coverageFile` or delete
-the old record. Each option and its edges are in
+apply to it. Each `mode` records under its own probes, so when you change it the
+next run replaces the record in [your cache](cache.md) and says so in one line.
+A run fails rather than lay itself over a `coverageFile` made under another
+`mode`: give it a new one, or delete the old record. Each option and its edges are in
 [Sense](../packages/sense/README.md#options-on-the-vitest-seam).
 
 ### A record needs a module graph per test file
