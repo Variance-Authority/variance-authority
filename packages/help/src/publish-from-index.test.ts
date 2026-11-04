@@ -212,10 +212,52 @@ describe('publishing the questions from the index', () => {
     expect((await published('deep'))?.at).not.toBe('packages/a/src/deep.ts');
   });
 
+  /**
+   * One exported name and one target file on both sides of the edit: only the
+   * binding it takes out of that file moved, which every one of these publishes
+   * something else for.
+   */
+  const RETARGETED = [
+    ['a named binding', 'shared', "export { foo as shared } from './implementation.js';\n", "export { bar as shared } from './implementation.js';\n", { line: 2, signature: 'const bar' }],
+    ['the default', 'shared', "export { default as shared } from './implementation.js';\n", "export { bar as shared } from './implementation.js';\n", { line: 2, signature: 'const bar' }],
+    ['a whole module', 'ns', "export * as ns from './implementation.js';\n", "export { ns } from './implementation.js';\n", { line: 3, signature: 'const ns' }],
+    ['a binding it imported first', 'shared', "import { foo } from './implementation.js';\nexport { foo as shared };\n", "import { bar } from './implementation.js';\nexport { bar as shared };\n", { line: 2, signature: 'const bar' }],
+    ['a binding it renamed on the way in', 'shared', "import { foo as held } from './implementation.js';\nexport { held as shared };\n", "import { bar as held } from './implementation.js';\nexport { held as shared };\n", { line: 2, signature: 'const bar' }],
+  ] as const;
+  const IMPLEMENTATION = 'export const foo = 1;\nexport const bar = 2;\nexport const ns = 3;\nexport default function whole(): void {}\n';
+
+  const retargeting = async (before: string): Promise<void> => {
+    write('packages/a/src/index.ts', before);
+    write('packages/a/src/implementation.ts', IMPLEMENTATION);
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+  };
+
+  it.each(RETARGETED)('reads the workspace when `variance index` finds an entry passing on another binding in place of %s', async (_binding, name, before, after, expected) => {
+    await retargeting(before);
+    write('packages/a/src/index.ts', after);
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(await published(name)).toMatchObject(expected);
+  });
+
+  it.each(RETARGETED)('documents the workspace when a refresh of the changed file finds another binding in place of %s', async (_binding, name, before, after, expected) => {
+    await retargeting(before);
+    const documented = await read.readWorkspaceForAnswer(root, { index });
+    write('packages/a/src/index.ts', after);
+
+    const refreshed = await read.refreshWorkspace(root, documented, { index, changed: ['packages/a/src/index.ts'] });
+
+    expect(refreshed.packages.flatMap((held) => held.openings).flatMap((opening) => opening.entries).find((entry) => entry.name === name)).toMatchObject(expected);
+  });
+
   it('refreshes from the index over barrels that did not change', async () => {
-    write('packages/a/src/index.ts', "export * from './mid.js';\nexport { deep as renamed } from './deep.js';\n");
+    write('packages/a/src/index.ts', "export * from './mid.js';\nexport { deep as renamed } from './deep.js';\nexport { default as whole } from './deep.js';\nexport * as ns from './deep.js';\n");
     write('packages/a/src/mid.ts', "export * from './deep.js';\n");
-    write('packages/a/src/deep.ts', 'export const deep = 1;\n');
+    write('packages/a/src/deep.ts', 'export const deep = 1;\nexport default function kept(): void {}\n');
     await updateSourceIndex(root, { index });
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n");

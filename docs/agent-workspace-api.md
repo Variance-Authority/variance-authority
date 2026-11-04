@@ -345,10 +345,12 @@ name changed files too.
 
 A found `symbol` or `uses`, and a `docs_search` over either server, is read the
 same way when a file it rests on changed or went away after the generation: the
-rows `docs_search` prints, and for the other two the files that declare the name
-or pass it on and the entry that publishes it, with each row `uses` lists. So an
-export you renamed is not given under its old name, a declaration you moved is
-given at the line it holds today, and a use is given at its line. An edit anywhere
+rows `docs_search` prints with the entry and each barrel that publish them, and
+for the other two the files that declare the name or pass it on and the entry
+that publishes it, with each row `uses` lists. So an export you renamed is not
+given under its old name, a name a barrel stopped passing on is not called
+published, a declaration you moved is given at the line it holds today, and a use
+is given at its line. An edit anywhere
 else waits for the hour: `uses` does not see an import you just added to a file
 it does not list. The look is a stat of each file.
 

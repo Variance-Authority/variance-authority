@@ -211,10 +211,11 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
     names
 }
 
-/// One `export … from` of the file `at`, as `forwardRow` in `collect-usage.ts`
-/// writes it: `*` exports no name of its own, so no row of the export list holds it.
-fn forward_row(at: &str, exported: Option<&str>, from: &str) -> String {
-    format!("{at}\0{}\0{from}", exported.unwrap_or(""))
+/// One `export … from` of the file `at`, as `collect-usage.ts` writes it: `*`
+/// exports no name of its own, so no row of the export list holds it, and
+/// `imported` is what the row leads to, which no name or specifier says.
+fn forward_row(at: &str, exported: Option<&str>, from: &str, imported: Option<&str>) -> String {
+    format!("{at}\0{}\0{from}\0{}", exported.unwrap_or(""), imported.unwrap_or(""))
 }
 
 fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
@@ -237,7 +238,7 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
             if let Some(from) = text.optional(parses.export_from.at(export)) {
-                part.forwards.push(forward_row(at, text.optional(id), from));
+                part.forwards.push(forward_row(at, text.optional(id), from, text.optional(parses.export_imported.at(export))));
             }
             let Some(name) = text.optional(id) else { continue };
             let local = text.optional(parses.export_local.at(export));

@@ -69,6 +69,7 @@ describe('the look at an answer whose files are unchanged', () => {
   it.each([
     [symbol, { name: 'taxOf' }],
     [uses, { name: 'taxOf' }],
+    [search, { query: 'taxOf' }],
   ])('walks who imports a published name for `$name` no more for the look, in either order', async (tool, input) => {
     const root = await fixture.published({
       'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
@@ -91,6 +92,22 @@ describe('the look at an answer whose files are unchanged', () => {
     await outlived(tool.name, looked, input, { root }, later(workspaceGeneration(looked)));
     tool.run(looked, input, { root });
     expect(asked.importers).toBe(answer);
+  });
+
+  it('walks nothing more for a `docs_search` asked again, however many times it looks', async () => {
+    const root = await fixture.published({
+      'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
+      'packages/kit/src/index.ts': "export * from './tax.js';\n",
+    });
+    const help = await readWorkspace(root);
+    const input = { query: 'taxOf' };
+    search.run(help, input, { root });
+    asked.importers = 0;
+
+    await outlived(search.name, help, input, { root }, later(workspaceGeneration(help)));
+    search.run(help, input, { root });
+    await outlived(search.name, help, input, { root }, later(workspaceGeneration(help)));
+    expect(asked.importers).toBe(0);
   });
 
   it('shares nothing with another generation of the same checkout', async () => {

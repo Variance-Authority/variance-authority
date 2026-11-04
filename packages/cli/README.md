@@ -221,7 +221,7 @@ when it is missing or behind, before the refusal is given; on `ask` that holds
 under `--changed-file` and `--taint-file` too. So is a `symbol` or `uses`
 whose files changed or went away after the generation, the ones that declare the
 name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
-`docs_search` whose printed files did, which a stat of each decides: an answer whose files
+`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides: an answer whose files
 are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
 is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
 and why, and gives what the generation recorded of a file written since, by name and with none of its

@@ -56,7 +56,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
       let text: string | undefined;
       const importedHere = new Set(parsed.requests.flatMap((request) => request.bindings.map((binding) => binding.local)));
       for (const published of parsed.exports ?? []) {
-        if (published.from !== undefined) forwards.push(`${at}\0${published.exported ?? ''}\0${published.from}`);
+        if (published.from !== undefined) forwards.push(`${at}\0${published.exported ?? ''}\0${published.from}\0${published.imported ?? ''}`);
         if (published.exported !== undefined) {
           // The TypeScript reader spans an export's doc on the export; the
           // others span it on the declaration the export binds, by its name.

@@ -410,11 +410,13 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
 }
 
 /**
- * The files of the rows `run` prints. `search.files` is every match, a set
- * another question crosses; a row past the cap is no part of this answer.
+ * The files of the rows `run` prints, and the entries and barrels that make a
+ * row published, which the count of that row walked already. `search.files` is
+ * every match, a set another question crosses; a row past the cap is no part of
+ * this answer.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
-  const { answer } = searchedOnce(help, input, invocation);
+  const { answer, publishing = [] } = searchedOnce(help, input, invocation);
   const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.loose, answer.described];
-  return new Set(sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []));
+  return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
 }

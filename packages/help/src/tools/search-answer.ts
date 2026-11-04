@@ -169,6 +169,8 @@ export interface SearchAnswer {
 export interface Searched {
   readonly answer: SearchAnswer;
   readonly area: Area | undefined;
+  /** The entries and barrels that publish the rows counted; absent when none was. */
+  readonly publishing?: ReadonlySet<string>;
 }
 
 /** One published row, keyed by the columns it sorts on — nothing decoded yet. */
@@ -371,8 +373,9 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
 export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, since?: number): Searched {
   const count = importingOf === undefined ? undefined : counting(importingOf);
   const found = searchedBy(index, question, tree, root, count?.of, since);
-  const unread = count?.unread();
-  return unread === undefined ? found : { ...found, answer: { ...found.answer, importsUnread: unread } };
+  if (count === undefined) return found;
+  const unread = count.unread();
+  return { ...found, publishing: count.publishing(), ...(unread === undefined ? {} : { answer: { ...found.answer, importsUnread: unread } }) };
 }
 
 function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, since: number | undefined): Searched {

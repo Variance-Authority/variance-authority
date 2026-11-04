@@ -174,6 +174,23 @@ describe('variance ask about a name written after the source index', () => {
   });
 });
 
+describe('variance index over an entry that passes on another binding under the same name', () => {
+  it('publishes the declaration the entry takes now, with the exported name and the target file unchanged', async () => {
+    const root = checkout({
+      'packages/lib/src/index.ts': "export { foo as shared } from './implementation.js';\n",
+      'packages/lib/src/implementation.ts': 'export function foo(): void {}\nexport const bar = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    // The kind is the declaration's: the two bindings differ in it, and `search` prints what the published value holds.
+    expect((await run(['ask', 'search', '--query', 'shared'])).out).toContain('@acme/lib · shared [function]');
+    write(root, { 'packages/lib/src/index.ts': "export { bar as shared } from './implementation.js';\n" });
+
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'search', '--query', 'shared'])).out).toContain('@acme/lib · shared [const]');
+  });
+});
+
 describe('variance ask about a name whose file changed since the source index', () => {
   it('says nothing declares a name renamed in the working tree, from a generation made after the rename', async () => {
     const root = checkout();

@@ -50,7 +50,7 @@ reused generation does not hold is looked for again in one made from the checkou
 now, so a function you just wrote is answered rather than reported missing. So
 is a `symbol` or `uses` whose files, the ones that declare the name, the entry
 that publishes it and each row `uses` lists, or a server's `docs_search` whose
-printed files, changed after the generation, so a renamed export or a moved
+printed files or the entry and barrels publishing them, changed after the generation, so a renamed export or a moved
 declaration is not answered from its old lines.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not

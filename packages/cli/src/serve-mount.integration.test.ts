@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile, execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -124,6 +124,32 @@ describe('the server `variance serve` starts', () => {
     } finally {
       server.close();
       await rm(join(workspace, 'src/renamed.ts'), { force: true });
+    }
+  });
+
+  it('reads the checkout again before `docs_search` calls a name published that its barrel stopped passing on', async () => {
+    const entry = await readFile(join(workspace, 'src/index.ts'), 'utf8');
+    await writeFile(join(workspace, 'src/mid.ts'), "export { passedOn } from './passed.js';\n");
+    await writeFile(join(workspace, 'src/passed.ts'), 'export const passedOn = 1;\n');
+    await writeFile(join(workspace, 'src/index.ts'), `${entry}export * from './mid.js';\n`);
+    execFileSync('git', ['init', '--quiet'], { cwd: workspace });
+    const server = session();
+    try {
+      // A refusal reads the checkout again, so the generation held from here on holds the barrel.
+      await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'passedOn' } });
+      const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'passedOn' } });
+      expect(before.content[0]!.text).toContain('mounted · passedOn [const]');
+      await writeFile(join(workspace, 'src/mid.ts'), 'export const stayed = 1;\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'passedOn' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).not.toContain('mounted · passedOn [const]');
+      expect(snapshotOf(result.content[0]!.text)).not.toBe(snapshotOf(before.content[0]!.text));
+    } finally {
+      server.close();
+      await writeFile(join(workspace, 'src/index.ts'), entry);
+      await rm(join(workspace, 'src/mid.ts'), { force: true });
+      await rm(join(workspace, 'src/passed.ts'), { force: true });
+      await rm(join(workspace, '.git'), { recursive: true, force: true });
     }
   });
 

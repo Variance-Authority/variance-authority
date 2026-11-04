@@ -237,14 +237,18 @@ function sitesOf(found: readonly Published[], byPath: readonly Site[], within: r
 const importsOfOnce = askedOnce((_help: Help, root: string | undefined, files: string, name: string): Within => importsOf(root, files.split('\0'), name));
 
 /**
- * Every file that passes a published declaration on, for the look at an answer
- * that teaches it: the walk {@link sitesOfPublished} makes for that answer.
+ * Every file that makes a declaration published, for the look at an answer that
+ * teaches it: each entry opening it, and each barrel passing it on by the walk
+ * {@link sitesOfPublished} makes for that answer.
  */
-export function passingOn(help: Help, root: string | undefined, published: readonly PublishedDeclaration[]): readonly string[] {
-  return published.flatMap((one) => one.spellings.flatMap((name) => {
-    const read = importsOfOnce(help, root, one.at, name);
-    return 'through' in read ? read.through : [];
-  }));
+export function publishingFiles(help: Help, root: string | undefined, published: readonly PublishedDeclaration[]): readonly string[] {
+  return published.flatMap((one) => [
+    ...one.doors.map(([, opening]) => opening.source),
+    ...one.spellings.flatMap((name) => {
+      const read = importsOfOnce(help, root, one.at, name);
+      return 'through' in read ? read.through : [];
+    }),
+  ]);
 }
 
 /**
@@ -304,17 +308,19 @@ const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
 /**
  * The sites of the published declaration of `name` in `at`, the ones `uses`
  * lists when asked for that name and that file, and why the source index did
- * not read the imports within its package, when it did not. The row's door,
- * `name` imported from `specifier`, picks the declaration: two bindings of
- * one file published under one name by two entries are two rows.
+ * not read the imports within its package, when it did not, with the files
+ * that publish it. The row's door, `name` imported from `specifier`, picks the
+ * declaration: two bindings of one file published under one name by two entries
+ * are two rows.
  */
-export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string, specifier: string): { readonly sites: readonly Site[]; readonly unread?: string } {
+export function publishedSitesOf(help: Help, root: string | undefined, name: string, at: string, specifier: string): { readonly sites: readonly Site[]; readonly publishing: readonly string[]; readonly unread?: string } {
   const one = publishedDeclarations(help, root, name, undefined).find(
     (held) => held.at === at && held.doors.some(([published, opening, entry]) => entry.name === name && specifierOf(published, opening) === specifier),
   );
-  if (one === undefined) return { sites: [] };
+  if (one === undefined) return { sites: [], publishing: [] };
   const { sites, unread } = sitesOfPublished(help, root, name, undefined, one, sitesByPath(help, name, undefined));
-  return unread === undefined ? { sites } : { sites, unread };
+  const publishing = publishingFiles(help, root, [one]);
+  return unread === undefined ? { sites, publishing } : { sites, publishing, unread };
 }
 
 /**

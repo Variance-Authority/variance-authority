@@ -15,7 +15,7 @@ import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
-import { type PublishedDeclaration, passingOn, publishedDeclarations, usesOf } from './uses-of.js';
+import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -200,7 +200,7 @@ export function usesRestsOn(help: Help, input: Readonly<Record<string, unknown>>
 function publishingEntries(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): readonly string[] {
   const from = input['package'];
   const published = publishedDeclarations(help, invocation?.root, stringArg(input, 'name'), typeof from === 'string' && from !== '' ? from : undefined);
-  return [...published.flatMap((one) => one.doors.map(([, opening]) => opening.source)), ...passingOn(help, invocation?.root, published)];
+  return publishingFiles(help, invocation?.root, published);
 }
 
 /** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */

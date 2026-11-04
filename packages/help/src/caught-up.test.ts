@@ -22,13 +22,16 @@ const fixture = publishing();
 beforeEach(fixture.before);
 afterEach(fixture.after);
 
-async function served(root: string, justAnswer: boolean, name = 'keptOf', options: WorkspaceOptions = {}): Promise<{ text: string; isError?: boolean }> {
+const served = (root: string, justAnswer: boolean, name = 'keptOf', options: WorkspaceOptions = {}): Promise<{ text: string; isError?: boolean }> =>
+  asked(root, justAnswer, 'docs_symbol', { name }, options);
+
+async function asked(root: string, justAnswer: boolean, tool: string, args: Readonly<Record<string, unknown>>, options: WorkspaceOptions = {}): Promise<{ text: string; isError?: boolean }> {
   const input = new PassThrough();
   const output = new PassThrough();
   const stop = serveWorkspace(root, { ...options, input, output, justAnswer });
   try {
     const line = new Promise<string>((resolve) => output.once('data', (chunk: Buffer) => resolve(chunk.toString())));
-    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'docs_symbol', arguments: { name } } })}\n`);
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: tool, arguments: args } })}\n`);
     const result = (JSON.parse(await line) as { result: { content: { text: string }[]; isError?: boolean } }).result;
     return { text: result.content[0]!.text, ...(result.isError === undefined ? {} : { isError: result.isError }) };
   } finally {
@@ -38,6 +41,15 @@ async function served(root: string, justAnswer: boolean, name = 'keptOf', option
 
 /** The date line of a refusal whose checkout could not be compared with its generation, and why. */
 const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout \((.+)\): run `variance index` if files changed since\./u;
+
+/** A package whose entry publishes `deepOf`, `named` and `describedOf` only through a barrel. */
+const BARRELS = {
+  'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
+  'packages/kit/src/index.ts': "export * from './inner/mid.js';\n",
+  'packages/kit/src/inner/mid.ts': "export * from './deep.js';\nexport { named } from './named.js';\n",
+  'packages/kit/src/inner/deep.ts': '/** Halves the amount. */\nexport const describedOf = 1;\nexport const deepOf = 1;\n',
+  'packages/kit/src/inner/named.ts': 'export const named = 2;\n',
+};
 
 describe('outlived', () => {
   const edit = (root: string): void => appendFileSync(join(root, 'packages/kit/src/tax.ts'), '// moved\n');
@@ -74,6 +86,28 @@ describe('outlived', () => {
     const help = await readWorkspace(root);
     appendFileSync(join(root, 'packages/kit/src/inner/mid.ts'), '// moved\n');
     expect(await outlived(tool, help, { name }, { root }, after(help))).toBe(true);
+  });
+
+  it.each([
+    ['deepOf', 'packages/kit/src/index.ts'],
+    ['deepOf', 'packages/kit/src/inner/mid.ts'],
+    ['named', 'packages/kit/src/index.ts'],
+    ['named', 'packages/kit/src/inner/mid.ts'],
+    ['halves the amount', 'packages/kit/src/index.ts'],
+    ['halves the amount', 'packages/kit/src/inner/mid.ts'],
+  ])('says so of `docs_search` for `%s` when %s, which publishes what it shows, changed', async (query, barrel) => {
+    const root = await fixture.published(BARRELS);
+    const help = await readWorkspace(root);
+    expect(await outlived('docs_search', help, { query }, { root }, after(help))).toBe(false);
+    appendFileSync(join(root, barrel), '// moved\n');
+    expect(await outlived('docs_search', help, { query }, { root }, after(help))).toBe(true);
+  });
+
+  it('leaves a `docs_search` answer as it is when a barrel that passes on none of its rows changed', async () => {
+    const root = await fixture.published({ ...BARRELS, 'packages/kit/src/aside.ts': "export { taxOf } from './tax.js';\n" });
+    const help = await readWorkspace(root);
+    appendFileSync(join(root, 'packages/kit/src/aside.ts'), '// moved\n');
+    expect(await outlived('docs_search', help, { query: 'deepOf' }, { root }, after(help))).toBe(false);
   });
 
   it('says so of a file saved while its generation was being read, which is stamped later than the file', async () => {
@@ -175,6 +209,23 @@ describe('outlived', () => {
     const root = await fixture.published();
     const help = await readWorkspace(root);
     expect(await outlived('docs_symbol', help, { name: '' }, { root }, after(help))).toBe(false);
+  });
+});
+
+describe('a `docs_search` answer once a barrel stops publishing a name', () => {
+  it.each([
+    ['the entry', 'packages/kit/src/index.ts', "export const shown = 1;\n"],
+    ['a barrel in the middle', 'packages/kit/src/inner/mid.ts', "export * from './deep.js';\n"],
+  ])('stops reporting it as published when %s drops it, inside the hour a generation is reused for', async (_barrel, file, text) => {
+    const root = await fixture.published(BARRELS);
+    const before = await asked(root, false, 'docs_search', { query: 'named' });
+    expect(before.text).toContain('@acme/kit · named [const]');
+
+    writeFileSync(join(root, file), text);
+
+    const after = await asked(root, false, 'docs_search', { query: 'named' });
+    expect(after.text).toContain('packages/kit/src/inner/named.ts');
+    expect(after.text).not.toContain('@acme/kit · named [const]');
   });
 });
 
