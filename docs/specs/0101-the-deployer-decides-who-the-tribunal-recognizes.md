@@ -109,7 +109,7 @@ Each deployment ships declaring what it does today, less the review token:
 
 | Deployment | Declares | What stops working |
 |---|---|---|
-| The console | `INGEST_CREDENTIALS=token`, `REVIEW_CREDENTIALS=access` | A script approving with `REVIEW_TOKEN` |
+| The console | What provisioning writes, or `token` and `access` where the deployer declares them | A script approving with `REVIEW_TOKEN` |
 | The packaged Worker | What provisioning writes: `INGEST_CREDENTIALS=github-actions`, `REVIEW_CREDENTIALS=github` | Reviewing with a token, for a person or a script |
 | Node | `INGEST_CREDENTIALS=token`, and `REVIEW_CREDENTIALS=loopback` on a loopback bind | Approving with `REVIEW_TOKEN`, on any bind |
 
@@ -439,9 +439,10 @@ there is nothing to provision and the step disappears.
    baseline.** Workflow and environment bindings are a later step, not this one.
 4. **Ingest keeps what ADR-0022 gives it, on the declared ref.** The direct
    baseline write and the approval rows stay on `ingest`; under `github-actions`
-   they answer only `GITHUB_ACTIONS_BASELINE_REF`.
-5. **No deployment exists to migrate.** Nothing declared is refusal from the
-   first release, with no grace.
+   they answer only `GITHUB_ACTIONS_BASELINE_REF`, and so does the render cache's
+   write, because a later run takes a hit as its own render.
+5. **No deployment exists to migrate.** On a Worker, nothing declared is refusal
+   from the first release, with no grace; Node starts from the defaults above.
 6. **Who acts at a machine is the operator's process.** The tribunal recognizes
    a declared credential and defines no process around it; loopback names the
    reviewer `VARIANCE_TRIBUNAL_REVIEWER` gives.

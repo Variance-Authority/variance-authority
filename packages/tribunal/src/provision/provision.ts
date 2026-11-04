@@ -1,5 +1,5 @@
 // compass: variance-authority.review
-import { posix, relative, dirname, sep } from 'node:path';
+import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import type { Cloudflare } from './cloudflare.js';
 import {
   deploymentConfig,
@@ -99,11 +99,17 @@ export async function provision(io: Provisioning, request: ProvisionRequest): Pr
   if (!(await io.exists(request.config))) {
     const project = request.repository.split('/')[1]!;
     const name = `${project.toLowerCase().replace(/[^a-z0-9-]+/g, '-')}-tribunal`;
+    if (!(await reachable(resolve(dirname(request.config)), io))) {
+      throw new Error(
+        'install @variance-authority/tribunal in this repository first: the config points into the package, ' +
+          'and a package cache is gone by the next deploy',
+      );
+    }
     const installed = relative(dirname(request.config), io.installed).split(sep).join(posix.sep);
     await io.write(request.config, deploymentConfig(name, project, installed));
     made.push(request.config);
   }
-  refuse(readDeployment(await io.read(request.config)), request.repository);
+  refuse(readDeployment(await io.read(request.config)), request);
   if ((await asked()).code !== 0) {
     io.say('Not logged in to Cloudflare. Allow it in the browser window that opens.');
     const login = await io.run('npx', ['wrangler', 'login'], { interactive: true });
@@ -164,13 +170,25 @@ function tellCi(io: Provisioning, repository: string, site: string, audience: st
   io.say(`  "baselines": { "kind": "remote", ${block} }`);
   io.say('and this in the job, with no secret to store:');
   io.say('  permissions:');
+  io.say('    contents: read');
   io.say('    id-token: write');
   io.say('  steps:');
   io.say('    - run: npx variance push');
 }
 
+/** Whether Node finds the package from this directory, as a config's relative paths will. */
+async function reachable(directory: string, io: Provisioning): Promise<boolean> {
+  if (await io.exists(join(directory, 'node_modules/@variance-authority/tribunal'))) return true;
+  const parent = dirname(directory);
+  return parent !== directory && reachable(parent, io);
+}
+
 /** A mistake in the config, found while nothing has been made from it. */
-function refuse(deployment: Deployment, repository: string) {
+function refuse(deployment: Deployment, { repository, skipDeploy }: ProvisionRequest) {
+  // The page is served from `assets`, so a Worker deployed without them answers a blank one.
+  if (!deployment.assets && skipDeploy !== true) {
+    throw new Error('the config has no `assets`: set its `directory` to the package\'s `dist/public`');
+  }
   const held = deployment.variables;
   const { ingest, review } = declaration({ ...DEFAULTS, ...held });
 
@@ -373,7 +391,14 @@ async function ingestToken(
   const github = await io.run('gh', ['secret', 'list', '-R', request.repository, '--json', 'name']);
   if (github.code !== 0) throw new Error(`gh secret list failed:\n${github.stderr}`);
   const repository = new Set((JSON.parse(github.stdout) as { name: string }[]).map((each) => each.name));
-  if (!request.rotate && worker.has(INGEST_SECRET) && repository.has(REPOSITORY_INGEST_SECRET)) return;
+  if (!request.rotate && worker.has(INGEST_SECRET)) {
+    if (repository.has(REPOSITORY_INGEST_SECRET)) return;
+    // A new token here would hand the push to this repository and refuse the one that holds it.
+    throw new Error(
+      `${request.repository} holds no ${REPOSITORY_INGEST_SECRET} and the Worker holds a token. ` +
+        'If this is the repository that pushes, --rotate makes a pair',
+    );
+  }
 
   const token = io.mint();
   const put = await wrangler(['secret', 'put', INGEST_SECRET], { input: token });

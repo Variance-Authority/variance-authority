@@ -41,7 +41,7 @@ narrow structural subset actually used rather than imported from a platform's
 type surface — so the store is exercisable in an ordinary test process, with no
 container and no account.
 
-They hold the secrets and hand out none. The handler exposes one method and
+They hold the secrets and hand out none. The handler exposes two methods, `fetch` and `sweep`, and
 cannot be asked for what it was declared with.
 
 They do not fail a deployment silently. Construction happens inside the request

@@ -21,6 +21,7 @@ describe('readDeployment', () => {
       accountId: 'acc',
       database: { name: 'variance-tribunal-example', id: 'REPLACE_WITH_ID' },
       bucket: 'variance-tribunal-example',
+      assets: false,
       host: 'tribunal-example.variance-authority.dev',
       variables: { PROJECT: 'snkr-shop', ACCESS_AUD: '' },
     });

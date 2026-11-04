@@ -568,6 +568,13 @@
   },
   {
     "files": [
+      "packages/tribunal/src/worker.ts",
+      "packages/tribunal/src/worker.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/unit-test/src/styles.ts",
       "packages/unit-test/src/styles.ts"
     ],

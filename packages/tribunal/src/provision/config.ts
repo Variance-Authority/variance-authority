@@ -14,6 +14,8 @@ export interface Deployment {
   readonly accountId?: string;
   readonly database: { readonly name: string; readonly id: string };
   readonly bucket: string;
+  /** Whether the config serves the review page's bundle and fonts. */
+  readonly assets: boolean;
   /** The custom domain the Worker is routed on, when it has one. */
   readonly host?: string;
   /** The config's `vars`: what the deployer has already declared. */
@@ -25,6 +27,7 @@ interface Parsed {
   readonly account_id?: unknown;
   readonly d1_databases?: readonly { readonly binding?: unknown; readonly database_name?: unknown; readonly database_id?: unknown }[];
   readonly r2_buckets?: readonly { readonly binding?: unknown; readonly bucket_name?: unknown }[];
+  readonly assets?: unknown;
   readonly routes?: readonly { readonly pattern?: unknown; readonly custom_domain?: unknown }[];
   readonly vars?: Readonly<Record<string, unknown>>;
 }
@@ -48,6 +51,7 @@ export function readDeployment(text: string): Deployment {
       id: typeof database.database_id === 'string' ? database.database_id : '',
     },
     bucket: required(bucket.bucket_name, '`bucket_name` of `BUCKET`'),
+    assets: parsed.assets !== undefined,
     ...(route === undefined ? {} : { host: route.pattern as string }),
     variables: Object.fromEntries(
       Object.entries(parsed.vars ?? {}).filter((each): each is [string, string] => typeof each[1] === 'string'),

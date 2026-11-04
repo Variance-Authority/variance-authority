@@ -1,175 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Cloudflare } from './cloudflare.js';
-import type { AppRequest } from './github-app.js';
-import { provision, type Command, type ProvisionRequest, type Provisioning } from './provision.js';
-
-const TOKEN_MODE = '"vars": { "PROJECT": "shop", "INGEST_CREDENTIALS": "token", "REVIEW_CREDENTIALS": "access" },';
-
-const CONFIG = `{
-  "name": "tribunal-example",
-  "account_id": "acc",
-  "d1_databases": [{ "binding": "DB", "database_name": "db", "database_id": "REPLACE" }],
-  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "bucket" }],
-  "vars": { "PROJECT": "shop" },
-  "routes": [{ "pattern": "tribunal.example.dev", "custom_domain": true }],
-}
-`;
-
-interface World {
-  databases: { name: string; uuid: string }[];
-  buckets: string[];
-  workerSecrets: Map<string, string>;
-  githubSecrets: Map<string, string>;
-  /** The Apps a person made and installed at the browser. */
-  apps: AppRequest[];
-  /** Where the person leaves the browser, when they do. */
-  appAbandoned: 'before making it' | 'at the install page' | null;
-  owner: string;
-  deploys: number;
-  serving: boolean;
-  authorized: boolean;
-  logins: number;
-  migrations: number;
-  r2Enabled: boolean;
-  /** `r2 bucket info` fails on its own, not on the bucket. */
-  r2Unreachable: boolean;
-  /** `gh secret set` refuses. */
-  githubRefuses: boolean;
-  /** `wrangler secret put` refuses. */
-  workerRefuses: boolean;
-  accounts: { id: string; name: string }[];
-  /** What `secret list` meets: a Worker, none, or a failure of its own. */
-  worker: 'deployed' | 'never deployed' | 'unreachable';
-}
-
-function world(overrides: Partial<World> = {}): World {
-  return {
-    databases: [],
-    buckets: [],
-    workerSecrets: new Map(),
-    githubSecrets: new Map(),
-    apps: [],
-    appAbandoned: null,
-    owner: 'User acme',
-    deploys: 0,
-    serving: false,
-    authorized: true,
-    logins: 0,
-    migrations: 0,
-    r2Enabled: true,
-    r2Unreachable: false,
-    githubRefuses: false,
-    workerRefuses: false,
-    accounts: [{ id: 'acc', name: 'Acme' }],
-    worker: 'deployed',
-    ...overrides,
-  };
-}
-
-const ok = (stdout = ''): Command => ({ code: 0, stdout, stderr: '' });
-
-function harness(state: World, text: string | null = CONFIG) {
-  const files = new Map(text === null ? [] : [['wrangler.jsonc', text]]);
-  const said: string[] = [];
-  let minted = 0;
-
-  const api: Cloudflare = {
-    accounts: async () => state.accounts,
-    workersSubdomain: async () => 'acme',
-  };
-
-  const io: Provisioning = {
-    read: async (path) => files.get(path)!,
-    write: async (path, content) => void files.set(path, content),
-    say: (line) => void said.push(line),
-    mint: () => `token${++minted}`,
-    cloudflare: () => api,
-    exists: async (path) => files.has(path),
-    installed: '/repo/node_modules/@variance-authority/tribunal',
-    register: async (request, created) => {
-      if (state.appAbandoned === 'before making it') throw new Error('the browser was closed');
-      state.apps.push(request);
-      const app = { clientId: 'Iv1.client', clientSecret: 'app-secret', slug: 'shop-tribunal' };
-      await created(app);
-      if (state.appAbandoned === 'at the install page') throw new Error('the browser was closed');
-      return app;
-    },
-    serving: async () => state.serving,
-    run: async (program, args, options) => {
-      const line = [program, ...args].join(' ');
-      if (program !== 'gh' && !line.includes('auth token') && args[1] !== 'login') {
-        expect(options?.env).toEqual({ CLOUDFLARE_ACCOUNT_ID: 'acc' });
-      }
-      if (program === 'gh' && args[0] === 'api') {
-        return ok(args.at(-1) === '.default_branch' ? 'trunk\n' : `${state.owner}\n`);
-      }
-      if (program === 'gh') {
-        if (args[1] === 'list') return ok(JSON.stringify([...state.githubSecrets.keys()].map((name) => ({ name }))));
-        if (args[1] === 'delete') {
-          state.githubSecrets.delete(args[2]!);
-          return ok();
-        }
-        if (state.githubRefuses) return { code: 1, stdout: '', stderr: 'HTTP 403' };
-        state.githubSecrets.set(args[2]!, options?.input ?? '');
-        return ok();
-      }
-      const [verb, noun] = args.slice(1);
-      if (line.includes('auth token')) {
-        return state.authorized ? ok(JSON.stringify({ type: 'oauth', token: 'cf' })) : { code: 1, stdout: '', stderr: 'Not logged in' };
-      }
-      if (verb === 'deploy') {
-        state.deploys += 1;
-        state.serving = true;
-        return ok();
-      }
-      if (verb === 'login') {
-        state.logins += 1;
-        state.authorized = true;
-        return ok();
-      }
-      if (verb === 'd1' && noun === 'list') return ok(JSON.stringify(state.databases));
-      if (verb === 'd1' && noun === 'create') {
-        state.databases.push({ name: args[3]!, uuid: 'uuid-1' });
-        return ok();
-      }
-      if (verb === 'd1' && noun === 'migrations') {
-        state.migrations += 1;
-        return ok();
-      }
-      if (verb === 'r2' && args[3] === 'info') {
-        if (state.r2Unreachable) return { code: 1, stdout: '', stderr: 'Not logged in.' };
-        if (!state.r2Enabled) return { code: 1, stdout: '', stderr: 'Account not entitled to this feature. [code: 10042]' };
-        if (!state.buckets.includes(args[4]!)) {
-          return { code: 1, stdout: '', stderr: 'The specified bucket does not exist. [code: 10006]' };
-        }
-        return ok(`name:           ${args[4]}\n`);
-      }
-      if (verb === 'r2' && args[3] === 'create') {
-        state.buckets.push(args[4]!);
-        return ok();
-      }
-      if (verb === 'secret' && noun === 'list') {
-        if (state.worker === 'never deployed') {
-          return { code: 1, stdout: '', stderr: 'This Worker does not exist on your account. [code: 10007]' };
-        }
-        if (state.worker === 'unreachable') return { code: 1, stdout: '', stderr: 'fetch failed' };
-        return ok(JSON.stringify([...state.workerSecrets.keys()].map((name) => ({ name, type: 'secret_text' }))));
-      }
-      if (verb === 'secret' && noun === 'put') {
-        if (state.workerRefuses) return { code: 1, stdout: '', stderr: 'Authentication error [code: 10000]' };
-        state.workerSecrets.set(args[3]!, options?.input ?? '');
-        return ok();
-      }
-      throw new Error(`unexpected: ${line}`);
-    },
-  };
-
-  const run = (rotate = false, extra: Partial<ProvisionRequest> = {}) =>
-    provision(io, { config: 'wrangler.jsonc', repository: 'acme/shop', rotate, ...extra });
-  return { run, files, said };
-}
-
-const TOKENS = CONFIG.replace('"vars": { "PROJECT": "shop" },', TOKEN_MODE);
+import { CONFIG, harness, TOKENS, world } from './provision.fixture.js';
 
 describe('provision', () => {
   it('provisions a fresh account end to end: GitHub sign-in, Actions push, deployed', async () => {
@@ -202,6 +32,7 @@ describe('provision', () => {
     expect(printed).not.toContain('app-secret');
     expect(printed).not.toContain('token1');
     expect(printed).toContain('id-token: write');
+    expect(printed).toContain('contents: read');
     expect(printed).toContain('"audience": "https://tribunal.example.dev"');
     expect(printed).toContain('"review": { "endpoint": "https://tribunal.example.dev"');
     expect(printed).toContain('"baselines": { "kind": "remote"');
@@ -412,16 +243,33 @@ describe('provision', () => {
     expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('old');
   });
 
-  it('mints a new ingest token when the repository lost its copy', async () => {
+  it('replaces no token for a repository that holds no copy, unless asked to', async () => {
     const state = world();
     const { run } = harness(state, TOKENS);
     await run();
     state.githubSecrets.clear();
 
-    await run();
+    await expect(run()).rejects.toThrow(/acme\/shop holds no VARIANCE_INGEST_TOKEN.*--rotate/s);
 
+    expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token1');
+    await run(true);
     expect(state.githubSecrets.get('VARIANCE_INGEST_TOKEN')).toBe('token2');
     expect(state.workerSecrets.get('INGEST_TOKEN')).toBe('token2');
+  });
+
+  it('refuses a config whose Worker would serve a page with no assets', async () => {
+    const bare = CONFIG.replace('  "assets": { "directory": "dist/public" },\n', '');
+
+    await expect(harness(world(), bare).run()).rejects.toThrow(/`assets`/);
+    expect(await harness(world(), bare).run(false, { skipDeploy: true })).toBe(0);
+  });
+
+  it('writes no config that points into a package cache', async () => {
+    const { run, files } = harness(world({ notInstalled: true }), null);
+
+    await expect(run()).rejects.toThrow(/install @variance-authority\/tribunal/i);
+
+    expect(files.has('wrangler.jsonc')).toBe(false);
   });
 
   it('logs in when wrangler has no login, once', async () => {

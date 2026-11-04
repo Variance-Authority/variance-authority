@@ -15,7 +15,8 @@ import { provision, type Command, type ProvisionRequest, type RunOptions } from 
  * `variance-authority-tribunal-provision` — a Cloudflare tribunal's account and
  * repository setup, in one command an agent can run.
  *
- *     npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config deploy/wrangler.jsonc
+ *     npm install --save-dev @variance-authority/tribunal
+ *     npx variance-authority-tribunal-provision --config deploy/wrangler.jsonc
  *
  * `--repository owner/name` names the repository whose writers review and whose CI pushes builds; the
  * one `gh` sees in the working directory when absent. `--mount /api` is where the

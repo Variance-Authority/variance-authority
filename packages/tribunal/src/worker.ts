@@ -131,9 +131,8 @@ export interface TribunalOptions extends TribunalBindings {
   /**
    * Days of builds to keep when `POST /review/sweep` is called.
    *
-   * Applied on request rather than on a timer, because a Worker has no timer and
-   * this package will not invent a cron the operator did not ask for. Wire it to a
-   * scheduled trigger, or call it from a CI job, or never.
+   * Applied by {@link Tribunal.sweep}, which the packaged Worker's cron calls, and
+   * on request for a host with no schedule of its own.
    */
   readonly retentionDays?: number;
   readonly now?: () => Date;
@@ -145,8 +144,8 @@ export interface TribunalOptions extends TribunalBindings {
  * Deliberately nothing else. A handler is what a Worker exports, what a Next
  * route handler is, and what `node:http` can be adapted to in a dozen lines — so
  * the three deployments differ in their wiring and not in their router. It is
- * also the reason a `Tribunal` cannot be asked for its own secrets: a value with
- * one method has nothing to leak when it is logged.
+ * also the reason a `Tribunal` cannot be asked for its own secrets: a value of
+ * two methods has nothing to leak when it is logged.
  */
 export interface Tribunal {
   fetch(request: Request): Promise<Response>;
@@ -297,7 +296,8 @@ async function route(
   }
 
   if (path === CACHE_PUT_PATH) {
-    requires(granted, 'ingest', path);
+    // A run takes a hit as its own render, so a raster written here reaches a baseline.
+    movesBaselines(principal, path);
     requireMethod(request, 'POST');
     const body = await asRecordBody(request);
     const raster = rasterFrom(body['raster']);

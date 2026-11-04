@@ -33,6 +33,9 @@
     }
   ],
 
+  // The review page's bundle and fonts.
+  "assets": { "directory": "dist/public" },
+
   "vars": {
     // Scopes every row and object. One deployment, one project — spec 0014 is
     // where the reason that has to change before a second tenant is written down.

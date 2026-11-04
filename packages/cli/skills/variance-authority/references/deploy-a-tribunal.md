@@ -1,10 +1,16 @@
 # Set up or check a Cloudflare tribunal
 
-Run one command from the repository the tribunal is for. It needs no config: it
-writes one when there is none.
+Install the package in the repository the tribunal is for, then run one command
+there. It needs no config: it writes one when there is none, and that config
+points into the installed package, so a run refuses to write one from a package
+cache.
 
 ```bash
-npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config deploy/wrangler.jsonc
+npm install --save-dev @variance-authority/tribunal wrangler
+```
+
+```bash
+npx variance-authority-tribunal-provision --config deploy/wrangler.jsonc
 ```
 
 Do not ask the person for an id, a token, a client id or a secret. The command
@@ -36,7 +42,7 @@ name; widening who may push is a change to `GITHUB_ACTIONS_REPOSITORIES` in
 `vars`, made on purpose. `--mount /api` is where a deployment serves the API when not at
 the root. `--skip-deploy` leaves publishing to a deployment with its own build,
 such as the console. `--rotate` replaces the session key, which signs everybody
-out. The run needs `gh` authenticated; `wrangler` is logged in by the run itself.
+out, and the ingest token where `token` is declared. The run needs `gh` authenticated; `wrangler` is logged in by the run itself.
 
 The run asks before it makes anything, so a second run changes nothing and says
 `already provisioned`.
@@ -46,12 +52,10 @@ What the config already declares is the deployer's. A deployment that declares
 behind it, is theirs, and so are `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. One that
 declares `INGEST_CREDENTIALS=token` gets `INGEST_TOKEN` in the Worker and the
 same value in the repository's `VARIANCE_INGEST_TOKEN` secret, through stdin, and
-never printed. A token missing on either side is minted again for both, and
-`--rotate` mints both regardless. Neither copy can be read back, so a rotation is
-journaled in the repository variable `VARIANCE_INGEST_ROTATION`: set before the
-Worker is written, deleted after the repository is. A rotation that fails between
-the two leaves CI with a token the Worker refuses, and the error says so; run the
-command again and it replaces both.
+never printed. Neither copy can be read back. A repository with no copy while the
+Worker holds one is refused, because a new token would move the push to it:
+`--rotate` mints both, and is also the way back from a rotation that failed
+between the two, which the error says.
 
 Three steps need the person, and the command says which:
 

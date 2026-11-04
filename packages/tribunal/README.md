@@ -166,7 +166,7 @@ The package ships the deployable Worker, its review page and its migrations.
 
 ```bash
 npm install @variance-authority/tribunal wrangler
-npx -p @variance-authority/tribunal variance-authority-tribunal-provision --config wrangler.jsonc
+npx variance-authority-tribunal-provision --config wrangler.jsonc
 ```
 
 When `wrangler.jsonc` is absent the command writes it, named for the repository:
@@ -636,7 +636,7 @@ that no shape could group are returned as `ungrouped`, not dropped.
 | `@variance-authority/tribunal/history` | D1 | `createD1Backend` — the record |
 | `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
 | `@variance-authority/tribunal/worker` | D1, R2 and a `Policy` | `createTribunal` — one `fetch` handler; `declaredPolicy` — a `Policy` from what you declared |
-| `@variance-authority/tribunal/worker-entry` | the bindings and the declared names, as an `env` | the deployable module: `export default { fetch }` |
+| `@variance-authority/tribunal/worker-entry` | the bindings and the declared names, as an `env` | the deployable module: `export default { fetch, scheduled }` |
 | `@variance-authority/tribunal/node` | Node 22, a writable file and directory | `openDatabase`, `createDirectoryBucket`, `serveTribunal`, and the `variance-authority-tribunal` executable |
 | `@variance-authority/tribunal/ui` | React 19 | the review surface, its JSON client, its stylesheet |
 | `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` |

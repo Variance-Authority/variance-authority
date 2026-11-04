@@ -36,7 +36,7 @@ describe('what a workflow on another ref may write', () => {
   const post = (path: string, body: unknown) =>
     onBranch().fetch(new Request(`https://t.example${path}`, { method: 'POST', body: JSON.stringify(body) }));
 
-  it.each(['/baseline/put', '/v1/approvals'])('refuses %s before reading the body', async (path) => {
+  it.each(['/baseline/put', '/cache/put', '/v1/approvals'])('refuses %s before reading the body', async (path) => {
     const refused = await post(path, {});
 
     expect(refused.status).toBe(403);
