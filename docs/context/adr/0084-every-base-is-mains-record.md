@@ -64,7 +64,9 @@ fetched here, and the reader says so.**
   checkout's own, because that record cannot say what they made a test load: a
   selection widens to stay safe. `covering --since` answers what the change
   changed, so it reads the diff from the record's commit and keeps the hunks that
-  meet the diff from the merge base in the working tree. The newest of the line
+  meet the diff from the merge base in the working tree. A path that commit held
+  no file by is not held, whatever git calls a rename, and the answer says so
+  rather than reading another name for it. The newest of the line
   answers only when nothing at or behind is kept, and a directory or an HTTP
   store keeps the newest only. In a git share the record stands without asking
   only when it is at the merge base, since nothing is nearer. Anywhere else the

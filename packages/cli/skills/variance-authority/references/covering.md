@@ -353,11 +353,10 @@ whatever the record holds of them: a change you committed and recorded is still
 your change. The record's commit only says how to read each one. A line of the
 change stands on the line the record holds it at, and a hunk from that commit is
 the change's where it meets one of the change's in the working tree: one hunk the
-change and main both wrote since that record is answered whole. A file main
-renamed since the record is read under the name the record holds, by git's own
-rename answer, and listed as `<file> — held by the record as <name>`, or `heldAs`
-under `--format json`. With no such answer the two names are two files, and the
-new one is listed with no row. With
+change and main both wrote since that record is answered whole. A path is the
+file: one the record's commit held no file by, added or renamed since, is listed
+with no row and that reason, or `absentAt` under `--format json`, and its
+coverage under the old name is read by asking `--file` with that name. With
 nothing changed behind the ref, no record is fetched: each suite gives that as
 its reason at exit 0, and `--suite`, or a repository with no suites declared, is
 refused at exit 2. A ref that does not read as a diff is one `undiffed` refusal at

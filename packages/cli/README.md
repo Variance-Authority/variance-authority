@@ -942,6 +942,9 @@ written at, since the index's line ranges are in that commit's coordinates and
 nothing else's, and a hunk from there is yours where it meets one of your
 change's in the working tree: one hunk your change and those commits both wrote
 is answered whole, and a file the record already holds as written is not listed.
+A path the record's commit held no file by, added or renamed since, is listed with
+no row and says so, naming that commit; `--file` with the name it held reads the
+coverage it recorded.
 With nothing changed behind the ref, no record is fetched: in a
 repository that declares suites, each suite gives that as its reason at exit 0,
 and with `--suite`, or with no suites declared, it is refused. A change whose
