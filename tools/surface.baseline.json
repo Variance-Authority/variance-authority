@@ -3009,6 +3009,7 @@
         "recordedPaths": "function",
         "recordedTimes": "function",
         "refreshDependencyLexiconNative": "function",
+        "refusalAt": "function",
         "relationBetween": "function",
         "restrictedChains": "function",
         "restrictedImports": "function",

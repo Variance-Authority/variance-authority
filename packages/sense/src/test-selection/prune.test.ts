@@ -46,14 +46,16 @@ function owners(answers: Partial<PruneOwners> = {}): PruneOwners {
 }
 
 describe('planPrune', () => {
-  test('the index turn beside the layers is left however old it is: it is a lock, not a layer', async () => {
+  test('the index turn and its holder beside the layers are left however old they are: they are a lock, not a layer', async () => {
     const root = await cache();
     const repository = join(root, 'test-selection', 'project');
     await marker(repository, '/checkout', '/checkout', 90 * DAY);
     const turn = await put(join(repository, '.work', 'index-turn'), 90 * DAY);
+    const holder = await put(join(repository, '.work', 'index-turn.holder'), 90 * DAY);
 
     expect((await planPrune(root, owners())).remove).toEqual([]);
     expect(existsSync(turn)).toBe(true);
+    expect(existsSync(holder)).toBe(true);
   });
 
   test('a layer whose marked checkout is gone is removed, and one whose checkout is there keeps its recording', async () => {

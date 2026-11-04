@@ -34,6 +34,7 @@
 
 import {
   inIndexTurn,
+  refusalAt,
   prepareCodeMap,
   prepareJourneys,
   readySourceIndex,
@@ -102,8 +103,7 @@ async function written(request: IndexRequest): Promise<SourceUpdate> {
   // A scan treats an unwritable cache as a cold next run. This step exists to
   // write it, so a refusal is the answer, and nothing after it has an index to read.
   if (update.refused !== undefined) {
-    const reason = update.refused.startsWith(`${update.path}: `) ? update.refused.slice(update.path.length + 2) : update.refused;
-    throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
+    throw new OperatorError(`source index not written: ${refusalAt(update.path, update.refused) ?? update.refused}, at ${update.path}`);
   }
   return update;
 }
@@ -119,12 +119,12 @@ function turn<T>(request: IndexRequest, work: () => Promise<T>): Promise<T> {
     request.cwd,
     work,
     (holder) => request.waiting?.(turnLine(holder)),
-    (path, reason) => request.waiting?.(`no index turn at ${path} (${reason}), so this index may run beside another of this repository\n`),
+    (path, reason) => request.waiting?.(`no index turn at ${path}: ${reason}, so this index may run beside another of this repository\n`),
   );
 }
 
 function turnLine({ pid, root }: IndexTurnHolder): string {
-  return `waiting for process ${pid}, which is indexing ${root}: an index uses every core, so this repository's checkouts take turns\n`;
+  return `waiting for process ${pid}, which is indexing ${root}: an index uses every core, so checkouts sharing a cache take turns\n`;
 }
 
 /**

@@ -21,8 +21,11 @@
   pinned by [native-update.test.ts](src/native-update.test.ts).
 - **Only `knownAs` relates names.** Pinned by
   [lookup.test.ts](src/test-selection/lookup.test.ts).
-- **Two checkouts never share bytes.** Pinned by
-  [cache-layers.test.ts](src/test-selection/cache-layers.test.ts).
+- **Two checkouts share no bytes but the index turn's two files.**
+  `.work/index-turn` and `.work/index-turn.holder` are written by every checkout
+  that shares the cache, and record nothing. The layers are pinned by
+  [cache-layers.test.ts](src/test-selection/cache-layers.test.ts), the turn by
+  [index-turn.integration.test.ts](src/index-turn.integration.test.ts).
 - **A held listing is the tree only while Watchman and git's inputs vouch for
   it.** The newest segment's listing stands in for git's only when the same
   server and roots report nothing since its clock but paths git ignores, and no

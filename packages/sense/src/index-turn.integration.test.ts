@@ -1,7 +1,7 @@
-import { execFileSync, spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs';
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
@@ -24,25 +24,31 @@ function worktreeOf(primary: string): string {
   return worktree;
 }
 
+/** A process in `root`'s turn, which lets go on the first line it reads. */
+async function heldTurn(root: string): Promise<ChildProcessWithoutNullStreams> {
+  // It says so from inside its turn.
+  const holder = spawn(process.execPath, ['--input-type=module', '-e', [
+    "const { inIndexTurn } = await import('@variance-authority/sense');",
+    `await inIndexTurn(${JSON.stringify(root)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));`,
+  ].join('\n')], { cwd: PACKAGE, env: process.env });
+  let stderr = '';
+  holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+  onTestFailed(() => { console.error(`the holder's stderr:\n${stderr}`); });
+  onTestFinished(() => { holder.kill(); });
+  await new Promise<void>((resolve, reject) => {
+    holder.stdout.once('data', () => resolve());
+    holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}: ${stderr}`)));
+  });
+  return holder;
+}
+
 describe('the index turn', () => {
   afterEach(() => { vi.unstubAllEnvs(); });
 
   it('holds a worktree\'s index until the process holding its primary checkout\'s turn lets go, naming that process and its checkout', async () => {
     const primary = repository();
     const worktree = worktreeOf(primary);
-    // The holder says so from inside its turn, and lets go on the first line it reads.
-    const holder = spawn(process.execPath, ['--input-type=module', '-e', [
-      "const { inIndexTurn } = await import('@variance-authority/sense');",
-      `await inIndexTurn(${JSON.stringify(primary)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));`,
-    ].join('\n')], { cwd: PACKAGE, env: process.env });
-    let stderr = '';
-    holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-    onTestFailed(() => { console.error(`the holder's stderr:\n${stderr}`); });
-    onTestFinished(() => { holder.kill(); });
-    await new Promise<void>((resolve, reject) => {
-      holder.stdout.once('data', () => resolve());
-      holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}: ${stderr}`)));
-    });
+    const holder = await heldTurn(primary);
     const told: IndexTurnHolder[] = [];
     const order: string[] = [];
     const release = (): void => { holder.stdin.write('\n'); };
@@ -107,6 +113,32 @@ describe('the index turn', () => {
     const refused: [string, string][] = [];
 
     expect(await inIndexTurn(root, async () => 'ran', () => {}, (at, reason) => refused.push([at, reason]))).toBe('ran');
-    expect(refused).toEqual([[path, expect.any(String)]]);
+    expect(refused).toEqual([[path, 'Is a directory (os error 21)']]);
+  });
+
+  it('runs the work without the turn when the file a waiter polls goes from under it, rather than making a second file to lock beside the holder\'s', async () => {
+    const root = repository();
+    const path = indexTurnPath(root);
+    await heldTurn(root);
+    const refused: [string, string][] = [];
+    const told: IndexTurnHolder[] = [];
+
+    const ran = await inIndexTurn(root, async () => 'ran', (held) => {
+      told.push(held);
+      rmSync(dirname(path), { recursive: true });
+    }, (at, reason) => refused.push([at, reason]));
+
+    expect(ran).toBe('ran');
+    expect(told).toHaveLength(1);
+    expect(refused).toEqual([[path, 'No such file or directory (os error 2)']]);
+  });
+
+  it('leaves what the work throws alone, whatever it says: only the take is guarded', async () => {
+    const root = repository();
+    const failure = new Error(`${indexTurnPath(root)}: the work's own failure`);
+    const refused: string[] = [];
+
+    await expect(inIndexTurn(root, () => Promise.reject(failure), () => {}, (_, reason) => refused.push(reason))).rejects.toBe(failure);
+    expect(refused).toEqual([]);
   });
 });

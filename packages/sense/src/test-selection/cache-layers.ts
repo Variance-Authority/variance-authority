@@ -195,6 +195,11 @@ export interface CacheLayers {
   readonly base: string;
 }
 
+/** What `base` holds beside the primary checkout's files: every worktree's layer, and the index turn. */
+export function workDirectory(base: string): string {
+  return resolve(base, '.work');
+}
+
 /**
  * Both layers for a checkout.
  *
@@ -212,7 +217,7 @@ export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
   // inside the worktree, which is the one directory a sandboxed agent may write.
   const own = resolve(cacheRoot ?? cacheRootFor(here), 'test-selection', keyOf(primary));
 
-  return { top: resolve(own, '.work', keyOf(here)), base };
+  return { top: resolve(workDirectory(own), keyOf(here)), base };
 }
 
 /**

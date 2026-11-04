@@ -94,7 +94,9 @@ over it, so a repository that names its cache keeps one answer for everyone.
                                  on, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
-    .work/index-turn             the lock that gives this repository's checkouts one index at a time
+    .work/index-turn             the lock that gives the checkouts sharing this directory one index at
+                                 a time
+    .work/index-turn.holder      the process that holds that lock and the checkout it indexes
   renders/                       the images a run took, reused while they match
   suite/<project>/<commit>.bin   every run's suite index, by the commit it names
   share/<digest>.git             a git share's own repository, one per remote URL
@@ -120,12 +122,14 @@ The [execution record](execution-record.md) page describes `coverage.bin`, the
 
 A git worktree writes its own layer under `.work/<worktree>/` and reads the
 primary checkout's layer when its own has nothing. So a worktree you created
-this morning starts from what the repository already recorded. It never writes
-the primary checkout's files.
+this morning starts from what the repository already recorded. Of the primary
+checkout's files it writes two, `.work/index-turn` and
+`.work/index-turn.holder`, which give it [its turn to index](source-index.md).
 
 With the default location or a relative `cacheRoot`, each checkout resolves
-the path against its own root: the worktree writes inside the worktree, and
-still reads the primary checkout's layer from inside the primary checkout. With
+the path against its own root: the worktree writes its layer inside the
+worktree, and reads the primary checkout's layer and writes those two files
+inside the primary checkout. With
 `VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`, both layers are in one
 directory.
 

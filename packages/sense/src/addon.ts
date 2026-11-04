@@ -105,6 +105,11 @@ export function refusal(specifier: string, error: unknown): string | undefined {
  * The reason the addon is absent, for an error from a command that cannot run
  * without it. Nothing when it loaded.
  */
+/** What the file system refused at `path`, from what the addon `said`; undefined when it is no refusal there, as a panic is not. */
+export function refusalAt(path: string, said: string): string | undefined {
+  return said.startsWith(`${path}: `) ? said.slice(path.length + 2) : undefined;
+}
+
 export function nativeRefusal(): string | undefined {
   if (native() !== undefined) return undefined;
   return refusals.join('; ');

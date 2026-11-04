@@ -159,7 +159,7 @@ describe('variance index', () => {
       }
     } });
 
-    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing ${elsewhere}: an index uses every core, so this repository's checkouts take turns\n`]);
+    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing ${elsewhere}: an index uses every core, so checkouts sharing a cache take turns\n`]);
     expect(output).toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
   });
 
@@ -188,7 +188,7 @@ describe('variance index', () => {
     expect(await indexOutput({ cwd: root, waiting: (text) => told.push(text) }))
       .toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
     // The update and the follow-ups each ask for the turn.
-    const refused = expect.stringMatching(new RegExp(`^no index turn at ${escaped(path)} \\(EISDIR\\), so this index may run beside another of this repository\\n$`, 'u'));
+    const refused = `no index turn at ${path}: Is a directory (os error 21), so this index may run beside another of this repository\n`;
     expect(told).toEqual([refused, refused]);
   });
 
