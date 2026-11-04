@@ -1,25 +1,16 @@
 # Find code through the workspace index
 
 `rg` tells you where text is written. This server tells you which name matches
-your words in the part of the import graph you are working in — an exported name
-first, then one a file keeps to itself — then gives you its declaration,
-signature and documentation, and for an exported name its import line and
-existing import sites. It answers from a workspace generation, the names,
-signatures and import edges one scan of the checkout published, with the time it
-was made: no build, run, generated API site, or `variance.config.json` in between.
+your words in the part of the import graph you are working in, then gives you
+its declaration, signature, documentation and import sites. It answers from a
+workspace generation, the names, signatures and import edges one scan of the
+checkout published, with the time it was made: no build, run, generated API
+site, or `variance.config.json` in between.
 
-This is the source how-to and contract for
-[orientation](orientation.md). Start there when you need to choose between text
-search, indexed source search and observed-subject search. [What an answer sees
-after you edit](#what-an-answer-sees-after-you-edit) says when a generation is
-read again.
-
-The difference matters when a checkout is too large to open again for every
-question. A [source index](source-index.md) parses and resolves a file once,
-stores its exported names and outgoing edges, and reuses that record while the
-file and its resolution inputs stay the same. A question with `from` or `to`
-then filters names through those stored edges instead of searching every file
-for another string.
+[Orientation](orientation.md) chooses between text search, indexed source search
+and observed-subject search; this page is the source how-to and contract. [What
+an answer sees after you edit](#what-an-answer-sees-after-you-edit) says when a
+generation is read again.
 
 ## Choose the cheapest entrance
 
@@ -91,6 +82,13 @@ absolute path when the MCP client launches outside it. The configured command
 must resolve the installed package binary.
 
 ## Search finds the name; the graph finds the area
+
+A checkout can be too large to open again for every question. A
+[source index](source-index.md) parses and resolves a file once, stores its
+exported names and outgoing edges, and reuses that record while the file and its
+resolution inputs stay the same. A question with `from` or `to` then filters
+names through those stored edges instead of searching every file for another
+string.
 
 The workspace generation combines two different answers. Names and documentation
 find a candidate such as `createStore`. Resolved import edges decide whether that
