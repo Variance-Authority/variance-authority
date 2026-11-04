@@ -66,9 +66,20 @@ npm install --save-dev @variance-authority/mcp
 }
 ```
 
-`npx` reads the directory the client starts the server in. A client that starts
-outside the repository, as Claude Desktop may, takes its absolute path:
-`"args": ["--prefix", "/path/to/repo", "variance-authority-mcp", "--watch"]`.
+`npx` and the server's repository both come from the directory the client starts
+the server in. A client that starts outside the repository, as Claude Desktop
+may, enters it first. On macOS and Linux:
+
+```json
+{
+  "mcpServers": {
+    "variance-live": {
+      "command": "sh",
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp --watch"]
+    }
+  }
+}
+```
 
 Both listeners print the same assignment:
 

@@ -21,8 +21,8 @@ const HEADING = '## Connect your agent';
 /** Records of what happened, and what is not built, which quote the old wording rather than ask anything of a reader. */
 const HISTORY = /^(?:docs\/context\/|docs\/specs\/|backlog\/)/;
 
-/** The lines a reader runs that this cannot: each reaches the registry, for us, for the published package or for a client. */
-const STANDS_IN = /^npm install |^npx @variance-authority\/help |@modelcontextprotocol\/inspector/;
+/** The lines a reader runs that this cannot: each reaches the registry, for us or for a client. */
+const STANDS_IN = /^npm install |@modelcontextprotocol\/inspector/;
 
 const ORIENT = 'npx variance ask orient';
 const SYMBOL = 'npx variance ask symbol --name price';
