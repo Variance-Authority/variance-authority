@@ -36,23 +36,45 @@ as the investigation grows.
 | Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |
 | Check whether the work did what you intended | [Compare the intentions declared before an edit](docs/reasoning.md) with its observed effects: what landed, what did not, and what changed outside the declared scope. |
 
-## Give your coding agent the same evidence
+## Connect your coding agent
 
 Your agent keeps its editor, shell, and test runner. Variance supplies the
 source facts and observations it reads, through the interfaces it already has.
 
-- [**On your code, with no config**](docs/agent-workspace-api.md#connect-your-agent)
-  — one install, one index and one MCP entry give it the shell, the tools and
-  the code map in any git repository.
-- [**From the shell**](docs/agent-cli.md) — query the current workspace, a
-  completed report, or a live watcher from the command line.
-- [**Over MCP**](docs/agent-mcp.md) — the observations you supply become
-  callable tools, including a test paused at an authored inspection point.
-- [**As guided workflows**](docs/agent-workflows.md) — source discovery, live
-  investigation, UI review, test selection, and test reduction, each carried
-  through an edit and a check.
+Start with your source, which takes a git repository and Node 22.15 or newer,
+and no config or test run. Install the CLI, build the index, and ask about a
+name, with one your code exports in place of `price`:
 
-Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
+```bash
+npm install --save-dev @variance-authority/cli
+npx variance index
+npx variance ask symbol --name price
+```
+
+This is what your agent gets back on your code: the name, the line that imports
+it, where it is declared, and who uses it.
+
+```text
+price [const]
+import { price } from '@shop/price';
+declared at packages/price/src/index.ts:1
+used by 1 package: @shop/cart — 1 import by published path
+```
+
+An agent that runs commands can now ask about your source and
+[what a change reaches](#it-reads-more-than-javascript), and
+[a few lines in `AGENTS.md`](docs/agent-workspace-api.md#point-an-agent-at-it)
+tell it to. A client that reaches tools only through a server first
+[adds the MCP entry](docs/agent-workspace-api.md#add-the-mcp-server).
+
+A question about a test or a screenshot needs something to read first: a finished
+report, or a watcher on a suite in flight.
+[Choose an agent workflow](docs/agent-workflows.md) matches your question to what
+it needs and the route that reaches it, [the shell](docs/agent-cli.md) or
+[MCP](docs/agent-mcp.md), which alone releases a test stopped at a line you chose.
+
+An agent finding its own way can start from
+[`llms.txt`](https://variance-authority.dev/llms.txt), the index of every page.
 
 ## One change, traced end to end
 
@@ -89,8 +111,8 @@ runners.
 
 ## Add it to a Playwright test
 
-The fastest way in is a test that already gets the app into the UI state you
-care about. Two installs, one call, one assertion:
+The fastest way into a visual check is a test that already gets the app into the
+UI state you care about. Two installs, one call, one assertion:
 
 ```bash
 npm install --save-dev @variance-authority/playwright-test @playwright/test

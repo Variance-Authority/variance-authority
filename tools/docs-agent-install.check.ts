@@ -284,6 +284,20 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
   });
 });
 
+describe('README.md starts an agent on the lines the page runs', () => {
+  const start = printed('README.md', '## Connect your coding agent');
+
+  it('prints the install, the index and the check, each of them run above', () => {
+    expect(shellLines(start)).toContain(SYMBOL);
+    expect(shellLines(fences)).toEqual(expect.arrayContaining([...shellLines(start)]));
+  });
+
+  it('prints the answer that check gets', () => {
+    const [answer] = start.filter((fence) => fence.lang === 'text');
+    expect(answer?.code.trim()).toBe(symbolOf(followed));
+  });
+});
+
 const runServer = printed(RUN_PAGE, RUN_SERVER);
 const runAnswers = printed(RUN_PAGE, RUN_QUESTIONS)
   .filter((fence) => fence.lang === 'text')
