@@ -3,10 +3,12 @@ import { comparedInProcess } from './__fixtures__/carry-comparison.js';
 import { lastCases, selected } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
 import { ranInProcess } from './__fixtures__/carry-ran.js';
+import { sinceInProcess } from './__fixtures__/carry-since.js';
 import {
   bothRanOverAnUnkeptEdit,
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
+  changeRecordedThenAsked,
   commentThenRunElsewhere,
   importEditedThenRunElsewhere,
   lackedCallbackThenComment,
@@ -15,6 +17,7 @@ import {
   ranOverAnotherTestsRegion,
   ranOverThenCommittedElsewhere,
   ranOverThenKeptForgotten,
+  renamedThenEdited,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
 import { forgetKept, selectedFromTree } from './__fixtures__/carry-tree.js';
@@ -62,6 +65,14 @@ describe('a record carried through a history, asked in-process', () => {
 
   it('dates a test file by the landing it last ran in, never by a later one that carried it, and holds the text it ran over only while it is kept or committed', async () => {
     await ranOverThenCommittedElsewhere(ranInProcess, forgetKept);
+  });
+
+  it('answers for a change the record already holds by the test that entered it, and for what it does not hold beside it', async () => {
+    await changeRecordedThenAsked(sinceInProcess);
+  });
+
+  it('reads a file the mainline renamed under the name the record ran it by, by the test that entered it', async () => {
+    await renamedThenEdited(sinceInProcess);
   });
 
   it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {

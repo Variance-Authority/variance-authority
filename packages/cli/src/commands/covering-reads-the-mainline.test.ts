@@ -208,7 +208,7 @@ describe('a file the change and the commits since the record both wrote', () => 
     process.chdir(dir);
     return { dir, at };
   }
-  const answered = async (dir: string, at: string) => changeSince(await listedChange('HEAD'), 'HEAD', dir, at);
+  const answered = async (dir: string, at: string) => (await changeSince(await listedChange('HEAD'), 'HEAD', dir, at)).lines;
 
   it("answers for the change's hunk, in the record's numbers, and not for the mainline's", async () => {
     const mainline = rewritten(held, 2, 'the mainline');
@@ -234,12 +234,12 @@ describe('a file the change and the commits since the record both wrote', () => 
     expect(await answered(dir, at)).toEqual(new Map([[FILE, [{ start: 17, end: 17 }, { start: 18, end: 18 }]]]));
   });
 
-  it('holds nothing of a file the change put back as the record had it, rather than the whole of it', async () => {
+  it('holds the line of a file the change put back as the record had it, which the change still changed', async () => {
     const mainline = rewritten(rewritten(held, 2, 'the mainline'), 18, 'the mainline again');
     const { dir, at } = await recordBehind(mainline);
     await written(dir, rewritten(mainline, 2, 'line 2'));
 
-    await expect(answered(dir, at)).rejects.toThrow('nothing has changed since `HEAD`');
+    expect(await answered(dir, at)).toEqual(new Map([[FILE, [{ start: 2, end: 2 }]]]));
   });
 });
 
@@ -320,7 +320,7 @@ describe('the change `--since` names', () => {
     expect(reads()).toBe(2);
   });
 
-  it('lists what moved past a record ahead of the merge base, not what that record holds as written', async () => {
+  it('lists what the change wrote into a record ahead of the merge base, and what moved past that record', async () => {
     const { clone } = await behindTheMainline({ publish: false });
     await git(clone, 'config', 'user.email', 'fixture@example.test');
     await git(clone, 'config', 'user.name', 'Fixture');
@@ -332,7 +332,7 @@ describe('the change `--since` names', () => {
 
     const answer = await asked(since);
 
-    expect(answer.changed?.map((change) => change.file)).toEqual(['src/moved.ts']);
+    expect(answer.changed?.map((change) => change.file)).toEqual(['src/moved.ts', 'src/total.ts']);
     expect(reads()).toBe(2);
   });
 

@@ -604,8 +604,8 @@ Records are read in this order:
    stands for 10 minutes, with the time of that result. When the remote does not answer,
    the record fetched earlier is read, and the answer prints when it was
    fetched and why it was not fetched again.
-3. **In a worktree, the primary checkout's record**, only when no mainline
-   record was ever fetched on this machine. It is what that checkout last ran,
+3. **In a worktree, the primary checkout's record**, only when no record of
+   the mainline your checkout selects was fetched on this machine. It is what that checkout last ran,
    so the answer names it as the offline fallback and prints why the mainline's
    was not read.
 

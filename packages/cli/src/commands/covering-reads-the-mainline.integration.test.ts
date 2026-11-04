@@ -70,4 +70,23 @@ describe('`covering` through the CLI, in a checkout that never ran the suite', (
     expect(answer.changed.map((change) => change.file)).toEqual(['src/total.ts']);
     expect(answer.source.from).toBe('mainline');
   }, 60_000);
+
+  it('answers `--since` for a committed change the checkout recorded, the tree clean', async () => {
+    asCi();
+    const { origin } = await published(home, { publish: false });
+    const clone = await cloneOf(home, origin);
+    await git(clone, 'config', 'user.email', 'fixture@example.test');
+    await git(clone, 'config', 'user.name', 'Fixture');
+    await writeFile(join(clone, 'src/total.ts'), 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
+    await git(clone, 'commit', '--quiet', '-am', 'the change');
+    const head = await git(clone, 'rev-parse', 'HEAD');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
+    await recordIn(clone, head, ['test/total.test.ts'], [DISCOUNTS]);
+
+    const { stdout } = await variance(clone, 'covering', '--since', 'origin/main', '--suite', 'unit', '--format', 'json');
+    const answer = JSON.parse(stdout) as { readonly at: string; readonly changed: readonly { readonly file: string }[] };
+
+    expect(answer.at).toBe(head);
+    expect(answer.changed.map((change) => change.file)).toEqual(['src/total.ts']);
+  }, 60_000);
 });

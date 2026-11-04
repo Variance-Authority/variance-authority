@@ -15,7 +15,7 @@
  *    shows the whole suite ran at the commit it names, and it is the same
  *    record every other checkout and every pull request measures from.
  * 3. **The primary checkout's**, in a worktree that has run nothing, and only
- *    when no mainline record was read now or fetched earlier. It is an offline
+ *    when no record of the mainline selected was read now or fetched earlier. It is an offline
  *    fallback, and the reader says why the mainline's is not it.
  *
  * A checkout's first run is laid on the same answer. The runner seams in
@@ -102,7 +102,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 
   // With no mainline record fetched here, the nearest layer under this
   // checkout's own is the primary checkout's, the same one a first run lays.
-  const nearest = await selection.readableTestCoverage(root, named);
+  const nearest = await selection.readableTestCoverage(root, read === undefined ? named : { ...named, fetched: 'passed' });
   if (nearest !== own && (await exists(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
 }

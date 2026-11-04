@@ -83,7 +83,7 @@ export function formatCoveringChange(
   ];
 
   for (const file of changed) {
-    lines.push('', file.file);
+    lines.push('', changedFileName(file));
     if (file.cases.length > 0) {
       lines.push(
         `  a test file — ${count(file.cases.length, 'named case')} declared here, which is ` +
@@ -218,4 +218,9 @@ function carried(passengers: CoveringChange['regions'][number]['passengers']): s
 function describe(test: CoveringTest | ExecutionTest): string {
   // The id is the file and the name unless a project spelled it otherwise, so it is printed only then.
   return `${test.file} > ${test.name}${test.id === `${test.file} > ${test.name}` ? '' : ` [${test.id}]`}`;
+}
+
+/** A changed file as an answer heads it: its name, and the name the record holds it under when that is another. */
+export function changedFileName(file: Pick<CoveringChange, 'file' | 'heldAs'>): string {
+  return file.heldAs === undefined ? file.file : `${file.file} — held by the record as ${file.heldAs}`;
 }

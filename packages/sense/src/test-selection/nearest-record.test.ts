@@ -54,6 +54,7 @@ describe('whose record answers a worktree', () => {
     await hold(mainline);
     await writeFetchedMainline(asked.cacheRoot, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
     expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
+    expect(nearestRecord(worktree, { ...asked, fetched: 'passed' })).toEqual({ file: below, origin: 'primary' });
 
     await hold(own);
     expect(nearestRecord(worktree, asked)).toEqual({ file: own, origin: 'own' });

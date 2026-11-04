@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleFile, staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, reachOf } from '@variance-authority/sense/test-selection';
+import { changedFileName, heldText, reachOf } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -54,7 +54,7 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
       answer.since === undefined ? '' : ` since ${answer.since}`
     }, read from ${answer.from}${answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`}`];
     for (const file of answer.changed) {
-      lines.push(file.file);
+      lines.push(changedFileName(file));
       if (file.cases.length > 0) lines.push(`  declares ${table.refs(file.cases)}`);
       if (!file.recorded) {
         if (file.cases.length === 0) lines.push('  no row: the recorded run never loaded it');

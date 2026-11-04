@@ -348,12 +348,16 @@ counts the two findings a percentage cannot state: regions **no case ran**, and
 regions **one case alone** ran. A changed test file is answered with the named
 cases it declares, since it has no module row. A changed path the index has
 nothing for is named as such, since *no row* and *no test* are opposite facts.
-The files are the ones the change changed, from the merge base with the ref. Each
-one's lines are measured from the commit the record was written at, and a hunk
-from there is the change's where it meets one of the change's in the working
-tree: one hunk the change and main both wrote since that record is answered whole,
-and a file the record already holds as written is not listed: record before you
-read. With
+The files are the ones the change changed, from the merge base with the ref,
+whatever the record holds of them: a change you committed and recorded is still
+your change. The record's commit only says how to read each one. A line of the
+change stands on the line the record holds it at, and a hunk from that commit is
+the change's where it meets one of the change's in the working tree: one hunk the
+change and main both wrote since that record is answered whole. A file main
+renamed since the record is read under the name the record holds, by git's own
+rename answer, and listed as `<file> — held by the record as <name>`, or `heldAs`
+under `--format json`. With no such answer the two names are two files, and the
+new one is listed with no row. With
 nothing changed behind the ref, each suite gives that as its reason at exit 0 and
 no record is fetched; a ref that does not read as a diff is one `undiffed`
 refusal at exit 2.

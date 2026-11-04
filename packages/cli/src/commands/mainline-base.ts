@@ -126,7 +126,8 @@ function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere:
  * cannot be kept, bytes this version does not read — is a miss the reader
  * names, because the reader still has an answer without the record: `select`
  * runs every test, and `review` asks for `--since`. When a record was fetched
- * earlier, a miss is not the answer: that record is, and it carries the miss.
+ * earlier for the mainline selected, a miss is not the answer: that record is,
+ * and it carries the miss.
  */
 export async function mainlineBase(
   root: string,
@@ -158,22 +159,24 @@ export async function mainlineBase(
   const chosen = await readerMainline(place, env, root);
   const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
+  // A record fetched for another mainline answers nothing about this one, so it is no record here.
+  const held = last?.mainline === named?.name ? last : undefined;
   if (here.fetch !== 'always') {
     const mainline = named?.name;
-    if (last !== undefined && last.mainline === mainline) {
-      const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      const reused = reuseOf(distance, keepsByCommit(share), last.base === named?.base);
-      if (reused !== undefined) return earlier(last, { reused }, distance);
+    if (held !== undefined) {
+      const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
+      const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base);
+      if (reused !== undefined) return earlier(held, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
-      if (last !== undefined) return measured(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
+      if (held !== undefined) return measured(place, root, held, { unanswered: noted.miss, asked: noted.at }, named?.base);
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
   }
 
   if (here.fetch === 'never') {
-    if (last !== undefined) return measured(place, root, last, { reused: 'offline' }, baseOf(last.mainline));
+    if (held !== undefined) return measured(place, root, held, { reused: 'offline' }, named?.base);
     return { suite, ...(named === undefined ? {} : { mainline: named.name }), miss: { kind: 'unfetched', detail: 'this read does not fetch' }, shareAsked: false };
   }
 
@@ -188,7 +191,7 @@ export async function mainlineBase(
       const { miss, holds } = found;
       await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss, ...(holds === undefined ? {} : { holds }) });
     }
-    if (last !== undefined) return measured(place, root, last, { unanswered: found.miss }, baseOf(last.mainline));
+    if (held !== undefined) return measured(place, root, held, { unanswered: found.miss }, named?.base);
     return { suite, ...found };
   }
   const unread = async (detail: string): Promise<MainlineMissed> => {

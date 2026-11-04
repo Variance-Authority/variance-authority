@@ -404,6 +404,8 @@ export interface CoveringRegion {
  */
 export interface CoveringChange {
   readonly file: string;
+  /** The name the record holds this file under, when git says the file was renamed since the record. */
+  readonly heldAs?: string;
   /** Whether the index holds a module row for this file at all. */
   readonly recorded: boolean;
   readonly regions: readonly CoveringRegion[];

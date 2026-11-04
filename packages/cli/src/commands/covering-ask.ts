@@ -54,7 +54,7 @@ export async function ask(
     // The snapshot's commit is the coordinate of what was recorded beside it,
     // and of nothing else: a journey file handed in by path names no commit, and
     // diffing it from the snapshot's would land its hunks on another text.
-    const changed = await changeSince(request.listed, request.since, request.root, at);
+    const { lines: changed, names } = await changeSince(request.listed, request.since, request.root, at);
     const { index, before } = await readIndex(from, changed);
     // The graph carries the mocks: a case whose file mocked the changed module
     // is not listed under it, whatever it crossed there.
@@ -67,6 +67,7 @@ export async function ask(
       since: request.since,
       changed: answer.map((file, at) => ({
         ...file,
+        ...(names.has(file.file) ? { file: names.get(file.file)!, heldAs: file.file } : {}),
         regions: file.regions.map((region, of) => stated(region, reached[at]!.regions[of]!)),
       })),
       ...(at === undefined ? {} : { at }),
