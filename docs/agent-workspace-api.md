@@ -1,37 +1,193 @@
 # Find code through the workspace index
 
-`rg` tells you where text is written. This server tells you which name matches
-your words in the part of the import graph you are working in — an exported name
-first, then one a file keeps to itself — then gives you its declaration,
-signature and documentation, and for an exported name its import line and
-existing import sites. It answers from a dated workspace generation — no build,
-run, generated API site, or `variance.config.json` in between.
+`rg` tells you where text is written. The workspace index tells you, or your
+coding agent, which name matches your words in the part of the import graph you
+are working in — an exported name first, then one a file keeps to itself — then
+gives you its declaration, signature and documentation, and for an exported name
+its import line and existing import sites. `variance index` reads your source
+into it once, outside your tracked files. Your code is not built or run, and no
+generated API site or `variance.config.json` is involved.
+
+## Connect your agent
+
+You need a git repository and Node 22.15 or newer. You do not need a
+`variance.config.json` or a run.
+
+To try one question first, `variance-authority-help` answers on the command
+line, with no client and no server, and `npx` runs it without an install:
+
+```bash
+npx @variance-authority/help search viewport --root .
+```
+
+Pass the package name to `npx`, not the binary name: `variance-authority-help`
+is not a package name and the registry will report it missing. `--root` is the
+workspace to read; omit it when you are standing in that workspace.
+
+Your agent asks the same questions by either of two routes: the shell, `npx
+variance ask`, for an agent that runs commands, and MCP, for a client that reaches
+tools only through a server. Both start here: `@variance-authority/cli` builds
+the index and `@variance-authority/help` is the server. Install them, build the
+index and ask about a name, with one your code exports in place of `price`, then
+read the code map:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/help
+npx variance index
+npx variance ask symbol --name price
+npx variance ask orient
+```
+
+The index lives in `node_modules/.cache`, so it adds no tracked file. `ask symbol`
+is the check: it answers with the name, the line that imports it, where it is
+declared and who uses it, above its signature.
+
+```text
+price [const]
+import { price } from '@shop/price';
+declared at packages/price/src/index.ts:1
+used by 1 package: @shop/cart — 1 import by published path
+```
+
+The last line waits for the map the index makes, then prints it. A repository of
+several packages gets them listed, here two:
+
+```text
+# shop: 2 packages in 2 dependency layers (1 takes nothing), 2 source files, 0 areas
+  packages: cart, price
+```
+
+The map is of packages, so a repository of one has none to draw and says so, with
+your own path. That is not a failure: every other question answers, as `ask
+symbol` just did.
+
+```text
+The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
+```
+
+A name the index does not hold is looked for again in the checkout as it is, so
+a function you just wrote is answered with no step from you. A name it does hold
+is answered from the index, which a question reuses for an hour, and read again
+when a file the answer rests on changed since. An edit anywhere else can leave
+that answer behind. Run `variance index` when the next answer has to match it: who imports a name, and which names exist, are then current. The signature
+and comment of a name that stays exported are not. A question reads them again
+once the index is over an hour old, and a `variance index` that read a changed
+file restarts that hour, so read the file itself for those. `ask search` answers
+from the last index at any age, and its last line says so.
+
+Your agent can now run any `npx variance ask` question, and one step is left:
+[point it at them](#point-an-agent-at-it). A client that reaches tools only
+through a server adds the server first.
+
+### Add the MCP server
+
+Add this entry to the file your client keeps its servers in, `.mcp.json` at the
+repository root for Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "workspace-api": {
+      "command": "npx",
+      "args": ["variance-authority-help", "."]
+    }
+  }
+}
+```
+
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so the entry goes through `npx`, which finds the binary in
+`node_modules/.bin` without asking the registry. Change `npx` to however your
+package manager runs a local binary. Both `npx` and `.` read the directory the
+client starts in. A client that starts outside the repository takes its absolute
+path twice: `"args": ["--prefix", "/path/to/repo", "variance-authority-help",
+"/path/to/repo"]`.
+
+A workspace that already has a `variance.config.json` can declare `variance serve`
+instead of this entry: it carries the same tools under the same names, beside the
+ones about a run. With no config it exits 2.
+
+Check the entry before you open the client. This launches it from the same
+file and asks for the tools. It starts the server in the directory you run it
+from, so run it where your client starts, naming that client's file after
+`--config`:
+
+```bash
+npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspace-api --method tools/list
+```
+
+Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
+runs on every Node these packages do. It prints a notice that version 1 is
+deprecated, then the answer, which lists these fourteen:
+
+```text
+docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
+docs_discover docs_intersection docs_orient docs_slowest_tests docs_journey_map
+docs_test_composition docs_stack docs_gaps
+```
+
+Then start the client, approve the server if it asks, and have your agent call
+`docs_orient` with no arguments. It returns the answer `ask orient` printed.
+
+### Point an agent at it
+
+This step finishes setup on either route. Your agent can use these questions
+now, and it reaches for them once something tells it to. It reads `AGENTS.md` at
+the start of every session, and a skill only when its description matches the
+task. Put these lines in `AGENTS.md`, with `npx` changed to however your package
+manager runs a local binary:
+
+```markdown
+## Finding your way in the code
+
+Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` prints what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+```
+
+The skill is `variance-authority`. It ships in `@variance-authority/cli` at
+`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
+rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
+agents read `.agents/skills`. Link the skill into both rather than copying it,
+so it follows every update, then list what the links reach:
+
+```bash
+mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
+ls .agents/skills/variance-authority/SKILL.md .claude/skills/variance-authority/SKILL.md
+```
+
+Both paths print when the links reach the skill; a broken one prints `No such
+file or directory`. To see the step work, start a new session and ask who imports
+a name: the answer should come from `ask uses`, not a text search.
+
+## Choose the cheapest entrance
 
 This is the source how-to and contract for
 [orientation](orientation.md). Start there when you need to choose between text
 search, indexed source search and observed-subject search.
 
-The difference matters when a checkout is too large to open again for every
+| You need | Start with |
+| --- | --- |
+| An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
+| An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
+| A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
+| Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
+| Files in hand, and the code around them unknown | `ask orient --files <path>`, or `docs_orient` with `files`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
+
+## Search finds the name; the graph finds the area
+
+An index matters when a checkout is too large to open again for every
 question. A [source index](source-index.md) parses and resolves a file once,
 stores its exported names and outgoing edges, and reuses that record while the
 file and its resolution inputs stay the same. A question with `from` or `to`
 then filters names through those stored edges instead of searching every file
 for another string.
 
-## Choose the cheapest entrance
-
-| You need | Start with |
-| --- | --- |
-| An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
-| An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
-| A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
-| Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
-| Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
-
-## Search finds the name; the graph finds the area
-
-The workspace generation combines two different answers. Names and documentation
-find a candidate such as `createStore`. Resolved import edges decide whether that
+Each run of `variance index` publishes a dated generation of the index, and a
+generation combines two different answers. Names and documentation find a
+candidate such as `createStore`. Resolved import edges decide whether that
 candidate belongs to the code in question.
 
 Carry a path into the first search whenever you have one:
@@ -189,9 +345,8 @@ them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
 Without `--just-answer`, a source question that a reused generation refuses is
-asked again, whether you ask through `variance ask`, `variance serve` or
-`variance-authority-help` and its server, except the command line's `search`:
-the name is looked for again in a generation made from the checkout as it is,
+asked again, whichever command or server you ask through, except the command
+line's `search`: the name is looked for again in a generation made from the checkout as it is,
 and in what your installed packages export, with that list built first when it
 is missing or behind. A function you wrote a minute ago, or a package you just
 installed, is answered rather than reported missing, and that holds when you
@@ -232,29 +387,11 @@ nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. [Naming what
 changed](source-index.md#naming-what-changed) gives the file contract.
 
-## Point the server at the workspace
+## Ask from the shell
 
-Use Node 22 or newer. Install the package in the TypeScript workspace:
-
-```bash
-npm install --save-dev @variance-authority/help
-```
-
-The package installs a `variance-authority-help` binary, which answers the same
-questions on the command line, with no client and no server:
-
-```bash
-npx @variance-authority/help search viewport --root .
-```
-
-Pass the package name to `npx`, not the binary name: `variance-authority-help`
-is not a package name and the registry will report it missing. `--root` is the
-workspace to read; omit it when you are standing in that workspace.
-
-A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The same questions are on
-`variance ask`, beside the questions about a run, and read the checkout under
-the working directory:
+A workspace with `@variance-authority/cli` installed asks these questions on
+`variance ask`, beside the questions about a run, reading the checkout under the
+working directory:
 
 ```bash
 npx variance ask search --query viewport
@@ -269,28 +406,7 @@ generation. An answer names a flag or a next question the same way —
 `docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
-The source questions are also tools on `variance serve`, under the same names as below, so
-a workspace with the CLI declares one server for the run and the source
-together. The rest of this page is that contract, whichever of the two serves
-it.
-
-Without the CLI, configure the MCP client to launch this package's server with
-the workspace root:
-
-```json
-{
-  "mcpServers": {
-    "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
-    }
-  }
-}
-```
-
-Here `.` is the server process's working directory. Pass the workspace's
-absolute path when the MCP client launches outside it. The configured command
-must resolve the installed package binary.
+The rest of this page is the contract of those tools, whichever route asks them.
 
 ## Read from entrypoint to symbol
 
@@ -565,34 +681,6 @@ what it does:
 
 Neither is a distance. How many hops separate two modules, and what selecting on
 that distance costs, is [`@variance-authority/sense`](distance.md).
-
-## Point an agent at it
-
-Your agent reads `AGENTS.md` at the start of every session, and a skill only
-when its description matches the task. Put these lines in `AGENTS.md`, with
-`npx` changed to however your package manager runs a local binary:
-
-```markdown
-## Finding your way in the code
-
-Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
-```
-
-The skill is `variance-authority`. It ships in `@variance-authority/cli` at
-`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
-rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
-agents read `.agents/skills`. Link the skill into both rather than copying it,
-so it follows every update:
-
-```bash
-mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
-mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
-```
-
-`variance doctor` reports whether your agent can find it.
 
 The full tool and source-reading contract is in the
 [`@variance-authority/help` package

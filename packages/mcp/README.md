@@ -80,13 +80,16 @@ variance-authority-mcp --watch                 # a run that has not
 Either binary goes in the client's server list:
 
 ```jsonc
-// claude_desktop_config.json, or any MCP client
+// .mcp.json, or any MCP client that starts in the repository
 {
   "mcpServers": {
-    "variance": { "command": "variance-authority-mcp", "args": [".variance/report.json"] }
+    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/report.json"] }
   }
 }
 ```
+
+A client that starts anywhere else, as Claude Desktop may, takes [the repository's
+absolute path](https://variance-authority.dev/agents/mcp#serve-the-report-to-a-client).
 
 The server re-reads the report on every request, so an agent that fixes
 something, re-runs, and asks again is answered from the new report rather than

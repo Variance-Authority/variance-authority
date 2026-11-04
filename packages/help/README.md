@@ -102,10 +102,11 @@ answer over MCP says `limit` and `docs_symbol`.
 
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — and the same
-tools are on `variance serve`, beside the ones about a run. A workspace that
-runs the visual suite needs nothing from this package over either transport.
-This package is for the workspace that does not run one.
+is installed — `npx variance ask search --query viewport` — and, with a
+`variance.config.json`, the same tools are on `variance serve`, beside the ones
+about a run. A workspace that runs the visual suite needs nothing from this
+package over either transport. This package is for the workspace that does not
+run one.
 
 ### What you get
 
@@ -381,9 +382,13 @@ npx variance-authority-help .
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`,
 `docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
-words as the verbs above. `variance serve` serves the same tools under the same names,
-so a workspace with the CLI declares one server and asks it about both the run
-and the source.
+words as the verbs above. `docs_orient` with no files needs the code map `variance
+index` makes, so install the CLI beside this package: [connect your
+agent](https://variance-authority.dev/agents/workspace-api#connect-your-agent)
+prints the whole sequence and how to confirm the tools are listed. With a
+`variance.config.json`, `variance serve` serves the same tools under the same
+names, so a workspace with the CLI and a config declares one server and asks it
+about both the run and the source.
 
 ## Write the answers to files
 

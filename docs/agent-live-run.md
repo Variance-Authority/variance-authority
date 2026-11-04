@@ -48,25 +48,27 @@ npm install --save-dev @variance-authority/cli
 npx variance watch
 ```
 
-From an MCP client, install the server and add it to the client's server list —
-`claude_desktop_config.json` for Claude Desktop, or the equivalent file for any
-other MCP client:
+From an MCP client, install the server and add it to the client's server list,
+which is `.mcp.json` at the repository root for Claude Code:
 
 ```bash
 npm install --save-dev @variance-authority/mcp
 ```
 
-```jsonc
-// claude_desktop_config.json, or any MCP client's server list
+```json
 {
   "mcpServers": {
     "variance-live": {
-      "command": "variance-authority-mcp",
-      "args": ["--watch"]
+      "command": "npx",
+      "args": ["variance-authority-mcp", "--watch"]
     }
   }
 }
 ```
+
+`npx` reads the directory the client starts the server in. A client that starts
+outside the repository, as Claude Desktop may, takes its absolute path:
+`"args": ["--prefix", "/path/to/repo", "variance-authority-mcp", "--watch"]`.
 
 Both listeners print the same assignment:
 
