@@ -1,7 +1,7 @@
 # Validate and correct
 
 Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
-parties answer: CI and CodeRabbit. A PR is handed over only
+parties answer: CI, CodeRabbit and Codex. A PR is handed over only
 when every check except a running `site` is green and every finding is
 classified.
 
@@ -82,6 +82,24 @@ An **Alignment** check that reads failed asks the same questions as the
 `alignment` reviewer of the pushed diff. Its finding is classified like a
 comment; one that is real goes back to the inner loop.
 
+**Codex.** The reviewers before the push and the agent that wrote the change
+share a model family, and they share its blind spots. Codex reads the open PR
+from another family, knowing nothing but the PR:
+
+```bash
+yarn review:codex <n>
+```
+
+It runs once on the head that opens the PR, and again after a cycle pushes a fix
+to the code. It prints the review and posts nothing, since the run holds no
+credentials. The script owns what makes the run count: it starts from empty
+directories with an environment of its own, and fails when the log shows a path
+of this machine, whose run is thrown away and made again. Reading `AGENTS.md` or
+`REVIEW.md` from the PR's own tree is the repository, not a leak. The model and
+effort stay as `tools/codex-review.mjs` sets them until a miss justifies more.
+A machine with no `codex` cannot make the run: the script says so, and the report
+names the review as not made, never waited for.
+
 **What CI says the change does.** `check.yml` posts two comments: a coverage
 report, compared with the unit suite's base record when one was restored, and
 "What this change might do", which names the cases that stood on the changed
@@ -95,7 +113,8 @@ still wrong, it is a defect in the report, and it gets its own change.
 ### Look around
 
 The failing check's log, the same check on `main`'s latest run, and the code
-each CodeRabbit comment names — read before you decide anything.
+each CodeRabbit comment and Codex finding names — read before you decide
+anything.
 
 **A red check is yours.** Read its log:
 
@@ -123,7 +142,8 @@ against `AGENTS.md`, its references and the code. A real defect goes where
 [change](change.md) draws the line: in the task's diff or in work it needs, on
 this branch; otherwise on its own branch. A finding that contradicts a rule
 here, or misreads the code, is left as it is. Never reply to a thread, never
-resolve one, and never tick its autofix checkboxes.
+resolve one, and never tick its autofix checkboxes. A Codex finding is classified
+the same way.
 
 **A comment on a top-layer page may be about its structure.** A reviewer asking
 why something is said, asking for an example, or adding a caveat to the first
@@ -143,6 +163,6 @@ A `site` still running is named as running.
 
 The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit
-findings you acted on and the ones you set aside, and why. It ends with the
+and Codex findings you acted on and the ones you set aside, and why. It ends with the
 merge, which is the owner's, and nothing else asked of her: every other decision
 was the loop's, and is named where it was made.

@@ -154,7 +154,8 @@ records, not proof that a review or a wave ran.
 Never push to `main`. The branch was cut from `origin/main` at setup, not from
 local `main`, which may hold somebody's unpushed work. Push the branch and open
 the PR. CodeRabbit reviews it as finished work, and every push after that spends
-another of its reviews.
+another of its reviews. Codex reviews it from the PR's URL, so it reads what was
+pushed, and it runs in the outer loop.
 
 Opening the PR is not the end of the task. The [outer loop](outer-loop.md)
 starts here.
