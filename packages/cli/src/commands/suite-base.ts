@@ -2,36 +2,17 @@
 /**
  * The record a checkout measures a change from, read in one order:
  *
- * 1. **This checkout's own**, whenever a run here has landed one. Its first
- *    run was laid on the base below it, so it is that base plus everything
- *    this branch ran since, and the fresher of the two. Its ledger says which
- *    milestone it stands on and which tests ran here; for a suite given to the
- *    share, a mainline record read now whose commit HEAD contains replaces the
- *    milestone under every test this checkout did not run (`repinOwnLayer`).
+ * 1. **This checkout's own**, whenever a run here has landed one: the base below
+ *    it plus everything this branch ran since, and the fresher of the two.
  * 2. **The mainline's**, as CI published it, for a suite the root config gives
- *    to the share: fetched now, or the record fetched last for the mainline
- *    selected on this machine, which `mainlineBase` reuses for a while and falls back to when the remote
- *    does not answer. It is published only when the runs record it carries
- *    shows the whole suite ran at the commit it names, and it is the same
- *    record every other checkout and every pull request measures from.
- * 3. **The primary checkout's**, in a worktree that has run nothing, and only
- *    when no record of the mainline selected was read now or fetched earlier.
- *    It is an offline fallback, and the reader says why the mainline's is not it.
+ *    to the share: fetched now, or fetched last for the mainline selected.
+ * 3. **The primary checkout's**, in a worktree that has run nothing, when no
+ *    record of the selected mainline was read. It is an offline fallback, and
+ *    the reader says why the mainline's is not it.
  *
- * A checkout's first run is laid on the same answer. The runner seams in
- * `@variance-authority/sense/test-selection` cannot fetch or select, so they
- * lay the mainline's record as last fetched here, else the primary checkout's,
- * and say which; `mainlineBase` leaves the fetched record and the mainline
- * selected where they look, and `lastFetchedMainline` turns away a record of any
- * other. The two are one record once a reader has selected here; a seam that
- * runs before any reader judges by nothing, and lays what was fetched. A
- * checkout that has run keeps measuring from the mainline's, moving forward
- * with it as HEAD does.
- *
- * `mainlineBase` owns the fetch and the read layer it keeps the bytes in, with
- * the runs record the publishing run carried beside them, and
- * `readableTestCoverage` owns which layer holds a record. This decides the
- * order, and says whose record it gave.
+ * A checkout's first run is laid on the same answer, as `lastFetchedMainline`
+ * gives it to a seam. `mainlineBase` owns the fetch and `readableTestCoverage`
+ * which layer holds a record; this decides the order, and says whose it gave.
  */
 
 import { readFile, stat } from 'node:fs/promises';

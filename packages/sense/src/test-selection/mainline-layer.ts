@@ -2,27 +2,16 @@
  * The mainline's record as this machine last fetched it: where it is kept, and
  * which copy a run lays under its own before it lands.
  *
- * A suite the root config gives to the share has one base, the record its
- * mainline's CI published, and every checkout measures from it. Two parties
- * touch that record and neither can do the other's part. The CLI fetches it:
- * the share's store, its lines and its entry formats are the CLI's, and a
- * runner seam cannot import them. A runner seam lays it: the first run in a
- * checkout lands on whatever is in the own layer, so the base has to be there
- * before the run lands. Waiting for the CLI to lay it would give a plain
- * `yarn test` in a fresh worktree the primary checkout's record instead.
+ * The CLI fetches: the share's store and formats are its, and a runner seam
+ * cannot import them. A seam lays: the first run in a checkout lands on the own
+ * layer, so the base has to be there before it does, or a plain `yarn test` in
+ * a fresh worktree gets the primary checkout's record. A seam never fetches.
  *
  * They meet here. A fetch keeps the record at
- * `<cache>/share/read/<suite>/<commit>/` and writes `fetched.json` beside the
- * commit directories, naming the mainline, the commit and when it was fetched.
- * A seam reads that file and nothing else of the share's, so the base a run
- * lays is the mainline's record as of the last fetch on this machine, by this
- * checkout or by the primary checkout it was cut from, whichever is newer. A
- * seam never fetches. When nothing has been fetched here, the run lays the
- * primary checkout's record as an offline fallback and says so.
- *
- * A record fetched for one mainline answers nothing about another, and only the
- * CLI can say which is selected, so that meets here too: `selected.json` in the
- * checkout's own cache, read by {@link lastFetchedMainline} for every party.
+ * `<cache>/share/read/<suite>/<commit>/` and names it in `fetched.json`. A
+ * record fetched for one mainline answers nothing about another, and only the
+ * CLI can say which is selected, so it leaves that in `selected.json` in the
+ * checkout's own cache. {@link lastFetchedMainline} reads both for every party.
  */
 
 // compass: variance-authority.reach
@@ -137,17 +126,14 @@ function readSelectedMainline(readRoot: string): string | undefined {
  * The newest mainline record of `suite` fetched on this machine, or undefined
  * when the suite is not given to the share or nothing has been fetched.
  *
- * Two caches are asked: this checkout's and, in a worktree, the primary
- * checkout's, because each checkout fetches into its own cache and a worktree
- * cut this morning has fetched nothing. A caller that names `cacheRoot` asks
- * that one only, as {@link cacheLayers} reads both layers from it. A pointer
- * whose record is not on disk, or does not read in this build, is passed over,
- * and so is one for another mainline than the first cache's note selects: no
- * reader, seam or lay gets it. With no note nothing says it is another's.
+ * Two caches are asked, this checkout's and a worktree's primary's, the newest
+ * winning; a caller that names `cacheRoot` asks that one only. A pointer whose
+ * record is not on disk or does not read in this build is passed over, and so
+ * is one for another mainline than the first cache's note selects: no reader,
+ * seam or lay gets it. With no note nothing says it is another's.
  *
- * Synchronous, because {@link nearestTestCoverage} asks it and a caller of that
- * cannot wait. It opens the record, so a reader asks it only once the
- * checkout's own layer has none.
+ * Synchronous, as {@link nearestTestCoverage} cannot wait. It opens the record,
+ * so a reader asks it only once the checkout's own layer has none.
  */
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string): LastFetched | undefined {
   const declared = declaredSuites(root);
