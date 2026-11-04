@@ -9,32 +9,26 @@ import { MARKDOWN, ROOT, type Fence, fencesIn, lineOf, prose } from './markdown.
 /**
  * The lines that connect an agent are run, not read.
  *
- * A reader with a git repository and no `variance.config.json` gets one page
- * that prints what to install, what to run and what to put in an MCP client's
- * server list. Each of those failed for a different reason before it was
- * printed: `variance serve` and `variance doctor` exit 2 with no config, and a
- * client launches a `command` from its own PATH, where a local install puts
- * nothing. So this follows the page: its shell lines in a fresh repository with
- * no config, then its server entry as a client would launch it, and asks for the
- * tools and the code map, in a repository of several packages and in one of a
- * single package, whose answers differ. Only the install lines stand in, as links
- * to the packages built here, and the lines that fetch from the registry: the
- * question to try before installing, and the page's confirmation.
- *
- * The page about a finished run is held the same way: both of its entries are
- * launched, one from the repository and one from `/`, where a client that names
- * no directory can start a server, and each is asked for the answer it prints.
+ * Each failed for a different reason before it was printed: `variance serve` and
+ * `variance doctor` exit 2 with no config, and a client launches a `command` from
+ * its own PATH, where a local install puts nothing. So this follows each page as
+ * a reader would, in a fresh repository with no config.
  */
 
 const PAGE = 'docs/agent-workspace-api.md';
 const HEADING = '## Connect your agent';
 
+/** Both of its entries are launched: one from the repository, one from `/`, where a client that names no directory can start a server. */
 const RUN_PAGE = 'docs/agent-mcp.md';
 const RUN_SERVER = '## Serve the report to a client';
 const RUN_QUESTIONS = '## Ask from the run outward';
 
 const LIVE_PAGE = 'docs/agent-live-run.md';
 const LIVE_SERVER = '## Start the watcher before the suite';
+
+/** Its doctor lines are read off a real link, a stale copy and a miss, the three things a reader can find there. */
+const SKILLS_PAGE = 'docs/agent-cli.md';
+const SKILLS = '## Link the skills into your agent';
 
 /** A report as `variance run` leaves it, which states what it did not observe. */
 const RUN_REPORT = {
@@ -91,6 +85,7 @@ const shellLines = (fences: readonly Fence[]): readonly string[] =>
 const manifest = (name: string, more: object) =>
   `${JSON.stringify({ name, version: '1.0.0', type: 'module', exports: './src/index.ts', ...more })}\n`;
 
+/** The two shapes a reader's repository takes, whose answers differ. */
 const SHAPES = {
   'several packages': {
     'package.json': '{"name":"shop","private":true,"type":"module","workspaces":["packages/*"]}\n',
@@ -419,5 +414,62 @@ describe('an MCP client launches what a local install left', () => {
       (match) => `${file}:${lineOf(text, match.index)} → ${match[0]}`,
     );
     expect(bare).toEqual([]);
+  });
+});
+
+describe(`${SKILLS_PAGE} links the skills and checks the links`, () => {
+  const section = printed(SKILLS_PAGE, SKILLS);
+  const lines = shellLines(section);
+  const doctor = lines.find((line) => line.includes('variance doctor')) ?? '';
+  const check = lines.find((line) => /\bls\b/.test(line)) ?? '';
+  const samples = section.filter((fence) => fence.lang === 'text').map((fence) => fence.code.trim());
+  const sh = (line: string, cwd: string, env: NodeJS.ProcessEnv = process.env) =>
+    spawnSync('sh', ['-c', line], { cwd, encoding: 'utf8', env });
+  const linked = () => {
+    const root = repository('one package');
+    for (const line of lines.filter((line) => line.includes('ln -s'))) expect(sh(line, root).status).toBe(0);
+    return root;
+  };
+
+  it('prints a check that needs no config, and what it prints when a link is missing', () => {
+    const root = repository('one package');
+    expect(sh(check, root).stderr).toContain('No such file or directory');
+    expect(prose(SKILLS_PAGE)).toContain('`No such file or directory`');
+    const reached = sh(check, linked());
+    expect(reached.stderr).toBe('');
+    expect(samples).toContain(reached.stdout.trim());
+  });
+
+  it('prints the lines the doctor gives for a link, a stale copy and a miss', () => {
+    const root = linked();
+    const home = join(root, 'home');
+    mkdirSync(home);
+    rmSync(join(root, '.claude/skills/variance-authority'));
+    mkdirSync(join(root, '.claude/skills/variance-authority'));
+    writeFileSync(join(root, '.claude/skills/variance-authority/SKILL.md'), 'an old copy\n');
+    for (const dir of ['.claude', '.agents']) rmSync(join(root, dir, 'skills/variance-testing'));
+    writeFileSync(
+      join(root, 'variance.config.json'),
+      JSON.stringify({
+        project: 'shop',
+        profile: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        retention: 'durable',
+        subjects: { kind: 'list', ids: ['checkout/empty'], collector: 'variance/routes.mjs' },
+        baselines: { kind: 'directory', root: '.variance/baselines' },
+        fonts: [],
+        report: '.variance/report.json',
+      }),
+    );
+    const page = sh(doctor, root, { ...process.env, HOME: home }).stdout;
+    // The packages built here stand in for the install, so where they sit is the one thing a reader's differs in.
+    const answer = (/^skills: [\s\S]*?(?=\n\n)/m.exec(page)?.[0] ?? '').replace(
+      /\S*packages\/cli\/skills/g,
+      (_, at: number, text: string) =>
+        text.lastIndexOf('ln -s', at) > text.lastIndexOf('\n', at)
+          ? '../../node_modules/@variance-authority/cli/skills'
+          : 'node_modules/@variance-authority/cli/skills',
+    );
+    expect(samples).toContain(answer);
   });
 });

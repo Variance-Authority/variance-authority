@@ -4,7 +4,7 @@ const TOOLS = [
   { name: "Rspack · via the Rstest integration", file: "rspack.svg", href: "/start/rstest", light: false },
   { name: "Playwright", file: "playwright.svg", href: "/start/playwright", light: false },
   { name: "Storybook", file: "storybook.svg", href: "/start/storybook", light: false },
-  { name: "Codex", file: "codex.svg", href: "/agents/cli#point-an-agent-at-it", light: true },
+  { name: "Codex", file: "codex.svg", href: "/agents/cli#link-the-skills-into-your-agent", light: true },
   { name: "Claude", file: "claude.svg", href: "/agents/mcp", light: false },
   { name: "Model Context Protocol (MCP)", file: "mcp.svg", href: "/agents/mcp", light: true },
 ] as const;
