@@ -83,19 +83,29 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
   readonly root?: string;
 
   /**
-   * A subject to ask a refused call of once more, or none to let the refusal stand.
+   * A subject to ask a call of once more, or none to let its answer stand.
    *
    * A host whose subject is a reading it reuses — a workspace generation kept
    * for an hour — can refuse a name only because the reading is older than the
    * file that declares it. So a call to a tool the server has, with every
-   * argument it requires, that came back `isError` is handed here with the
-   * subject that refused it and when the request started. A `subject` read
-   * since is asked the same call, and the tree is asked for again with it; a
-   * `footer` ends the refusal that still stands, for a host that could not
-   * bring its reading up to date and says why. Only a refusal pays for the
-   * second reading.
+   * argument it requires, that came back `isError`, or that `outlived` says no
+   * longer holds, is handed here with the subject that answered it and when the
+   * request started. A `subject` read since is asked the same call, and the
+   * tree is asked for again with it; a `footer` ends the answer that still
+   * stands, for a host that could not bring its reading up to date and says
+   * why. Only those two pay for the second reading.
    */
   readonly again?: (asked: string | undefined, refused: Subject, started: number) => Promise<Again | undefined>;
+
+  /**
+   * Whether an answer the call found stands on something that changed since
+   * `subject` was read, so that it goes to `again` as a refusal does.
+   *
+   * Asked of a call to a tool the server has, with every argument it requires,
+   * that did not come back `isError`, with the arguments it named. A host that
+   * reads its subject fresh for every call has nothing to say here.
+   */
+  readonly outlived?: (asked: string | undefined, input: Readonly<Record<string, unknown>>, subject: Subject, started: number) => Promise<boolean>;
 
   /**
    * The answer a refused call gives instead of its refusal, or none to let the
@@ -157,7 +167,7 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
       let subject: Subject = await options.subject(asked, askedInput(request));
       let answered = await answer(subject);
       let response = answered.response;
-      if (!succeeded(response) && wellFormed(request, options.served)) {
+      if (wellFormed(request, options.served) && (!succeeded(response) || (await options.outlived?.(asked, askedInput(request) ?? {}, subject, started)) === true)) {
         const fresher = await options.again?.(asked, subject, started);
         if (fresher?.subject !== undefined) {
           subject = fresher.subject;
@@ -166,7 +176,8 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
         }
         const said = response === null || answered.thrown === undefined ? undefined : options.answered?.(answered.thrown.value, subject, fresher);
         if (said !== undefined) response = { ...response!, result: { content: [{ type: 'text', text: said }] } };
-        else if (fresher?.footer !== undefined) response = footed(response, fresher.footer);
+        // An answer found once the subject was read again has nothing to say of it.
+        else if (fresher?.footer !== undefined && (fresher.subject === undefined || !succeeded(response))) response = footed(response, fresher.footer);
       }
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
@@ -181,10 +192,10 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
   return () => options.input.off('data', onData);
 }
 
-/** A refused call's result, ending with what the host said about the subject it was refused from. */
+/** A call's result, ending with what the host said about the subject it came from. */
 function footed(response: ReturnType<typeof handle>, footer: string): ReturnType<typeof handle> {
-  if (response === null || response.error !== undefined || succeeded(response)) return response;
-  const result = response.result as { readonly content: readonly { readonly type: string; readonly text: string }[]; readonly isError: true };
+  if (response === null || response.error !== undefined) return response;
+  const result = response.result as { readonly content: readonly { readonly type: string; readonly text: string }[]; readonly isError?: true };
   const said = result.content.map((part) => part.text).join('\n');
   return { ...response, result: { ...result, content: [{ type: 'text', text: `${said}\n\n${footer}` }] } };
 }

@@ -1,11 +1,11 @@
-import type { FileSet, Tool, Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch, SearchQuestion } from './search-answer.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, PublishedMatch, SearchQuestion } from './search-answer.js';
 import { declaredLine, unreadLine } from './declared.js';
 import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
@@ -390,3 +390,13 @@ export const search: Tool<Help> = {
     files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
 };
+
+/**
+ * The files of the rows `run` prints. `search.files` is every match, a set
+ * another question crosses; a row past the cap is no part of this answer.
+ */
+export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
+  const { answer } = searched(searchIndexOf(help), searchQuestionOf(input), invocation?.tree, invocation?.root);
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.loose, answer.described];
+  return new Set(sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []));
+}

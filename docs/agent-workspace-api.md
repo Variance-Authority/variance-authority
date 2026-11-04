@@ -195,11 +195,22 @@ looked for again in a generation made from the checkout as it is, and in what
 your installed packages export, with that list built first when it is missing
 or behind. A function you wrote a minute ago, or a package you just installed,
 is answered rather than reported missing, and that holds when you name changed
-files too. Only a refusal pays for that reading; an answer that found its name
-comes from the generation it was found in. When the checkout cannot be read
-again, the refusal names the generation time, says the checkout was not
-compared with it, and says why. When the list of installed exports cannot be
-built, the refusal says the installed packages were not compared, and why.
+files too.
+
+An answer that found its name is looked at before it is given. `symbol`, and
+`search` over either server, name the files they print; when one of them
+changed or went away after the generation, the question is asked again the same
+way, so an export you renamed is not listed under its old name and a declaration
+you moved is given at the line it holds today. The look costs a stat of each
+named file: an answer whose files are unchanged reads nothing more and ends with
+the time of the generation it came from, as does every other question. A file
+the answer does not name is not looked at, so `uses` does not see an import
+you just added.
+
+When the checkout cannot be read again, the answer or the refusal names the
+generation time, says the checkout was not compared with it, and says why. When
+the list of installed exports cannot be built, the refusal says the installed
+packages were not compared, and why.
 
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, and every answer and refusal names the generation

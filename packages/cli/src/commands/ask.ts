@@ -266,11 +266,18 @@ export async function askSource(request: SourceRequest): Promise<string> {
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
   };
   const started = Date.now();
-  const answering = await sourceAnswering(request, tool, input, reading);
+  const read = await sourceAnswering(request, tool, input, reading);
   // A reading `--just-answer` asked for, or a published search opened at its
   // age, is not compared with the checkout, and every answer from it says so.
   // Every other one is the checkout's as it is by the time it refuses.
-  const unseen = request.justAnswer === true || answering.unseen === true;
+  const unseen = request.justAnswer === true || read.unseen === true;
+  const again = (at: string | undefined): ReturnType<typeof caughtUp<Answering>> =>
+    caughtUp(at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
+  // An answer whose named files changed since its generation is asked again
+  // before it is given; one that could not be says so under it.
+  const looked = !unseen && (await read.outlived?.(started)) === true ? await again(read.at) : undefined;
+  const answering = looked?.subject ?? read;
+  const unread = looked?.subject === undefined ? looked?.footer : undefined;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
@@ -279,14 +286,15 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // found is thrown the same way, so it is read again like a refusal, and is
   // then printed as the answer it is.
   try {
-    return rendered(request, answering, unseen);
+    const answer = rendered(request, answering, unseen);
+    return unread === undefined ? answer : `${answer}${unread}\n`;
   } catch (refusal) {
     // A refusal read from what the checkout was before the question is not
     // yet a fact about the checkout: it is read again, brought up to date,
     // and that answer stands.
     // A reading nothing compared with the checkout says so under its refusal,
     // and one that could not be compared says why.
-    const caught = unseen ? undefined : await caughtUp(answering.at, started, request.source === undefined ? process.cwd() : undefined, (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }));
+    const caught = unseen ? undefined : await again(answering.at);
     const dated = caught?.footer ?? (unseen && answering.at !== undefined ? snapshotLine(answering.at, true) : undefined);
     const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
     const said = footer === '' ? '' : `\n\n${footer}`;

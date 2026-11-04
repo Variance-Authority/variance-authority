@@ -1,14 +1,15 @@
 import { PassThrough } from 'node:stream';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readHelp } from '@variance-authority/package/help';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 import { FoundNothing } from './tools/find.js';
+import { publishing } from './__fixtures__/published-then-written.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
@@ -393,6 +394,61 @@ describe('the server', () => {
     stop();
 
     expect(JSON.parse(String(line)).result.content[0].text).toContain('not found');
+  });
+});
+
+describe('a server over a generation it reuses', () => {
+  const fixture = publishing();
+  beforeEach(fixture.before);
+  afterEach(fixture.after);
+
+  /** One line asked of a server over `root`, and the text it answered. */
+  async function asked(root: string, name: string, args: Readonly<Record<string, unknown>>): Promise<string> {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const stop = serveWorkspace(root, { input, output });
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } })}\n`);
+    const line = await new Promise<string>((resolve) => output.once('data', resolve));
+    stop();
+    return JSON.parse(String(line)).result.content[0].text as string;
+  }
+
+  const rename = async (root: string): Promise<void> => {
+    const tax = join(root, 'packages/kit/src/tax.ts');
+    await writeFile(tax, (await readFile(tax, 'utf8')).replace('taxOf', 'dutyOf'));
+  };
+
+  it('reads the checkout again before `docs_search` lists a name renamed since it', async () => {
+    const root = await fixture.published();
+    const before = await asked(root, 'docs_search', { query: 'taxOf' });
+    expect(before).toContain('packages/kit/src/tax.ts');
+    await rename(root);
+
+    const after = await asked(root, 'docs_search', { query: 'taxOf' });
+    expect(after).not.toContain('packages/kit/src/tax.ts');
+    expect(after).not.toBe(before);
+  });
+
+  it('reads the checkout again before `docs_symbol` answers a name renamed since it', async () => {
+    const root = await fixture.published();
+    await rename(root);
+
+    const answer = await asked(root, 'docs_symbol', { name: 'taxOf' });
+    expect(answer).toContain('`taxOf` is not');
+    expect(answer).not.toContain('tax.ts:1');
+  });
+
+  it('answers from it when only a file the answer does not name changed', async () => {
+    const root = await fixture.published();
+    const first = await asked(root, 'docs_search', { query: 'taxOf' });
+    expect(await asked(root, 'docs_search', { query: 'taxOf' })).toBe(first);
+  });
+
+  it('leaves `docs_uses` to it, whose files are not the ones that declare the name', async () => {
+    const root = await fixture.published();
+    const first = await asked(root, 'docs_uses', { name: 'taxOf' });
+    await rename(root);
+    expect(await asked(root, 'docs_uses', { name: 'taxOf' })).toBe(first);
   });
 });
 

@@ -47,7 +47,10 @@ Point it at any checkout with `--root`.
 Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it, and a name a
 reused generation does not hold is looked for again in one made from the checkout
-now, so a function you just wrote is answered rather than reported missing.
+now, so a function you just wrote is answered rather than reported missing. So
+is a `symbol`, or a server's `docs_search`, whose named files changed after the
+generation, so a renamed export or a moved declaration is not answered from its
+old lines.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
 compared with it. It performs no Git status or refresh, and refuses if there is
@@ -523,11 +526,13 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy and asks a refused call again of a generation made
-now, or serves only the recorded generation when `justAnswer` is true. A host
+the same one-hour policy and asks a refused call, or a `docs_symbol` or
+`docs_search` whose named files changed, again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A host
 of its own asks `caughtUp` whether a refusal is worth asking again, and is
 handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `snapshotLine` dates an answer. A name nothing declares
+its refusal ends with; `snapshotLine` dates an answer. `outlived` says whether
+the files a found answer names changed after its generation, which sends that
+answer to `caughtUp` too. A name nothing declares
 is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
 message is the answer: what was read, and where else the name may be written.
 `foundNothingAnswer` is that answer, under the lines `foundNothingFooter`

@@ -1,7 +1,11 @@
+import { appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
+import type { Help } from '@variance-authority/package/help';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
-import { caughtUp, foundNothingAnswer, foundNothingFooter, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, snapshotLine } from './caught-up.js';
+import { readWorkspace, workspaceGeneration } from './read.js';
 import { serveWorkspace } from './server.js';
 import { FoundNothing } from './tools/find.js';
 
@@ -32,6 +36,34 @@ async function served(root: string, justAnswer: boolean, name = 'keptOf'): Promi
 
 /** The date line of a refusal whose checkout could not be compared with its generation, and why. */
 const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout \((.+)\): run `variance index` if files changed since\./u;
+
+describe('outlived', () => {
+  const edit = (root: string): void => appendFileSync(join(root, 'packages/kit/src/tax.ts'), '// moved\n');
+  const after = (help: Help): number => Date.parse(workspaceGeneration(help)!) + 1;
+
+  it('says so of an answer whose declaring file changed after its generation, and of none whose file did not', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(false);
+    edit(root);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
+  it('has nothing to look at for a generation read during the request', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    edit(root);
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, Date.parse(workspaceGeneration(help)!))).toBe(false);
+  });
+
+  it('leaves a name no file declares to its refusal, and any question that names no file as it is', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    edit(root);
+    expect(await outlived('docs_symbol', help, { name: 'nowhere' }, { root }, after(help))).toBe(false);
+    expect(await outlived('docs_uses', help, { name: 'taxOf' }, { root }, after(help))).toBe(false);
+  });
+});
 
 describe('caughtUp', () => {
   it('asks again, of a current generation, a refusal from one made before the question', async () => {

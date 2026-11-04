@@ -107,6 +107,53 @@ describe('the server `variance serve` starts', () => {
       await rm(join(workspace, 'src/kept.ts'), { force: true });
     }
   });
+
+  it('reads the checkout again before `docs_search` lists a name renamed since the generation it holds', async () => {
+    await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
+    const server = session();
+    try {
+      // A refusal reads the checkout again, so the generation held from here on holds the name.
+      await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } });
+      const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'oldName' } });
+      expect(before.content[0]!.text).toContain('src/renamed.ts');
+      await writeFile(join(workspace, 'src/renamed.ts'), 'export function newName(): number {\n  return 1;\n}\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'oldName' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).not.toContain('src/renamed.ts');
+      expect(snapshotOf(result.content[0]!.text)).not.toBe(snapshotOf(before.content[0]!.text));
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/renamed.ts'), { force: true });
+    }
+  });
+
+  it('reads the checkout again before `docs_symbol` answers a name renamed since the generation it holds', async () => {
+    await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } })).content[0]!.text).toContain('src/renamed.ts');
+      await writeFile(join(workspace, 'src/renamed.ts'), 'export function newName(): number {\n  return 1;\n}\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } });
+      expect(result.content[0]!.text).toContain('`oldName` is not');
+      expect(result.content[0]!.text).not.toContain('src/renamed.ts:1');
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/renamed.ts'), { force: true });
+    }
+  });
+
+  it('keeps the generation it holds while `docs_search` names no file that changed', async () => {
+    const server = session();
+    try {
+      const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'mounted' } });
+      await writeFile(join(workspace, 'src/kept.ts'), 'export const kept = 1;\n');
+      const after = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'mounted' } });
+      expect(after.content[0]!.text).toBe(before.content[0]!.text);
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/kept.ts'), { force: true });
+    }
+  });
 });
 
 describe('`variance serve` in a checkout with no report', () => {
@@ -291,6 +338,11 @@ async function writeConfig(checkout: string, share: Readonly<Record<string, unkn
 
 async function git(cwd: string, ...args: string[]): Promise<string> {
   return (await promisify(execFile)('git', args, { cwd })).stdout.trim();
+}
+
+/** The time an answer's generation was made, from its date line. */
+function snapshotOf(text: string): string | undefined {
+  return /^Snapshot (\S+?)\.$/mu.exec(text)?.[1];
 }
 
 async function ask<Result>(method: string, params?: Record<string, unknown>, cwd = workspace): Promise<Result> {

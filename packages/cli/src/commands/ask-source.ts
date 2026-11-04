@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
+import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
 import { answerSearch, discover, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { readTree, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -28,6 +28,8 @@ export interface Answering {
   readonly unseen?: boolean;
   /** The published files that were there and did not open; absent when none failed. */
   readonly unopened?: readonly Unopened[];
+  /** Whether the files the answer names changed since its generation; absent for a reading that cannot say. */
+  readonly outlived?: (started: number) => Promise<boolean>;
 }
 
 export async function wholeSource(
@@ -43,6 +45,7 @@ export async function wholeSource(
     answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
+    outlived: (started) => outlived(tool.name, sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }, started),
   };
 }
 

@@ -1,28 +1,78 @@
+import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { ToolInvocation } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
 import { refreshDependencyLexicon } from './dependency-lexicon.js';
+import { workspaceGeneration } from './read.js';
 import { FoundNothing } from './tools/find.js';
+import { printedFiles, search } from './tools/search.js';
+import { symbol } from './tools/symbol.js';
+
+/** The files an answer prints, read as the answer read them. */
+type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help>) => Iterable<string>;
+
+/** What each answer that names its files prints, by the question that gives it. */
+const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
+  [symbol.name, (help, input, invocation) => symbol.files!(help, input, invocation).files.keys()],
+  [search.name, printedFiles],
+]);
 
 /**
- * What a refused source question does before its refusal is believed, for every
- * surface that asks one: `variance ask`, `variance serve`, and this package's
- * own binary and server.
+ * Whether the files an answer names changed after the generation it comes from,
+ * so that it goes to {@link caughtUp} as a refusal does. A generation's time
+ * says how old it is; only the files say whether this answer still holds, and
+ * looking costs a stat of each. Changed is an mtime at or after the generation,
+ * or a file gone: a file touched and left as it was is read again, and that
+ * reading finds nothing and publishes a later time.
+ *
+ * `asked` is the question: only `symbol` and `search` name the files they print.
+ * A generation read during this request (`started`) has nothing to look at, and
+ * neither has a question its tool refuses, which is a refusal's to say.
+ */
+export async function outlived(
+  asked: string | undefined,
+  help: Help,
+  input: Readonly<Record<string, unknown>>,
+  invocation: ToolInvocation<Help> & { readonly root: string },
+  started: number,
+): Promise<boolean> {
+  const printed = asked === undefined ? undefined : PRINTED.get(asked);
+  const at = workspaceGeneration(help);
+  if (printed === undefined || at === undefined || Date.parse(at) >= started) return false;
+  let files: readonly string[];
+  try {
+    files = [...printed(help, input, invocation)];
+  } catch (refusal) {
+    if (refusal instanceof FoundNothing) return false;
+    throw refusal;
+  }
+  const since = Date.parse(at);
+  const changed = await Promise.all(files.map((file) => stat(join(invocation.root, file)).then((held) => held.mtimeMs >= since, () => true)));
+  return changed.includes(true);
+}
+
+/**
+ * What a source question does before a refusal, or an answer {@link outlived}
+ * found changed, is believed, for every surface that asks one: `variance ask`,
+ * `variance serve`, and this package's own binary and server.
  *
  * A generation is reused for an hour, so one published before the question may
  * not hold a file written since: the question is asked again of one made now.
  * The dependency lexicon is built by `variance index` alone, so a checkout that
  * never ran it, or installed a package since, would refuse a name an installed
  * package declares: it is brought up to date, which costs a stat of each
- * installed manifest when nothing moved. Only a refusal pays for either; an
- * answer that found its name is given from the generation it was found in.
+ * installed manifest when nothing moved. Only those two pay for either; an
+ * answer whose named files did not change is given from its generation.
  *
- * `refusedAt` is the generation the refusal came from. A question that read
+ * `refusedAt` is the generation the question was answered from. A question that read
  * none has nothing that could have lagged, and is not asked again.
  * `lexiconRoot` is the checkout whose lexicon this process may refresh, absent
  * for a host whose checkout is its own. `again` reads and asks once more,
  * `current` saying a generation made now is wanted rather than the one in hand.
  *
  * Returns undefined when nothing it read can have lagged the checkout, so the
- * refusal stands as it is. Otherwise `subject` is what was asked again, and
- * `footer` is what every refusal of the question ends with when part of the
+ * answer stands as it is. Otherwise `subject` is what was asked again, and
+ * `footer` is what a refusal, or an answer not read again, ends with when part of the
  * checkout could not be compared: the second reading failed, which dates the
  * refusing generation and says why, or the lexicon could not be refreshed,
  * which says the installed packages were not compared. A refusal from a

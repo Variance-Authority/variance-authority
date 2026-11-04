@@ -2,7 +2,7 @@
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
-import { caughtUp, foundNothingAnswer, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, outlived, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
@@ -59,6 +59,8 @@ interface Reading {
 interface Answering {
   readonly answer: () => string;
   readonly at: string | undefined;
+  /** Whether the files the answer names changed since its generation; absent for a reading that cannot say. */
+  readonly outlived?: (started: number) => Promise<boolean>;
 }
 
 /** The longest verb and a gap, so a verb added later never runs into its description. */
@@ -170,14 +172,23 @@ if (asking(verb) && verb !== undefined) {
       }
       if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
       const help = await readWorkspaceForAnswer(root, reading);
-      return { answer: () => ask(help, verb, ownArgs, () => tree, root, justAnswer), at: workspaceGeneration(help) };
+      return {
+        answer: () => ask(help, verb, ownArgs, () => tree, root, justAnswer),
+        at: workspaceGeneration(help),
+        outlived: (started) => outlived(tool.name, help, inputFrom(tool, ownArgs), { root, ...(tree === undefined ? {} : { tree }) }, started),
+      };
     };
 
     const started = Date.now();
-    const first = await answering(false);
+    const read = await answering(false);
+    // An answer whose named files changed since its generation is asked again
+    // first; one that could not be says so under it.
+    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await caughtUp(read.at, started, root, answering) : undefined;
+    const first = looked?.subject ?? read;
     let answer: string;
     try {
       answer = first.answer();
+      if (looked?.subject === undefined && looked?.footer !== undefined) answer += `\n${looked.footer}`;
     } catch (refusal) {
       // A refusal from a reused generation is asked again of one read now;
       // `--just-answer` and `search` read only what was published, so theirs stands.
