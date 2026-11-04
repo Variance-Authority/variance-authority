@@ -444,11 +444,11 @@ describe('a server over a generation it reuses', () => {
     expect(await asked(root, 'docs_search', { query: 'taxOf' })).toBe(first);
   });
 
-  it('leaves `docs_uses` to it, whose files are not the ones that declare the name', async () => {
+  it('reads the checkout again before `docs_uses` answers a name renamed since it', async () => {
     const root = await fixture.published();
     const first = await asked(root, 'docs_uses', { name: 'taxOf' });
     await rename(root);
-    expect(await asked(root, 'docs_uses', { name: 'taxOf' })).toBe(first);
+    expect(await asked(root, 'docs_uses', { name: 'taxOf' })).not.toBe(first);
   });
 });
 

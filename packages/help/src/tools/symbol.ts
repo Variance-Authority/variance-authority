@@ -179,7 +179,7 @@ export const symbol: Tool<Help> = {
 };
 
 /**
- * The files an answer to `symbol` rests on, to be compared with the checkout:
+ * The files an answer about a name rests on, to be compared with the checkout:
  * those {@link symbol}'s `files` gives, and every file that passes the name on,
  * whose imports the answer counts. Telling those two apart is the one reading
  * here that walks who imports the name, which costs seconds on a large

@@ -7,28 +7,25 @@ import { workspaceGeneration } from './read.js';
 import { FoundNothing } from './tools/find.js';
 import { printedFiles, search } from './tools/search.js';
 import { restsOn, symbol } from './tools/symbol.js';
+import { uses } from './tools/uses.js';
 
 /** The files an answer rests on, read as the answer read them. */
 type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help>) => Iterable<string>;
 
-/** What each answer that names its files rests on, by the question that gives it. */
+/** What each answer that can say so rests on, by the question that gives it: `uses` on the files that declare the name, not those it lists. */
 const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
   [symbol.name, restsOn],
   [search.name, printedFiles],
+  [uses.name, restsOn],
 ]);
 
 /**
- * Whether the files an answer names changed after the generation it comes from,
- * so that it goes to {@link caughtUp} as a refusal does. A generation's time
- * says how old it is; only the files say whether this answer still holds, and
- * looking costs finding them, as the answer found them, and a stat of each.
- * Changed is an mtime at or after the generation, or a file gone: a file
- * touched and left as it was is read again, and that reading finds nothing and
- * publishes a later time.
- *
- * `asked` is the question: only `symbol` and `search` name the files they print.
- * A generation read during this request (`started`) has nothing to look at, and
- * neither has a question its tool refuses, which is a refusal's to say.
+ * Whether the files an answer rests on changed after the generation it comes
+ * from, so that it goes to {@link caughtUp} as a refusal does. A generation's
+ * time says how old it is; only the files say whether this answer still holds.
+ * Changed is an mtime at or after the generation, or a file gone. A generation
+ * read during this request (`started`) has nothing to look at, and neither has
+ * a question its tool refuses, which is a refusal's to say.
  */
 export async function outlived(
   asked: string | undefined,
@@ -43,9 +40,8 @@ export async function outlived(
   let files: readonly string[];
   try {
     files = [...printed(help, input, invocation)];
-  } catch (refusal) {
-    if (refusal instanceof FoundNothing) return false;
-    throw refusal;
+  } catch {
+    return false;
   }
   const since = Date.parse(at);
   const changed = await Promise.all(files.map((file) => stat(join(invocation.root, file)).then((held) => held.mtimeMs >= since, () => true)));

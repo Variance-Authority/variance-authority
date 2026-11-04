@@ -68,7 +68,21 @@ describe('outlived', () => {
     const help = await readWorkspace(root);
     edit(root);
     expect(await outlived('docs_symbol', help, { name: 'nowhere' }, { root }, after(help))).toBe(false);
+    expect(await outlived('docs_grep', help, { query: 'taxOf' }, { root }, after(help))).toBe(false);
+  });
+
+  it('says so of a `docs_uses` answer whose declaring file changed, though no import of the name is in that file', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
     expect(await outlived('docs_uses', help, { name: 'taxOf' }, { root }, after(help))).toBe(false);
+    edit(root);
+    expect(await outlived('docs_uses', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
+  it('leaves a question its tool refuses to that refusal', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    expect(await outlived('docs_symbol', help, { name: '' }, { root }, after(help))).toBe(false);
   });
 });
 

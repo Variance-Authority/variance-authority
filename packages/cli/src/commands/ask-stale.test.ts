@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readWorkspaceForAnswer } from '@variance-authority/help';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
 import { askSource } from './ask.js';
 
@@ -151,6 +151,28 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(out).toContain('`taxOf` is not');
     expect(out).not.toContain(`${TAX}:1`);
     expect(Date.parse(snapshotOf(out)!)).toBeGreaterThan(Date.parse(before!));
+  });
+
+  it('says nothing declares a name renamed in the working tree when `uses` asks for it', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const before = snapshotOf((await run(['ask', 'uses', '--name', 'taxOf'])).out);
+    write(root, Object.fromEntries([TAX, IMPORTER].map((file) => [file, readFileSync(join(root, file), 'utf8').replaceAll('taxOf', 'dutyOf')])));
+
+    const { code, out } = await run(['ask', 'uses', '--name', 'taxOf']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).not.toContain(IMPORTER);
+    expect(Date.parse(snapshotOf(out)!)).toBeGreaterThan(Date.parse(before!));
+  });
+
+  it('refuses an empty name as the tool does, over a generation it looks at', async () => {
+    checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, err } = await run(['ask', 'symbol', '--name', '']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('`name` is required and must be a non-empty string');
+    expect(err).not.toContain('defect in the tool');
   });
 
   it('keeps the answer, and says why it was not compared, when the checkout could not be read again', async () => {
