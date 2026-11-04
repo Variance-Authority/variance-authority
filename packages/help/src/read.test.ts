@@ -259,13 +259,10 @@ describe('reading a workspace through the source index', () => {
     }
   });
 
-  it('refreshes usage without rebuilding stable documentation', async () => {
+  it('refreshes usage and keeps the documentation of a name nothing rewrote', async () => {
     const { root, temporary } = await copyWorkspace('help-refresh-');
     try {
-      const where = join(root, 'packages/alpha/src/values.ts');
       const first = await readWorkspace(root, { index: join(root, '.index') });
-      const source = await readFile(where, 'utf8');
-      await writeFile(where, source.replace('Measures the thing', 'Fresh words about the thing'));
       await writeFile(
         join(root, 'packages/beta/src/other.ts'),
         "import { measure } from 'alpha';\nmeasure(2);\n",
@@ -273,12 +270,27 @@ describe('reading a workspace through the source index', () => {
 
       const refreshed = await refreshWorkspace(root, first, {
         index: join(root, '.index'),
-        changed: ['packages/alpha/src/values.ts', 'packages/beta/src/other.ts'],
+        changed: ['packages/beta/src/other.ts'],
       });
       const measure = entryNamed(refreshed, 'measure');
       expect(measure?.doc).toContain('Measures the thing');
-      expect(measure?.doc).not.toContain('Fresh words');
       expect(measure?.uses).toBe((entryNamed(first, 'measure')?.uses ?? 0) + 1);
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('takes the comment a refreshed file rewrote, rather than dating the last one as read', async () => {
+    const { root, temporary } = await copyWorkspace('help-refresh-');
+    try {
+      const where = join(root, 'packages/alpha/src/values.ts');
+      const first = await readWorkspace(root, { index: join(root, '.index') });
+      const source = await readFile(where, 'utf8');
+      await writeFile(where, source.replace('Measures the thing', 'Fresh words about the thing'));
+
+      const refreshed = await refreshWorkspace(root, first, { index: join(root, '.index'), changed: ['packages/alpha/src/values.ts'] });
+
+      expect(entryNamed(refreshed, 'measure')?.doc).toContain('Fresh words');
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

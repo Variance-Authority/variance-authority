@@ -157,6 +157,90 @@ describe('publishing the questions from the index', () => {
     expect(read.readWorkspaceOver).not.toHaveBeenCalled();
   });
 
+  /** The entry `a` publishes as `name` in the value on disk. */
+  const published = async (name: string) => (await readWorkspaceSnapshot(root, { index })).packages
+    .flatMap((held) => held.openings)
+    .flatMap((opening) => opening.entries)
+    .find((entry) => entry.name === name);
+
+  it.each([
+    ['moved', '// one\n// two\nexport const see = 1;\n', { line: 3 }],
+    ['rewrote', 'export const see: number = 1;\n', { signature: 'const see: number' }],
+    ['documented', '/** What it sees. */\nexport const see = 1;\n', { line: 2, doc: 'What it sees.' }],
+  ])('reads the workspace when a file %s a declaration it publishes', async (_edit, text, expected) => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    write('packages/a/src/index.ts', text);
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(await published('see')).toMatchObject(expected);
+  });
+
+  it('reads the workspace when a declaration moves under an export statement that stays', async () => {
+    write('packages/a/src/index.ts', 'export { see };\nconst see = 1;\n');
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    write('packages/a/src/index.ts', 'export { see };\n// one\nconst see = 1;\n');
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect((await published('see'))?.line).toBe(3);
+  });
+
+  it.each([
+    ['`export *`', 'export const other = 2;\n', "export * from './deep.js';\nexport * from './other.js';\n", "export * from './other.js';\n"],
+    ['`export … from` that leads elsewhere', 'export const deep = 2;\n', "export { deep } from './deep.js';\n", "export { deep } from './other.js';\n"],
+  ])('reads the workspace when a barrel between an entry and a name drops or moves its %s', async (_edit, other, kept, cut) => {
+    write('packages/a/src/index.ts', "export * from './mid.js';\n");
+    write('packages/a/src/mid.ts', kept);
+    write('packages/a/src/deep.ts', 'export const deep = 1;\n');
+    write('packages/a/src/other.ts', other);
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const before = await published('deep');
+    write('packages/a/src/mid.ts', cut);
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(before?.at).toBe('packages/a/src/deep.ts');
+    expect((await published('deep'))?.at).not.toBe('packages/a/src/deep.ts');
+  });
+
+  it('refreshes from the index over barrels that did not change', async () => {
+    write('packages/a/src/index.ts', "export * from './mid.js';\nexport { deep as renamed } from './deep.js';\n");
+    write('packages/a/src/mid.ts', "export * from './deep.js';\n");
+    write('packages/a/src/deep.ts', 'export const deep = 1;\n');
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n");
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+  });
+
+  it('refreshes from the index when the export that moved is one nothing publishes', async () => {
+    write('packages/a/src/inner.ts', 'export const inner = 1;\n');
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    write('packages/a/src/inner.ts', '// one\nexport const inner = 1;\n');
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+    expect((await readWorkspaceSnapshot(root, { index })).exported.find((row) => row.name === 'inner')?.line).toBe(2);
+  });
+
   it('publishes the time its caller began reading, when it reads the workspace itself', async () => {
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 

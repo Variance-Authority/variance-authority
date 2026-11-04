@@ -220,9 +220,9 @@ or `serve`, is asked again of one made now, with the dependency lexicon built
 when it is missing or behind, before the refusal is given; on `ask` that holds
 under `--changed-file` and `--taint-file` too. So is a `symbol` or `uses`
 whose files changed or went away after the generation, the ones that declare the
-name, the entry that publishes it and each row `uses` lists, and `serve`'s
+name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
 `docs_search` whose printed files did, which a stat of each decides: an answer whose files
-are unchanged reads nothing more. When the checkout cannot be read again, or a file the answer rests on
+are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
 is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
 and why, and gives what the generation recorded of a file written since, by name and with none of its
 text; when the lexicon cannot be built, it says the installed packages were not compared,
@@ -244,7 +244,8 @@ question and return it through `Sourced.tree` only then.
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
 editor, watcher, or CI step already detected as changed. It is producer input:
 an empty file states that nothing changed, it replaces Git status discovery, and
-it cannot be combined with `--just-answer`. A file you left off is unchanged for
+it cannot be combined with `--just-answer`. A file you listed gives its names at
+the lines it holds now. A file you left off is unchanged for
 that request; the next question without a list looks. With no generation to
 refresh, the read is whole and the list is not used.
 

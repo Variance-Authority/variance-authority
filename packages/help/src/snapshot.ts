@@ -46,6 +46,12 @@ interface WorkspaceSnapshot {
    */
   readonly exportedDigest?: string;
   /**
+   * Every `export … from` as a set, as `forwardsDigest` states it: what the
+   * export list does not hold, an `export *` and where a named one leads, and
+   * so what the published names rest on past it. A value without it is read again.
+   */
+  readonly forwardsDigest?: string;
+  /**
    * The index manifest the value was read from, as `indexManifestDigest`
    * states it; absent when the value was not refreshed from a published index.
    */
@@ -116,6 +122,7 @@ export async function readWorkspaceSnapshot(
     generatedAt: decoded.generatedAt,
     readStartedAt: decoded.readStartedAt,
     ...(decoded.exportedDigest === undefined ? {} : { exportedDigest: decoded.exportedDigest }),
+    ...(decoded.forwardsDigest === undefined ? {} : { forwardsDigest: decoded.forwardsDigest }),
     ...(decoded.indexDigest === undefined ? {} : { indexDigest: decoded.indexDigest }),
   });
   return decoded.help;
@@ -156,6 +163,11 @@ export async function publishedGeneration(root: string, index: string): Promise<
 /** The digest of the value's export list: the one published beside it, or computed. */
 export function workspaceExportedDigest(help: Help): string {
   return snapshots.get(help)?.exportedDigest ?? exportedDigest(help.exported);
+}
+
+/** The digest of the value's `export … from` rows, absent when it was not kept beside it. */
+export function workspaceForwardsDigest(help: Help): string | undefined {
+  return snapshots.get(help)?.forwardsDigest;
 }
 
 /** The index manifest the value was refreshed from, absent when it was read another way. */
@@ -202,6 +214,7 @@ export async function tryPublishWorkspaceSnapshot(
   help: Help,
   records: readonly FileRecord[] | Uint8Array,
   readStartedAt: string,
+  forwards: string,
   index?: string,
 ): Promise<void> {
   try {
@@ -221,6 +234,7 @@ export async function tryPublishWorkspaceSnapshot(
       ...generation,
       readStartedAt,
       exportedDigest: search.exported,
+      forwardsDigest: forwards,
       help,
     };
     // Before anything is written: a value that could not be saved was read all the
@@ -319,6 +333,7 @@ function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
     && typeof held.readStartedAt === 'string'
     && Number.isFinite(Date.parse(held.readStartedAt))
     && (held.exportedDigest === undefined || typeof held.exportedDigest === 'string')
+    && (held.forwardsDigest === undefined || typeof held.forwardsDigest === 'string')
     && (held.indexDigest === undefined || typeof held.indexDigest === 'string')
     && held.help !== null
     && typeof held.help === 'object';

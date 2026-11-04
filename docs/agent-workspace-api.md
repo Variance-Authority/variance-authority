@@ -352,12 +352,15 @@ given at the line it holds today, and a use is given at its line. An edit anywhe
 else waits for the hour: `uses` does not see an import you just added to a file
 it does not list. The look is a stat of each file.
 
-When the checkout cannot be read again, or a file the answer rests on is saved
-during the read that answers it, the answer or the refusal names the generation time,
+When the checkout cannot be read again, or the new read cannot be saved, or a
+file the answer rests on is saved during the read that answers it, the answer or
+the refusal names the generation time,
 says the checkout was not compared with it, and says why. Of a file written
 after the generation's read the answer gives what the generation recorded, a
 declaration and its members by name, and none of the file's text: its lines are
-no longer the ones that were read. The next question reads again. When the list
+no longer the ones that were read. A read that cannot be saved is dropped whole,
+because its names would meet the last read's lines. The next question reads
+again. When the list
 of installed exports cannot be built, the refusal says the installed packages
 were not compared, and why.
 
@@ -384,8 +387,9 @@ file and pass that file through `--changed-file`. An empty file declares that
 nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. Such a refresh reads the
 files you listed and no others, so the generation keeps the time of the read it
-refreshed: an answer given with the list prints a listed file's recorded names,
-and the next question without one that rests on that file reads the checkout. A
+refreshed: an answer given with the list gives a listed file's names at the lines
+the file holds now, with none of its text, and the next question without one that
+rests on that file reads the checkout. A
 file you left off is unchanged for that request, and that next question is where
 it is looked at. With no generation to refresh, the read is whole and the list
 is not used.

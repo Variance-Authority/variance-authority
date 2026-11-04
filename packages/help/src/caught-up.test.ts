@@ -51,11 +51,29 @@ describe('outlived', () => {
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
   });
 
-  it('says so of an answer whose name a file passes on, when that file changed, without reading who imports the name', async () => {
+  it('says so of an answer whose name a file passes on, when that file changed', async () => {
     const root = await fixture.published({ 'packages/kit/src/passing.ts': "export { taxOf } from './tax.js';\n" });
     const help = await readWorkspace(root);
     appendFileSync(join(root, 'packages/kit/src/passing.ts'), '// moved\n');
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
+  it.each([
+    ['docs_symbol', 'named'],
+    ['docs_uses', 'named'],
+    ['docs_symbol', 'deepOf'],
+    ['docs_uses', 'deepOf'],
+  ])('says so of `%s` for `%s`, published through a barrel between the entry and its file, when that barrel changed', async (tool, name) => {
+    const root = await fixture.published({
+      'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
+      'packages/kit/src/index.ts': "export * from './inner/mid.js';\n",
+      'packages/kit/src/inner/mid.ts': "export * from './deep.js';\nexport { named } from './named.js';\n",
+      'packages/kit/src/inner/deep.ts': 'export const deepOf = 1;\n',
+      'packages/kit/src/inner/named.ts': 'export const named = 2;\n',
+    });
+    const help = await readWorkspace(root);
+    appendFileSync(join(root, 'packages/kit/src/inner/mid.ts'), '// moved\n');
+    expect(await outlived(tool, help, { name }, { root }, after(help))).toBe(true);
   });
 
   it('says so of a file saved while its generation was being read, which is stamped later than the file', async () => {

@@ -116,6 +116,30 @@ describe('variance ask about a name written after the source index', () => {
     expect(out).toContain('state-kit');
   });
 
+  it('prints the true lines of a published name from a file `--changed-file` names', async () => {
+    const root = checkout({ 'changed.txt': 'packages/lib/src/greet.ts\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    write(root, { 'packages/lib/src/greet.ts': '// one\n// two\nexport function greet(name: string): string {\n  return name;\n}\n' });
+
+    const { out } = await run(['ask', 'symbol', '--name', 'greet', '--changed-file', join(root, 'changed.txt')]);
+
+    expect(out).toContain('packages/lib/src/greet.ts:3');
+  });
+
+  it('stops publishing a name when a file `--changed-file` names drops the `export *` it came through', async () => {
+    const root = checkout({
+      'changed.txt': 'packages/lib/src/mid.ts\n',
+      'packages/lib/src/index.ts': "export * from './mid.js';\n",
+      'packages/lib/src/mid.ts': "export * from './greet.js';\nexport const mid = 1;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    write(root, { 'packages/lib/src/mid.ts': 'export const mid = 1;\n' });
+
+    const { out } = await run(['ask', 'symbol', '--name', 'greet', '--changed-file', join(root, 'changed.txt')]);
+
+    expect(out).toContain('exported, without being published');
+  });
+
   it('answers a name it does not find under `--just-answer` with when the index was published and that the checkout was not compared with it', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

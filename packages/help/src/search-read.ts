@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
-import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
+import { UnsavedRead, readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { readSearchSnapshot, readSearchTree, readWorkspaceSnapshot, searchOf, workspaceSearchPath } from './snapshot.js';
 
@@ -100,7 +100,15 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
   if (reading.changed !== undefined || reading.taints !== undefined) {
-    const help = await readWorkspaceForAnswer(root, options);
+    let help: Help;
+    try {
+      help = await readWorkspaceForAnswer(root, { ...options, refreshAfterMs: 0 });
+    } catch (error) {
+      if (!(error instanceof UnsavedRead)) throw error;
+      const { changed: _, taints: _taints, ...last } = reading;
+      help = await readWorkspaceForAnswer(root, { ...last, justAnswer: true });
+      return { index: await searchOf(help, index), compared: false, value: held(help) };
+    }
     return { index: await searchOf(help, index), compared: !justAnswer, value: held(help) };
   }
 

@@ -10,6 +10,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::collections::HashSet;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -22,7 +23,7 @@ use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
+use crate::help_search::{encode, exported_digest, set_digest, PublishedRows, SearchGeneration};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_exported, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
@@ -63,6 +64,8 @@ pub struct HelpPublish {
     /// The digest of the index manifest the reading was made from, which a
     /// later refresh over the same manifest keeps the value by.
     pub index_digest: String,
+    /// What `digest_forwards` states of the reading's `export … from` rows.
+    pub forwards_digest: String,
     /// JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`.
     pub packages: String,
     pub deep: String,
@@ -209,6 +212,13 @@ pub fn digest_exported(exported: Vec<NamedExport>) -> String {
     exported_digest(&exported)
 }
 
+/// The `export … from` rows of a reading as a set, which the export list does
+/// not hold: `export *` names nothing, and a named row does not say where it leads.
+#[napi(catch_unwind)]
+pub fn digest_forwards(forwards: Vec<String>) -> String {
+    set_digest(forwards)
+}
+
 #[napi]
 impl HelpReading {
     /// The export list as a set, as `EncodedSearch.exported` states it.
@@ -217,12 +227,20 @@ impl HelpReading {
         self.held.digest.clone()
     }
 
+    /// The rows of the export list that `files` write, for the few a caller
+    /// compares: the list itself stays here.
+    #[napi]
+    pub fn exported_of(&self, files: Vec<String>) -> Vec<NamedExport> {
+        let files: HashSet<String> = files.into_iter().collect();
+        self.held.exported.iter().filter(|named| files.contains(&named.at)).cloned().collect()
+    }
+
     /// The uses, imports by path and unreadable files, handed over once: the
     /// export list is left empty, and stays here.
     #[napi]
     pub fn usage(&mut self) -> IndexedUsage {
         self.usage.take().unwrap_or_else(|| IndexedUsage {
-            exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
+            exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
         })
     }
 
@@ -269,8 +287,8 @@ fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported:
     let mut out = Vec::with_capacity(exported.len() * 200);
     write!(
         out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"readStartedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
-        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(&o.read_started_at), json(digest), json(&o.index_digest),
+        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"readStartedAt\":{},\"exportedDigest\":{},\"forwardsDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
+        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(&o.read_started_at), json(digest), json(&o.forwards_digest), json(&o.index_digest),
         o.packages, o.deep, o.by_path, o.unfollowed,
     )?;
     serde_json::to_writer(&mut out, exported)?;

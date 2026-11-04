@@ -204,7 +204,7 @@ that the next question refreshes it. Run the binary or server with
 no freshness work. On `variance ask`, `--changed-file` belongs to the producer
 side: it supplies an authoritative newline-delimited file of scan-root-relative
 changed paths and cannot be combined with `--just-answer`. An empty file states
-that nothing changed. A file left off is unchanged for that request, and the
+that nothing changed. A listed file gives its names at the lines it holds now. A file left off is unchanged for that request, and the
 next question without a list looks. With no generation to refresh, the read is
 whole and the list is not used.
 
@@ -519,11 +519,12 @@ it.
 
 `refreshWorkspace` takes a previous reading and refreshes its volatile half:
 symbol usage, exported names, unreadable files and the source graph all come
-from a new Sense scan. Signatures, comments and README mentions are retained.
-A manifest change or an added or removed exported name rebuilds that retained
-documentation immediately, so a symbol introduced by the current edit is
-available on the same reading. Call `readWorkspace` again when edits to existing
-documentation must be visible immediately.
+from a new Sense scan. Signatures, comments and README mentions are retained
+until what they were cut from changes. A manifest change, an added or removed
+exported name, an `export … from` that changed, or a published declaration that
+moved or was rewritten rebuilds that retained documentation immediately, so a
+reading never gives a published name's old line or text. A row nothing publishes
+moves without a rebuild.
 
 `readWorkspaceForAnswer` reads the published generation while it is less than
 one hour old and refreshes it after that. `justAnswer` disables that expiry;

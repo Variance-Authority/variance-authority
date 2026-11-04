@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import {
+  forwardsDigest,
   primarySourceIndexPath,
   readHelp,
   sourceIndexPath,
@@ -10,6 +11,7 @@ import {
 } from '@variance-authority/sense';
 
 import {
+  everyEntry,
   readWorkspaceManifests,
   type Deep,
   type Help,
@@ -19,7 +21,7 @@ import {
   type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, samePackages } from './read.js';
+import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, sameExportedSurface, samePackages } from './read.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import { publishedRows } from './search-index.js';
 import { type NativeUsage, useOf } from './native-use.js';
@@ -28,6 +30,7 @@ import {
   SNAPSHOT_VERSION,
   indexManifestDigest,
   workspaceExportedDigest,
+  workspaceForwardsDigest,
   workspaceGeneration,
   workspaceIndexDigest,
   workspaceSearchPath,
@@ -84,11 +87,12 @@ function manifestsOf(where: string, options: FromIndexOptions): Promise<Workspac
  * exports and the graph; the documented surface is kept, exactly as
  * `refreshWorkspace` keeps it. On a large repository the value is mostly its
  * export list, and that list never crosses into JavaScript here: it is compared
- * by digest and written by the addon that read it. So what this answers is the
- * generation it published, not the value, and `undefined` when it cannot
- * refresh: the offerings or the exported set changed, or there is no native
- * scanner. The caller then reads the way
- * it always did.
+ * by digest and written by the addon that read it, and only the rows of the
+ * files an entry prints cross. So what this answers is the generation it
+ * published, not the value, and `undefined` when it cannot refresh: the
+ * offerings, the exported set, an `export … from` or a row an entry prints
+ * changed, or there is no native scanner. The caller then reads the way it
+ * always did.
  *
  * A value refreshed from this very manifest, over the same packages, is the
  * value this refresh would write, so it is kept and its generation answered:
@@ -129,6 +133,10 @@ async function refreshOver(
   }
   if (reading === null || reading.exportedDigest !== workspaceExportedDigest(documented)) return undefined;
   const read = reading.usage();
+  const forwards = forwardsDigest(read.forwards);
+  if (forwards !== workspaceForwardsDigest(documented)) return undefined;
+  const printed = [...new Set([...everyEntry(documented)].map(([, , entry]) => entry.at))];
+  if (!sameExportedSurface(printed, reading.exportedOf(printed), documented)) return undefined;
 
   const names = new Map<string, Map<string, Use[]>>();
   for (const use of read.names) {
@@ -161,6 +169,7 @@ async function refreshOver(
       generatedAt,
       readStartedAt: options.readStartedAt,
       indexDigest,
+      forwardsDigest: forwards,
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),
       byPath: JSON.stringify(help.byPath),

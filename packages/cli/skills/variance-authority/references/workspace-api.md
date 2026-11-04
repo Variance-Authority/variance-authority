@@ -38,10 +38,10 @@ the first argument is positional.
   server, a question that generation refuses is asked again of one made from
   the checkout now, with the dependency lexicon built when it is missing or
   behind, so a refusal is about the checkout as it is. So is a `symbol` or `uses`
-  whose files, the ones that declare the name, the entry that publishes it and each
+  whose files, the ones that declare the name or pass it on, the entry that publishes it and each
   row `uses` lists, or a server's `docs_search` whose printed files, changed
   after that generation, so it does not answer from old lines. One that could not be
-  read again, or whose file was saved during the read that answers it, says the checkout
+  read again or saved, or whose file was saved during the read that answers it, says the checkout
   was not compared, and why, gives a file written since by its recorded names and
   none of its text, and one whose
   lexicon could not be built says the installed packages were not compared. `--just-answer` uses the

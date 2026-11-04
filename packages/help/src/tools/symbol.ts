@@ -15,7 +15,7 @@ import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
-import { type PublishedDeclaration, publishedDeclarations, usesOf } from './uses-of.js';
+import { type PublishedDeclaration, passingOn, publishedDeclarations, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -180,11 +180,12 @@ export const symbol: Tool<Help> = {
 
 /**
  * The files an answer about a name rests on, to be compared with the checkout:
- * those {@link symbol}'s `files` gives, every file that passes the name on,
- * whose imports the answer counts, and each entry that publishes it, whose import
- * the answer teaches. Telling the first two apart is the one reading here that
- * walks who imports the name, which costs seconds on a large repository and is
- * paid by every question, so a look does not make it.
+ * those {@link symbol}'s `files` gives, every export of the name, whose imports
+ * the answer counts, and for a published declaration each entry and each barrel
+ * between that entry and its file, through which the answer teaches its import.
+ * The barrels are what the answer's own walk of who imports the name found: it
+ * is made once per generation, by whichever of the two comes first, so a look
+ * adds stats and no reading.
  */
 export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
   return [...declaredIn(help, input, invocation, (exported) => exported).files.keys(), ...publishingEntries(help, input, invocation)];
@@ -195,11 +196,11 @@ export function usesRestsOn(help: Help, input: Readonly<Record<string, unknown>>
   return [...declaredIn(help, input, invocation, (exported) => exported, false).files.keys(), ...publishingEntries(help, input, invocation)];
 }
 
-/** The entry file of each door a name is published through. */
+/** The entry file of each door a name is published through, and each file between the entry and the declaration. */
 function publishingEntries(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): readonly string[] {
   const from = input['package'];
   const published = publishedDeclarations(help, invocation?.root, stringArg(input, 'name'), typeof from === 'string' && from !== '' ? from : undefined);
-  return published.flatMap((one) => one.doors.map(([, opening]) => opening.source));
+  return [...published.flatMap((one) => one.doors.map(([, opening]) => opening.source)), ...passingOn(help, invocation?.root, published)];
 }
 
 /** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */

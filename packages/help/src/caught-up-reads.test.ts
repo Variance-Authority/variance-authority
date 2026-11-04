@@ -12,7 +12,7 @@ import { uses } from './tools/uses.js';
  * that cost, each still answered, so a repeated reading shows as a count.
  */
 
-const asked = vi.hoisted(() => ({ reads: 0 }));
+const asked = vi.hoisted(() => ({ reads: 0, importers: 0 }));
 
 vi.mock('@variance-authority/sense', async (actual) => {
   const sense = await actual<typeof import('@variance-authority/sense')>();
@@ -24,6 +24,10 @@ vi.mock('@variance-authority/sense', async (actual) => {
     ...sense,
     aliasesOf: counted(sense.aliasesOf),
     declaredOf: counted(sense.declaredOf),
+    importersOf: (...args: Parameters<typeof sense.importersOf>) => {
+      asked.importers += 1;
+      return sense.importersOf(...args);
+    },
     memberDeclarationsOf: counted(sense.memberDeclarationsOf),
   };
 });
@@ -60,6 +64,33 @@ describe('the look at an answer whose files are unchanged', () => {
 
     tool.run(help, input, { root });
     expect(asked.reads).toBe(0);
+  });
+
+  it.each([
+    [symbol, { name: 'taxOf' }],
+    [uses, { name: 'taxOf' }],
+  ])('walks who imports a published name for `$name` no more for the look, in either order', async (tool, input) => {
+    const root = await fixture.published({
+      'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
+      'packages/kit/src/index.ts': "export * from './tax.js';\n",
+    });
+    const alone = await readWorkspace(root);
+    asked.importers = 0;
+    tool.run(alone, input, { root });
+    const answer = asked.importers;
+    expect(answer).toBeGreaterThan(0);
+
+    const answered = await readWorkspace(root);
+    asked.importers = 0;
+    tool.run(answered, input, { root });
+    await outlived(tool.name, answered, input, { root }, later(workspaceGeneration(answered)));
+    expect(asked.importers).toBe(answer);
+
+    const looked = await readWorkspace(root);
+    asked.importers = 0;
+    await outlived(tool.name, looked, input, { root }, later(workspaceGeneration(looked)));
+    tool.run(looked, input, { root });
+    expect(asked.importers).toBe(answer);
   });
 
   it('shares nothing with another generation of the same checkout', async () => {
