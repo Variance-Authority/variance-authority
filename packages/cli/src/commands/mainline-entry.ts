@@ -1,6 +1,6 @@
 import { atCommit, findEntry, readLine, type HeldEntry, type KeptAt, type LineCell, type ShareLine, type ShareMiss } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
-import { distanceFrom, keptBehind, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
+import { distanceFrom, keepsByCommit, keptBehind, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
 import type { Here } from './share.js';
 
 /**
@@ -61,8 +61,9 @@ export async function mainlineEntry(
   if (cell === undefined) return { mainline, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
   if ('kind' in cell) return { mainline, miss: cell };
   // The latest answers alone in a store that keeps none by commit.
-  if (cell.commits !== undefined) base ??= await mergeBase(config, mainline, cwd);
-  const found = cell.commits === undefined || base === undefined
+  const kept = keepsByCommit(config.share);
+  if (kept) base ??= await mergeBase(config, mainline, cwd);
+  const found = !kept || base === undefined
     ? await entryIn(cell, { kind: 'mainline', name: mainline }, name)
     : await nearestHolding(cell, mainline, base, name, cwd);
   if ('miss' in found) return { mainline, ...found };

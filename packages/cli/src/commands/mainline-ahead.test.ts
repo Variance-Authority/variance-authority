@@ -123,7 +123,10 @@ async function branched(origin: string, file: string, source: string | undefined
   const clone = await cloneOf(home, origin);
   await git(clone, 'checkout', '--quiet', '-b', 'mine');
   if (source === undefined) await git(clone, 'rm', '--quiet', file);
-  else await writeFile(join(clone, file), source);
+  else {
+    await writeFile(join(clone, file), source);
+    await git(clone, 'add', file);
+  }
   await git(clone, '-c', 'user.name=Dev', '-c', 'user.email=dev@example.test', 'commit', '--quiet', '-am', `mine ${file}`);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   return clone;
@@ -339,6 +342,33 @@ describe('`variance select` a commit past the record its mainline published', ()
 
     // `other` nothing reaches; `total` imports what the checkout's bump moved.
     expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  // A file no record holds and no import reaches selects nothing, wherever it
+  // was added: the two tests below are one position, not a gap of a stale record.
+  const SCANNED = "import { readdirSync } from 'node:fs';\nexport async function total(price: number): Promise<number> {\n  return Promise.all(readdirSync('plugins').map((one) => import(`../plugins/${one}`))).then(() => price);\n}\n";
+  const PLUGIN = 'export const run = (price: number) => price;\n';
+
+  it('skips a test a directory scan takes onto a file the mainline added past the record, which no record holds', async () => {
+    const ci = await mainline({ total: SCANNED });
+    await landed(ci.dir, { 'plugins/x.ts': PLUGIN });
+    const clone = await branched(ci.origin, 'plugins/x.ts', PLUGIN.replace('price;', 'price * 2;'));
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toContain('test/total.test.ts');
+  });
+
+  it('skips a test a directory scan takes onto a file the checkout added at the record, which no record holds', async () => {
+    const ci = await mainline({ total: SCANNED });
+    const clone = await cloneOf(home, ci.origin);
+    await mkdir(join(clone, 'plugins'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
+    await writeFile(join(clone, 'plugins/x.ts'), PLUGIN);
+
+    const here = await selectedIn(clone);
+
+    expect(here.out).toContain('test/total.test.ts');
   });
 
   it('selects as it does without a mainline when the record is at the merge base', async () => {

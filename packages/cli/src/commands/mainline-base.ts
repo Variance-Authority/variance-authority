@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
 import { ConfigError, messageOf } from '../config-values.js';
-import { distanceFrom, readerMainline, type Env } from '../share-lines.js';
+import { distanceFrom, keepsByCommit, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
@@ -157,7 +157,7 @@ export async function mainlineBase(
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
-      const reused = reuseOf(distance, share?.kind === 'git', last.base === named?.base);
+      const reused = reuseOf(distance, keepsByCommit(share), last.base === named?.base);
       if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);

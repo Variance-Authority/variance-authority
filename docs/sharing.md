@@ -651,7 +651,9 @@ A record behind your merge base is read the same way: the mainline's commits
 between it and your merge base count as changed, and the tests they reach run
 with yours. That record cannot say what those commits made a test load, so a
 test they touch is never skipped on its word. The run grows with the distance
-until the merge base's own job publishes.
+until the merge base's own job publishes. A file no record holds and no import
+reaches selects nothing, here as for a file your branch adds: a directory scan
+onto a file added after the record is seen once the merge base's record is read.
 
 `review` diffs from the merge base of that
 commit and `HEAD`. It compares the cases, the tests each test file declares,

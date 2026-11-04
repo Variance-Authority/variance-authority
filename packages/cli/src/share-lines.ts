@@ -219,6 +219,11 @@ export interface Unconfigured {
   readonly detail: string;
 }
 
+/** Whether `share` keeps a record per commit beside the latest: the one store that answers `commits`. */
+export function keepsByCommit(share: Config['share']): boolean {
+  return share?.kind === 'git';
+}
+
 /**
  * The cell the configured share kind keeps its lines in.
  *
