@@ -413,11 +413,11 @@ review loop.
 - **`variance-authority`** covers reports, watchers and connections, choosing
   which tests to run, and what a workspace publishes, and opens a reference
   file for each only when the question needs it.
-- **`variance-testing`** is the order to ask in while you write, fix or debug a
-  test: which tests stand on a line, what an edit needs to run, where a failing
-  or flaky test went, what a change or a file's tests left untested, and how
-  much of a test can go. It links the
-  `variance-authority` references for its flags, so link both.
+- **`variance-testing`** is the order to ask in while you change code or write,
+  fix or debug a test: which test to turn red first, which tests stand on a
+  line, what an edit needs to run, where a failing or flaky test went, what a
+  change or a file's tests left untested, and how much of a test can go. It
+  links the `variance-authority` references for its flags, so link both.
 
 Installing the package puts them on disk; your agent reads a skill only from
 its own skills directory, in the project or your home directory. Claude Code
