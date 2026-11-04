@@ -2,12 +2,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import * as help from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
 import { publishedGeneration } from './read.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
+import { readWorkspaceSnapshot } from './snapshot.js';
 
 /**
  * The questions `variance index` publishes, with the manifests read once.
@@ -145,5 +147,24 @@ describe('publishing the questions from the index', () => {
     expect(refreshed).not.toBe(first);
     expect(manifestReads()).toEqual(ONCE);
     expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+  });
+
+  it('writes the export rows a read writes, whichever way each export binds', async () => {
+    write('packages/a/src/declared.ts', 'export const see = 1;\nexport type Kind = string;\nexport const Kind = 2;\nconst kept = 3;\nexport { kept as renamed };\n');
+    write('packages/a/src/named-default.ts', 'export default function named(): void {}\n');
+    write('packages/a/src/anonymous-default.ts', 'export default 42;\n');
+    write('packages/a/src/default-binding.ts', 'const held = 1;\nexport default held;\n');
+    write('packages/a/src/passes.ts', "import { see } from './declared.js';\nimport * as whole from './declared.js';\nexport { see, whole };\nexport { see as seen };\n");
+    write('packages/a/src/from.ts', "export { see } from './declared.js';\nexport { see as other } from './declared.js';\nexport * as ns from './declared.js';\nexport * from './declared.js';\n");
+    await updateSourceIndex(root, { index });
+
+    const rows = async () => (await readWorkspaceSnapshot(root, { index })).exported
+      .toSorted((a, b) => codeUnitOrder(a.at, b.at) || a.line - b.line || codeUnitOrder(a.name, b.name));
+    await publishWorkspaceFromIndex(root, { index });
+    const first = await rows();
+    await publishWorkspaceFromIndex(root, { index });
+
+    expect(first.find((row) => row.name === 'renamed')?.bound).toBe('kept');
+    expect(await rows()).toEqual(first);
   });
 });
