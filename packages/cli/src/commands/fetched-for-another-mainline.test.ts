@@ -70,6 +70,13 @@ async function fetchedInto(checkout: string, recorded: string, pointer: FetchedM
   return kept;
 }
 
+/** {@link fetchedForRelease}, in a cache that keeps no note: `selected.json` is a directory, and a rename does not replace one. */
+async function unnotedForRelease() {
+  const fetched = await fetchedForRelease();
+  await mkdir(join(mainlineReadRoot(cacheRootFor(fetched.clone), 'unit'), 'selected.json'));
+  return fetched;
+}
+
 const ask = async (argv: readonly string[]) => {
   let out = '';
   let err = '';
@@ -166,5 +173,50 @@ describe('a read that fetches nothing', () => {
 
     expect(recordedPaths(clone)).toEqual([]);
     expect(lastFetchedMainline(clone, 'unit')).toBeUndefined();
+  });
+});
+
+describe('a selection the cache could not keep', () => {
+  it('is judged where it was computed, by a read that asks the share', async () => {
+    const { clone } = await unnotedForRelease();
+
+    expect(await suiteBase(clone, { env: {} })).toMatchObject({ from: 'none', missed: { mainline: 'main' } });
+  });
+
+  it('is judged where it was computed, by a read that fetches nothing', async () => {
+    const { clone } = await unnotedForRelease();
+
+    expect(await suiteBase(clone, { env: {}, fetch: 'never' })).toMatchObject({ from: 'none', missed: { mainline: 'main' } });
+  });
+
+  it('turns it away from `recordedSuite`', async () => {
+    const { clone, own } = await unnotedForRelease();
+
+    expect((await recordedSuite(clone, 'unit')).file).toBe(own);
+  });
+
+  it('turns it away from `variance coverage`', async () => {
+    const { clone } = await unnotedForRelease();
+
+    const answer = await ask(['coverage', '--root', clone, '--suite', 'unit', '--format', 'json']);
+
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
+  });
+
+  it('turns it away from `variance covering`', async () => {
+    await unnotedForRelease();
+
+    const answer = await ask(['covering', '--file', 'src/total.ts', '--suite', 'unit', '--format', 'refs']);
+
+    expect(answer.out + answer.err).not.toContain('test/total.test.ts');
+  });
+
+  it('does not offer it as the record that would close a probes gap', async () => {
+    const { clone, kept } = await unnotedForRelease();
+    await writeTestCoverage(kept, { version: 3, instrumentation: PROBES, tests: [], modules: [] });
+    const record = join(home, 'older.bin');
+    await writeTestCoverage(record, { version: 3, instrumentation: 'retired-probes', tests: [], modules: [] });
+
+    expect(await probesGap(record, clone, 'unit')).not.toHaveProperty('current');
   });
 });

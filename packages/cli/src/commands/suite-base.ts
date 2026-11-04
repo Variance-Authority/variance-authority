@@ -11,7 +11,7 @@
  *    the reader says why the mainline's is not it.
  *
  * A checkout's first run is laid on the same answer, as `lastFetchedMainline`
- * gives it to a seam. `mainlineBase` owns the fetch and `readableTestCoverage`
+ * gives it to a seam, by what the last reader noted. `mainlineBase` owns the fetch and `readableTestCoverage`
  * which layer holds a record; this decides the order, and says whose it gave.
  */
 
@@ -21,7 +21,8 @@ import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineBase, mainlineMissed, mainlineRead, primaryRead, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
-import { recordedSuite } from './suite-record.js';
+import { onlySuite } from './mainline-selected.js';
+import { namedSuite, recordedSuite } from './suite-record.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
 export type SuiteBase =
@@ -85,7 +86,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 
   // With no mainline record fetched here, the nearest layer under this
   // checkout's own is the primary checkout's, the same one a first run lays.
-  const nearest = await selection.readableTestCoverage(root, named);
+  const nearest = await selection.readableTestCoverage(root, { ...named, selected: read?.selected });
   if (nearest !== own && (await recordHeld(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
 }
@@ -128,9 +129,12 @@ export async function recordedOrMainline(
   request: { readonly root: string; readonly suite?: string },
   options: Pick<SuiteBaseOptions, 'fetch'> = {},
 ): Promise<FoundRecord> {
-  const recorded = await recordedSuite(request.root, request.suite);
-  const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
-  if (suite === undefined) return { at: recorded.file, held: await recordHeld(recorded.file) };
+  const { declared } = await namedSuite(request.root, request.suite);
+  if (declared?.carry !== 'share') {
+    const { file } = await recordedSuite(request.root, request.suite);
+    return { at: file, held: await recordHeld(file) };
+  }
+  const suite = declared.name;
   const base = await suiteBase(request.root, { suite, ...options });
   if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
   if (base.from === 'mainline') {
@@ -232,11 +236,6 @@ function fetchedOf(record: MainlineRecord): LastFetched {
     coverage: record.coverage,
     ...(record.runs === undefined ? {} : { runs: record.runs }),
   };
-}
-
-/** The one suite a root config declares, which a reader that names none reads. */
-function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
-  return declared?.length === 1 ? declared[0]!.name : undefined;
 }
 
 /**

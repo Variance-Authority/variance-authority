@@ -10,8 +10,9 @@
  * They meet here. A fetch keeps the record at
  * `<cache>/share/read/<suite>/<commit>/` and names it in `fetched.json`. A
  * record fetched for one mainline answers nothing about another, and only the
- * CLI can say which is selected, so it leaves that in `selected.json` in the
- * checkout's own cache. {@link lastFetchedMainline} reads both for every party.
+ * CLI can say which is selected. {@link lastFetchedMainline} takes that from a
+ * reader that worked it out, and for the rest reads the last one a reader left
+ * in `selected.json`, in the checkout's own cache.
  */
 
 // compass: variance-authority.reach
@@ -99,8 +100,18 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 }
 
 /**
+ * The mainline a reader worked out for this checkout, handed to a read in place
+ * of the note. `mainline` absent is a reader that found none, so nothing is
+ * another's.
+ */
+export interface SelectedMainline {
+  readonly mainline?: string;
+}
+
+/**
  * Leave the mainline selected for `suite` where {@link lastFetchedMainline}
- * reads it; `undefined` when none is, which removes the note. A note that
+ * reads it for a party that cannot work it out; `undefined` when none is, which
+ * removes the note. A note that
  * already says so is left alone, so a reader on a settled checkout writes nothing.
  *
  * FIXME: a `yarn test` in a checkout no reader has asked in finds no note and lays what was fetched, whichever mainline that was; moving the selection below the CLI closes it.
@@ -129,23 +140,24 @@ function readSelectedMainline(readRoot: string): string | undefined {
  * Two caches are asked, this checkout's and a worktree's primary's, the newest
  * winning; a caller that names `cacheRoot` asks that one only. A pointer whose
  * record is not on disk or does not read in this build is passed over, and so
- * is one for another mainline than the first cache's note selects: no reader,
- * seam or lay gets it. With no note nothing says it is another's.
+ * is one for another mainline than `selected`, which a reader that worked out
+ * the selection hands in. Absent, the first cache's note stands for it, trailing
+ * by the last reader that left one; with no note nothing says it is another's.
  *
  * Synchronous, as {@link nearestTestCoverage} cannot wait. It opens the record,
  * so a reader asks it only once the checkout's own layer has none.
  */
-export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string): LastFetched | undefined {
+export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: SelectedMainline): LastFetched | undefined {
   const declared = declaredSuites(root);
   const name = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   const caches = fetchCaches(root, cacheRoot);
-  const selected = readSelectedMainline(mainlineReadRoot(caches[0]!, name));
+  const mainline = selected === undefined ? readSelectedMainline(mainlineReadRoot(caches[0]!, name)) : selected.mainline;
   let newest: LastFetched | undefined;
   for (const cache of caches) {
     const readRoot = mainlineReadRoot(cache, name);
     const pointer = readFetchedMainline(readRoot);
-    if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
+    if (pointer === undefined || (mainline !== undefined && pointer.mainline !== mainline)) continue;
     if (newest !== undefined && newest.fetched >= pointer.fetched) continue;
     const coverage = join(readRoot, pointer.commit, 'coverage.bin');
     if (!existsSync(coverage)) continue;

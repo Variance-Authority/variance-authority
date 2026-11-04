@@ -361,9 +361,9 @@ Name neither flag, and `distill` reads every test file that way, or with
 they load for nothing by their lines summed over the test files each reaches.
 With no `--suite`, it reads every declared suite.
 
-`distill` has a gap here: it reads the record this machine holds and asks the
-share nothing, where `select` and `covering` read the mainline's, so a checkout
-that never ran the suite can answer from an older record, without saying so.
+`distill` reads the nearest record this machine holds and fetches nothing: this
+checkout's own, else the mainline's as last fetched here, else, in a worktree,
+the primary checkout's.
 `--suite <name>` picks one declared suite's, and `--execution <path>` reads any other record, or JSON from a tool
 that already records per-test crossings. From the root `variance.config.json` it
 reads only the declared suites. It reports addressed targets by authored Arrange/Act/Assert
@@ -941,16 +941,14 @@ not listed. Each listed file's lines are measured from the commit the record was
 written at, since the index's line ranges are in that commit's coordinates and
 nothing else's, and a hunk from there is yours where it meets one of your
 change's in the working tree: one hunk your change and those commits both wrote
-is answered whole, and a file the record already holds as written is not listed.
+is answered whole.
 A path the record's commit held no file by, added or renamed since, is listed with
 no row and says so, naming that commit; `--file` with the name it held reads the
 coverage it recorded.
 With nothing changed behind the ref, no record is fetched: in a
 repository that declares suites, each suite gives that as its reason at exit 0,
-and with `--suite`, or with no suites declared, it is refused. A change whose
-every line the record already holds as written is answered the same way, once
-that record is read. A ref that does not read as a diff is one `undiffed`
-refusal at exit 2, before any record is read.
+and with `--suite`, or with no suites declared, it is refused. A ref that does
+not read as a diff is one `undiffed` refusal at exit 2, before any record is read.
 
 Under the regions, the answer says which changed files the test files it names
 ran over and when, as an answer about one file does, with no region. Record

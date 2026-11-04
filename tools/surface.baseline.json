@@ -3257,6 +3257,7 @@
         "SUITE_KINDS": "const",
         "Said": "type",
         "Seeded": "type",
+        "SelectedMainline": "interface",
         "SelectionCause": "interface",
         "SelectionReason": "type",
         "SetColumns": "interface",

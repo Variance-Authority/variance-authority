@@ -92,8 +92,8 @@ export async function recordOf(
 export async function snapshotFor(request: CoveringRead): Promise<string | undefined> {
   if (request.record !== undefined) return request.record;
   try {
-    await noteSelectedMainline(request.root, request.suite);
-    return await readableTestCoverage(request.root, { suite: request.suite });
+    const selected = await noteSelectedMainline(request.root, request.suite);
+    return await readableTestCoverage(request.root, { suite: request.suite, selected });
   } catch (error) {
     if (request.execution !== undefined) return undefined;
     throw error;

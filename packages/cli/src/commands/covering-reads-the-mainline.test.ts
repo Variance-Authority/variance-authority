@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readableTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
+import { readableTestCoverage, testCoverageFile, writeSelectedMainline } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -30,7 +31,7 @@ vi.mock('./mainline-base.js', async (original) => {
 });
 vi.mock('@variance-authority/sense/test-selection', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
-  return { ...actual, readableTestCoverage: vi.fn(actual.readableTestCoverage) };
+  return { ...actual, readableTestCoverage: vi.fn(actual.readableTestCoverage), writeSelectedMainline: vi.fn(actual.writeSelectedMainline) };
 });
 
 /**
@@ -415,11 +416,25 @@ describe('a question with `--text`, which an editor asks on every repaint', () =
 describe('one answer', () => {
   it('resolves its record once, and the frame and the hops read that one', async () => {
     await behindTheMainline({ publish: true });
-    vi.mocked(readableTestCoverage).mockClear();
+    for (const spy of [mainlineBase, readableTestCoverage]) vi.mocked(spy).mockClear();
 
     await asked(['--file', 'src/total.ts', '--line', '2', '--hops', '--suite', 'unit']);
 
-    expect(vi.mocked(readableTestCoverage)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(mainlineBase)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(readableTestCoverage)).not.toHaveBeenCalled();
+  });
+
+  it('selects no mainline for a repaint this checkout answers from its own record, which is nobody else\'s', async () => {
+    const { clone, second } = await behindTheMainline({ publish: true });
+    await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
+    const text = join(clone, 'held.ts');
+    await writeFile(text, 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
+    vi.mocked(writeSelectedMainline).mockClear();
+
+    const answer = await asked(['--file', 'src/total.ts', '--suite', 'unit', '--text', text]);
+
+    expect(answer.source).toMatchObject({ from: 'checkout' });
+    expect(vi.mocked(writeSelectedMainline)).not.toHaveBeenCalled();
   });
 });
 

@@ -68,7 +68,8 @@ const LISTED_BYTES = 24 * 1024;
 /**
  * Which of `paths` `commit` held, as {@link existedAt} answers one, in one
  * listing for as many paths as a command line carries. It reads trees alone, so
- * a blob a partial clone left behind is no fetch and a submodule is held.
+ * a blob a partial clone left behind is no fetch and a submodule is held,
+ * which `blobsAt` names no object for, so it would answer one absent.
  */
 export function existingAt(root: string, commit: string, paths: readonly string[]): ReadonlySet<string> | { readonly unread: string } {
   const held = new Set<string>();

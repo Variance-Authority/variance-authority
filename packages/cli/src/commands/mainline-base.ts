@@ -13,11 +13,11 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { DeclaredSuite, LastFetched } from '@variance-authority/sense/test-selection';
-import { ConfigError, messageOf } from '../config-values.js';
-import { distanceFrom, keepsByCommit, readerMainline, type Env } from '../share-lines.js';
+import type { DeclaredSuite, LastFetched, SelectedMainline } from '@variance-authority/sense/test-selection';
+import { messageOf } from '../config-values.js';
+import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
-import { keepSelected, rootShare } from './mainline-selected.js';
+import { selectMainline, type MainlineSelection } from './mainline-selected.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
 
@@ -77,6 +77,8 @@ export interface MainlineMissed {
   readonly shareAsked?: false;
   /** When the line gave this answer, as an ISO time, when it was earlier within {@link MISS_STANDS_MS} and not now. */
   readonly asked?: string;
+  /** The selection this read worked out, for what the reader reads instead. Absent when a `share` section stopped it. */
+  readonly selected?: SelectedMainline;
 }
 
 /** The line's answer that it gave no record: which mainline, when, and why. */
@@ -136,32 +138,26 @@ export async function mainlineBase(
 ): Promise<MainlineBase | undefined> {
   if (declared?.carry !== 'share') return undefined;
   const suite = declared.name;
+  // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
+  // for every distance measured below, and the fetch keeps the merge base.
+  const chosen = await selectMainline(root, suite, here);
+  if ('unconfigured' in chosen) return { suite, miss: { kind: 'unconfigured', detail: chosen.unconfigured }, shareAsked: false };
+  const read = await readMainline(root, suite, chosen, here);
+  return 'miss' in read ? { ...read, selected: chosen.selected } : read;
+}
+
+/** {@link mainlineBase} once the mainline is selected. */
+async function readMainline(root: string, suite: string, chosen: MainlineSelection, here: MainlineAsk): Promise<MainlineBase> {
   const selection = await import('@variance-authority/sense/test-selection');
-  let share: ReturnType<typeof rootShare>;
-  try {
-    share = rootShare(selection.rootConfig(root));
-  } catch (error) {
-    // A section that does not parse. An unset token is not one of these: it is
-    // read when the share is asked, and arrives as that share's miss.
-    if (!(error instanceof ConfigError)) throw error;
-    return { suite, miss: { kind: 'unconfigured', detail: error.message }, shareAsked: false };
-  }
-  const cacheRoot = here.cacheRoot ?? selection.cacheRootFor(root);
+  const { share, cacheRoot, named } = chosen;
   const place = { ...(share === undefined ? {} : { share }), cacheRoot };
   const env = here.env ?? process.env;
   const now = here.now ?? Date.now();
   const readRoot = selection.mainlineReadRoot(cacheRoot, suite);
-
-  // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
-  // for every distance measured below, and the fetch keeps the merge base.
-  const chosen = await readerMainline(place, env, root);
-  const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
-  // Noted before the read, because the note is what turns another mainline's record away. With no mainline
-  // named nothing says it is another's, and it stands, though only a named one is reused unasked.
-  await keepSelected(selection.writeSelectedMainline, cacheRoot, suite, named?.name);
+  // With no mainline named nothing says it is another's, and it stands, though only a named one is reused unasked.
   // Both caches when the caller named none, as a runner seam reads them.
-  const held = selection.lastFetchedMainline(root, suite, here.cacheRoot);
+  const held = selection.lastFetchedMainline(root, suite, here.cacheRoot, chosen.selected);
   if (here.fetch !== 'always') {
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {

@@ -57,8 +57,12 @@ describe('whose record answers a worktree', () => {
 
     await writeSelectedMainline(asked.cacheRoot, 'unit', 'release');
     expect(nearestRecord(worktree, asked)).toEqual({ file: below, origin: 'primary' });
+    // A reader that worked the selection out is not told otherwise by what was left.
+    expect(nearestRecord(worktree, { ...asked, selected: { mainline: 'main' } })).toEqual({ file: mainline, origin: 'mainline' });
+    expect(nearestRecord(worktree, { ...asked, selected: {} })).toEqual({ file: mainline, origin: 'mainline' });
     await writeSelectedMainline(asked.cacheRoot, 'unit', undefined);
     expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
+    expect(nearestRecord(worktree, { ...asked, selected: { mainline: 'release' } })).toEqual({ file: below, origin: 'primary' });
 
     await hold(own);
     expect(nearestRecord(worktree, asked)).toEqual({ file: own, origin: 'own' });

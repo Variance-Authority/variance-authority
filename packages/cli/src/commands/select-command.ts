@@ -54,7 +54,7 @@ import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import { recordedOrMainline, recordHeld } from './suite-base.js';
-import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
+import { namedSuite, oneRecord, ownRecord } from './suite-record.js';
 import { headOf } from './suite-share.js';
 import {
   formatSelection,
@@ -190,7 +190,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
   const top = await topLevel(request.root);
   const here = top ?? request.root;
-  const own = at === (await landingRecord(request.root, request.suite));
+  const own = at === (await ownRecord(request.root, request.suite));
   const whose = own ? '' : " It is another checkout's record, read here because this checkout holds none of its own.";
   const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, async () => `${whose}${await fetchable(request.root, request.suite)}`);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
@@ -269,7 +269,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.
-  const declared = (await recordedSuite(here, request.suite, 'landing')).declared;
+  const { declared } = await namedSuite(here, request.suite);
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);

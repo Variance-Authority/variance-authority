@@ -267,13 +267,15 @@ export async function recordIn(
   commit: string,
   covering: readonly string[],
   cases: readonly (typeof DISCOUNTS)[],
+  instrumentation = 'fixture',
 ): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
-  await writeTestCoverage(record, totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], [totalModule(covering), {
-    ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
+  const blocks = [totalModule(covering), {
+    ordinal: 1, owner: 0, kind: 'function' as const, digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
     startLine: 1, endLine: 3, source: true, testFiles: [...covering],
-  }]));
+  }];
+  await writeTestCoverage(record, { ...totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], blocks), instrumentation });
   await keepCases(record, casesOf(cases));
 }
 

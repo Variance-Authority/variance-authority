@@ -183,8 +183,8 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     // nearest that holds it, which in a checkout that has not run is the
     // mainline's as last fetched here, else, in a worktree, the primary
     // checkout's.
-    await noteSelectedMainline(request.root, one?.name);
-    const record = await readableTestCoverage(request.root, { suite: one?.name });
+    const selected = await noteSelectedMainline(request.root, one?.name);
+    const record = await readableTestCoverage(request.root, { suite: one?.name, selected });
     const from = await recordOf(request.root, one?.name, record);
     if (from === undefined) {
       suites.push(named);

@@ -55,10 +55,10 @@ export async function probesGap(record: string, root: string, suite?: string): P
   const selection = await import('@variance-authority/sense/test-selection');
   const under = identityOf(selection.askCoverageFile, record);
   if (under === undefined || instrumentModeOf(under) !== undefined) return undefined;
-  await noteSelectedMainline(root, suite);
+  const selected = await noteSelectedMainline(root, suite);
   let fetched: ReturnType<typeof selection.lastFetchedMainline>;
   try {
-    fetched = selection.lastFetchedMainline(root, suite);
+    fetched = selection.lastFetchedMainline(root, suite, undefined, selected);
   } catch {
     fetched = undefined;
   }
