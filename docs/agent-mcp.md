@@ -6,7 +6,8 @@ the whole report itself — what changed, and what changed it. The server answer
 only from the report it is given: it never runs a test, re-renders a state, or
 promotes a baseline.
 
-New here? Start with [your first run](start.md).
+New here? Start with [your first run](start.md). To give an agent your code with
+no run and no config, [connect it to the source](agent-workspace-api.md#connect-your-agent).
 
 ## Produce a report first
 
@@ -30,32 +31,37 @@ and can ask for again, identified by a stable id such as `checkout/empty` or
 
 ## Serve the report to a client
 
-Use Node 22.15 or newer. From the directory in which the MCP client will launch
-the server, install the package:
+Use Node 22.15 or newer. In the repository that holds the report, install the
+package:
 
 ```bash
 npm install --save-dev @variance-authority/mcp
 ```
 
-Then add the server to the file your client keeps its server list in —
-`claude_desktop_config.json` for Claude Desktop, the equivalent file for any
-other client:
+Then add the server to the file your client keeps its server list in:
+`.mcp.json` at the repository root for Claude Code, `claude_desktop_config.json`
+for Claude Desktop, the equivalent file for any other client. A client launches
+`command` from its own `PATH`, where a local install puts nothing, so the entry
+goes through `npx`:
 
 ```json
 {
   "mcpServers": {
     "variance": {
-      "command": "variance-authority-mcp",
-      "args": [".variance/report.json"]
+      "command": "npx",
+      "args": ["variance-authority-mcp", ".variance/report.json"]
     }
   }
 }
 ```
 
-The relative report path is resolved from the server process's working
-directory. Use an absolute path when the client starts elsewhere. The server
-validates the report at startup and re-reads it before each request, so a
-completed rerun is answered from the new report without reconnecting.
+Both `npx` and the relative report path read the directory the client starts the
+server in. A client that starts outside the repository, as Claude Desktop may,
+takes its absolute path twice: `"args": ["--prefix", "/path/to/repo",
+"variance-authority-mcp", "/path/to/repo/.variance/report.json"]`.
+
+The server validates the report at startup and re-reads it before each request,
+so a completed rerun is answered from the new report without reconnecting.
 
 The same questions are available on the command line, where they need no client
 and no server: [ask a run from the command line](agent-cli.md).

@@ -269,8 +269,9 @@ have a shell, and many of them cannot add a server. The skill this package ships
 at `skills/variance-authority/SKILL.md` routes an agent through these questions in order;
 the one at `skills/variance-testing/SKILL.md` is the order to ask them in while
 it changes code, or writes, fixes or debugs a test. Link both into your agent's
-skills directory rather than copying them; `variance doctor` prints whether an
-agent can find each and prints the link when it cannot.
+skills directory rather than copying them; with a `variance.config.json`,
+`variance doctor` prints where it finds each and prints the link when it finds
+none.
 
 Every answer exits `0`, including one that describes changes. `ask` reads; it
 does not decide. The verdict stays with `run`, `report` and `adjudicate`, which
