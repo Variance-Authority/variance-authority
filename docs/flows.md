@@ -197,7 +197,9 @@ build log may be able to read the ingest token, and that capability must not be
 able to approve a regression. Every decision is recorded under the name of the
 person who made it.
 
-Point `npx variance push` at the deployment with the ingest token:
+Point `npx variance push` at the deployment with an ingest credential. Here that
+is a token; on GitHub Actions it can be the token the runner signs, which stores
+no secret:
 
 ```json
 {

@@ -4168,6 +4168,7 @@
         "createReviewStore": "function"
       },
       "./worker": {
+        "Introduced": "interface",
         "Policy": "interface",
         "PolicyOptions": "interface",
         "Principal": "type",

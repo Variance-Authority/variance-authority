@@ -120,6 +120,7 @@ under this prefix, as `VARIANCE_TRIBUNAL_GITHUB_REPOSITORY`.
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | `30` | days of builds `POST /review/sweep` keeps |
 | `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name `loopback` writes on decisions |
 | `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind; what that costs is below |
+| `VARIANCE_TRIBUNAL_ORIGIN` | the request's `Host` | the address people reach this at, such as `https://review.example.com`. Set it behind a proxy that terminates TLS, because sign-in hands this address to GitHub |
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review page,
 and a caller with no bearer decides as `VARIANCE_TRIBUNAL_REVIEWER`: anything that
@@ -130,7 +131,8 @@ bearer is read as a machine here too, so a wrong one is refused.
 is served only once `VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS` names somebody. There
 is no TLS here and no rate limit, so there would be nothing between an approve
 button and the internet. For a reviewer who is not at the machine, declare
-`github` or `access` behind a proxy that terminates TLS, mount the Next.js adapter
+`github` or `access` behind a proxy that terminates TLS, with
+`VARIANCE_TRIBUNAL_ORIGIN` naming its address, mount the Next.js adapter
 behind your own sign-in, or leave the process on loopback behind a proxy that
 authenticates.
 
@@ -223,16 +225,19 @@ permissions:
   id-token: write
 ```
 
-A second run changes nothing and says so. `--skip-deploy` leaves publishing to a
-deployment with its own build, and `--mount /api` names where such a deployment
-serves the API. `--rotate` replaces the session key, and the ingest token where
-`token` is declared.
+Every run prints these, so you can run it again to read them. A second run changes
+nothing else and says so. `--skip-deploy` leaves publishing to a deployment with
+its own build, and `--mount /api` names where such a deployment serves the API.
+`--rotate` replaces the session key, and the ingest token where `token` is
+declared.
+
+A run refuses a repository the deployment does not already name, rather than
+widening who may push: add it to `GITHUB_ACTIONS_REPOSITORIES` in `vars` yourself.
 
 The ingest token exists only when you declare `token`. The command then mints
 `INGEST_TOKEN` into the Worker and the same value into the repository's
-`VARIANCE_INGEST_TOKEN` secret, without printing it. A rotation that fails between
-the Worker and the repository is recorded in the `VARIANCE_INGEST_ROTATION`
-variable, and the next run replaces both.
+`VARIANCE_INGEST_TOKEN` secret, without printing it. When one side fails, the run
+says which, and `--rotate` replaces both.
 
 When your Cloudflare login is missing, the command runs `wrangler login`. When the
 login sees several accounts, it lists them and stops until `account_id` picks one.
@@ -267,6 +272,7 @@ mechanism declared:
 | `VIEW` | var, optional | `public` opens reading to anybody, who cannot decide. It takes no other value |
 | `GITHUB_ACTIONS_REPOSITORIES` | var, `github-actions` | whose workflows may push: `owner/name` separated by commas, any case, or `owner/*` |
 | `GITHUB_ACTIONS_AUDIENCE` | var, `github-actions` | the audience a workflow's token must name |
+| `GITHUB_ACTIONS_BASELINE_REF` | var, `github-actions` | the one ref whose workflows move baselines, such as `refs/heads/main`. Any other ref still pushes builds and reads |
 | `GITHUB_ACTIONS_ISSUER` | var, optional, `github-actions` | the token's issuer. Default `https://token.actions.githubusercontent.com` |
 | `GITHUB_REPOSITORY` | var, `github` | `owner/name`: whoever can write to it decides |
 | `GITHUB_CLIENT_ID` | var, `github` | the GitHub App's client id |
@@ -328,10 +334,10 @@ no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. Onl
 | `GET /version` | any | `{"service":"variance-authority-tribunal","api":6,"schema":21}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
-| `POST /baseline/put` | ingest | store an approved image |
+| `POST /baseline/put` | ingest, from `GITHUB_ACTIONS_BASELINE_REF` under `github-actions` | store an approved image |
 | `POST /cache/find`, `POST /cache/put` | ingest | the render cache the same store backs |
 | `POST /v1/observations` | ingest | append a run: its observations, its resolved token values, its instability reports. 204 |
-| `POST /v1/approvals` | ingest | append which subjects were signed off in which run. 204 |
+| `POST /v1/approvals` | ingest, from `GITHUB_ACTIONS_BASELINE_REF` under `github-actions` | append which subjects were signed off in which run. 204 |
 | `POST /v1/current` | ingest | a run asking what is currently recorded for a list of subject ids. A POST because three hundred ids in a query string is a 414 from a proxy nobody configured |
 | `GET /v1/last-changed?subject&component[&band]` | ingest, review or view | the last observation in which that component's hash changed for that subject |
 | `GET /v1/churn?component` | ingest, review or view | how often that component's own hashes changed, as a rate |
@@ -677,7 +683,7 @@ export default {
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
 | `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
-| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer — a Worker has no timer, and this package will not invent a cron you did not ask for. Wire it to a scheduled trigger, call it from a CI job, or never |
+| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied by the packaged Worker's `scheduled` handler and by `POST /review/sweep` |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
 `env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket`,
@@ -893,8 +899,10 @@ against), **decisions**, **concerns**, and the **changelog**. The fourth count,
 `decisionsKept`, is how many approvals outlived the builds this call removed, not
 a fourth removal.
 
-It runs on request only, never on a timer — wire it to a scheduled trigger or
-call it from CI.
+The packaged Worker sweeps nightly: the provisioned `wrangler.jsonc` carries a
+`triggers.crons` entry, and a config written before it needs the entry added. The
+Node service and a host of your own sweep on request, so call the route from a
+timer you already run.
 
 ## Testing your own wiring
 

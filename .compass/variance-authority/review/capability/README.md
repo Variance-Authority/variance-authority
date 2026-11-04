@@ -35,14 +35,13 @@ on either by a later edit.
 - [`review-router`](../review-router/README.md) — the check before parsing, and
   the check after routing
 - [`deployment-adapters`](../deployment-adapters/README.md) — the
-  operator-supplied policy, and the token substitution that makes it binding
+  the declared policy each host hands the handler
 
 ## Boundary
 
-It carries no names. A credential says what a holder may do and never who they
-are; a machine ingests and does not decide, and anything that can hold the
-deciding secret has no name to put on a decision. Producing one is
-[`identity`](../identity/README.md)'s job.
+It proves no names. A principal carries the name a mechanism proved, and producing
+it is [`identity`](../identity/README.md)'s job. A machine ingests and does not
+decide, so a request with no proven name reaches no deciding route.
 
 It ships no default policy for a hosted mount. Returning the deciding capability
 for every request would publish an approve button to the internet, and a library
@@ -67,8 +66,10 @@ where the next person reading that repository can see it.
   prefix and leaves the policy to the handler
 - `packages/tribunal/src/node/serve.ts` — the same requirement on a socket, over
   the same mount
-- `packages/tribunal/src/node/bin.ts` — `authorizeFor`, the shipped policy for a
-  process on a machine somebody owns
+- `packages/tribunal/src/policy.ts` — `declaration` and `declaredPolicy`, the one
+  reading every host makes of what a deployer declared
+- `packages/tribunal/src/node/bin.ts` — the defaults for a process on a machine
+  somebody owns
 - `tribunal-cloudflare/app/tribunal.ts` — the deployed console, on the same
   declared policy
 

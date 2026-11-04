@@ -66,8 +66,7 @@ all — there would be nothing between an approve button and the internet.
   from what the deployment declared
 - `tribunal-cloudflare/app/page.tsx` — rendered per request, because who is asking
   is a per-request fact
-- `packages/tribunal/src/node/bin.ts` — `LOOPBACK`, `authorizeFor`,
-  `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
+- `packages/tribunal/src/node/bin.ts` — `LOOPBACK`, `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
   running the process
 - `packages/tribunal/src/node/serve.ts` — `reviewer`, carried into the served page
 

@@ -192,8 +192,8 @@ In the suite you are capturing — not in this directory — `baselines.kind` be
 `"remote"` and the endpoint is the deployment's URL with `/api`. A run records
 candidates and does not decide them, so it presents an ingest credential. With
 `github-actions` declared that is the token its runner signs: the workflow needs
-`id-token: write` under `permissions`, and `audience` is
-`GITHUB_ACTIONS_AUDIENCE`. With `token` declared, it is
+`id-token: write` under `permissions`, `audience` is `GITHUB_ACTIONS_AUDIENCE`, and
+only `GITHUB_ACTIONS_BASELINE_REF` moves a baseline. With `token` declared, it is
 `{ "env": "VARIANCE_INGEST_TOKEN" }`.
 
 ```jsonc

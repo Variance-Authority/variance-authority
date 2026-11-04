@@ -42,11 +42,10 @@ type surface — so the store is exercisable in an ordinary test process, with n
 container and no account.
 
 They hold the secrets and hand out none. The handler exposes one method and
-cannot be asked for its own tokens, so the tokens are passed to a mount
-explicitly.
+cannot be asked for what it was declared with.
 
 They do not fail a deployment silently. Construction happens inside the request
-so that a token too short or two tokens the same reaches the operator as a
+so that a declaration it cannot honour reaches the operator as a
 sentence in a response body rather than as a platform error somebody has to go and
 find, and a binding pointing at nothing is refused by name instead of surfacing as
 a type error on the first request that happens to touch it.

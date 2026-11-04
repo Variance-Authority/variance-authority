@@ -24,14 +24,16 @@ makes or reads each one and writes it where it belongs:
 
 Those who can write to `GITHUB_REPOSITORY` decide, under their GitHub login.
 Workflows in `GITHUB_ACTIONS_REPOSITORIES` push with the token the runner issues,
-so no secret is stored for CI. The run ends by printing the `baselines` block for
-`variance.config`: write it there, and add `id-token: write` to the workflow's
-`permissions`. For an open source project, add `"VIEW": "public"` to `vars` and
+so no secret is stored for CI, and only workflows on the default branch move a
+baseline. The run ends by printing the `review` and `baselines` blocks and the
+job's `permissions`: apply them yourself, to `variance.config` and the workflow.
+For an open source project, add `"VIEW": "public"` to `vars` and
 deploy: anybody can read, and only a person with write access can decide.
 
 `--repository owner/name` names the repository; without it, the one `gh` sees in
-the working directory. Running again with another repository adds it to the ones
-that may push. `--mount /api` is where a deployment serves the API when not at
+the working directory. A run refuses a repository the deployment does not already
+name; widening who may push is a change to `GITHUB_ACTIONS_REPOSITORIES` in
+`vars`, made on purpose. `--mount /api` is where a deployment serves the API when not at
 the root. `--skip-deploy` leaves publishing to a deployment with its own build,
 such as the console. `--rotate` replaces the session key, which signs everybody
 out. The run needs `gh` authenticated; `wrangler` is logged in by the run itself.

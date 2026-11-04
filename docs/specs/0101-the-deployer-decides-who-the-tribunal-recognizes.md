@@ -48,14 +48,15 @@ deployment declared for it.
 | Question | Who asks it | Declared by | Values |
 |---|---|---|---|
 | May this machine write a build? | CI | `INGEST_CREDENTIALS` | `token`, `github-actions` |
-| Which named person is deciding? | A reviewer | `REVIEW_CREDENTIALS` | `access`, and `loopback` on Node |
+| Which named person is deciding? | A reviewer | `REVIEW_CREDENTIALS` | `github`, `access`, and `loopback` on Node |
 
 Each value names a mechanism, and each mechanism names what it needs:
 
 | Mechanism | Needs | Kind |
 |---|---|---|
 | `token` | `INGEST_TOKEN` | secret |
-| `github-actions` | `GITHUB_ACTIONS_REPOSITORIES`, `GITHUB_ACTIONS_AUDIENCE`; `GITHUB_ACTIONS_ISSUER` only to replace the public issuer | committed values |
+| `github-actions` | `GITHUB_ACTIONS_REPOSITORIES`, `GITHUB_ACTIONS_AUDIENCE`, `GITHUB_ACTIONS_BASELINE_REF`; `GITHUB_ACTIONS_ISSUER` only to replace the public issuer | committed values |
+| `github` | `GITHUB_REPOSITORY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_SESSION_SECRET` | committed values and secrets |
 | `access` | `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` | committed values |
 | `loopback` | a loopback bind; the reviewer is `VARIANCE_TRIBUNAL_REVIEWER`, or the OS user as today | committed values |
 
@@ -206,11 +207,15 @@ Two finer bindings are named and left out:
   carries the same `repository` and a new `repository_id`. Pinning by id closes
   that, at the price of an allowlist nobody can read in a diff. PyPI records the
   owner's account id against the same attack.
-- **Workflow, ref and environment.** PyPI and npm bind a workflow file and
-  optionally an environment. Here the environment is the counterpart of an
-  environment secret, and a ref the counterpart of a protected branch: either
-  would let a deployment say *only `main` writes a baseline*, which no token can
-  say today. They are a later step.
+- **Workflow and environment.** PyPI and npm bind a workflow file and optionally
+  an environment. Here the environment is the counterpart of an environment
+  secret. They are a later step.
+
+A ref is the one finer binding taken. Without it a job on any branch of an
+allowed repository moves the baseline, and with a repository secret gone nothing
+marks that as the secret's old reach. `GITHUB_ACTIONS_BASELINE_REF` names the ref
+whose workflows may call `/baseline/put` and the approvals route, and is required
+with `github-actions`. Every other ref still ingests builds and reads.
 
 **Fork pull requests get no token.** GitHub withholds `id-token: write` from
 `pull_request` runs triggered from forks, exactly as it withholds secrets. A
@@ -297,7 +302,8 @@ work this way, and the split holds once machines are recognized without secrets:
 - **Capability** decides what a caller may do. It is where `github-actions` is
   verified, and the only capability that mechanism can produce is `ingest`.
   Ingest's direct baseline write and its approval rows (above) are ADR-0022's
-  line, older than this spec, and this spec leaves them where they are.
+  line, older than this spec. A `token` holder keeps both, and a workflow keeps
+  them on `GITHUB_ACTIONS_BASELINE_REF`.
 
 Two things today let a caller with no proven name decide, and both go:
 
@@ -343,11 +349,11 @@ there is nothing to provision and the step disappears.
   general form: a trusted issuer plus conditions on its claims. `github-actions`
   is one instance of it with a single condition.
 - **Argos** uploads from GitHub Actions without a token in the workflow, through
-  its GitHub integration. That integration is a GitHub App, which this spec
-  declines.
-- **Percy, Chromatic and Argos** all let reviewers sign in with GitHub. Access
-  with GitHub as its login provider gives the same experience without the
-  tribunal being an OAuth client.
+  its GitHub integration, a GitHub App. Here an App signs people in and has no
+  part in CI.
+- **Percy, Chromatic and Argos** all let reviewers sign in with GitHub, and so
+  does `github` here. Provisioning cannot make Access applications with a
+  `wrangler login` token, so Access stays an option a deployer declares.
 
 ## What exists, and what does not
 
@@ -429,10 +435,11 @@ there is nothing to provision and the step disappears.
    re-registered-name risk is accepted, and pinning by id is not built.
 2. **The audience is required.** No fixed default: a token minted for one
    deployment is never accepted by another.
-3. **The repository is the grain.** Workflow, ref and environment bindings are
-   a later step, not this one.
-4. **Ingest keeps what ADR-0022 gives it.** The direct baseline write and the
-   approval rows stay on `ingest`, unchanged; rules for them come later.
+3. **The repository is the grain of who may push, and a ref of who moves a
+   baseline.** Workflow and environment bindings are a later step, not this one.
+4. **Ingest keeps what ADR-0022 gives it, on the declared ref.** The direct
+   baseline write and the approval rows stay on `ingest`; under `github-actions`
+   they answer only `GITHUB_ACTIONS_BASELINE_REF`.
 5. **No deployment exists to migrate.** Nothing declared is refusal from the
    first release, with no grace.
 6. **Who acts at a machine is the operator's process.** The tribunal recognizes
