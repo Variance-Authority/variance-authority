@@ -132,7 +132,7 @@ describe('variance index', () => {
     // The holder says so from inside its turn, and lets go on the first line it reads.
     const holder = spawn(process.execPath, ['--input-type=module', '-e', [
       "const { inIndexTurn } = await import('@variance-authority/sense');",
-      `await inIndexTurn(${JSON.stringify(elsewhere)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));`,
+      `await inIndexTurn(${JSON.stringify(elsewhere)}, () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }), () => {}, () => {});`,
     ].join('\n')], { cwd: PACKAGE, env: process.env });
     let stderr = '';
     holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });

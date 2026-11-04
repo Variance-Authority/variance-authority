@@ -8,7 +8,9 @@
 no `TMPDIR` needs setting. The lock is `.work/index-turn` in the primary
 checkout's cache, with `.work/index-turn.holder` beside it: the checkouts of one
 repository index one at a time, whatever cache each has, and two repositories may
-index at once, even in one cache. A worktree of a bare or `--separate-git-dir`
+index at once, even in one cache. A worktree's index writes those two files into
+the primary checkout, so one that does not ignore `node_modules` shows it as
+untracked. A worktree of a bare or `--separate-git-dir`
 repository has no primary checkout to find, so it waits for none. A file system
 that refuses the lock no longer stops the index, which runs and prints why on
 stdout, after the index's own line. An addon that did not load is reported with
