@@ -37,5 +37,4 @@ describe('what the addon answers for the turn', () => {
     await expect(taken()).rejects.toBe(panic);
     expect(refused).toEqual([]);
   });
-  });
 });
