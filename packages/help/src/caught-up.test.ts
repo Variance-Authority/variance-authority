@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 import type { Help } from '@variance-authority/package/help';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
-import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspace, readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
 import { workspaceReadStarted } from './snapshot.js';
@@ -261,6 +261,20 @@ describe('foundNothingFooter', () => {
     const footer = foundNothingFooter(caught, at, false);
     expect(footer).toMatch(UNREAD);
     expect(footer?.match(/Snapshot/gu)).toHaveLength(1);
+  });
+});
+
+describe('refusalFooter', () => {
+  const at = '2026-01-02T03:04:05.000Z';
+
+  it('dates a refusal only when the checkout was not compared with what it came from', () => {
+    expect(refusalFooter(undefined, at, false)).toBeUndefined();
+    expect(refusalFooter({ subject: 'read', footer: 'the installed packages' }, at, false)).toBe('the installed packages');
+    expect(refusalFooter(undefined, at, true)).toMatch(UNCOMPARED);
+  });
+
+  it('says why when the look found its file moved during the read', () => {
+    expect(refusalFooter({ subject: 'read', unseen: 'it moved' }, at, false)).toBe(snapshotLine(at, 'it moved'));
   });
 });
 

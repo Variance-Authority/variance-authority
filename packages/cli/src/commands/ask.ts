@@ -294,12 +294,9 @@ export async function askSource(request: SourceRequest): Promise<string> {
   try {
     return rendered(request, answering, looked?.unseen ?? unseen);
   } catch (refusal) {
-    // A refusal read from what the checkout was before the question is not
-    // yet a fact about the checkout: it is read again, brought up to date,
-    // and that answer stands.
-    // A reading nothing compared with the checkout says so under its refusal,
-    // and one that could not be compared says why.
-    // What the look already read is not read again, and why it was not compared stays with it.
+    // A refusal from what the checkout was before the question is not yet a
+    // fact about it: it is read again, unless the look just did, and that answer
+    // stands. A reading not compared with the checkout says so, and why.
     const caught = unseen ? undefined : (looked ?? (await again(answering)));
     const dated = refusalFooter(caught, caught?.subject?.at ?? answering.at, unseen);
     const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
