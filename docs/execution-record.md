@@ -5,9 +5,9 @@ record holds **which parts each test actually covered**, so a changed line can
 select from witnessed execution instead of every test a static import graph can
 reach. Blocks, the coverage file, and journals make that distinction queryable.
 
-Read on for where the file lands, what a run does to the record there, what to
-import to read it, what each structure's primary key is, how a fact traces back
-to the line or test that produced it, and what a lookup and a write cost.
+Read on for where the file lands, what to import to read it, what each
+structure's primary key is, how a fact traces back to the line or test that
+produced it, and what a lookup, merge and append cost.
 [`selecting.md`](selecting.md) says what a run does with the answer;
 [`source-structures.md`](source-structures.md) covers the static side this page
 joins with.
@@ -34,8 +34,7 @@ you want the nearest snapshot a worktree can actually read:
 checkouts never write one another's bytes. A worktree writes its own layer under
 `.work/<workspace-digest>/` beneath that directory and reads the primary
 checkout's as a fallback, so a worktree cut this morning inherits what the
-repository already recorded instead of re-transforming it. A repository that
-declares its suites has [one such file for each](#one-record-for-each-suite).
+repository already recorded instead of re-transforming it.
 
 **Do not commit it.** The default path is outside your work tree: `git status`
 never sees it, `git clean` never takes it, and it never lands in a pull request.
@@ -55,93 +54,7 @@ Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
 whole suite instead of narrowing on damage.
 
-## What a run does to the record already there
-
-It depends on what the run finds at the path:
-
-| At the path | What the run does |
-|---|---|
-| Nothing | Writes what it observed as the whole record. In [the cache](cache.md) it first copies in the checkout's base, when there is one, and lays over that. |
-| A record under the same probes | Lays over it, as the rest of this section says. |
-| A record under other probes | In the cache, replaces it, and prints one line saying so. At a path you handed in, refuses with the reason and leaves the file as it was. |
-| A record this build cannot read | Refuses with the reason and leaves the file as it was, in the cache too. |
-
-The checkout's base is the mainline's record as last fetched on this machine,
-or in a worktree the primary checkout's. A record in the cache can be replaced
-because the next runs rebuild it, and [what that costs](cache.md#after-an-upgrade)
-is on the cache page.
-
-The probes are the recipe a build cuts a module into regions by, and a record
-names them in its instrumentation id, such as `sense:instrument/presence-v6`.
-One build records under one set of probes and reads what it wrote, so a record
-under another id cannot take this run's observations.
-
-**A run that instruments no module** lays no coverage. A record at the path keeps
-its coverage as it was, under the run's cases. A run that also keeps no cases
-writes nothing. [Writing the record](#writing-the-record) has the file
-such a run writes, and the one exception.
-
-### The lay
-
-A run **lays** what it observed over the record: that replaces what was there,
-and everything else stays. A run of three test files leaves every other test in
-place. *Lay* is this page's one word for that step, and
-[writing the record](#writing-the-record) shows where it sits in a write.
-
-Below, a [region](#blocks) is a function, a branch arm, a loop body or a handler
-of a module, and a [crossing](#keys) is one test having run one region. A
-region's [digest](#blocks) is a hash of its own text, without the regions inside
-it. A test's row is its one entry in the record, which says whether it is
-complete.
-
-What the lay does to each test depends on whether the run observed it:
-
-- **A test the run observed** gets a new row and new crossings. If the run
-  recorded it incomplete under the same preconditions, its previous crossings
-  stay beside the new ones.
-- **A test the run did not observe** keeps its row, and each of its crossings
-  stays on the region with the same [address](#identity-under-an-edit). Its row
-  stays as it was unless the lay demotes it.
-
-To **demote** a test is to mark its row incomplete, so it runs on its next
-selection. These three cases demote a test the run did not observe, and nothing
-else does:
-
-1. **A region it crossed has a new digest**, and the edit can change what that
-   region runs. The run asks the two texts what
-   [selection would read off the diff](#tracing-a-diff-to-tests). An edit that
-   changes nothing that runs, such as one to types alone, demotes no test. An
-   edit that changes only function bodies demotes the tests on the regions it
-   changed, and no test for having loaded the module.
-2. **A region it crossed is gone**, and the nearest region that survives around
-   it does not list the test. Regions nest, so a test that ran a deleted
-   function is normally listed on the region around it.
-3. **Its module cannot be placed.** The file is there and cannot be read, its
-   text cannot be cut into regions, or one of the two records did not instrument
-   the module. Every test that crossed the module is demoted.
-
-**The lay reads the address first and the digest second.** The address places
-the crossing: a region of the previous record pairs with the region at the same
-address and of the same kind, and no digest is read to do it. The digest then
-decides about the test: a paired region with a new digest keeps the crossing and
-demotes the test, which is case 1. The second step makes the first safe, because
-other text at the same address has a new digest, so the test runs again.
-
-**A module the run did not load** stays in the record, its regions at the lines
-of the text it had when it was recorded. When the file has other text now, the
-run cuts that text into regions and places each crossing by address, so the
-regions sit at the lines the next diff will use, and the three cases above
-apply. When the file is gone, the module stays as it was and no test is demoted:
-the diff that deleted the file selects the tests that crossed it.
-
-**The case index** is the record's list of which named cases ran each region,
-kept in the same file. A test file the run finished has its cases replaced, one
-it did not finish keeps its old cases beside the ones that ran again, and the
-cases of a test file the checkout no longer holds are retired. Every other case
-stays. The index has no digests, so its cases move with an edit by a rule of
-their own, in [identity under an edit](#identity-under-an-edit).
-
-## One record for each suite
+### One record for each suite
 
 If your repository runs more than one test suite, declare each one, with its
 kind, under `suites` in the `variance.config.json` at the repository root:
@@ -208,8 +121,8 @@ case from the next.
 | [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
 None of the Node seams asks you to change a runner option to record cases, and the
-coverage in the record does not depend on them: the case index is its own
-section of the same file. A test file that runs in a page, under Vitest or Rstest browser mode, is
+snapshot's bytes do not depend on them — the case axis is a second file beside
+it. A test file that runs in a page, under Vitest or Rstest browser mode, is
 recorded per file only: that run writes no case index and prints a warning.
 [Own fewer tests](own-fewer-tests.md#ask-which-tests-cover-a-line) is the
 question that reads it.
@@ -285,7 +198,7 @@ they return are the ones this page describes.
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 
 Nothing else on this page is importable. Where the sections below describe the
-encode, the lay or the lookup, they describe behaviour you can rely on through
+encode, the merge or the lookup, they describe behaviour you can rely on through
 those entry points, not functions you can call.
 
 ## The structures at a glance
@@ -433,9 +346,8 @@ An ordinal is a slot in one instrumented version of a module, and it is not
 what keeps evidence across an edit. What keeps it is the region's address: the
 declaration name path and the structural path inside it, which record where the
 region sits in the module's tree rather than where it sits in the module's
-text. [The lay](#what-a-run-does-to-the-record-already-there) places a crossing
-from the previous record on the region with the same address, and reads no
-digest to do it.
+text. Laying one record over another (`landedCoverage`) moves a crossing from the previous record onto the
+region with the same address, and the digests take no part in that.
 
 So renumbering is not invalidation. Inserting
 `const price = (item) => item.price;` after `let sum = 0;` opens
@@ -447,17 +359,15 @@ other way. In both the record keeps every crossing it had, because
 
 A crossing is dropped only when the new text has no region with its address:
 a function renamed, a decision deleted, an arm that is now a loop. Even that
-rarely demotes a test. Arrival nests — a test reached a region by running
+rarely retires a test. Arrival nests — a test reached a region by running
 every region around it, up to the module — so a test whose function was
 deleted still has crossings above it, and a diff at the place that function
-was reaches it through them. A dropped crossing demotes a test when the nearest
-region that survives around it does not list the test.
+was reaches it through them. Only a test that loses every crossing in a module
+is demoted to incomplete and selected whole next time.
 
 **A digest that changed keeps the crossing and demotes a test the run did not
-observe.** This is the first of the
-[three demotions](#what-a-run-does-to-the-record-already-there), and the common
-one. The digest shows that the region's own text changed, and the tests to run
-are the ones recorded against that region — which is the crossing. Reading a digest
+observe.** It shows that the region's own text changed, and the tests to run are
+the ones recorded against that region — which is the crossing. Reading a digest
 as a reason to discard the crossing would throw away the evidence the change is
 about to be answered with, and reading the owners' digests too made any edit at
 a module's top level retire every crossing in the file. But the re-recorded rows
@@ -472,12 +382,20 @@ text.
 | function added inside `total` | every one | incomplete, if it entered `total` |
 | function added at module level | every one | incomplete, if it loaded the module |
 | body of one `if` arm edited | every one | incomplete, if it entered that arm |
-| `total` renamed | those of the root and `label` | incomplete, if it loaded the module, because the name is in the text of the module's own region |
+| `total` renamed | those of the root and `label` | incomplete, if it entered `total` |
 
-**The case index follows the edit, not the address.** The rows can pair by
-address because a paired region with a new digest demotes the test. The case
-index holds no digest, so the only evidence it has of what an edit touched is
-the edit itself: the `git diff -U0` hunks between the text it was cut from and the text
+**A module the run did not load** stays in the record, and its rows are lines
+of the text it had when it was recorded. When that text has since changed, the
+regions are read out of the text standing there now and each crossing is
+moved onto the region with its address, so the rows are in coordinates the
+next diff will be in. A module whose text cannot be read as source has no
+table to place them in: it stays as it was, and every test that covered
+it is demoted.
+
+**The case index follows the edit, not the address.** The rows keep a crossing
+by the region's address because the digests catch a mispair. The case index
+holds no digest, so the only evidence it has of what an edit touched is the edit
+itself: the `git diff -U0` hunks between the text it was cut from and the text
 you recorded. A region the hunks leave alone keeps its cases, at the lines the
 hunks place it. A region they touch takes the cases of the region with its
 address, and the module and every region around an edited one are touched with
@@ -545,7 +463,7 @@ is work every importer of the module consumed.
 
 The file you located above declares two numbers. One is the
 model version: what `TestCoverage` means, stated by a producer and passed
-through a lay. The other is the byte layout, which changes when the model
+through a merge. The other is the byte layout, which changes when the model
 does not; a file written under another layout is refused rather than
 reinterpreted. The container is a `u32` little-endian
 header length, a JSON header `{ version, sections }` padded with `NUL` so the
@@ -632,7 +550,7 @@ with neither is untimed. Two projects' figures are summed before the larger is
 taken, so the cost is that of both runs. `variance ask slowest-tests` ranks
 files by this cost and a sharded run places them by it.
 
-The case index in the record carries the same figure for each case, in a
+The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
 result, Rstest's test result, Playwright's `testInfo.duration`, or the
 `duration` a case carries in what you pass to `startRecording().finish()`.
@@ -978,8 +896,11 @@ range, O(B) per step, at most depth steps. `name` and `path` together read
 as a location without the chain: the declaration and the structural position
 inside it. `start` and `end` place the block on the lines of the source at
 `modules.source`. When the file on disk no longer hashes to that digest the
-lines are the record's, not the disk's, until a run
-[cuts them again](#what-a-run-does-to-the-record-already-there).
+lines are the record's, not the disk's. A merge notices that and re-cuts the
+rows over the text that is there. A file it cannot read at all is treated
+differently from one that is not there: a path that has gone leaves the
+module to be answered for by name, and a path that refuses to be read retires
+the observation instead of keeping it over text nobody has seen.
 
 ## Journals
 
@@ -1003,9 +924,8 @@ under — `sense:instrument/presence-v6`, or `sense:instrument/entries-v3` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
 function and nothing between. Under `mode: 'loads'`, `sense:instrument/loads-v1`,
 a module has no ordinals: its id is spelled `path@~digest`, it is recorded with
-no blocks, and its arrival is the only hit it reports. A run refuses to fold a
-journal cut under another recipe, and what it does about a record under another
-recipe is [in the table above](#what-a-run-does-to-the-record-already-there). A reader answers from such a
+no blocks, and its arrival is the only hit it reports. A run refuses to fold a journal, or lay itself
+over a snapshot, cut under another recipe. A reader answers from such a
 snapshot as it holds it, and names both recipes and the regions the difference
 leaves unanswered.
 
@@ -1035,8 +955,8 @@ available to it is a tail that never arrived — which a decode obliged to land
 exactly on the end of the frame refuses for nothing.
 
 The reporter cuts each module an id names again from the checkout, folds every journal's `hits` into
-crossings and its `loaded` ordinals the same way over the other column, lays the
-result over the coverage file, and removes the run directory. A
+crossings and its `loaded` ordinals the same way over the other column, merges
+into the coverage file, and removes the run directory. A
 shared ordinal is credited to every test file that consumed the module; under
 isolation each file consumed its own evaluation and the credit goes to nobody
 else.
@@ -1096,62 +1016,51 @@ silent, reported another instrumentation id, or lost an account.
 
 ## Writing the record
 
-A run writes the record in four steps: it turns what it observed into rows,
-prepares the record at the path, lays the rows over that record, and encodes the
-result. It takes the first step in one of two ways, by how it ran. The other
-three are the same for both. Each step is reachable from the imports above.
+Four ways bytes land in the file. Each is reachable from the imports above.
 
-**Rows from a worker run.** The Vitest, Jest and Rstest reporters read every
-worker journal in the run directory and fold the `hits` and `loaded` columns into
-crossings. They remove the run directory once the record is written. O(sum of
+**Append from a worker run.** The Vitest, Jest and Rstest reporters read every
+worker journal in the run directory, fold the `hits` and `loaded` columns into
+crossings, merge into the coverage file and remove the run directory. O(sum of
 journal sizes).
 
-**Rows from a driven run.** Call `recordExecution` with the drained subjects
+**Append from a driven run.** Call `recordExecution` with the drained subjects
 in memory, one per owner, with the journey accounts already joined through
 `joinObservations`. It cuts each module the subjects reported again from the
-checkout, and refuses when none of them is a file under the root or when one
-names another instrumentation id. A module whose file no longer has the text its
-id names is recorded as not instrumented. A module whose file is gone is dropped,
+checkout, refuses when none of them is a file under the root or when one names
+another instrumentation id, and folds under `<coverage>.lock`. The lock is
+exclusive-create, waited on for ten seconds at a 25 ms poll, and considered
+stale after sixty. A module whose file no longer has the text its id names is
+recorded as not instrumented. A module whose file is gone is dropped,
 and the subject that covered it is recorded incomplete, because a subject whose
 crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Prepare the record.** In the cache, the run
-[replaces a record under other probes](#what-a-run-does-to-the-record-already-there),
-and copies in the checkout's base where no record is left, so it has a record to
-lay over. It does neither at a path outside the cache.
+**Lay over the previous record.** The native addon's lay brings forward what
+the run did not observe, column to column, without decoding either record. One
+build records under one set of probes and reads what it wrote, so a previous
+record under another instrumentation id is another build's. In the checkout's
+[cache](cache.md) it is replaced before the lay, in one printed line. At a path
+you handed in it is refused with the reason and left where it is, as is any
+record this build cannot read. A test the run observed replaces its previous row. A test the
+run did not observe keeps its row, unless no region it crossed survives in the
+new table or a region it crossed has a new digest, in which case it is demoted
+to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows
+re-cut over that text, one parse per such module, and only a module whose text
+cannot be parsed demotes every test that crossed it. The cases the index holds
+of a module whose rows moved are laid onto the same cut by address and kind,
+so the index answers at the lines the rows hold. A module
+none of whose cases land there leaves the index, as a module no run kept
+cases of is absent from it. Both sides are indexed
+before the walk — modules by path, blocks by their address, name path and
+structural path together — so the cost is O(M_prev + M_cur) plus
+O(B_prev + B_cur) for each matched module, and the file is sorted on the way
+out.
 
-**Lay over the previous record.** The native addon applies
-[the rules above](#what-a-run-does-to-the-record-already-there) column to column,
-without decoding either record, under `<coverage>.lock`. The lock is
-exclusive-create, waited on for ten seconds at a 25 ms poll, and considered
-stale after sixty. A module the run did not load and whose text changed costs one
-parse. The cases the index holds of a module whose rows changed are laid onto the
-same cut by address and kind, so the index answers at the lines the rows hold. A
-module none of whose cases land there leaves the index, as a module no run kept
-cases of is absent from it. Both sides are indexed before the walk — modules by
-path, blocks by their address, name path and structural path together — so the
-cost is O(M_prev + M_cur) plus O(B_prev + B_cur) for each matched module, and the
-file is sorted on the way out.
-
-**Encode.** The lay encodes as it walks, and with no record at the path the run's
-rows are encoded as they are. `writeTestCoverage` does the same for a record you
-hold: it sorts tests and modules by path, blocks by ordinal, deduplicates
-preconditions and crossings, and builds one dictionary, O(r log r) for `r` rows
-and strings. Either way the bytes go under a scratch name and are renamed into
-place, so a reader opening the path sees the previous snapshot or this one and
-never the bytes between.
-
-Two writes change these steps.
-
-**Fold shards.** Each shard of a sharded run writes a record of its own.
-`combineRecords` unions those records, coverage and case parts, in the native
-addon: O(sum of shard bytes), reading nothing but the shards. `variance journeys`
-then lays the union over the target by the same rules, and reads no text from
-the disk, so it cuts no module again. The shards are taken in code-unit order of
-their paths, so the record is the same bytes whatever order they are named in.
-It refuses shards
+**Fold shards.** `combineRecords` unions the records of a sharded run, coverage
+and case parts, in the native addon: O(sum of shard bytes), reading nothing but
+the shards. The shards are taken in code-unit order of their paths, so the
+record is the same bytes whatever order they are named in. It refuses shards
 with differing instrumentation or commit, a test in two shards, and a module with
 two source digests. Where shards disagree about whether a module could be
 read, the instrumented rows answer: a shard that could not instrument a module
@@ -1160,11 +1069,18 @@ loaded the uninstrumented copy already declare it as a precondition. An
 uninstrumented row stands only where no shard measured the module, and the
 answer is the same whichever shard is read first.
 
+**Encode.** `writeTestCoverage` sorts tests and modules by path, blocks by
+ordinal, deduplicates preconditions and crossings, and builds one dictionary:
+O(r log r) for `r` rows and strings. It writes under a scratch name and renames
+into place, so a reader opening the path sees the previous snapshot or this one
+and never the bytes between.
+
 **A run that instruments nothing.** A run that keeps its cases and instruments
 no module still writes the file, with the case sections and none of the
-coverage sections: no strings, snapshot, tests, modules, blocks or sets. Over a
-record it [leaves the coverage there](#what-a-run-does-to-the-record-already-there).
-A file whose probes fired where nothing could place them is the exception: it is
+coverage sections: no strings, snapshot, tests, modules, blocks or sets. A
+record already at the path keeps its coverage as it was, under the new run's
+cases. A run that keeps no cases and instruments nothing writes nothing. A
+file whose probes fired where nothing could place them is the exception: it is
 recorded incomplete, which selects it on the next run, and that row lands as
 coverage does. Such a record moves the way any record does: a new
 worktree seeds from it, and landing it as a shard with `variance journeys` lays
@@ -1215,7 +1131,7 @@ of the coverage sections and not the others is refused as broken.
 
 One older layout is read rather than refused: the one written before
 `tests.duration` existed, which the JVM agent still writes. It opens with every
-duration absent, and a lay over it writes the current layout. A duration
+duration absent, and a merge over it writes the current layout. A duration
 column that is missing from a current file, or that does not have one row per
 test, is refused at open.
 
@@ -1239,8 +1155,8 @@ test, is refused at open.
 | tests covering a line | O(M + B²) | `coveringTests` |
 | fold worker journals | O(journal bytes) | the reporter of a runner seam |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
-| lay over the previous record | O(M_prev + M_cur + Σ B) | a run that finds a record at the path |
-| cut again the rows of a module the run did not load | O(module length) | a run's lay, per changed module |
+| lay over the previous record | O(M_prev + M_cur + Σ B) | `landedCoverage` |
+| re-cut an unobserved module's rows | O(module length) | `landedCoverage`, per changed module |
 | fold shards | O(Σ shard bytes) | `combineRecords` |
 | encode | O(r log r) | `writeTestCoverage` |
 

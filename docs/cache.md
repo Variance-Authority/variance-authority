@@ -14,7 +14,7 @@ that takes a `cacheRoot` option read that one answer, so a recording written by
 Nothing in it is a baseline. Delete any part of it and the next run is slower,
 and the next `variance review` may compare fewer cases and name the test files
 it left out. Neither is wrong. [After an upgrade](#after-an-upgrade) says what
-each part of it does when you move to a new release.
+a new release does to a recording.
 
 ## Where it is
 
@@ -81,8 +81,7 @@ over it, so a repository that names its cache keeps one answer for everyone.
 <cache>/
   test-selection/<repository>/
     coverage.bin                 which test ran which region of which module, by file and by case,
-                                 and the cases as they stood before the last run, kept for
-                                 `variance review`
+                                 and the cases the last run replaced, kept for `variance review`
     coverage.bin.lock            held while a run writes the recording
     coverage.runs.json           the runs at the current commit, the install they ran on, and where each
                                  other test last ran
@@ -155,8 +154,8 @@ With `cacheRoot` set, the path is the one it names. The
 in the key.
 
 A pull request saves nothing here because `variance review` compares your
-change with the cases as they stood before the last run, which the suite keeps
-in this directory with the commit they were recorded at. A pull request that saved
+change with the cases the last run replaced, which the suite keeps in this
+directory with the commit they were recorded at. A pull request that saved
 its own cache would restore it on its next push, and its review would compare
 the change with itself.
 
@@ -175,7 +174,7 @@ under. A run can only add to a recording made under its own recipe, and a change
 of [`mode`](selecting.md#record-as-finely-as-you-select) changes the recipe too.
 So what happens to a recording depends on what the release changed:
 
-| What changed | The next run that writes the recording |
+| What changed | The next run that adds coverage to the recording |
 |---|---|
 | neither the recipe nor the file's layout | adds to it and prints nothing |
 | the recipe | replaces it, with `coverage.runs.json` beside it, and prints one line to stderr |
@@ -206,17 +205,6 @@ recipe, which brings its cases: for a suite given to the share, a mainline recor
 this machine fetched, and in a worktree, the primary checkout's once a run there
 has replaced it. A record still under the old recipe is no start. The run skips
 it, says so in one line, and pays both.
-
-The rest of the cache follows its own rules:
-
-| Part | After an upgrade |
-|---|---|
-| [source index](source-index.md) written by another release | `variance index` rebuilds it. On your workstation, the commands that read it rebuild it too and say so. In CI they stop and name `variance index`, which is [the step to run first](source-index.md#caching-it-in-ci) |
-| a mainline record in `share/read/` under another recipe | it stays on disk and no run adds to it, until your mainline publishes one under the new recipe |
-| `renders/` | an image is reused while its document and renderer match, whichever release took it |
-| a [test story](test-stories.md) | it is read through the recording beside it, and a file that recording holds no regions for at that text is drawn as the file alone |
-| `suite/<project>/<commit>.bin` | it is read when this release reads its format. When it does not, the index is fetched from your share again |
-| everything else | the upgrade does not touch it, and it stays until [its rule](#what-is-removed-and-when) removes it |
 
 **A recording at a path of your own is never replaced.** `coverageFile` in a
 [runner's options](../packages/sense/README.md#options-on-the-vitest-seam) and
