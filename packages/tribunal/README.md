@@ -736,7 +736,8 @@ service.url;  // http://127.0.0.1:7789
 await service.close();
 ```
 
-`serveTribunal` takes the `tribunal` to serve, `host`, `port`, and `ui`, which
+`serveTribunal` takes the `tribunal` to serve, `host`, `port`, `origin`, which
+names the address behind a proxy, and `ui`, which
 decides whether the review surface and its bundle are served at all and defaults
 to `true`. `openDatabase` opens, creates or migrates the file and reports the
 `version` it settled on; `createDirectoryBucket` writes each object through a
