@@ -94,8 +94,7 @@ over it, so a repository that names its cache keeps one answer for everyone.
                                  on, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
-    .work/index-turn             the lock that gives the checkouts sharing this directory one index at
-                                 a time
+    .work/index-turn             the lock that gives the repository's checkouts one index at a time
     .work/index-turn.holder      the process that holds that lock and the checkout it indexes
   renders/                       the images a run took, reused while they match
   suite/<project>/<commit>.bin   every run's suite index, by the commit it names

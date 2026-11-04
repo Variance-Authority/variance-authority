@@ -124,7 +124,7 @@ function turn<T>(request: IndexRequest, work: () => Promise<T>): Promise<T> {
 }
 
 function turnLine({ pid, root }: IndexTurnHolder): string {
-  return `waiting for process ${pid}, which is indexing ${root}: an index uses every core, so checkouts sharing a cache take turns\n`;
+  return `waiting for process ${pid}, which is indexing ${root}: an index uses every core, so checkouts of one repository take turns\n`;
 }
 
 /**

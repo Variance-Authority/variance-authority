@@ -93,22 +93,23 @@ lines. `variance index
 step's log is where its lines are read, and nothing may outlive the step that
 saves the cache.
 
-Checkouts that share a [cache](cache.md) index one at a time. The update and the
-follow-ups each use every core, so two checkouts indexing at once would each
-take longer than they do one after the other. The second waits for the first and
-prints that on stderr:
+The checkouts of one repository, its primary checkout and its worktrees, index
+one at a time. The update and the follow-ups each use every core, so two
+checkouts indexing at once would each take longer than they do one after the
+other. The second waits for the first and prints that on stderr:
 
 ```text
-waiting for process 48213, which is indexing /home/you/other-checkout: an index uses every core, so checkouts sharing a cache take turns
+waiting for process 48213, which is indexing /home/you/other-checkout: an index uses every core, so checkouts of one repository take turns
 ```
 
 The turn is a lock the operating system holds for the process, so a process
-that crashes lets it go. It is a file in the repository's cache, which a worktree
-shares with its primary checkout. A worktree of a bare repository, or of one made
-with `--separate-git-dir`, shares its cache with no other checkout, so it waits
-for none. Two repositories index at once: that is slower, not wrong. For the same
-reason a file system that refuses the lock does not stop the index, as when a
-worktree cannot write its primary checkout's cache. It runs and prints why:
+that crashes lets it go. It is a file in the primary checkout's [cache](cache.md),
+and a worktree takes its turn there though it has a cache of its own. A worktree
+of a bare repository, or of one made with `--separate-git-dir`, has no primary
+checkout variance can find, so it waits for no other checkout. Two repositories
+index at once, even when they share a cache: that is slower, not wrong. For the
+same reason a file system that refuses the lock does not stop the index, as when
+a worktree cannot write its primary checkout's cache. It runs and prints why:
 
 ```text
 no index turn at <path>: <reason>, so this index may run beside another of this repository

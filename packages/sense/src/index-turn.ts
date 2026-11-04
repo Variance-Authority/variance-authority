@@ -6,9 +6,10 @@
  * repository indexing at once starve each other. The second waits for the
  * first, and is told which process holds the turn and for which checkout, so a
  * wait is never silent. The turn buys speed and nothing else: two repositories
- * may index at once, and an index whose turn is refused runs without one. It
- * paces what shares a cache, so a worktree of a bare or `--separate-git-dir`
- * repository, which shares none, waits for nothing.
+ * may index at once, even in one cache, and an index whose turn is refused runs
+ * without one. A worktree takes its turn with its primary checkout, whatever
+ * cache it has; one of a bare or `--separate-git-dir` repository has no primary
+ * checkout to find, so it waits for nothing.
  */
 
 // compass: variance-authority.reach.source-index
@@ -27,9 +28,9 @@ export interface IndexTurnHolder {
 }
 
 /**
- * The one file the checkouts sharing the cache of the repository at `root` take
- * their turn at. It is in the primary checkout's cache, as exposed as the index
- * it paces, and in `.work`, where no carry takes it and no prune reads it.
+ * The one file the checkouts of the repository at `root` take their turn at. It
+ * is in the primary checkout's cache, as exposed as the index it paces, and in
+ * `.work`, where no carry takes it and no prune reads it.
  */
 export function indexTurnPath(root: string): string {
   return join(workDirectory(repositoryLayers(root).base), 'index-turn');

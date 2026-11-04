@@ -4,7 +4,7 @@
 //! once — two checkouts, or a worktree beside its primary — do not finish
 //! twice as late but later still, each starving the other of the cache and the
 //! memory bandwidth it was sized for. So the work takes a turn: an exclusive
-//! lock on one file every index sharing the repository's cache names, which the
+//! lock on one file every index of the repository names, which the
 //! kernel lets go when its process ends however it ends, so a crashed holder
 //! never strands the next one. `index-turn.ts` waits for it, and says whom it
 //! waits on.

@@ -159,7 +159,7 @@ describe('variance index', () => {
       }
     } });
 
-    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing ${elsewhere}: an index uses every core, so checkouts sharing a cache take turns\n`]);
+    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing ${elsewhere}: an index uses every core, so checkouts of one repository take turns\n`]);
     expect(output).toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
   });
 
@@ -463,6 +463,7 @@ describe('variance index', () => {
     expect(refused.code).toBe(EXIT_OPERATOR);
     expect(refused.out).toBe('');
     expect(refused.err).toMatch(new RegExp(`(^|\\n)source index not written: .+, at ${escaped(sourceIndexPath(root))}\\n`, 'u'));
+    expect(refused.err.split(sourceIndexPath(root))).toHaveLength(2);
     expect(refused.err).not.toContain('defect in the tool');
   });
 

@@ -33,7 +33,7 @@ you want the nearest snapshot a worktree can actually read:
 `<repository-digest>` is a digest of the checkout's absolute path, so two
 checkouts never write one another's records. The only files both write are
 `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
-[one checkout index at a time](source-index.md) and the file that names its
+[one checkout of a repository index at a time](source-index.md) and the file that names its
 holder. A worktree writes its own layer under `.work/<workspace-digest>/` in its
 own cache, which is inside the worktree at the default location, and reads the
 primary checkout's as a fallback, so a worktree cut this morning inherits what

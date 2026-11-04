@@ -92,7 +92,20 @@ describe('the index turn', () => {
   });
 
   it('leaves another repository\'s index to run, even in one cache', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', realpathSync(mkdtempSync(join(tmpdir(), 'va-index-turn-cache-'))));
     const [one, other] = [repository(), repository()];
+    expect(indexTurnPath(one)).not.toBe(indexTurnPath(other));
+    expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran'))).toBe('ran');
+  });
+
+  it('leaves a worktree of a bare repository to run beside another, which has no primary checkout to find', async () => {
+    const source = repository();
+    const bare = `${source}-bare`;
+    execFileSync('git', ['clone', '--quiet', '--bare', source, bare]);
+    const [one, other] = [`${bare}-one`, `${bare}-other`];
+    execFileSync('git', ['worktree', 'add', '--quiet', '-b', 'one', one], { cwd: bare });
+    execFileSync('git', ['worktree', 'add', '--quiet', '-b', 'other', other], { cwd: bare });
+
     expect(indexTurnPath(one)).not.toBe(indexTurnPath(other));
     expect(await inIndexTurn(one, () => inIndexTurn(other, async () => 'ran'))).toBe('ran');
   });

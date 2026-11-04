@@ -23,7 +23,7 @@
   [lookup.test.ts](src/test-selection/lookup.test.ts).
 - **Two checkouts share no bytes but the index turn's two files.**
   `.work/index-turn` and `.work/index-turn.holder` are written by every checkout
-  that shares the cache, and record nothing. The layers are pinned by
+  of the repository, and record nothing. The layers are pinned by
   [cache-layers.test.ts](src/test-selection/cache-layers.test.ts), the turn by
   [index-turn.integration.test.ts](src/index-turn.integration.test.ts).
 - **A held listing is the tree only while Watchman and git's inputs vouch for

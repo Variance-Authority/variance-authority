@@ -310,7 +310,7 @@ a run records is operational state rather than source.
 `<cache>` is [your cache](https://variance-authority.dev/docs/cache).
 `<digest>` is taken from the checkout's absolute path, so two checkouts write no
 file in common but `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
-[one checkout index at a time](https://variance-authority.dev/docs/source-index)
+[one checkout of a repository index at a time](https://variance-authority.dev/docs/source-index)
 and the file that names its holder. `testCoverageFile(root)` returns that path,
 and `sourceIndexPath(root)` the source index beside it. A git worktree gets
 `.work/<its own digest>/` in its own cache, which is inside the worktree at the
