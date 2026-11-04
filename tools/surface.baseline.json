@@ -2960,6 +2960,7 @@
         "fileCases": "function",
         "fileSizes": "function",
         "forksBetween": "function",
+        "forwardsDigest": "function",
         "gitDigests": "function",
         "grainOf": "function",
         "importersOf": "function",

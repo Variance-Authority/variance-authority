@@ -77,26 +77,15 @@ function manifestsOf(where: string, options: FromIndexOptions): Promise<Workspac
 }
 
 /**
- * Refresh a published value from an index that was just written, with the
- * chain read and the value written by the native scanner.
+ * Refresh a published value from an index that was just written, which the
+ * caller says is current, with the chain read and the value written by the
+ * native scanner, keeping the documented surface as `refreshWorkspace` does.
  *
- * The caller says the root's index is current, which is what `variance index`
- * knows and a scan would spend its time re-proving. A workspace whose member
- * list reaches beside its root reads the index it keeps over what the list
- * names, and that one is updated here, since only the list says what it covers. Everything that moved is usage,
- * exports and the graph; the documented surface is kept, exactly as
- * `refreshWorkspace` keeps it. On a large repository the value is mostly its
- * export list, and that list never crosses into JavaScript here: it is compared
- * by digest and written by the addon that read it, and only the rows of the
- * files an entry prints cross. So what this answers is the generation it
- * published, not the value, and `undefined` when it cannot refresh: the
- * offerings, the exported set, an `export … from` or a row an entry prints
- * changed, or there is no native scanner. The caller then reads the way it
- * always did.
- *
- * A value refreshed from this very manifest, over the same packages, is the
- * value this refresh would write, so it is kept and its generation answered:
- * an index that did not move costs its value nothing.
+ * The export list never crosses into JavaScript: it is compared by digest and
+ * written by the addon, and only the rows of files an entry prints cross. So
+ * this answers the generation it published, not the value, and `undefined` when
+ * it cannot refresh: the offerings, the exported set, an `export … from` or a
+ * row an entry prints changed, or there is no native scanner.
  */
 async function refreshOver(
   where: string,
@@ -109,6 +98,7 @@ async function refreshOver(
   const opened = offerings.flatMap((offering) => offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`));
   const own = options.index ?? sourceIndexPath(where);
   const index = scopeSourceIndexPath(own, scope.dirs);
+  // A member list reaching beside the root keeps its own index, which only the list can update.
   if (!coversWhole(scope.dirs)) {
     // A worktree's starts from the primary checkout's, as the root's own does.
     const primary = own === sourceIndexPath(where) ? primarySourceIndexPath(where) : undefined;
@@ -123,6 +113,7 @@ async function refreshOver(
   const indexDigest = await indexManifestDigest(index);
   if (indexDigest === undefined) return undefined;
   const kept = workspaceGeneration(documented);
+  // A value refreshed from this very manifest is what this refresh would write: an index that did not move costs nothing.
   if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
   let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
