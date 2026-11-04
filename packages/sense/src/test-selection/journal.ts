@@ -404,9 +404,6 @@ export async function recordExecution(
   // between processes or it is nothing: two unlocked workers would each merge
   // against the index they read at the start and the later rename would drop the
   // earlier worker's whole contribution — silently, and in the unsafe direction.
-  // A worktree layers onto the repository's months of recording rather than
-  // onto nothing. A no-op here and after the first run.
-  await prepareRecord(coverageFile, root, laidProbes(current), { cacheRoot: options.cacheRoot });
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are
@@ -422,7 +419,10 @@ export async function recordExecution(
           run: { tests, ...(commit === undefined ? {} : { commit }) },
           ...(eyes === undefined ? {} : { eyes }),
         };
-  const merged = await withIndexLock(coverageFile, async () => {
+  const merged = await withIndexLock(coverageFile, async (lock) => {
+    // A worktree layers onto the repository's months of recording rather than
+    // onto nothing. A no-op here and after the first run.
+    await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
     await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });

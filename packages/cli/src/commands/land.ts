@@ -113,13 +113,6 @@ async function landCombined(
   const installed = ran === undefined ? undefined : selection.shardsInstall(ran);
   const ranOver = ran === undefined ? undefined : selection.shardsTexts(ran);
 
-  // A checkout's first landing starts from the base its first `yarn test`
-  // would: the mainline's record as last fetched here, else the primary
-  // checkout's. Without the copy the fold would land over nothing and stand for
-  // the whole suite. A cached record under other probes is replaced first. A
-  // no-op for `--into`, and after the first landing.
-  await selection.prepareRecord(at, root, fold?.coverage.instrumentation);
-
   // The snapshot is read, merged and written, its cases laid into it, under
   // the lock every runner seam takes on it. The runs record beside the snapshot
   // answers for the same runs, and is written by `commitRunsAfter`, the rules every
@@ -141,7 +134,13 @@ async function landCombined(
   const stage = `${process.pid}-${randomUUID()}.tmp`;
   const staged = `${at}.${stage}`;
   const stagedRuns = `${runsAt}.${stage}`;
-  const locked = await selection.withIndexLock(at, async () => {
+  const locked = await selection.withIndexLock(at, async (lock) => {
+    // A checkout's first landing starts from the base its first `yarn test`
+    // would: the mainline's record as last fetched here, else the primary
+    // checkout's. Without the copy the fold would land over nothing and stand for
+    // the whole suite. A cached record under other probes is replaced first. A
+    // no-op for `--into`, and after the first landing.
+    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation);
     let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
       over = await readFile(at);

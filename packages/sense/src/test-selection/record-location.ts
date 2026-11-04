@@ -23,6 +23,7 @@ import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
+import type { IndexLock } from './index-lock.js';
 import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
 import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
@@ -166,14 +167,16 @@ export type Seeded =
  *
  * Does nothing at all when the caller named its own file. Returns what it laid,
  * or `undefined` when it laid nothing. A run that {@link recordsAlone} does not
- * ask.
+ * ask. Under the record's lock, because finding no record and copying the base
+ * are two steps, and a run landing between them would be copied over.
  */
 export async function seedTestCoverage(
-  file: string,
+  lock: IndexLock,
   root: string,
   instrumentation: string | undefined,
   cacheRoot?: string,
 ): Promise<Seeded | undefined> {
+  const { file } = lock;
   const layers = repositoryLayers(root, cacheRoot);
   const inside = cachedRecord(file, root, cacheRoot);
   if (inside === undefined) return undefined;
@@ -186,7 +189,7 @@ export async function seedTestCoverage(
     const record = lastFetchedMainline(root, shared, cacheRoot);
     if (record !== undefined) {
       mainline = passedOver(record.coverage, await readFile(record.coverage).catch(() => undefined), instrumentation);
-      if (mainline === undefined && (await layFetchedMainline(record, file))) return { from: 'mainline', record };
+      if (mainline === undefined && (await layFetchedMainline(record, lock))) return { from: 'mainline', record };
     }
   }
   const passed = mainline === undefined ? undefined : ([mainline] as const);
@@ -336,8 +339,7 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  * it landed, stay the base's, as {@link readCommitRuns} reads them.
  *
  * The record is linked into place rather than renamed over it, so a runs record
- * already beside the snapshot when the link is made is kept. That protects this
- * file only: the snapshot and its case index are copied by {@link seedFrom}.
+ * already beside the snapshot when the link is made is kept.
  */
 async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
   const commit = snapshot.commit;
@@ -365,9 +367,6 @@ async function seedFrom(
   target: string,
   opens: (bytes: Uint8Array) => Uint8Array | undefined,
 ): Promise<boolean> {
-  // FIXME: the check and the copy are two steps, so two first writes in one
-  // worktree can both find `target` missing, and the later copy replaces a
-  // snapshot the earlier one already landed a run on.
   try {
     await stat(target);
     return false;

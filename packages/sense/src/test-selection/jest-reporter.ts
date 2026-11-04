@@ -257,11 +257,6 @@ class JestCoverageReporter {
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    // The repository's snapshot becomes this checkout's before the first run
-    // lands on it, so a worktree layers onto months of recording rather than
-    // onto nothing. A no-op in the primary checkout and after the first run,
-    // and not asked by a shard that is a part of one whole run.
-    await prepareRecord(coverageFile, root, laidProbes(current), { alone: this.#alone });
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.
@@ -275,7 +270,12 @@ class JestCoverageReporter {
             cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
           })), root),
         });
-    const merged = await withIndexLock(coverageFile, async () => {
+    const merged = await withIndexLock(coverageFile, async (lock) => {
+      // The repository's snapshot becomes this checkout's before the first run
+      // lands on it, so a worktree layers onto months of recording rather than
+      // onto nothing. A no-op in the primary checkout and after the first run,
+      // and not asked by a shard that is a part of one whole run.
+      await prepareRecord(lock, root, laidProbes(current), { alone: this.#alone });
       await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });

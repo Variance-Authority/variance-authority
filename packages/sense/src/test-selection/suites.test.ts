@@ -12,9 +12,16 @@ import {
   readableTestCoverage,
   seedTestCoverage,
   testCoverageFile,
+  withIndexLock,
   writeTestCoverage,
   type TestCoverage,
 } from './index.js';
+
+/** {@link seedTestCoverage} of the record at `file`, in a hold of its own. */
+async function seedAt(file: string, ...rest: Parameters<typeof seedTestCoverage> extends [unknown, ...infer Rest] ? Rest : never) {
+  const seeded = await withIndexLock(file, (lock) => seedTestCoverage(lock, ...rest));
+  return seeded.held ? seeded.value : undefined;
+}
 
 async function repository(config?: unknown): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-suites-'));
@@ -199,7 +206,7 @@ describe('a worktree and its suites', () => {
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
     const file = testCoverageFile(path, { suite: 'unit', cacheRoot });
 
-    await seedTestCoverage(file, path, snapshot.instrumentation, cacheRoot);
+    await seedAt(file, path, snapshot.instrumentation, cacheRoot);
 
     expect((await readTestCoverage(file)).tests).toEqual(snapshot.tests);
   });
@@ -209,7 +216,7 @@ describe('a worktree and its suites', () => {
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
     const stories = testCoverageFile(path, { suite: 'stories', cacheRoot });
 
-    await seedTestCoverage(stories, path, snapshot.instrumentation, cacheRoot);
+    await seedAt(stories, path, snapshot.instrumentation, cacheRoot);
 
     await expect(stat(stories)).rejects.toThrow();
   });

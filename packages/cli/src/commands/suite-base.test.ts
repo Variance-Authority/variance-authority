@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
@@ -13,7 +13,9 @@ import {
   readCommitRuns,
   seedTestCoverage,
   testCoverageFile,
+  withIndexLock,
 } from '@variance-authority/sense/test-selection';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { parseArgs } from '../bin.js';
 import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
@@ -163,6 +165,31 @@ describe('the record a worktree that has run nothing measures from', () => {
       repin: { repinned: false, why: 'current' },
     });
     expect(await layMainline(fresh, base.mainline, 'fixture')).toBeUndefined();
+  });
+
+  it('says so when the record is held by another writer, and lays nothing', async () => {
+    const { origin } = await mainline();
+    const fresh = join(home, 'fresh');
+    await git(home, 'clone', '--quiet', origin, fresh);
+    cacheOf('fresh-cache');
+    const base = await suiteBase(fresh, { env: LOCAL });
+    if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
+    const own = testCoverageFile(fresh, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(`${own}.lock`, '1\n');
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    variancePrecondition('fixture', { clock: 'faked' });
+    let settled = false;
+    const refused = expect(layMainline(fresh, base.mainline, 'fixture')).rejects.toThrow(`another process is holding ${own}.lock`).finally(() => (settled = true));
+    while (!settled) {
+      vi.advanceTimersByTime(1000);
+      await new Promise((turn) => setImmediate(turn));
+    }
+    vi.useRealTimers();
+    await refused;
+
+    expect(existsSync(own)).toBe(false);
   });
 
   it('is passed over, named with both probes, when the suite\'s run records under other probes than it was written under', async () => {
@@ -374,7 +401,8 @@ describe('every reader of a worktree that has run nothing starts from the same r
     const own = testCoverageFile(worktree, { suite: 'unit' });
 
     // What `yarn test`'s seam does before it lands the run it made.
-    const seeded = await seedTestCoverage(own, worktree, 'fixture');
+    const locked = await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
+    const seeded = locked.held ? locked.value : undefined;
 
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);
