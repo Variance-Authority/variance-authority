@@ -127,7 +127,6 @@ export interface RanNamed {
   readonly ranges?: readonly { readonly tests: readonly ExecutionTest[] }[];
   readonly changed?: readonly {
     readonly file: string;
-    readonly heldAs?: string;
     readonly regions: readonly { readonly tests: readonly ExecutionTest[]; readonly stopped?: readonly ExecutionTest[] }[];
     readonly cases: readonly ExecutionTest[];
   }[];
@@ -361,7 +360,7 @@ function readersOf(answer: RanNamed, of: {
   }
   for (const change of answer.changed) {
     const named = [...change.regions.flatMap((region) => [...region.tests, ...(region.stopped ?? [])]), ...change.cases];
-    const entered = of.index === undefined ? [] : coveringTestsInFile(of.index, change.heldAs ?? change.file).flatMap((range) => range.tests);
+    const entered = of.index === undefined ? [] : coveringTestsInFile(of.index, change.file).flatMap((range) => range.tests);
     for (const test of [...named, ...entered]) add(test.file, change.file, 'entered');
     for (const test of of.holding?.of.get(change.file) ?? []) add(test, change.file, 'precondition');
   }

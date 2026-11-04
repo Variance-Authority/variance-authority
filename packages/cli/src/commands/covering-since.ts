@@ -4,13 +4,13 @@
  * coordinates, and each changed region stated over every case that reached it.
  */
 
-import { readFile, realpath } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
-import { backThrough, changedLines, diffTexts, hunksByFile, type CoveringRegion, type Hunk, type LineRange } from '@variance-authority/sense/test-selection';
+import { realpath } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
+import { backThrough, changedLines, hunksByFile, type CoveringRegion, type Hunk, type LineRange } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { renamesBetween, requireCommit, unreadDiff } from './base-diff.js';
+import { requireCommit, unreadDiff } from './base-diff.js';
 import { regionState } from './covering-frame.js';
-import { diffPoint, diffSince, gitIn, topLevel } from './since.js';
+import { diffPoint, diffSince, topLevel } from './since.js';
 import type { StatedRegion } from './covering.js';
 
 /** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
@@ -33,12 +33,6 @@ interface ChangeRead {
 /** What a change changed, read once for every suite asked: the commit it parted from `since` at, and its diff from there, with no lines when it changed nothing. */
 export interface ListedChange extends ChangeRead {
   readonly base: string;
-}
-
-/** The change in a record's coordinates: its lines by the names the record holds, and the name the change has for each it holds under another. */
-export interface RecordedChange {
-  readonly lines: ReadonlyMap<string, readonly LineRange[]>;
-  readonly names: ReadonlyMap<string, string>;
 }
 
 /** One file's side of the diff from a record. Absent when that diff does not show the file: the record holds it as the tree does. */
@@ -73,8 +67,8 @@ export async function listedChange(since: string): Promise<ListedChange> {
  * it, since a hunk read at another end lands on another region: every file
  * listed stays, however much of it that record already holds.
  */
-export async function changeSince(listed: ListedChange, since: string, root: string, at: string | undefined): Promise<RecordedChange> {
-  const read = at === undefined || at === listed.base ? { lines: listed.lines, names: new Map<string, string>() } : await theChangeIn(await readFrom(at, since, root), listed, at);
+export async function changeSince(listed: ListedChange, since: string, root: string, at: string | undefined): Promise<ReadonlyMap<string, readonly LineRange[]>> {
+  const lines = at === undefined || at === listed.base ? listed.lines : theChangeIn(await readFrom(at, since, root), listed);
 
   // `git` names files from the repository root and the index from the run's. The working directory is always
   // a real path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the
@@ -82,69 +76,12 @@ export async function changeSince(listed: ListedChange, since: string, root: str
   const here = process.cwd();
   const base = await realpath(root);
   const rooted = (file: string): string => (here === base ? file : relative(base, resolve(here, file)));
-  return {
-    lines: new Map([...read.lines].map(([file, ranges]) => [rooted(file), ranges])),
-    names: new Map([...read.names].map(([held, file]) => [rooted(held), rooted(file)])),
-  };
+  return new Map([...lines].map(([file, ranges]) => [rooted(file), ranges]));
 }
 
-/**
- * The listed change read from the record's commit. A file the record holds
- * under the name it had there is read under that name, the mainline having
- * renamed it since. A file the record does not hold stays listed, for the
- * answer to say so.
- */
-async function theChangeIn(read: ChangeRead, listed: ListedChange, at: string): Promise<RecordedChange> {
-  const moved = await movedSince(read, listed, at);
-  const lines = new Map<string, readonly LineRange[]>();
-  const names = new Map<string, string>();
-  for (const [file, whole] of listed.lines) {
-    const change = listed.hunks.get(file);
-    const held = moved.get(file);
-    if (held === undefined) {
-      lines.set(file, inRecord({ ranges: read.lines.get(file), hunks: read.hunks.get(file) }, change, whole));
-      continue;
-    }
-    lines.set(held.name, held.read === undefined ? [] : inRecord(held.read, change, whole));
-    names.set(held.name, file);
-  }
-  return { lines, names };
-}
-
-/** A listed file the record does not hold and git says it holds under another name, with that file's diff from the record, absent when it did not read. */
-async function movedSince(read: ChangeRead, listed: ListedChange, at: string): Promise<ReadonlyMap<string, { readonly name: string; readonly read: RecordedFile | undefined }>> {
-  const unheld = [...listed.lines.keys()].filter((file) => unheldBy(read.hunks.get(file), listed.hunks.get(file)));
-  if (unheld.length === 0) return new Map();
-  const here = process.cwd();
-  const renames = await renamesBetween(at, listed.base, here).catch(() => {
-    throw new OperatorError(unreadDiff('The record', at), { kind: 'undiffed' });
-  });
-  const moved = await Promise.all(unheld.map(async (file) => {
-    const name = renames.get(file);
-    // The old name in the change is a file the change wrote there: a different name is a different file.
-    if (name === undefined || listed.lines.has(name)) return [];
-    // A file the change deleted has no text in the tree, and its diff from the record removes every line.
-    return [[file, { name, read: fromRecord(name, at, await readFile(join(here, file), 'utf8').catch(() => '')) }] as const];
-  }));
-  return new Map(moved.flat());
-}
-
-/** Whether a record lacks a listed file: its diff from there adds the file, or shows nothing of a file the change left with no lines, which it would show had the record held it. */
-function unheldBy(fromRecord: readonly Hunk[] | undefined, change: readonly Hunk[] | undefined): boolean {
-  if (fromRecord !== undefined) return fromRecord.some((hunk) => hunk.oldStart === 0 && hunk.oldCount === 0);
-  return change?.some((hunk) => hunk.newStart === 0 && hunk.newCount === 0) === true;
-}
-
-/** The diff of `name` as commit `at` holds it to `text`, absent when git read neither. */
-function fromRecord(name: string, at: string, text: string): RecordedFile | undefined {
-  try {
-    const body = diffTexts(gitIn(process.cwd())('show', `${at}:./${name}`), text);
-    if (body === '') return { ranges: undefined, hunks: undefined };
-    const { lines, hunks } = readChange(`--- a/${name}\n+++ b/${name}\n${body}`);
-    return { ranges: lines.get(name), hunks: hunks.get(name) };
-  } catch {
-    return undefined;
-  }
+/** The listed change read from the record's commit. A file the record does not hold stays listed, for the answer to say so. */
+function theChangeIn(read: ChangeRead, listed: ListedChange): ReadonlyMap<string, readonly LineRange[]> {
+  return new Map([...listed.lines].map(([file, whole]) => [file, inRecord({ ranges: read.lines.get(file), hunks: read.hunks.get(file) }, listed.hunks.get(file), whole)]));
 }
 
 /**

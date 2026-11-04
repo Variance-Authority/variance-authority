@@ -63,7 +63,7 @@ export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause, type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export { changedFileName, formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
+export { absentText, formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
 export { limitAcross } from './execution-set-columns.js';
 export { EXECUTION_FORMAT, decodeExecutionIndex, encodeExecutionIndex, isEncodedExecutionIndex } from './execution-format.js';
 export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
@@ -75,10 +75,10 @@ export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGro
 export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
-// What a selection asks about, by the selector's own parse: a second would disagree at the edges.
+// The file list a selection will ask about, and its hunks' text, so a caller names
+// the paths the selector names, not a second parse that disagrees at the edges.
 export { changedLines, type LineRange } from './diff-lines.js';
 export { hunksOf } from './patch.js';
-export { diffTexts } from './text-diff.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.

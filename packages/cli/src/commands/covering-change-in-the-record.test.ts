@@ -17,8 +17,8 @@ vi.mock('ci-info', () => ({ isCI: false }));
 /**
  * The change `--since` names is the merge base's diff to the tree, and the
  * record only says how to read it. So what the record already holds stays in the
- * change, and a file the mainline renamed since the record reads under the name
- * the record holds.
+ * change, and a path is the file: one the record's commit did not hold is not
+ * held, whatever the mainline renamed it from, and the answer says so.
  */
 
 let home: string;
@@ -91,7 +91,7 @@ describe('a change the record already holds', () => {
       process.chdir(dir);
       return { dir, at: await git(dir, 'rev-parse', 'HEAD') };
     }
-    const answered = async (dir: string, at: string) => (await changeSince(await listedChange('mainline'), 'mainline', dir, at)).lines;
+    const answered = async (dir: string, at: string) => changeSince(await listedChange('mainline'), 'mainline', dir, at);
 
     it('names a line the change wrote where the record holds it, past lines the tree put above it', async () => {
       const branch = held.map((line, at) => (at === 4 ? 'the change' : line));
@@ -161,66 +161,55 @@ describe('a file the mainline renamed since the record', () => {
   }
   const renames = (dir: string) => git(dir, 'mv', 'src/total.ts', 'src/sum.ts');
 
-  it('reads the change under the name the record holds, and says it did', async () => {
+  it('says the commit the record was made at held no file by the name, in every format, and lends it no case of the old one', async () => {
     const { clone, first } = await renamedOnTheMainline(renames);
     await writeFile(join(clone, 'src/sum.ts'), EDITED);
 
     const answer = await asked(since);
+    const said = `${first.slice(0, 12)}, the commit the record was made at, held no file by this name`;
 
     expect(answer.at).toBe(first);
-    expect(answer.changed).toMatchObject([{ file: 'src/sum.ts', heldAs: 'src/total.ts', recorded: true }]);
-    expect(namesOf(answer)).toContain(DISCOUNTS.id);
-    expect(formatCovering(answer, 'text', Date.now())).toContain('src/sum.ts — held by the record as src/total.ts');
-    expect(formatCovering(answer, 'refs', Date.now())).toContain('src/sum.ts — held by the record as src/total.ts');
-    expect(JSON.parse(formatCovering(answer, 'json', Date.now()))).toMatchObject({ changed: [{ file: 'src/sum.ts', heldAs: 'src/total.ts' }] });
+    expect(answer.changed).toMatchObject([{ file: 'src/sum.ts', recorded: false, regions: [], absentAt: first }]);
+    expect(formatCovering(answer, 'text', Date.now())).toContain(said);
+    expect(formatCovering(answer, 'text', Date.now())).toContain('`variance covering --file`');
+    expect(formatCovering(answer, 'refs', Date.now())).toContain(said);
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now()))).toMatchObject({ changed: [{ file: 'src/sum.ts', absentAt: first }] });
   });
 
-  it('carries the change through what the mainline wrote into the file as it renamed it', async () => {
+  it('reads the path alone, whatever the mainline wrote into the file as it renamed it', async () => {
     const { clone } = await renamedOnTheMainline(async (dir) => {
       await renames(dir);
       await writeFile(join(dir, 'src/sum.ts'), `// the mainline's line\n${BEFORE}`);
     });
     await writeFile(join(clone, 'src/sum.ts'), `// the mainline's line\n${EDITED}`);
 
-    const { lines, names } = await changeSince(await listedChange('origin/main'), 'origin/main', clone, (await asked(since)).at);
+    const lines = await changeSince(await listedChange('origin/main'), 'origin/main', clone, (await asked(since)).at);
 
-    expect(lines).toEqual(new Map([['src/total.ts', [{ start: 2, end: 2 }]]]));
-    expect(names).toEqual(new Map([['src/total.ts', 'src/sum.ts']]));
+    expect([...lines.keys()]).toEqual(['src/sum.ts']);
   });
 
-  it('says it holds no row of a file git does not call a rename, rather than reading the old one', async () => {
-    const { clone } = await renamedOnTheMainline(async (dir) => {
-      await git(dir, 'rm', '--quiet', 'src/total.ts');
-      await mkdir(join(dir, 'src'), { recursive: true });
-      await writeFile(join(dir, 'src/sum.ts'), 'nothing here reads as the old file\nat all\n');
-    });
-    await writeFile(join(clone, 'src/sum.ts'), 'nothing here reads as the old file\nnor does this\n');
-
-    const answer = await asked(since);
-
-    expect(answer.changed).toMatchObject([{ file: 'src/sum.ts', recorded: false }]);
-    expect(answer.changed?.[0]).not.toHaveProperty('heldAs');
-    expect(formatCovering(answer, 'text', Date.now())).toContain('no row');
-  });
-
-  it('reads a renamed file the change deleted under the name the record holds', async () => {
-    const { clone } = await renamedOnTheMainline(renames);
+  it('says so of a renamed file the change deleted', async () => {
+    const { clone, first } = await renamedOnTheMainline(renames);
     await git(clone, 'rm', '--quiet', 'src/sum.ts');
 
     const answer = await asked(since);
 
-    expect(answer.changed).toMatchObject([{ file: 'src/sum.ts', heldAs: 'src/total.ts', recorded: true }]);
-    expect(namesOf(answer)).toContain(DISCOUNTS.id);
+    expect(answer.changed).toMatchObject([{ file: 'src/sum.ts', recorded: false, regions: [], absentAt: first }]);
   });
 
-  it('keeps a file a change writes at the old name apart from the one renamed from it', async () => {
-    const { clone } = await renamedOnTheMainline(renames);
+  it('keeps the old name in the answer, with the cases that ran it, when the change wrote there too', async () => {
+    const { clone, first } = await renamedOnTheMainline(renames);
     await writeFile(join(clone, 'src/sum.ts'), EDITED);
     await writeFile(join(clone, 'src/total.ts'), EDITED);
 
     const answer = await asked(since);
 
-    expect(answer.changed?.map((change) => change.file).sort()).toEqual(['src/sum.ts', 'src/total.ts']);
+    expect(answer.changed).toMatchObject([
+      { file: 'src/sum.ts', recorded: false, absentAt: first },
+      { file: 'src/total.ts', recorded: true },
+    ]);
+    expect(answer.changed?.[1]).not.toHaveProperty('absentAt');
+    expect(namesOf(answer)).toContain(DISCOUNTS.id);
   });
 });
 

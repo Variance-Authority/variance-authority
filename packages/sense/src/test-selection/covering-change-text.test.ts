@@ -55,6 +55,13 @@ describe('formatCoveringChange', () => {
       .toContain('in the index, and the change landed on no recorded region of it');
   });
 
+  it('says a path the record\'s commit did not hold is no statement about the run', () => {
+    const said = formatCoveringChange([file({ recorded: false, absentAt: 'abc1234567890def' })]);
+
+    expect(said).toContain('no row — abc123456789, the commit the record was made at, held no file by this name.');
+    expect(said).not.toContain('never loaded');
+  });
+
   it('calls a single witness what it is, rather than reporting a count of one', () => {
     expect(formatCoveringChange([file({ regions: [region({ tests: [witness('guest')] })] })]))
       .toContain('1-6 function priceOf — 1 case, and it is the only witness');

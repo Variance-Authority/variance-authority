@@ -117,22 +117,6 @@ export async function filesBetween(from: string, to: string, root: string, top?:
   return stdout.split('\0').filter((file) => file !== '').map((file) => relative(root, join(repository, file))).sort();
 }
 
-/** What git calls renamed between commits `from` and `to`: each file's name at `to` to its name at `from`, named from `root`. Throws what git said. */
-export async function renamesBetween(from: string, to: string, root: string): Promise<ReadonlyMap<string, string>> {
-  const run = promisify(execFile);
-  const repository = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
-  const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-status', '-z', '-M', '--diff-filter=R', from, to], {
-    cwd: repository,
-    maxBuffer: 32 * 1024 * 1024,
-  });
-  const fields = stdout.split('\0');
-  const named = (file: string): string => relative(root, join(repository, file));
-  const renames = new Map<string, string>();
-  // Each rename is three fields: its status, then the name at `from`, then the name at `to`.
-  for (let at = 0; at + 2 < fields.length; at += 3) renames.set(named(fields[at + 2]!), named(fields[at + 1]!));
-  return renames;
-}
-
 /**
  * The stands of the record `read` read, in `repository`, the checkout
  * {@link diffFromBase} diffed the base in: the test files that did not run at

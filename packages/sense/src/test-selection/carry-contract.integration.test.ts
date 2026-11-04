@@ -73,7 +73,7 @@ describe('a record carried through a history, asked by the CLI after a restart',
     await changeRecordedThenAsked(sinceByCli);
   });
 
-  it('reads a file the mainline renamed under the name the record ran it by, by the test that entered it', async () => {
+  it('holds nothing of a file the mainline renamed, the record having run it under the old path', async () => {
     await renamedThenEdited(sinceByCli);
   });
 

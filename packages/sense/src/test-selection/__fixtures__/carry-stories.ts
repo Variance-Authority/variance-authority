@@ -423,7 +423,8 @@ export async function changeRecordedThenAsked(ask: Since): Promise<void> {
 /**
  * A full recording, the subject renamed on the mainline with its text kept,
  * and an edit inside the first effect under the new name: the record ran the
- * old name, and git says it is the same file, so the test that ran it answers.
+ * old name, and a path is the file, so nothing the record holds answers for the
+ * new one.
  */
 export async function renamedThenEdited(ask: Since): Promise<void> {
   const moved = 'src/moved-subject.ts';
@@ -432,6 +433,6 @@ export async function renamedThenEdited(ask: Since): Promise<void> {
     const mainline = await renamedSubject(walk, moved);
     await writeFile(join(walk.root, moved), touching(walk.text, 'first'));
 
-    check(walk, 'an edit under the name the mainline gave it', await ask(walk, mainline), [A]);
+    check(walk, 'an edit under the name the mainline gave it', await ask(walk, mainline), []);
   });
 }

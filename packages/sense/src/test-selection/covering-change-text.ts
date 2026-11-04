@@ -83,7 +83,7 @@ export function formatCoveringChange(
   ];
 
   for (const file of changed) {
-    lines.push('', changedFileName(file));
+    lines.push('', file.file);
     if (file.cases.length > 0) {
       lines.push(
         `  a test file — ${count(file.cases.length, 'named case')} declared here, which is ` +
@@ -94,7 +94,9 @@ export function formatCoveringChange(
     if (!file.recorded) {
       if (file.cases.length === 0) {
         lines.push(
-          '  no row — the recorded run never loaded this file, which is not the same as nobody covering it',
+          file.absentAt === undefined
+            ? '  no row — the recorded run never loaded this file, which is not the same as nobody covering it'
+            : `  no row — ${absentText(file.absentAt)}`,
         );
       }
       continue;
@@ -220,7 +222,8 @@ function describe(test: CoveringTest | ExecutionTest): string {
   return `${test.file} > ${test.name}${test.id === `${test.file} > ${test.name}` ? '' : ` [${test.id}]`}`;
 }
 
-/** A changed file as an answer heads it: its name, and the name the record holds it under when that is another. */
-export function changedFileName(file: Pick<CoveringChange, 'file' | 'heldAs'>): string {
-  return file.heldAs === undefined ? file.file : `${file.file} — held by the record as ${file.heldAs}`;
+/** Why a changed path has no row, when the commit the record was made at held no file by it, and what to ask instead. */
+export function absentText(commit: string): string {
+  return `${commit.slice(0, 12)}, the commit the record was made at, held no file by this name. ` +
+    'A file added or renamed since is new to the record: ask `variance covering --file` with the name that commit held, or record this commit';
 }
