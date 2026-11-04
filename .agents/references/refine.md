@@ -113,8 +113,9 @@ chain stops there and says so.
 
 The written chain belongs to the brief, so to a `feat`, `fix` or `perf`. A kind
 that skips this loop writes none: the look-around in `AGENTS.md` asks it the same
-question, and `occam` asks the whys in its diff mode, from the task sentence and
-the repository, after the code exists.
+question. `occam` asks the whys of every kind in its diff mode, from the task
+sentence and the repository, after the code exists, and a root other than the
+brief's stands only on links that open.
 
 **Review.** A brief goes to review with every section written. The `occam`
 agent reviews the issue alone, in its idea mode: the issue number, and nothing
@@ -122,7 +123,8 @@ of your reasons. It opens every piece of evidence, asks the whys itself before
 it reads yours, weighs the case for nothing against the change, checks the change
 against [`escapes`](escapes.md), and gives one verdict:
 
-- **incomplete** — a section is missing or says nothing. Nothing is decided:
+- **incomplete** — a section is missing, out of order or holds only a
+  placeholder, or a Change above the root does not say why. Nothing is decided:
   complete the brief and ask again. It is not a review, and it does not count
   toward the three below.
 - **build** — put `idea: build` on the issue. Code may start. An edit to the
@@ -132,7 +134,7 @@ against [`escapes`](escapes.md), and gives one verdict:
   review is for. Answering the rejection with evidence instead, or changing
   the Change, is reviewed again.
 - **no, because** — close the issue as not planned, with the reason by its
-  name in the closing comment, and for **not the root** the cause it found. Closed issues are where a declined idea is
+  name in the closing comment. Closed issues are where a declined idea is
   found next time.
 
 Three reviews that end without **build** close the issue. Nobody else is asked:

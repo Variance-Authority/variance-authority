@@ -25,41 +25,45 @@ until the evidence makes them so. You work in one of two modes.
 number. See first that the brief is all here, from its headings alone:
 
 ```bash
-gh issue view <n> --json body --jq .body | awk '/^#/ { print; next } NF { print "  text" }' | uniq
+gh issue view <n> --json body --jq .body | awk '/^#+ / { print; next } NF { print "  text" }' | uniq
 ```
 
-A section of the brief in `.agents/references/refine.md` that is missing or has
-no text is not reviewed: your verdict is **incomplete**, naming the section, and
-you stop. **Incomplete** rejects nothing: it says only that the case is not all
-here.
+A section of the brief in `.agents/references/refine.md` that is missing, out of
+order or has no text is not reviewed, and neither is one you find, as you read
+on, to hold only a placeholder: your verdict is **incomplete**, naming the
+section, and you stop. **Incomplete** rejects nothing: it says only that the case
+is not all here.
 
-The brief runs in a fixed order. What comes before the Root cause was observed;
-the Root cause and what follows it are the author's case, so build yours without
-them, and print only the first part:
+The brief runs in a fixed order. What comes before the Root cause states the
+problem; the Root cause and what follows it are the author's case, so build yours
+without them, and print only the first part:
 
 ```bash
-gh issue view <n> --json title,body --jq '.title, .body' | sed '/^#.*Root cause/,$d'
+gh issue view <n> --json title,body --jq '.title, .body' | awk 'tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { exit } { print }'
 ```
 
 Open every item of Evidence — the quote, the issue, the run, the measurement.
 Evidence that does not open, or does not say what the issue claims, is **nobody
 asked**. Do step 1 below from what you read, chain included. Only then print the
-rest, with `sed -n '/^#.*Root cause/,$p'`.
+rest, the labels last:
 
-Read the Root cause and hold it against your chain. A Root cause with no chain
-in it, only a placeholder, leaves the brief **incomplete** too: report what you
-have found, and it rejects nothing yet. A link that does not open, or does not
-say what the brief claims, is a guess whether it says so or not: the chain stops
-there, and your verdict names it. A guess rejects nothing by itself, because a
-missing proof is not proof of another cause. Then read the Affected and the
-Impact and challenge them against your case: what the scenario crosses, who is
+```bash
+gh issue view <n> --json body,labels --jq '.body, .labels[].name' | awk 'tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { on = 1 } on'
+```
+
+Read the Root cause and hold it against your chain. A link that does not open, or
+does not say what the brief claims, is a guess whether it says so or not: the
+chain stops there, and your verdict names it. A guess rejects nothing by itself,
+because a missing proof is not proof of another cause. Then read the Affected
+and the Impact and challenge them against your case: what the scenario crosses, who is
 hurt, how often, at what cost, and why each RICE label holds. An Impact the
 Evidence does not carry is **nobody asked**; a label it does not carry is named
-in your verdict. Then read the Change, ask each question in
+in your verdict. Then read the Change. One that acts above the root and does not
+say why is **incomplete**, as a missing section is. Ask each question in
 `.agents/references/escapes.md` of it, and weigh it as step 2 weighs a diff: what
 it would make `main` carry for ever. Where links a reader can open show a cause
-lower than the brief's or other than it, or the Change acts above the root with
-no reason to stop there, that is **not the root**. Where the chains differ and
+lower than the brief's or other than it, or defeat the reason the Change gives
+for stopping above the root, that is **not the root**. Where the chains differ and
 nothing opens to settle it, neither wins, and the difference is named in your
 verdict. Your verdict is **build** when no rejection with evidence stands, and
 otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is a
@@ -109,10 +113,10 @@ Reasons you reject on, and you name the one you use:
   answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
-- **Not the root.** Escape 5: the change acts above the cause, its chain never
-  reaches it, or the cause is another one. Your chain is a hypothesis as the
-  author's is, so every link it stands on is something a reader can open. What
-  stands at the root should be fixed or removed, which leaves this problem
+- **Not the root.** Escape 5: links a reader can open show a lower cause or
+  another one, or the change stops above the cause without a reason that holds.
+  Your chain is a hypothesis as the author's is, so every link it stands on is
+  something a reader can open. What stands at the root should be fixed or removed, which leaves this problem
   nothing to answer.
 - **Too much for what it buys.** The cost in step 2 is out of proportion to the
   harm in step 1.
