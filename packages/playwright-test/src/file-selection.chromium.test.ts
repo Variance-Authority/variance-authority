@@ -82,7 +82,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright run handed a selection', () => {
     const none = await run([], { FIXTURE_SKIP: JSON.stringify(['one', 'two', 'three'].map((file) => named(`${file}.spec.ts`))) });
 
     expect(none.ran).toEqual([]);
-    expect(none.stderr).toContain('variance-authority: selected none of 3');
+    expect(none.stderr).toContain('variance-authority: selected none of 3, so none of them runs');
     expect(none.code).toBe(0);
   }, 180_000);
 

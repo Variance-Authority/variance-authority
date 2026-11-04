@@ -25,3 +25,11 @@ describe('the files a seam keeps', () => {
     expect(selectedLines(selection(['a.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe('variance-authority: selected 1 of 2');
   });
 });
+
+describe('the headline of a selection that keeps no file', () => {
+  it('says no file runs', () => {
+    expect(selectedLines(selection(['a.test.ts', 'b.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe(
+      'variance-authority: selected none of 2, so none of them runs',
+    );
+  });
+});
