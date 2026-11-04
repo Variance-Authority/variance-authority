@@ -33,7 +33,7 @@ import {
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import type { CoveringAt, CoveringSource } from '../covering-args.js';
+import type { CoveringAt, CoveringQuestion, CoveringSource } from '../covering-args.js';
 
 /** A recorded range where it stands in the held text, and the one state it is painted as. */
 export interface CoveringRange extends SourceTestRange {
@@ -59,6 +59,9 @@ export async function placementFor(
   return placeInText(snapshot, request.root, request.file, text);
 }
 
+/** A source with the record already resolved for it, when one was. */
+type CoveringRead = CoveringSource & Pick<CoveringQuestion, 'record'>;
+
 /**
  * The snapshot the index at `from` is read from, and the commit it was made at
  * when it says: the snapshot the index lies beside, or a record handed in by
@@ -66,7 +69,7 @@ export async function placementFor(
  * in by path, which is no record of a commit.
  */
 export async function recordOf(
-  request: CoveringSource,
+  request: CoveringRead,
   from: string,
 ): Promise<{ readonly snapshot: string; readonly at: string | undefined } | undefined> {
   const snapshot = await snapshotFor(request);
@@ -85,7 +88,8 @@ export async function recordOf(
  * It is the snapshot in the nearest cache layer holding one, the layer the
  * index beside it is read from.
  */
-export async function snapshotFor(request: CoveringSource): Promise<string | undefined> {
+export async function snapshotFor(request: CoveringRead): Promise<string | undefined> {
+  if (request.record !== undefined) return request.record;
   try {
     return await readableTestCoverage(request.root, { suite: request.suite });
   } catch (error) {

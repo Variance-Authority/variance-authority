@@ -19,7 +19,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { existedAt } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import type { CoveringAt, ParsedCovering } from '../covering-args.js';
+import type { CoveringAt, CoveringQuestion } from '../covering-args.js';
 import { readExecutionFor } from './execution-input.js';
 import { identities, nearbyWitnesses } from './covering-reach.js';
 import { addedSince, unloadedFile, unreadCommit, unreadPreconditions } from './covering-unloaded.js';
@@ -41,7 +41,7 @@ import type { Covering } from './covering.js';
  * narrowed them, read off the same graph, when it narrowed them.
  */
 export async function ask(
-  request: ParsedCovering,
+  request: CoveringQuestion,
   readIndex: IndexReader,
   graph: Graph,
   record: { readonly from: string; readonly at: string | undefined },
@@ -54,7 +54,7 @@ export async function ask(
     // The snapshot's commit is the coordinate of what was recorded beside it,
     // and of nothing else: a journey file handed in by path names no commit, and
     // diffing it from the snapshot's would land its hunks on another text.
-    const changed = await changeSince(request.since, request.root, at);
+    const changed = await changeSince(request.listed, request.since, request.root, at);
     const { index, before } = await readIndex(from, changed);
     // The graph carries the mocks: a case whose file mocked the changed module
     // is not listed under it, whatever it crossed there.

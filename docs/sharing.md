@@ -569,12 +569,16 @@ and it made none.
 
 ## A suite your checkout has not recorded
 
-`variance select` and `variance review` measure a change from a suite's
-execution record. For a suite whose `carry` is `"share"`, they can read the
-`suite-v1/<suite>` entry the mainline published, and never a branch line's,
-because a record of your own branch would measure the change against itself.
+`variance select`, `variance covering` and `variance review` measure a change
+from a suite's execution record. For a suite whose `carry` is `"share"`, they
+can read the `suite-v1/<suite>` entry the mainline published, and never a branch
+line's, because a record of your own branch would measure the change against
+itself.
 
 - **`select`** reads it when your checkout has no execution record of the suite.
+- **`covering`** reads it when your checkout has no execution record of the suite.
+  A `--text` question, which an editor asks on every repaint, reads the same
+  order and does not fetch.
 - **`review`** reads it when `--since` names no base and the suite's first run
   at your `HEAD` started with no execution record here, as in a fresh clone.
   The lines your tests ran still come from your own record; the mainline's gives
@@ -647,11 +651,13 @@ wider run, never a narrower one. In CI, [merge the pull request with
 that commit](#a-pull-request-that-runs-the-mainlines-changes-too) and the diff
 is the pull request's alone.
 
-A record behind your merge base is read the same way: the mainline's commits
-between it and your merge base count as changed, and the tests they reach run
-with yours. That record cannot say what those commits made a test load, so a
-test they touch is never skipped on its word. The run grows with the distance
-until the merge base's own job publishes. A file no record holds and no import
+`select` reads a record behind your merge base the same way: the mainline's
+commits between it and your merge base count as changed, and the tests they
+reach run with yours. That record cannot say what those commits made a test
+load, so a test they touch is never skipped on its word. The run grows with the
+distance until the merge base's own job publishes. `covering --since` lists no
+such commit: a selection widens to stay safe, and `covering` answers what your
+change changed, so its files come from your merge base. A file no record holds and no import
 reaches selects nothing, here as for a file your branch adds: a directory scan
 onto a file added after the record is seen once the merge base's record is read.
 

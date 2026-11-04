@@ -9,11 +9,18 @@ import type { Here } from './share.js';
  * kept behind it, else the latest.
  */
 
+/** A read that does not fetch, with nothing fetched on this machine: the share may hold a record, and no one asked it. */
+export interface Unfetched {
+  readonly kind: 'unfetched';
+  readonly detail: string;
+}
+
 /**
- * Why the reader's mainline did not answer: the share's own account, or that
- * nothing names a mainline, a share, or the credential the share was given.
+ * Why the reader's mainline did not answer: the share's own account, that
+ * nothing names a mainline, a share, or the credential the share was given, or
+ * that the read does not fetch.
  */
-export type MainlineMiss = ShareMiss | Unconfigured;
+export type MainlineMiss = ShareMiss | Unconfigured | Unfetched;
 
 /** Which mainline a read was about, and where its entry was derived. */
 export interface MainlineAt {

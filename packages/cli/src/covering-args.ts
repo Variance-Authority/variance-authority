@@ -4,6 +4,7 @@ import { noPositionals, type Flags } from './args.js';
 import { checkoutFile } from './checkout-file.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
+import type { ListedChange } from './commands/covering-since.js';
 import { oneRecord } from './commands/suite-record.js';
 
 /** Where the answer is read from and how it is written, whichever was asked. */
@@ -94,6 +95,17 @@ export interface CoveringSince extends CoveringSource {
 }
 
 export type ParsedCovering = CoveringAt | CoveringSince;
+
+/** A `--since` question with its change read: it is read once, for every suite asked, before any of them is. */
+export interface CoveringListed extends CoveringSince {
+  readonly listed: ListedChange;
+}
+
+/** A question as a record is asked it. */
+export type CoveringQuestion = (CoveringAt | CoveringListed) & {
+  /** The record the answer reads, resolved once, so every reader of its snapshot reads that one. */
+  readonly record?: string;
+};
 
 /**
  * `--line <n>` or `--line <a>-<b>`. A run of one line is that line, so the two

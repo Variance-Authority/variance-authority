@@ -3,9 +3,18 @@
 `variance covering` is the question to ask before changing a line, and the one
 to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
-function. Of the root `variance.config.json` it reads only `suites` and
-`cacheRoot`. None of it is a verdict: execution records where a test
+function. Of the root `variance.config.json` it reads `suites`, `cacheRoot` and,
+for a suite given to the share, `share`. None of it is a verdict: execution records where a test
 went, never why it was worth running.
+
+It reads the record `variance select` reads: the checkout's own, else the one the
+mainline published at the merge base, fetched when this machine does not hold it,
+with no step before it. For a suite given to the share, the answer opens with a
+`record of "<suite>":` line, `source` in JSON, that names the record and how far
+behind the merge base it stands. When the share cannot be reached the record held
+here answers and the line says why. A suite not given to the share has the nearest
+record this machine holds, and no such line. `--execution` reads the record it
+names and asks the share nothing.
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48
@@ -205,6 +214,11 @@ variance covering --file src/checkout/total.ts --text - --format json < edited.t
 variance covering --file src/checkout/total.ts --text edited.ts --line 52
 ```
 
+A `--text` question reads records in the same order and fetches none, because an
+editor asks it on every repaint and cannot wait for the wire. For a suite given
+to the share it reads the mainline's record fetched here, and the
+`record of "<suite>":` line says the line was not asked.
+
 The answer's `frame` names the coordinates its numbers are in:
 
 - `recorded` — the recording's, and the text matches it.
@@ -334,8 +348,15 @@ counts the two findings a percentage cannot state: regions **no case ran**, and
 regions **one case alone** ran. A changed test file is answered with the named
 cases it declares, since it has no module row. A changed path the index has
 nothing for is named as such, since *no row* and *no test* are opposite facts.
-The diff is measured from the commit the record was written at, so record before
-you read.
+The files are the ones the change changed, from the merge base with the ref. Each
+one's lines are measured from the commit the record was written at, and a hunk
+from there is the change's where it meets one of the change's in the working
+tree: one hunk the change and main both wrote since that record is answered whole,
+and a file the record already holds as written is not listed: record before you
+read. With
+nothing changed behind the ref, each suite gives that as its reason at exit 0 and
+no record is fetched; a ref that does not read as a diff is one `undiffed`
+refusal at exit 2.
 
 A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:

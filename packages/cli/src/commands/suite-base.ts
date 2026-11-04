@@ -28,14 +28,17 @@
  *
  * `mainlineBase` owns the fetch and the read layer it keeps the bytes in, with
  * the runs record the publishing run carried beside them, and
- * `readableTestCoverage` owns which layer holds a record. This decides only
- * the order.
+ * `readableTestCoverage` owns which layer holds a record. This decides the
+ * order, and says whose record it gave.
  */
 
 import { readFile, stat } from 'node:fs/promises';
 import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
-import { mainlineBase, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { checkoutRead } from './checkout-read.js';
+import { mainlineBase, mainlineMissed, mainlineRead, primaryRead, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { recordedSuite } from './suite-record.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
 export type SuiteBase =
@@ -57,6 +60,8 @@ export interface SuiteBaseOptions {
   readonly suite?: string;
   readonly cacheRoot?: string;
   readonly env?: Env;
+  /** The same order with nothing fetched: see {@link MainlineAsk.fetch}. */
+  readonly offline?: boolean;
 }
 
 /**
@@ -76,22 +81,22 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   // it declares several, is refused before anything is fetched.
   const own = selection.testCoverageFile(root, named);
   const at = suite === undefined ? {} : { suite };
+  const ask: MainlineAsk = {
+    ...(options.env === undefined ? {} : { env: options.env }),
+    ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
+    ...(options.offline === true ? { fetch: 'never' as const } : {}),
+  };
   if (await exists(own)) {
     // The milestone under the checkout moves forward when the mainline's
-    // newest record is one HEAD contains: see `repinOwnLayer`.
-    const read = declared?.carry === 'share' ? await mainlineBase(root, declared, {
-      ...(options.env === undefined ? {} : { env: options.env }),
-      ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-    }) : undefined;
+    // newest record is one HEAD contains: see `repinOwnLayer`. A read that
+    // fetches nothing can be killed mid-way, so it rewrites nothing either.
+    const read = declared?.carry === 'share' && options.offline !== true ? await mainlineBase(root, declared, ask) : undefined;
     const repin = read === undefined || 'miss' in read ? undefined : await selection.repinOwnLayer(own, fetchedOf(read), root);
     const layer = await selection.readOwnLayer(own);
     return { from: 'own', ...at, file: own, ...(layer === undefined ? {} : { layer }), ...(repin === undefined ? {} : { repin }) };
   }
 
-  const read = await mainlineBase(root, declared, {
-    ...(options.env === undefined ? {} : { env: options.env }),
-    ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-  });
+  const read = await mainlineBase(root, declared, ask);
   if (read !== undefined && !('miss' in read)) return { from: 'mainline', suite: read.suite, file: read.coverage, mainline: read };
   const missed = read === undefined ? {} : { missed: read };
 
@@ -100,6 +105,63 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   const nearest = await selection.readableTestCoverage(root, named);
   if (nearest !== own && (await exists(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
+}
+
+/**
+ * Whose record was read, for a suite given to a share: this checkout's own, or
+ * the one its mainline published. Absent for any other suite, which has only
+ * the one record and nothing to tell apart.
+ */
+export interface RecordSource {
+  /** Absent when neither had one. */
+  readonly from?: 'checkout' | 'mainline';
+  /** The mainline asked, when one was. */
+  readonly mainline?: string;
+  /** How far the mainline's record is behind this checkout's merge base with it; negative when ahead. */
+  readonly distance?: number;
+  /** Which record was read: `select`'s first note, the line `covering`'s text opens with, and a line on stderr beside its `--format refs`. */
+  readonly says: string;
+}
+
+/** The record a reader was given, whether it is there, whose it is, and why the mainline's is not it. */
+export interface FoundRecord {
+  readonly at: string;
+  readonly held: boolean;
+  readonly source?: RecordSource;
+  /** Present when the share was asked and gave no record. */
+  readonly missed?: MainlineMissed;
+}
+
+/**
+ * The record of the suite this checkout measures from, in the order `suiteBase` gives every base
+ * reader: this checkout's own, else the mainline's (ADR-0084), else, in a worktree, the primary
+ * checkout's as the offline fallback.
+ *
+ * A suite the root config does not give to a share has no mainline record, and reads the nearest
+ * layer that holds one. For a suite given to a share the answer says whose record it read, because
+ * they answer differently and a list alone does not say which.
+ */
+export async function recordedOrMainline(
+  request: { readonly root: string; readonly suite?: string },
+  options: { readonly offline?: boolean } = {},
+): Promise<FoundRecord> {
+  const recorded = await recordedSuite(request.root, request.suite);
+  const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
+  if (suite === undefined) return { at: recorded.file, held: await recordHeld(recorded.file) };
+  const base = await suiteBase(request.root, { suite, ...options });
+  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
+  if (base.from === 'mainline') {
+    const read = base.mainline;
+    const distance = read.distance === undefined ? {} : { distance: read.distance };
+    return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
+  }
+  const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
+  if (base.from === 'primary') {
+    const missed = base.missed === undefined ? {} : { missed: base.missed };
+    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) }, ...missed };
+  }
+  if (base.missed === undefined) return { at: base.file, held: false };
+  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) }, missed: base.missed };
 }
 
 /**
@@ -192,6 +254,28 @@ function fetchedOf(record: MainlineRecord): LastFetched {
 /** The one suite a root config declares, which a reader that names none reads. */
 function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
   return declared?.length === 1 ? declared[0]!.name : undefined;
+}
+
+/**
+ * Whether the journal is on disk, distinguishing *missing* from *unreadable*.
+ *
+ * Anything other than ENOENT is handed on: a directory in its place, a
+ * permission the operator lost, a mount that went away. Reporting those as "no
+ * recording here" would be the one failure this whole subsystem is written to
+ * refuse — a run that ignored a snapshot looking exactly like a run that never
+ * had one.
+ */
+export async function recordHeld(file: string): Promise<boolean> {
+  try {
+    return await exists(file);
+  } catch (error) {
+    throw new OperatorError(
+      `the recorded execution journal at ${file} could not be reached: ` +
+        `${error instanceof Error ? error.message : String(error)}. A reader that treated ` +
+        'this as "nothing recorded" would pass over a record it holds and look exactly like a clean answer.',
+      { cause: error },
+    );
+  }
 }
 
 async function exists(file: string): Promise<boolean> {

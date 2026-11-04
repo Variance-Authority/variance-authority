@@ -137,7 +137,7 @@ export async function suiteShare(
   }
   const declared = declaredIn(selection.declaredSuites(root), options.suite);
   // Asked by name, the remote is asked now, whatever was fetched a moment ago.
-  const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), refetch: true });
+  const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), fetch: 'always' });
   const said =
     read === undefined
       ? `record of "${options.suite}": not given to the share; its "carry" in the root config is not "share".`

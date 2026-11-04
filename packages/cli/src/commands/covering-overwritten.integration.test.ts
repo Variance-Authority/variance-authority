@@ -11,7 +11,8 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { main } from '../bin.fixture.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering, formatCovering, type Covering } from './covering.js';
+import { formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 
 // A full run, then an edit inside `beta`, a run of the one case that does not
 // enter it, and a checkout back to the committed text. The run in part lays
@@ -62,7 +63,7 @@ const git = (at: string, args: readonly string[]): string =>
   execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
 
 const ask = async (root: string, ...argv: string[]): Promise<{ readonly answer: Covering; readonly text: string }> => {
-  const answer = await covering(parseCoveringArgs(readFlags(['--root', root, ...argv], 'covering', flagsFor('covering'), synopsisFor('covering'))));
+  const answer = await coveringAnswer(parseCoveringArgs(readFlags(['--root', root, ...argv], 'covering', flagsFor('covering'), synopsisFor('covering')))) as Covering;
   return { answer, text: formatCovering(answer, 'text', Date.now()) };
 };
 

@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { declaredSuites, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, declaredSuites, mainlineReadRoot, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
+import { writeMissedMainline } from './mainline-base.js';
 
 // A suite recorded through the real Vitest seam, into a cache of its own, so
 // the snapshot beside the index holds the digest the frame is checked against.
@@ -39,6 +40,13 @@ beforeAll(async () => {
     { cwd: repository, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: testCoverageFile(repository, { suite }) } },
   );
   await updateSourceIndex(repository);
+  // The root is this repository, whose share is its real remote. Its line is noted as having given nothing, as a
+  // read that asked it would leave it, so the suite's questions read the run above and the network plays no part.
+  await writeMissedMainline(mainlineReadRoot(cacheRootFor(repository), suite!), {
+    mainline: 'main',
+    at: new Date().toISOString(),
+    miss: { kind: 'unreadable', detail: 'not asked here' },
+  });
 }, 60_000);
 
 afterAll(async () => {
@@ -54,6 +62,13 @@ function parse(argv: readonly string[]) {
 /** When the latest run an answer is dated by landed, in ms: a clock read then says it landed under a minute ago, however long the run took. */
 function landing(answer: Awaited<ReturnType<typeof covering>>): number {
   return Date.parse((answer.ran as { readonly stands: readonly { readonly landed: { readonly latest: string } }[] }).stands[0]!.landed.latest);
+}
+
+/** The text under the line that says whose record answered, which the repository's suite opens with: it is given to a share. */
+function underTheRecord(text: string): string {
+  const [first, ...rest] = text.split('\n');
+  expect(first).toContain(`record of "${suite}"`);
+  return rest.join('\n');
 }
 
 /** The fixture's text with two lines written above it, as an editor would hold it unsaved. */
@@ -95,7 +110,7 @@ describe('a file answered in the text somebody holds', () => {
     expect(answer.target).toEqual({ line: 7 });
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1']));
     expect(written).toMatchObject({ target: { line: 1 }, tests: [], written: [{ startLine: 1, endLine: 1 }] });
-    expect(formatCovering(written, 'text', landing(written))).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
+    expect(underTheRecord(formatCovering(written, 'text', landing(written)))).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
       `The recorded lines of ${source} are placed in its text as it is now.\n` +
       `${tests} ran over another text of ${source}, in a run that landed under a minute ago; line 1 differs between the two.\n` +
       `Gap (stale) on line 1 of ${source}: which tests run it now. Known: line 1 was written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
@@ -115,7 +130,7 @@ describe('a file answered in the text somebody holds', () => {
     expect(formatCovering(answer, 'refs', Date.now())).toContain('; written since 1-2');
     const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2']));
     expect(written).toMatchObject({ tests: [], written: [{ startLine: 1, endLine: 2 }] });
-    expect(formatCovering(written, 'text', landing(written))).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
+    expect(underTheRecord(formatCovering(written, 'text', landing(written)))).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
       `The recorded lines of ${source} are placed in its text as it is now.\n` +
       `${tests} ran over another text of ${source}, in a run that landed under a minute ago; lines 1-2 differ between the two.\n` +
       `Gap (stale) on lines 1-2 of ${source}: which tests run it now. Known: lines 1-2 were written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);

@@ -51,6 +51,7 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
     request.shards.length === 0
       ? undefined
       : await landJourneys(request.cwd, request.shards, request.into ?? (await landingRecord(request.cwd, request.suite)));
+  // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
   const record = landed?.at ?? request.into ?? (await suiteRecord(request.cwd, request.suite));
 
   const named = request.all || request.report === undefined ? undefined : await subjectsInReport(request.report);

@@ -361,8 +361,10 @@ Name neither flag, and `distill` reads every test file that way, or with
 they load for nothing by their lines summed over the test files each reaches.
 With no `--suite`, it reads every declared suite.
 
-`distill` reads the record `covering` reads; `--suite <name>` picks one declared
-suite's, and `--execution <path>` reads any other record, or JSON from a tool
+`distill` has a gap here: it reads the record this machine holds and asks the
+share nothing, where `select` and `covering` read the mainline's, so a checkout
+that never ran the suite can answer from an older record, without saying so.
+`--suite <name>` picks one declared suite's, and `--execution <path>` reads any other record, or JSON from a tool
 that already records per-test crossings. From the root `variance.config.json` it
 reads only the declared suites. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
@@ -393,9 +395,9 @@ The verification workflow is in [distill a test](https://variance-authority.dev/
 
 ### Covering: which tests covered this line
 
-`covering` reads the same execution index `distill` does, to answer the
-question a reader has while looking at code rather than at a test: which named
-tests went through here.
+`covering` reads the per-case record of the suite, the one `select` measures
+from, to answer the question a reader has while looking at code rather than at a
+test: which named tests went through here.
 
 ```bash
 variance covering --file src/checkout/total.ts
@@ -477,6 +479,18 @@ record was made over, and names any that differ. An equal cut does not show that
 a hit means the same under both probes, and the note says so. When this machine holds the mainline's record cut under this
 build's probes beneath the one read, the note names its path, which
 `--execution` reads.
+
+`covering` reads the record `select` reads: your checkout's own, else the one
+your mainline published to the [share](https://variance-authority.dev/docs/sharing) at your merge
+base, fetched when this machine does not hold it. No step comes before it, so a
+worktree you cut a minute ago answers from the mainline's record. For a suite
+given to the share, the answer opens with the `record of "<suite>":` line that
+names the record and how far it stands behind your merge base, and carries the
+same as `source` under `--format json`. When the share cannot be reached, the
+record held here answers and the line says why; with none held, the answer names
+what the share said. A suite not given to the share has the nearest record this
+machine holds, and no such line. `--execution <path>` reads that record and asks
+the share nothing.
 
 When the root `variance.config.json` declares
 [suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
@@ -722,7 +736,10 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 
 `--text <path>` reads the held text from a file, and `--text -` reads it from
 standard input, which is how an editor queries a buffer you have not saved.
-`--line` then names a line in that text. A line the edit wrote is answered
+Such a question reads records in the same order as any other and fetches none,
+because an editor asks it on every repaint and cannot wait for the wire: for a
+suite given to the share it reads the mainline's record fetched here, and the
+`record of "<suite>":` line says the line was not asked. `--line` then names a line in that text. A line the edit wrote is answered
 with no case, and the answer says the edit wrote it. When the record cannot say
 which text a case that crossed the file ran over, a line your text holds and
 the record's does not is answered with no case and named in `unknown`, with
@@ -918,9 +935,19 @@ declares rather than reported as unmeasured. A changed path the index holds
 nothing for is printed as `no row`, because *no row* and *no test* are
 opposite facts.
 
-The diff is measured from the commit the record was written at rather than from
-the merge base with `<ref>`, since the index's line ranges are in that commit's
-coordinates and nothing else's.
+The files listed are the ones your change changed, from the merge base with
+`<ref>`, so what reached the mainline between the record and your merge base is
+not listed. Each listed file's lines are measured from the commit the record was
+written at, since the index's line ranges are in that commit's coordinates and
+nothing else's, and a hunk from there is yours where it meets one of your
+change's in the working tree: one hunk your change and those commits both wrote
+is answered whole, and a file the record already holds as written is not listed.
+With nothing changed behind the ref, no record is fetched: in a
+repository that declares suites, each suite gives that as its reason at exit 0,
+and with `--suite`, or with no suites declared, it is refused. A change whose
+every line the record already holds as written is answered the same way, once
+that record is read. A ref that does not read as a diff is one `undiffed`
+refusal at exit 2, before any record is read.
 
 Under the regions, the answer says which changed files the test files it names
 ran over and when, as an answer about one file does, with no region. Record
@@ -1020,7 +1047,7 @@ record*. The block sits between `<!-- variance-authority: handover -->` and
 its closing marker: the block a later run prints is pasted over everything
 between them.
 
-It reads this checkout's record as `covering` does. `--from-run`, `--out`,
+It reads the record this machine holds. `--from-run`, `--out`,
 `--coverage` and `--against` read or compare what a run made, so a handover
 refuses them, and it leaves out the cases local runs moved: CI's comment
 reports those.
@@ -2793,7 +2820,7 @@ owns its own collector, renderer, storage, or review surface:
   `imageRoot` for where the report's images are published, and `limits` when a
   caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
-- `suiteBase(root, { suite, cacheRoot, env })` answers which execution record a
+- `suiteBase(root, { suite, cacheRoot, env, offline })` answers which execution record a
   runner of your own measures a change from: the checkout's own, else the
   `suite-v1/<suite>` your mainline published to the share, or the one fetched on
   this machine earlier when the remote does not answer, else, in a worktree that
@@ -2809,13 +2836,13 @@ owns its own collector, renderer, storage, or review surface:
   record written under other probes is not copied, because no run could be laid
   over it, and comes back as `passed`, which `mainlinePassedOver` prints. Pass
   `undefined` for a landing that lays no coverage. `env` stands in for
-  `process.env` when the line is read, and `cacheRoot` for the cache. After the
-  shards ran, `landSuite(cwd, shards, suite)` lands their records on
-  `suite`'s record in the checkout, as `variance journeys <shards> --suite`
-  does, and returns what the landing said without the reading, for a CI fan-in
+  `process.env` when the line is read, `cacheRoot` for the cache, and `offline`
+  makes a read that fetches nothing and rewrites no record. After the shards ran,
+  `landSuite(cwd, shards, suite)` lands their records on `suite`'s record in the
+  checkout, as `variance journeys <shards> --suite` does, and returns what the landing said without the reading, for a CI fan-in
   that folds the record for the jobs after it.
-- `recordedExecutionFile(root, suite)` names the record `distill`, `covering`
-  and `review` read for a suite, and refuses as `unrecorded` when no run kept
+- `recordedExecutionFile(root, suite)` names the record `distill` and `review`
+  read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,
   so its counts are the ones the CLI prints.
 - The executable's `config` path selects the source; `parseConfig` takes that

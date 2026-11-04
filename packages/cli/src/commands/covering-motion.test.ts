@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { parseCoveringArgs } from '../covering-args.js';
+import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeExecutionIndex,
@@ -12,7 +12,8 @@ import {
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { covering, formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 import { motionOfLast, motionOfRuns, motionText, runsWrote } from './covering-motion.js';
 import { indexOutput } from './index-command.js';
 
@@ -35,6 +36,9 @@ function index(apply: readonly number[], round: readonly number[], other?: reado
     ],
   };
 }
+
+/** A `--since` question, which reaches a record with its change read. */
+const changeAnswer = (question: ParsedCovering) => coveringAnswer(question) as Promise<Covering>;
 
 function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
@@ -301,7 +305,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
 
-    const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     expect(answer.motion?.base).toMatchObject({ at: first, mergeBase: first, leftOut: [] });
     expect(answer.motion?.moved?.counts).toEqual({ lost: 1, hidden: 0, thinned: 0, gained: 0 });
@@ -316,7 +320,7 @@ describe('what a change moved against the base', () => {
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
 
     const refs = formatCovering(
-      await covering(parse(['--since', 'main', '--against', against, '--execution', execution])),
+      await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution])),
       'refs', Date.now(),
     );
 
@@ -330,7 +334,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { against, execution } = await recorded(index([0], [1]), index([0], [1]), first);
 
-    const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     expect(formatCovering(answer, 'text', Date.now())).toContain('no region moved.');
   });
@@ -374,7 +378,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { against, execution } = await recorded(index([0], [1], [0]), index([0], [1], []), first);
 
-    const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     expect(answer.motion?.base.leftOut).toEqual(['src/other.ts']);
     expect(answer.motion?.moved?.regions).toEqual([]);
@@ -406,7 +410,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { execution } = await recorded(index([0], []), index([0], []), 'HEAD');
 
-    await expect(covering(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
+    await expect(changeAnswer(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
       .rejects.toThrow(/needs no `--against`/);
   });
 
@@ -416,7 +420,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), ABSENT);
 
-    const refused = covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const refused = changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     await expect(refused).rejects.toMatchObject({
       exitCode: 2,
@@ -432,7 +436,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), undefined);
 
-    await expect(covering(parse(['--since', 'main', '--against', against, '--execution', execution]))).rejects.toMatchObject({
+    await expect(changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]))).rejects.toMatchObject({
       exitCode: 2,
       message: expect.stringContaining(`The base \`${against}\` names no commit it was recorded at`),
     });

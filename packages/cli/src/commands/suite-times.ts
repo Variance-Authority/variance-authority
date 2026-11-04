@@ -14,7 +14,7 @@ import { recordedTimes } from '@variance-authority/sense';
 import type { SuiteTimes } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { mainlineMissed } from './mainline-base.js';
-import { recordedOrMainline } from './select-command.js';
+import { recordedOrMainline } from './suite-base.js';
 
 /** The misses every shard reads alike: nothing published, or no share configured. */
 const ALIKE: ReadonlySet<string> = new Set(['absent', 'unconfigured']);

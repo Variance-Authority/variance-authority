@@ -56,11 +56,12 @@ export interface MainlineRecord {
   /**
    * Present when it is the record fetched earlier: reused without asking
    * because the line holds nothing nearer `HEAD`'s merge base with the mainline
-   * (`nearest`) or was asked at this same merge base (`asked`), or kept because
+   * (`nearest`), was asked at this same merge base (`asked`), or was not to be
+   * asked at all ({@link MainlineAsk.fetch}), or kept because
    * the mainline gave no record, now or, as `asked` says, earlier within
    * {@link MISS_STANDS_MS}.
    */
-  readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
+  readonly earlier?: { readonly reused: 'nearest' | 'asked' | 'offline' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -72,7 +73,7 @@ export interface MainlineMissed {
   readonly miss: MainlineMiss;
   /** The entries the mainline holds when it holds none for this suite. */
   readonly holds?: readonly string[];
-  /** `false` when the root config's `share` section stopped the read before the share was asked. */
+  /** `false` when the root config's `share` section stopped the read before the share was asked, or the read does not fetch. */
   readonly shareAsked?: false;
   /** When the line gave this answer, as an ISO time, when it was earlier within {@link MISS_STANDS_MS} and not now. */
   readonly asked?: string;
@@ -93,8 +94,12 @@ export type MainlineBase = MainlineRecord | MainlineMissed;
 export interface MainlineAsk {
   readonly env?: Env;
   readonly cacheRoot?: string;
-  /** Ask the remote whatever was fetched and whenever: `variance share --suite <name>`. */
-  readonly refetch?: boolean;
+  /**
+   * Whether the remote is asked, when not by the reuse rules below. `always` asks
+   * whatever was fetched and whenever: `variance share --suite <name>`. `never`
+   * stops at what this machine holds, for a question that cannot wait for the wire.
+   */
+  readonly fetch?: 'always' | 'never';
   /** The clock, for a test. */
   readonly now?: number;
 }
@@ -153,7 +158,7 @@ export async function mainlineBase(
   const chosen = await readerMainline(place, env, root);
   const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
-  if (here.refetch !== true) {
+  if (here.fetch !== 'always') {
     const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline) {
       const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
@@ -165,6 +170,11 @@ export async function mainlineBase(
       if (last !== undefined) return measured(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
+  }
+
+  if (here.fetch === 'never') {
+    if (last !== undefined) return measured(place, root, last, { reused: 'offline' }, baseOf(last.mainline));
+    return { suite, ...(named === undefined ? {} : { mainline: named.name }), miss: { kind: 'unfetched', detail: 'this read does not fetch' }, shareAsked: false };
   }
 
   const asked = new Date(now).toISOString();
@@ -376,19 +386,23 @@ export function rootShare(config: RootConfig | undefined) {
   return parseShare(value, { source: config.file, baseDir: dirname(config.file) });
 }
 
+/** Why the record fetched earlier stands, for {@link mainlineRead}. */
+const KEPT = {
+  nearest: 'the line holds nothing nearer the merge base',
+  asked: 'the line was asked at this merge base',
+  offline: 'the line was not asked',
+} as const;
+
 /**
  * The note that says the mainline's record was read: which mainline, which
  * commit, how far off, and where it is kept, and for the record fetched
- * earlier, when that was and why it stands. It is the first note, after the
- * reader's own verdict.
+ * earlier, when that was and why it stands.
  */
 export function mainlineRead(read: MainlineRecord): string {
   const when = read.earlier === undefined
     ? ''
     : 'reused' in read.earlier
-      ? `, fetched at ${read.fetched}` + (read.earlier.reused === 'nearest'
-        ? ' and kept: the line holds nothing nearer the merge base'
-        : ' and kept: the line was asked at this merge base')
+      ? `, fetched at ${read.fetched} and kept: ${KEPT[read.earlier.reused]}`
       : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
         answeredAt(read.earlier.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +

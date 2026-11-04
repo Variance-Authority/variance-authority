@@ -82,6 +82,7 @@ import { jsonOf } from './select-json.js';
 import { many } from './prose-counts.js';
 import { declinedNotes, ignoredNotes, recordingNotes, unreadNotes } from './select-notes.js';
 import type { SelectInstall } from './select-beyond.js';
+import type { RecordSource } from './suite-base.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
@@ -125,26 +126,10 @@ export type SelectGround =
       readonly rests: readonly string[];
     };
 
-/**
- * Whose record was read, for a suite given to a share: this checkout's own, or
- * the one its mainline published. Absent for any other suite, which has only
- * the one record and nothing to tell apart.
- */
-export interface SelectSource {
-  /** Absent when neither had one. */
-  readonly from?: 'checkout' | 'mainline';
-  /** The mainline asked, when one was. */
-  readonly mainline?: string;
-  /** How far the mainline's record is behind this checkout's merge base with it; negative when ahead. */
-  readonly distance?: number;
-  /** Which record was read, said as the first note, after the verdict. */
-  readonly says: string;
-}
-
 export interface SelectInput {
   /** Where the journal is, or would have been. Named in every outcome. */
   readonly at: string;
-  readonly source?: SelectSource;
+  readonly source?: RecordSource;
   /** The commit the journal's line ranges are coordinates in, when it named one. */
   readonly commit?: string;
   /**
@@ -209,7 +194,7 @@ export interface TestSelection {
   /** Carried so the machine-readable form can name the journal it read. */
   readonly at: string;
   readonly commit?: string;
-  readonly source?: SelectSource;
+  readonly source?: RecordSource;
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];

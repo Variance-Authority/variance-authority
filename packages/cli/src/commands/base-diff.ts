@@ -31,6 +31,29 @@ export function unnamedCommit(base: { readonly name: string; readonly unnamed?: 
   );
 }
 
+/** The sentence refusing what `name` recorded at `at`, a commit this clone lacks, with what to fetch. */
+function missingCommit(name: string, at: string): string {
+  return (
+    `${name} was recorded at ${at}, which this clone does not have, so it is not compared. ` +
+    `Fetch it with \`git fetch origin ${at}\`, or check out every commit: ` +
+    '`fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.'
+  );
+}
+
+/** The sentence refusing what `name` recorded at `at`, a commit this clone has, when git read no diff from it. */
+export function unreadDiff(name: string, at: string): string {
+  return `${name} was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`;
+}
+
+/** Refuse what `name` recorded at `at` when the clone at `repository` lacks that commit, with what to fetch. */
+export async function requireCommit(at: string, repository: string, name: string): Promise<void> {
+  try {
+    await promisify(execFile)('git', ['cat-file', '-e', `${at}^{commit}`], { cwd: repository });
+  } catch {
+    throw new OperatorError(missingCommit(name, at), { kind: 'undiffed' });
+  }
+}
+
 /**
  * The diff by file from `at`, the commit the base `base` names was recorded at,
  * to the tree at `root`, with that commit and the checkout it was diffed in.
@@ -49,17 +72,9 @@ export async function diffFromBase(
   if (!OBJECT_NAME.test(at)) return refuse(`was recorded at \`${at}\`, which is not a commit's object name, so it is not compared.`);
   const repository = await topLevel(root);
   if (repository === undefined) return refuse(`was recorded at ${at}, and \`${root}\` is not in a git checkout to diff from it.`);
-  try {
-    await promisify(execFile)('git', ['cat-file', '-e', `${at}^{commit}`], { cwd: repository });
-  } catch {
-    return refuse(
-      `was recorded at ${at}, which this clone does not have, so it is not compared. ` +
-        `Fetch it with \`git fetch origin ${at}\`, or check out every commit: ` +
-        '`fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.',
-    );
-  }
+  await requireCommit(at, repository, base.name);
   const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
-  if (diff === undefined) return refuse(`was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`);
+  if (diff === undefined) throw new OperatorError(unreadDiff(base.name, at), { kind: 'undiffed' });
   return { commit: at, diff: hunksByFile(diff), repository };
 }
 

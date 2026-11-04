@@ -23,9 +23,10 @@ import {
   type DeclaredSuite,
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
-import type { ParsedCovering } from '../covering-args.js';
+import type { CoveringQuestion, ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
+import { listedChange } from './covering-since.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import { marksOf, type GutterMark } from './covering-marks.js';
@@ -62,7 +63,9 @@ export interface CoveringSuites {
  * a repository that declares suites and a question that names none is read
  * suite by suite.
  */
-export async function coveringAnswer(request: ParsedCovering): Promise<Covering | CoveringSuites> {
+export async function coveringAnswer(question: ParsedCovering): Promise<Covering | CoveringSuites> {
+  // Read once: every suite's answer starts from the same change.
+  const request: CoveringQuestion = question.since === undefined ? question : { ...question, listed: await listedChange(question.since) };
   if (request.execution !== undefined) return covering(request);
   const declared = asOperator(() => declaredSuites(request.root));
   if (request.suite !== undefined || declared === undefined) {
@@ -73,7 +76,7 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
   }
 
   // Standard input is read once, and every suite places its ranges in that text.
-  const asked: ParsedCovering = request.since === undefined && request.text !== undefined
+  const asked: CoveringQuestion = request.since === undefined && request.text !== undefined
     ? { ...request, held: (await heldText(request)) ?? '' }
     : request;
   const suites: SuiteAnswer[] = [];
@@ -101,6 +104,12 @@ export function answerGaps(answer: Covering | CoveringSuites): readonly Evidence
   return gaps.filter((gap) => gap !== undefined);
 }
 
+/** Whose record the answer read, each suite's when it read several, for a format that leaves it out of the answer. */
+export function answerSays(answer: Covering | CoveringSuites): readonly string[] {
+  const read = 'suites' in answer ? answer.suites.map((one) => ('source' in one ? one.source : undefined)) : [answer.source];
+  return read.flatMap((source) => (source === undefined ? [] : [source.says]));
+}
+
 /**
  * The gaps of suites none of which recorded a run, as one: each suite's fetch,
  * and one first run of every suite the share does not hold.
@@ -125,7 +134,7 @@ function nearestFirst(declared: readonly DeclaredSuite[]): readonly DeclaredSuit
   return [...declared].sort((a, b) => SUITE_KINDS.indexOf(a.kind) - SUITE_KINDS.indexOf(b.kind));
 }
 
-async function askSuite(request: ParsedCovering, suite: DeclaredSuite, graph: Graph): Promise<SuiteAnswer> {
+async function askSuite(request: CoveringQuestion, suite: DeclaredSuite, graph: Graph): Promise<SuiteAnswer> {
   const named = { suite: suite.name, kind: suite.kind };
   try {
     return { ...named, ...(await covering({ ...request, suite: suite.name }, graph)) };

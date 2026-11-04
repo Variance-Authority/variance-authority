@@ -1,0 +1,5 @@
+---
+'@variance-authority/cli': patch
+---
+
+`variance covering` reads the record `variance select` reads: in a checkout that has not recorded the suite, the mainline's at the merge base, fetched when this machine does not hold it, and the answer names that record with the same `record of "<suite>":` line, or `source` under `--format json`. When the share cannot be reached it answers from the record held here and says how far behind that is. `--since` lists what the change changed, from the merge base with `<ref>`, and reads its hunks from the record's commit: a hunk from there is the change's where it meets one of the change's in the working tree, so one hunk both sides wrote is answered whole. A ref that does not read as a diff is one `undiffed` refusal at exit 2, before any record is read, including under `--execution`; such a ref used to be answered from the record's commit. A record made at a commit this clone lacks names what to fetch. A `--text` question, which an editor asks on every repaint, reads the records in the same order and does not fetch. `--format refs` says whose record it read on stderr.

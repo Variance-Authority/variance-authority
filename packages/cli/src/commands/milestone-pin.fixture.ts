@@ -68,5 +68,5 @@ export async function refetch(home: string, worktree: string, commit: string): P
   const markers = (await readdir(cache, { recursive: true })).filter((path) => path.includes('variance-fetched'));
   await Promise.all(markers.map((path) => utimes(join(cache, path), 0, 0)));
   const declared = declaredSuites(worktree)?.find((one) => one.name === 'unit');
-  expect(await mainlineBase(worktree, declared, { env: LOCAL, refetch: true })).toMatchObject({ commit });
+  expect(await mainlineBase(worktree, declared, { env: LOCAL, fetch: 'always' })).toMatchObject({ commit });
 }
