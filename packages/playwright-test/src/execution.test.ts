@@ -402,6 +402,53 @@ describe('a worker that is one of several', () => {
     });
   });
 
+  it('records no limit for a case one attempt of which ran with none', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+      const test = { name: 'the one test', id: `${owner}-1` };
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      // `test.setTimeout(0)` is Playwright's word for no timeout, the longest there is.
+      for (const timeout of [0, 30_000]) {
+        await recorder.note(
+          pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+          owner,
+          test,
+        );
+        await ended(recorder, root, owner, 'passed', 10, timeout);
+      }
+      await recorder.close();
+
+      expect(decodeExecutionIndex(await readFile(coverageFile)).tests.map((one) => one.limit)).toEqual([undefined]);
+    });
+  });
+
+  it('keeps the time and limit of a passing case that drove no page', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+        owner,
+        { name: 'drives a page', id: `${owner}-1` },
+      );
+      recorder.mark(owner, true, { name: 'drives a page', id: `${owner}-1` }, 10, 30_000);
+      // A test of an API alone asks for no page, and is as close to its limit as any other.
+      recorder.mark(owner, true, { name: 'calls the API', id: `${owner}-2` }, 4_900, 5_000);
+      await recorder.close();
+
+      expect(decodeExecutionIndex(await readFile(coverageFile)).tests.map(({ name, duration, limit }) => [name, duration, limit])).toEqual([
+        ['calls the API', 4_900, 5_000],
+        ['drives a page', 10, 30_000],
+      ]);
+    });
+  });
+
   it('names a test by where it is declared, not by the runner position for it', () => {
     expect(
       testOf({

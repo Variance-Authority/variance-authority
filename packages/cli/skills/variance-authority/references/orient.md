@@ -13,7 +13,7 @@ the answer. Run them from the checkout you are asking about.
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
 | one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
 | a place, and the question of what it may import | `stack --from <path>` |
-| a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran that long |
+| a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
 
 ## `orient`
 
@@ -101,7 +101,7 @@ long ago its latest run landed. A figure is one reading, not an average, so weig
 Then the cases closest to their limit, ranked by how much of it they ran, so
 4.9 s of 5 s stands above 40 s of 60 s. Each row states the run and the limit
 and judges neither: the run spans hooks and every attempt, the limit one
-attempt, so a passing case can read 5.3 s of 5 s. A case whose record holds no
+attempt, so a passing case can read 5.3 s of 5 s. A case with no recorded
 limit is counted, and a record older than the column says so and lists its cases
 by time alone.
 

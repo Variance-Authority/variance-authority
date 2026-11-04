@@ -325,9 +325,13 @@ export function limitFrom(column: Uint32Array | undefined, at: number): { readon
   return held === undefined || held === NO_DURATION ? {} : { limit: held };
 }
 
-/** The limit of one case across its frames: the longest, the one a slow frame could still pass under. */
+/**
+ * The limit of one case across its frames: the longest, the one a slow frame
+ * could still pass under. Zero is a runner's word for no limit, so it is the longest.
+ */
 export function limitAcross(first: number | undefined, second: number | undefined): { readonly limit?: number } {
   if (first === undefined && second === undefined) return {};
+  if (first === 0 || second === 0) return { limit: 0 };
   return { limit: Math.max(first ?? 0, second ?? 0) };
 }
 

@@ -312,11 +312,10 @@ variance ask slowest-tests --from packages/checkout/
 variance ask slowest-tests --over 3s --from packages/checkout/
 ```
 
-A test at 4.9 s of a 5 s limit fails on the next slow machine, and a test at
-40 s of 60 s does not, so `slowest-tests` ranks by how much of its limit each
-case ran. Each suite's answer opens with the record it read: whose it is, at which
-commit, and how long ago its latest run landed. A figure is one reading, not an average, so
-that line says how far to trust the numbers.
+A test at 4.9 s of a 5 s limit has 0.1 s to spare, and a test at 40 s of 60 s has
+20 s, so `slowest-tests` ranks by how much of its limit each case ran. Each
+suite's answer opens with the record it read: whose it is, at which commit, and
+how long ago its latest run landed. A figure is that run's reading, not an average.
 
 Then come the cases closest to their limit, each as its run and its limit, and
 the test files and cases the run spent longest in. A row states the two figures
@@ -324,9 +323,10 @@ and judges neither: the run spans hooks and every attempt, the limit one
 attempt, so a passing case can read above its limit.
 
 `--from` keeps the tests under the paths you name, and `--to` the tests that
-entered them. `--over 3s` keeps the cases that ran at least that long, counts
-the rest and leaves the files out. A case whose record holds no limit is counted beside the ranking, and
-a record older than the column says so and lists its cases by time alone.
+ran code in them. `--over 3s` keeps the cases that ran at least that long, counts
+the rest and leaves the files out. A case with no recorded limit is counted beside
+the ranking, and a record older than the column says so and lists its cases by
+time alone.
 
 ## Find where the suite's time goes
 

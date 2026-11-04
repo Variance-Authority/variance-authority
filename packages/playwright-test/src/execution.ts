@@ -256,20 +256,16 @@ export function createExecutionRecorder(
       if (duration !== undefined) add(owner, duration);
       if (subject !== undefined) {
         const key = caseKey(owner, subject.id);
+        // A case the page had nothing to drain for is still a case: it stopped,
+        // said something, or drove no page and spent its time all the same.
+        caseOf(owner, subject);
         if (duration !== undefined) add(key, duration);
         if (limit !== undefined) limits.set(key, limitAcross(limit, limits.get(key)).limit!);
         const said = listener?.take(key);
-        if (said !== undefined) {
-          heard.set(key, saidAcross(heard.get(key), said).said!);
-          // A case that only said something is still a case.
-          caseOf(owner, subject);
-        }
+        if (said !== undefined) heard.set(key, saidAcross(heard.get(key), said).said!);
         stopped.set(key, stopped.get(key) === false ? false : !complete);
         // One reading per attempt: a retry is a second run of the case.
         stories?.write(storyCase(owner, subject), !complete, lostCases.delete(key));
-        // A case that stopped before the page had anything to drain is still a
-        // case, and the one a reader most needs to hear about.
-        if (!complete) caseOf(owner, subject);
       }
       // Conservative on purpose: one failed test in a file retires the whole
       // file's claim, because the crossings it did not reach are unknowable and
