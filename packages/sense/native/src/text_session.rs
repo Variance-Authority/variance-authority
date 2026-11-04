@@ -4,8 +4,8 @@
 //! A selection asks for a path at a commit in jumps, and a reader that holds a
 //! bounded amount of text asks git again for what it let go of. A process per
 //! read made every one of those a cost of its own: 211,697 processes for 405
-//! paths. Here a read starts none, so what a reader holds buys it an inflate
-//! and a pipe, not a process.
+//! paths. Here a text or an absent path starts none, so holding one buys a
+//! reader an inflate and a pipe, not a process.
 //!
 //! The name `<commit>:<path>` serves every commit from the one process, so a
 //! turn between commits needs nothing here. There is one process, for the last
@@ -17,10 +17,13 @@
 //! not hold at a commit the store has. Anything else is `None` and goes to
 //! [`crate::commit_text`]'s read, which names git's reason: a commit this clone
 //! lacks, a blob the tree names and the store does not, a git-LFS pointer, a
-//! process that died. Those are the rare answers, so the processes they start
-//! do not grow with the asks. A partial clone's blobs are fetched before the
-//! asks, in one request, because git asked for each here makes a request apiece,
-//! as `promisor.rs` describes.
+//! process that died. That read starts processes every time it runs: two for a
+//! commit the store lacks, about sixteen for a pointer, nearly all of them
+//! `git lfs smudge`'s, so they grow with the asks that reach it. A reader spares
+//! a pointer's content while it holds it, and nothing spares a refused read,
+//! which is held nowhere. A partial clone's blobs are fetched before the asks,
+//! in one request, because git asked for each here makes a request apiece, as
+//! `promisor.rs` describes.
 
 // compass: variance-authority.reach.source-index
 

@@ -136,6 +136,38 @@ describe('what was asked is more than is held', () => {
     }, LARGE, large);
   });
 
+  it('stays within it round after round across two commits, with no process past the first', () => {
+    const rounds = 3;
+    const since = (at: number): string => `${large(at)}// since\n`;
+    checkout((root, first, second) => {
+      const asks = paths.flatMap((at) => [{ at, commit: first, text: large(at) }, { at, commit: second, text: since(at) }]);
+      const ask = ({ at, commit, text }: (typeof asks)[number]): void => {
+        expect(sourceAt(path(at), commit) === text, `${path(at)} at ${commit}`).toBe(true);
+      };
+      const sourceAt = textAtRecording(root, paths.map(path));
+      let reads = (_commit: string, _file: string): number => 0;
+      const started = gitStarted(root, () => {
+        reads = gitReads(() => {
+          for (let round = 0; round < rounds; round += 1) asks.forEach(ask);
+        });
+      });
+
+      expect(started.filter((argv) => argv[1] !== 'config').map((argv) => argv[1])).toEqual(['cat-file']);
+      // A round asks three times what is held, so nothing outlives the round after it.
+      for (const { at, commit } of asks) expect(reads(commit, path(at)), `${path(at)} at ${commit}`).toBe(rounds);
+
+      const held = asks.slice(-STAY).reverse();
+      const gone = asks.at(-STAY - 2)!;
+      const again = gitReads(() => {
+        held.forEach(ask);
+        ask(gone);
+      });
+
+      for (const { at, commit } of held) expect(again(commit, path(at)), `${path(at)} at ${commit}`).toBe(0);
+      expect(again(gone.commit, path(gone.at))).toBe(1);
+    }, LARGE, large);
+  });
+
   it('answers a path the commit does not hold with no process, then and after it went', () => {
     checkout((root, first) => {
       const sourceAt = textAtRecording(root, paths.map(path));

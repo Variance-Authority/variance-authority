@@ -384,16 +384,31 @@ async function lfsCheckout(commit: (root: string, git: Git) => Promise<void>, ru
   }
 }
 
+/** Commits `src/big.ts` as a pointer with no object behind it. */
+async function pointerAlone(root: string, git: Git): Promise<void> {
+  await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+  await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
+  await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
+  await git('commit', '--quiet', '--message', 'a pointer with no object');
+}
+
+/** Commits `src/big.ts` through LFS, its object in the local store. */
+async function throughLfs(root: string, git: Git): Promise<void> {
+  await git('lfs', 'install', '--local');
+  await git('lfs', 'track', 'src/big.ts');
+  await writeFile(resolve(root, 'src/big.ts'), 'export const big = 1;\n', 'utf8');
+  await git('add', '--all');
+  await git('commit', '--quiet', '--message', 'through LFS');
+}
+
+/** How many of `started` asked git-lfs for a pointer's content. */
+const smudges = (started: string[][]): number => started.filter((argv) => argv.slice(1, 3).join(' ') === 'lfs smudge').length;
+
 describe('the text at a recording of a file git-lfs tracks', () => {
   it('is refused with the reason when git-lfs cannot give its content, rather than read as the source', async () => {
     // A pointer committed with no object behind it: what a clone holds where the
     // LFS objects were never pushed, or where git-lfs is not installed to fetch them.
-    await lfsCheckout(async (root, git) => {
-      await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
-      await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
-      await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
-      await git('commit', '--quiet', '--message', 'a pointer with no object');
-    }, (root, commit) => {
+    await lfsCheckout(pointerAlone, (root, commit) => {
       expect(() => textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toThrow(
         new RegExp(`src/big\\.ts at ${commit} is a git-LFS pointer, and git-lfs could not give its content: .+Run \`git lfs install --local\`, and \`git lfs fetch origin ${commit}\``, 's'),
       );
@@ -403,12 +418,7 @@ describe('the text at a recording of a file git-lfs tracks', () => {
   it('is refused when the checkout holds the pointer too, rather than read as the source', async () => {
     // A checkout made without git-lfs: the bytes on disk are the commit's blob,
     // and that blob is the pointer.
-    await lfsCheckout(async (root, git) => {
-      await writeFile(resolve(root, '.gitattributes'), 'src/big.ts filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
-      await writeFile(resolve(root, 'src/big.ts'), POINTER, 'utf8');
-      await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
-      await git('commit', '--quiet', '--message', 'a pointer with no object');
-    }, (root, commit) => {
+    await lfsCheckout(pointerAlone, (root, commit) => {
       const sourceAt = textAtRecording(root, []);
       expect(sourceAt('src/small.ts', commit)).toBe('export const small = 1;\n');
 
@@ -417,16 +427,32 @@ describe('the text at a recording of a file git-lfs tracks', () => {
   });
 
   it.runIf(lfsInstalled)('is the content git-lfs keeps for it, not the pointer git holds', async () => {
-    await lfsCheckout(async (root, git) => {
-      await git('lfs', 'install', '--local');
-      await git('lfs', 'track', 'src/big.ts');
-      await writeFile(resolve(root, 'src/big.ts'), 'export const big = 1;\n', 'utf8');
-      await git('add', '--all');
-      await git('commit', '--quiet', '--message', 'through LFS');
-    }, (root, commit) => {
+    await lfsCheckout(throughLfs, (root, commit) => {
       expect(textsAt(root, new Map([[commit, ['src/big.ts', 'src/small.ts']]]))).toEqual(
         new Map([[commit, new Map([['src/big.ts', 'export const big = 1;\n'], ['src/small.ts', 'export const small = 1;\n']])]]),
       );
+    });
+  });
+
+  it.runIf(lfsInstalled)('asks git-lfs once, however often it is asked, while the reader holds it', async () => {
+    await lfsCheckout(throughLfs, (root, commit) => {
+      const sourceAt = textAtRecording(root, []);
+      const started = gitStarted(root, () => {
+        for (let ask = 0; ask < 5; ask += 1) expect(sourceAt('src/big.ts', commit)).toBe('export const big = 1;\n');
+      });
+
+      expect(smudges(started)).toBe(1);
+    });
+  });
+
+  it.runIf(lfsInstalled)('asks git-lfs at every ask when git-lfs refuses it, since a refusal is not held', async () => {
+    await lfsCheckout(pointerAlone, (root, commit) => {
+      const sourceAt = textAtRecording(root, []);
+      const started = gitStarted(root, () => {
+        for (let ask = 0; ask < 5; ask += 1) expect(() => sourceAt('src/big.ts', commit)).toThrow(/git-lfs could not give its content/);
+      });
+
+      expect(smudges(started)).toBe(5);
     });
   });
 });

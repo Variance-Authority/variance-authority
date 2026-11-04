@@ -33,10 +33,10 @@
  * importers between two changed files, the same four hundred paths a hundred
  * thousand times over. That has two costs, and they are bounded apart.
  *
- * Time is processes. So a read goes to one `git cat-file --batch` the addon
- * leaves open, as `text_session.rs` describes, and no number of asks starts
- * another. A path at a commit that git must be asked again costs an inflate and
- * a pipe, whichever order it was asked in.
+ * Time is processes. So a text or an absent path comes from one `git cat-file
+ * --batch` the addon leaves open, as `text_session.rs` describes, and asking
+ * again costs an inflate and a pipe, in any order. What it cannot answer starts
+ * processes at every read, about sixteen for a git-LFS pointer's content.
  *
  * Memory is text held. So a reader holds what was asked most recently, a path
  * the commit does not hold included, up to `HELD_BYTES`: a change of fifteen
@@ -50,7 +50,7 @@
  * `HELD_BYTES` of other answers were asked since it was last asked: no bound can
  * do better, because the next ask may always be for what was let go of. A text
  * larger than `HELD_BYTES` reaches git at every ask, and lets go of nothing. A
- * read git refused holds nothing and throws again.
+ * read git refused holds nothing, and starts its processes and throws again.
  *
  * ## What `files` is for
  *
@@ -66,12 +66,15 @@ import { native, nativeRefusal } from '../addon.js';
 import type { NativeTextColumns } from '../native-commit-text.js';
 
 /**
- * How much a reader holds, in the bytes this process spends on it.
+ * How much text a reader holds, in the bytes this process spends on it. It
+ * bounds that text and nothing else: holding 8 MB adds about 180 MB to the peak
+ * of a read of fifteen thousand files, and the open process's memory is git's.
  *
- * Holding buys only the inflate and the pipe of asking again, under half a
- * millisecond for 210 KB, so this stays the budget the reader has always had
- * rather than growing to fit a change: the four hundred paths a selection asked
- * a hundred thousand times over are about 4 MB of source.
+ * Holding a text saves an inflate and a pipe, under half a millisecond for
+ * 210 KB. Holding a git-LFS pointer's content saves its processes, about 70 ms.
+ * The four hundred paths a selection asked a hundred thousand times over are
+ * about 4 MB of source, so 8 MB holds them. 128 MB adds about 690 MB to that
+ * peak, for sets of paths no selection has been seen to ask.
  */
 export const HELD_BYTES = 8 * 1024 * 1024;
 
