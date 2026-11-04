@@ -96,6 +96,11 @@ export interface ToolInvocation<Subject> {
    */
   readonly names?: SourceNames;
   /**
+   * Why the host could not compare this answer with what it is about, for the
+   * line that dates it. Absent means nothing stood in the way.
+   */
+  readonly unseen?: string;
+  /**
    * The checkout the host answers about, as the host was told it.
    *
    * Carried rather than guessed: a tool that opens what a checkout published —

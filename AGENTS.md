@@ -6,7 +6,7 @@ exits only on its own gate:
 | Loop | Runs | Exits when |
 |---|---|---|
 | Idea | brief → `occam` idea review → cut | the issue carries `idea: build`, or is closed |
-| Build | edit → `yarn test:loop` | the loop is green |
+| Build | `covering` → a red test, when behaviour changes → edit → `yarn test:loop` | the loop is green, and the red test with it |
 | Verify | `verify:near` → `verify:rules` | both stamped green on the pushed tree |
 | Review | four reviewers → fix | nothing blocks, or each finding left is set aside and named |
 | Outer | CI and CodeRabbit → correct | every check but `site` is green |
@@ -85,7 +85,9 @@ question `variance` could not answer, and that miss is a defect in `variance`:
 name it in your report.
 
 A subagent you dispatch works from its prompt. Put this rule in the prompt of
-every subagent you send to search code.
+every subagent you send to search code, and the order in
+[change](.agents/references/change.md) in the prompt of every subagent you send
+to change it: most edits are made there.
 
 ## 1. Refine the task — [refine](.agents/references/refine.md)
 
@@ -96,6 +98,8 @@ Look around:
 - Whether a GitHub issue already holds it, and what its parent is
   ([tasks](#tasks-are-github-issues), below). If none does, file one as the
   [idea loop](.agents/references/refine.md#the-idea-loop)'s brief.
+- Why the problem exists at all: [the whys](.agents/references/refine.md#the-idea-loop)
+  asked down to the root, and whether what stands there should exist.
 - For non-local work — crossing a boundary, changing a rule or an invariant,
   adding a party, building a capability: what the architecture chart in
   `.compass/` says owns it.
@@ -129,20 +133,29 @@ Look around:
   decided before you read why it does.
 - Whose answer you need — git, the manifest, the parser, or the recording — and
   whether a stage upstream of your change already computed it.
-- The tests that stand on those files: `yarn variance covering --file <path>`.
+- The tests that stand on that code: `yarn variance covering --file <path>
+  --function <name>`, or `--line <a>-<b>` for what is not a function. Add
+  `--hops` when the order of the candidates is useful.
 - What landed on `origin/main` since your branch point.
 
 Leave with the files to change, the owner of every answer the change needs, and
-the tests that will judge it.
+the tests that will judge it. A change of behaviour names the test you will turn
+red first. A `refactor` or `perf` change names the existing green tests and the
+invariants it preserves.
 
 ### 3. Change — [change](.agents/references/change.md)
 
 Look around:
 
-- The tests that stand on the code, from `yarn variance covering --file
-  <path>`. A test is amended or added first, and fails on the code as it is,
-  before the code changes. Behaviour nothing covers is pinned green first, in
-  addition to that test, not instead of it.
+- The tests that stand on the code, from `yarn variance covering --file <path>
+  --function <name>`, or `--line <a>-<b>`. These are candidates: choose the case
+  whose assertion states the required behaviour, which may be a more distant
+  integration test. A change of behaviour amends or adds that test first, and it
+  fails on the code as it is, before the code changes: at that assertion for
+  existing behaviour, or at import, compile, collection or the first call for an
+  API that does not exist yet. Behaviour the change does not touch and nothing
+  covers is pinned green first, in addition to that test, not instead of it. An
+  assertion on the behaviour being changed is amended or replaced, never pinned.
 - Whether it changes how a record is carried, indexed by case, or read by a
   selection or a comparison. If it does, the PR names the contract clause it
   keeps and the carry journey that exercises it, and quotes the regression test

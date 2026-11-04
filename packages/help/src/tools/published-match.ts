@@ -1,4 +1,4 @@
-import type { SearchAnswer } from './search-answer.js';
+import type { SearchAnswer } from './search-matches.js';
 import type { Help } from '@variance-authority/package/help';
 import { type ImportedIn, importingIn } from './uses-count.js';
 import { publishedSitesOf } from './uses-of.js';
@@ -46,22 +46,26 @@ export interface PublishedMatch {
   readonly inArea?: InArea;
 }
 
-/** {@link ImportingOf}, and the first reason it gave that imports within a package were not read. */
+/** {@link ImportingOf}, the first reason it gave that imports within a package were not read, and the files that publish what it counted. */
 export interface Counting {
   readonly of: ImportingOf;
   readonly unread: () => string | undefined;
+  readonly publishing: () => ReadonlySet<string>;
 }
 
 /** `importingOf`, keeping the first reason it gives for imports it did not read: an answer says it once, as `uses` does. */
 export function counting(importingOf: ImportingOf): Counting {
   let unread: string | undefined;
+  const publishing = new Set<string>();
   return {
     of: (name, at, specifier) => {
       const one = importingOf(name, at, specifier);
       unread ??= one.unread;
+      for (const file of one.publishing) publishing.add(file);
       return one;
     },
     unread: () => unread,
+    publishing: () => publishing,
   };
 }
 
@@ -79,6 +83,8 @@ export function showsPublished(answer: SearchAnswer): boolean {
 export interface ImportingOne {
   readonly importing: ImportedIn;
   readonly unread?: string;
+  /** The entries and barrels that publish it, which the walk that counts it finds. */
+  readonly publishing: readonly string[];
 }
 
 /** The count for the published declaration of `name` in the file `at`. */
@@ -95,8 +101,8 @@ export function importingOf(help: Help, root: string | undefined): ImportingOf {
     const key = `${specifier}\0${name}`;
     let one = read.get(key);
     if (one === undefined) {
-      const { sites, unread } = publishedSitesOf(help, root, name, at, specifier);
-      read.set(key, (one = { importing: importingIn(sites), ...(unread === undefined ? {} : { unread }) }));
+      const { sites, unread, publishing } = publishedSitesOf(help, root, name, at, specifier);
+      read.set(key, (one = { importing: importingIn(sites), publishing, ...(unread === undefined ? {} : { unread }) }));
     }
     return one;
   };

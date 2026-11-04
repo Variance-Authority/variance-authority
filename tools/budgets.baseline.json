@@ -1445,9 +1445,6 @@
   "packages/help/src/ask.ts docblock": [
     11
   ],
-  "packages/help/src/caught-up.ts docblock": [
-    23
-  ],
   "packages/help/src/dependency-scale.measure.ts overview": [
     22
   ],
@@ -1466,9 +1463,6 @@
   ],
   "packages/help/src/read.ts overview": [
     25
-  ],
-  "packages/help/src/refresh-native.ts docblock": [
-    17
   ],
   "packages/help/src/scan-scope.ts docblock": [
     13

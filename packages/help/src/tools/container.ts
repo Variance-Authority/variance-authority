@@ -6,23 +6,26 @@
  * would stop at `interface Shape` and say nothing of what a value of it holds.
  * The scan records every member each file declares, on the container that
  * holds it, so the members are read off the source index and each is shown as
- * its line reads in the checkout now.
+ * its line reads in the checkout now, or by its name when the file was written
+ * since the read, whose lines say nothing of the text it holds today.
  */
 
 // compass: variance-authority.report.agent-surface
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import type { Help } from '@variance-authority/package/help';
 import { membersOn } from '@variance-authority/sense';
+import { textAsRead } from './as-read.js';
 
 /**
  * `Members:` and one row per line that declares a member of the container
  * `on` in `at`, the file relative to `root`, each as the checkout holds the
- * line; a line the declaration at `line` already shows is not shown again.
+ * line, and by its recorded name when the file is gone or was written since
+ * `help` was read; a line the declaration at `line` already shows is not shown
+ * again.
  * Nothing when the name declares no members or no index is published; why,
  * when the index does not read.
  */
-export function memberRows(root: string | undefined, at: string, on: string, line: number): readonly string[] {
+export function memberRows(help: Help, root: string | undefined, at: string, on: string, line: number): readonly string[] {
   if (root === undefined) return [];
   let found: ReturnType<typeof membersOn>;
   try {
@@ -31,24 +34,13 @@ export function memberRows(root: string | undefined, at: string, on: string, lin
     return ['', `Members were not read: ${error instanceof Error ? error.message : String(error)}; run \`variance index\`.`];
   }
   if (found === undefined || found.length === 0) return [];
-  const text = linesOf(join(root, at));
+  const text = textAsRead(help, root, at)?.split(/\r?\n/);
   const shown = new Set([line]);
   const rows: string[] = [];
   for (const member of found) {
     if (shown.has(member.line)) continue;
     shown.add(member.line);
-    // A file that is gone, or shorter than the parse, has no line to show.
-    const written = text[member.line - 1]?.trim();
-    rows.push(`${at}:${member.line} — ${written === undefined || written === '' ? member.name : written}`);
+    rows.push(`${at}:${member.line} — ${text?.[member.line - 1]?.trim() ?? member.name}`);
   }
   return rows.length === 0 ? [] : ['', 'Members:', ...rows];
-}
-
-/** The lines of the file at `path`, or none when it is gone. */
-function linesOf(path: string): readonly string[] {
-  try {
-    return readFileSync(path, 'utf8').split(/\r?\n/);
-  } catch {
-    return [];
-  }
 }

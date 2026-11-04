@@ -18,14 +18,15 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
-import type { DeclaredMatch, Matches } from './search-answer.js';
+import type { DeclaredMatch, Matches } from './search-matches.js';
 import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
+import { textAsRead } from './as-read.js';
+import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
@@ -69,31 +70,34 @@ export function declarations(
   return { names, unread: read.unread };
 }
 
+/** The declarations of exactly `name`, read once for a generation's answer and the look at it. */
+export const declarationsNamed = askedOnce((_help: Help, root: string | undefined, name: string): Declarations => declarations(root, name));
+
 /**
  * One declaration, as `symbol` writes it: the name and its kind, where it is
  * declared, its signature and its documentation as the checkout holds them,
- * and who can reach it. The signature and the
- * documentation are left out when the file no longer holds the name where the
- * index read it.
+ * and who can reach it. The signature and the documentation are left out of a
+ * file written since `help` was read, as {@link textRows} says.
  */
-function declaredBlock(root: string, held: DeclaredName, spell: Spelling): string {
+function declaredBlock(help: Help, root: string, held: DeclaredName, spell: Spelling): string {
   return [
     `${held.name} [${held.kind}]`,
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...textRows(root, held),
+    ...textRows(help, root, held),
     reachSentences(held, spell).block,
   ].join('\n');
 }
 
 /** Where a declaration is, and the spans of its signature and documentation. */
-type Spanned = Pick<DeclaredName, 'at' | 'name' | 'line' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
+type Spanned = Pick<DeclaredName, 'at' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
 
 /**
  * A declaration's signature and documentation, as the checkout holds them;
- * neither when the file no longer holds the name where the index read it.
+ * neither when the file is gone or was written since `help` was read, since the
+ * spans are of the text that read saw.
  */
-export function textRows(root: string, held: Spanned): readonly string[] {
-  const text = textAt(root, held);
+export function textRows(help: Help, root: string, held: Spanned): readonly string[] {
+  const text = textAsRead(help, root, held.at);
   if (text === undefined) return [];
   const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
   const doc = docOf(text, spanOf(held.docStart, held.docEnd));
@@ -190,20 +194,6 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
   return start === undefined || start === null || end === undefined || end === null ? undefined : { start, end };
 }
 
-/** The file's text, when it still holds the name on the line the index read it at. */
-function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
-  let text: string;
-  try {
-    text = readFileSync(join(root, held.at), 'utf8');
-  } catch {
-    return undefined;
-  }
-  // The line spells the item's own name: one inside a Rust inline module is
-  // declared as `tests::fixture` and written `fn fixture`.
-  const own = held.name.split('::').at(-1)!;
-  return text.split(/\r?\n/)[held.line - 1]?.includes(own) === true ? text : undefined;
-}
-
 /**
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
@@ -213,13 +203,14 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
  * source index is not at hand, since a name nothing exports is then unknown.
  */
 export function declaredBlocks(
+  help: Help,
   root: string | undefined,
   name: string,
   wanted: string | undefined,
   spell: Spelling,
   from: readonly string[] = [],
 ): { readonly blocks: readonly string[] } {
-  const read = declarations(root, name);
+  const read = declarationsNamed(help, root, name);
   if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
@@ -227,7 +218,7 @@ export function declaredBlocks(
   );
   if (held.length === 0) return { blocks: [] };
   const blocks = [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
+    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(help, root, one, spell)),
     ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];
@@ -252,8 +243,8 @@ function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): r
  * The file-private declarations of the name, source first, top-level or
  * inside a function as `isNested` tells; none when the index is not at hand.
  */
-export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
-  const read = declarations(root, name);
+export function declaredAt(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
+  const read = declarationsNamed(help, root, name);
   if ('refused' in read) return [];
   return read.names.filter((one) => wanted === undefined || one.by === wanted);
 }

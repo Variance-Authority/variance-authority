@@ -1,5 +1,5 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -288,6 +288,16 @@ describe('variance index', () => {
     const read = spawnSync(process.execPath, [BIN, 'reach', '--since', 'HEAD'], { cwd: root, env, encoding: 'utf8' });
     expect(read.status).toBe(EXIT_CLEAN);
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
+  });
+
+  it('publishes the questions with the time its update began reading, before the index it read was written', async () => {
+    const root = checkout();
+
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const index = sourceIndexPath(root);
+    const held = JSON.parse(readFileSync(`${index}.help.json`, 'utf8')) as { readStartedAt: string };
+    expect(Date.parse(held.readStartedAt)).toBeLessThanOrEqual(statSync(index).mtimeMs);
   });
 
   it('leaves a fresh checkout answering `ask search` from what `index` published', async () => {

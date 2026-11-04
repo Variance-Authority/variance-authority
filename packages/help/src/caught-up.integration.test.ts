@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
@@ -30,6 +32,17 @@ describe('variance-authority-help about a name written after the published gener
     expect(err).toBe('');
     expect(code).toBe(0);
     expect(out).toContain('packages/kit/src/kept.ts');
+  });
+
+  it('reads the checkout again before answering `symbol` for a name renamed since the generation', async () => {
+    const root = await fixture.published();
+    const tax = join(root, 'packages/kit/src/tax.ts');
+    writeFileSync(tax, readFileSync(tax, 'utf8').replace('taxOf', 'dutyOf'));
+
+    const { code, out } = await bin(root, ['symbol', '--name', 'taxOf']);
+    expect(code).toBe(0);
+    expect(out).toContain('`taxOf` is not');
+    expect(out).not.toContain('tax.ts:1');
   });
 
   it('answers a name it does not find under `--just-answer` with when the generation was published and that the checkout was not compared with it', async () => {
