@@ -10,14 +10,15 @@ const checkout = dirname(dirname(fileURLToPath(import.meta.url)));
 const left: string[] = [];
 
 /** The command itself, against a `codex` that runs `body` and a `gh` that answers for a pull request of one file. */
-const review = (body: string) => {
+const review = (body: string, codexHome?: string) => {
   const root = mkdtempSync(join(tmpdir(), 'codex-review-check-'));
   left.push(root);
   const bin = join(root, 'bin');
   mkdirSync(bin);
-  mkdirSync(join(root, '.codex'));
-  writeFileSync(join(root, '.codex', 'auth.json'), '{}');
-  writeFileSync(join(root, '.codex', 'memories_1.sqlite'), '');
+  const login = join(root, codexHome ?? '.codex');
+  mkdirSync(login);
+  writeFileSync(join(login, 'auth.json'), '{}');
+  writeFileSync(join(login, 'memories_1.sqlite'), '');
   const stub = (name: string, script: string) => {
     writeFileSync(join(bin, name), `#!/bin/sh\n${script}\n`);
     chmodSync(join(bin, name), 0o755);
@@ -27,7 +28,13 @@ const review = (body: string) => {
   const run = spawnSync(process.execPath, [join(checkout, 'tools/codex-review.mjs'), '1'], {
     cwd: checkout,
     encoding: 'utf8',
-    env: { ...process.env, GH_TOKEN: 'of-the-caller', HOME: root, PATH: `${bin}:${process.env.PATH}` },
+    env: {
+      ...process.env,
+      CODEX_HOME: codexHome && login,
+      GH_TOKEN: 'of-the-caller',
+      HOME: root,
+      PATH: `${bin}:${process.env.PATH}`,
+    },
   });
   const kept = /\/tmp\/review-[^/]+/.exec(run.stderr)?.[0];
   if (kept) left.push(kept);
@@ -75,6 +82,11 @@ describe('the command', () => {
   it('gives the run the login and nothing else of the home it came from', () => {
     const run = review(`echo 'read src/a.ts'; ls -A "$CODEX_HOME" > "$out"`);
     expect(run.stdout.trim()).toBe('auth.json');
+  });
+
+  it('finds the login where the caller keeps it', () => {
+    const run = review(`echo 'read src/a.ts'; cat "$CODEX_HOME/auth.json" > "$out"`, 'elsewhere');
+    expect(run.stdout.trim()).toBe('{}');
   });
 
   it('starts the run in an empty directory, with nothing of the caller\'s environment', () => {

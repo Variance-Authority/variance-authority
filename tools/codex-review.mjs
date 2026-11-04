@@ -88,7 +88,7 @@ const main = () => {
   const [work, home, codexHome, out, logged] = ['work', 'home', 'codex', 'review.md', 'run.jsonl'].map((name) => join(root, name));
   for (const directory of [work, home, codexHome]) mkdirSync(directory);
   // A link, not a copy: a refreshed login has to reach the file the owner's next run reads.
-  symlinkSync(join(homedir(), '.codex', 'auth.json'), join(codexHome, 'auth.json'));
+  symlinkSync(join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json'), join(codexHome, 'auth.json'));
   const log = openSync(logged, 'w');
   const run = spawnSync(codex, invocation(url, out), {
     cwd: work,
