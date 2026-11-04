@@ -272,8 +272,8 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
 }
 
 /** `readWorkspace` over the manifests a caller read from `root` a moment before. */
-export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, options: ReadingOptions = {}): Promise<Help> {
-  const read = await scanWorkspace(root, options, manifests);
+export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, readStartedAt: string, options: ReadingOptions = {}): Promise<Help> {
+  const read = await scanWorkspace(root, options, { manifests, readStartedAt });
   return documentWorkspace(read, options);
 }
 
@@ -296,7 +296,7 @@ export async function refreshWorkspace(
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
     if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, options.index);
+    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, read.readStartedAt, options.index);
   }
   return help;
 }
@@ -309,11 +309,18 @@ interface WorkspaceScan {
   readonly offerings: readonly Offering[];
   readonly scanned: Awaited<ReturnType<typeof scanIndexed>>;
   readonly changed?: readonly string[];
+  /** When this read began, before it read anything: what a caller who read first says, or now. */
+  readonly readStartedAt: string;
 }
 
-async function scanWorkspace(root: string, options: ReadingOptions, read?: WorkspaceManifests): Promise<WorkspaceScan> {
+async function scanWorkspace(
+  root: string,
+  options: ReadingOptions,
+  over?: { readonly manifests: WorkspaceManifests; readonly readStartedAt: string },
+): Promise<WorkspaceScan> {
+  const readStartedAt = over?.readStartedAt ?? new Date().toISOString();
   const where = resolve(root);
-  const { offerings, targets } = read ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
+  const { offerings, targets } = over?.manifests ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
   const opened = new Set(
@@ -331,6 +338,7 @@ async function scanWorkspace(root: string, options: ReadingOptions, read?: Works
     offerings,
     scanned,
     ...(options.changed === undefined ? {} : { changed: options.changed }),
+    readStartedAt,
   };
 }
 
@@ -347,7 +355,7 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   if (options.save !== false) {
     await stepped(options.progress, 'publishing the questions', async () => {
       if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
-      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
+      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, read.readStartedAt, options.index);
     });
   }
   return help;

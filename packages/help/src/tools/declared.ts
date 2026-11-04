@@ -195,6 +195,16 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
   return start === undefined || start === null || end === undefined || end === null ? undefined : { start, end };
 }
 
+/**
+ * Whether `line` of `lines` still spells `name`, so a line the index read is
+ * today's text of the same thing. The line spells the item's own name: one
+ * inside a Rust inline module is declared as `tests::fixture` and written
+ * `fn fixture`.
+ */
+export function holdsName(lines: readonly string[], name: string, line: number): boolean {
+  return lines[line - 1]?.includes(name.split('::').at(-1)!) === true;
+}
+
 /** The file's text, when it still holds the name on the line the index read it at. */
 function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
   let text: string;
@@ -203,10 +213,7 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
   } catch {
     return undefined;
   }
-  // The line spells the item's own name: one inside a Rust inline module is
-  // declared as `tests::fixture` and written `fn fixture`.
-  const own = held.name.split('::').at(-1)!;
-  return text.split(/\r?\n/)[held.line - 1]?.includes(own) === true ? text : undefined;
+  return holdsName(text.split(/\r?\n/), held.name, held.line) ? text : undefined;
 }
 
 /**

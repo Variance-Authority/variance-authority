@@ -58,6 +58,8 @@ pub struct HelpPublish {
     pub root: String,
     pub graph_root: String,
     pub generated_at: String,
+    /// When the read behind the value began, before any of it was read.
+    pub read_started_at: String,
     /// The digest of the index manifest the reading was made from, which a
     /// later refresh over the same manifest keeps the value by.
     pub index_digest: String,
@@ -267,8 +269,8 @@ fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported:
     let mut out = Vec::with_capacity(exported.len() * 200);
     write!(
         out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
-        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(digest), json(&o.index_digest),
+        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"readStartedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
+        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(&o.read_started_at), json(digest), json(&o.index_digest),
         o.packages, o.deep, o.by_path, o.unfollowed,
     )?;
     serde_json::to_writer(&mut out, exported)?;

@@ -44,6 +44,8 @@ export type FromIndexOptions = HelpOptions & {
   /** `false` reads the workspace's own index from the working tree, as `variance index --no-git` does. */
   readonly packs?: boolean;
   readonly progress?: Progress;
+  /** When the update of that index began reading the checkout: the read this publish rests on is the caller's. */
+  readonly readStartedAt: string;
 };
 
 /**
@@ -56,14 +58,14 @@ export type FromIndexOptions = HelpOptions & {
  * thousands of members are the costliest read before the index, so they are
  * read once here and handed to whichever half runs.
  */
-export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions = {}): Promise<string | undefined> {
+export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions): Promise<string | undefined> {
   const where = resolve(root);
   const previous = await stepped(options.progress, 'reading the questions published last', () =>
     readWorkspaceSnapshot(where, options.index === undefined ? {} : { index: options.index }).catch(() => undefined));
   const manifests = await manifestsOf(where, options);
   const refreshed = previous === undefined ? undefined : await refreshOver(where, previous, manifests, options);
   // The index is the caller's, written a moment ago and saved by it.
-  return refreshed ?? workspaceGeneration(await readWorkspaceOver(where, manifests, { ...options, saveIndex: false }));
+  return refreshed ?? workspaceGeneration(await readWorkspaceOver(where, manifests, options.readStartedAt, { ...options, saveIndex: false }));
 }
 
 function manifestsOf(where: string, options: FromIndexOptions): Promise<WorkspaceManifests> {
@@ -157,6 +159,7 @@ async function refreshOver(
       root: realpathSync(where),
       graphRoot: realpathSync(scope.root),
       generatedAt,
+      readStartedAt: options.readStartedAt,
       indexDigest,
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),

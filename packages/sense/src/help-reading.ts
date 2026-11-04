@@ -61,6 +61,8 @@ export interface HelpPublish {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
+  /** When the read behind the value began, before any of it was read. */
+  readonly readStartedAt: string;
   /** The digest of the index manifest the reading was made from. */
   readonly indexDigest: string;
   /** JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`. */

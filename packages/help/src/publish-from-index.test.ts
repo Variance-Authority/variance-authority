@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -9,7 +9,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
 import { publishedGeneration } from './read.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
-import { readWorkspaceSnapshot } from './snapshot.js';
+import { readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
 
 /**
  * The questions `variance index` publishes, with the manifests read once.
@@ -55,6 +55,9 @@ function forget(): void {
   vi.mocked(read.readWorkspaceOver).mockClear();
 }
 
+/** When `variance index` began reading, which the publish that follows it cannot know for itself. */
+const BEGAN = '2026-10-18T00:00:00.000Z';
+
 const temporary: string[] = [];
 let root: string;
 let index: string;
@@ -88,9 +91,14 @@ afterAll(() => {
   for (const dir of temporary) rmSync(dir, { recursive: true, force: true });
 });
 
+/** The time the published value says its read began. */
+function publishedReadStart(): unknown {
+  return (JSON.parse(readFileSync(workspaceSnapshotPath(index), 'utf8')) as { readStartedAt?: unknown }).readStartedAt;
+}
+
 describe('publishing the questions from the index', () => {
   it('reads the manifests once when nothing was published before', async () => {
-    const generation = await publishWorkspaceFromIndex(root, { index });
+    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
     expect(generation).toEqual(expect.any(String));
     expect(await publishedGeneration(root, index)).toBe(generation);
@@ -99,12 +107,12 @@ describe('publishing the questions from the index', () => {
   });
 
   it('reads the manifests once when the refresh declines because the members moved', async () => {
-    await publishWorkspaceFromIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     write('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/a'] }));
     await updateSourceIndex(root, { index });
     forget();
 
-    const generation = await publishWorkspaceFromIndex(root, { index });
+    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
     expect(await publishedGeneration(root, index)).toBe(generation);
     expect(manifestReads()).toEqual(ONCE);
@@ -112,12 +120,12 @@ describe('publishing the questions from the index', () => {
   });
 
   it('reads the manifests once when the refresh declines because the exported names moved', async () => {
-    await publishWorkspaceFromIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     write('packages/a/src/index.ts', 'export const see = 1;\nexport const more = 2;\n');
     await updateSourceIndex(root, { index });
     forget();
 
-    const generation = await publishWorkspaceFromIndex(root, { index });
+    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
     expect(await publishedGeneration(root, index)).toBe(generation);
     expect(manifestReads()).toEqual(ONCE);
@@ -125,28 +133,47 @@ describe('publishing the questions from the index', () => {
   });
 
   it('reads the manifests once when the refresh applies', async () => {
-    await publishWorkspaceFromIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     // The first refresh stamps the value with the index it was refreshed from.
-    const refreshed = await publishWorkspaceFromIndex(root, { index });
+    const refreshed = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     forget();
 
-    expect(await publishWorkspaceFromIndex(root, { index })).toBe(refreshed);
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toBe(refreshed);
     expect(manifestReads()).toEqual(ONCE);
     expect(read.readWorkspaceOver).not.toHaveBeenCalled();
   });
 
   it('reads the manifests once when the refresh reads the files the index moved', async () => {
-    await publishWorkspaceFromIndex(root, { index });
-    const first = await publishWorkspaceFromIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const first = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n");
     await updateSourceIndex(root, { index });
     forget();
 
-    const refreshed = await publishWorkspaceFromIndex(root, { index });
+    const refreshed = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
     expect(refreshed).not.toBe(first);
     expect(manifestReads()).toEqual(ONCE);
     expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+  });
+
+  it('publishes the time its caller began reading, when it reads the workspace itself', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(read.readWorkspaceOver).toHaveBeenCalledTimes(1);
+    expect(publishedReadStart()).toBe(BEGAN);
+  });
+
+  it('publishes the time its caller began reading, when it refreshes from the index', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: new Date().toISOString() });
+    write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n");
+    await updateSourceIndex(root, { index });
+    forget();
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+    expect(publishedReadStart()).toBe(BEGAN);
   });
 
   it('writes the export rows a read writes, whichever way each export binds', async () => {
@@ -160,9 +187,9 @@ describe('publishing the questions from the index', () => {
 
     const rows = async () => (await readWorkspaceSnapshot(root, { index })).exported
       .toSorted((a, b) => codeUnitOrder(a.at, b.at) || a.line - b.line || codeUnitOrder(a.name, b.name));
-    await publishWorkspaceFromIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     const first = await rows();
-    await publishWorkspaceFromIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
     expect(first.find((row) => row.name === 'renamed')?.bound).toBe('kept');
     expect(await rows()).toEqual(first);

@@ -195,6 +195,28 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(answer).toMatch(/not compared with the checkout \(it could not be read again: a manifest is half-written\)/u);
   });
 
+  it('gives the members it recorded, and none of today\'s text at their old lines, when the checkout could not be read again', async () => {
+    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const held = await readWorkspaceForAnswer(root);
+    write(root, { 'packages/kit/src/options.ts': `/** One.\n * Two.\n */\nexport const lead = 1;\n${OPTIONS}` });
+
+    const answer = await askSource({
+      question: 'symbol',
+      name: 'Options',
+      source: async (_root, reading) => {
+        if (reading?.current === true) throw new Error('a manifest is half-written');
+        return { help: held };
+      },
+    });
+
+    expect(answer).toContain('packages/kit/src/options.ts:3 — ci');
+    expect(answer).toContain('packages/kit/src/options.ts:5 — step');
+    expect(answer).not.toContain('— */');
+    expect(answer).not.toContain('— export interface');
+    expect(answer).toMatch(/not compared with the checkout \(it could not be read again: a manifest is half-written\)/u);
+  });
+
   it('says nothing declares a name whose file is gone', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

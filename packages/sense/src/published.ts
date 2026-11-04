@@ -147,6 +147,12 @@ export interface SourceUpdate {
   /** Files whose record this update rebuilt, because the published one no longer described them. */
   readonly reread: number;
   /**
+   * When this update began, before it read anything of the checkout: what it
+   * holds is the checkout at this time or later, so what is published from it
+   * says this and not when it was published.
+   */
+  readonly readStartedAt: string;
+  /**
    * The primary checkout's index this one started from, when this checkout is a
    * worktree that had none of its own.
    */
@@ -172,6 +178,7 @@ export async function updateSourceIndex(
   root: string,
   options: SourceUpdateOptions = {},
 ): Promise<SourceUpdate> {
+  const readStartedAt = new Date().toISOString();
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
   // The addon answers from the chain in place; only what it declines is decoded here.
@@ -186,6 +193,7 @@ export async function updateSourceIndex(
       ...(natively.refused === undefined ? {} : { refused: natively.refused }),
       files: natively.files,
       reread: natively.reread,
+      readStartedAt,
       listing: natively.listing,
     };
   }
@@ -253,6 +261,7 @@ export async function updateSourceIndex(
     ...(refused === undefined ? {} : { refused }),
     files,
     reread: files - reused.size,
+    readStartedAt,
     ...(from === undefined ? {} : { from }),
     ...(listing === undefined ? {} : { listing }),
   };

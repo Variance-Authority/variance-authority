@@ -17,7 +17,6 @@ import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
 import { type DeclaredName, outsideSourcesOf } from '@variance-authority/sense';
-import { askedOnce } from './asked-once.js';
 import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
 import { declarationsNamed } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
@@ -76,7 +75,7 @@ export interface PublishedDeclaration {
  * by code unit, then to the declaring file, so the order never follows the
  * order directories were read in.
  */
-export const publishedDeclarations = askedOnce((help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] => {
+export function publishedDeclarations(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
   const doors = [...everyEntry(help)]
     .filter(([held, opening, entry]) => (says(entry.name, name) || answers(help, root, { at: entry.at, name: entry.declared }, name)) && (wanted === undefined || isPackage(held, opening, wanted)))
     .map((door) => [door, keyOf(help, root, { at: door[2].at, name: door[2].declared })] as const)
@@ -90,7 +89,7 @@ export const publishedDeclarations = askedOnce((help: Help, root: string | undef
     else one.doors.push(door);
   }
   return [...declarations.values()].sort((left, right) => byDoor(left.doors[0]!, right.doors[0]!) || codeUnitOrder(left.at, right.at) || codeUnitOrder(left.declared, right.declared));
-});
+}
 
 /** The door the workspace imports by most first, then by published name and subpath in code-unit order. */
 function byDoor([left, leftDoor, a]: Published, [right, rightDoor, b]: Published): number {

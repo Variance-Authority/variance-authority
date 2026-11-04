@@ -22,7 +22,7 @@ export interface SnapshotOptions {
 }
 
 export const SNAPSHOT_FORMAT = 'variance-authority-help';
-export const SNAPSHOT_VERSION = 12;
+export const SNAPSHOT_VERSION = 13;
 
 interface WorkspaceSnapshot {
   readonly format: typeof SNAPSHOT_FORMAT;
@@ -32,6 +32,12 @@ interface WorkspaceSnapshot {
   readonly graphRoot: string;
   readonly graphDigest: string;
   readonly generatedAt: string;
+  /**
+   * When the read behind the value began, before any of it was read: a file
+   * written after this may not be in the value, and one written before it is.
+   * `generatedAt` is taken after the read, so it says neither.
+   */
+  readonly readStartedAt: string;
   /**
    * The export list as a set, as the search encoder states it; absent on a
    * value published before it was kept.
@@ -52,6 +58,12 @@ const searches = new WeakMap<Help, SearchIndex>();
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {
   return generated.get(help);
+}
+
+/** When the read behind the workspace value began, in milliseconds, absent on an unrecorded reading. */
+export function workspaceReadStarted(help: Help): number | undefined {
+  const held = snapshots.get(help);
+  return held === undefined ? undefined : Date.parse(held.readStartedAt);
 }
 
 /** The answerable workspace value published beside one source-index generation. */
@@ -100,6 +112,7 @@ export async function readWorkspaceSnapshot(
     graphRoot: decoded.graphRoot,
     graphDigest: decoded.graphDigest,
     generatedAt: decoded.generatedAt,
+    readStartedAt: decoded.readStartedAt,
     ...(decoded.exportedDigest === undefined ? {} : { exportedDigest: decoded.exportedDigest }),
     ...(decoded.indexDigest === undefined ? {} : { indexDigest: decoded.indexDigest }),
   });
@@ -158,7 +171,10 @@ export async function indexManifestDigest(index: string): Promise<string | undef
   return bytes === undefined ? undefined : digest(bytes);
 }
 
-/** Publish a new generation time when its authoritative changed set is empty. */
+/**
+ * Publish a new generation time when its authoritative changed set is empty.
+ * Nothing was read for it, so the value keeps the time its read began.
+ */
 export async function republishWorkspaceSnapshot(help: Help, index: string): Promise<void> {
   const held = snapshots.get(help);
   if (held === undefined) return;
@@ -183,6 +199,7 @@ export async function tryPublishWorkspaceSnapshot(
   graphRoot: string,
   help: Help,
   records: readonly FileRecord[] | Uint8Array,
+  readStartedAt: string,
   index?: string,
 ): Promise<void> {
   try {
@@ -200,6 +217,7 @@ export async function tryPublishWorkspaceSnapshot(
       format: SNAPSHOT_FORMAT,
       version: SNAPSHOT_VERSION,
       ...generation,
+      readStartedAt,
       exportedDigest: search.exported,
       help,
     };
@@ -294,6 +312,8 @@ function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
     && typeof held.graphDigest === 'string'
     && typeof held.generatedAt === 'string'
     && Number.isFinite(Date.parse(held.generatedAt))
+    && typeof held.readStartedAt === 'string'
+    && Number.isFinite(Date.parse(held.readStartedAt))
     && (held.exportedDigest === undefined || typeof held.exportedDigest === 'string')
     && (held.indexDigest === undefined || typeof held.indexDigest === 'string')
     && held.help !== null

@@ -56,6 +56,17 @@ describe('outlived', () => {
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
   });
 
+  it('says so of a file saved while its generation was being read, which is stamped later than the file', async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root, {
+      progress: (step) => {
+        if (step === 'publishing the questions') edit(root);
+        return () => {};
+      },
+    });
+    expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, after(help))).toBe(true);
+  });
+
   it('has nothing to look at for a generation read during the request', async () => {
     const root = await fixture.published();
     const help = await readWorkspace(root);

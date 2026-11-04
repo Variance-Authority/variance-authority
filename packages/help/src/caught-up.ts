@@ -4,6 +4,7 @@ import type { ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { refreshDependencyLexicon } from './dependency-lexicon.js';
 import { workspaceGeneration } from './read.js';
+import { workspaceReadStarted } from './snapshot.js';
 import { FoundNothing } from './tools/find.js';
 import { printedFiles, search } from './tools/search.js';
 import { restsOn, symbol, usesRestsOn } from './tools/symbol.js';
@@ -21,11 +22,14 @@ const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
 
 /**
  * Whether the files an answer rests on changed after the generation it comes
- * from, so that it goes to {@link caughtUp} as a refusal does. A generation's
- * time says how old it is; only the files say whether this answer still holds.
- * Changed is an mtime at or after the generation, or a file gone. A generation
- * read during this request (`started`) has nothing to look at, and neither has
- * a question its tool refuses, which is a refusal's to say.
+ * from began its read, so that it goes to {@link caughtUp} as a refusal does. A
+ * generation's time says how old it is; only the files say whether this answer
+ * still holds. Changed is a file gone, or an mtime after that read began, as
+ * `movedSince` in sense compares one: a file saved during the read may be in the
+ * generation or not, so it counts, and the cost of counting one that is is a
+ * read, whose later time ends the question. A generation read during this
+ * request (`started`) has nothing to look at, and neither has a question its
+ * tool refuses, which is a refusal's to say.
  */
 export async function outlived(
   asked: string | undefined,
@@ -36,15 +40,15 @@ export async function outlived(
 ): Promise<boolean> {
   const printed = asked === undefined ? undefined : PRINTED.get(asked);
   const at = workspaceGeneration(help);
-  if (printed === undefined || at === undefined || Date.parse(at) >= started) return false;
+  const since = workspaceReadStarted(help);
+  if (printed === undefined || at === undefined || since === undefined || Date.parse(at) >= started) return false;
   let files: readonly string[];
   try {
     files = [...printed(help, input, invocation)];
   } catch {
     return false;
   }
-  const since = Date.parse(at);
-  const changed = await Promise.all(files.map((file) => stat(join(invocation.root, file)).then((held) => held.mtimeMs >= since, () => true)));
+  const changed = await Promise.all(files.map((file) => stat(join(invocation.root, file)).then((held) => Math.floor(held.mtimeMs) > since, () => true)));
   return changed.includes(true);
 }
 

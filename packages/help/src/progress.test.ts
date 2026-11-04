@@ -54,6 +54,7 @@ describe('a workspace read with progress', () => {
     const told: string[] = [];
     await publishWorkspaceFromIndex(WORKSPACE, {
       index: at,
+      readStartedAt: new Date().toISOString(),
       progress: (step) => {
         told.push(`start ${step}`);
         return () => told.push(`end ${step}`);
