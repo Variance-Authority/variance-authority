@@ -102,16 +102,20 @@ compared, never weighted: there is no score to tune and no number to explain.
 5. **Door order.** Published before unpublished, as `byDoor` orders them, then
    code-unit order of the path.
 
-The rank is one pure function in `packages/help/src/tools/`, from the candidates,
-the asked paths and what was read to the order and its reasons; `symbol.run` only
-renders it. Keys 3 and 4 share one `importsOf` read per candidate. Key 4 is written
-beside `nearestTo` in `shared-segments.ts` and replaces `nearestFirst` in
-`packages/help/src/tools/declared.ts`: a file-private name has no importers to
-count, so the key orders those blocks by the same shared segments, and several
-paths take the best of them. The tree and the rule files are read ahead of the
-call, under `symbol`'s `wants`, and only when a path is named. With no tree, key 2
-is silent and the answer says so. `restsOn` gains the rule files and the imports of
-the asking package, so an edit to either shows the answer is stale.
+The rank is one pure function in `packages/help/src/tools/`, from the
+candidates, the asked paths and what was read to the order and its reasons;
+`symbol.run` only renders it. Keys 3 and 4 share one `importsOf` read per
+candidate. Key 4 is written beside `nearestTo` in `shared-segments.ts` and
+replaces `nearestFirst` in `packages/help/src/tools/declared.ts`: a file-private
+name has no importers to count, so the key orders those blocks by the same
+shared segments, and several paths take the best of them. The tree and the rule
+files are read ahead of the call, under `symbol`'s `wants`, and only when a path
+is named. With no tree, key 2 is silent and the answer says so. `restsOn` gains
+the rule files, so an edit to a rule shows the answer is stale. An edit to an
+importer elsewhere reaches keys 2 to 4 when the index next reads it, as it
+reaches the use counts of today's answer: tracking every importer and the
+closure would stat a neighbourhood on each ask, and a stale order costs a
+reading order, never a wrong candidate.
 
 Usage across the repository decides nothing here: on the first row below it
 matches the import 5% of the time, and on the last, 62%.
