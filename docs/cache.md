@@ -213,21 +213,6 @@ cache. A run under another recipe fails after its tests, with an error naming
 the file and both recipes, and leaves the file byte for byte. Give the run a new
 path, or delete the file.
 
-**The pull request that bumps variance restores the old recording on every
-push.** The restore key in the [CI snippet](#in-ci) names no version and a pull
-request saves nothing, so each push selects from the old recording, and its run
-replaces that copy for the length of the job. A push runs what its selection
-asks and nothing more, so the pass is not paid here. With
-[`variance carry`](selecting.md#a-pull-requests-next-push), a push after the
-first reads the last push's record instead, and runs the test files that push
-did not. On a push that replaced the recording, `variance review` compares as
-above, unless your mainline publishes its cases to a [share](sharing.md).
-
-**Your main branch pays the pass and saves the result.** Its first run on the new
-release saves a recording under the new recipe. When that run was selected, the
-recording holds only the tests that ran, so a pull request restoring it runs the
-rest as well, and the next run on your main branch completes it.
-
 ## Start cold
 
 Delete the directory for your checkout and run `yarn test` again:
