@@ -160,11 +160,10 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
  * commit than its snapshot describes neither, and is not laid.
  * A runs record already in the own layer beside no snapshot describes
  * nothing, and is replaced or removed with the lay.
- *
- * Under the record's lock, so what a run lands here is not laid over.
  */
 export async function layFetchedMainline(record: LastFetched, lock: IndexLock): Promise<boolean> {
   const { file } = lock;
+  // Held from here to the lay, so what a run lands is not laid over.
   try {
     await stat(file);
     return false;

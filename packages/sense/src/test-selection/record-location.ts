@@ -167,8 +167,7 @@ export type Seeded =
  *
  * Does nothing at all when the caller named its own file. Returns what it laid,
  * or `undefined` when it laid nothing. A run that {@link recordsAlone} does not
- * ask. Under the record's lock, because finding no record and copying the base
- * are two steps, and a run landing between them would be copied over.
+ * ask.
  */
 export async function seedTestCoverage(
   lock: IndexLock,
@@ -183,6 +182,8 @@ export async function seedTestCoverage(
   const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
   const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
   // A checkout with a record of its own has its base, and no other is asked.
+  // The lock makes this and the copy one step: a run landing between them would
+  // be copied over.
   if (present(file)) return undefined;
   let mainline: PassedOver | undefined;
   if (shared !== undefined) {
