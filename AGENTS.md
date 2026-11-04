@@ -282,15 +282,29 @@ history, and the closed issues hold what was done and what was declined.
 ```bash
 gh issue list --state all --search "<words>"   # does an issue already hold it?
 gh issue view <n>                              # the task, its parent, what blocks it
-gh issue create --title "<outcome>" --body-file <file> --label <label> \
+gh issue create --title '<surface>: when <situation>, <outcome>' --body-file <file> --label <labels> \
   --parent <parent> --blocked-by <m>
 gh issue edit <n> --add-blocked-by <m>         # a wait found later
 gh issue close <n> --reason "not planned"      # work that is dropped
 ```
 
-A title says what is true when the work is done, as the repository's titles
-do. The body opens with the problem, then a "Done when" checklist somebody can
-check. A defect found by reading code carries `candidate` until a test that
+An issue filed by hand has a title that is a scenario:
+`<surface>: when <situation>, <outcome>`, such as
+`` `ask orient`: when asked about a file outside every package, it says `no package` ``.
+The surface is the command, package or `.compass/` block a reader looks for, so
+a list of issues reads by area. The rest says what is true when the work is
+done. A `feat`, `fix` or `perf` issue's body is the brief
+[refine](.agents/references/refine.md#the-idea-loop) lays out, one behavioural
+problem to an issue: scenarios that establish the same contract share it, and a
+second problem is a second issue. Any other opens with the problem, then a "Done
+when" checklist somebody can check.
+
+It carries one `reach:`, `impact:`, `confidence:` and `effort:` label, whose
+descriptions hold the scale, and reach × impact × confidence ÷ effort ranks it.
+The score lives in labels because it moves as evidence arrives, and an edit to
+the body after `idea: build` restarts the review.
+
+A defect found by reading code carries `candidate` until a test that
 fails on today's code reproduces it. An issue code may start on carries
 `idea: build`, put there by the idea loop and by nothing else; an agent never
 files `needs-decision`. Work that belongs to a larger task is its sub-issue, and a
