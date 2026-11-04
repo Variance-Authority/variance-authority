@@ -40,6 +40,11 @@ pub(crate) fn fetch(root: &str, oids: &[&str]) -> Result<(), String> {
     }
 }
 
+/// Whether a remote promised what this clone lacks.
+pub(crate) fn partial(root: &str) -> bool {
+    promised(root).is_some()
+}
+
 /// Those of `oids` the clone does not hold, as `rev-list` prints them: `?`
 /// and the object name. Every one of them when git cannot say.
 fn lacking<'a>(root: &str, oids: &[&'a str]) -> Vec<&'a str> {

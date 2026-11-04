@@ -26,97 +26,71 @@
  * agree but because nothing looked. This is the answer for the ordinary case, a
  * git checkout, the read-side counterpart of `commitOf`.
  *
- * ## Why a window rather than a process a file or a buffer a diff
+ * ## Two costs, one bound each
  *
- * A selection is asked about every file in a diff, and a merge or a rebase names
- * thousands. At a process apiece that is minutes, so the paths go to one
- * `git cat-file --batch` together.
+ * A selection asks about every file in a diff, a merge or a rebase names
+ * thousands, and it asks in jumps and again and again: a shared module's
+ * importers between two changed files, the same four hundred paths a hundred
+ * thousand times over. That has two costs, and they are bounded apart.
  *
- * Together is not the same as all at once. A batch over the whole diff holds
- * every file's text twice — the buffer git wrote and the strings read out of it,
- * both alive until the last path is answered — and at fifteen thousand changed
- * files that is the largest thing in the process by a wide margin, for texts each
- * of which is wanted once, hashed, and never looked at again. So the fetch runs
- * over a window: one process for a slab of the diff, released whole before the
- * next slab is read. What a window reads for the first time is then resident
- * for one slab rather than the whole diff; what is read again stays, below.
+ * Time is processes. So a read goes to one `git cat-file --batch` the addon
+ * leaves open, as `text_session.rs` describes, and no number of asks starts
+ * another. A path at a commit that git must be asked again costs an inflate and
+ * a pipe, whichever order it was asked in.
  *
- * The caller decides which paths are worth a window at all. `files` is the set
- * this expects to be asked about, and it is read in order as the asks arrive, so
- * a caller that hands over only the paths it has a digest to compare against
- * never pays for the rest of the diff. The selector is that caller: it names,
- * with every ask, the paths it will read a text under, and that list replaces
- * `files`, so the changed files no test ran, which nothing asks about, are
- * never read.
+ * Memory is text held. So a reader holds what was asked most recently, a path
+ * the commit does not hold included, up to `HELD_BYTES`: a change of fifteen
+ * thousand files at two hundred kilobytes is three gigabytes of history, and
+ * each text is wanted for a moment. Nothing is held that nobody asked for.
  *
- * ## A path from outside the set
+ * ## What reaches git
  *
- * A path arriving from outside that set is still answered, and the window
- * stays where it is: the selector asks about a changed file's importers between
- * two changed files, and a window dropped for each of them would leave every
- * changed file after it to be read alone.
+ * While everything asked of a reader fits `HELD_BYTES`, a path at a commit
+ * reaches git once. Past it, a path at a commit reaches git again when more than
+ * `HELD_BYTES` of other answers were asked since it was last asked: no bound can
+ * do better, because the next ask may always be for what was let go of. A text
+ * larger than `HELD_BYTES` reaches git at every ask, and lets go of nothing. A
+ * read git refused holds nothing and throws again.
  *
- * Those paths are mostly files the change did not touch, a few hundred for a
- * shared module's export, and at a process apiece that is seconds. So from the
- * second such path at a commit, the commit's tree is listed once, and a path
- * whose bytes on disk hash to the blob the commit holds there is answered from
- * disk: git's own object name for those bytes, so the commit's text regardless.
+ * ## What `files` is for
  *
- * Any other path is read from git alone, and held, absent included, at its
- * commit for as long as the reader lives: far from the record few files on disk
- * match, and the same paths return thousands of times. A window's second read of
- * a path is held too, so at a commit a path no window read reaches git once and
- * one a window read at most twice. Nothing bounds this. A refused read throws again.
+ * The caller names the paths it expects to ask about, and may ask about any
+ * other. The list is what a partial clone fetches in one request before the
+ * first read at a commit, since git asked for a blob the clone lacks makes a
+ * request apiece. The selector names, with every ask, the paths it will read a
+ * text under, and that list replaces `files`, so the changed files no test ran,
+ * which nothing asks about, are never fetched.
  */
 
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { isLfsPointer } from '@variance-authority/core';
 import { native, nativeRefusal } from '../addon.js';
-import { blobName } from '../digest.js';
 
 /**
- * How much text one window may hold, and how many paths the first one guesses at.
+ * How much a reader holds, in the bytes this process spends on it.
  *
- * A window trades a process against resident text, and only the second is
- * bounded here: the count is revised after every window from the sizes that
- * window actually returned, so a tree of ordinary source files converges on a
- * few thousand paths a process and one of committed bundles on a handful. The
- * first window is deliberately narrow, because it is the one guessing.
+ * Holding buys only the inflate and the pipe of asking again, under half a
+ * millisecond for 210 KB, so this stays the budget the reader has always had
+ * rather than growing to fit a change: the four hundred paths a selection asked
+ * a hundred thousand times over are about 4 MB of source.
  */
-const WINDOW_BYTES = 8 * 1024 * 1024;
-const FIRST_WINDOW = 64;
-const WIDEST_WINDOW = 4096;
+export const HELD_BYTES = 8 * 1024 * 1024;
 
-/** Where `file` sits in a code-unit-sorted list, or -1. */
-function positionOf(sorted: readonly string[], file: string): number {
-  let low = 0;
-  let high = sorted.length - 1;
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    const at = sorted[mid] as string;
-    if (at === file) return mid;
-    if (at < file) low = mid + 1;
-    else high = mid - 1;
-  }
-  return -1;
+/**
+ * What an entry costs beside its key's characters and its text, so a path the
+ * commit does not hold is not free: 96 bytes of `Map` node and record measured
+ * over 200,000 entries, and the table's growth above it.
+ */
+const ENTRY_BYTES = 128;
+
+/** What a reader keeps of one answer, `undefined` a path the commit does not hold. */
+interface Held {
+  readonly text: string | undefined;
+  readonly bytes: number;
 }
 
-/** What a reader keeps of one commit, which a turn to another commit leaves alone. */
-interface Reading {
-  /** What the commit gave and stays held, `undefined` a path it does not hold. */
-  read: Map<string, string | undefined>;
-  /** The paths no window reads again. */
-  answered: Set<string>;
-  /** The paths a window has read. */
-  windowed: Set<string>;
-  /** How wide the next window is. */
-  width: number;
-  /** How many paths from outside the window were asked about. */
-  outside: number;
-  /** The commit's tree once the second such path arrived: `null` when git could not list it. */
-  listing: Listing | null | undefined;
+/** The bytes the process spends on `text`: one a character, or two once any is not ASCII, which over-charges Latin-1. */
+function bytesOf(text: string | undefined): number {
+  if (text === undefined) return 0;
+  return Buffer.byteLength(text) === text.length ? text.length : 2 * text.length;
 }
 
 /**
@@ -138,103 +112,56 @@ export function textAtRecording(
   root: string,
   files: Iterable<string>,
 ): (file: string, commit: string | undefined, asking?: readonly string[]) => string | undefined {
-  let expected = [...new Set(files)].sort();
+  let expected = [...new Set(files)];
   // The list the selector named with its asks, once one has arrived: it
   // replaces `files`, because it is the part of them the selector reads.
   let named: readonly string[] | undefined;
-  const readings = new Map<string, Reading>();
-  // The window, and the commit it is of: one for the whole reader, so no two are
-  // ever resident together.
-  let at: string | undefined;
-  let held = new Map<string, string>();
-  let asked = new Set<string>();
+  // The commits `expected` was fetched at.
+  const fetched = new Set<string>();
+  // In the order asked, the most recent last. The commit is in the key, so a
+  // turn between commits lets go of nothing.
+  const held = new Map<string, Held>();
+  let holding = 0;
 
   return (file, commit, asking) => {
     if (asking !== undefined && asking !== named) {
       named = asking;
-      expected = [...new Set(asking)].sort();
+      expected = [...new Set(asking)];
+      fetched.clear();
     }
     // No position to read from. A snapshot recorded outside a checkout cannot be
     // checked this way, and reporting every module stale would widen every run
     // to the whole suite for a fact nobody established.
     if (commit === undefined) return undefined;
 
-    if (at !== commit) {
-      at = commit;
-      held = new Map();
-      asked = new Set();
-    }
-    let reading = readings.get(commit);
-    if (reading === undefined) {
-      reading = { read: new Map(), answered: new Set(), windowed: new Set(), width: FIRST_WINDOW, outside: 0, listing: undefined };
-      readings.set(commit, reading);
-    }
-    const { read, answered, windowed } = reading;
-    // Asked about, and answered — including answered *missing*, which is a fact
-    // about the commit and not a reason to ask again.
-    if (asked.has(file)) {
-      answered.add(file);
-      return held.get(file);
-    }
-    if (read.has(file)) return read.get(file);
-
-    // A path the caller never named, or one asked again after its window went,
-    // leaves the window where it is: the selector asks about a changed file's
-    // importers between two changed files. From the second such path at a
-    // commit, one whose bytes on disk are the commit's blob is answered from disk.
-    const from = answered.has(file) ? -1 : positionOf(expected, file);
-    answered.add(file);
-    if (from === -1) {
-      reading.outside += 1;
-      if (reading.outside > 1 && reading.listing === undefined) reading.listing = listed(root, commit);
-      const onDisk = reading.listing ? unchangedOnDisk(root, reading.listing, file) : undefined;
-      if (onDisk !== undefined) return onDisk;
-      // Set only once git has answered: a refused read throws, and asked again throws again.
-      const text = textsAt(root, new Map([[commit, [file]]])).get(commit)!.get(file);
-      read.set(file, text);
-      return text;
-    }
-    // Any other path opens a window over it and the paths after it not yet
-    // answered: the selector asks a few paths ahead of the rest, so a window can
-    // go before the paths it read are asked, and those paths are then read again
-    // together rather than a process apiece.
-    const window = unanswered(expected, from, reading.width, answered);
-
-    // The previous window goes before the next one arrives, so no two are ever
-    // resident together.
-    held = new Map();
-    asked = new Set();
-    held = textsAt(root, new Map([[commit, window]])).get(commit)!;
-    asked = new Set(window);
-    // A path read by a window for the second time is one no window kept until
-    // it was asked, so this read is held and no later window takes it.
-    for (const path of window) {
-      if (windowed.has(path)) {
-        read.set(path, held.get(path));
-        answered.add(path);
-      }
-      windowed.add(path);
+    const key = `${commit}\0${file}`;
+    const known = held.get(key);
+    if (known !== undefined) {
+      held.delete(key);
+      held.set(key, known);
+      return known.text;
     }
 
-    let bytes = 0;
-    for (const text of held.values()) bytes += text.length;
-    reading.width = Math.min(
-      WIDEST_WINDOW,
-      Math.max(1, Math.round((WINDOW_BYTES * window.length) / Math.max(bytes, 1))),
-    );
+    const addon = native();
+    if (addon?.textAt === undefined || addon.fetchTextsAt === undefined) throw unread();
+    if (!fetched.has(commit)) {
+      fetched.add(commit);
+      if (expected.length > 0) addon.fetchTextsAt(root, commit, expected);
+    }
+    // A refused read throws here, so it is never held as the path being absent.
+    const text = addon.textAt(root, commit, file) ?? undefined;
 
-    return held.get(file);
+    const bytes = ENTRY_BYTES + key.length + bytesOf(text);
+    if (bytes > HELD_BYTES) return text;
+    held.set(key, { text, bytes });
+    holding += bytes;
+    for (const [oldest, { bytes: released }] of held) {
+      if (holding <= HELD_BYTES) break;
+      held.delete(oldest);
+      holding -= released;
+    }
+    return text;
   };
-}
-
-/** `expected[from]`, then up to `width` in all of the paths after it that `answered` does not hold. */
-function unanswered(expected: readonly string[], from: number, width: number, answered: ReadonlySet<string>): string[] {
-  const window = [expected[from] as string];
-  for (let at = from + 1; at < expected.length && window.length < width; at += 1) {
-    const file = expected[at] as string;
-    if (!answered.has(file)) window.push(file);
-  }
-  return window;
 }
 
 /**
@@ -242,8 +169,7 @@ function unanswered(expected: readonly string[], from: number, width: number, an
  * and then path, leaving out a path the commit does not hold.
  *
  * For a reader that wants a few paths at each of a few commits at once — the
- * manifests and the lockfile where each group of tests last ran — which
- * `textAtRecording` would read a process per commit.
+ * manifests and the lockfile where each group of tests last ran.
  */
 export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
   return answered(readTextsAt(root, asked));
@@ -286,9 +212,13 @@ export function blobsAt(root: string, asked: ReadonlyMap<string, Iterable<string
 
 type Columns = (root: string, commits: string[], paths: string[][]) => { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
 
+function unread(): Error {
+  return new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
+}
+
 /** `asked` read by the addon's `read`, from its columns into maps by commit and then path. */
 function columns(root: string, asked: ReadonlyMap<string, Iterable<string>>, read: Columns | undefined): CommitTexts {
-  if (read === undefined) throw new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
+  if (read === undefined) throw unread();
   const commits = [...asked.keys()];
   const texts = new Map(commits.map((commit) => [commit, new Map<string, string>()]));
   const refused = new Map<string, Map<string, string>>();
@@ -309,71 +239,3 @@ function answered({ texts, refused }: CommitTexts): Map<string, Map<string, stri
   for (const why of refused.values()) for (const reason of why.values()) throw new Error(reason);
   return texts;
 }
-
-/**
- * A commit's tree as `ls-tree -r -z --full-tree` wrote it, with where each
- * entry starts. Git writes the entries in the byte order of the full path, so
- * a path is found by bisecting the bytes rather than by a map of every path in
- * the repository.
- */
-interface Listing {
-  readonly bytes: Buffer;
-  readonly starts: Uint32Array;
-}
-
-function listed(root: string, commit: string): Listing | null {
-  let bytes: Buffer;
-  try {
-    bytes = execFileSync('git', ['ls-tree', '-r', '-z', '--full-tree', commit], {
-      cwd: root,
-      maxBuffer: 1 << 30,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-  } catch {
-    return null;
-  }
-  const starts: number[] = [];
-  for (let at = 0; at < bytes.length; ) {
-    const end = bytes.indexOf(0, at);
-    if (end === -1) break;
-    starts.push(at);
-    at = end + 1;
-  }
-  return { bytes, starts: Uint32Array.from(starts) };
-}
-
-/**
- * The text on disk at `file`, when its bytes are the blob the listed commit
- * holds there. `undefined` otherwise, for the caller to ask git: a path the
- * listing does not hold, one that is not a regular file there, or one whose
- * bytes on disk moved or are gone, or one whose blob is a git-LFS pointer, which
- * git smudges or refuses rather than this answering the pointer as the text.
- */
-function unchangedOnDisk(root: string, listing: Listing, file: string): string | undefined {
-  const { bytes, starts } = listing;
-  const target = Buffer.from(file, 'utf8');
-  let low = 0;
-  let high = starts.length - 1;
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    const start = starts[mid]!;
-    const tab = bytes.indexOf(0x09, start);
-    const order = bytes.compare(target, 0, target.length, tab + 1, bytes.indexOf(0, tab));
-    if (order < 0) low = mid + 1;
-    else if (order > 0) high = mid - 1;
-    else {
-      // `<mode> <type> <object>`: a symbolic link's blob is its target, not what reading it gives.
-      const [mode, type, object] = bytes.toString('latin1', start, tab).split(' ');
-      if (type !== 'blob' || (mode !== '100644' && mode !== '100755') || object === undefined) return undefined;
-      let text: Buffer;
-      try {
-        text = readFileSync(join(root, file));
-      } catch {
-        return undefined;
-      }
-      return blobName(text, object.length) === object && !isLfsPointer(text) ? text.toString('utf8') : undefined;
-    }
-  }
-  return undefined;
-}
-

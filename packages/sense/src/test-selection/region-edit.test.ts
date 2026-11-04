@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { gitStarted } from './__fixtures__/git-started.js';
+import { gitReads } from './__fixtures__/git-reads.js';
 import { NO_OWNER } from './format-layout.js';
 import { editsBetween, landedThrough, NO_EDIT, regionTouched } from './region-edit.js';
 import { NO_LINE } from './written-lines.js';
@@ -239,7 +239,7 @@ describe('editsBetween', () => {
       const commits = [commitOf('export const a = 1;\n'), commitOf('export const a = 2;\n')];
       writeFileSync(join(root, 'a.ts'), 'export const a = 3;\n');
       const edits = editsBetween(root, undefined, commits);
-      const started = gitStarted(root, () => {
+      const reads = gitReads(() => {
         for (const file of ['a.ts', 'added-since.ts']) {
           for (const ask of [1, 2, 3, 4, 5]) expect(edits(file, `v1:before${ask}`, `v1:after${ask}`)).toBeUndefined();
         }
@@ -247,7 +247,7 @@ describe('editsBetween', () => {
 
       for (const commit of commits) {
         for (const file of ['a.ts', 'added-since.ts']) {
-          expect(started.filter((argv) => argv.includes('ls-tree') && argv.includes(commit) && argv.includes(file)), `${file} at ${commit}`).toHaveLength(1);
+          expect(reads(commit, file), `${file} at ${commit}`).toBe(1);
         }
       }
     } finally {

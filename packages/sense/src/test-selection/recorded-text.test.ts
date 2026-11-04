@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { nativeAvailable } from '../native.js';
+import { gitReads } from './__fixtures__/git-reads.js';
 import { gitStarted } from './__fixtures__/git-started.js';
 import { changedLines } from './diff-lines.js';
 import { openTestCoverage } from './format-view.js';
@@ -15,12 +16,6 @@ import type { TestCoverage } from './index.js';
 import { blobsAt, readBlobsAt, readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 import { narrowByExecutionFromView } from './select.js';
 
-/**
- * More paths than one window holds, so the answers below cross a window edge
- * rather than all arriving from the first read. The reader sizes its second
- * window from the bytes the first one returned, so the files are given a body
- * worth measuring instead of a single line.
- */
 const FILES = 150;
 const path = (at: number): string => `src/f${`${at}`.padStart(3, '0')}.ts`;
 const body = (at: number): string => `export const at = ${at};\n${'// '.repeat(200)}\n`;
@@ -48,8 +43,8 @@ async function checkout<T>(run: (root: string, commit: string) => Promise<T>): P
 const every = (from: number, to: number): number[] =>
   Array.from({ length: to - from }, (_, at) => from + at);
 
-describe('the text at a recording is read a window at a time', () => {
-  it('answers every path the caller named, across the window edges', async () => {
+describe('the text at a recording', () => {
+  it('answers every path the caller named', async () => {
     await checkout(async (root, commit) => {
       const sourceAt = textAtRecording(
         root,
@@ -62,16 +57,14 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 
-  it('answers a path the window has already rolled past', async () => {
+  it('answers a path behind the one asked last', async () => {
     await checkout(async (root, commit) => {
       const sourceAt = textAtRecording(
         root,
         every(0, FILES).map(path),
       );
 
-      // Forward to the far end, which leaves every earlier path behind, then
-      // back for twenty of them. A window that only ever moved forward would
-      // have nothing to say about these.
+      // Forward to the far end, then back for twenty of them.
       expect(sourceAt(path(FILES - 1), commit)).toBe(body(FILES - 1));
       for (const at of every(0, 20).reverse()) {
         expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
@@ -79,34 +72,8 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 
-  it('reads the paths a jump ahead left behind in one more window, not a process apiece', async () => {
+  it.runIf(nativeAvailable())('asks whether the checkout is a partial clone once, however many paths are missing', async () => {
     await checkout(async (root, commit) => {
-      const sourceAt = textAtRecording(root, every(0, FILES).map(path));
-      const trace = resolve(root, '.git', 'trace2.json');
-      const reads = async (): Promise<number> =>
-        (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"cat-file"')).length;
-
-      // The selector asks a few paths out of order before it walks the rest in
-      // order: one window opens at 20 and goes when the far end is asked, before
-      // the paths it read after 20 were asked. Walking from the start then reads
-      // everything not yet answered, those paths included, in one more window.
-      process.env['GIT_TRACE2_EVENT'] = trace;
-      try {
-        expect(sourceAt(path(20), commit)).toBe(body(20));
-        expect(sourceAt(path(FILES - 10), commit)).toBe(body(FILES - 10));
-        for (const at of every(0, FILES - 10).filter((at) => at !== 20)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
-      } finally {
-        delete process.env['GIT_TRACE2_EVENT'];
-      }
-
-      expect(await reads()).toBe(3);
-    });
-  });
-
-  it.runIf(nativeAvailable())('asks whether the checkout is a partial clone once, however many windows answer a path missing', async () => {
-    await checkout(async (root, commit) => {
-      // A path added since the recording sorts beside each end of the list, so
-      // the first window and a later one each answer one missing.
       const added = ['src/f000-added.ts', `src/f${FILES - 1}-added.ts`];
       const sourceAt = textAtRecording(root, [...every(0, FILES).map(path), ...added]);
       const trace = resolve(root, '.git', 'trace2.json');
@@ -119,7 +86,7 @@ describe('the text at a recording is read a window at a time', () => {
       }
 
       const started = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"'));
-      expect(started.filter((line) => line.includes('"cat-file"')).length).toBeGreaterThan(1);
+      expect(started.filter((line) => line.includes('"cat-file"'))).toHaveLength(1);
       expect(started.filter((line) => line.includes('"config"'))).toHaveLength(1);
     });
   });
@@ -147,7 +114,7 @@ describe('the text at a recording is read a window at a time', () => {
 
   it('answers a path the caller never named', async () => {
     await checkout(async (root, commit) => {
-      // The list is what the reads are sized by, not what may be asked: a
+      // The list is what a partial clone fetches, not what may be asked: a
       // caller that narrowed it to the paths it holds a digest for must still
       // get an answer for anything else the selector reaches.
       const sourceAt = textAtRecording(root, [path(0)]);
@@ -224,33 +191,14 @@ describe('the text at a recording is read a window at a time', () => {
 });
 
 describe('the text at a recording of a path the caller never named', () => {
-  it('is read for a hundred paths in as many processes as for ten', async () => {
+  it('is read for a hundred paths from one process', async () => {
     await checkout(async (root, commit) => {
-      const asked = (count: number): string[][] => {
-        const sourceAt = textAtRecording(root, [path(FILES - 1)]);
-        // Whether the checkout is a partial clone is asked once per checkout, by the first sample alone.
-        return gitStarted(root, () => {
-          for (const at of every(0, count)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
-        }).filter((argv) => argv[1] !== 'config');
-      };
-
-      const few = asked(10);
-      expect(few.length).toBeGreaterThan(0);
-      expect(asked(100).length).toBe(few.length);
-    });
-  });
-
-  it('leaves the window it arrived in place', async () => {
-    await checkout(async (root, commit) => {
-      const sourceAt = textAtRecording(root, every(0, 50).map(path));
-      expect(sourceAt(path(0), commit)).toBe(body(0));
-      expect(sourceAt(path(120), commit)).toBe(body(120));
-
-      // The window that answered `path(0)` holds these, so none is read again.
+      const sourceAt = textAtRecording(root, [path(FILES - 1)]);
       const started = gitStarted(root, () => {
-        for (const at of every(1, 50)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+        for (const at of every(0, 100)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
       });
-      expect(started).toEqual([]);
+
+      expect(started.filter((argv) => argv[1] !== 'config')).toHaveLength(1);
     });
   });
 
@@ -261,10 +209,6 @@ describe('the text at a recording of a path the caller never named', () => {
       await writeFile(resolve(root, 'src/added-since.ts'), 'export {};\n', 'utf8');
       const sourceAt = textAtRecording(root, [path(FILES - 1)]);
 
-      // Two paths first, so the three below are asked after the reader has
-      // had reason to stop reading each one alone.
-      expect(sourceAt(path(0), commit)).toBe(body(0));
-      expect(sourceAt(path(1), commit)).toBe(body(1));
       expect(sourceAt(path(10), commit)).toBe(body(10));
       expect(sourceAt(path(11), commit)).toBe(body(11));
       expect(sourceAt('src/added-since.ts', commit)).toBeUndefined();
@@ -273,7 +217,7 @@ describe('the text at a recording of a path the caller never named', () => {
 });
 
 describe('the texts a selection reads', () => {
-  it('are the texts of the files it frames, read together, not the whole diff', async () => {
+  it('are the texts of the files it frames, from one process, not the whole diff', async () => {
     await checkout(async (root, commit) => {
       // Every file changed, and a row for only the two at either end of the
       // sorted diff: the selection frames those two and nothing between them.
@@ -295,13 +239,18 @@ describe('the texts a selection reads', () => {
       const coverage = openTestCoverage(encodeTestCoverage(recorded));
 
       let narrowing: ReturnType<typeof narrowByExecutionFromView> | undefined;
+      let reads = (_commit: string, _file: string): number => 0;
       const started = gitStarted(root, () => {
-        narrowing = narrowByExecutionFromView(coverage, diff, { sourceAt: textAtRecording(root, changedLines(diff).keys()) });
+        reads = gitReads(() => {
+          narrowing = narrowByExecutionFromView(coverage, diff, { sourceAt: textAtRecording(root, changedLines(diff).keys()) });
+        });
       });
 
       expect(narrowing?.stale).toEqual([]);
       expect(narrowing?.entered).toEqual(framed.map((file) => `test/${file}`));
       expect(started.filter((argv) => argv.includes('cat-file'))).toHaveLength(1);
+      for (const file of framed) expect(reads(commit, file), file).toBe(1);
+      expect(reads(commit, path(1))).toBe(0);
     });
   });
 });
@@ -347,12 +296,27 @@ async function partialClone(
 const then = (at: number): string => `export const at = ${at};\n`;
 
 describe('the text at a recording in a partial clone', () => {
-  it.runIf(nativeAvailable())('is fetched for a whole window in one request', async () => {
+  it.runIf(nativeAvailable())('is fetched for every path named in one request', async () => {
     await partialClone(async (clone, commit, requests) => {
       const sourceAt = textAtRecording(clone, [...every(0, 5).map(path), 'src/added-since.ts']);
       for (const at of every(0, 5)) expect(sourceAt(path(at), commit), path(at)).toBe(then(at));
       expect(sourceAt('src/added-since.ts', commit)).toBeUndefined();
       expect(await requests()).toBe(1);
+    });
+  });
+
+  it.runIf(nativeAvailable())('is fetched again for a list the caller names later, not for the one it replaced', async () => {
+    await partialClone(async (clone, commit, requests) => {
+      const sourceAt = textAtRecording(clone, every(0, 5).map(path));
+      const asking = [path(0), path(1)];
+      expect(sourceAt(path(0), commit, asking)).toBe(then(0));
+      expect(sourceAt(path(1), commit, asking)).toBe(then(1));
+      expect(await requests()).toBe(1);
+
+      const later = [path(2), path(3)];
+      expect(sourceAt(path(2), commit, later)).toBe(then(2));
+      expect(sourceAt(path(3), commit, later)).toBe(then(3));
+      expect(await requests()).toBe(2);
     });
   });
 
@@ -436,7 +400,7 @@ describe('the text at a recording of a file git-lfs tracks', () => {
     });
   });
 
-  it('is refused when the checkout holds the pointer too, rather than read from disk as the source', async () => {
+  it('is refused when the checkout holds the pointer too, rather than read as the source', async () => {
     // A checkout made without git-lfs: the bytes on disk are the commit's blob,
     // and that blob is the pointer.
     await lfsCheckout(async (root, git) => {
@@ -445,7 +409,6 @@ describe('the text at a recording of a file git-lfs tracks', () => {
       await git('-c', 'filter.lfs.clean=cat', '-c', 'filter.lfs.process=', '-c', 'filter.lfs.required=false', 'add', '--all');
       await git('commit', '--quiet', '--message', 'a pointer with no object');
     }, (root, commit) => {
-      // Two paths the caller never named: the second is answered from disk when its bytes are the commit's.
       const sourceAt = textAtRecording(root, []);
       expect(sourceAt('src/small.ts', commit)).toBe('export const small = 1;\n');
 

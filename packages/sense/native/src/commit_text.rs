@@ -17,6 +17,11 @@
 //! [`blobs_at`] is the same listing without the bodies: each path's blob name,
 //! `git:<object>`, for a reader that only asks whether two commits hold the
 //! same text.
+//!
+//! [`text_at`] is one path at one commit, for a reader that asks them one at a
+//! time and again: `text_session.rs` answers it without a process, and what
+//! that cannot settle comes here for its reason. [`fetch_texts_at`] is what such
+//! a reader does first in a partial clone, so those asks find the blobs held.
 
 // compass: variance-authority.reach.source-index
 
@@ -49,6 +54,34 @@ pub struct CommitTexts {
 #[napi(catch_unwind)]
 pub fn texts_at(root: String, commits: Vec<String>, paths: Vec<Vec<String>>) -> napi::Result<CommitTexts> {
     read(&root, &commits, &paths).map_err(napi::Error::from_reason)
+}
+
+/// `file` at `commit`, `None` a path the commit does not hold, and an error
+/// carrying git's reason for one it could not read.
+#[napi(catch_unwind)]
+pub fn text_at(root: String, commit: String, file: String) -> napi::Result<Option<String>> {
+    if let Some(found) = crate::text_session::blob_at(&root, &commit, &file) {
+        return Ok(found.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()));
+    }
+    let mut found = read(&root, &[commit], &[vec![file]]).map_err(napi::Error::from_reason)?;
+    match found.refused.pop() {
+        Some(why) => Err(napi::Error::from_reason(why)),
+        None => Ok(found.text.pop()),
+    }
+}
+
+/// In a partial clone, fetch the blobs `commit` names at `files` in one request.
+/// Nothing to do in any other clone. A fetch that failed is not reported: the
+/// read of a text it left behind gives git's reason.
+#[napi(catch_unwind)]
+pub fn fetch_texts_at(root: String, commit: String, files: Vec<String>) {
+    if !crate::promisor::partial(&root) {
+        return;
+    }
+    if let Ok(named) = blobs(&root, &commit, &files) {
+        let oids: Vec<&str> = named.values().map(String::as_str).collect();
+        let _ = crate::promisor::fetch(&root, &oids);
+    }
 }
 
 /// The blob name, `git:<object>`, of `paths[at]` at `commits[at]`, in the
@@ -204,13 +237,18 @@ fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, St
             read.push(Err(format!("git answered `{head}`")));
             continue;
         }
-        let Some(Ok(size)) = head.rsplit(' ').next().map(str::parse::<usize>) else {
+        let Some(size) = body_size(&head) else {
             return Err(format!("git answered `{head}`"));
         };
         read.push(Ok(out.get(at..at + size).ok_or_else(cut)?.to_vec()));
         at += size + 1;
     }
     Ok(read)
+}
+
+/// The size `<object> <type> <size>` gives the body after it.
+pub(crate) fn body_size(head: &str) -> Option<usize> {
+    head.rsplit(' ').next()?.parse().ok()
 }
 
 /// The blob `commit`'s tree names at each of `files` that is one. A path the

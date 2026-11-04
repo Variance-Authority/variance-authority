@@ -166,6 +166,7 @@ mod source_update;
 mod specifier;
 mod stored;
 mod text_digests;
+mod text_session;
 mod top_level;
 mod tree;
 #[cfg(unix)]

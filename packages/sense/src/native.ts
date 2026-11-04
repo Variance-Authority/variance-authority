@@ -237,6 +237,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
   /** `paths[at]` at `commits[at]` as columns: a path the commit does not hold left out, one git could not read refused with git's reason; throws when git answers nothing. */
   textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+  /** One path at one commit from a `git cat-file --batch` left open, `null` a path the commit does not hold; throws git's reason for one it could not read. */
+  textAt?(root: string, commit: string, file: string): string | null;
+  /** In a partial clone, fetches the blobs `commit` names at `files` in one request. */
+  fetchTextsAt?(root: string, commit: string, files: string[]): void;
   /** `textsAt`'s listing without the bodies: each path's blob name, `git:<object>`, in the same columns. */
   blobsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
   /** Why `commit` cannot be read here when this checkout's object store does not hold it, with the fetch that brings it. */
