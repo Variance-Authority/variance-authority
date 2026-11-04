@@ -28,6 +28,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { publishRun } from './share.js';
+import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
 
 /**
@@ -182,6 +183,32 @@ export async function cloneOf(home: string, origin: string, branch?: string): Pr
   const dir = join(home, 'clone');
   await git(home, 'clone', '--quiet', ...(branch === undefined ? [] : ['--branch', branch]), origin, dir);
   return dir;
+}
+
+/** A clone that fetched the mainline's first record, with main then moved past it by a commit the clone holds. */
+export async function behindMainline(home: string, options: { readonly publish: boolean }) {
+  const asCi = () => vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+  const asClone = () => vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
+  asCi();
+  const ci = await published(home);
+  const clone = await cloneOf(home, ci.origin);
+  asClone();
+  await suiteBase(clone, { env: {} });
+
+  asCi();
+  await writeFile(join(ci.dir, 'src/moved.ts'), 'export const moved = 1;\n');
+  await git(ci.dir, 'add', '-A');
+  await git(ci.dir, 'commit', '--quiet', '-m', 'main moves on');
+  const second = await git(ci.dir, 'rev-parse', 'HEAD');
+  await git(ci.dir, 'push', '--quiet', 'origin', 'main');
+  if (options.publish) {
+    await recordIn(ci.dir, second, ['test/total.test.ts'], [DISCOUNTS]);
+    await publishTo(home, ci.dir, second, PUSH, 'mainline main');
+  }
+  asClone();
+  await git(clone, 'pull', '--quiet', 'origin', 'main');
+  process.chdir(clone);
+  return { ...ci, clone, second };
 }
 
 /** The config a CI run publishes with: `unit` given to the directory share, whose mainline is `main`. */

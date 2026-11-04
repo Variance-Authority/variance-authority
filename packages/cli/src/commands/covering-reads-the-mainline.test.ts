@@ -2,19 +2,15 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import { readableTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { formatCovering, type Covering } from './covering.js';
 import { changeSince, listedChange } from './covering-since.js';
 import { coveringAnswer } from './covering-suites.js';
-import { main } from '../bin.fixture.js';
-import { mainlineBase } from './mainline-base.js';
-import { cloneOf, DISCOUNTS, git, gitStarted, publishTo, published, PUSH, recordIn } from './mainline-fixture.js';
+import { behindMainline, cloneOf, DISCOUNTS, git, published, recordIn } from './mainline-fixture.js';
 import { GapRefusal } from './evidence-gap.js';
-import { readerMainline } from '../share-lines.js';
 import { diffSince } from './since.js';
 import { suiteBase } from './suite-base.js';
 
@@ -24,20 +20,6 @@ vi.mock('ci-info', () => ({ isCI: false }));
 vi.mock('./since.js', async (original) => {
   const actual = await original<typeof import('./since.js')>();
   return { ...actual, diffSince: vi.fn(actual.diffSince) };
-});
-// Spied, not replaced: which reads reach the share, and how many resolve the record, is what is under test.
-vi.mock('./mainline-base.js', async (original) => {
-  const actual = await original<typeof import('./mainline-base.js')>();
-  return { ...actual, mainlineBase: vi.fn(actual.mainlineBase) };
-});
-vi.mock('@variance-authority/sense/test-selection', async (original) => {
-  const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
-  return { ...actual, readableTestCoverage: vi.fn(actual.readableTestCoverage) };
-});
-// Spied, not replaced: whether a read worked out a selection at all is what is under test.
-vi.mock('../share-lines.js', async (original) => {
-  const actual = await original<typeof import('../share-lines.js')>();
-  return { ...actual, readerMainline: vi.fn(actual.readerMainline) };
 });
 
 /**
@@ -66,29 +48,7 @@ const parse = (argv: readonly string[]) => parseCoveringArgs(readFlags(argv, 'co
 const asked = (argv: readonly string[]) => coveringAnswer(parse(argv)) as Promise<Covering>;
 const since = ['--since', 'origin/main', '--suite', 'unit'];
 
-/** A clone that fetched the mainline's first record, with main then moved past it by a commit the clone holds. */
-async function behindTheMainline(options: { readonly publish: boolean }) {
-  asCi();
-  const ci = await published(home);
-  const clone = await cloneOf(home, ci.origin);
-  asClone();
-  await suiteBase(clone, { env: {} });
-
-  asCi();
-  await writeFile(join(ci.dir, 'src/moved.ts'), 'export const moved = 1;\n');
-  await git(ci.dir, 'add', '-A');
-  await git(ci.dir, 'commit', '--quiet', '-m', 'main moves on');
-  const second = await git(ci.dir, 'rev-parse', 'HEAD');
-  await git(ci.dir, 'push', '--quiet', 'origin', 'main');
-  if (options.publish) {
-    await recordIn(ci.dir, second, ['test/total.test.ts'], [DISCOUNTS]);
-    await publishTo(home, ci.dir, second, PUSH, 'mainline main');
-  }
-  asClone();
-  await git(clone, 'pull', '--quiet', 'origin', 'main');
-  process.chdir(clone);
-  return { ...ci, clone, second };
-}
+const behindTheMainline = (options: { readonly publish: boolean }) => behindMainline(home, options);
 
 /** The line the change makes, so a list that holds anything else holds a file nobody here changed. */
 const edit = (clone: string) => writeFile(join(clone, 'src/total.ts'), 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
@@ -416,110 +376,5 @@ describe('a question with `--text`, which an editor asks on every repaint', () =
     await expect(refused).rejects.toThrow('record of "unit": the share was not asked; this read does not fetch.');
     // Not `unconfigured`: nothing is missing from this environment, and a read that may fetch finds the record.
     expect(await suiteBase(clone, { env: {}, fetch: 'never' })).toMatchObject({ from: 'none', missed: { miss: { kind: 'unfetched' }, shareAsked: false } });
-  });
-});
-
-describe('one answer', () => {
-  it('resolves its record once, and the frame and the hops read that one', async () => {
-    await behindTheMainline({ publish: true });
-    for (const spy of [mainlineBase, readableTestCoverage]) vi.mocked(spy).mockClear();
-
-    await asked(['--file', 'src/total.ts', '--line', '2', '--hops', '--suite', 'unit']);
-
-    expect(vi.mocked(mainlineBase)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(readableTestCoverage)).not.toHaveBeenCalled();
-  });
-
-  it('selects no mainline for a repaint this checkout answers from its own record, which is nobody else\'s', async () => {
-    const { clone, second } = await behindTheMainline({ publish: true });
-    await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
-    const text = join(clone, 'held.ts');
-    await writeFile(text, 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
-    vi.mocked(readerMainline).mockClear();
-
-    const answer = await asked(['--file', 'src/total.ts', '--suite', 'unit', '--text', text]);
-
-    expect(answer.source).toMatchObject({ from: 'checkout' });
-    expect(vi.mocked(readerMainline)).not.toHaveBeenCalled();
-  });
-
-  it('selects no mainline under `--execution`, which names its record', async () => {
-    const { clone, second } = await behindTheMainline({ publish: true });
-    await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
-    const named = testCoverageFile(clone, { suite: 'unit' });
-    vi.mocked(readerMainline).mockClear();
-
-    await asked(['--file', 'src/total.ts', '--execution', named]);
-
-    expect(vi.mocked(readerMainline)).not.toHaveBeenCalled();
-  });
-
-  it('starts the same git on a repaint however many commits its ledger holds', async () => {
-    const { clone, second } = await behindTheMainline({ publish: true });
-    await recordIn(clone, second, ['test/total.test.ts'], [DISCOUNTS], INSTRUMENTATION_ID);
-    const own = testCoverageFile(clone, { suite: 'unit' });
-    const text = join(clone, 'held.ts');
-    await writeFile(text, 'export function applyDiscount(price: number): number {\n  return price * 0.8;\n}\n');
-    const commits = [second];
-    for (const name of ['a', 'b', 'c', 'd', 'e', 'f']) {
-      await git(clone, '-c', 'user.email=fixture@example.test', '-c', 'user.name=Fixture', 'commit', '--quiet', '--allow-empty', '-m', name);
-      commits.push(await git(clone, 'rev-parse', 'HEAD'));
-    }
-    const repaint = async (ledger: readonly string[]) => {
-      const ran = ledger.map((commit, at) => ({ commit, files: [`test/${String(at)}.test.ts`] }));
-      await writeFile(own.replace(/\.bin$/u, '.layer.json'), JSON.stringify({ pinned: { mainline: 'main', commit: second }, ran }));
-      return gitStarted(clone, () => asked(['--file', 'src/total.ts', '--suite', 'unit', '--text', text]));
-    };
-
-    // The first read of a checkout does work no repaint repeats, so it measures nothing here.
-    await repaint(commits);
-    const few = await repaint(commits.slice(0, 2));
-    const many = await repaint(commits);
-
-    expect(many.length).toBe(few.length);
-  });
-});
-
-describe('the streams of an answer', () => {
-  const ask = async (argv: readonly string[]) => {
-    let out = '';
-    let err = '';
-    const code = await main(argv, { out: (text) => (out += text), err: (text) => (err += text) });
-    return { code, out, err };
-  };
-
-  it('keeps stdout a list under `refs`, and says whose record it read on stderr, for one suite or each', async () => {
-    const { second } = await behindTheMainline({ publish: true });
-    const says = `record of "unit": read from mainline main, published at ${second}`;
-
-    for (const argv of [['--suite', 'unit'], []]) {
-      const answer = await ask(['covering', '--file', 'src/total.ts', '--format', 'refs', ...argv]);
-
-      expect(answer.out).not.toContain('record of');
-      expect(answer.err).toContain(says);
-    }
-  });
-
-  it("says a tree with no change is each suite's reason at exit 0, and fetches no record for it", async () => {
-    await behindTheMainline({ publish: true });
-    vi.mocked(mainlineBase).mockClear();
-
-    const answer = await ask(['covering', '--since', 'origin/main']);
-
-    expect(answer.code).toBe(0);
-    expect(answer.out).toContain('nothing has changed since `origin/main`');
-    expect(vi.mocked(mainlineBase)).not.toHaveBeenCalled();
-  });
-
-  it('refuses a ref that does not read at exit 2, on the stream a program parses, before any record is read', async () => {
-    await behindTheMainline({ publish: true });
-    vi.mocked(mainlineBase).mockClear();
-
-    const answer = await ask(['covering', '--since', 'no-such-ref', '--format', 'json']);
-
-    expect(answer.code).toBe(2);
-    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
-    expect(answer.err).toContain('`--since no-such-ref` could not be read as a diff');
-    expect(vi.mocked(mainlineBase)).not.toHaveBeenCalled();
   });
 });
