@@ -245,6 +245,7 @@
           "required": ["github-actions"],
           "properties": {
             "github-actions": {
+              "description": "The token the runner issues to this job, asked for when the value is used, so nothing is stored.",
               "type": "object",
               "additionalProperties": false,
               "required": ["audience"],

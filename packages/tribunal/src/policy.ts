@@ -56,6 +56,11 @@ export interface PolicyOptions {
 
 type Values = Readonly<Record<string, unknown>>;
 
+/**
+ * Who a deployment recognizes, read from `INGEST_CREDENTIALS`, `REVIEW_CREDENTIALS`
+ * and the values their mechanisms need. A declaration that cannot be honoured throws,
+ * so a host refuses to serve rather than recognizing somebody it was not told to.
+ */
 export function declaredPolicy(values: Values, options: PolicyOptions = {}): Policy {
   const log = options.log ?? ((line: string) => console.warn(line));
   const ingest = declared(values, 'INGEST_CREDENTIALS', INGEST_MECHANISMS);

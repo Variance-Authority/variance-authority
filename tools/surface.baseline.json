@@ -4168,6 +4168,9 @@
         "createReviewStore": "function"
       },
       "./worker": {
+        "Policy": "interface",
+        "PolicyOptions": "interface",
+        "Principal": "type",
         "RasterStoreError": "class",
         "ServiceVersion": "interface",
         "TRIBUNAL_API": "const",
@@ -4175,6 +4178,7 @@
         "TribunalOptions": "interface",
         "VERSION_PATH": "const",
         "createTribunal": "function",
+        "declaredPolicy": "function",
         "serviceVersion": "function"
       },
       "./worker-entry": {
@@ -4240,16 +4244,18 @@
         "useConcernTally": "function"
       },
       "./next": {
-        "Capability": "type",
         "TribunalRouteOptions": "interface",
         "TribunalRoutes": "interface",
         "createTribunalRoutes": "function"
       },
       "./testing": {
         "MemoryR2": "interface",
+        "Signer": "interface",
         "SqliteD1": "type",
+        "bearerPolicy": "function",
         "createMemoryR2": "function",
-        "createSqliteD1": "function"
+        "createSqliteD1": "function",
+        "signer": "function"
       }
     }
   },

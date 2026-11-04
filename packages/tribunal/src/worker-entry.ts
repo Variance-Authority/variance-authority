@@ -4,18 +4,9 @@ import { reviewPage } from './ui/page.js';
 import { isPagePath } from './ui/route.js';
 
 /**
- * The deployable Worker: the twenty lines that were missing between a package and
- * a running service.
- *
- * Everything below this file is platform-free by design — `worker.ts` composes
- * routes over a `D1Like` and an `R2Like` and names no Cloudflare type. That is
- * why the package is testable without a Workers runtime, and it is also why it
- * had **no entry point at all**: `createTribunal` returns an object with a
- * `fetch` method, and a Worker needs a module whose default export has one. The
- * two are one adapter apart, and until now the adapter did not exist, so the
- * surface shipped and could not be deployed.
- *
- * This file is the only one in the Worker that reads an environment.
+ * The deployable Worker: `createTribunal` answers `fetch` over a `D1Like` and an
+ * `R2Like`, and a Worker needs a module whose default export has that method. This
+ * is the one file in the Worker that reads an environment.
  *
  * ## Why the instance is memoised
  *
