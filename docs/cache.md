@@ -12,8 +12,9 @@ that takes a `cacheRoot` option read that one answer, so a recording written by
 `yarn test` is the recording `variance select` reads.
 
 Nothing in it is a baseline. Delete any part of it and the next run is slower,
-not wrong. [After an upgrade](#after-an-upgrade) says what each part of it does
-when you move to a new release.
+and the next `variance review` may compare fewer cases and name the test files
+it left out. Neither is wrong. [After an upgrade](#after-an-upgrade) says what
+each part of it does when you move to a new release.
 
 ## Where it is
 
@@ -170,33 +171,51 @@ says how.
 [Probes](../packages/sense) are what variance places in your code to see which
 regions a test ran. Their recipe has a name, such as
 `sense:instrument/presence-v6`, and every recording carries the name it was made
-under. A run can only add to a recording made under its own recipe, so whether
-the recording survives depends on whether the release changed the recipe. A
-change of [`mode`](selecting.md#record-as-finely-as-you-select) changes it too.
+under. A run can only add to a recording made under its own recipe, and a change
+of [`mode`](selecting.md#record-as-finely-as-you-select) changes the recipe too.
+So what happens to a recording depends on what the release changed:
 
-When the recipe changed, the next run replaces the recording in your cache,
-with `coverage.runs.json` beside it, and prints one line to stderr. When you see
-no such line, the recipe did not change and the recording carries on:
+| What changed | The next run that writes the recording |
+|---|---|
+| neither the recipe nor the file's layout | adds to it and prints nothing |
+| the recipe | replaces it, with `coverage.runs.json` beside it, and prints one line to stderr |
+| the file's layout, so this build cannot read the recording, or the recipe's name in it | fails after its tests with an error naming the file, and leaves the file as it was. You [start cold](#start-cold) |
 
 ```
 variance-authority replaced the record at <cache>/test-selection/<repository>/coverage.bin: it was written under the probes `sense:instrument/presence-v5` and this run records under `sense:instrument/presence-v6`, so this run cannot be laid over it.
 ```
 
-**The replacement costs one pass over the suite, spread over at most two runs.**
-A run of the whole suite pays it alone. A selected run is still narrowed by the
-old recording, which `variance select` reads as it holds it and says so, and the
-new recording then holds only the tests that ran. A test file the recording has
-never seen always runs, so your next selected run takes the rest, and selection
-is back to normal after it. The pass is free when the run can start from another
-record under its own recipe: a mainline record this machine fetched, or in a
-worktree the primary checkout's.
+Each recording answers for itself. A declared suite's and a worktree's go the
+same way, each when a run next writes it, so a suite you have not run keeps its
+old recording, and a worktree's replacement leaves the primary checkout's alone.
+
+**A replacement costs one pass over the suite and the earlier cases.** A run of
+the whole suite pays the pass alone. A selected run is still narrowed by the old
+recording, which `variance select` reads as it holds it and says so, and the new
+recording then holds only the tests that ran. A test file the recording has
+never seen always runs, so your next selected run in that cache takes the rest,
+and selection is back to normal after it.
+
+The earlier cases go with the old recording, on your workstation as in CI.
+`variance review` after that run names no case added or removed in a file that
+already existed, and lists the test files it did not compare. The run at your
+next commit has cases to compare again.
+
+You pay neither when the run can start from a record already under the new
+recipe, which brings its cases: for a suite given to the share, a mainline record
+this machine fetched, and in a worktree, the primary checkout's once a run there
+has replaced it. A record still under the old recipe is no start. The run skips
+it, says so in one line, and pays both.
 
 The rest of the cache follows its own rules:
 
 | Part | After an upgrade |
 |---|---|
 | [source index](source-index.md) written by another release | `variance index` rebuilds it. On your workstation, the commands that read it rebuild it too and say so. In CI they stop and name `variance index`, which is [the step to run first](source-index.md#caching-it-in-ci) |
-| a mainline record in `share/read/` under another recipe | it stays, and a first run passes over it in one line, until your mainline publishes one under the new recipe |
+| a mainline record in `share/read/` under another recipe | it stays on disk and no run adds to it, until your mainline publishes one under the new recipe |
+| `renders/` | an image is reused while its document and renderer match, whichever release took it |
+| a [test story](test-stories.md) | it is read through the recording beside it, and a file that recording holds no regions for at that text is drawn as the file alone |
+| `suite/<project>/<commit>.bin` | it is read when this release reads its format. When it does not, the index is fetched from your share again |
 | everything else | the upgrade does not touch it, and it stays until [its rule](#what-is-removed-and-when) removes it |
 
 **A recording at a path of your own is never replaced.** `coverageFile` in a
@@ -204,17 +223,22 @@ The rest of the cache follows its own rules:
 `variance journeys --into` keep the recording in a file you named, outside the
 cache. A run under another recipe fails after its tests, with an error naming
 the file and both recipes, and leaves the file byte for byte. Give the run a new
-path, or delete the file. A recording this build cannot read at all fails the
-same way, in the cache too, and there you [start cold](#start-cold).
+path, or delete the file.
 
-**The pull request that bumps variance restores the old recording.** The restore
-key in the [CI snippet](#in-ci) names no version, so that job selects from the
-old recording and its run replaces it. No earlier cases survive that run, so
-`variance review` on that push names no case added or removed in a file that
-already existed, unless your mainline publishes its cases to a
-[share](sharing.md). When
-your main branch runs the new release, it saves a recording under the new
-recipe, and the pull requests after it restore that one.
+**The pull request that bumps variance restores the old recording on every
+push.** The restore key in the [CI snippet](#in-ci) names no version and a pull
+request saves nothing, so each push selects from the old recording, and its run
+replaces that copy for the length of the job. A push runs what its selection
+asks and nothing more, so the pass is not paid here. With
+[`variance carry`](selecting.md#a-pull-requests-next-push), a push after the
+first reads the last push's record instead, and runs the test files that push
+did not. On a push that replaced the recording, `variance review` compares as
+above, unless your mainline publishes its cases to a [share](sharing.md).
+
+**Your main branch pays the pass and saves the result.** Its first run on the new
+release saves a recording under the new recipe. When that run was selected, the
+recording holds only the tests that ran, so a pull request restoring it runs the
+rest as well, and the next run on your main branch completes it.
 
 ## Start cold
 
