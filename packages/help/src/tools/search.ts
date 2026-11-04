@@ -414,7 +414,7 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  * The files of the rows `run` prints, and the entries and barrels that make a
  * row published, which the count of that row walked already. `search.files` is
  * every match, a set another question crosses; a row past the cap is no part of
- * this answer.
+ * this answer, so the count printed above the rows stays the generation's.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
   const { answer, publishing = [] } = searchedOnce(help, input, invocation);

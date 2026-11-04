@@ -1,6 +1,7 @@
-import { chmodSync, mkdtempSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
@@ -22,22 +23,11 @@ const OPTIONS_TEXT = 'export interface Options {\n  /** Whether CI. */\n  readon
 
 const NOT_COMPARED = /Snapshot \S+Z, not compared with the checkout \(it could not be read again: the source index could not be saved: /u;
 
-const cache = (): string => process.env['VARIANCE_AUTHORITY_CACHE']!;
-
-/** Every file and directory under `dir` given `mode`, directories last when they close and first when they open. */
-function chmodAll(dir: string, file: number, directory: number): void {
-  if (directory !== 0o555) chmodSync(dir, directory);
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) chmodAll(path, file, directory);
-    else chmodSync(path, file);
-  }
-  if (directory === 0o555) chmodSync(dir, directory);
-}
-
-/** The cache as `chmod -R a-w` leaves it. */
+/** The cache as a writer finds it when it cannot take the index's lock: a directory there refuses root too, as a mode would not. */
 const unwritable = (): void => {
-  chmodAll(cache(), 0o444, 0o555);
+  const lock = `${sourceIndexPath(process.cwd())}.lock`;
+  rmSync(lock, { force: true });
+  mkdirSync(lock);
 };
 
 const cwd = process.cwd();
@@ -47,7 +37,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  chmodAll(cache(), 0o644, 0o755);
   process.chdir(cwd);
   vi.unstubAllEnvs();
 });
