@@ -63,3 +63,9 @@ When the runner starts, its seam computes the same selection again, which costs
 about 0.3 s. `selectSuite` also decodes the whole source index on every call,
 including a call where only prose changed. Both are costs of the read, not of
 the loop, and are fixed in the read.
+
+## Amended 2026-11-04 — lint moved into the loop
+
+[ADR-0099](0099-the-edit-loop-is-the-published-recipe.md#amended-2026-11-04--the-loop-lints-first-and-an-empty-run-says-it-ran-nothing)
+makes lint the loop's first step. The consequence above no longer leaves it to
+the waves.

@@ -51,7 +51,7 @@ describe('a Vitest 4 run handed a selection', () => {
   it('passes, running nothing, when the selection skips every file', async () => {
     const { code, stderr, ran } = await run('none', [at('one.case.ts'), at('two.case.ts')]);
 
-    expect(stderr).toContain('variance-authority: selected none of 2');
+    expect(stderr).toContain('variance-authority: selected none of 2, so none of them runs');
     expect(code).toBe(0);
     expect(ran).toEqual([]);
   }, 60_000);
