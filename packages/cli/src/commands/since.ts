@@ -174,9 +174,9 @@ const NEW_AT_ONCE = 8;
  */
 const tops = new Map<string, Promise<string | undefined>>();
 
-/** Files a diff from `base` to the working tree names, one per record; `asked` are flags of the diff's own. */
-async function changedFiles(run: Run, repository: string, base: string, asked: readonly string[] = []): Promise<readonly string[]> {
-  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', ...asked, base], {
+/** Files a diff from `base` to the working tree names, one per record. */
+async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
+  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', base], {
     cwd: repository,
     maxBuffer: 32 * 1024 * 1024,
   });
