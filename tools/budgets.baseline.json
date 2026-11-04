@@ -2932,7 +2932,6 @@
     9,
     8,
     7,
-    7,
     6
   ],
   "packages/sense/src/test-selection/journal.ts overview": [
@@ -3065,7 +3064,7 @@
   ],
   "packages/sense/src/test-selection/record-location.ts docblock": [
     40,
-    26,
+    25,
     11
   ],
   "packages/sense/src/test-selection/recorded-text.ts docblock": [

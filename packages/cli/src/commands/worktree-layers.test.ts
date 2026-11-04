@@ -10,6 +10,7 @@ import {
   readTestCoverage,
   seedTestCoverage,
   testCoverageFile,
+  withIndexLock,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { recordedExecutionFile } from './execution-input.js';
@@ -102,7 +103,7 @@ describe('a worktree that has not run', () => {
     }));
     // A run or a landing seeds first and lists itself after; this one stops between.
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    await seedTestCoverage(own, worktree, 'fixture');
+    await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
     process.chdir(worktree);
     await updateSourceIndex(worktree);
 
@@ -121,7 +122,7 @@ describe('a worktree that has not run', () => {
       files: ['test/total.test.ts', 'test/other.test.ts'],
     }));
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    await seedTestCoverage(own, worktree, 'fixture');
+    await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
 
     const written = JSON.parse(await readFile(commitRunsFile(own), 'utf8')) as Record<string, unknown>;
     expect(written['files']).toEqual(['test/other.test.ts', 'test/total.test.ts']);
@@ -211,7 +212,7 @@ describe('a worktree that has not run', () => {
 
     // The snapshot is already the worktree's own, so a later seed copies no
     // cases into it.
-    await seedTestCoverage(own, worktree, 'fixture');
+    await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
     expect(keepsCases(own)).toBe(false);
   });
 });

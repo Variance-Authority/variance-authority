@@ -1050,7 +1050,7 @@
         "variance-authority-help": "./dist/bin.js"
       },
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
@@ -3173,6 +3173,7 @@
         "HeldNames": "interface",
         "Hunk": "interface",
         "ImporterReason": "interface",
+        "IndexLock": "class",
         "IndexedCut": "interface",
         "JourneyArtifactResult": "interface",
         "JourneyDivergence": "interface",
@@ -3311,6 +3312,7 @@
         "beforeOf": "function",
         "blobsAt": "function",
         "blocksOfTarget": "function",
+        "busyIndex": "function",
         "byRelations": "function",
         "bytesUnder": "function",
         "cacheLayers": "function",
@@ -3414,7 +3416,6 @@
         "narrowByExecutionFromView": "function",
         "narrowByJourneys": "function",
         "nearestFirst": "function",
-        "noteSeeded": "function",
         "openCoverageFile": "function",
         "openSetColumns": "function",
         "openTestCoverage": "function",
@@ -3429,6 +3430,7 @@
         "placeInText": "function",
         "placeInTexts": "function",
         "planPrune": "function",
+        "prepareRecord": "function",
         "projectJourneyFile": "function",
         "pruneWhenDue": "function",
         "prunedLine": "function",

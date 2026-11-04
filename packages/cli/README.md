@@ -2046,7 +2046,10 @@ config declares suites — unless `--into <path>` names somewhere else — a job
 folds and uploads names the artifact it uploads. Landing is a layer, not a
 replacement: what was already there is merged under the fold, so the result
 stands at the fold's commit, retires every observation the fold re-recorded
-whole, and keeps the ones it did not.
+whole, and keeps the ones it did not. The exception is a cached record under
+other probes than the shards': it can take no layer, so `journeys` replaces it
+and prints one line naming the file and both sets of probes. One `--into` names
+is refused and left as it is.
 
 The case index lands with the snapshot, because it is part of it: a seam that
 records cases writes them into the record, so each shard's one file carries

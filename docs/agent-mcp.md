@@ -55,10 +55,20 @@ goes through `npx`:
 }
 ```
 
-Both `npx` and the relative report path read the directory the client starts the
-server in. A client that starts outside the repository, as Claude Desktop may,
-takes its absolute path twice: `"args": ["--prefix", "/path/to/repo",
-"variance-authority-mcp", "/path/to/repo/.variance/report.json"]`.
+`npx`, the relative report path and the server's repository all come from the
+directory the client starts the server in. A client that starts outside the
+repository, as Claude Desktop may, enters it first. On macOS and Linux:
+
+```json
+{
+  "mcpServers": {
+    "variance": {
+      "command": "sh",
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp .variance/report.json"]
+    }
+  }
+}
+```
 
 The server validates the report at startup and re-reads it before each request,
 so a completed rerun is answered from the new report without reconnecting.

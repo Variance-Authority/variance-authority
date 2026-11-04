@@ -73,7 +73,7 @@ nothing on this page is a step in that workflow.
 
 ## Requirements
 
-Node 22 or newer. The package is ESM-only (`"type": "module"`), so a CommonJS
+Node 22.15 or newer. The package is ESM-only (`"type": "module"`), so a CommonJS
 project loads it through `import()`. There are no peer dependencies and no
 configuration file. It works on a checkout that is not a git repository, is not
 a workspace, and has no `package.json` at all — with no manifest there is

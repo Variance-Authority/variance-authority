@@ -138,8 +138,9 @@ export async function layMainline(
       return { passed: { suite: record.suite, file: record.coverage, instrumentation: written, run: instrumentation } };
     }
   }
-  const laid = await selection.layFetchedMainline(fetchedOf(record), own);
-  return laid ? { laid: own } : undefined;
+  const laid = await selection.withIndexLock(own, (lock) => selection.layFetchedMainline(fetchedOf(record), lock));
+  if (!laid.held) throw new Error(selection.busyIndex(own));
+  return laid.value ? { laid: own } : undefined;
 }
 
 /**

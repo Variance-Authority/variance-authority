@@ -35,6 +35,7 @@ import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
+import type { IndexLock } from './index-lock.js';
 import { writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { declaredSuites } from './suites.js';
@@ -160,7 +161,9 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
  * A runs record already in the own layer beside no snapshot describes
  * nothing, and is replaced or removed with the lay.
  */
-export async function layFetchedMainline(record: LastFetched, file: string): Promise<boolean> {
+export async function layFetchedMainline(record: LastFetched, lock: IndexLock): Promise<boolean> {
+  const { file } = lock;
+  // Held from here to the lay, so what a run lands is not laid over.
   try {
     await stat(file);
     return false;

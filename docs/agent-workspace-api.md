@@ -13,17 +13,6 @@ generated API site or `variance.config.json` is involved.
 You need a git repository and Node 22.15 or newer. You do not need a
 `variance.config.json` or a run.
 
-To try one question first, `variance-authority-help` answers on the command
-line, with no client and no server, and `npx` runs it without an install:
-
-```bash
-npx @variance-authority/help search viewport --root .
-```
-
-Pass the package name to `npx`, not the binary name: `variance-authority-help`
-is not a package name and the registry will report it missing. `--root` is the
-workspace to read; omit it when you are standing in that workspace.
-
 Your agent asks the same questions by either of two routes: the shell, `npx
 variance ask`, for an agent that runs commands, and MCP, for a client that reaches
 tools only through a server. Both start here: `@variance-authority/cli` builds
@@ -69,11 +58,13 @@ A name the index does not hold is looked for again in the checkout as it is, so
 a function you just wrote is answered with no step from you. A name it does hold
 is answered from the index, which a question reuses for an hour, and read again
 when a file the answer rests on changed since. An edit anywhere else can leave
-that answer behind. Run `variance index` when the next answer has to match it: who imports a name, and which names exist, are then current. The signature
-and comment of a name that stays exported are not. A question reads them again
-once the index is over an hour old, and a `variance index` that read a changed
-file restarts that hour, so read the file itself for those. `ask search` answers
-from the last index at any age, and its last line says so.
+that answer behind. Run `variance index` when the next answer has to match it:
+who imports a name, and which names exist, are then current. What `ask symbol`
+prints from the declaration of a name that stays exported — its kind, line,
+signature and comment — can stay old. A question reads them again once the index
+is over an hour old, and a `variance index` that read a changed file restarts
+that hour, so read the file itself for those. `ask search` answers from the last
+index at any age, and its last line says so.
 
 Your agent can now run any `npx variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
@@ -419,6 +410,17 @@ generation. An answer names a flag or a next question the same way —
 `--from`, `variance ask symbol` — where the tool over MCP says `from` and
 `docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
+
+Without an install, `variance-authority-help` answers the same search on the
+command line, with no client and no server:
+
+```bash
+npx @variance-authority/help search viewport --root .
+```
+
+Pass the package name to `npx`, not the binary name: `variance-authority-help`
+is not a package name and the registry will report it missing. `--root` is the
+workspace to read; omit it when you are standing in that workspace.
 
 The rest of this page is the contract of those tools, whichever route asks them.
 
