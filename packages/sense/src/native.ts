@@ -28,6 +28,7 @@ import type {
   NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeCommitTexts } from './native-commit-text.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
@@ -122,7 +123,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -235,16 +236,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
-  /** `paths[at]` at `commits[at]` as columns: a path the commit does not hold left out, one git could not read refused with git's reason; throws when git answers nothing. */
-  textsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
-  /** One path at one commit from a `git cat-file --batch` left open, `null` a path the commit does not hold; throws git's reason for one it could not read. */
-  textAt?(root: string, commit: string, file: string): string | null;
-  /** In a partial clone, fetches the blobs `commit` names at `files` in one request. */
-  fetchTextsAt?(root: string, commit: string, files: string[]): void;
-  /** `textsAt`'s listing without the bodies: each path's blob name, `git:<object>`, in the same columns. */
-  blobsAt?(root: string, commits: string[], paths: string[][]): { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
-  /** Why `commit` cannot be read here when this checkout's object store does not hold it, with the fetch that brings it. */
-  commitAbsent?(root: string, commit: string): string | null;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
   /** Every module id a run's cases and parts name, for the caller to cut again with `deriveModules`. */

@@ -63,6 +63,7 @@
  */
 
 import { native, nativeRefusal } from '../addon.js';
+import type { NativeTextColumns } from '../native-commit-text.js';
 
 /**
  * How much a reader holds, in the bytes this process spends on it.
@@ -210,7 +211,7 @@ export function blobsAt(root: string, asked: ReadonlyMap<string, Iterable<string
   return answered(readBlobsAt(root, asked));
 }
 
-type Columns = (root: string, commits: string[], paths: string[][]) => { commit: number[]; file: string[]; text: string[]; refusedCommit: number[]; refusedFile: string[]; refused: string[] };
+type Columns = (root: string, commits: string[], paths: string[][]) => NativeTextColumns;
 
 function unread(): Error {
   return new Error(`the text at a recording is read by the native addon, which ${nativeRefusal() || 'is older than this package'}`);
