@@ -72,18 +72,27 @@ have been built; none was closed for broken code. A `docs`, `chore`, `ci`,
 loop, and the kind's own row in the pull request reference is its gate.
 
 **The brief is the issue.** Every change to what the product does — a
-`feat`, `fix` or `perf` — starts as a GitHub issue, found or filed as "Tasks are GitHub issues" in `AGENTS.md` says. Its body holds, in
-this order:
+`feat`, `fix` or `perf` — starts as a GitHub issue, found or filed as "Tasks
+are GitHub issues" in `AGENTS.md` says. Its body holds, in this order, one
+section to a heading:
 
-- **Problem**: what is wrong or missing, apart from any fix.
+- **Situation**: `Given` the state and `When` the one thing somebody does, in
+  Gherkin lines, apart from any fix.
+- **Perceived**: what they get today, as the output reads, what they do
+  instead, and what already answers part of it.
+- **Expected**: `Then` what they should get, in Gherkin lines. A `Then` is
+  something a reader can observe, never the mechanism that produces it.
 - **Evidence**: who has the problem, each item something a reader can open —
   the owner's ask quoted, an issue, a failing run, a measurement, a spec in
   `docs/specs/`. "Users may want", "for completeness" and "it was easy" are not
   evidence.
-- **Today**: what they do without the change, and what already answers part
-  of it.
+- **Affected**: the commands, packages, runners and `.compass/` blocks the
+  scenario crosses.
+- **Impact**: who is hurt, how often, what it costs them, and what happens if
+  this is never done, and why each RICE label holds.
 - **Change**: the smallest change that answers it, in the project's concepts.
-- **Done when**: a checklist, each item a gate that fails on today's code.
+- **Done when**: a checklist, each item a gate that fails on today's code. Each
+  `Then` is one of them.
 
 **Review.** The `occam` agent reviews the issue alone, in its idea mode: the
 issue number, and nothing of your reasons. It opens every piece of evidence,
