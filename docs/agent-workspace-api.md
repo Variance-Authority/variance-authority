@@ -8,17 +8,6 @@ its import line and existing import sites. `variance index` reads your source
 into it once, outside your tracked files. Your code is not built or run, and no
 generated API site or `variance.config.json` is involved.
 
-This is the source how-to and contract for
-[orientation](orientation.md). Start there when you need to choose between text
-search, indexed source search and observed-subject search.
-
-The difference matters when a checkout is too large to open again for every
-question. A [source index](source-index.md) parses and resolves a file once,
-stores its exported names and outgoing edges, and reuses that record while the
-file and its resolution inputs stay the same. A question with `from` or `to`
-then filters names through those stored edges instead of searching every file
-for another string.
-
 ## Connect your agent
 
 You need a git repository and Node 22.15 or newer. You do not need a
@@ -144,6 +133,10 @@ a name: the answer should come from `ask uses`, not a text search.
 
 ## Choose the cheapest entrance
 
+This is the source how-to and contract for
+[orientation](orientation.md). Start there when you need to choose between text
+search, indexed source search and observed-subject search.
+
 | You need | Start with |
 | --- | --- |
 | An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
@@ -153,6 +146,13 @@ a name: the answer should come from `ask uses`, not a text search.
 | Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
 
 ## Search finds the name; the graph finds the area
+
+An index matters when a checkout is too large to open again for every
+question. A [source index](source-index.md) parses and resolves a file once,
+stores its exported names and outgoing edges, and reuses that record while the
+file and its resolution inputs stay the same. A question with `from` or `to`
+then filters names through those stored edges instead of searching every file
+for another string.
 
 Each run of `variance index` publishes a dated generation of the index, and a
 generation combines two different answers. Names and documentation find a

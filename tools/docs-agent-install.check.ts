@@ -105,7 +105,13 @@ interface Entry {
 }
 
 interface Followed {
-  readonly lines: readonly { readonly line: string; readonly status: number | null; readonly out: string }[];
+  /** `out` is the answer; `said` is what a command says while it works, such as what it waits for, which the load decides. */
+  readonly lines: readonly {
+    readonly line: string;
+    readonly status: number | null;
+    readonly out: string;
+    readonly said: string;
+  }[];
   readonly tools: readonly string[];
   readonly map: string;
 }
@@ -148,7 +154,7 @@ async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed>
     .filter((line) => !STANDS_IN.test(line))
     .map((line) => {
       const run = spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' });
-      return { line, status: run.status, out: run.stdout + run.stderr };
+      return { line, status: run.status, out: run.stdout, said: run.stderr };
     });
   const list = JSON.parse(fences.find((fence) => fence.lang === 'json')?.code ?? '{}') as {
     mcpServers: Readonly<Record<string, Entry>>;
