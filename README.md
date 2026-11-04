@@ -27,6 +27,7 @@ as the investigation grows.
 
 | What do you need to do? | Start here |
 | --- | --- |
+| Give your coding agent these answers | [Connect it](docs/agent-workspace-api.md#connect-your-agent): one install and one index, with no config and no test run, then a few lines in `AGENTS.md`. |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
