@@ -6,7 +6,7 @@ import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
 import { textSince } from './as-read.js';
 import { declaredMatch } from './declared.js';
-import type { DeclaredMatch, FileMatch } from './search-answer.js';
+import type { DeclaredMatch, FileMatch } from './search-matches.js';
 import { admittedBy, rowWithin, termsOfStems } from './loose.js';
 
 // compass: variance-authority.report.agent-surface

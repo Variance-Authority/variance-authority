@@ -142,15 +142,13 @@ export { formatOrientation, type OrientReading } from './tools/orient-format.js'
 export { answerSearch, searchIndexOf, searchQuestionOf } from './tools/search.js';
 export type {
   ExportedMatch,
-  InArea,
   Matches,
-  PublishedMatch,
   SearchAnswer,
   SearchArea,
   SearchQuestion,
-} from './tools/search-answer.js';
+} from './tools/search-matches.js';
 export { searchNames } from './tools/search-answer.js';
-export { importingOf, type ImportingOf, type ImportingOne } from './tools/published-match.js';
+export { importingOf, type ImportingOf, type ImportingOne, type InArea, type PublishedMatch } from './tools/published-match.js';
 export type { ImportedIn } from './tools/uses-count.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';

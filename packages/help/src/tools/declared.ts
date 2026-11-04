@@ -20,7 +20,7 @@
 
 import { declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
-import type { DeclaredMatch, Matches } from './search-answer.js';
+import type { DeclaredMatch, Matches } from './search-matches.js';
 import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';

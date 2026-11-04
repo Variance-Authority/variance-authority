@@ -1,4 +1,4 @@
-import type { SearchAnswer } from './search-answer.js';
+import type { SearchAnswer } from './search-matches.js';
 import type { Help } from '@variance-authority/package/help';
 import { type ImportedIn, importingIn } from './uses-count.js';
 import { publishedSitesOf } from './uses-of.js';

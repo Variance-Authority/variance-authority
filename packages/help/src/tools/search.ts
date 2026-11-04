@@ -6,9 +6,10 @@ import { workspaceReadStarted } from '../snapshot.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, PublishedMatch, SearchQuestion } from './search-answer.js';
+import type { PublishedMatch } from './published-match.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, Searched, SearchQuestion } from './search-matches.js';
 import { declaredLine, unreadLine } from './declared.js';
-import { type Searched, searched, searchedFiles } from './search-answer.js';
+import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
 
