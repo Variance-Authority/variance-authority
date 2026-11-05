@@ -369,7 +369,7 @@ describe('the cleared comment', () => {
 });
 
 describe('the projects the workflow observes', () => {
-  it('says the label is the review, because a project may share its name with a review service', async () => {
+  it('says the tick or the label is the review, because a project may share its name with a review service', async () => {
     const accept = (await readFile(WORKFLOW, 'utf8')).split('\n').find((line) => line.includes('matrix.label') && line.includes('to-accept:'));
 
     expect(accept).toContain('That is the whole review: no review service holds this run.');
