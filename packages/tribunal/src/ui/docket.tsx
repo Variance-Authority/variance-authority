@@ -220,7 +220,8 @@ function Build({
             {route.page === 'subject' ? (
               <SubjectRail
                 subjects={listed}
-                changes={origins.length}
+                causes={build.causes.length}
+                variations={build.variations.length}
                 selected={route.subject}
                 onSelect={(next) =>
                   go(

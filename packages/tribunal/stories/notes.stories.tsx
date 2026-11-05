@@ -1,9 +1,9 @@
 /**
  * The notes the review page writes beside a change: concerns, findings, the
- * declaration audit, the overview's rail, what moved, why, and where it came from.
+ * declaration audit, the docket rail, what moved, why, and where it came from.
  *
  * Each sits in the box the page puts it in — the subject page's aside, the
- * overview's rail, the run page's card, the change page's column — because that
+ * docket's rail, the run page's card, the change page's column — because that
  * box's width is where its sentences wrap and its background is what its tags
  * are drawn against. Every value is the recorded build's; a state the recording
  * never reached is the recorded object with the fewest fields moved to reach it.
@@ -70,7 +70,7 @@ const aside =
     </aside>
   );
 
-/** The overview's rail, 21rem wide. */
+/** The docket's rail, 21rem wide. */
 const rail: Decorator = (Story) => (
   <nav className="va-rail">
     <Story />
@@ -265,7 +265,7 @@ export const DeclarationsNoLedger = inCard('Declarations', () => <DeclarationsPa
 export const DeclarationsIgnores = inCard('Declarations', () => <DeclarationsPanel declarations={ignored} />);
 export const DeclarationsSensitivities = inCard('Declarations', () => <DeclarationsPanel declarations={relaxed} />);
 
-/* --- the overview's rail -------------------------------------------------- */
+/* --- the docket rail ----------------------------------------------------- */
 
 function Rail({ build, order, selected }: { build: BuildDetail; order: Order; selected?: string }): ReactElement {
   return <OriginsPanel build={build} crossing={useCrossing(client, build)} order={order} selected={selected} go={go} />;
@@ -337,6 +337,9 @@ export const MovedHereMeasured = side('What moved', () => <MovedHere subject={pr
 const elsewhere = movedElsewhere('Button', changed.subjects, new Set([primary.subject, secondary.subject])).map(
   (each, index) => (index === 0 ? { ...each, filedUnder: 'Card' } : index === 1 ? { ...each, drawn: false } : each),
 );
+
+// Both revisions were read and every component hash matched.
+export const MovedHereHashesMatched = side('What moved', () => <MovedHere subject={{ ...composed, moved: [] }} />);
 
 export const MovedElsewhereFiled = bare(() => <MovedElsewhere component="Button" found={elsewhere} build={CHANGED} go={go} />);
 

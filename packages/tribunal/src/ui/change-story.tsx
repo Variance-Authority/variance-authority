@@ -62,7 +62,7 @@ export function Tally({
 
   return (
     <p className="va-tally">
-      <span title="Every render this component moved in, whichever change it is listed under.">
+      <span title="Every render this component moved in, wherever the docket filed it.">
         <strong>{count(know, 'render')}</strong> to know about
       </span>
       <span title="Distinct shapes among the renders on this page — how many pictures there are to look at, rather than how many renders carry them.">
@@ -448,7 +448,7 @@ export function Collateral({ build }: { readonly build: BuildDetail }): ReactEle
 export function Evidence(): ReactElement {
   return (
     <p className="va-evidence">
-      Each band compares component hashes —{' '}
+      Each band is a digest comparison —{' '}
       {ORDER.filter((band) => band !== 'texture').map((band, index) => (
         <span key={band}>
           {index === 0 ? '' : '; '}

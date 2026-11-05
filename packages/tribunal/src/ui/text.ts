@@ -299,5 +299,7 @@ export function briefly(subject: {
   const size = magnitudeOf(subject);
   if (size.regions === 0) return count(size.total, 'pixel');
 
-  return `${count(size.regions, 'region')} · ${number(size.total)}px`;
+  return size.changes === undefined
+    ? `${count(size.regions, 'region')} · ${number(size.total)}px`
+    : `${count(size.changes, 'change')} · ${count(size.regions, 'region')} · ${number(size.total)}px`;
 }

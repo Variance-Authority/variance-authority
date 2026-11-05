@@ -248,7 +248,17 @@ export function MovedHere({
 }): ReactElement | null {
   const sense = senseOfSubject(subject);
 
-  if (sense.moved.length === 0) return null;
+  // Which of the two it was is `gapsOf`'s to say.
+  if (sense.unmeasured !== undefined) return null;
+
+  if (sense.moved.length === 0) {
+    return (
+      <p className="va-note">
+        Both revisions were read and every component hash matched. Whatever differs here is beneath
+        the semantic tier, or belongs to a part of the page the walk assigned no component to.
+      </p>
+    );
+  }
 
   return (
     <>
@@ -266,7 +276,7 @@ export function MovedHere({
       )}
       {sense.pushed.length === 0 ? null : (
         <p className="va-note">
-          A region names {sense.pushed.join(', ')}, whose own hashes did not change: pushed by
+          A region names {sense.pushed.join(', ')}, whose own hashes held still: pushed by
           something else, not edited.
         </p>
       )}

@@ -346,7 +346,7 @@ Until something prints both numbers, neither looks like a version mismatch.
 
 When `ReviewApp` is open on a build, in this order:
 
-1. **The changes** — one entry per component the analysis named as a cause,
+1. **The docket** — one entry per component the analysis named as a cause,
    largest first, with the file each is declared in. Ranked by cause pixels, not
    by total area, so a large container that only reflowed does not outrank the
    smaller edit that pushed it. Collateral is one number for the build.
@@ -354,7 +354,7 @@ When `ReviewApp` is open on a build, in this order:
    labelled with the component that owns it.
 3. **The comparison** — swipe, onion, side-by-side, difference mask — last, and
    only the modes this build actually kept images for.
-4. **The history, on request per subject**: how often this subject has failed to
+4. **The record, on request per subject**: how often this subject has failed to
    read the same way twice, how often its cause has caused an approved change,
    and how many subjects that component reaches. Fetched when a reviewer clicks
    *Has this changed before?* rather than with the build — a build with three
@@ -390,12 +390,12 @@ still keeps are counted, so a build removed by `POST /review/sweep` is not named
 A render that is `unchanged` or `ignored`, or kept no candidate, has no line.
 
 *Approve* and *Reject* sit at the top right of the render, beside its name, and
-stay there while the picture scrolls. A render whose image the run did not keep
-offers neither: nobody can judge what nobody can see, so the page says why and
-the render waits for a run that keeps one. An approved render shows who approved
-it; a rejected one can still be approved. Everything else sits in one bar under
-the picture, with where the render stands in the rail — *2 of 5*, or *not in the
-queue* for one opened by a link.
+stay there while the picture scrolls. A decided render shows who decided it,
+when and why, and both stay live. A render whose image the run did not keep
+offers neither, and the page says why beside them. An image on screen with no
+document behind it can be rejected, not approved: it cannot become a baseline.
+Everything else sits in one bar under the picture, with where the render stands
+in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
 Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 <kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
 concern and <kbd>I</kbd> opens one already under investigation, as
@@ -443,7 +443,7 @@ nothing else on the page would lead you to it. A task with nothing in it cannot
 be chosen. When the concerns could not be read, the three concern tasks show `?`
 and say why instead of a count of zero.
 
-The run page — *what this run read*, one link from the overview — shows **where
+The run page — *what this run read*, one link from the docket — shows **where
 the subjects parted**, when the build was instrumented with probes and so has
 a [journey](https://variance-authority.dev/docs/journeys) for each subject. The
 record `variance journeys` prints per module is turned round to face the subject:
@@ -475,7 +475,7 @@ values it is missing. The pairs stay listed underneath with what each measured, 
 repeating their pictures.
 
 **Stories of one component that render the same image** are named on the
-overview, though no diff shows them: both are `new`, or both changed the same
+docket, though no diff shows them: both are `new`, or both changed the same
 way, and neither is red. A story whose candidate is byte for byte its sibling's is an arm
 whose flag reaches no pixel, or one state under two names (`dark-narrow` and
 `narrow-dark`). The build already stores every candidate under the SHA-256 of

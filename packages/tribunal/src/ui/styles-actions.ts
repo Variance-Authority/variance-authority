@@ -5,7 +5,7 @@
  * both are laid out in the space the page leaves, never over it. A bar drawn over
  * the bottom of the picture hides the last rows of a capture, which on a
  * full-page render is the footer — and a moved footer is a change somebody
- * approved without seeing. *Approve* is the one filled control among them.
+ * approved without seeing.
  */
 export const ACTION_STYLES = `
 .va-subject-panes { display: flex; flex: 1; min-height: 0; min-width: 0; }
@@ -21,6 +21,7 @@ export const ACTION_STYLES = `
 .va-actionbar { align-items: center; background: var(--va-surface); border-top: 1px solid var(--va-line); display: flex; flex: none; flex-wrap: wrap; gap: 0.6rem 1.2rem; justify-content: space-between; min-width: 0; padding: 0.6rem 1rem; }
 .va-actionbar-acts { align-items: center; display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 0.4rem; min-width: 0; }
 .va-actionbar-acts button { align-items: center; display: inline-flex; font-weight: 600; gap: 0.45rem; white-space: nowrap; }
+.va-actionbar-acts .va-next:not(:disabled) { background: var(--va-accent); border-color: var(--va-accent); color: var(--va-accent-ink); }
 .va-actionbar-acts .va-num { color: var(--va-ink-2); font-size: 0.82rem; margin-right: 0.3rem; white-space: nowrap; }
 .va-actionbar-acts .va-keys { color: var(--va-ink-3); font-weight: 500; }
 .va-actionbar kbd { border: 1px solid currentColor; border-radius: 4px; font-family: var(--va-mono); font-size: 0.64rem; font-weight: 500; line-height: 1; opacity: 0.7; padding: 0.12rem 0.3rem; }

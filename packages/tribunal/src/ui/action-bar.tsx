@@ -74,7 +74,12 @@ export function ActionBar({
   return (
     <section className="va-actionbar" aria-label="What you can do with this render">
       <div className="va-actionbar-acts">
-        <button type="button" aria-keyshortcuts={f.shortcut} onClick={() => onSuspect('open')}>
+        <button
+          type="button"
+          className="va-suspicious"
+          aria-keyshortcuts={f.shortcut}
+          onClick={() => onSuspect('open')}
+        >
           Looks suspicious {f.hint}
         </button>
         <button
@@ -105,6 +110,7 @@ export function ActionBar({
             </button>
             <button
               type="button"
+              className="va-next"
               aria-keyshortcuts={j.shortcut}
               disabled={place?.next === undefined}
               onClick={() => go(place?.next)}

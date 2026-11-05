@@ -52,6 +52,7 @@ import type { MovedBaseline, ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
 import { HeldStill, controlsFor } from './control.js';
 import type { Crossing } from './crossing.js';
+import { verdictOf } from './decision.js';
 import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
 import { handedTo } from './handed.js';
@@ -106,7 +107,7 @@ export function ChangePanel({
   const causes = causesOf(build, origin);
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
-    ({ subject }) => subject.decision === null && subject.approvable,
+    ({ subject }) => subject.decision === null && verdictOf(subject).approve,
   );
 
   return (
@@ -263,6 +264,7 @@ function Where({
   readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const { subject, pixels } = appearance;
+  const verdict = verdictOf(subject);
   // Minus the names the mark beside it already carries. `alongside` is every
   // component the regions put in this render, causes and pushed together, and
   // printing `also CardFooter` next to `alongside CardFooter` spends the row's
@@ -327,20 +329,17 @@ function Where({
           <button
             type="button"
             className="va-approve"
-            disabled={busy || !subject.approvable}
+            disabled={busy || !verdict.approve}
             onClick={() => void decide('approved')}
-            title={
-              subject.approvable
-                ? 'Make this render’s image the baseline, and no others'
-                : 'This run kept no new image for this subject, so there is nothing to judge.'
-            }
+            title={verdict.approve ? 'Promote this render’s candidate, and no others' : verdict.why}
           >
             ✓
           </button>
           <button
             type="button"
-            disabled={busy || !subject.has.after}
+            disabled={busy || !verdict.reject}
             onClick={() => void decide('rejected')}
+            title={verdict.reject ? undefined : verdict.why}
           >
             ✕
           </button>
@@ -393,7 +392,11 @@ function Batch({
   // The render a refusal stopped at, beside what moved, so the notice can name it.
   const [failed, setFailed] = useState<string | Stopped | undefined>(undefined);
 
-  const blocked = origin.appearances.length - open.length - settled;
+  const left = new Map<string, number>();
+  for (const { subject } of origin.appearances) {
+    const { why } = verdictOf(subject);
+    if (subject.decision === null && why !== undefined) left.set(why, (left.get(why) ?? 0) + 1);
+  }
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
@@ -431,7 +434,7 @@ function Batch({
         className="va-approve"
         disabled={busy || open.length === 0}
         onClick={() => void decide('approved')}
-        title={`Make this build’s image the baseline in every render ${origin.component} moved`}
+        title={`Promote the candidate in every render ${origin.component} moved`}
       >
         Approve this change{open.length === 0 ? '' : ` (${number(open.length)})`}
       </button>
@@ -443,11 +446,11 @@ function Batch({
         Reject
       </button>
       {settled === 0 ? null : <span className="va-note">{number(settled)} already decided</span>}
-      {blocked === 0 ? null : (
-        <span className="va-note">
-          {count(blocked, 'render')} kept no new image and cannot be decided here
+      {[...left].map(([why, renders]) => (
+        <span key={why} className="va-note">
+          {count(renders, 'render')} left out. {why}
         </span>
-      )}
+      ))}
       {failed === undefined ? null : typeof failed === 'string' ? (
         <p className="va-failure">{failed}</p>
       ) : (

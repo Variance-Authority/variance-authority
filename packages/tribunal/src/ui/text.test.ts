@@ -171,7 +171,7 @@ describe('the size of a change is counted in what is being decided', () => {
           { pixels: 900, fingerprint: 'f1' },
         ],
       }),
-    ).toBe('2 regions · 3,040px');
+    ).toBe('1 change · 2 regions · 3,040px');
   });
 
   it('reads a zero by the pixel axis in the short form too', () => {

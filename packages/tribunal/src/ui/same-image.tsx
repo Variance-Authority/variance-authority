@@ -147,7 +147,7 @@ export function Siblings({
       )}
       {drawn.length === members.length ? null : (
         <p className="va-note">
-          {count(members.length - drawn.length, 'story', 'stories')} kept no image, so{' '}
+          {count(members.length - drawn.length, 'story', 'stories')} kept no candidate, so{' '}
           {members.length - drawn.length === 1 ? 'it has' : 'they have'} no picture to set beside these.
         </p>
       )}

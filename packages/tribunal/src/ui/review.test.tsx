@@ -184,7 +184,7 @@ describe('what a reviewer is allowed to do', () => {
     );
 
     expect(markup).toContain('disabled');
-    expect(markup).toContain('Nothing can be approved or rejected');
+    expect(markup).toContain('nothing to approve or reject');
   });
 
   it('distinguishes a render that was inspected and clean from one nothing looked at', () => {

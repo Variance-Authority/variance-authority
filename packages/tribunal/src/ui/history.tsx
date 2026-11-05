@@ -287,7 +287,7 @@ export function SubjectHistory({
     );
   }
 
-  if (answer.state === 'loading') return <p className="va-note">Reading the history…</p>;
+  if (answer.state === 'loading') return <p className="va-note">Reading the record…</p>;
   if (answer.state === 'failed') return <Failure why={answer.why} retry={load} />;
 
   return (

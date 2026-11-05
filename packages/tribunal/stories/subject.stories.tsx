@@ -149,7 +149,8 @@ const rail = (build: string, selected: string | null): Story => ({
     <nav className="va-rail">
       <SubjectRail
         subjects={reviewable(build)}
-        changes={originsOf(buildOf(build)).origins.length}
+        causes={buildOf(build).causes.length}
+        variations={buildOf(build).variations.length}
         selected={selected}
         onSelect={none}
       />
@@ -158,7 +159,7 @@ const rail = (build: string, selected: string | null): Story => ({
 });
 
 export const RailChanged = rail(CHANGED, composed.subject);
-export const RailOnOverview = rail(CHANGED, null);
+export const RailOnDocket = rail(CHANGED, null);
 export const RailFirstRun = rail(BASE, first.subject);
 
 const inMode =
@@ -214,7 +215,7 @@ function Plated({ subject, focus }: { readonly subject: SubjectView; readonly fo
     >
       <Raster
         src={client.imageUrl(CHANGED, subject.subject, 'after')}
-        alt={`${subject.subject} in this build`}
+        alt={`${subject.subject} candidate`}
         size={subject.size}
         style={share(subject.size, box)}
       />
@@ -391,3 +392,5 @@ export const PanelNoImageKept = panel({
   has: { ...composed.has, after: false },
   approvable: false,
 });
+
+export const PanelNoDocument = panel({ ...composed, approvable: false });

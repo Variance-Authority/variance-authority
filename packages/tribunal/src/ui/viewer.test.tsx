@@ -151,7 +151,7 @@ describe('a docket of subjects does not decode every raster to draw a table', ()
 
     expect(tag('baseline')).toContain('loading="lazy"');
     expect(tag('baseline')).not.toContain('width=');
-    expect(tag('in this build')).toContain('width="8"');
+    expect(tag('candidate')).toContain('width="8"');
   });
 });
 

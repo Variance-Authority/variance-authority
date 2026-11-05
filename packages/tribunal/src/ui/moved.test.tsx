@@ -282,10 +282,14 @@ describe('the render’s own card', () => {
     expect(html).toContain('va-moved-passenger');
   });
 
-  it('draws nothing when there is no move to name', () => {
-    // Which of the three it was is said once, by the cause cell or `gapsOf`.
+  it('says a measured render’s hashes all matched', () => {
+    expect(draw(<MovedHere subject={subject({ moved: [] })} />)).toContain(
+      'every component hash matched',
+    );
+  });
+
+  it('draws nothing for a render nothing measured, whose gap `gapsOf` names', () => {
     expect(draw(<MovedHere subject={subject()} />)).toBe('');
-    expect(draw(<MovedHere subject={subject({ moved: [] })} />)).toBe('');
     expect(
       draw(<MovedHere subject={subject({ verdict: 'new', has: { before: false, after: true, diff: false } })} />),
     ).toBe('');

@@ -86,12 +86,7 @@ const inHead = (name: string): HTMLButtonElement | undefined =>
   [...head().querySelectorAll('button')].find((each) => each.textContent?.startsWith(name));
 const headings = (): (string | null)[] =>
   [...host.querySelectorAll('.va-aside h2')].map((each) => each.textContent);
-/** What a reader sees without opening anything. */
-function shown(): string {
-  const copy = host.cloneNode(true) as HTMLElement;
-  copy.querySelectorAll('details').forEach((each) => each.remove());
-  return copy.textContent ?? '';
-}
+const shown = (): string => host.textContent ?? '';
 const times = (text: string, part: string): number => text.split(part).length - 1;
 
 describe('the verdict sits at the top right of the render', () => {
@@ -108,26 +103,30 @@ describe('the verdict sits at the top right of the render', () => {
     expect(host.querySelector('.va-actionbar')?.textContent).not.toContain('Reject');
   });
 
-  it('leads with Approve and leaves Reject without the primary mark', async () => {
+  it('leads with Approve and keeps each button’s own class', async () => {
     await show(subject());
 
-    expect(inHead('Reject')?.className).not.toContain('va-approve');
+    expect(inHead('Reject')?.className).toContain('va-reject');
     expect([...head().querySelectorAll('button')].map((each) => each.textContent)).toEqual([
       'Approve',
       'Reject',
     ]);
   });
 
-  it('asks for no verdict on a render nothing is waiting on', async () => {
-    // An unchanged render already is its baseline, so there is nothing to accept.
-    await show(subject({ verdict: 'unchanged', changedPixels: 0, regions: [] }));
+  it('offers the verdict on every render, whatever the run called it', async () => {
+    for (const verdict of ['unchanged', 'ignored'] as const) {
+      await show(subject({ verdict, changedPixels: 0, regions: [] }));
 
-    expect(head().querySelectorAll('button')).toHaveLength(0);
+      expect(inHead('Approve')?.disabled).toBe(false);
+      expect(inHead('Reject')?.disabled).toBe(false);
+    }
   });
 });
 
 describe('a verdict is taken on something the reviewer can see', () => {
-  it('offers neither verdict when the run kept no image, and points at why', async () => {
+  const SAID = 'The run kept no candidate image, so there is nothing to approve or reject.';
+
+  it('offers neither verdict when the run kept no image, and says why beside them', async () => {
     const client = clientThat();
     await show(subject(NO_IMAGE), client);
 
@@ -135,24 +134,17 @@ describe('a verdict is taken on something the reviewer can see', () => {
     expect(inHead('Reject')?.disabled).toBe(true);
     const why = inHead('Reject')?.getAttribute('aria-describedby');
     expect(why).toBeTruthy();
-    expect(document.getElementById(why!)?.textContent).toContain('no new image');
+    expect(head().querySelector(`[id="${why}"]`)?.textContent).toBe(SAID);
     expect(inHead('Approve')?.getAttribute('aria-describedby')).toBe(why);
 
     await act(async () => inHead('Reject')?.click());
     expect(client.decided).toEqual([]);
   });
 
-  it('says the new image is missing even with the baseline on screen', async () => {
-    await show(subject(NO_IMAGE));
-
-    expect(shown()).toContain('kept no new image');
-    expect(shown()).toContain('Nothing can be approved or rejected');
-  });
-
   it('says the image is missing once, however many controls it stops', async () => {
     await show(subject({ approvable: false, has: { before: false, after: false, diff: false } }));
 
-    expect(times(shown(), 'kept no')).toBe(1);
+    expect(times(shown(), SAID)).toBe(1);
   });
 
   it('leaves everything but the verdict live on such a render', async () => {
@@ -173,45 +165,52 @@ describe('a verdict is taken on something the reviewer can see', () => {
 
     expect(inHead('Approve')?.disabled).toBe(true);
     expect(inHead('Reject')?.disabled).toBe(false);
-    expect(head().textContent).toContain('cannot become a baseline');
+    const why = inHead('Reject')?.getAttribute('aria-describedby');
+    expect(head().querySelector(`[id="${why}"]`)?.textContent).toContain('cannot become a baseline');
+    expect(shown()).not.toContain('no candidate image');
   });
 });
 
-describe('a render already decided shows the decision instead of the choice', () => {
+describe('a render already decided keeps its record and its verdict', () => {
   const by = { by: 'marina', at: '2026-06-01T12:00:00.000Z' };
 
-  it('offers nothing after an approval, which has already moved the baseline', async () => {
-    await show(subject({ decision: { decision: 'approved', ...by } }));
+  it('shows who decided and leaves both buttons live after an approval', async () => {
+    const client = clientThat();
+    await show(subject({ decision: { decision: 'approved', ...by } }), client);
 
     expect(head().textContent).toContain('approved by marina');
-    expect(head().querySelectorAll('button')).toHaveLength(0);
+    expect(inHead('Approve')?.disabled).toBe(false);
+
+    await act(async () => inHead('Reject')?.click());
+    expect(client.decided).toEqual(['rejected']);
   });
 
-  it('offers a rejected render a quiet way to approve it after all', async () => {
+  it('shows the note on a rejection and offers the same Approve, not another', async () => {
     const client = clientThat();
     await show(subject({ decision: { decision: 'rejected', note: 'too wide', ...by } }), client);
 
     expect(head().textContent).toContain('rejected by marina');
     expect(head().textContent).toContain('too wide');
-    expect(inHead('Approve instead')?.className).not.toContain('va-approve');
+    expect(inHead('Approve')?.textContent).toBe('Approve');
+    expect(inHead('Reject')?.disabled).toBe(false);
 
-    await act(async () => inHead('Approve instead')?.click());
+    await act(async () => inHead('Approve')?.click());
     expect(client.decided).toEqual(['approved']);
   });
 });
 
 describe('each fact has one home', () => {
-  it('states the pixel count once, outside the run’s own folded sentence', async () => {
-    await show(subject());
+  it('keeps the run’s own sentence in view, with nothing folded away', async () => {
+    await show(subject({ because: '1,530 pixels differ across 2 regions; the collection complained' }));
 
-    expect(times(shown(), '1,530')).toBe(1);
-    expect(host.querySelector('details .va-said')?.textContent).toContain('1,530 pixels differ');
+    expect(host.querySelector('.va-said')?.textContent).toContain('the collection complained');
+    expect(host.querySelector('details')).toBeNull();
   });
 
-  it('keeps the run’s sentence in view when nothing else measures the render', async () => {
-    await show(subject({ verdict: 'new', changedPixels: 0, regions: [], because: 'nothing to compare it with' }));
+  it('counts the pixels under the picture as well as in the glance', async () => {
+    await show(subject());
 
-    expect(shown()).toContain('nothing to compare it with');
+    expect(host.querySelector('.va-pixels')?.textContent).toContain('1,530');
   });
 
   it('still says what the numbers leave out', async () => {
@@ -231,10 +230,17 @@ describe('each fact has one home', () => {
 });
 
 describe('the column carries what has something to say', () => {
-  it('draws no card for a list that came back empty', async () => {
+  it('draws no card for findings that came back empty', async () => {
     await show(subject({ findings: [], moved: [] }));
 
-    expect(headings()).toEqual(['History']);
+    expect(headings()).not.toContain('Findings');
+  });
+
+  it('keeps What moved for a measured render, even with nothing moved', async () => {
+    await show(subject({ findings: [], moved: [] }));
+
+    expect(headings()).toEqual(['What moved', 'The record']);
+    expect(host.querySelector('.va-aside')?.textContent).toContain('every component hash matched');
   });
 
   it('keeps every card that has something in it', async () => {
@@ -245,17 +251,23 @@ describe('the column carries what has something to say', () => {
       } as unknown as Partial<SubjectView>),
     );
 
-    expect(headings()).toEqual(['What moved', 'Findings', 'History']);
+    expect(headings()).toEqual(['What moved', 'Findings', 'The record']);
   });
 
   it('names what was never measured, one line each, and no more', async () => {
     await show(subject());
     const gaps = [...host.querySelectorAll('.va-gaps li')].map((each) => each.textContent);
 
-    expect(headings()).toEqual(['Not measured', 'History']);
+    expect(headings()).toEqual(['Not measured', 'The record']);
     expect(gaps).toHaveLength(2);
     expect(gaps.join(' ')).toContain('no component hashes');
     expect(gaps.join(' ')).toContain('not inspected');
+  });
+
+  it('names the missing hashes on a render that changed size and no pixels', async () => {
+    await show(subject({ changedPixels: 0, regions: [], findings: [] }));
+
+    expect(host.querySelector('.va-gaps')?.textContent).toContain('no component hashes');
   });
 
   it('adds no line for a new render, whose verdict already says it has no baseline', async () => {
@@ -263,7 +275,7 @@ describe('the column carries what has something to say', () => {
       subject({ verdict: 'new', changedPixels: 0, regions: [], findings: [], has: { before: false, after: true, diff: false } }),
     );
 
-    expect(headings()).toEqual(['History']);
+    expect(headings()).toEqual(['The record']);
   });
 
   it('draws the concerns card once something is in it, and when asked for one', async () => {
@@ -278,14 +290,5 @@ describe('the column carries what has something to say', () => {
 
     expect(headings()).toContain('Concerns');
     expect(host.querySelector('form.va-concern-form')).not.toBeNull();
-  });
-});
-
-describe('words a new reviewer can read', () => {
-  it('says what it means when every component matched', async () => {
-    await show(subject({ moved: [] }));
-
-    expect(shown()).toContain('No component moved');
-    expect(shown()).not.toMatch(/digest|owned it|semantic tier/);
   });
 });

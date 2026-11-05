@@ -1,18 +1,41 @@
+// compass: variance-authority.review
 /**
  * The verdict on one render, at the top right of its page.
  *
- * *Approve* is the one filled control on the page, and it holds this place from
- * render to render. A verdict is taken on something seen, so with no image kept
- * neither button is live and both point at the viewer's note saying why. An
- * approval has already moved the baseline and a rejection would not move it back,
- * so what it leaves is the record of it; second thoughts are a concern.
+ * A verdict is taken on something seen, so with no image kept neither button is
+ * live and the reason stands beside them. {@link verdictOf} is the one reading of
+ * what each button may do: the rows and the batch on a change page take it from
+ * here, so the two pages cannot disagree about the same render.
  */
 
-import type { ReactElement } from 'react';
+import { useId, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
-import { needsReview } from './settled.js';
 import { when } from './text.js';
-import { NO_CANDIDATE } from './viewer.js';
+
+/** What a render lets a reviewer do, and the sentence for what it does not. */
+export interface Verdict {
+  readonly approve: boolean;
+  readonly reject: boolean;
+  readonly why: string | undefined;
+}
+
+export function verdictOf(subject: Pick<SubjectView, 'has' | 'approvable'>): Verdict {
+  if (!subject.has.after) {
+    return {
+      approve: false,
+      reject: false,
+      why: 'The run kept no candidate image, so there is nothing to approve or reject.',
+    };
+  }
+  if (!subject.approvable) {
+    return {
+      approve: false,
+      reject: true,
+      why: 'The run kept no document for this image, so it cannot become a baseline.',
+    };
+  }
+  return { approve: true, reject: true, why: undefined };
+}
 
 export function DecisionControls({
   subject,
@@ -22,49 +45,40 @@ export function DecisionControls({
   readonly subject: SubjectView;
   readonly busy: boolean;
   readonly onDecide: (decision: Decision) => void;
-}): ReactElement | null {
+}): ReactElement {
+  const verdict = verdictOf(subject);
   const decided = subject.decision;
-
-  if (decided !== null) {
-    return (
-      <div className="va-subject-decision">
-        <p className={decided.decision === 'rejected' ? 'va-decision va-decision-rejected' : 'va-decision'}>
-          {decided.decision} by {decided.by} · {when(decided.at)}
-          {decided.note === undefined ? null : <> — {decided.note}</>}
-        </p>
-        {decided.decision === 'rejected' && subject.approvable ? (
-          <button type="button" disabled={busy} onClick={() => onDecide('approved')}>
-            Approve instead
-          </button>
-        ) : null}
-      </div>
-    );
-  }
-
-  // An unchanged render already is its baseline: there is nothing to accept.
-  if (!needsReview(subject.verdict)) return null;
-
-  const why = subject.has.after ? undefined : NO_CANDIDATE;
+  const id = useId();
+  const described = verdict.why === undefined ? undefined : id;
 
   return (
     <div className="va-subject-decision">
-      {subject.has.after && !subject.approvable ? (
-        <p className="va-note">The run kept no document for this image, so it cannot become a baseline.</p>
-      ) : null}
+      {decided === null ? null : (
+        <p className="va-decision">
+          {decided.decision} by {decided.by} · {when(decided.at)}
+          {decided.note === undefined ? null : <> — {decided.note}</>}
+        </p>
+      )}
+      {verdict.why === undefined ? null : (
+        <p className="va-note" id={id}>
+          {verdict.why}
+        </p>
+      )}
       <button
         type="button"
         className="va-approve"
-        disabled={busy || !subject.approvable}
-        aria-describedby={why}
-        title="Make this build’s image the baseline"
+        disabled={busy || !verdict.approve}
+        aria-describedby={described}
+        title={verdict.approve ? 'Make this build’s candidate the baseline' : undefined}
         onClick={() => onDecide('approved')}
       >
         Approve
       </button>
       <button
         type="button"
-        disabled={busy || !subject.has.after}
-        aria-describedby={why}
+        className="va-reject"
+        disabled={busy || !verdict.reject}
+        aria-describedby={described}
         onClick={() => onDecide('rejected')}
       >
         Reject

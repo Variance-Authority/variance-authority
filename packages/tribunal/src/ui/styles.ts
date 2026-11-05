@@ -215,7 +215,6 @@ export const REVIEW_STYLES = `
 .va-glance-none b { color: var(--va-ink-2); font-size: 1.05rem; }
 .va-glance-off { background: var(--va-warn-bg); border-radius: 4px; color: var(--va-warn-ink); margin-top: 0.15rem; padding: 0.05rem 0.35rem; width: fit-content; }
 .va-said { color: var(--va-ink-3); font-size: 0.78rem; margin: 0.1rem 0 0; max-width: 74ch; }
-.va-said-fold summary { color: var(--va-ink-3); cursor: pointer; font-size: 0.78rem; }
 .va-gaps { color: var(--va-ink-2); display: grid; font-size: 0.82rem; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }
 .va-intent { color: var(--va-ink-2); font-size: 0.88rem; }
 .va-subtitle { color: var(--va-ink-3); font-size: 0.88rem; margin-top: 0.2rem; }
@@ -439,7 +438,6 @@ ${ACTION_STYLES}
 .va-not-observed .va-failed { color: var(--va-bad); font-weight: 600; }
 
 .va-decision { color: var(--va-good); font-size: 0.86rem; margin-bottom: 0.5rem; }
-.va-decision-rejected { color: var(--va-bad-ink); }
 .va-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .va-actions button { flex: 1; font-weight: 600; }
 .va-actions .va-approve { background: var(--va-good); border-color: var(--va-good); color: #ffffff; }

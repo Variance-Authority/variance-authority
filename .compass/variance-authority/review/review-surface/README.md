@@ -66,6 +66,12 @@ made, to recover from a network error.
   in it
 - `packages/tribunal/src/ui/docket.tsx`, `change.tsx`, `subject.tsx`, `run.tsx`,
   `viewer.tsx`, `history.tsx` — the pages
+- `packages/tribunal/src/ui/decision.tsx` — the verdict at the top right of a
+  render, and the one reading of what it lets a reviewer do
+- `packages/tribunal/src/ui/opening.tsx` — the overview's first line, on the count
+  the header gives
+- `packages/tribunal/src/ui/gaps.ts` — what nobody measured on a render, one line
+  per gap
 - `packages/tribunal/src/ui/carried.tsx` — the other causes riding in the same
   candidate, named before the press
 - `packages/tribunal/src/ui/repeated.tsx` — the earlier build that kept the same

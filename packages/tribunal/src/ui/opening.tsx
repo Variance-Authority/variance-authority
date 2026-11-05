@@ -4,10 +4,8 @@ import type { BuildDetail } from '../review-types.js';
 import type { Crossing } from './crossing.js';
 import { originsOf, type Origin } from './grouping.js';
 import { Impact } from './impact.js';
-import { queueOf } from './rail.js';
 import type { Route } from './route.js';
 import { SameImageNote } from './same-image.js';
-import { needsReview } from './settled.js';
 import { Go } from './shell.js';
 import { count, number } from './text.js';
 
@@ -38,9 +36,6 @@ export function Opening({
   readonly go: (route: Route) => void;
 }): ReactElement {
   const { origins, unattributed } = originsOf(build);
-  const [first] = queueOf(
-    build.subjects.filter((each) => needsReview(each.verdict) && each.decision === null),
-  );
 
   return (
     <div className="va-stage va-scroll">
@@ -57,7 +52,8 @@ export function Opening({
 
         {unattributed.length === 0 ? null : (
           <p className="va-note">
-            {count(unattributed.length, 'render')} changed with no component named as the cause.
+            {count(unattributed.length, 'render')} moved with no component named as the cause by a
+            region.
           </p>
         )}
 
@@ -66,20 +62,11 @@ export function Opening({
         <Impact build={build} crossing={crossing} />
 
         <p className="va-opening-links">
-          {origins.length > 0 || first === undefined ? null : (
-            <Go
-              to={{ page: 'subject', build: build.build, subject: first.subject }}
-              go={go}
-              className="va-mode"
-            >
-              Review the first render →
-            </Go>
-          )}
           <Go to={{ page: 'run', build: build.build }} go={go} className="va-mode">
             What this run read →
           </Go>
           <span className="va-note">
-            What each change reached, how this run compares with the last, and what nothing checked.
+            Reach, the crossing in full, the variation lattice, and what nothing looked at.
           </span>
         </p>
       </div>
@@ -92,17 +79,19 @@ export function Opening({
  *
  * No change filed is not nothing to do: a first run files none, and neither does
  * a render that changed with no component named, so `pending` decides whether
- * there is work and the changes only name it when they can.
+ * there is work. The changes are named only when they hold all of it: *from 1
+ * change* over a render no change holds would be false.
  */
 function headline(build: BuildDetail, origins: readonly Origin[]): string {
   if (build.pending === 0) {
     return origins.length === 0 ? 'Nothing to review' : `${count(origins.length, 'change')}, all decided`;
   }
-  const open = origins.filter((origin) =>
-    origin.appearances.some((each) => each.subject.decision === null),
-  ).length;
+  const open = origins
+    .map((origin) => origin.appearances.filter((each) => each.subject.decision === null))
+    .filter((appearances) => appearances.length > 0);
+  const held = new Set(open.flat().map((each) => each.subject.subject));
   const renders = `${count(build.pending, 'render')} to review`;
-  return open > 0 ? `${renders}, from ${count(open, 'change')}` : renders;
+  return held.size === build.pending ? `${renders}, from ${count(open.length, 'change')}` : renders;
 }
 
 /**
@@ -158,14 +147,14 @@ function Since({ crossing }: { readonly crossing: Crossing }): ReactElement | nu
     fresh === 0
       ? undefined
       : `${count(fresh, 'subject')} ${fresh === 1 ? 'is' : 'are'} new to this run`,
-    held === 0 ? undefined : `${count(held, 'subject')} stayed the same in both`,
+    held === 0 ? undefined : `${count(held, 'subject')} held still in both`,
   ].filter((each): each is string => each !== undefined);
 
   if (clauses.length === 0) {
     return (
       <p className="va-since">
-        Against build {crossing.earlier.build}: no render carries a difference it already had, and
-        none stayed the same.
+        Against build {crossing.earlier.build}: nothing here is a difference it also carried, and
+        nothing held still in both. Every subject reads some other way than it did.
       </p>
     );
   }
@@ -173,6 +162,7 @@ function Since({ crossing }: { readonly crossing: Crossing }): ReactElement | nu
   return (
     <p className="va-since">
       Against build {crossing.earlier.build}: {joined(clauses)}.
+      {again === 0 ? '' : ' You have seen those.'}
     </p>
   );
 }

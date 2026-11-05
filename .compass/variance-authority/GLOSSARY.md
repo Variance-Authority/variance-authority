@@ -1008,7 +1008,7 @@ neither settles the other.
 
 ### Product appearance
 
-*Looks suspicious* on a subject page, the concerns card under the decision, and
+*Looks suspicious* in a subject page's bar, the concerns card in its column, and
 a count on the build's header.
 
 ## **Changelog**

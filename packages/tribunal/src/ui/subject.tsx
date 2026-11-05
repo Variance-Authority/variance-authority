@@ -168,14 +168,7 @@ export function SubjectPanel({
       <div className="va-stage va-scroll" ref={page}>
         <div className="va-page">
           <Glanced subject={subject} />
-          {subject.changedPixels > 0 ? (
-            <details className="va-said-fold">
-              <summary>The run’s own words</summary>
-              <p className="va-said">{subject.because}</p>
-            </details>
-          ) : (
-            <p className="va-said">{subject.because}</p>
-          )}
+          <p className="va-said">{subject.because}</p>
           {siblings}
 
           <Viewer client={client} build={build} subject={subject} sourced={sourced} />
@@ -194,7 +187,7 @@ export function SubjectPanel({
           read={decisions}
         />
 
-        {senseOfSubject(subject).moved.length === 0 ? null : (
+        {senseOfSubject(subject).unmeasured !== undefined ? null : (
           <section className="va-card">
             <h2>What moved</h2>
             <MovedHere subject={subject} anchor={anchor} far={far} />
@@ -220,7 +213,7 @@ export function SubjectPanel({
         )}
 
         <section className="va-card">
-          <h2>History</h2>
+          <h2>The record</h2>
           <SubjectHistory client={client} subject={subject} />
         </section>
       </aside>
@@ -243,8 +236,9 @@ export function SubjectPanel({
  *
  * Three cells instead, each a number over its unit. Nothing to read in order,
  * because these are three answers to one question and a reviewer takes them at a
- * glance or not at all. The sentence stays one click away: it repeats these
- * numbers, but it is the run's own words and carries the collection's complaints.
+ * glance or not at all. The sentence stays underneath and stays quiet: it is the
+ * run's own words, it carries the collection's complaints, and demoting it is
+ * not the same as dropping it.
  *
  * `null` for a subject with nothing to measure. An unchanged render would get
  * three cells reading `—`, which is a page insisting it has something to say.
@@ -298,8 +292,8 @@ function Cause({ at }: { readonly at: Glance }): ReactElement | null {
   if (at.blamed.length === 0) {
     return (
       <p className="va-glance-cell va-glance-none">
-        <b>No component moved</b>
-        <span>every component matched</span>
+        <b>nothing owned it</b>
+        <span>every digest matched</span>
       </p>
     );
   }

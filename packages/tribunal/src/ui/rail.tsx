@@ -47,13 +47,14 @@ export function queueOf<Each extends Pick<SubjectView, 'verdict' | 'changedPixel
  */
 export function SubjectRail({
   subjects,
-  changes,
+  causes,
+  variations,
   selected,
   onSelect,
 }: {
   readonly subjects: readonly SubjectView[];
-  /** How many changes this build filed, the count the overview heads with. */
-  readonly changes: number;
+  readonly causes: number;
+  readonly variations: number;
   readonly selected: string | null;
   readonly onSelect: (subject: string | null) => void;
 }): ReactElement {
@@ -68,8 +69,10 @@ export function SubjectRail({
         onClick={() => onSelect(null)}
       >
         <span className="va-rail-body">
-          <span className="va-rail-name">Overview</span>
-          {changes === 0 ? null : <span className="va-rail-note">{count(changes, 'change')}</span>}
+          <span className="va-rail-name">The docket</span>
+          <span className="va-rail-note">
+            {count(causes, 'cause')} · {count(variations, 'variation')}
+          </span>
         </span>
       </button>
 

@@ -78,8 +78,7 @@ export function OriginsPanel({
     <>
       <div className="va-rail-head">
         <p className="va-rail-tally">
-          {origins.length === 0 ? '' : `${count(origins.length, 'change')} · `}
-          {count(renders + unattributed.length, 'render')}
+          {count(origins.length, 'change')} · {count(renders, 'render')}
         </p>
         <Sorting order={order} build={build.build} go={go} />
       </div>
