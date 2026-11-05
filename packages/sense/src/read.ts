@@ -52,6 +52,7 @@
  * | the parser reported an error | the record may be truncated at the error |
  * | `import(x)` where `x` is not a literal | the target is a runtime value |
  * | a `require(…)` this could not read as a literal | same, and invisible to the module record |
+ * | an import or export whose specifier holds a lone surrogate | no text holds it, and the module record leaves it out |
  *
  * The reason is recorded for whoever reports on the scan, and nothing is widened
  * for it: the edges this did read stay edges, and the one it could not is left

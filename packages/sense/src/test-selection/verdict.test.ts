@@ -79,6 +79,14 @@ describe.runIf(nativeAvailable())('a module verdict', () => {
     });
   });
 
+  it.each([
+    ['a specifier and the name it gives, whatever spaces either holds', "import { 'b c' as x } from 'a';", "import { c as x } from 'a b';"],
+    ['a namespace and a name that spells it', "import * as x from 'a';", "import { '*' as x } from 'a';"],
+  ])('keeps %s apart', (_, before, after) => {
+    const use = '\nexport const f = () => x;\n';
+    expect(verdictOf(before + use, after + use)).toMatchObject({ kind: 'values', names: ['x'] });
+  });
+
   it('reads a name added to an import as nothing the module does while it loads', () => {
     const before = "import { clamp } from './limits';\nexport const f = () => clamp(1);\n";
     const after = "import { clamp, STEP } from './limits';\nexport const f = () => clamp(STEP);\n";

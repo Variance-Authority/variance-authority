@@ -38,13 +38,15 @@ pub(crate) struct Loads<'l> {
     pub(crate) unread_required: usize,
     /// The `import()` types, in the order the walk met them.
     pub(crate) typed: Vec<Request>,
+    /// The `import()` types whose specifier no text holds.
+    pub(crate) unread_typed: usize,
     /// Each `import()` met so far, by its start offset, and its index in `dynamic`.
     met: HashMap<u32, Option<u32>>,
 }
 
 impl<'l> Loads<'l> {
     pub(crate) fn new(lines: &'l Lines) -> Self {
-        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), met: HashMap::new() }
+        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), unread_typed: 0, met: HashMap::new() }
     }
 
     /// The index in `dynamic` of the request this call makes, read once however
@@ -96,9 +98,13 @@ impl<'l> Loads<'l> {
     /// The index in `typed` of the request an `import()` type makes. A factory's
     /// own target named in a type is still a request, unlike a `require` of it:
     /// the type loads nothing, so it cancels no replacement, and one no text
-    /// holds is no request, with nothing left unread.
+    /// holds is no request and is counted unread.
     pub(crate) fn import_type(&mut self, it: &TSImportType) -> Option<u32> {
-        self.typed.push(self.request(it.source.value.as_str()?, Kind::Type, it.span.start));
+        let Some(value) = it.source.value.as_str() else {
+            self.unread_typed += 1;
+            return None;
+        };
+        self.typed.push(self.request(value, Kind::Type, it.span.start));
         Some(self.typed.len() as u32 - 1)
     }
 

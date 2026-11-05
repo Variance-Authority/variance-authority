@@ -105,7 +105,8 @@ impl PartialEq for Step<'_, '_> {
 
 /// What a pure binding is bound to.
 enum Bound<'s, 'a> {
-    Import(String),
+    /// The module and the name taken from it, none for its namespace.
+    Import(String, Option<String>),
     Function,
     /// The kind is part of the value: `let` to `const` makes every function
     /// that assigns it throw.
@@ -120,7 +121,7 @@ enum Bound<'s, 'a> {
 impl Bound<'_, '_> {
     fn same(&self, other: &Self) -> bool {
         match (self, other) {
-            (Bound::Import(a), Bound::Import(b)) => a == b,
+            (Bound::Import(a, x), Bound::Import(b, y)) => a == b && x == y,
             (Bound::Function, Bound::Function) | (Bound::Evaluated, Bound::Evaluated) => true,
             (Bound::Value(k, a), Bound::Value(l, b)) => k == l && same_value(*a, *b),
             (Bound::Class(a), Bound::Class(b)) => a.content_eq(b),
@@ -153,7 +154,7 @@ impl<'s, 'a> View<'s, 'a> {
 
     fn bind(&mut self, name: String, bound: Bound<'s, 'a>) {
         // A function and an import exist before the first statement runs.
-        if !matches!(bound, Bound::Function | Bound::Import(_)) {
+        if !matches!(bound, Bound::Function | Bound::Import(..)) {
             self.order.push(Some(name.clone()));
         }
         self.bindings.insert(name, bound);
@@ -246,11 +247,11 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> Option<View<'s, 'a>> {
                 }
                 for specifier in it.specifiers.iter().flatten() {
                     let (local, imported) = match specifier {
-                        ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, it.imported.name().to_string()),
-                        ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, "default".to_string()),
-                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, "*".to_string()),
+                        ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, Some(it.imported.name().to_string())),
+                        ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, Some("default".to_string())),
+                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, None),
                     };
-                    view.bind(local.name.to_string(), Bound::Import(format!("{source} {imported}")));
+                    view.bind(local.name.to_string(), Bound::Import(source.to_string(), imported));
                 }
             }
             // FIXME: a re-export that binds names is a use by whoever imports
