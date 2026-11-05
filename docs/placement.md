@@ -347,7 +347,7 @@ the run and saves after an accept:
 "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" }
 ```
 
-Git ignores the root:
+Git ignores the root, on purpose here, since the cache holds it:
 
 ```gitignore
 .variance/
