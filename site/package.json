@@ -7,7 +7,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "fflate": "^0.8.3",
     "mdast-util-to-string": "^4.0.0",
     "mermaid": "^11.17.2",
     "minisearch": "^7.2.0",
@@ -32,6 +31,7 @@
     "@vinext/cloudflare": "^1.0.0-beta.6",
     "@vitejs/plugin-react": "^6.1.0",
     "@vitejs/plugin-rsc": "^0.5.34",
+    "fflate": "^0.8.3",
     "tailwindcss": "latest",
     "typescript": "latest",
     "vite": "^8.2.2",
