@@ -28,6 +28,7 @@ import {
   ME_PATH,
   UNAUTHENTICATED,
   attributed,
+  crossSite,
   introduced,
   movesBaselines,
   readable,
@@ -192,7 +193,8 @@ export function createTribunal(options: TribunalOptions): Tribunal {
         const served = await options.policy.serve?.(request);
         if (served !== null && served !== undefined) return served;
 
-        const principal = await options.policy.principal(request);
+        // Here and not in a policy, so a host's own session is covered without knowing.
+        const principal = crossSite(request) ? null : await options.policy.principal(request);
         const url = new URL(request.url);
         if (url.pathname === ME_PATH) return json(200, introduced(principal, options.policy));
         if (principal === null) {
@@ -484,6 +486,5 @@ async function route(
 /** Re-exported so an entry can recognise a store failure, and read the contract the router answers with. */
 export { RasterStoreError };
 export { declaredPolicy, type PolicyOptions } from './policy.js';
-export { crossSite } from './worker-auth.js';
 export type { Introduced, Policy, Principal } from './worker-auth.js';
 export { TRIBUNAL_API, VERSION_PATH, serviceVersion, type ServiceVersion } from './version.js';

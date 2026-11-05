@@ -191,7 +191,7 @@ describe('the share token reads what review settled', () => {
   it('reads the concerns raised on a build, and cannot raise or move one', async () => {
     variancePrecondition('fixture', { token: 'share' });
     await decided();
-    const raised = await call('/review/concerns', REVIEW, {
+    const raised = await call('/review/concerns/raise', REVIEW, {
       build: 'ci-2',
       subject: 'story:a',
       title: 'Total moved below the fold',
@@ -206,7 +206,7 @@ describe('the share token reads what review settled', () => {
     expect(shared.concerns.map((each) => each.title)).toEqual(['Total moved below the fold']);
     expect(shared).toEqual(await (await call('/review/concerns?build=ci-2', REVIEW)).json());
 
-    const raising = await call('/review/concerns', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
+    const raising = await call('/review/concerns/raise', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
     expect(raising.status).toBe(403);
     const moving = await call(`/review/concerns/${concern.id}`, SHARE, { state: 'resolved', by: 'agent' });
     expect(moving.status).toBe(403);

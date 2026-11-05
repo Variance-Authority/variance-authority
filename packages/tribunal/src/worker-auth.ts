@@ -23,8 +23,8 @@ export type Principal =
 
 /**
  * Who this deployment recognizes. {@link declaredPolicy} builds one from what a
- * deployer declared, and a host with its own idea of a person writes its own, which
- * asks {@link crossSite} before it reads a credential that rides along by itself.
+ * deployer declared, and a host with its own idea of a person writes its own. Neither
+ * is asked about a write {@link crossSite} refuses.
  */
 export interface Policy {
   /** `null` is a request this deployment does not recognize. */
@@ -36,19 +36,26 @@ export interface Policy {
 }
 
 /**
- * Whether a browser carried this write here from another origin. A person's
- * credential rides along by itself, Access's cookie to any site by default, and
- * nothing here answers CORS, so no page of ours sends one. `Sec-Fetch-Site` is the
- * browser's own reading; the `Origin` fallback is for one that does not send it. A
- * caller that sends neither is no browser, and has no credential riding along.
+ * Whether a browser carried this write here from another origin on a credential
+ * that rides along by itself, as Access's cookie does to any site by default.
+ * `Sec-Fetch-Site` is the browser's own reading; the `Origin` fallback is for one
+ * that does not send it. A caller that sends neither is no browser. A bearer is
+ * the way across origins on purpose: no form can send one, and a page can only
+ * where its host answers the preflight, which nothing here does.
  */
 export function crossSite(request: Request): boolean {
   if (request.method === 'GET' || request.method === 'HEAD') return false;
+  if (bearerOf(request) !== null) return false;
   const site = request.headers.get('sec-fetch-site');
   if (site !== null) return site !== 'same-origin' && site !== 'none';
   const origin = request.headers.get('origin');
-  if (origin === null) return false;
-  return origin !== new URL(request.url).origin;
+  return origin !== null && origin !== new URL(request.url).origin;
+}
+
+/** The token a request presents on purpose, and `null` for one that presents none. */
+export function bearerOf(request: Request): string | null {
+  const match = /^Bearer\s+(.+)$/i.exec((request.headers.get('authorization') ?? '').trim());
+  return match?.[1] ?? null;
 }
 
 /**

@@ -339,7 +339,7 @@ admin of that provider and an admin of the Cloudflare account, once:
    policy is your list of approvers. Give the same application the paths
    `review/builds/*` and `review/concerns/*`, under the mount if the API has one:
    step 4 opens their parents, and these are where a decision is recorded and a
-   concern is moved. In its cookie settings, set `SameSite` to `Lax`, so a browser
+   concern is raised or moved. In its cookie settings, set `SameSite` to `Lax`, so a browser
    holds the cookie back from another site's write before the service has to refuse
    it, and leave the cookie's path attribute off, because the page reads step 4's
    paths with that cookie.
@@ -358,6 +358,7 @@ admin of that provider and an admin of the Cloudflare account, once:
 
    ```bash
    curl -si -X POST https://your-hostname/review/builds/any/subjects/any/decision
+   curl -si -X POST https://your-hostname/review/concerns/raise
    ```
 
    Access answers with a redirect to sign in. An answer with
@@ -370,9 +371,9 @@ the paths in step 4 answer anybody. An open project that wants public reading
 declares `github` and `VIEW=public`.
 
 To remove a reviewer, take them out of the policy and revoke their session in Zero
-Trust, which ends their decisions. The paths in step 4
-check only that their token is signed and unexpired, so until the session runs out,
-that token still reads the evidence there and can raise a concern. How long that is
+Trust, which ends everything they can write: every reviewer write sits on a path
+from step 3. The paths in step 4 check only that their token is signed and
+unexpired, so until the session runs out, that token still reads the evidence there. How long that is
 comes from the application's session duration, or from the policy's if it sets one.
 A shorter session closes that sooner.
 
@@ -385,7 +386,8 @@ share token, or the token a workflow's runner signed. A bearer is read as a mach
 and nothing else, so a wrong one is refused even with `VIEW=public`. A person sends
 no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. A
 write a browser sent from another origin, a sibling subdomain included, is not
-recognized, whatever cookie it carries. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
+recognized, whatever cookie it carries, under any policy. A bearer is the way to
+write across origins on purpose. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
 
 | method and path | capability | what it does |
 |---|---|---|
@@ -414,7 +416,7 @@ recognized, whatever cookie it carries. Only `GET /auth/me` and the sign-in answ
 | `GET /review/decisions[?build&subject&limit]` | review, share or view | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
 | `POST /review/sweep[?days=N]` | review | retention, below |
 | `GET /review/concerns[?build&subject&state]` | review, share or view | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
-| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
+| `POST /review/concerns/raise` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
 | `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
@@ -746,7 +748,7 @@ export default {
 | `db` | required | the D1 binding |
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
-| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs), and asks `crossSite(request)` before it reads a credential that rides along by itself |
+| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied by the packaged Worker's `scheduled` handler and by `POST /review/sweep` |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -838,7 +840,7 @@ export default async function VariancePage(): Promise<React.ReactElement> {
 // `sessionName` your session lookup
 import type { D1Like, R2Like } from '@variance-authority/tribunal';
 import { createTribunalRoutes } from '@variance-authority/tribunal/next';
-import { createTribunal, crossSite, declaredPolicy, type Policy } from '@variance-authority/tribunal/worker';
+import { createTribunal, declaredPolicy, type Policy } from '@variance-authority/tribunal/worker';
 
 declare const env: {
   readonly DB: D1Like;
@@ -851,7 +853,7 @@ declare function sessionName(request: Request): Promise<string | null>;
 const machines = declaredPolicy(env);
 const policy: Policy = {
   async principal(request) {
-    const name = crossSite(request) ? null : await sessionName(request);
+    const name = await sessionName(request);
     return name === null ? machines.principal(request) : { capability: 'review', name };
   },
 };

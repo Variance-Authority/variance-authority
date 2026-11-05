@@ -1,6 +1,6 @@
 import { createGithubSignIn, cookieOf, SIGN_IN_PATH } from './github-signin.js';
 import { createIssuer, unverifiedIssuer } from './issuer.js';
-import { crossSite, equalTokens, type Policy, type Principal } from './worker-auth.js';
+import { bearerOf, equalTokens, type Policy, type Principal } from './worker-auth.js';
 
 /**
  * Who this deployment recognizes, read from what the deployer declared.
@@ -165,7 +165,6 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
   }
 
   async function person(request: Request): Promise<Principal | null> {
-    if (crossSite(request)) return null;
     const email = await access?.email(request, log);
     if (typeof email === 'string') return { capability: 'review', name: email };
     const login = await github?.login(request);
@@ -282,9 +281,4 @@ function strong(name: string, value: string): void {
         'nobody notices until it matters',
     );
   }
-}
-
-function bearerOf(request: Request): string | null {
-  const match = /^Bearer\s+(.+)$/i.exec((request.headers.get('authorization') ?? '').trim());
-  return match?.[1] ?? null;
 }

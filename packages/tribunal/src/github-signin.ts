@@ -10,7 +10,7 @@
  * The session is a signed cookie holding a login and an expiry, and nothing else.
  * The token GitHub issued is used for the two reads below and discarded, so a
  * deployment holds no credential that works anywhere else. `SameSite=Lax` keeps the
- * cookie off a cross-site POST, a second guard behind the policy's own refusal of
+ * cookie off a cross-site POST, a second guard behind the service's own refusal of
  * another origin's write.
  */
 

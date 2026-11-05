@@ -10,7 +10,7 @@ import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, s
  *
  * ```
  * GET  /review/concerns?build=&subject=&state=   → { concerns, tally? }
- * POST /review/concerns                          → 201 { concern }
+ * POST /review/concerns/raise                    → 201 { concern }
  * POST /review/concerns/<id>                     → { concern }
  * ```
  *
@@ -23,10 +23,17 @@ import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, s
  * reads what a reviewer suspects without any path to raise or move a concern.
  * Ingest reads none of it, because what a concern holds is what a person wrote, and
  * an ingest credential lives where a failing job prints its environment.
+ *
+ * The read and the raise sit on different paths because Cloudflare Access tells
+ * paths apart and not methods: a machine reads past Access, and everything a
+ * reviewer writes sits under a path Access holds, so removing a reviewer ends it.
  */
 
 /** Every route in this file is this path or under it, and nothing else in the router is. */
 export const CONCERNS_PATH = '/review/concerns';
+
+/** Where a reviewer raises a concern, under {@link CONCERNS_PATH} and apart from its read. */
+export const RAISE_PATH = `${CONCERNS_PATH}/raise`;
 
 export type ConcernRoute = (principal: Principal, url: URL, request: Request) => Promise<Response>;
 
@@ -61,9 +68,12 @@ export function createConcernRoutes(options: {
 
     if (path === CONCERNS_PATH) {
       requires(granted, 'review', path);
-      if (request.method !== 'POST') {
-        throw new MethodNotAllowed(`${path} is read with GET and raised with POST`, 'GET, POST');
-      }
+      throw new MethodNotAllowed(`${path} is read with GET, and a concern is raised with POST ${RAISE_PATH}`, 'GET');
+    }
+
+    if (path === RAISE_PATH) {
+      requires(granted, 'review', path);
+      if (request.method !== 'POST') throw new MethodNotAllowed(`${path} is raised with POST`, 'POST');
       const body = await asRecordBody(request);
       const concern = await concerns.raise({
         build: string(body, 'build', 'the concern'),

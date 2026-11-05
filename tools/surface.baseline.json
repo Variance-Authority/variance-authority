@@ -4190,7 +4190,6 @@
         "TribunalOptions": "interface",
         "VERSION_PATH": "const",
         "createTribunal": "function",
-        "crossSite": "function",
         "declaredPolicy": "function",
         "serviceVersion": "function"
       },
