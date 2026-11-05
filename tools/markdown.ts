@@ -12,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+/** A `uses:` that names the published action or a sub-action of it, in any case, as GitHub resolves it. */
+export const NAMES_THE_ACTION = /^Variance-Authority\/action(?:\/[\w-]+)?(?:@|$)/i;
+
 /**
  * A changelog is written by `changeset version`, and a file under `.changeset/`
  * is consumed by it. Every rule below reads prose somebody chose the words of —
