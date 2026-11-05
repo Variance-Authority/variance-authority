@@ -238,7 +238,9 @@ function's body is read in JavaScript and TypeScript and answered with the
 function that holds it. `ask symbol` answers a top-level declaration of the
 name first, in any of those languages, then each container that declares it as
 a member, with the member's `file:line`, and points to `uses`. A dotted name,
-`Tree.has`, asks for the member `has` of `Tree` alone. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+`Tree.has`, asks for the member `has` of `Tree` alone. `ask search` finds a
+member by its name, by `Tree.has` or by the doc above it, and a function inside
+a function by its name. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, an answer that looked for members ends with a sentence that names those
 languages, whether or not it found one, and sends you to their language
 server's workspace symbols. The graph does not record that one

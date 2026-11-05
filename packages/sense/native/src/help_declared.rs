@@ -11,9 +11,10 @@
 //!
 //! A name asked for exactly is also answered by a function another function's
 //! body declares, from the index's own nested table, with the function that
-//! holds it. Only the exact question reads that table: a closure is its
-//! holder's working name, documented for its holder, and a description or a
-//! piece of a name is asked of what a caller can reach.
+//! holds it. A piece of a name, `search`'s question, reads that table too, and
+//! the member declarations beside it, each row with what holds it, so `search`
+//! finds what `symbol` finds. A closure answers by its name alone, and never a
+//! description: it is its holder's working name, documented for its holder.
 
 // compass: variance-authority.report.agent-surface
 
@@ -31,7 +32,8 @@ use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::segment::NONE;
 
-/// One declaration no export of its file binds, at its top level or inside a function.
+/// One declaration no export of its file binds: at its top level, inside a
+/// function, or a member of a container.
 #[napi(object)]
 pub struct DeclaredName {
     pub name: String,
@@ -70,6 +72,9 @@ pub struct DeclaredName {
     /// The line the function whose body declares it starts on; present only
     /// for a declaration inside a function, which is how that one is told apart.
     pub holder_line: Option<u32>,
+    /// The container it is a member of; present only for a member, which is
+    /// how that one is told apart.
+    pub on: Option<String>,
 }
 
 /// A file a description reached by its own name and its module doc: the
@@ -115,7 +120,9 @@ pub(crate) enum Matching {
     Exact,
     /// The name, lowercased, contains `query`, which the caller lowercased, or
     /// the doc comment above it does, read as prose, or writes it as a phrase
-    /// by [`crate::dependency_lexicon::purposes::writes_run`]'s rule.
+    /// by [`crate::dependency_lexicon::purposes::writes_run`]'s rule. A member is
+    /// read the same way and also answers to `container.member`; a function
+    /// inside a function answers by its name.
     Containing,
     /// The words of the name and of its doc, cut into stems as the dependency
     /// lexicon cuts a package's words, hold any of `stems` — the question's —
@@ -172,11 +179,12 @@ type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>, Option<FileHit<'a>>);
 /// bytes of that doc.
 type Held = (Vec<u32>, Vec<u32>, u32, Option<u32>);
 
-/// A row of a parse's top-level symbols, or of its nested table.
+/// A row of a parse's top-level symbols, of its nested table, or of its member declarations.
 #[derive(Clone, Copy)]
 enum Row {
     Symbol(usize),
     Nested(usize),
+    Member(usize),
 }
 
 /// A layer, a file, a row and how it was held, when it was described.
@@ -220,8 +228,8 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
 }
 
 /// Every top-level declaration on the chain, every one in a Rust inline
-/// module, and, asked `Exact`, every function a function's body declares under
-/// that name, whose name `matching` admits for `query`, or whose doc does when it
+/// module, and, asked `Exact` or `Containing`, every function a function's body
+/// declares, and asked `Containing`, every member, whose name `matching` admits for `query`, or whose doc does when it
 /// is `Containing` or `Described`, in `files` when they are named, less the
 /// ones its file exports, under that name or another, which the export list
 /// already answers. A name
@@ -264,19 +272,17 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             } else {
                 Vec::new()
             };
+            let doc_holds = |doc: &Prose| doc.words.contains(query) || run.as_ref().is_some_and(|run| writes_run(run, &doc.written).is_some());
             let mut named: Vec<&str> = Vec::new();
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row) {
                 let name = text.text(parses.symbol_name.at(symbol));
                 if own.contains(&name) || named.contains(&name) { continue }
-                let mut doc = || {
-                    let (Some(start), Some(end)) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol) else { return None };
-                    source_of(&mut source, root, crossing.file).and_then(|source| prose(source, start, end))
-                };
+                let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
+                let mut doc = || source_of(&mut source, root, crossing.file).and_then(|source| prose(source, doc_start?, doc_end?));
                 let described = match &matching {
                     Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
-                    Matching::Containing if name.to_lowercase().contains(query)
-                        || doc().is_some_and(|doc| doc.words.contains(query) || run.as_ref().is_some_and(|run| writes_run(run, &doc.written).is_some())) => None,
+                    Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc_holds(&doc)) => None,
                     Matching::Terms { groups } => {
                         let terms = crate::help_search::name_terms(name);
                         if !groups.iter().all(|group| group.iter().any(|term| terms.contains(term))) { continue }
@@ -299,6 +305,19 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             if matches!(matching, Matching::Exact) {
                 // Each is its own declaration, under its own holder: none stands for another.
                 hits.extend(parses.nested.range(row).filter(|&at| text.text(parses.nested_name.at(at)) == query).map(|at| (layer, crossing.file, Row::Nested(at), None)));
+            }
+            if matches!(matching, Matching::Containing) {
+                hits.extend(parses.nested.range(row).filter(|&at| text.text(parses.nested_name.at(at)).to_lowercase().contains(query)).map(|at| (layer, crossing.file, Row::Nested(at), None)));
+                for at in parses.member_declarations.range(row) {
+                    let name = text.text(parses.member_declaration_name.at(at)).to_lowercase();
+                    let on = text.text(parses.member_declaration_on.at(at)).to_lowercase();
+                    let dotted = query.rsplit_once('.').is_some_and(|(asked_on, asked)| asked_on == on && asked == name);
+                    let (doc_start, doc_end) = span(parses.member_declaration_doc[0], parses.member_declaration_doc[1], at);
+                    let mut doc = || source_of(&mut source, root, crossing.file).and_then(|source| prose(source, doc_start?, doc_end?));
+                    if name.contains(query) || dotted || doc().is_some_and(|doc| doc_holds(&doc)) {
+                        hits.push((layer, crossing.file, Row::Member(at), None));
+                    }
+                }
             }
             (hits, None, file)
         })
@@ -340,6 +359,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             let symbol = match row {
                 Row::Symbol(symbol) => symbol,
                 Row::Nested(nested) => return nested_name(layers, layer, at, nested, owners.package_of(at)),
+                Row::Member(member) => return member_name(layers, layer, at, member, owners.package_of(at)),
             };
             let (signature_start, signature_end) = span(parses.symbol_signature[0], parses.symbol_signature[1], symbol);
             let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
@@ -361,6 +381,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 held: described.map(|(held, _, _, _)| held),
                 holder: None,
                 holder_line: None,
+                on: None,
             }
         })
         .collect();
@@ -390,5 +411,32 @@ fn nested_name(layers: &[Layer], layer: usize, at: &str, nested: usize, by: &str
         doc_length: None,
         holder: text.optional(parses.nested_holder.at(nested)).map(str::to_owned),
         holder_line: Some(parses.nested_holder_line.at(nested)),
+        on: None,
+    }
+}
+
+/// One member declaration of a parse, as a declared name with its container.
+fn member_name(layers: &[Layer], layer: usize, at: &str, member: usize, by: &str) -> DeclaredName {
+    let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+    let (doc_start, doc_end) = span(parses.member_declaration_doc[0], parses.member_declaration_doc[1], member);
+    DeclaredName {
+        name: text.text(parses.member_declaration_name.at(member)).to_owned(),
+        kind: "member".to_owned(),
+        at: at.to_owned(),
+        by: by.to_owned(),
+        line: parses.member_declaration_line.at(member),
+        file_kind: kind_of(at).to_owned(),
+        signature_start: None,
+        signature_end: None,
+        doc_start,
+        doc_end,
+        reach: None,
+        held: None,
+        named: None,
+        near: None,
+        doc_length: None,
+        holder: None,
+        holder_line: None,
+        on: Some(text.text(parses.member_declaration_on.at(member)).to_owned()),
     }
 }

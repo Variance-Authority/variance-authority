@@ -392,6 +392,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
 
     let clean = !parsed.panicked && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
+    let member_declarations = member_declarations_in(&parsed.program, &lines, &harvest);
     let read = Read {
         requests,
         exports,
@@ -402,7 +403,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         mocks: mocks_in(source, &parsed.program, scoping),
         members,
         binding_members,
-        member_declarations: member_declarations_in(&parsed.program, &lines),
+        member_declarations,
         member_uses: member_uses_in(&parsed.program, &lines),
         own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),

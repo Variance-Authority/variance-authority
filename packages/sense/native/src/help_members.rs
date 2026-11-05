@@ -27,14 +27,15 @@ use oxc_span::GetSpan;
 use serde::Serialize;
 
 use crate::compact::Layer;
+use crate::harvest::{Harvest, TextSpan};
 use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::read::Lines;
 
-/// One member declaration of a parse: its name, its line, and the container
-/// it is `on`.
+/// One member declaration of a parse: its name, its line, the container it is
+/// `on`, and the doc written above it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct MemberDeclaration {
     pub(crate) name: String,
@@ -42,11 +43,13 @@ pub struct MemberDeclaration {
     /// The interface, type alias or class the member is on, or how it is
     /// written when it has no name.
     pub(crate) on: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) doc: Option<TextSpan>,
 }
 
 /// Every member `program` declares, in source order.
-pub(crate) fn member_declarations_in(program: &Program<'_>, lines: &Lines) -> Vec<MemberDeclaration> {
-    let mut walker = Walker { lines, containers: Vec::new(), alias: None, declared: Vec::new() };
+pub(crate) fn member_declarations_in(program: &Program<'_>, lines: &Lines, harvest: &Harvest) -> Vec<MemberDeclaration> {
+    let mut walker = Walker { lines, harvest, containers: Vec::new(), alias: None, declared: Vec::new() };
     walker.visit_program(program);
     walker.declared
 }
@@ -259,6 +262,7 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
 
 struct Walker<'n> {
     lines: &'n Lines,
+    harvest: &'n Harvest,
     /// The containers the walk is inside, innermost last.
     containers: Vec<String>,
     /// The type alias whose own body is the type literal visited next.
@@ -267,10 +271,12 @@ struct Walker<'n> {
 }
 
 impl Walker<'_> {
-    fn declare(&mut self, key: Option<std::borrow::Cow<'_, str>>, at: u32) {
+    /// `at` is where its name is written, `start` where the member starts: a
+    /// doc is above its modifiers.
+    fn declare(&mut self, key: Option<std::borrow::Cow<'_, str>>, at: u32, start: u32) {
         let Some(key) = key else { return };
         let on = self.containers.last().cloned().unwrap_or_default();
-        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on });
+        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, doc: self.harvest.doc(start) });
     }
 
     fn within(&mut self, container: String, walk: impl FnOnce(&mut Self)) {
@@ -325,27 +331,27 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_ts_property_signature(&mut self, it: &TSPropertySignature<'a>) {
-        self.declare(it.key.static_name(), it.key.span().start);
+        self.declare(it.key.static_name(), it.key.span().start, it.span.start);
         walk::walk_ts_property_signature(self, it);
     }
 
     fn visit_ts_method_signature(&mut self, it: &TSMethodSignature<'a>) {
-        self.declare(it.key.static_name(), it.key.span().start);
+        self.declare(it.key.static_name(), it.key.span().start, it.span.start);
         walk::walk_ts_method_signature(self, it);
     }
 
     fn visit_method_definition(&mut self, it: &MethodDefinition<'a>) {
-        self.declare(it.key.static_name(), it.key.span().start);
+        self.declare(it.key.static_name(), it.key.span().start, it.span.start);
         walk::walk_method_definition(self, it);
     }
 
     fn visit_property_definition(&mut self, it: &PropertyDefinition<'a>) {
-        self.declare(it.key.static_name(), it.key.span().start);
+        self.declare(it.key.static_name(), it.key.span().start, it.span.start);
         walk::walk_property_definition(self, it);
     }
 
     fn visit_accessor_property(&mut self, it: &AccessorProperty<'a>) {
-        self.declare(it.key.static_name(), it.key.span().start);
+        self.declare(it.key.static_name(), it.key.span().start, it.span.start);
         walk::walk_accessor_property(self, it);
     }
 
@@ -353,7 +359,7 @@ impl<'a> Visit<'a> for Walker<'_> {
     fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
         if it.accessibility.is_some() || it.readonly || it.r#override {
             if let Some(id) = it.pattern.get_binding_identifier() {
-                self.declare(Some(std::borrow::Cow::Borrowed(id.name.as_str())), id.span.start);
+                self.declare(Some(std::borrow::Cow::Borrowed(id.name.as_str())), id.span.start, it.span.start);
             }
         }
         walk::walk_formal_parameter(self, it);

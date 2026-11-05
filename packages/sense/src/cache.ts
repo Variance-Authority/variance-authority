@@ -153,6 +153,8 @@ export interface MemberDeclaration {
   readonly line: number;
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
+  /** The doc comment's span, inside its marks, when one is written above it. */
+  readonly doc?: TextSpan;
 }
 
 /** One line that uses a member through a value whose type the file writes. */

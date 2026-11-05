@@ -9,7 +9,8 @@ import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
 import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type Reached, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
-import { declaredMatches, exactness } from './declared.js';
+import { aliasMatches, declaredMatches, exactness } from './declared.js';
+import { membersUnreadOf } from './members.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
@@ -248,7 +249,12 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
-  const declared = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP);
+  const read = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP);
+  const declared = read?.declared;
+  const aliases = aliasMatches(root, question.query, area?.files);
+  const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
+  // A row that holds the words adds nothing to an answer; the row that is the question does.
+  const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
 
   const answer: SearchAnswer = {
     query,
@@ -256,13 +262,15 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     published: published(index, hits, CAP, importingOf),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(declared === undefined ? {} : { declared }),
+    ...(inside === undefined ? {} : { held: { total: inside.length, shown: inside.slice(0, ELSEWHERE_CAP) } }),
+    ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, ELSEWHERE_CAP) } }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
   // The installed packages that describe the words are a different answer from
   // this repository's names, and never stand in for them: only an installed
   // name holding the query as written — which the caller asked for by name —
   // ends the search for names of this repository's own.
-  if (hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
+  if (others || (inside?.length ?? 0) > 0 || (aliases?.length ?? 0) > 0) return { answer, area };
 
   // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are.
@@ -309,7 +317,8 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
   const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length)];
-  const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
+  const membersUnread = root === undefined ? [] : membersUnreadOf(root, query);
+  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
   if (left === undefined || told === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: left.length, shown: told } }, area };
 }

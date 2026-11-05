@@ -131,7 +131,7 @@ impl ParseRow for Read {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(declared.doc));
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));

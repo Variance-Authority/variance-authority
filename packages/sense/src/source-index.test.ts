@@ -72,7 +72,7 @@ const PARSED: Parsed = {
   // column holds, so a cache, a fold or a decoder that dropped one of the four
   // columns, or read one in place of another, fails here.
   memberDeclarations: [
-    { name: 'resolveThings', line: 21, on: 'NativeScanner' },
+    { name: 'resolveThings', line: 21, on: 'NativeScanner', doc: { start: 71, end: 83 } },
     { name: 'Card', line: 24, on: 'a type literal' },
   ],
   // A member, a type and lines no other column holds, and every kind of use,

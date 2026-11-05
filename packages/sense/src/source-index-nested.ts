@@ -3,6 +3,7 @@
 import { NONE, rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { NestedDeclaration } from './cache.js';
 import type { TextSpan } from './harvest.js';
+import { spanAt } from './source-index-harvest.js';
 
 /**
  * The nested columns of a source-index generation: per parse, every function
@@ -33,13 +34,7 @@ export function openNested(
   validateOffsets(offsets, name.length, parseCount, reject);
   sameLength(name.length, [kind, line, signatureStart, signatureEnd, docStart, docEnd, holder, holderLine], reject);
 
-  const span = (starts: Uint32Array, ends: Uint32Array, at: number): TextSpan | undefined => {
-    const start = starts[at]!;
-    const end = ends[at]!;
-    if (start === NONE && end === NONE) return undefined;
-    if (start === NONE || end === NONE || end < start) reject();
-    return { start, end };
-  };
+  const span = (starts: Uint32Array, ends: Uint32Array, at: number): TextSpan | undefined => spanAt(starts, ends, at, reject);
 
   return (row) => {
     const nested = rangeOf(offsets, row, reject).map((at): NestedDeclaration => {

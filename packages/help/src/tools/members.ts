@@ -179,6 +179,16 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
   );
 }
 
+/** The languages of the checkout at `root` whose members were not read, by name; none when its index does not read. */
+export function membersUnreadOf(root: string, name: string): readonly string[] {
+  try {
+    return unreadMemberLanguages(memberDeclarationsOf(root, name)?.extensions ?? []);
+  } catch {
+    // A question's other readings say why the index does not read.
+    return [];
+  }
+}
+
 /**
  * Where a reading of the member asked for stops, given the languages `elsewhere`
  * names: members are read from JavaScript and TypeScript only, so a member of

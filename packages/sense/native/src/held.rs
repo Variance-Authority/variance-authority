@@ -116,6 +116,8 @@ pub struct HeldMemberDeclaration {
     line: u32,
     #[serde(default)]
     on: String,
+    #[serde(default)]
+    doc: Option<HeldSpan>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -266,7 +268,7 @@ impl ParseRow for HeldParse {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on));
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(declared.doc));
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));

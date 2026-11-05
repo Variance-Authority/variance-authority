@@ -18,9 +18,9 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { declaredOf, type DeclaredName } from '@variance-authority/sense';
+import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
-import type { DeclaredMatch, Matches } from './search-matches.js';
+import type { AliasMatch, DeclaredMatch, HeldMatch, Matches } from './search-matches.js';
 import { SLOT } from './declaration-key.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
@@ -157,6 +157,18 @@ export function declaredLine(held: DeclaredMatch): string {
   return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
 }
 
+/** One member or function inside a function, as a `search` line writes it, under what holds it. */
+export function heldLine(held: HeldMatch): string {
+  const where = `— ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
+  if (held.on === undefined) return `${held.name} [${held.kind}] inside ${held.holder === undefined ? `the function written at ${held.at}:${held.holderLine}` : `\`${held.holder}\``} ${where}`;
+  return /^a (?:type literal|class)$/u.test(held.on) ? `${held.name} [${held.kind}] on ${held.on} ${where}` : `${held.on}.${held.name} [${held.kind}] ${where}`;
+}
+
+/** One import that binds the name, as a `search` line writes it. */
+export function aliasLine(alias: AliasMatch): string {
+  return `${alias.at}:${alias.line} imports \`${alias.imported}\` as \`${alias.local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
+}
+
 /** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */
 const UNREAD_NAMED = 3;
 
@@ -254,20 +266,50 @@ export function declaredAt(help: Help, root: string | undefined, name: string, w
  * them: the first `cap`, source first, in `files` when an area named them;
  * nothing when no checkout was named or its index could not be read. A name
  * that is the query as written comes first, the same name in another case
- * second, and every name only holding it after them.
+ * second, and every name only holding it after them. Members and functions
+ * inside a function are `held`, every one, ordered the same way, and `exact`
+ * counts the ones at its head that are the question.
  */
 export function declaredMatches(
   root: string | undefined,
   query: string,
   files: Iterable<string> | undefined,
   cap: number,
-): (Matches<DeclaredMatch> & { readonly unread: readonly string[] }) | undefined {
+): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
-  const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
+  const written = (one: DeclaredName): number => exactness(one.name, query) ?? (isMember(one) ? exactness(`${one.on}.${one.name}`, query) : undefined) ?? 2;
   const names = [...read.names].sort((left, right) => written(left) - written(right));
-  return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
+  const top = names.filter((one) => !isNested(one) && !isMember(one));
+  const held = names.filter((one) => isNested(one) || isMember(one));
+  return {
+    declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch), unread: read.unread },
+    held: held.map(heldMatch),
+    exact: held.filter((one) => written(one) < 2).length,
+  };
+}
+
+/** The imports in `files`, when an area named them, that bind `query` as written to another name; nothing when the index does not read. */
+export function aliasMatches(root: string | undefined, query: string, files: ReadonlySet<string> | undefined): readonly AliasMatch[] | undefined {
+  if (root === undefined) return undefined;
+  try {
+    return aliasesOf(root, query)
+      ?.filter((alias) => files === undefined || files.has(alias.at))
+      .map((alias) => ({
+        source: 'alias',
+        local: query,
+        imported: alias.imported,
+        specifier: alias.specifier,
+        ...(alias.by === '' ? {} : { package: alias.by }),
+        at: alias.at,
+        line: alias.line,
+        type: alias.type,
+      }));
+  } catch {
+    // An index that does not read answers nothing here; `declared` says so for the search.
+    return undefined;
+  }
 }
 
 /**
@@ -278,6 +320,22 @@ export function exactness(written: string, question: string): 0 | 1 | undefined 
   if (written === question) return 0;
   return written.toLowerCase() === question.toLowerCase() ? 1 : undefined;
 }
+
+/** Whether it is a member of a container. */
+const isMember = (one: Pick<DeclaredName, 'on'>): boolean => one.on !== undefined && one.on !== null;
+
+/** One member or function inside a function, as a `search` section holds it. */
+const heldMatch = (one: DeclaredName): HeldMatch => ({
+  source: 'held',
+  name: one.name,
+  kind: one.kind,
+  ...(isMember(one) ? { on: one.on! } : {}),
+  ...(one.holder === undefined || one.holder === null ? {} : { holder: one.holder }),
+  ...(isNested(one) ? { holderLine: one.holderLine! } : {}),
+  ...(one.by === '' ? {} : { package: one.by }),
+  at: one.at,
+  line: one.line,
+});
 
 /** One declaration, as a `search` section holds it. */
 export const declaredMatch = (one: DeclaredName): DeclaredMatch => ({

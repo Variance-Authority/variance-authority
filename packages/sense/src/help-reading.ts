@@ -305,7 +305,7 @@ export function aliasesOf(root: string, local: string, index: string = sourceInd
   return entry('aliasesOf')(root, index, local) ?? undefined;
 }
 
-/** One top-level declaration no export of its file binds. */
+/** One declaration no export of its file binds: at its top level, inside a function, or a member of a container. */
 export interface DeclaredName {
   readonly name: string;
   /** The declaration's kind as the parser harvested it: `function`, `const`, … */
@@ -336,6 +336,8 @@ export interface DeclaredName {
   readonly holder?: string | null;
   /** The line the function whose body declares it starts on: present only for a declaration inside a function. */
   readonly holderLine?: number | null;
+  /** The container it is a member of: present only for a member. */
+  readonly on?: string | null;
 }
 
 /** A file a description reached by its own name and the doc it opens with. */
@@ -371,7 +373,9 @@ export interface DeclaredNames {
  * file binds — the names a file keeps to itself, which no export list holds —
  * named `query` exactly, or, given `containing`, whose name or doc comment
  * holds it in any case; only in `files`, repo-relative, when they are named. A name declared
- * twice in one file is answered once. `undefined` when no index was
+ * twice in one file is answered once. A function inside a function answers
+ * either question by its name, and a member answers `containing`, by its name,
+ * its doc or `container.member`: each says what holds it. `undefined` when no index was
  * published; throws when the index does not read.
  */
 export function declaredOf(

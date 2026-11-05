@@ -64,6 +64,40 @@ export interface DeclaredMatch {
   readonly line: number;
 }
 
+/** A member of a container, or a function another function's body declares. */
+export interface HeldMatch {
+  readonly source: 'held';
+  readonly name: string;
+  /** `member`, or the declaration's kind as the parser read it. */
+  readonly kind: string;
+  /** The container of a member; `a type literal` or `a class` when it has no name. */
+  readonly on?: string;
+  /** The function that holds it, when that function has a name. */
+  readonly holder?: string;
+  /** The line that function starts on: present only for a function inside a function. */
+  readonly holderLine?: number;
+  /** The package that holds it; absent at the repository root. */
+  readonly package?: string;
+  readonly at: string;
+  readonly line: number;
+}
+
+/** An import that binds the name asked for to another one. */
+export interface AliasMatch {
+  readonly source: 'alias';
+  /** The name the importing file knows it by, which is the question. */
+  readonly local: string;
+  /** The export name the binding takes, `default` for a default import. */
+  readonly imported: string;
+  /** The specifier as the importing file wrote it. */
+  readonly specifier: string;
+  /** The package of the importing file; absent at the repository root. */
+  readonly package?: string;
+  readonly at: string;
+  readonly line: number;
+  readonly type: boolean;
+}
+
 /** A file of this repository, described by its name and the doc it opens with. */
 export interface FileMatch {
   readonly source: 'file';
@@ -120,6 +154,17 @@ export interface SearchAnswer {
     /** Files whose declarations the index holds none of, since none were read: unknown, not empty. */
     readonly unread: readonly string[];
   };
+  /**
+   * Members and functions inside a function, read off the source index as
+   * `declared` is. Beside any other section, only those that are the question,
+   * since one that holds its words adds nothing to an answer. Absent when
+   * `declared` is.
+   */
+  readonly held?: Matches<HeldMatch>;
+  /** The imports that bind the name as written to another. Absent when the source index could not be read. */
+  readonly aliases?: Matches<AliasMatch>;
+  /** The languages of this workspace whose members were not read, by name, when nothing answered; absent otherwise and when there are none. */
+  readonly membersUnread?: readonly string[];
   /**
    * Present only when the exact sections are empty, which is when it runs: the
    * published and exported names first, then the ones a file keeps to itself.
