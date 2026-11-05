@@ -1509,6 +1509,9 @@
   "packages/help/src/tools/orient.ts overview": [
     21
   ],
+  "packages/help/src/tools/search-answer.ts block": [
+    6
+  ],
   "packages/help/src/tools/search-answer.ts docblock": [
     12
   ],

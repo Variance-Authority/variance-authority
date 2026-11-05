@@ -65,11 +65,6 @@ export function containerOf(by: string): string {
 /** Identifiers joined by dots: the only names that write a container's member. */
 const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
 
-/** One identifier, which a member may be called too. */
-const IDENTIFIER = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*$/u;
-
-/** Whether `name` could be a member at all: words of a description are not. */
-export const namesMember = (name: string): boolean => IDENTIFIER.test(name) || MEMBER_PATH.test(name);
 
 /**
  * The member a name asks for and the container it is on: `Tree.chainsTo` is
@@ -206,16 +201,21 @@ export function membersUnreadOf(root: string, name: string): readonly string[] {
  * declarations were not read.
  */
 export function membersStop(members: Members): string | undefined {
-  const name = members.member;
   const languages = members.elsewhere ?? [];
   if (languages.length === 0) return undefined;
   const there = members.declared.length === 0 ? 'there' : 'there too';
-  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
-  return (
-    `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them: ` +
-    `if \`${name}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`
-  );
+  return `${unread(languages)}: if \`${members.member}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`;
 }
+
+/** Where a search for words stops, given the same languages: its question may be a phrase, so it names no member. */
+export function unreadStop(languages: readonly string[]): string | undefined {
+  return languages.length === 0 ? undefined : `${unread(languages)}: a member there is for their language server's workspace symbols to find.`;
+}
+
+const unread = (languages: readonly string[]): string => {
+  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
+  return `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them`;
+};
 
 /** `N places`, in words a sentence takes. */
 export function places(count: number): string {

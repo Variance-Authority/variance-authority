@@ -223,7 +223,7 @@ after every other declaration of the name. `Tree.has` asks for the member `has`
 of `Tree` alone; when `Tree` is declared and no body read declares `has` on it,
 the answer names `Tree`'s declaration and leaves what it inherits, and a
 member of an enum, a namespace or an object literal, which the source index does
-not read, to the go-to-definition of the language server for `Tree`'s language. `ask search` finds these too:
+not read, to the go-to-definition of the language server for `Tree`'s language. `ask search` finds
 a function inside a function by its name, under the function that holds it, and
 a member by its name, by `container.member`, or by the doc above it. They print
 below the other sections, and when something else answered, only a row that is

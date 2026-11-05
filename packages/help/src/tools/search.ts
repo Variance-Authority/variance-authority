@@ -9,7 +9,7 @@ import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, Searched, SearchQuestion } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
-import { membersStop } from './members.js';
+import { unreadStop } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
@@ -285,7 +285,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
         : area === undefined
         ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    const stop = membersStop({ member: answer.memberAsked ?? query, declared: [], used: [], elsewhere: answer.membersUnread ?? [] });
+    const stop = unreadStop(answer.membersUnread ?? []);
     return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 

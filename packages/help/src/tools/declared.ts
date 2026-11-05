@@ -167,7 +167,12 @@ export function heldLine(held: HeldMatch): string {
 
 /** One import that binds the name, as a `search` line writes it. */
 export function aliasLine(alias: AliasMatch): string {
-  return `${alias.at}:${alias.line} imports \`${alias.imported}\` as \`${alias.local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
+  return importLine(alias, alias.imported, alias.local);
+}
+
+/** One import, saying the export as `named`, with its own spelling when that differs. */
+export function importLine(alias: Pick<AliasMatch, 'at' | 'line' | 'imported' | 'specifier' | 'type'>, named: string, local: string): string {
+  return `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
 }
 
 /** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */

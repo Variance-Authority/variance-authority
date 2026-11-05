@@ -20,6 +20,7 @@ import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { keyOf, SLOT } from './declaration-key.js';
+import { importLine } from './declared.js';
 import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
@@ -97,11 +98,9 @@ export const localNames = askedOnce((
     const named = first.imported === SLOT ? (declared ?? first.imported) : first.imported;
     const original = originalOf(help, root, first, wanted, named);
     if (original === undefined) continue;
-    const imports = (alias: Alias): string =>
-      `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
     const also = group.slice(1);
     blocks.push([
-      `\`${local}\` is a local name: ${imports(first)}.`,
+      `\`${local}\` is a local name: ${importLine(first, named, local)}.`,
       ...(also.length === 0 ? [] : [`Also imported as \`${local}\` at ${also.slice(0, CAP).map((alias) => `${alias.at}:${alias.line}`).join(', ')}${more(also.length)}.`]),
       '',
       original.text,

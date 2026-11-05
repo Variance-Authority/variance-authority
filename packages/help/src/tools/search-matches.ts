@@ -165,8 +165,6 @@ export interface SearchAnswer {
   readonly aliases?: Matches<AliasMatch>;
   /** The languages of this workspace whose members were not read, by name, when nothing answered; absent otherwise and when there are none. */
   readonly membersUnread?: readonly string[];
-  /** The member those languages may hold, as the question spelled it; present with `membersUnread`. */
-  readonly memberAsked?: string;
   /**
    * Present only when the exact sections are empty, which is when it runs: the
    * published and exported names first, then the ones a file keeps to itself.

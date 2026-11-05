@@ -10,7 +10,7 @@ import { describedDeclarations, describedNames, describedShown, fileMatch, rowTe
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, exactness } from './declared.js';
-import { memberName, membersUnreadOf, namesMember } from './members.js';
+import { membersUnreadOf } from './members.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
@@ -278,11 +278,12 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
   const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
-  // What a name both readings reach is told by is what each holds, never how many rows
-  // print. Holding at least half the stems through one row, it is the described
-  // section's, which prints first, and the loose pass leaves it. Holding fewer, it is the
-  // loose section's when every word reaches it there, as every word one character off
-  // says more; held on so few, it would sort past the rows shown.
+  // Which reading a name both reach is told by is decided by what each holds, never
+  // by how many rows print. A name holding at least half the stems through one row
+  // is the described section's, which prints first, and the loose pass offers none
+  // of them a second time. A name holding fewer is the loose section's when every
+  // word reaches it there, since every word one character off says more than under
+  // half the stems do: held on so few, it would sort past the rows shown.
   const strong = Math.ceil(describedWordsNative(query).length / 2);
   const held = (one: Reached): boolean => one.words.length >= strong;
 
@@ -316,8 +317,8 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
   const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length)];
-  const membersUnread = root === undefined || !namesMember(question.query) ? [] : membersUnreadOf(root, memberName(question.query).member);
-  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread, memberAsked: memberName(question.query).member }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
+  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
+  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
   if (left === undefined || told === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: left.length, shown: told } }, area };
 }

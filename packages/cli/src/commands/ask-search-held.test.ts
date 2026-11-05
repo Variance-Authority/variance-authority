@@ -181,4 +181,19 @@ describe('the words of an empty answer', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     expect(await searched('qqzzq')).toContain("this workspace's Rust files were not read for them");
   });
+
+  it('names that language for a phrase too, since a member\'s doc there was not read either', async () => {
+    checkout({ ...HELD, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const text = await searched('qq-zzq');
+    expect(text).toContain("this workspace's Rust files were not read for them");
+    expect(text).not.toContain('if `qq-zzq` is a member');
+  });
+
+  it('leaves that language out of an answer a held row gave, in JSON as in text', async () => {
+    checkout({ ...HELD, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { out } = await run(['ask', 'search', '--query', 'rewindAl', '--format', 'json']);
+    expect(JSON.parse(out)).not.toHaveProperty('membersUnread');
+  });
 });
