@@ -373,6 +373,7 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  merge_group: # a merge queue's own commit
 
 permissions:
   contents: read # the checkout: a declared block sets the rest to none
@@ -380,14 +381,16 @@ permissions:
 
 jobs:
   variance:
+    if: github.event_name != 'merge_group' # a skipped job reports success
     concurrency:
       group: variance-${{ github.ref }} # one comment, written by one run at a time
+      queue: max # every run waits its turn, and none replaces a label's
     runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
     steps:
       - uses: actions/checkout@v4
 
       - name: take the label off
-        if: github.event.label.name == 'variance: accept'
+        if: "github.event.label.name == 'variance: accept'"
         continue-on-error: true # a fork's token is read-only
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -407,7 +410,7 @@ jobs:
           config: variance.config.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-page: true # the report the comment links to, images included
-          accept: ${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}
+          accept: "${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}"
           to-accept: 'check the report, then add the **variance: accept** label to this pull request'
 ```
 
@@ -425,9 +428,25 @@ Any other label compares again and accepts nothing, so a red check stays red. Th
 job does not skip on that label, because a skipped job reports success and would
 cover the red.
 
-GitHub keeps one queued run per `concurrency` group, so any later event can
-displace a label's queued run. The label then stays on with nothing accepted:
-take it off and add it again.
+`queue: max` is what keeps the label's run. By default GitHub holds one waiting
+run per `concurrency` group and cancels it for the next event, so a second label
+or a push would drop the accept and leave the label on. With it, a pull request's
+runs wait in turn, and each one compares against what the run before it accepted.
+A burst of pushes or labels therefore runs each in turn, where the default would
+skip to the last.
+Leave `cancel-in-progress` out: GitHub refuses `true` beside `queue: max`, and
+`true` would stop a running accept. A group holds 100 waiting runs and cancels any
+past that. If one of those was the label's, take the label off and add it again.
+On GitHub Enterprise Server, check that your version's workflow syntax lists
+`queue` before you rely on it.
+
+A [merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
+waits for the required check, `variance` here, on its own commit, and only
+`merge_group` starts a workflow there. The job answers by skipping, which reports
+success. It does not compare, because the pull request's accept is in that pull
+request's cache scope, which the queue's run cannot read: every change a person
+accepted would go red. The push to `main` then records what landed. Without a
+queue the event never fires.
 
 A subject with no baseline reports `new` and the check stays green, so a pull
 request is green until the first push to `main` records a store.

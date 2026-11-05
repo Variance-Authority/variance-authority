@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SOURCE, commentsOf } from './comments.js';
-import { INTO_GITHUB, MARKDOWN, fencesIn, lineOf, prose } from './markdown.js';
+import { INTO_GITHUB, MARKDOWN, NAMES_THE_ACTION, fencesIn, lineOf, prose } from './markdown.js';
 
 /**
  * What we ship is installed, never copied.
@@ -63,11 +63,11 @@ describe('nothing asks a reader to copy our files', () => {
   });
 });
 
-/** A `uses:` that means our action: its own repository, or a path to where its source lives here. */
-const NAMES_OUR_ACTION = /^(?:Variance-Authority\/action(?:@|$)|Variance-Authority\/variance-authority\/|(?:\.\/)?\.github\/actions\/variance(?:\/|$))/i;
+/** A `uses:` that means our action by a path to where its source lives here; `NAMES_THE_ACTION` is its own repository. */
+const NAMES_OUR_SOURCE = /^(?:Variance-Authority\/variance-authority\/|(?:\.\/)?\.github\/actions\/variance(?:\/|$))/i;
 
 /** The way to name it: the major tag of its inputs, which a release moves only within one major, or a commit. */
-const INSTALLS_OUR_ACTION = /^Variance-Authority\/action@(?:v\d+|[0-9a-f]{40})$/;
+const INSTALLS_OUR_ACTION = /^Variance-Authority\/action(?:\/[\w-]+)?@(?:v\d+|[0-9a-f]{40})$/;
 
 /**
  * What is wrong with one example line's `uses:`, or nothing when it does not
@@ -76,7 +76,7 @@ const INSTALLS_OUR_ACTION = /^Variance-Authority\/action@(?:v\d+|[0-9a-f]{40})$/
  */
 export function wrongUse(text: string): string | undefined {
   const uses = /^\s*-?\s*uses:\s*['"]?([^\s'"#]+)/.exec(text)?.[1];
-  if (uses === undefined || !NAMES_OUR_ACTION.test(uses)) return undefined;
+  if (uses === undefined || !(NAMES_THE_ACTION.test(uses) || NAMES_OUR_SOURCE.test(uses))) return undefined;
   return INSTALLS_OUR_ACTION.test(uses) ? undefined : uses;
 }
 
@@ -93,6 +93,7 @@ export function withoutContents(code: string): boolean {
 describe('what names our action', () => {
   it.each([
     'uses: Variance-Authority/action@v1',
+    'uses: Variance-Authority/action/tick@v1',
     '  - uses: Variance-Authority/action@0123456789abcdef0123456789abcdef01234567',
     'uses: ./.github/actions/other',
     'uses: Variance-Authority/other-action@main',
@@ -103,6 +104,7 @@ describe('what names our action', () => {
 
   it.each([
     ['uses: Variance-Authority/action@main', 'Variance-Authority/action@main'],
+    ['uses: Variance-Authority/action/tick@main', 'Variance-Authority/action/tick@main'],
     ['uses: Variance-Authority/action@v0.21.0', 'Variance-Authority/action@v0.21.0'],
     ['uses: Variance-Authority/action@v<version>', 'Variance-Authority/action@v<version>'],
     ['uses: Variance-Authority/action@anything', 'Variance-Authority/action@anything'],
