@@ -30,9 +30,6 @@
  * is selection's alone, and `carry take` sets the mainline's aside for review.
  * The mainlines are asked of `share` (ADR-0077's order), and when nothing
  * answers, nothing is saved and the output says which answers were missing.
- *
- * `carry hand` and `receive` move no recording: they move the one read of the
- * line a run stands on, between its jobs, as an artifact.
  */
 
 // compass: variance-authority.retention

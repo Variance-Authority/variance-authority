@@ -242,12 +242,21 @@ export async function movePushed(
     outputs = [`kept=${kept.kept.join(' ')}`];
     lines = keptLines(kept, dir);
   }
-  if (parsed.format === 'github') {
+  return printMoved(parsed.format, outputs, lines, streams);
+}
+
+/** Under `--format github` the outputs go to `$GITHUB_OUTPUT` and the lines to the error stream; otherwise only the lines print. */
+export function printMoved(
+  format: ParsedCarry['format'],
+  outputs: readonly string[],
+  lines: readonly string[],
+  streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
+): ExitCode {
+  if (format === 'github') {
     streams.out(`${outputs.join('\n')}\n`);
     streams.err(`${lines.join('\n')}\n`);
   } else {
     streams.out(`${lines.join('\n')}\n`);
   }
-
   return EXIT_CLEAN;
 }

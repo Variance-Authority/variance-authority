@@ -30,7 +30,8 @@ import {
   writeFetchedMainline,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
-import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { OperatorError, type ExitCode } from '../exit.js';
+import { printMoved } from './carry-pushed.js';
 import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, writeMissedMainline, type MainlineAsk } from './mainline-base.js';
 
 /** What `hand` writes first, naming the suites it holds a read of. */
@@ -176,12 +177,5 @@ export async function moveBase(
     outputs = [`received=${received.suites.join(' ')}`];
     lines = received.lines;
   }
-  if (parsed.format === 'github') {
-    streams.out(`${outputs.join('\n')}\n`);
-    streams.err(`${lines.join('\n')}\n`);
-  } else {
-    streams.out(`${lines.join('\n')}\n`);
-  }
-
-  return EXIT_CLEAN;
+  return printMoved(parsed.format, outputs, lines, streams);
 }
