@@ -634,6 +634,10 @@ words, matched by stem, the ones holding most of them first, each labelled with
 the words it holds; both come
 before any installed package.
 
+An answer from `docs_search` names candidates, so a row missing from it does not
+prove that no such name exists; `git grep -i <word>` prints every tracked line
+that writes the word.
+
 ## Bound a search to where you are working
 
 A substring matches everywhere a large repository writes a common word. Pass a

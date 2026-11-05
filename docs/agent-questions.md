@@ -34,7 +34,8 @@ For [source orientation](orientation.md), ask three questions in this order:
 1. **`search`, with a path already supplied by the editor, ticket or stack
    trace.** The words find candidate names. `--from` keeps candidates used by
    files reachable from that path, while `--to` keeps candidates used by files
-   that reach it.
+   that reach it. Those candidates are not every match;
+   `git grep -i <word>` prints every tracked line that writes it.
 2. `symbol`.
 3. `uses`.
 

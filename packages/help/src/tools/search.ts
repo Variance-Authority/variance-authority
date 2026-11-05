@@ -20,7 +20,7 @@ import { byPublishedPath, plural } from './format.js';
  * Substring, case-insensitive, over the name and over what was written about
  * it; and several words, over the words a name is written in, each word
  * matching one that starts with it or shares its stem. A match there is a fact
- * about the text, so it is reported first and whole, ordered first by where it
+ * about the text, so it is reported first, ordered first by where it
  * was found — the whole name, as written and then in another case, part of the
  * name, the doc's opening paragraph, the rest of the doc — and then by who
  * imports it: a name that is the word is what was asked for, a name holding it
@@ -340,7 +340,8 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find names whose name or documentation contains a string, case-insensitive, or whose words ' +
+    'Find candidate names, not every match; `git grep -i <word>` prints every tracked line that writes a word. ' +
+    'A name matches when its name or documentation contains a string, case-insensitive, or when its words ' +
     'start with or share the stem of every word you typed. Published names come first, a name holding ' +
     'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
     'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +

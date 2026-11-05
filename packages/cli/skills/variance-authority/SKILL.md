@@ -149,6 +149,9 @@ a sign-in screen whose component is `CredentialGate`. Ask each likely spelling â
 `login`, `session`, `credential`, `token` â€” as its own short query, and use the
 vocabulary of the first hit for every question after it.
 
+**`search` lists candidates, not every match.** For every tracked line that
+writes a word, run `git grep -i <word>`.
+
 **Say where you are standing.** On a large repository a common word matches
 everywhere the product uses its own name. `--from <path>` narrows to what that
 path imports, at any depth; `--to <path>` to what imports it. Give both and the

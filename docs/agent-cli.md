@@ -108,6 +108,9 @@ exported or kept to their file. So `tsconfig custom conditions` answers
 `customConditionsFor` before the bundlers that also say those words, and
 `loose reading` answers `packages/help/src/tools/loose.ts`.
 
+These sections are candidates, not every match; `git grep -i <word>` prints
+every tracked line that writes the word.
+
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
 shares with `--from`; `gaps` lists the published names anybody imports that
@@ -119,10 +122,10 @@ To read the answer as data, add `--format json`:
 variance ask search --query viewport --from packages/app/ --format json
 ```
 
-Each section has a `total`, which counts every match, and `shown`, which holds
-the rows the text would print. A published row carries `specifier`, `at`, the
-first paragraph of its documentation as `summary`, and `inArea` when you gave a
-start point. An exported row carries `at` and `line`. A section that was not run
+Each section has a `total`, which counts the section's rows, shown or not, and
+`shown`, which holds the rows the text would print. A published row carries
+`specifier`, `at`, the first paragraph of its documentation as `summary`, and
+`inArea` when you gave a start point. An exported row carries `at` and `line`. A section that was not run
 is missing: `described` and `loose` are present only when the other two are
 empty, a `described` row carries the `words` of yours it holds and a `source`
 of `published`, `exported`, `declared` or `file`, and is never repeated in `loose`, and
