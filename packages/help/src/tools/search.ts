@@ -120,7 +120,7 @@ function importedLine(match: PublishedMatch): string {
   return byPublishedPath(match.otherImports, match.otherPackages);
 }
 
-/** One published match: where it is published, what it is, who imports it, and what its doc says first. */
+/** One published match: where it is published, what it is, who imports it, and the sentence of its doc that holds the question. */
 function publishedLine(match: PublishedMatch): string {
   const { inArea } = match;
   const said = match.summary ?? 'UNDOCUMENTED';

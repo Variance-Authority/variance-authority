@@ -109,7 +109,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).not.toContain('nor the doc of one, nor a function inside a function, writes `launch`');
     expect(out).toMatch(/^1 more name is declared somewhere in the repository without being exported:$/m);
-    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4$/m);
+    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4 — Start the program again in a process of its own\.$/m);
   });
 
   it('lists a declaration its file exports under its own name once, as the export', async () => {
@@ -126,7 +126,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const near = await run(['ask', 'search', '--query', 'launch', '--from', 'packages/kit/src/money/restart.ts']);
-    expect(near.out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4$/m);
+    expect(near.out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4 — Start the program again in a process of its own\.$/m);
 
     const far = await run(['ask', 'search', '--query', 'launch', '--from', 'apps/app/src/hello.ts']);
     expect(far.out).not.toContain('relaunch');
@@ -214,7 +214,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { out } = await run(['ask', 'search', '--query', 'process of its own']);
-    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4$/m);
+    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4 — Start the program again in a process of its own\.$/m);
   });
 
   it('answers `search` with a Rust item whose `///` lines hold the words across a line break', async () => {
@@ -222,7 +222,7 @@ describe('variance ask about a name declared and not exported', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { out } = await run(['ask', 'search', '--query', 'again, in a process']);
-    expect(out).toMatch(/^relaunch \[function\] — .* · packages\/kit\/src\/lib\.rs:7$/m);
+    expect(out).toMatch(/^relaunch \[function\] — .* · packages\/kit\/src\/lib\.rs:7 — Start the program again, in a process of its own\.$/m);
   });
 
   it('answers `symbol` for a Rust item that is not `pub`, with its doc lines and who can name it', async () => {

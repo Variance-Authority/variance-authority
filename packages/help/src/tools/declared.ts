@@ -20,13 +20,14 @@
 
 import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
-import type { AliasMatch, DeclaredMatch, HeldMatch, Matches } from './search-matches.js';
+import type { Said } from './held-sentence.js';
+import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches } from './search-matches.js';
 import { boundOf, SLOT } from './declaration-key.js';
 import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { textAsRead } from './as-read.js';
+import { textAsRead, textSince } from './as-read.js';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
@@ -155,7 +156,8 @@ export function reachSentences(
 
 /** One declaration, as a `search` line writes it. */
 export function declaredLine(held: DeclaredMatch): string {
-  return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
+  const said = held.summary === undefined ? '' : ` — ${held.summary}`;
+  return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}${said}`;
 }
 
 /** One member or function inside a function, as a `search` line writes it, under what holds it. */
@@ -281,6 +283,7 @@ export function declaredMatches(
   query: string,
   files: Iterable<string> | undefined,
   cap: number,
+  told: (one: DeclaredRead) => DeclaredMatch,
 ): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
@@ -292,7 +295,7 @@ export function declaredMatches(
   const top = names.filter((one) => !isNested(one) && !isMember(one));
   const held = names.filter((one) => isNested(one) || isMember(one));
   return {
-    declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch), unread: read.unread },
+    declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch).map(told), unread: read.unread },
     held: held.map(heldMatch),
     exact: held.filter((one) => written(one) < 2).length,
   };
@@ -351,11 +354,21 @@ const heldMatch = (one: DeclaredName): HeldMatch => ({
 });
 
 /** One declaration, as a `search` section holds it. */
-export const declaredMatch = (one: DeclaredName): DeclaredMatch => ({
+export const declaredMatch = (one: DeclaredName): DeclaredRead => ({
   source: 'declared',
   name: one.name,
   kind: one.kind,
   ...(one.by === '' ? {} : { package: one.by }),
   at: one.at,
   line: one.line,
+  ...(one.docStart == null || one.docEnd == null ? {} : { doc: { start: one.docStart, end: one.docEnd } }),
 });
+
+/** A declaration a row prints: what `said` makes of its doc, read from the checkout; nothing when the file is gone or was written after the read at `since`. */
+export function declaredTold(root: string | undefined, said: Said, since: number | undefined): (one: DeclaredRead) => DeclaredMatch {
+  return ({ doc: span, ...match }) => {
+    const text = root === undefined || span === undefined ? undefined : textSince(root, match.at, since);
+    const doc = text === undefined ? undefined : docOf(text, span);
+    return doc === undefined ? match : { ...match, summary: said(doc) };
+  };
+}

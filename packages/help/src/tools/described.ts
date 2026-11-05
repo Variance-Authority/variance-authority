@@ -1,12 +1,12 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
-import { opening } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
 import { textSince } from './as-read.js';
 import { declaredMatch } from './declared.js';
-import type { DeclaredMatch, FileMatch } from './search-matches.js';
+import type { Said } from './held-sentence.js';
+import type { DeclaredRead, FileMatch } from './search-matches.js';
 import { admittedBy, rowWithin, termsOfStems } from './loose.js';
 
 // compass: variance-authority.report.agent-surface
@@ -115,7 +115,7 @@ export type RowOrder = (a: DescribedRow, b: DescribedRow) => number;
 
 /** One declaration no export binds that the description reached: in no row, and ranked after every name that is. */
 export interface DescribedDeclaration extends DescribedKey {
-  readonly match: DeclaredMatch;
+  readonly match: DeclaredRead;
 }
 
 /** One file the description reached by its own name and the doc it opens with. */
@@ -385,16 +385,16 @@ export function describedDeclarations(
 }
 
 /**
- * A described file as a `search` section holds it, its doc's opening read from
+ * A described file as a `search` section holds it, what `said` makes of its doc read from
  * the checkout; none when the file is gone or, for a generation whose read began
  * at `since`, was written after it.
  */
-export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined): FileMatch {
+export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined, said: Said): FileMatch {
   let summary: string | undefined;
   if (root !== undefined && file.docStart != null && file.docEnd != null) {
     const text = textSince(root, file.at, since);
     const doc = text === undefined ? undefined : docOf(text, { start: file.docStart, end: file.docEnd });
-    summary = doc === undefined ? undefined : opening(doc);
+    summary = doc === undefined ? undefined : said(doc);
   }
   return { source: 'file', at: file.at, ...(file.by === '' ? {} : { package: file.by }), ...(summary === undefined ? {} : { summary }) };
 }
