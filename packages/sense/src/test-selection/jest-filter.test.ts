@@ -163,7 +163,7 @@ module.exports.setup = async () => { ready = true; };
     const lines: string[] = [];
     const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
 
-    for (const flag of ['--watch=false', '--watchAll=false', '--skipFilter=false']) {
+    for (const flag of ['--watch=false', '--watchAll=false', '--watch-all=false', '--skipFilter=false', '--skip-filter=false']) {
       expect(selectingFilter({}, { ...options, argv: ['node', 'jest', flag] })).toEqual({ filter: SELECTION_FILTER, passWithNoTests: true });
     }
     expect(lines).toEqual([]);
@@ -214,7 +214,7 @@ describe('passWithNoTests on a configuration wrapped for selection', () => {
     expect(withTestSelection({ rootDir }, { coverageFile: 'coverage.bin' }).passWithNoTests).toBeUndefined();
   });
 
-  it.each(['--watch', '--watchAll', '--filter=./mine.cjs', '--skipFilter'])('stays unset under %s, where nothing is selected', (flag) => {
+  it.each(['--watch', '--watchAll', '--watch-all', '--filter=./mine.cjs', '--skipFilter', '--skip-filter'])('stays unset under %s, where nothing is selected', (flag) => {
     process.argv = ['node', 'jest', flag];
     const say = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
 

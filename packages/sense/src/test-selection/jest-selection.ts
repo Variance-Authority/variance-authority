@@ -70,8 +70,8 @@ export function selectingFilter(
   const { argv = process.argv, say = (line: string) => process.stderr.write(`${line}\n`) } = options;
   if (config.filter === SELECTION_FILTER) return {};
   // `--watch=false` is the flag written off, as Jest reads it.
-  const flag = (name: string) => argv.some((arg) => arg === name || (arg.startsWith(`${name}=`) && arg !== `${name}=false`));
-  if (config.watch === true || config.watchAll === true || flag('--watch') || flag('--watchAll')) {
+  const flag = (...names: string[]) => argv.some((arg) => names.some((name) => arg === name || (arg.startsWith(`${name}=`) && arg !== `${name}=false`)));
+  if (config.watch === true || config.watchAll === true || flag('--watch', '--watchAll', '--watch-all')) {
     say('variance-authority: watch mode does not select');
     return {};
   }
@@ -79,7 +79,7 @@ export function selectingFilter(
     say('variance-authority: --filter on the command line replaces the selection filter, so nothing is selected');
     return {};
   }
-  if (flag('--skipFilter')) {
+  if (flag('--skipFilter', '--skip-filter')) {
     say('variance-authority: --skipFilter turns the selection filter off, so nothing is selected');
     return {};
   }
