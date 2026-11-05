@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { gitAnsweringSubmodulesMissing } from './__fixtures__/git-older.js';
 import { gitReads } from './__fixtures__/git-reads.js';
 import { gitStarted } from './__fixtures__/git-started.js';
 import { HELD_BYTES, textAtRecording, textsAt } from './recorded-text.js';
@@ -255,6 +256,26 @@ describe('what a name says at a commit', () => {
     });
   });
 
+  it('is the same on a git that answers a submodule `missing`, as those before the `submodule` line do', () => {
+    checkout((root, first) => {
+      const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+      git('update-index', '--add', '--cacheinfo', `160000,${'1'.repeat(40)},src/vendored`);
+      git('commit', '--quiet', '--message', 'a submodule');
+      const second = git('rev-parse', 'HEAD');
+      gitAnsweringSubmodulesMissing(root, () => {
+        const sourceAt = textAtRecording(root, []);
+        expect(sourceAt(path(1), first)).toBe(body(1));
+        const started = gitStarted(root, () => {
+          expect(sourceAt('src/vendored', second)).toBeUndefined();
+          expect(sourceAt('src/vendored/inside.ts', second)).toBeUndefined();
+          expect(sourceAt('src/vendored/deep/down.ts', second)).toBeUndefined();
+        });
+
+        expect(started).toEqual([]);
+      });
+    });
+  });
+
   it('is the checkout\'s own when two checkouts are asked in turn', () => {
     const other = (at: number): string => `export const other = ${at};\n`;
     checkout((root, first) => {
@@ -266,6 +287,95 @@ describe('what a name says at a commit', () => {
           expect(there(path(at), commit)).toBe(other(at));
         }
       }, 4, other);
+    });
+  });
+});
+
+describe('what was asked is held until it and what was held after it no longer fit', () => {
+  const texts = (at: number): string => sized(at === 3 ? HELD_BYTES + TEXT : (5 * HELD_BYTES) / 8)(at);
+
+  it('so a path goes for less than `HELD_BYTES` asked since it, and stays for a text nothing holds', () => {
+    checkout((root, first) => {
+      const sourceAt = textAtRecording(root, []);
+      const ask = (at: number): void => {
+        expect(sourceAt(path(at), first) === texts(at), path(at)).toBe(true);
+      };
+      const reads = gitReads(() => {
+        // Each is five eighths of what is held: one asked between two asks of the other lets it go.
+        [0, 1, 0].forEach(ask);
+        // The last is over the bound itself, so it displaces nothing however large.
+        [2, 3, 2].forEach(ask);
+      });
+
+      expect(reads(first, path(0))).toBe(2);
+      expect(reads(first, path(2))).toBe(1);
+    }, 4, texts);
+  });
+});
+
+describe('a spelling of a path or a commit', () => {
+  const file = (name: string, text = name): [string, string, string] => ['100644', name, text];
+  /** Mode, name, and the text a blob holds or the object a submodule names, written to the index so a name no file system takes is still one. */
+  const entries: [string, string, string][] = [
+    ...['src/f.ts', 'a*b/g.ts', 'café.ts', 'cafe\u0301-decomposed.ts', 'q"uote.ts', 'sp ace.ts', ' lead.ts', 'trail.ts ', 'star*.ts', ':colon.ts'].map((name) => file(name)),
+    ...['tab\tname.ts', 'carriage.ts\r', 'mid\rdle.ts', 'new\nline.ts'].map((name) => file(name)),
+    ['120000', 'link.ts', 'src/f.ts'],
+    ['120000', 'dirlink', 'src'],
+    ['160000', 'vendored', '1'.repeat(40)],
+  ];
+  const paths = [
+    ...entries.map(([, name]) => name),
+    'src', 'src/', 'src//f.ts', '/src/f.ts', 'src/./f.ts', './src/f.ts', 'src/../src/f.ts', 'src/..', 'src/../..', '../x', '..', '.', '',
+    'src/f.ts/', 'src/f.ts/inside', 'src/f.ts\r', 'src\r/f.ts', 'src/f.ts\n', 'src/f.ts\nsrc/f.ts', 'src/f.ts\0', 'src/f.ts\0tail', '\0',
+    'carriage.ts', 'SRC/f.ts', 'star?.ts', '*.ts', 'a?b/g.ts', ':/f.ts', ':(glob)**/f.ts', 'dirlink/f.ts', 'vendored/inner.ts', 'HEAD', 'gone/deep.ts',
+    // Longer than a command line takes, so a listing is refused it.
+    'a'.repeat(4 * 1024 * 1024),
+  ];
+  /** What `read` gave, the reason it threw included. */
+  const outcome = (read: () => string | undefined): { text: string | undefined } | { refused: string } => {
+    try {
+      return { text: read() };
+    } catch (error) {
+      return { refused: (error as Error).message };
+    }
+  };
+
+  function spellings(run: (root: string, commit: string, git: (input: string, ...args: string[]) => string) => void): void {
+    const root = mkdtempSync(resolve(tmpdir(), 'variance-recorded-spelling-'));
+    const git = (input: string, ...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8', input }).trim();
+    try {
+      git('', 'init', '--quiet');
+      git('', 'config', 'user.email', 'fixture@example.invalid');
+      git('', 'config', 'user.name', 'Fixture');
+      const listed = entries.map(([mode, name, text]) => `${mode} ${mode === '160000' ? text : git(text, 'hash-object', '-w', '--stdin')}\t${name}\0`);
+      git(listed.join(''), 'update-index', '-z', '--add', '--index-info');
+      git('', 'commit', '--quiet', '--message', 'every spelling');
+      run(root, git('', 'rev-parse', 'HEAD'), git);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const same = (root: string, commit: string, spelled: string): void => {
+    const listing = outcome(() => textsAt(root, new Map([[commit, [spelled]]])).get(commit)?.get(spelled));
+    expect(outcome(() => textAtRecording(root, [])(spelled, commit)), `${JSON.stringify(spelled.slice(0, 40))} at ${JSON.stringify(commit)}`).toEqual(listing);
+  };
+
+  it('of a path answers as the listing does', () => {
+    spellings((root, commit) => {
+      for (const spelled of paths) same(root, commit, spelled);
+      for (const name of ['carriage.ts\r', 'cafe\u0301-decomposed.ts']) expect(textsAt(root, new Map([[commit, [name]]])).get(commit)?.get(name)).toBe(name);
+    });
+  });
+
+  it('of a commit answers as the listing does', () => {
+    spellings((root, full, git) => {
+      const tree = git('', 'rev-parse', `${full}^{tree}`);
+      const blob = git('', 'rev-parse', `${full}:src/f.ts`);
+      const commits = [full, '', ' ', 'HEAD', 'HEAD~0', full.slice(0, 12), full.toUpperCase(), tree, blob, 'HEAD:src', ':/every', ':0', '--full-name', '-r', 'nosuchref', '0'.repeat(40)];
+      for (const commit of [...commits, `${full}\r`, `${full}\n`, `${full}\0`, `${full}:`, `${full}^{tree}`, `${full} `]) {
+        for (const spelled of ['src/f.ts', 'f.ts']) same(root, commit, spelled);
+      }
     });
   });
 });

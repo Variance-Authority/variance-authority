@@ -33,14 +33,15 @@
 //!
 //! Git answers `missing` alike for a path the tree does not list and a blob it
 //! lists and the store lacks, so a path is absent only when the tree that would
-//! list it does not, read from the same process. It answers only what that
-//! settles. Anything else goes to [`read`], which names git's reason: a commit this clone lacks, a blob the tree names and the
-//! store does not, a git-LFS pointer, a process that died. `cat-file` gives a
-//! pointer's text, and its content takes `git lfs smudge`. That read starts
-//! processes every time it runs: two for a commit the store lacks, about sixteen
-//! for a pointer, nearly all of them `git lfs smudge`'s. A reader spares a
-//! pointer's content while it holds it, and nothing spares a refused read, which
-//! is held nowhere. [`fetch_texts_at`] is what such a reader does first in a
+//! list it does not, read from the same process. A submodule is read from that
+//! tree too, because only a newer git names one on the pipe. The process answers
+//! only what that settles, and only a name [`plain`] says it reads as a listing
+//! does. Anything else goes to [`read`], which names git's reason: a commit this
+//! clone lacks, a blob the tree names and the store does not, a process that
+//! died. That read starts processes every time it runs, two for a commit the
+//! store lacks, and a refused read is held nowhere. A git-LFS pointer's content
+//! takes `git lfs smudge` and the processes it starts; a reader spares them while
+//! it holds the content. [`fetch_texts_at`] is what such a reader does first in a
 //! partial clone, because git asked for each blob makes a request apiece, as
 //! `promisor.rs` describes.
 
@@ -85,6 +86,8 @@ pub fn texts_at(root: String, commits: Vec<String>, paths: Vec<Vec<String>>) -> 
 #[napi(catch_unwind)]
 pub fn text_at(root: String, commit: String, file: String) -> napi::Result<Option<String>> {
     if let Some(found) = blob_at(&root, &commit, &file) {
+        let found = found.map(|body| content(&root, &file, &commit, body)).transpose();
+        let found = found.map_err(|why| napi::Error::from_reason(unread(&[&commit], &why)))?;
         return Ok(found.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()));
     }
     let mut found = read(&root, &[commit], &[vec![file]]).map_err(napi::Error::from_reason)?;
@@ -215,11 +218,20 @@ pub(crate) fn each_content(root: &str, blobs: &[Blob]) -> Result<Vec<Result<Vec<
         .iter()
         .zip(read)
         .map(|(blob, body)| match body {
-            Ok(body) if crate::lfs::pointer(&body) => crate::lfs::smudge(root, blob.path, blob.commit, &body),
-            Ok(body) => Ok(body),
+            Ok(body) => content(root, blob.path, blob.commit, body),
             Err(why) => Err(after_fetch(why)),
         })
         .collect())
+}
+
+/// `body`, the blob at `path`, as the file it stands for: a git-LFS pointer's
+/// content or git-lfs's reason, and anything else as it is.
+fn content(root: &str, path: &str, commit: &str, body: Vec<u8>) -> Result<Vec<u8>, String> {
+    if crate::lfs::pointer(&body) {
+        crate::lfs::smudge(root, path, commit, &body)
+    } else {
+        Ok(body)
+    }
 }
 
 /// Why `commit` was not read when the checkout does not hold it, for a reader
@@ -262,7 +274,8 @@ fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, St
 
 /// What git said to one name.
 enum Reply {
-    /// A submodule's commit comes as a `submodule` with no body.
+    /// A submodule's commit comes as a `submodule` with no body, from a git
+    /// new enough to say so. An older one answers `missing`.
     Object { oid: String, kind: String, body: Vec<u8> },
     /// Git holds nothing under this name. It says so alike for a path the tree
     /// does not list, a commit the store lacks, and a blob the tree names and
@@ -303,11 +316,12 @@ fn reply(from: &mut impl BufRead) -> Result<Reply, String> {
 /// The blob `commit`'s tree names at each of `files` that is one. A path the
 /// tree does not list, or lists as a directory or a submodule, names none. A
 /// blobless clone holds the trees, so listing them fetches nothing; a treeless
-/// one fetches them as git's lazy fetch does.
+/// one fetches them as git's lazy fetch does. A path is its bytes, so git on
+/// macOS is told not to recompose the one on this command line.
 fn blobs(root: &str, commit: &str, files: &[String]) -> Result<HashMap<String, String>, String> {
     let mut oids = HashMap::new();
     for chunk in files.chunks(PATHS_PER_LISTING) {
-        let mut args = vec!["--literal-pathspecs", "ls-tree", "-z", "--full-tree", commit, "--"];
+        let mut args = vec!["-c", "core.precomposeunicode=false", "--literal-pathspecs", "ls-tree", "-z", "--full-tree", commit, "--"];
         args.extend(chunk.iter().map(String::as_str));
         let listed = answer(root, &args, None)?;
         // `<mode> <type> <object>\t<path>`, and only a blob is a text.
@@ -336,12 +350,26 @@ struct Open {
     stdout: BufReader<ChildStdout>,
 }
 
+/// Past this a path is no checkout's, and a command line may refuse it where a
+/// pipe would not. 4096 is the longest path Linux takes.
+const LONGEST_PATH: usize = 4096;
+
+/// Whether the process reads `<commit>:<file>` as a listing reads `commit` and
+/// `file`. It reads a whole line as one revision: a name other than a full object
+/// is parsed there and not by `ls-tree`, a newline or a NUL ends it early, a
+/// trailing CR is dropped, and `./` is the working directory's. A listing refuses
+/// or normalises what is no path in a tree, so only the one that is goes this way.
+fn plain(commit: &str, file: &str) -> bool {
+    let full = matches!(commit.len(), 40 | 64) && commit.bytes().all(|byte| byte.is_ascii_hexdigit());
+    let in_a_tree = file.len() <= LONGEST_PATH && file.split('/').all(|name| !matches!(name, "" | "." | ".."));
+    full && in_a_tree && !file.contains(['\n', '\0']) && !file.ends_with('\r')
+}
+
 /// `file` at `commit`: `Some(Some(bytes))` its blob, `Some(None)` a path the
 /// commit does not hold, `None` when this cannot say and the read that names
 /// the reason must.
-pub(crate) fn blob_at(root: &str, commit: &str, file: &str) -> Option<Option<Vec<u8>>> {
-    // Git reads a name that starts so against the working directory, and it is no path in a tree.
-    if commit.contains('\n') || file.contains('\n') || file.starts_with("./") || file.starts_with("../") {
+fn blob_at(root: &str, commit: &str, file: &str) -> Option<Option<Vec<u8>>> {
+    if !plain(commit, file) {
         return None;
     }
     let mut slot = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
@@ -373,23 +401,26 @@ impl Open {
 
     fn answer(&mut self, commit: &str, file: &str) -> Result<Option<Option<Vec<u8>>>, String> {
         Ok(match self.ask(&format!("{commit}:{file}"))? {
-            Reply::Object { kind, body, .. } if kind == "blob" => (!crate::lfs::pointer(&body)).then_some(Some(body)),
+            Reply::Object { kind, body, .. } if kind == "blob" => Some(Some(body)),
             // A directory, or a submodule's commit: only a blob is a text.
             Reply::Object { .. } => Some(None),
-            Reply::Missing(_) => self.unlisted(commit, file)?.then_some(None),
+            Reply::Missing(_) => self.nothing_at(commit, file)?.then_some(None),
         })
     }
 
-    /// Whether `commit`'s tree holds nothing at `path`, read from the tree that
-    /// would list it. False for a path it lists, and when that tree cannot be
-    /// read, a commit the store lacks included.
-    fn unlisted(&mut self, commit: &str, path: &str) -> Result<bool, String> {
+    /// Whether `commit` holds no text at `path` or under it, read from the tree
+    /// that would list it: that tree does not, or lists a submodule, whose files
+    /// are no text here. False for anything else it lists, and when that tree
+    /// cannot be read, a commit the store lacks included.
+    fn nothing_at(&mut self, commit: &str, path: &str) -> Result<bool, String> {
         let (parent, name) = path.rsplit_once('/').map_or((None, path), |(parent, name)| (Some(parent), name));
         let tree = parent.map_or_else(|| format!("{commit}^{{tree}}"), |parent| format!("{commit}:{parent}"));
         match (self.ask(&tree)?, parent) {
-            (Reply::Object { oid, kind, body }, _) if kind == "tree" => Ok(!lists(&body, name, oid.len() / 2)),
+            (Reply::Object { oid, kind, body }, _) if kind == "tree" => {
+                Ok(mode_in(&body, name, oid.len() / 2).is_none_or(|mode| mode == GITLINK))
+            }
             (Reply::Object { .. }, _) => Ok(true),
-            (Reply::Missing(_), Some(parent)) => self.unlisted(commit, parent),
+            (Reply::Missing(_), Some(parent)) => self.nothing_at(commit, parent),
             (Reply::Missing(_), None) => Ok(false),
         }
     }
@@ -401,18 +432,23 @@ impl Open {
     }
 }
 
-/// Whether `tree`, a tree object's body of `<mode> <name>\0<object>` entries
-/// with objects of `width` bytes, lists `name`.
-fn lists(tree: &[u8], name: &str, width: usize) -> bool {
+/// The mode a tree lists a submodule under.
+const GITLINK: &[u8] = b"160000";
+
+/// The mode `tree`, a tree object's body of `<mode> <name>\0<object>` entries
+/// with objects of `width` bytes, lists `name` under.
+fn mode_in<'a>(tree: &'a [u8], name: &str, width: usize) -> Option<&'a [u8]> {
     let mut rest = tree;
     while let Some(end) = rest.iter().position(|byte| *byte == 0) {
-        let entry = &rest[..end];
-        if entry.iter().position(|byte| *byte == b' ').is_some_and(|space| &entry[space + 1..] == name.as_bytes()) {
-            return true;
+        let (entry, after) = rest.split_at(end);
+        if let Some(space) = entry.iter().position(|byte| *byte == b' ') {
+            if &entry[space + 1..] == name.as_bytes() {
+                return Some(&entry[..space]);
+            }
         }
-        rest = rest.get(end + 1 + width..).unwrap_or_default();
+        rest = after.get(1 + width..).unwrap_or_default();
     }
-    false
+    None
 }
 
 impl Drop for Open {

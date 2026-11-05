@@ -12,9 +12,10 @@ each time they reach git.
 A reader holds the answers asked most recently, a path the commit does not hold
 included, up to 8 MB of text, and nothing nobody asked for. The bound is on that
 text: the open process's memory is git's, and it stays until Node exits. While
-everything asked fits, a path at a commit reaches git once. Past it, a path
-reaches git again when more than 8 MB of other answers were asked since it was
-last asked, and a text over 8 MB reaches git at every ask.
+everything asked fits, a path at a commit reaches git once. Past it, an answer
+goes when it and what was held after it no longer fit 8 MB, and the next ask for
+it reaches git again. A text over 8 MB is never held: it reaches git at every
+ask, and lets go of nothing.
 
 A path git refused fails again when it is asked again, where a path from a
 refused window used to read as absent the second time.

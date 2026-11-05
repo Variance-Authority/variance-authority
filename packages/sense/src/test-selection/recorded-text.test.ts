@@ -445,6 +445,19 @@ describe('the text at a recording of a file git-lfs tracks', () => {
     });
   });
 
+  it.runIf(lfsInstalled)('takes git-lfs alone: the open process already read the pointer', async () => {
+    await lfsCheckout(throughLfs, (root, commit) => {
+      const sourceAt = textAtRecording(root, []);
+      expect(sourceAt('src/small.ts', commit)).toBe('export const small = 1;\n');
+      const started = gitStarted(root, () => {
+        expect(sourceAt('src/big.ts', commit)).toBe('export const big = 1;\n');
+      });
+
+      expect(started.filter((argv) => argv[1] === 'ls-tree' || argv[1] === 'cat-file')).toEqual([]);
+      expect(smudges(started)).toBe(1);
+    });
+  });
+
   it.runIf(lfsInstalled)('asks git-lfs at every ask when git-lfs refuses it, since a refusal is not held', async () => {
     await lfsCheckout(pointerAlone, (root, commit) => {
       const sourceAt = textAtRecording(root, []);

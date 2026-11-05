@@ -35,8 +35,8 @@
  *
  * Time is processes. So a text or an absent path comes from one `git cat-file
  * --batch` the addon leaves open, as `commit_text.rs` describes, and asking
- * again costs an inflate and a pipe, in any order. What it cannot answer starts
- * processes at every read, about sixteen for a git-LFS pointer's content.
+ * again costs an inflate and a pipe, in any order. A git-LFS pointer's content
+ * starts fourteen at every read, all of them `git lfs smudge`'s and its own.
  *
  * Memory is text held. So a reader holds what was asked most recently, a path
  * the commit does not hold included, up to `HELD_BYTES`: a change of fifteen
@@ -46,11 +46,11 @@
  * ## What reaches git
  *
  * While everything asked of a reader fits `HELD_BYTES`, a path at a commit
- * reaches git once. Past it, a path at a commit reaches git again when more than
- * `HELD_BYTES` of other answers were asked since it was last asked: no bound
- * promises once, because the next ask may always be for what was let go of. A text
- * larger than `HELD_BYTES` reaches git at every ask, and lets go of nothing. A
- * read git refused holds nothing, and starts its processes and throws again.
+ * reaches git once. Past it, an answer goes when its own charge and what was
+ * held after it no longer fit `HELD_BYTES`, and the next ask for it reaches git
+ * again: no bound promises once. An answer charged more than `HELD_BYTES` is
+ * never held: it reaches git at every ask and lets go of nothing. A read git
+ * refused holds nothing, and starts its processes and throws again.
  *
  * ## What `files` is for
  *
@@ -71,7 +71,7 @@ import type { NativeTextColumns } from '../native-commit-text.js';
  * of a read of fifteen thousand files, and the open process's memory is git's.
  *
  * Holding a text saves an inflate and a pipe, under half a millisecond for
- * 210 KB. Holding a git-LFS pointer's content saves its processes, about 70 ms.
+ * 210 KB. Holding a git-LFS pointer's content saves its processes, about 60 ms.
  * The four hundred paths one selection asked a hundred thousand times over are
  * about 4 MB of source, so 8 MB holds them. A wider selection outgrows it and
  * reads some again, a pipe each. 128 MB adds about 690 MB to that peak, for
