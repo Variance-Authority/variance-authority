@@ -43,13 +43,38 @@ describe('the variance action', () => {
   it('keeps the store an accepting run promoted, whatever the comparison after it found', async () => {
     const keep = await conditionOf('what the host keeps');
 
-    expect(keep).toContain("inputs.accept == 'true'");
+    expect(keep).toContain("(inputs.accept == 'true' || steps.tick.outputs.accept == 'true')");
     expect(keep).toContain("steps.promote.outcome == 'success'");
     expect(keep).not.toContain('exit-code');
   });
 
   it('promotes as the step the keep step reads', async () => {
-    expect(await conditionOf('id: promote')).toBe("${{ inputs.accept == 'true' }}");
+    expect(await conditionOf('id: promote')).toBe("${{ inputs.accept == 'true' || steps.tick.outputs.accept == 'true' }}");
+  });
+
+  it('reads a tick only where it was asked to, on the pull request the tick belongs to', async () => {
+    expect(await conditionOf('id: tick')).toBe("${{ inputs.tick-to-accept == 'true' && github.event_name == 'pull_request' }}");
+  });
+
+  it('reads the tick before it promotes, and names the person in what it records', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action.indexOf('- id: tick')).toBeLessThan(action.indexOf('- id: promote'));
+    expect(action.match(/VARIANCE_INTENT: \$\{\{ steps\.tick\.outputs\.intent \|\| inputs\.intent \}\}/g)).toHaveLength(2);
+  });
+
+  it('hands the name to the accept, so the approval row carries it', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain('VARIANCE_BY: ${{ steps.tick.outputs.by }}');
+    expect(action).toContain('accept --config "$VARIANCE_CONFIG" --all ${VARIANCE_BY:+--by "$VARIANCE_BY"}');
+  });
+
+  it('puts the box under the words that ask for it', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain('VARIANCE_TICK_BOX: ${{ steps.tick.outputs.box }}');
+    expect(action).toContain('--to-accept "$to_accept"');
   });
 
   it('keeps the accept even when a step after the gate failed', async () => {
@@ -86,6 +111,71 @@ async function runBlock(step: string, file = ACTION): Promise<string> {
   const inner = Math.min(...body.filter((line) => line.trim() !== '').map((line) => line.length - line.trimStart().length));
   return body.map((line) => line.slice(inner)).join('\n');
 }
+
+describe('the workflow that answers a tick', () => {
+  const tick = () => readFile(join(ROOT, '.github/workflows/variance-tick.yml'), 'utf8');
+
+  it('starts on an edited comment and may rerun a job', async () => {
+    const workflow = await tick();
+
+    expect(workflow).toMatch(/issue_comment:\s+types: \[edited\]/);
+    expect(workflow).toContain('actions: write');
+    expect(workflow).toContain('pull-requests: write');
+  });
+
+  it('never checks out the code of the pull request it answers', async () => {
+    const workflow = await tick();
+
+    expect(workflow).not.toMatch(/^\s+ref:/m);
+    expect(workflow).toContain('sparse-checkout: .github/actions/variance');
+  });
+
+  it('runs one tick of a pull request at a time, because a rerun is refused while another goes', async () => {
+    const workflow = await tick();
+
+    expect(workflow).toContain('group: variance-tick-${{ github.event.comment.id }}');
+    expect(workflow).toContain('cancel-in-progress: false');
+  });
+});
+
+describe('the docket a tick needs', () => {
+  /** What `--to-accept` received, when the render step has `box` to add. */
+  async function toAccept(box: string): Promise<string> {
+    const at = await mkdtemp(join(tmpdir(), 'variance-action-render-'));
+    try {
+      const fake = join(at, 'variance');
+      await writeFile(
+        fake,
+        `#!/bin/bash\nwhile [ $# -gt 0 ]; do if [ "$1" = --to-accept ]; then printf %s "$2" > "${at}/said"; fi; shift; done\n`,
+        { mode: 0o755 },
+      );
+      execFileSync('/bin/bash', ['-c', await runBlock('render the docket')], {
+        env: {
+          ...process.env,
+          VARIANCE_COMMAND: fake,
+          VARIANCE_CONFIG: 'c.json',
+          VARIANCE_RUN_URL: '',
+          VARIANCE_IMAGE_ROOT: '',
+          VARIANCE_TO_ACCEPT: 'tick the box below.',
+          VARIANCE_TICK_BOX: box,
+          GITHUB_OUTPUT: join(at, 'output'),
+          RUNNER_TEMP: at,
+        },
+      });
+      return await readFile(join(at, 'said'), 'utf8');
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
+  }
+
+  it('sets the box apart from the words, as a list of its own', async () => {
+    expect(await toAccept('- [ ] Accept this change')).toBe('tick the box below.\n\n- [ ] Accept this change');
+  });
+
+  it('adds nothing when the run offers no box', async () => {
+    expect(await toAccept('')).toBe('tick the box below.');
+  });
+});
 
 const DOCKET_URL = 'https://github.test/o/r/pull/7#issuecomment-1';
 
@@ -279,10 +369,10 @@ describe('the cleared comment', () => {
 });
 
 describe('the projects the workflow observes', () => {
-  it('says the label is the review, because a project may share its name with a review service', async () => {
+  it('says the tick or the label is the review, because a project may share its name with a review service', async () => {
     const accept = (await readFile(WORKFLOW, 'utf8')).split('\n').find((line) => line.includes('matrix.label') && line.includes('to-accept:'));
 
-    expect(accept).toContain('The label is the whole review: no review service holds this run.');
+    expect(accept).toContain('That is the whole review: no review service holds this run.');
   });
 
   it('reports the site rather than block on it, and blocks on the review surface', async () => {

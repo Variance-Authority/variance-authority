@@ -94,6 +94,9 @@ export interface AcceptOptions {
   /** The project rows are scoped by. Required whenever `history` is present. */
   readonly project?: string;
 
+  /** Who accepted, written on each row, when the caller was told by something that knows. */
+  readonly by?: string;
+
   /** ISO 8601. Injected, because nothing in a report may come from a hidden clock. */
   readonly now?: () => string;
 }
@@ -299,7 +302,7 @@ async function recordApprovals(
   options: AcceptOptions,
   accepted: readonly Accepted[],
 ): Promise<NonNullable<AcceptResult['approvals']>> {
-  const { report, project, history } = options;
+  const { report, project, history, by } = options;
 
   if (history === undefined || project === undefined) {
     return { recorded: 0, because: 'no history store is configured, so nothing was recorded' };
@@ -321,7 +324,13 @@ async function recordApprovals(
 
   try {
     await history.approve(
-      accepted.map((entry) => ({ project, subject: entry.subject, run: runId, at })),
+      accepted.map((entry) => ({
+        project,
+        subject: entry.subject,
+        run: runId,
+        at,
+        ...(by !== undefined ? { by } : {}),
+      })),
     );
     return { recorded: accepted.length };
   } catch (error) {

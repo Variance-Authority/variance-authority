@@ -32,9 +32,10 @@ export interface Approval {
    * Who approved it, when the surface that recorded it knows.
    *
    * Optional, and absent is not "nobody": `variance accept` runs on somebody's
-   * machine or in CI and has no identity to offer that would mean anything.
-   * A review service that does know one records it, which is where the question
-   * "who approved this" becomes answerable at all — and until identity exists at
+   * machine or in CI and has no identity of its own to offer. A review service
+   * that knows one records it, and so does `accept --by`, given one by a forge
+   * that said who ticked a box. That is where the question "who approved this"
+   * becomes answerable at all — and until identity exists at
    * all ([spec 0014](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)),
    * an absent value is the honest one.
    */

@@ -160,7 +160,7 @@ variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <pa
 variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
-variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]
 variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record> | inspect <record.bin> [--format text|json]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
@@ -203,6 +203,9 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 itself, which identifies a category of visual difference so it can be matched
 across subjects. It promotes a subject wherever that shape accounts for the
 whole change, and refuses by name any subject where something else changed too.
+
+`--by <name>` writes who accepted on each approval row, as `by`, where a history
+is kept. It is for a caller that knows; the action passes the person who ticked.
 
 `serve` and `ask` share their questions with `@variance-authority/mcp` and
 `@variance-authority/help`, so an agent can ask what changed, in which
@@ -3076,8 +3079,8 @@ a sentence changes meaning the day the wording improves.
 On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
-[`carry`](#what-the-next-job-reads) names, and accepts on a label. `v1` is the
-major of its inputs and outputs:
+[`carry`](#what-the-next-job-reads) names, and accepts on a label or a tick in
+the comment. `v1` is the major of its inputs and outputs:
 
 ```yaml
 permissions:

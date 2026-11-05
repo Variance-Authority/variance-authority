@@ -28,7 +28,11 @@ and the run reports a failure of the machine as a failure of the product.
 One comment per project, found by a marker and updated in place, plus an exit
 code — `0` nothing to review, `1` a **verdict** about the product, `2` the run
 did not happen. The system renders the comment body; the forge's own integration
-posts it. Nothing else crosses.
+posts it.
+
+One thing comes back: a person's edit of that comment. A tick in its box arrives
+as an event outside the change's run, so the forge is asked who may accept, keeps
+their name in the comment for one attempt, and reruns the job. Nothing else crosses.
 
 ## Their chart
 

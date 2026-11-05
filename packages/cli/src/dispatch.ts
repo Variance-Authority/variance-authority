@@ -265,6 +265,7 @@ export async function dispatch(
         subjects: parsed.subjects,
         all: parsed.all,
         shapes: parsed.shapes,
+        ...(parsed.by !== undefined ? { by: parsed.by } : {}),
         read: readCandidate,
         // The acceptance is recorded where the observations went, under the same
         // project, or nowhere at all. Passed together so a store with no project

@@ -22,7 +22,9 @@ A decision taken in a hosted review surface reaches the baseline through the
 same [`baseline store`](../baseline-store/README.md) contract, but records its
 own authorization where it was made. The **approval** row is written on this
 path only, which is why the two paths answer *who approved this* from two
-places.
+places. The row names the person when the caller knows: a tick in the
+[`proposal comment`](../../report/proposal-comment/README.md) does, from the
+forge.
 
 The run leaves the candidate and its sidecar behind precisely so this is
 possible: the image is what makes a subject promotable at all, and the sidecar
