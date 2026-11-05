@@ -1,17 +1,19 @@
-//! One source index's heavy work at a time on a machine.
+//! One source index's heavy work at a time in a repository.
 //!
 //! An update and its follow-ups each spread over every core, so two of them at
 //! once — two checkouts, or a worktree beside its primary — do not finish
 //! twice as late but later still, each starving the other of the cache and the
 //! memory bandwidth it was sized for. So the work takes a turn: an exclusive
-//! lock on one file every index on the machine names, which the kernel lets go
-//! when its process ends however it ends, so a crashed holder never strands
-//! the next one. `index-turn.ts` waits for it, and says whom it waits on.
+//! lock on one file every index of the repository names, which the
+//! kernel lets go when its process ends however it ends, so a crashed holder
+//! never strands the next one. `index-turn.ts` waits for it, and says whom it
+//! waits on.
 
 // compass: variance-authority.reach.source-index
 
 use std::fs::{self, File, TryLockError};
 use std::io::Write;
+use std::path::Path;
 
 use napi_derive::napi;
 
@@ -32,10 +34,15 @@ impl IndexTurn {
 /// The turn at `path` when no process holds it, with `holder` written beside
 /// it at `<path>.holder` for a process that waits to name; `None` while
 /// another holds it. The holder is a file of its own because a locked range
-/// cannot be read on every platform.
+/// cannot be read on every platform. A refusal opens `<path>: `, which is how
+/// `index-turn.ts` tells it from a panic.
 #[napi(catch_unwind)]
 pub fn take_index_turn(path: String, holder: String) -> napi::Result<Option<IndexTurn>> {
     let fail = |error: std::io::Error| napi::Error::from_reason(format!("{path}: {error}"));
+    let unnamed = |error: std::io::Error| napi::Error::from_reason(format!("{path}: writing its .holder: {error}"));
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent).map_err(fail)?;
+    }
     let lock = File::options().create(true).truncate(false).write(true).open(&path).map_err(fail)?;
     match lock.try_lock() {
         Ok(()) => {}
@@ -46,7 +53,7 @@ pub fn take_index_turn(path: String, holder: String) -> napi::Result<Option<Inde
     // is created rather than an existing path opened, so nothing is followed.
     let written = format!("{path}.holder.{}.tmp", std::process::id());
     match fs::remove_file(&written) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(fail(error)),
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(unnamed(error)),
         _ => {}
     }
     let named = File::options().write(true).create_new(true).open(&written)
@@ -54,7 +61,7 @@ pub fn take_index_turn(path: String, holder: String) -> napi::Result<Option<Inde
         .and_then(|()| fs::rename(&written, format!("{path}.holder")));
     if let Err(error) = named {
         let _ = fs::remove_file(&written);
-        return Err(fail(error));
+        return Err(unnamed(error));
     }
     Ok(Some(IndexTurn { lock: Some(lock) }))
 }

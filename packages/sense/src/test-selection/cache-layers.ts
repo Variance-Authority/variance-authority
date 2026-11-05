@@ -25,10 +25,10 @@
  *     coverage.bin, suites/
  * ```
  *
- * A worktree reads both layers and writes only its own. That is the whole of the
- * safety argument and it is the same argument as before: the base is read-only
- * to everyone who is not the primary checkout, so no two writers ever address
- * one byte. Nothing was given up to gain the sharing.
+ * A worktree reads both layers and writes a record only in its own. That is the
+ * whole of the safety argument: the base's records are read-only to everyone who
+ * is not the primary checkout, so no two writers ever address one byte. The index
+ * turn's files, which every checkout writes in the base, hold no record.
  *
  * `.work` is dotted for the reason a run's scratch segments are
  * `.run-<pid>-<uuid>`: nothing a caller names begins with a dot.
@@ -184,15 +184,25 @@ export function rootConfigOf(file: string, text: string): RootConfig {
 /**
  * The directories one checkout reads, nearest first.
  *
- * `top` is the only one anything writes to. `base` is the repository's, and in
- * the primary checkout the two are the same directory — which is what makes the
- * cascade invisible there: one layer, written and read, as before.
+ * `top` is the only one a record is written to. `base` is the repository's, and
+ * in the primary checkout the two are the same directory — which is what makes
+ * the cascade invisible there: one layer, written and read, as before. Outside
+ * it, the index turn's files are all a checkout writes under `base`.
  */
 export interface CacheLayers {
-  /** This checkout's own directory: the only one a run of it writes. */
+  /** This checkout's own directory: the only one a run of it writes a record in. */
   readonly top: string;
   /** The repository's shared directory. Equal to {@link top} in the primary checkout. */
   readonly base: string;
+}
+
+/**
+ * The `.work` directory of a repository's directory in a cache. In `base` it
+ * holds the index turn. A worktree's layer is in the one in its own cache, which
+ * is this one only under `VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`.
+ */
+export function workDirectory(base: string): string {
+  return resolve(base, '.work');
 }
 
 /**
@@ -212,7 +222,7 @@ export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
   // inside the worktree, which is the one directory a sandboxed agent may write.
   const own = resolve(cacheRoot ?? cacheRootFor(here), 'test-selection', keyOf(primary));
 
-  return { top: resolve(own, '.work', keyOf(here)), base };
+  return { top: resolve(workDirectory(own), keyOf(here)), base };
 }
 
 /**
@@ -235,9 +245,9 @@ export function repositoryLayers(root: string, cacheRoot?: string): CacheLayers 
  * Whether writing `file` from the checkout these `layers` are of would write
  * the cached base its runs are laid over: in a worktree, a file in the
  * primary checkout's layer and not in its own. A worktree's runs read through
- * the base and lay over it in their own layer, and never write it, so a writer
- * handed such a path by name refuses it. In the primary checkout the base is
- * its own layer, and nothing is.
+ * the base and lay over it in their own layer, and write no record in it, so a
+ * writer handed such a path by name refuses it. In the primary checkout the base
+ * is its own layer, and nothing is.
  */
 export function writesBase(layers: CacheLayers, file: string): boolean {
   if (layers.top === layers.base) return false;

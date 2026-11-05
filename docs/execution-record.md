@@ -31,10 +31,13 @@ you want the nearest snapshot a worktree can actually read:
 
 `<cache>` is [your cache](cache.md).
 `<repository-digest>` is a digest of the checkout's absolute path, so two
-checkouts never write one another's bytes. A worktree writes its own layer under
-`.work/<workspace-digest>/` beneath that directory and reads the primary
-checkout's as a fallback, so a worktree cut this morning inherits what the
-repository already recorded instead of re-transforming it.
+checkouts never write one another's records. The only files both write are
+`.work/index-turn` and `.work/index-turn.holder`, the lock that lets
+[one checkout of a repository index at a time](source-index.md) and the file that names its
+holder. A worktree writes its own layer under `.work/<workspace-digest>/` in its
+own cache, which is inside the worktree at the default location, and reads the
+primary checkout's as a fallback, so a worktree cut this morning inherits what
+the repository already recorded instead of re-transforming it.
 
 **Do not commit it.** The default path is outside your work tree: `git status`
 never sees it, `git clean` never takes it, and it never lands in a pull request.
