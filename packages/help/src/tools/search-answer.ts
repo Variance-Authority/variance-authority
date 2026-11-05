@@ -10,7 +10,7 @@ import { describedDeclarations, describedNames, describedShown, fileMatch, rowTe
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, exactness } from './declared.js';
-import { membersUnreadOf } from './members.js';
+import { memberName, membersUnreadOf, namesMember } from './members.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
@@ -270,7 +270,9 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // this repository's names, and never stand in for them: only an installed
   // name holding the query as written — which the caller asked for by name —
   // ends the search for names of this repository's own.
-  if (others || (inside?.length ?? 0) > 0 || (aliases?.length ?? 0) > 0) return { answer, area };
+  // A held row ends it only by being the question: one that only holds the words
+  // prints beside the readings below, which may hold the name that was meant.
+  if (others || (read?.exact ?? 0) > 0 || (aliases?.length ?? 0) > 0) return { answer, area };
 
   // The empty answer read as a description: names holding any of its words,
   // stemmed by the rule packages are.
@@ -317,8 +319,8 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
   const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length)];
-  const membersUnread = root === undefined ? [] : membersUnreadOf(root, query);
-  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
+  const membersUnread = root === undefined || !namesMember(question.query) ? [] : membersUnreadOf(root, memberName(question.query).member);
+  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread, memberAsked: memberName(question.query).member }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
   if (left === undefined || told === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: left.length, shown: told } }, area };
 }

@@ -46,6 +46,24 @@ const HELD = {
     '',
   ].join('\n'),
   'packages/kit/src/rarity.ts': "export const rarity = 1;\n",
+  'packages/kit/src/slots.ts': 'export interface Slots {\n  default: string;\n}\n\nconst keptHere = 1;\nexport const slots = keptHere;\n',
+  'packages/kit/src/greet.ts': 'export default function greet(): number {\n  return 1;\n}\n',
+  'packages/kit/src/hello.ts': "import greet from './greet';\nexport const hello = greet;\n",
+  'packages/kit/src/needles.ts': [
+    ...Array.from({ length: 30 }, (_, at) => `export interface Quiet${at} {\n  /** A needle in the doc. */\n  noted: string;\n}`),
+    'export interface Target {',
+    '  needleField: string;',
+    '}',
+    '',
+    'export function holder(): number {',
+    '  /** Says frobnicate, and is its holder\'s to say. */',
+    '  function kept(): number {',
+    '    return 1;',
+    '  }',
+    '  return kept();',
+    '}',
+    '',
+  ].join('\n'),
   'packages/kit/src/uses.ts': "import { rarity as rarityOf } from './rarity';\nexport const shown = rarityOf;\n",
 };
 
@@ -106,12 +124,47 @@ describe('variance ask search about a name under something that holds it', () =>
 });
 
 describe('what search and symbol say of one name', () => {
-  it.each(['Parsed', 'main', 'Parsed.exitZeroOnChanges', 'exitZeroOnChanges', 'rewindAll', 'toAccept', 'rarityOf'])('never denies `%s`, which symbol answers', async (name) => {
+  it.each(['Parsed', 'main', 'Parsed.exitZeroOnChanges', 'exitZeroOnChanges', 'rewindAll', 'toAccept', 'rarityOf', 'keptHere', 'taxOf', 'Slots.default', 'default'])('never denies `%s`, which symbol answers', async (name) => {
     checkout(HELD);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    expect((await run(['ask', 'symbol', '--name', name])).code).toBe(EXIT_CLEAN);
+    expect((await run(['ask', 'symbol', '--name', name])).out).not.toContain('No file in this workspace declares');
     const text = await searched(name);
-    expect(text).not.toMatch(/^No .* writes/mu);
+    expect(text).toContain(name.split('.').at(-1));
+    expect(text).not.toContain('nor a function inside a function, writes');
+  });
+});
+
+describe('a name that is a held row of its own kind', () => {
+  beforeEach(async () => {
+    checkout(HELD);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+  });
+
+  it('answers a member named as the default slot is, which is a name there', async () => {
+    expect(await searched('Slots.default')).toContain('Slots.default [member]');
+  });
+
+  it('puts a row whose name holds the words before the rows whose doc alone does', async () => {
+    const said = await searched('needle');
+    expect(said).toContain('Target.needleField [member]');
+  });
+
+  it('does not answer a closure by its doc, which is its holder\'s to say', async () => {
+    expect(await searched('frobnicate')).not.toContain('kept [function]');
+  });
+
+  it('lists no import that binds a declaration by its own name', async () => {
+    expect(await searched('greet')).not.toContain('as a local name');
+  });
+});
+
+describe('a row that only holds the words', () => {
+  it('leaves the nearest names offered beside it', async () => {
+    checkout({ ...HELD, 'packages/kit/src/near.ts': '/** Applies a budget. */\nexport function measure(): number {\n  return 1;\n}\n\nexport class Thing {\n  meesureSum = 1;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const text = await searched('meesure');
+    expect(text).toContain('Thing.meesureSum [member]');
+    expect(text).toContain('measure — @acme/kit · packages/kit/src/near.ts:2');
   });
 });
 
@@ -120,7 +173,7 @@ describe('the words of an empty answer', () => {
     checkout(HELD);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const text = await searched('qqzzq');
-    expect(text).toContain('No export, top-level declaration or member in this repository, nor the doc of one, nor a function inside a function, writes `qqzzq`.');
+    expect(text).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `qqzzq`.');
   });
 
   it('names the language whose members were not read', async () => {

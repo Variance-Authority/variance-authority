@@ -181,6 +181,12 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   return spoken(searched(index, searchQuestionOf(input), tree, root, importing), root);
 }
 
+/** A list under its head, cut at what `found` shows and saying so; nothing when it holds none. */
+function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => string): readonly string[] {
+  if (found.total === 0) return [];
+  return ['', head, '', ...found.shown.map(line), ...(found.total > found.shown.length ? [`\n${found.total - found.shown.length} more not shown.`] : [])];
+}
+
 /** What a search says of what it found. */
 function spoken({ answer, area }: Searched, root: string | undefined): string {
   const { query } = answer;
@@ -250,48 +256,24 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const where = area === undefined ? [] : [areaLine(area), ''];
 
   // Below the exports, since none of these is a name its file hands out.
+  const place = area === undefined ? 'somewhere in the repository' : 'in that area';
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
   const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
   const inside = answer.held ?? { total: 0, shown: [] };
-  const insideSection =
-    inside.total === 0
-      ? []
-      : [
-          '',
-          `${inside.total} more ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${area === undefined ? 'somewhere in the repository' : 'in that area'}:`,
-          '',
-          ...inside.shown.map(heldLine),
-          ...(inside.total > inside.shown.length ? [`\n${inside.total - inside.shown.length} more not shown.`] : []),
-        ];
+  const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine);
   const aliases = answer.aliases ?? { total: 0, shown: [] };
-  const aliasSection =
-    aliases.total === 0
-      ? []
-      : [
-          '',
-          `${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`,
-          '',
-          ...aliases.shown.map(aliasLine),
-          ...(aliases.total > aliases.shown.length ? [`\n${aliases.total - aliases.shown.length} more not shown.`] : []),
-        ];
-  const namesSection =
-    declared.total === 0
-      ? unread
-      : [
-          '',
-          `${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being exported:`,
-          '',
-          ...declared.shown.map(declaredLine),
-          ...(declared.total > declared.shown.length ? [`\n${declared.total - declared.shown.length} more not shown.`] : []),
-          ...unread,
-        ];
+  const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
+  const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
   const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
     // is in no index, a closure's doc is its holder's, and the doc a file opens
     // with is read only for the words, so a file may still write the phrase.
-    const read = `No export, top-level declaration or member ${area === undefined ? 'in this repository' : 'in reach of that start point'}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
+    const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
+    const read = answer.declared === undefined
+      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
     // A miss of the text is not a miss of the code: with names to offer, the line
     // says only that the text was not written. Inside an area the text may be
     // written outside it, so the way to widen stays.
@@ -303,7 +285,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
         : area === undefined
         ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    const stop = membersStop({ member: query, declared: [], used: [], elsewhere: answer.membersUnread ?? [] });
+    const stop = membersStop({ member: answer.memberAsked ?? query, declared: [], used: [], elsewhere: answer.membersUnread ?? [] });
     return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 
@@ -445,6 +427,6 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
   const { answer, publishing = [] } = searchedOnce(help, input, invocation);
-  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.loose, answer.described];
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
   return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
 }

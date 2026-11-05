@@ -21,7 +21,8 @@
 import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
 import type { AliasMatch, DeclaredMatch, HeldMatch, Matches } from './search-matches.js';
-import { SLOT } from './declaration-key.js';
+import { boundOf, SLOT } from './declaration-key.js';
+import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
@@ -65,8 +66,8 @@ export function declarations(
   }
   if (read === undefined) return { refused: 'no source index is published; run `variance index`' };
   // Stable, so the index's file-then-line order holds within a kind.
-  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
-  const names = read.names.filter((one) => one.name !== SLOT).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
+  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported. A member may be called it.
+  const names = read.names.filter((one) => one.name !== SLOT || isMember(one)).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
   return { names, unread: read.unread };
 }
 
@@ -161,7 +162,7 @@ export function declaredLine(held: DeclaredMatch): string {
 export function heldLine(held: HeldMatch): string {
   const where = `— ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
   if (held.on === undefined) return `${held.name} [${held.kind}] inside ${held.holder === undefined ? `the function written at ${held.at}:${held.holderLine}` : `\`${held.holder}\``} ${where}`;
-  return /^a (?:type literal|class)$/u.test(held.on) ? `${held.name} [${held.kind}] on ${held.on} ${where}` : `${held.on}.${held.name} [${held.kind}] ${where}`;
+  return isUnnamedContainer(held.on) ? `${held.name} [${held.kind}] on ${held.on} ${where}` : `${held.on}.${held.name} [${held.kind}] ${where}`;
 }
 
 /** One import that binds the name, as a `search` line writes it. */
@@ -266,7 +267,7 @@ export function declaredAt(help: Help, root: string | undefined, name: string, w
  * them: the first `cap`, source first, in `files` when an area named them;
  * nothing when no checkout was named or its index could not be read. A name
  * that is the query as written comes first, the same name in another case
- * second, and every name only holding it after them. Members and functions
+ * second, every name only holding it after them, and a doc alone saying it last. Members and functions
  * inside a function are `held`, every one, ordered the same way, and `exact`
  * counts the ones at its head that are the question.
  */
@@ -279,7 +280,9 @@ export function declaredMatches(
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
-  const written = (one: DeclaredName): number => exactness(one.name, query) ?? (isMember(one) ? exactness(`${one.on}.${one.name}`, query) : undefined) ?? 2;
+  const spelled = (one: DeclaredName): string => (isMember(one) ? `${one.on}.${one.name}` : one.name);
+  const lowered = query.toLowerCase();
+  const written = (one: DeclaredName): number => exactness(one.name, query) ?? exactness(spelled(one), query) ?? (spelled(one).toLowerCase().includes(lowered) ? 2 : 3);
   const names = [...read.names].sort((left, right) => written(left) - written(right));
   const top = names.filter((one) => !isNested(one) && !isMember(one));
   const held = names.filter((one) => isNested(one) || isMember(one));
@@ -290,12 +293,17 @@ export function declaredMatches(
   };
 }
 
-/** The imports in `files`, when an area named them, that bind `query` as written to another name; nothing when the index does not read. */
+/**
+ * The imports in `files`, when an area named them, that bind `query` as written
+ * to an export of another name, and a declaration of another name too: a default
+ * import that says its declaration's own name renames nothing. Nothing when the
+ * index does not read.
+ */
 export function aliasMatches(root: string | undefined, query: string, files: ReadonlySet<string> | undefined): readonly AliasMatch[] | undefined {
   if (root === undefined) return undefined;
   try {
     return aliasesOf(root, query)
-      ?.filter((alias) => files === undefined || files.has(alias.at))
+      ?.filter((alias) => (files === undefined || files.has(alias.at)) && (alias.to == null || boundOf(root, { at: alias.to, name: alias.imported })?.name !== query))
       .map((alias) => ({
         source: 'alias',
         local: query,

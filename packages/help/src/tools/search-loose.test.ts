@@ -46,7 +46,7 @@ describe('a name the substring cannot reach', () => {
     expect(text).toContain('measure');
     expect(text).toContain('loosely');
     // The fact about the substring is still told above the offer, as a miss of the text and not of the code.
-    expect(text).toContain('No export, top-level declaration or member in this repository, nor the doc of one, nor a function inside a function, writes `meesure`. The nearest follow.');
+    expect(text).toContain('No export in this repository, nor the doc of one, writes `meesure`; no source index was read, so a name no file exports is not known. The nearest follow.');
     expect(text).not.toContain('`packages` lists every entrypoint');
   });
 
@@ -54,7 +54,7 @@ describe('a name the substring cannot reach', () => {
     // `behind` is documented *Only reachable through a second door.*
     expect(ask({ query: 'reachible' })).toContain('behind [const]');
     const swapped = ask({ query: 'raechable' });
-    expect(swapped).toContain(`No export, top-level declaration or member in this repository, nor the doc of one, nor a function inside a function, writes \`raechable\``);
+    expect(swapped).toContain(`No export in this repository, nor the doc of one, writes \`raechable\``);
     expect(swapped).not.toContain('loosely');
   });
 
@@ -107,14 +107,14 @@ describe('what it may never do', () => {
     // names in reach do not replace the way to widen.
     const text = ask({ query: 'meesure', from: 'packages/beta/src/again.ts' });
     expect(text).toContain('measure');
-    expect(text).toContain('No export, top-level declaration or member in reach of that start point, nor the doc of one, nor a function inside a function, writes `meesure`');
+    expect(text).toContain('No export in reach of that start point, nor the doc of one, writes `meesure`');
     expect(text).toContain('ask again without `from`/`to` to search the whole workspace');
     expect(text).not.toContain('That is a fact about the area');
   });
 
   it('leaves an empty answer empty when the wider net catches nothing either', () => {
     const text = ask({ query: 'zzz' });
-    expect(text).toContain(`No export, top-level declaration or member in this repository, nor the doc of one, nor a function inside a function, writes \`zzz\``);
+    expect(text).toContain(`No export in this repository, nor the doc of one, writes \`zzz\``);
     expect(text).not.toContain('loosely');
   });
 });

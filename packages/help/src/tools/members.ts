@@ -54,13 +54,22 @@ export interface Members {
   readonly elsewhere?: readonly string[];
 }
 
+/** Whether a container is told by what it is, having no name to write. */
+export const isUnnamedContainer = (by: string): boolean => /^a (?:type literal|class)$/u.test(by);
+
 /** The container a member is declared on, as a sentence names it. */
 export function containerOf(by: string): string {
-  return /^a (?:type literal|class)$/u.test(by) ? by : `\`${by}\``;
+  return isUnnamedContainer(by) ? by : `\`${by}\``;
 }
 
 /** Identifiers joined by dots: the only names that write a container's member. */
 const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
+
+/** One identifier, which a member may be called too. */
+const IDENTIFIER = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*$/u;
+
+/** Whether `name` could be a member at all: words of a description are not. */
+export const namesMember = (name: string): boolean => IDENTIFIER.test(name) || MEMBER_PATH.test(name);
 
 /**
  * The member a name asks for and the container it is on: `Tree.chainsTo` is
