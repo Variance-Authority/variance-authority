@@ -4,8 +4,6 @@
  * coordinates, and each changed region stated over every case that reached it.
  */
 
-import { realpath } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
 import { changedLines, changeInRecord, hunksByFile, type ChangeRead, type CoveringRegion, type LineRange } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { requireCommit, unreadDiff } from './base-diff.js';
@@ -52,21 +50,14 @@ export async function listedChange(since: string, root: string): Promise<ListedC
 }
 
 /**
- * Every line the change changed, in the index's coordinates. The listed change
- * is the scope and the commit the record was written at only says how to read
- * it, since a hunk read at another end lands on another region: every file
- * listed stays, however much of it that record already holds.
+ * Every line the change changed, named from `--root` as the diff names them,
+ * which is the index's coordinates. The listed change is the scope and the
+ * commit the record was written at only says how to read it, since a hunk read
+ * at another end lands on another region: every file listed stays, however much
+ * of it that record already holds.
  */
 export async function changeSince(listed: ListedChange, since: string, root: string, at: string | undefined): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const lines = at === undefined || at === listed.base ? listed.lines : await inRecordAt(listed, at, since, root);
-
-  // `git` names files from the repository root and the index from the run's. The top level is always a real
-  // path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the two
-  // never meet.
-  const top = (await topLevel(root)) ?? root;
-  const base = await realpath(root);
-  const rooted = (file: string): string => (top === base ? file : relative(base, resolve(top, file)));
-  return new Map([...lines].map(([file, ranges]) => [rooted(file), ranges]));
+  return at === undefined || at === listed.base ? listed.lines : inRecordAt(listed, at, since, root);
 }
 
 /** The listed change in the numbers of `at`, read the first time that commit is asked. */

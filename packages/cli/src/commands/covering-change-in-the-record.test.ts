@@ -77,6 +77,28 @@ describe('a change the record already holds', () => {
     expect(namesOf(answer)).toContain(DISCOUNTS.id);
   });
 
+  it('names a file from a `--root` below the repository top, at the merge base and at the record', async () => {
+    const dir = join(home, 'repository');
+    const nested = join(dir, 'packages/app');
+    await mkdir(join(nested, 'src'), { recursive: true });
+    await writeFile(join(nested, 'src/a.ts'), 'one\n');
+    await git(dir, 'init', '--quiet', '--initial-branch=main');
+    await git(dir, 'config', 'user.email', 'a@example.com');
+    await git(dir, 'config', 'user.name', 'a');
+    await git(dir, 'add', '-A');
+    await git(dir, 'commit', '--quiet', '-m', 'the mainline');
+    await git(dir, 'branch', 'mainline');
+    await writeFile(join(nested, 'src/a.ts'), 'two\n');
+    await git(dir, 'commit', '--quiet', '-am', 'the change');
+    const at = await git(dir, 'rev-parse', 'HEAD');
+    await writeFile(join(nested, 'src/a.ts'), 'three\n');
+
+    const listed = await listedChange('mainline', nested);
+
+    expect([...(await changeSince(listed, 'mainline', nested, undefined)).keys()]).toEqual(['src/a.ts']);
+    expect([...(await changeSince(listed, 'mainline', nested, at)).keys()]).toEqual(['src/a.ts']);
+  });
+
   it('answers for a committed change the record ran, the tree clean', async () => {
     const { clone } = await aClone();
     await writeFile(join(clone, 'src/total.ts'), EDITED);
