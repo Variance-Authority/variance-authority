@@ -596,8 +596,9 @@ VARIANCE_AUTHORITY_SINCE= npx playwright test
 variance-authority: selected 4 of 31
 ```
 
-Set and empty, each spec is measured from the commit it last ran at; set to a
-ref, such as `origin/main`, from that ref. `VARIANCE_AUTHORITY_AT_DISTANCE`
+Set at all, even empty, it selects, and each spec is measured from the commit the
+record names. A ref names the base only for a record taken outside a git
+checkout. `VARIANCE_AUTHORITY_AT_DISTANCE`
 narrows it the same way it does under Vitest and Jest. A spec the selection
 keeps runs whole, every test in it, in every project that runs it.
 

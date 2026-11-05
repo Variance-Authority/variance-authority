@@ -164,16 +164,17 @@ soonest, and it names that file.
 ### Start only what the change needs
 
 On a pull request, a wrapped configuration can skip the test files the change
-cannot affect: set `VARIANCE_AUTHORITY_SINCE` to the ref the change is measured
-from, such as `origin/main`, and the run removes the files
+cannot affect: set `VARIANCE_AUTHORITY_SINCE`, and the run removes the files
 [`variance select`](../packages/sense/README.md#let-the-runner-skip-them)
-leaves out before any starts. Set at all, even empty, it selects. Each shard
-then places only the files the change selects.
+leaves out before any starts. Set at all, even empty, it selects, and the change
+is measured from the commit the record names. Each shard reads the record from
+the share, as above, and places only the files the change selects.
 
 `variance shards` counts the same way with two flags:
 
 - **`--since <ref>`** leaves out of the count the files the change lets the run
-  skip, as the shards themselves leave them out.
+  skip, as the shards themselves leave them out. As for the shards, the change is
+  measured from the commit the record names, so any ref turns it on.
 - **`--collected <file>`** is the runner's own list of the suite's test files.
   The record holds only the files it has seen, so a test file the change adds
   is counted from the list, priced at the median, as the shards price it. List
@@ -210,7 +211,10 @@ jobs:
           set -o pipefail
           npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
           since=()
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then since=(--since origin/main --collected "$RUNNER_TEMP/collected.txt"); fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            npx variance index
+            since=(--since origin/main --collected "$RUNNER_TEMP/collected.txt")
+          fi
           shards=$(npx variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
 
@@ -228,12 +232,20 @@ jobs:
           fetch-depth: 0
       - run: npm ci
       - run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then export VARIANCE_AUTHORITY_SINCE=origin/main; fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            npx variance index
+            export VARIANCE_AUTHORITY_SINCE=
+          fi
           npx vitest run --shard ${{ matrix.shard }}
 ```
 
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
-all selects.
+all selects. Both jobs read the record from the share, so the suite needs
+`"carry": "share"`: with no record to read, every test file runs. Each shard here
+asks the share itself, so a publish between two shards' starts can split them
+differently; [When nothing is recorded](#when-nothing-is-recorded) shows how to
+fetch the record once. In CI a selection needs the
+[source index](source-index.md), so each job builds it first.
 [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 

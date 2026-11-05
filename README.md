@@ -149,7 +149,7 @@ npx variance accept --config variance.config.json cart/empty
 npx variance run --config variance.config.json
 ```
 
-The first durable run exits `1` because its subjects are `new`. Accept the
+The first durable run exits `0` and reports its subjects as `new`. Accept the
 subject ids you meant, then rerun; an unchanged run exits `0`.
 
 ## What else the same evidence answers

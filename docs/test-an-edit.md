@@ -72,8 +72,9 @@ starts any of them, and prints one line to stderr first:
 Set and empty, the variable measures each test file from the commit a run last
 finished it at, which the record keeps per test file: a later run that ran only
 some of its cases does not change it. Set to a ref, such as `origin/main`, it
-names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select, and
-neither does Playwright's `--list`. Under Jest,
+names the base only for a record taken outside a git checkout, which keeps no
+commit: a commit the record keeps is always the base. Watch mode does not
+select, and neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
 either one turns the selection off, and stderr says so.
 
@@ -242,6 +243,15 @@ it in `0-2` or `3-` above.
 This repository's own agents run that line after each edit, as
 `yarn test:loop`, with their linter in front of it. [What a selection
 costs](#what-a-selection-costs) gives the times of the line alone.
+
+## Run it on a pull request
+
+A pull request selects from the record your main branch saved, so its CI job
+runs the tests the change needs and leaves the rest out. Your main branch runs
+the whole suite and saves the record to the CI cache, and the pull request
+restores it and sets the variable. [The workflow](cache.md#in-ci) is one file,
+and the page lists what a Jest preset, declared suites and a package per
+configuration change in it.
 
 ## When it runs everything
 
