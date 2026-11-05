@@ -85,6 +85,13 @@ describe('knowing which halves are talking', () => {
     expect(ahead).not.toContain('Redeploy');
   });
 
+  it('says nothing to a deployment from the same release', () => {
+    // API 7 is the release that serves `/auth/me` and takes a job's own token; a
+    // CLI from it that called itself the older half sends somebody after a
+    // version number that is not the problem.
+    expect(versionNote({ known: true, api: 7 }, SHARE)).toBeUndefined();
+  });
+
   it('names every capability a deployment lacks, and only those this project uses', () => {
     // API 1 predates `/review/have` and document identity, and API 2 predates the
     // share. Each level names what it lacks, not only the newest thing.
