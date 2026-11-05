@@ -121,6 +121,8 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
   const suites = await handedSuites(dir);
   const cacheRoot = cacheRootFor(root);
   const lines: string[] = [];
+  const laid: string[] = [];
+  const carried = new Set(declaredSuites(root)?.filter((one) => one.carry === 'share').map((one) => one.name));
   for (const suite of suites) {
     const from = join(dir, suite);
     const pointer = readFetchedMainline(from);
@@ -128,6 +130,12 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
     if (pointer === undefined && missed === undefined) {
       throw new OperatorError(`${dir} lists "${suite}" and holds nothing of it. Stopping rather than ask the line on its own.`);
     }
+    // The job that read may stand on a newer merge than this one, and no reader here asks for a suite this checkout does not carry.
+    if (!carried.has(suite)) {
+      lines.push(`${suite} is not carried here, so its read is passed over.`);
+      continue;
+    }
+    laid.push(suite);
     const readRoot = mainlineReadRoot(cacheRoot, suite);
     await rm(readRoot, { recursive: true, force: true });
     await cp(from, readRoot, { recursive: true });
@@ -148,7 +156,7 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
   }
   // A record a run left on this runner comes before any read, so it would stand
   // instead of this one. It goes last: a read that refused takes nothing with it.
-  for (const suite of suites) await rm(dirname(testCoverageFile(root, { suite })), { recursive: true, force: true });
+  for (const suite of laid) await rm(dirname(testCoverageFile(root, { suite })), { recursive: true, force: true });
   if (suites.length === 0) lines.push('this run asked no line, so there is no read to stand on.');
   return { suites, lines };
 }

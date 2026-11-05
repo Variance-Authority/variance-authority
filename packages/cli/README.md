@@ -3295,7 +3295,8 @@ attempt uploaded, so it selects what that attempt selected.
 `hand` refuses a `<dir>` that holds files.
 `receive` stops the job when `<dir>` holds no manifest, or holds a record that
 does not read, rather than ask the share on its own, and the checkout's record
-stays. Once the read stands, `hand` and `receive` both remove that record. A suite the share had no
+stays. Once the read stands, `hand` and `receive` both remove that record. A
+suite the run read and this checkout does not carry is passed over. A suite the share had no
 record of, or that `hand` held no credential to ask about, comes through as that
 answer, so the job runs what a suite with no record runs. A record that goes
 missing after `receive` is the same answer, never a new read of the share. Under

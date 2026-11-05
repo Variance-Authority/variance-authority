@@ -184,6 +184,19 @@ describe('a run stands on the record one job read', () => {
     expect((answer as MainlineMissed).miss).toMatchObject({ detail: expect.stringContaining(first) });
   });
 
+  it('passes over a suite the run read that this checkout does not carry', async () => {
+    const { origin } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+    const shard = await job(origin, 'shard');
+    await writeFile(join(shard, 'variance.config.json'), JSON.stringify({
+      suites: { other: { kind: 'unit', carry: 'share' } },
+      share: { kind: 'git', mainlines: ['main'] },
+    }));
+
+    expect((await receiveBase(shard, handed)).lines.join('\n')).toContain('unit');
+  });
+
   it('asks no line when the answer of a handed miss is lost', async () => {
     const { ci, origin } = await gitPublished(home);
     const plan = await job(origin, 'plan');
