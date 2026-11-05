@@ -382,7 +382,7 @@ jobs:
     if: github.event.action != 'labeled' || github.event.label.name == 'variance: accept'
     concurrency:
       group: variance-${{ github.ref }} # one comment, written by one run at a time
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
     steps:
       - uses: actions/checkout@v4
 
@@ -416,10 +416,8 @@ accept every push after the first. The `if` has already stopped every other
 label, so `labeled` here means this one, and the step that takes it off means the
 next change needs the next label.
 
-The first push to `main` records what it renders, and pull requests compare
-against that. A subject with no baseline reports `new` and the check stays green,
-so a pull request is green before that first push, and after GitHub removes the
-cache entry. For a [served route](start-routes.md), replace
+A subject with no baseline reports `new` and the check stays green, so a pull
+request is green until the first push to `main` records a store. For a [served route](start-routes.md), replace
 `npm run build-storybook` with the step that builds or starts what the collector
 reads.
 

@@ -3079,8 +3079,9 @@ a sentence changes meaning the day the wording improves.
 On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
-[`carry`](#what-the-next-job-reads) names, and accepts on a label or a tick in
-the comment. `v1` is the major of its inputs and outputs:
+[`carry`](#what-the-next-job-reads) names, and accepts when the job sets its
+`accept` input, which the workflow ties to a label or a tick in the comment. `v1`
+is the major of its inputs and outputs:
 
 ```yaml
 permissions:
