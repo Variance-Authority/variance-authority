@@ -52,7 +52,6 @@
  * | the parser reported an error | the record may be truncated at the error |
  * | `import(x)` where `x` is not a literal | the target is a runtime value |
  * | a `require(…)` this could not read as a literal | same, and invisible to the module record |
- * | an import or export whose specifier holds a lone surrogate | no text holds it, and the module record leaves it out |
  *
  * The reason is recorded for whoever reports on the scan, and nothing is widened
  * for it: the edges this did read stay edges, and the one it could not is left
@@ -277,7 +276,11 @@ export interface Read {
   /** Every name read off a binding a named import takes. Absent when there are none. */
   readonly bindingMembers?: readonly BindingMember[];
 
-  /** Why this file's requests are not the whole set, when they are not. */
+  /**
+   * Why this file's requests are not the whole set, when they are not. An import
+   * or export whose specifier holds a lone surrogate is one such reason: no text
+   * holds it, and the module record leaves it out.
+   */
   readonly unknown?: string;
 
   /** How big the module is. */
