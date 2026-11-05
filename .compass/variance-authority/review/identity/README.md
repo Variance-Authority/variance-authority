@@ -68,10 +68,10 @@ all — there would be nothing between an approve button and the internet.
 - `packages/tribunal/src/github-signin.ts` — the GitHub sign-in, the write check
   and the signed session
 - `packages/tribunal/src/policy.ts` — `declaredPolicy`, which answers a principal
-  from what the deployment declared
+  from what the deployment declared, and `LOOPBACK`
 - `tribunal-cloudflare/app/page.tsx` — rendered per request, because who is asking
   is a per-request fact
-- `packages/tribunal/src/node/bin.ts` — `LOOPBACK`, `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
+- `packages/tribunal/src/node/bin.ts` — `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
   running the process
 - `packages/tribunal/src/node/serve.ts` — `reviewer`, carried into the served page
 

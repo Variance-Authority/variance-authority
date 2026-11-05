@@ -153,6 +153,7 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
       })
     : null;
   const reviewer = mechanisms.has('loopback') ? needed(values, 'REVIEWER', 'loopback') : null;
+  const proxy = options.origin === undefined ? null : new URL(options.origin).hostname;
 
   async function machine(bearer: string): Promise<Principal | null> {
     if (actions !== null && unverifiedIssuer(bearer) === actions.issuer) {
@@ -174,7 +175,7 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
     if (typeof email === 'string') return { capability: 'review', name: email };
     const login = await github?.login(request);
     if (typeof login === 'string') return { capability: 'review', name: login };
-    if (reviewer !== null && atThisMachine(request, options.origin)) return { capability: 'review', name: reviewer };
+    if (reviewer !== null && atThisMachine(request, proxy)) return { capability: 'review', name: reviewer };
     return view === 'public' ? { capability: 'view' } : null;
   }
 
@@ -193,11 +194,11 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
  * somebody else's that resolves here makes that page same-origin with this
  * service, and only `Host` still carries the name it came by.
  */
-function atThisMachine(request: Request, origin: string | undefined): boolean {
-  const named = `http://${request.headers.get('host') ?? new URL(request.url).host}`;
-  if (!URL.canParse(named)) return false;
-  const { hostname } = new URL(named);
-  return LOOPBACK.has(hostname.replace(/^\[|\]$/g, '')) || (origin !== undefined && hostname === new URL(origin).hostname);
+function atThisMachine(request: Request, proxy: string | null): boolean {
+  const named = request.headers.get('host') ?? new URL(request.url).host;
+  if (/[/?#@\\]/.test(named) || !URL.canParse(`http://${named}`)) return false;
+  const { hostname } = new URL(`http://${named}`);
+  return LOOPBACK.has(hostname.replace(/^\[|\]$/g, '')) || hostname === proxy;
 }
 
 function githubActions(values: Values, options: PolicyOptions) {

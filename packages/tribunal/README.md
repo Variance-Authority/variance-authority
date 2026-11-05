@@ -120,14 +120,14 @@ under this prefix, as `VARIANCE_TRIBUNAL_GITHUB_REPOSITORY`.
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | `30` | days of builds `POST /review/sweep` keeps |
 | `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name `loopback` writes on decisions |
 | `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind; what that costs is below |
-| `VARIANCE_TRIBUNAL_ORIGIN` | the request's `Host` | the address people reach this at, such as `https://review.example.com`. Set it behind a proxy that terminates TLS, because sign-in hands this address to GitHub |
+| `VARIANCE_TRIBUNAL_ORIGIN` | the request's `Host` | the address people reach this at, such as `https://review.example.com`. Set it behind a proxy that terminates TLS, because sign-in hands this address to GitHub, and behind any proxy in front of `loopback`, which recognizes no other name |
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review page,
 and a caller with no bearer decides as `VARIANCE_TRIBUNAL_REVIEWER`: anything that
 can open `127.0.0.1:7789` is already running as the person who started it. That
 holds for a caller who came by a name for this machine: `127.0.0.1`, `localhost`,
-`::1`, or the host of `VARIANCE_TRIBUNAL_ORIGIN`. Any other name in `Host` is
-nobody, because a site can point its own name here and call this service its own
+`::1`, or the host of `VARIANCE_TRIBUNAL_ORIGIN`. Any other name in `Host` decides
+nothing, because a site can point its own name here and call this service its own
 origin. A bearer is read as a machine here too, so a wrong one is refused.
 
 **On a network bind nobody decides until you declare who**, and the review page

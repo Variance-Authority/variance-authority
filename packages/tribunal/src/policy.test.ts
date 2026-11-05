@@ -160,8 +160,15 @@ describe('which credential a request is read as', () => {
       expect(await atMachine().principal(reachedAs('attacker.example:7789'))).toBeNull();
     });
 
-    it('names nobody whose Host is not a name at all', async () => {
-      expect(await atMachine().principal(reachedAs('not a host'))).toBeNull();
+    it.each(['not a host', 'attacker.example@localhost', 'localhost/x', 'localhost#x', 'localhost\\.x'])(
+      'names nobody whose Host is not a name alone: %s',
+      async (host) => {
+        expect(await atMachine().principal(reachedAs(host))).toBeNull();
+      },
+    );
+
+    it('refuses to start on an origin that is no address', () => {
+      expect(() => atMachine({ origin: 'nonsense' })).toThrow();
     });
 
     it('names the person who came through the proxy the deployer declared', async () => {
