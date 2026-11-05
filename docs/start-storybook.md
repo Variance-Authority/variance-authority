@@ -263,6 +263,10 @@ painter and use it for both:
   it has no authentication of its own, so it belongs inside a network you
   control.
 
+A third way paints only in CI: keep the baselines in the runner's cache, and
+accept with a label. [Baseline placement](placement.md#the-whole-job) prints that
+job whole.
+
 ## Go deeper
 
 Against a built Storybook, component names arrive minified: a run names the

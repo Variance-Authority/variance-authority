@@ -333,7 +333,8 @@ out the branch, opens the report, runs `variance accept` for the ids they
 intend to keep, and commits the changed `.webp` and `.json` files — so the new
 approved image is a diff in the pull request, reviewed and merged like any other
 change. A remote baseline store moves that approval out of the repository;
-[baseline placement](placement.md) covers what it costs.
+[baseline placement](placement.md) covers what it costs, and prints
+[a whole GitHub job](placement.md#the-whole-job) that accepts with a label.
 
 ## Go deeper
 

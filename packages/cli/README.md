@@ -3098,6 +3098,8 @@ steps:
 
 It runs the CLI from your `node_modules`, whatever version your lockfile holds,
 and downloads nothing during the run.
+[The whole job](https://variance-authority.dev/docs/placement#the-whole-job)
+adds Node, the browser and the accept.
 Its inputs are in its
 [`action.yml`](https://github.com/Variance-Authority/action/blob/main/action.yml).
 

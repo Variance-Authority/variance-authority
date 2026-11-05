@@ -62,8 +62,9 @@ build.
 Posting the result to the pull request is not part of the gate. `npx variance
 comment` writes a comment body and posts nothing. On GitHub,
 `Variance-Authority/action` posts it as one comment updated in place; the
-[CLI reference](../packages/cli/README.md#run-it-in-ci) has the step. Elsewhere,
-your pipeline posts it.
+[CLI reference](../packages/cli/README.md#run-it-in-ci) has the step, and
+[baseline placement](placement.md#the-whole-job) prints a whole job around it.
+Elsewhere, your pipeline posts it.
 
 ## What you would be running yourself
 

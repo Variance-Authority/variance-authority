@@ -27,8 +27,10 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 
 `directory` has one more arrangement: a root git ignores, which your CI keeps in
 its cache between runs. Nothing is committed, so nothing lands in git history,
-and the cache decides how long the baselines last. [Who accepts a
-change](#who-accepts-a-change) compares all three arrangements by who approves.
+and the cache decides how long the baselines last. A pull request goes red on a
+change and green on a label, and [the whole job](#the-whole-job) prints that
+workflow. [Who accepts a change](#who-accepts-a-change) compares all three
+arrangements by who approves.
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -161,7 +163,7 @@ claim it. A path still claimed by a project the config runs stops the run.
 }
 ```
 
-Take the default when the baselines are a corpus rather than part of a
+Choose this folder when the baselines are a corpus rather than part of a
 codebase — something you back up, prune, or point a bucket at. Every image is
 under one root, in a tree that mirrors your story titles and `describe` blocks,
 so a reviewer finds `Ui/Button` in the diff where the sidebar shows it.
@@ -333,6 +335,84 @@ until the next push to `main`, or a dispatch with `accept` ticked, records it
 again. A pull request from a fork runs with a read-only
 token: the label run still accepts, but it cannot take the label off again, and
 the pull request gets no comment.
+
+#### The whole job
+
+This job goes red on a change, green on the label, and judges the next push on
+its own. It needs two things in place first. The config declares the store, with
+the root ignored by git. `carry` names who keeps the root between jobs, and
+`actions-cache` is the runner's cache, which the action restores before the run
+and saves after an accept:
+
+```json
+"baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" }
+```
+
+And the repository has the label:
+
+```bash
+gh label create 'variance: accept'
+```
+
+Then the workflow, as `.github/workflows/variance.yml` in your repository:
+
+```yaml
+name: variance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read # the checkout: a declared block sets the rest to none
+  pull-requests: write # the comment, and taking the label off
+
+jobs:
+  variance:
+    # Any other label is no reason to run.
+    if: github.event.action != 'labeled' || github.event.label.name == 'variance: accept'
+    concurrency:
+      group: variance-${{ github.ref }} # one comment, written by one run at a time
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: take the label off
+        if: github.event.action == 'labeled'
+        continue-on-error: true # a fork's token is read-only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST/labels/variance%3A%20accept"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build-storybook
+
+      - uses: Variance-Authority/action@v1
+        with:
+          config: variance.config.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          accept: ${{ github.event_name == 'push' || github.event.action == 'labeled' }}
+          to-accept: 'check the report, then add the **variance: accept** label to this pull request'
+```
+
+`accept` reads the event, not the label. A label stays on a pull request until
+somebody takes it off, so a job that asked whether the label is present would
+accept every push after the first. The `if` has already stopped every other
+label, so `labeled` here means this one, and the step that takes it off means the
+next change needs the next label.
+
+The first push to `main` records what it renders, and pull requests compare
+against that. For a [served route](start-routes.md), replace
+`npm run build-storybook` with the step that builds or starts what the collector
+reads.
 
 ### Git
 
