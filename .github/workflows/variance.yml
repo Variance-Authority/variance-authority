@@ -630,8 +630,10 @@ jobs:
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          # This project's label, not the case's.
-          to-accept: 'check the report, then tick the box below or add the **${{ matrix.label }}** label to this pull request.'
+          # This project's label, not the case's. The second sentence runs on
+          # every row and is there for `tribunal`, which shares its name with the
+          # service and is not it.
+          to-accept: 'check the report, then tick the box below or add the **${{ matrix.label }}** label to this pull request. That is the whole review: no review service holds this run.'
           tick-to-accept: 'true'
 
       # A server that exits mid-read leaves only `ERR_CONNECTION_REFUSED` in

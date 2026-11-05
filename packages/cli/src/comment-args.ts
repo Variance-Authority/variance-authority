@@ -12,6 +12,8 @@ export interface ParsedComment {
   /** `--image-root`: the URL the report's image paths resolve against, where the operator published them. */
   readonly imageRoot?: string;
   readonly marker: boolean;
+  /** `--cleared`: print what a clean run leaves in a docket's place. */
+  readonly cleared: boolean;
   /** Reports to read instead of the configured one. More than one is merged. */
   readonly reports: readonly string[];
 }
@@ -24,6 +26,18 @@ export function parseCommentArgs(flags: Flags, config: string): ParsedComment {
   const toAccept = flags.values.get('--to-accept') || undefined;
   const imageRoot = flags.values.get('--image-root') || undefined;
   const marker = flags.present.has('--marker');
+  const cleared = flags.present.has('--cleared');
+
+  if (
+    cleared &&
+    (marker || bodyFile !== undefined || runUrl !== undefined || toAccept !== undefined || imageRoot !== undefined ||
+      flags.positionals.length > 0)
+  ) {
+    throw new OperatorError(
+      '`--cleared` prints the cleared comment and nothing else; it does not take --marker, ' +
+        '--body-file, --run-url, --to-accept, --image-root or a report',
+    );
+  }
 
   if (
     marker &&
@@ -43,6 +57,7 @@ export function parseCommentArgs(flags: Flags, config: string): ParsedComment {
     command: 'comment',
     config,
     marker,
+    cleared,
     ...(bodyFile !== undefined ? { bodyFile } : {}),
     ...(runUrl !== undefined ? { runUrl } : {}),
     ...(toAccept !== undefined ? { toAccept } : {}),

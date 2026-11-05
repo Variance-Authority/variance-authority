@@ -39,9 +39,9 @@
 //
 // Usage:
 //   node post-comment.mjs --body-file <path> --marker <string> \
-//     --adopt-unkeyed <true|false> [--pr <number>]
+//     --adopt-unkeyed <true|false> [--cleared-file <path>] [--pr <number>]
 
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { forge } from './forge.mjs';
 
 /** The marker every docket carried before markers named the config's `project`. */
@@ -103,16 +103,17 @@ if (body.trim() === '') {
   // neutral — it is a stale finding presented as the current one, which is the
   // review-blindness failure with the tool's own name on it. Updating in place is
   // still one comment and still no new notification thread.
-  await patch(existing.id, cleared(options.marker));
+  await patch(existing.id, clearedBody());
   note(`the previous docket no longer applies; comment ${existing.id} was cleared`);
   process.exit(0);
 }
 
 if (existing === undefined) {
   const created = await post(body);
-  note(`posted comment ${created}`);
+  note(`posted comment ${created?.id}`);
+  handOver(created);
 } else {
-  await patch(existing.id, body);
+  handOver(await patch(existing.id, body));
   note(`updated comment ${existing.id} in place`);
 }
 
@@ -140,12 +141,22 @@ function carries(comment, marker) {
 }
 
 async function post(text) {
-  const created = await request('POST', `issues/${pull}/comments`, { body: text });
-  return created?.id;
+  return request('POST', `issues/${pull}/comments`, { body: text });
 }
 
 async function patch(id, text) {
-  await request('PATCH', `issues/comments/${id}`, { body: text });
+  return request('PATCH', `issues/comments/${id}`, { body: text });
+}
+
+/**
+ * The address of the comment, as the step output `comment-url`, for the check's
+ * error to link. Only a comment GitHub took has one: a run with no address has
+ * no comment to send a reader to.
+ */
+function handOver(comment) {
+  const output = process.env['GITHUB_OUTPUT'];
+  if (output === undefined || output === '' || typeof comment?.html_url !== 'string') return;
+  appendFileSync(output, `comment-url=${comment.html_url}\n`);
 }
 
 /** Almost always a token that cannot write here. */
@@ -164,22 +175,16 @@ function refused(method, url, status) {
   process.exit(0);
 }
 
-/**
- * The body a superseded docket is replaced with.
- *
- * Replaced rather than deleted: this action keeps exactly one comment per
- * marker, and deleting it would leave the check's history with a gap nobody
- * can account for. That is the action's bookkeeping, so it stays here and the
- * reviewer reads only the outcome.
- */
-function cleared(marker) {
-  return [
-    marker,
-    '',
-    '## Visual variance — nothing to review',
-    '',
-    'A later run found nothing to review.',
-  ].join('\n');
+/** What `variance comment --cleared` rendered: a clean run may only clear with its words. */
+function clearedBody() {
+  if (options.clearedFile === undefined) {
+    fail('a previous docket needs clearing and there is no --cleared-file to clear it with');
+  }
+  try {
+    return readFileSync(options.clearedFile, 'utf8');
+  } catch (error) {
+    fail(`cannot read the cleared comment ${options.clearedFile}: ${messageOf(error)}`);
+  }
 }
 
 /**
@@ -211,8 +216,8 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index];
     const value = argv[index + 1];
-    if (!['--adopt-unkeyed', '--body-file', '--marker', '--pr'].includes(name)) {
-      fail(`unknown argument \`${String(name)}\`; this takes --adopt-unkeyed, --body-file, --marker, --pr`);
+    if (!['--adopt-unkeyed', '--body-file', '--cleared-file', '--marker', '--pr'].includes(name)) {
+      fail(`unknown argument \`${String(name)}\`; this takes --adopt-unkeyed, --body-file, --cleared-file, --marker, --pr`);
     }
     if (value === undefined) fail(`\`${name}\` needs a value`);
     values.set(name, value);
@@ -237,6 +242,7 @@ function parseArgs(argv) {
   const pr = values.get('--pr');
   return {
     bodyFile,
+    clearedFile: values.get('--cleared-file'),
     marker,
     adoptUnkeyed: adopt === 'true',
     ...(pr === undefined || pr === '' ? {} : { pr: Number(pr) }),
