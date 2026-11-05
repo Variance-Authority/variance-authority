@@ -3,11 +3,11 @@
  * author. Every other test of `@variance-authority/storybook` runs against
  * fixtures written to match the format; this one runs against the format.
  */
-import { jsxSource } from "@variance-authority/jsx-source/vite";
+import { jsxSource } from '@variance-authority/jsx-source/vite';
 
 export default {
-  stories: ["../src/**/*.stories.@(js|jsx|ts|tsx)"],
-  framework: { name: "@storybook/react-vite", options: {} },
+  stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
+  framework: { name: '@storybook/react-vite', options: {} },
   core: { disableTelemetry: true },
   viteFinal: async (config) => ({
     ...config,
@@ -57,7 +57,7 @@ export default {
         // the classic JSX runtime and every one of them throws `React is not
         // defined` — which the adapter reports correctly, and which would still
         // be a case about this file rather than about the adapter.
-        runtime: "automatic",
+        runtime: 'automatic',
         /**
          * **The setting the plugin above cannot supply for itself.**
          *

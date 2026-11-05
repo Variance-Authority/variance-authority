@@ -12,9 +12,8 @@ import { instrument, type InstrumentOptions } from '../instrument/index.js';
  * it, or it is one of them on every line a region other than the module's sits
  * on. A map is trusted on its source's name only where it says nothing more.
  * A position on such a line keeps its line and its column, and a position on
- * any other names no region there. It can still reach one: where a rewritten
- * line outgrew the file's, a position past the line's end lands on the line
- * below, which charges that region at module load, as an over-charge does.
+ * any other names no region there, since a column past a line's end stays on
+ * its line.
  */
 export function carriesTheFile(
   carried: string | null | undefined,

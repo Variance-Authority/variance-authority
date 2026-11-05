@@ -341,7 +341,16 @@ describe('a step ahead of the probes that changed the text a map carries for the
     expect(code).toMatch(/__va(?:\$\d+)?\(4\);\s*return 2/);
   });
 
-  const CARRIES = /`src\/a\.js`: the map back to the file carries a text for it that is not the file on disk/;
+  it('charges no region at load for the columns a line `map: null` outgrew the file by', async () => {
+    const longer = `const a = 1; /* ${'longer than the line of the file '.repeat(4)}*/`;
+
+    const code = await built(nulled('const a = 1;', longer), mapped(...BELOW_THE_REGIONS));
+
+    expect(code).toMatch(/__va(?:\$\d+)?\(2\);\s*return a;/);
+    expect(code).not.toMatch(/__vaB(?:\$\d+)?\);\s*__va(?:\$\d+)?\(\d/);
+  });
+
+  const CARRIES = /`src\/a\.js`: the map back to the file carries a text for it that is not the file on disk, on a line a region sits on/;
 
   it.each([
     ['`map: null` changed a line one sits on', [nulled(...ON_A_REGION)]],

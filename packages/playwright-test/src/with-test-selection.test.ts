@@ -122,6 +122,23 @@ describe('a configuration whose specs are cut statement by statement', () => {
     expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/');
   });
 
+  it('takes the configuration route in a worker of a main process that took it, whatever Playwright the worker finds', async () => {
+    await on('1.64.1');
+    vi.stubEnv('TEST_WORKER_INDEX', '0');
+
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+  });
+
+  it('adds no `babelPlugins` in a worker of a main process that took the environment', async () => {
+    await on('1.64.1');
+    withTestSelection({});
+    await on('1.62.1');
+    vi.stubEnv('TEST_WORKER_INDEX', '0');
+
+    expect(withTestSelection({})).not.toHaveProperty('@playwright/test');
+  });
+
   it('leaves the plugins of a configuration on such a Playwright as they were', async () => {
     await on('2.0.0');
     const compile = { babelPlugins: [['/repo/own.cjs']] };

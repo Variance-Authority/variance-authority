@@ -96,7 +96,7 @@ describe('what names our action', () => {
     '  - uses: Variance-Authority/action@0123456789abcdef0123456789abcdef01234567',
     'uses: ./.github/actions/other',
     'uses: Variance-Authority/other-action@main',
-    'uses: actions/checkout@v7',
+    'uses: actions/checkout@v4',
   ])('accepts %s', (text) => {
     expect(wrongUse(text)).toBeUndefined();
   });
@@ -116,7 +116,7 @@ describe('what names our action', () => {
     expect(wrongUse(text)).toBe(uses);
   });
 
-  const steps = '\nsteps:\n  - uses: actions/checkout@v7\n  - uses: Variance-Authority/action@v1\n';
+  const steps = '\nsteps:\n  - uses: actions/checkout@v4\n  - uses: Variance-Authority/action@v1\n';
 
   it('asks for contents beside pull-requests, since a declared block sets the rest to none', () => {
     expect(withoutContents(`permissions:\n  pull-requests: write\n${steps}`)).toBe(true);

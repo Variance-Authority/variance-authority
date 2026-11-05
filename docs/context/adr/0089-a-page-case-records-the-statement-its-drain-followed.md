@@ -39,7 +39,8 @@ charged to the statement that ran just before the drain that first found it.**
    cuts the observed test file; a runner with its own transform calls
    `cutTestFile`. Nothing else differs from a seam.
 2. **A Playwright cut is awaited.** `withTestSelection` adds a Babel plugin
-   to the configuration's `babelPlugins`. It makes ADR-0088's cut, awaited:
+   to the compile every spec goes through: `babelPlugins` below Playwright 1.63,
+   and `PW_TEST_SOURCE_TRANSFORM` from 1.63. It makes ADR-0088's cut, awaited:
    each statement of an async test or hook body waits while the `context`
    fixture drains every frame of every page. The drain before statement
    *n + 1* charges what it found to statement *n*; the teardown drain charges

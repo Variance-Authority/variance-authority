@@ -194,11 +194,17 @@ function listed<Value>(value: Value | readonly Value[] | undefined): readonly Va
  * keeps is a plugin and a path scope in two environment variables, which its
  * workers inherit. That pair reaches no ES module spec on the oldest Playwright
  * this package takes, and both routes at once make Babel refuse two parser
- * overrides, so the version picks. The scope is the whole disk because the
- * plugin decides for itself what it cuts.
+ * overrides, so the version picks, once: a worker's argv names no configuration
+ * to resolve it from, so a worker reads the main process's choice from what it
+ * inherited. The scope is the whole disk because the plugin decides for itself
+ * what it cuts.
  */
 function cutSpecs(compile: { readonly babelPlugins?: readonly unknown[] } | undefined): object {
-  if (!playwrightFrom(63, installedPlaywright(configDirectory(process.argv)))) {
+  const inherited = process.env['TEST_WORKER_INDEX'] !== undefined;
+  const transformed = inherited
+    ? process.env['PW_TEST_SOURCE_TRANSFORM'] === CADENCE_PLUGIN
+    : playwrightFrom(63, installedPlaywright(configDirectory(process.argv)));
+  if (!transformed) {
     return { '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] } };
   }
   process.env['PW_TEST_SOURCE_TRANSFORM'] = CADENCE_PLUGIN;

@@ -10,10 +10,12 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-# Vendored from crates.io oxc_resolver 11.24.2 by `packages/sense/native/Cargo.toml`'s
+# Vendored from crates.io oxc_resolver 11.24.3 by `packages/sense/native/Cargo.toml`'s
 # `[patch.crates-io]`; the only change is in `src/tsconfig.rs` and
 # `src/cache/cache_impl.rs` (a shared `paths` map), and the upstream tests,
-# which need fixtures the published crate does not ship, are left out.
+# which need fixtures the published crate does not ship, are left out. It keeps
+# `compact_str` 0.9, `pnp` 0.12.10 and `simd-json` 0.17.0 where upstream asks for
+# 0.10, 0.12.12 and 0.18.0.
 edition = "2024"
 rust-version = "1.95.0"
 name = "oxc_resolver"

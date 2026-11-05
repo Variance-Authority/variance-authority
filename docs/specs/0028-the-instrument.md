@@ -192,11 +192,8 @@ crossing uses a transport before its coverage joins its test file.
   file on disk, on a line a region other than the module's sits on, is
   refused, which catches a `map: null` that moved columns within such a line
   ahead of a step that wrote a map. A text that differs on any other line is
-  believed, because a position there names no region there. It can still reach
-  one: where a rewritten line outgrew the file's, a position past the line's
-  end lands on the line below, and a region there is charged at module load.
-  That is an over-charge, and where the map carries nothing else from that
-  region it stands in for the charge at the entry of the code in front of it.
+  believed, because a position there names no region there: a column past the
+  line's end stays on its line.
   A `map: null` with no step after it that wrote a map is caught where the
   host carries that step's text, as a Vite 8 build does, on a line a region
   sits on; where the host carries the file it is not caught, and is a known

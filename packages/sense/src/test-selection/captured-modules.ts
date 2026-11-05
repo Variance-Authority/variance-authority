@@ -292,8 +292,8 @@ export function captureAfter(
   }
   if (lost) {
     throw new MapRefusal(
-      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk: a step ahead of the ` +
-        'transforms that wrote a map, such as a `load` hook, rewrote the file and returned no map or `map: null`, so the map names lines ' +
+      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk, on a line a region sits on: ` +
+        'a step ahead of the probes, such as a `load` hook, rewrote that line and returned no map or `map: null`, so the map names lines ' +
         `the author never wrote. Have that step return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }

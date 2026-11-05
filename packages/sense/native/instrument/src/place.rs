@@ -165,7 +165,9 @@ fn starts(text: &str) -> Vec<u32> {
 /// A segment that starts in whitespace and names a token's origin — esbuild maps
 /// column 0 of an indented line to its first token — is read where the token
 /// after the whitespace starts, so the region enclosing the indentation does not
-/// take the token's origin. `units` are the transformed and authored texts.
+/// take the token's origin. A column past its line's end stays on that line: the
+/// text the map carries can be longer there than the file, and what it wrote is
+/// no origin on the line below. `units` are the transformed and authored texts.
 fn segments(mappings: &str, source: u32, generated: &[u32], original: &[u32], units: &[Vec<u16>; 2]) -> Vec<Segment> {
     let mut out = Vec::new();
     let (mut from, mut original_line, mut original_column) = (0i64, 0i64, 0i64);
@@ -183,11 +185,10 @@ fn segments(mappings: &str, source: u32, generated: &[u32], original: &[u32], un
             if from != source as i64 || column < 0 || original_column < 0 {
                 continue;
             }
-            let (Some(g), Some(o)) = (generated.get(index), usize::try_from(original_line).ok().and_then(|it| original.get(it)))
-            else {
-                continue;
-            };
-            let (mut at, from) = (g + column as u32, o + original_column as u32);
+            let Ok(line) = usize::try_from(original_line) else { continue };
+            let (Some(g), Some(o)) = (generated.get(index), original.get(line)) else { continue };
+            let end = original.get(line + 1).map_or(units[1].len() as u32, |next| next - 1);
+            let (mut at, from) = (g + column as u32, (o + original_column as u32).min(end));
             if !blank(&units[1], from) {
                 while blank(&units[0], at) {
                     at += 1;
