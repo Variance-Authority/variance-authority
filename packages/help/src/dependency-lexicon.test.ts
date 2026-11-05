@@ -166,3 +166,19 @@ it('names the function a package hands out, not an earlier one spelled the same'
 
   expect(queryDependencyLexicon(root, 'default', undefined, true, 'same-kit')?.shown[0]).toMatchObject({ line: 2, signature: 'function same(value: string)' });
 });
+
+it('keeps every declaration a named export binds, when the export shares a line with one of them', async () => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
+  const root = mkdtempSync(join(tmpdir(), 'va-lexicon-fixture-'));
+  execFileSync('git', ['init', '--quiet', root]);
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { 'kind-kit': '1.0.0' } }));
+  execFileSync('git', ['add', '.'], { cwd: root });
+  const installed = join(root, 'node_modules', 'kind-kit');
+  mkdirSync(installed, { recursive: true });
+  writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'kind-kit', version: '1.0.0', types: 'index.d.ts' }));
+  writeFileSync(join(installed, 'index.d.ts'), 'declare const Kind: 1; export { Kind };\ntype Kind = string;\n');
+  await updateSourceIndex(root);
+  await refreshDependencyLexicon(root);
+
+  expect(queryDependencyLexicon(root, 'Kind', undefined, true, 'kind-kit')?.shown.map((one) => one.kind).sort()).toEqual(['const', 'type']);
+});

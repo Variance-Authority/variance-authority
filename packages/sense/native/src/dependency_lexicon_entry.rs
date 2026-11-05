@@ -113,9 +113,9 @@ impl Reader<'_> {
             }
             let local = export.local.as_deref().unwrap_or(public);
             let mut matched: Vec<_> = parsed.symbols.iter().filter(|symbol| symbol.name == local).collect();
-            // A name is a spelling: an export on a declaration's own line binds
-            // that declaration, and `export { Kind }` every one spelled so.
-            if matched.iter().any(|symbol| symbol.line == export.line) {
+            // A name is a spelling: a default binds the declaration on its own
+            // line, and `export { Kind }` every one spelled so.
+            if public == "default" && matched.iter().any(|symbol| symbol.line == export.line) {
                 matched.retain(|symbol| symbol.line == export.line);
             }
             if !matched.is_empty() {
