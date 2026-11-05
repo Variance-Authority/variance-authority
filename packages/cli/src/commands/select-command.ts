@@ -53,7 +53,8 @@ import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
-import { recordedOrMainline, recordHeld } from './suite-base.js';
+import { recordHeld } from './mainline-selected.js';
+import { recordedOrMainline } from './suite-base.js';
 import { namedSuite, oneRecord, ownRecord } from './suite-record.js';
 import { headOf } from './suite-share.js';
 import {

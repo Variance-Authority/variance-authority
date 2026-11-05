@@ -16,14 +16,13 @@
  * and says whose it gave.
  */
 
-import { readFile, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/test-selection';
-import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineBase, mainlineMissed, mainlineRead, primaryRead, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
-import { onlySuite } from './mainline-selected.js';
-import { namedSuite, recordedSuite } from './suite-record.js';
+import { recordHeld } from './mainline-selected.js';
+import { namedSuite, onlySuite, recordedSuite } from './suite-record.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
 export type SuiteBase =
@@ -238,28 +237,4 @@ function fetchedOf(record: MainlineRecord): LastFetched {
     coverage: record.coverage,
     ...(record.runs === undefined ? {} : { runs: record.runs }),
   };
-}
-
-/**
- * Whether the journal is on disk, distinguishing *missing* from *unreadable*.
- *
- * Anything other than ENOENT is handed on: a directory in its place, a
- * permission the operator lost, a mount that went away. Reporting those as "no
- * recording here" would be the one failure this whole subsystem is written to
- * refuse — a run that ignored a snapshot looking exactly like a run that never
- * had one.
- */
-export async function recordHeld(file: string): Promise<boolean> {
-  try {
-    await stat(file);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return false;
-    throw new OperatorError(
-      `the recorded execution journal at ${file} could not be reached: ` +
-        `${error instanceof Error ? error.message : String(error)}. A reader that treated ` +
-        'this as "nothing recorded" would pass over a record it holds and look exactly like a clean answer.',
-      { cause: error },
-    );
-  }
 }

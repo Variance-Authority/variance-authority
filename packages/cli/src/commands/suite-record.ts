@@ -3,7 +3,7 @@
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
-import { onlySuite, selectedMainline, selectedRecord } from './mainline-selected.js';
+import { selectedMainline, selectedRecord } from './mainline-selected.js';
 
 /**
  * The one record a command scoped to one runner reads: `--suite`'s, or the only
@@ -74,8 +74,8 @@ export async function landingRecord(
   if (into !== undefined) {
     const inside = selection.cachedRecord(into, root);
     if (inside === undefined) return { file: into, selected: undefined };
-    const whose = asOperator(() => selection.declaredSuites(root))
-      ?.find((one) => selection.cachedRecord(selection.testCoverageFile(root, { suite: one.name }), root) === inside);
+    const suite = selection.cachedSuite(inside);
+    const whose = asOperator(() => selection.declaredSuites(root))?.find((one) => one.name === suite);
     return { file: into, selected: await selectedMainline(root, whose) };
   }
   const { name, declared } = await namedSuite(root, suite);
@@ -122,6 +122,11 @@ export async function recordedSuite(root: string, suite?: string): Promise<{ rea
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(messageOf(error), { cause: error });
   }
+}
+
+/** The one suite a root config declares, which a reader that names none reads. */
+export function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
+  return declared?.length === 1 ? declared[0]!.name : undefined;
 }
 
 /**

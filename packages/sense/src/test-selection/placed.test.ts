@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
 import { changedLines } from './diff-lines.js';
 import { encodeTestCoverage } from './format.js';
@@ -11,6 +11,12 @@ import type { TestCoverage } from './index.js';
 import { backThrough, changeInRecord, hunksByFile, hunksOf, placeAcross, placeInText, placeInTexts, placeThrough } from './placed.js';
 import { stateOf } from './range-state.js';
 import type { CoveringTest, ExecutionTest } from './reverse.js';
+
+// Cut because a file the change did not list leaves no mark on the answer, so what was parsed is seen only here.
+vi.mock('./diff-lines.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./diff-lines.js')>();
+  return { ...original, changedLines: vi.fn(original.changedLines) };
+});
 
 // `git diff --no-index -U0` over a ten-line text: two lines inserted after 2,
 // line 5 rewritten as two, lines 8-9 removed.
@@ -124,6 +130,23 @@ describe('a change read in the numbers of the commit a record was made at', () =
     const binary = `diff --git a/${FILE} b/${FILE}\nBinary files differ\n`;
 
     expect(read(binary, diffOf('@@ -9 +9 @@', '-nine', '+NINE'))).toEqual([]);
+  });
+
+  it('parses no hunk of a file the change did not list, however far the record stands', () => {
+    const change = diffOf('@@ -9 +9 @@', '-nine', '+NINE');
+    const far = ['diff --git a/src/far.ts b/src/far.ts', '--- a/src/far.ts', '+++ b/src/far.ts', '@@ -1 +1 @@', '-one', '+far away', ''].join('\n');
+    vi.mocked(changedLines).mockClear();
+
+    expect(changeInRecord(far + change, listed(change)).get(FILE)).toEqual([{ start: 9, end: 9 }]);
+    expect(vi.mocked(changedLines).mock.calls.filter(([text]) => text.includes('far away'))).toEqual([]);
+  });
+
+  it('reads a part that names the listed file on either side, as a rename does', () => {
+    const renamed = (...names: readonly [string, string]) => [`diff --git a/${names[0]} b/${names[1]}`, `--- a/${names[0]}`, `+++ b/${names[1]}`, '@@ -3 +3 @@', '-three', '+THREE', ''].join('\n');
+    const change = diffOf('@@ -9 +9 @@', '-nine', '+NINE');
+
+    expect(read(renamed('src/old.ts', FILE), change)).toEqual([]);
+    expect(read(renamed(FILE, 'src/new.ts'), change)).toEqual([{ start: 9, end: 9 }]);
   });
 
   it('keeps every file the change listed, however little of it the record diff shows', () => {

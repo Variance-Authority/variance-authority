@@ -101,7 +101,7 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * is one for another mainline than `selected`, the name a reader that worked
  * out the selection hands in. A caller with none to hand in takes the newest.
  *
- * FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it.
+ * FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
  *
  * Synchronous, as {@link nearestTestCoverage} cannot wait. It opens the record,
  * so a reader asks it only once the checkout's own layer has none.

@@ -172,9 +172,24 @@ function chargedHunks(part: string): readonly ChargedHunk[] {
  * has no place to go, and a hunk both sides wrote is read at its own grain.
  */
 export function changeInRecord(diff: string, listed: ChangeRead): ReadonlyMap<string, readonly LineRange[]> {
-  const lines = changedLines(diff);
-  const hunks = new Map(fileParts(diff).map(([file, part]) => [file, chargedHunks(part)]));
+  const read = listedParts(diff, listed);
+  const lines = changedLines(read);
+  const hunks = new Map(fileParts(read).map(([file, part]) => [file, chargedHunks(part)]));
   return new Map([...listed.lines].map(([file, whole]) => [file, inRecord(lines.get(file), hunks.get(file) ?? [], listed.hunks.get(file), whole)]));
+}
+
+/**
+ * The parts of `diff` that name a listed file, on either side, so what is parsed
+ * follows the change rather than how far the record stands from the tree. Each
+ * part's names are `changedLines`' own, read from its header alone: a part with
+ * no hunk, a binary, names its file there too.
+ */
+function listedParts(diff: string, listed: ChangeRead): string {
+  const named = (part: string): boolean => {
+    const body = part.search(/^@@ /mu);
+    return [...changedLines(body === -1 ? part : part.slice(0, body)).keys()].some((file) => listed.lines.has(file));
+  };
+  return diff.split(/^(?=diff --git )/mu).filter(named).join('');
 }
 
 /**

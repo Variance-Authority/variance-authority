@@ -3322,6 +3322,7 @@
         "cacheLayers": "function",
         "cacheRootFor": "function",
         "cachedRecord": "function",
+        "cachedSuite": "function",
         "caseHeard": "function",
         "caseIndexOf": "function",
         "caseMotion": "function",

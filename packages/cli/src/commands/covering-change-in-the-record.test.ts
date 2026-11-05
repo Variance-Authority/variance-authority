@@ -197,6 +197,20 @@ describe('a file the mainline renamed since the record', () => {
     expect([...lines.keys()]).toEqual(['src/sum.ts']);
   });
 
+  it('reads the change from one record commit once, however many suites stand on it', async () => {
+    const { clone } = await renamedOnTheMainline(renames);
+    await writeFile(join(clone, 'src/sum.ts'), EDITED);
+    const { at } = await asked(since);
+    const trace = join(home, 'git-trace');
+    const listed = await listedChange('origin/main');
+    vi.stubEnv('GIT_TRACE', trace);
+
+    const [one, other] = [await changeSince(listed, 'origin/main', clone, at), await changeSince(listed, 'origin/main', clone, at)];
+
+    expect(other).toEqual(one);
+    expect((await readFile(trace, 'utf8')).match(/built-in: git diff .*--no-renames/gu)).toHaveLength(1);
+  });
+
   it('says so of a renamed file the change deleted', async () => {
     const { clone, first } = await renamedOnTheMainline(renames);
     await git(clone, 'rm', '--quiet', 'src/sum.ts');

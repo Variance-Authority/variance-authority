@@ -182,7 +182,7 @@ export async function seedTestCoverage(
   const layers = repositoryLayers(root, cacheRoot);
   const inside = cachedRecord(file, root, cacheRoot);
   if (inside === undefined) return undefined;
-  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
+  const suite = cachedSuite(inside);
   const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
   // A checkout with a record of its own has its base, and no other is asked.
   // The lock makes this and the copy one step: a run landing between them would
@@ -243,6 +243,11 @@ export async function seedTestCoverage(
 export function cachedRecord(file: string, root: string, cacheRoot?: string): string | undefined {
   const inside = relative(repositoryLayers(root, cacheRoot).top, file).split(sep).join('/');
   return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
+}
+
+/** The suite a record's path inside a layer names, as {@link cachedRecord} says it: none for the repository's one record. */
+export function cachedSuite(inside: string): string | undefined {
+  return /^suites\/([^/]+)\//u.exec(inside)?.[1];
 }
 
 /**
@@ -440,11 +445,10 @@ export function nearestRecord(
   if (present(own!)) return { file: own!, origin: 'own' };
   // The fetched record is the base only when the first run here would lay it:
   // one this build does not read is passed over, as seeding passes it over.
-  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
+  const suite = cachedSuite(inside);
   const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot, options.selected);
   if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
   for (const file of under) if (present(file)) return { file, origin: 'primary' };
-
   return { file: own!, origin: 'own' };
 }
 

@@ -121,6 +121,7 @@ export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 export { prepareRecord } from './replaced-record.js';
 export {
   cachedRecord,
+  cachedSuite,
   type PassedOver,
   readableTestCoverage,
   recordFileFor,

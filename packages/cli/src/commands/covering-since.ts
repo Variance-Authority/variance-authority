@@ -27,6 +27,8 @@ export function stated(listed: CoveringRegion, reached: CoveringRegion): StatedR
 /** What a change changed, read once for every suite asked: the commit it parted from `since` at, and its diff from there, with no lines when it changed nothing. */
 export interface ListedChange extends ChangeRead {
   readonly base: string;
+  /** The change in the numbers of each record commit asked: suites that stand on one commit read its diff once. */
+  readonly inRecords: Map<string, Promise<ReadonlyMap<string, readonly LineRange[]>>>;
 }
 
 const readChange = (diff: string): ChangeRead => ({ lines: changedLines(diff), hunks: hunksByFile(diff) });
@@ -46,7 +48,7 @@ export async function listedChange(since: string): Promise<ListedChange> {
       { kind: 'undiffed' },
     );
   }
-  return { base, ...readChange(diff) };
+  return { base, ...readChange(diff), inRecords: new Map() };
 }
 
 /**
@@ -56,7 +58,7 @@ export async function listedChange(since: string): Promise<ListedChange> {
  * listed stays, however much of it that record already holds.
  */
 export async function changeSince(listed: ListedChange, since: string, root: string, at: string | undefined): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const lines = at === undefined || at === listed.base ? listed.lines : changeInRecord(await readFrom(at, since, root), listed);
+  const lines = at === undefined || at === listed.base ? listed.lines : await inRecordAt(listed, at, since, root);
 
   // `git` names files from the repository root and the index from the run's. The working directory is always
   // a real path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the
@@ -65,6 +67,13 @@ export async function changeSince(listed: ListedChange, since: string, root: str
   const base = await realpath(root);
   const rooted = (file: string): string => (here === base ? file : relative(base, resolve(here, file)));
   return new Map([...lines].map(([file, ranges]) => [rooted(file), ranges]));
+}
+
+/** The listed change in the numbers of `at`, read the first time that commit is asked. */
+function inRecordAt(listed: ListedChange, at: string, since: string, root: string): Promise<ReadonlyMap<string, readonly LineRange[]>> {
+  const read = listed.inRecords.get(at) ?? readFrom(at, since, root).then((diff) => changeInRecord(diff, listed));
+  listed.inRecords.set(at, read);
+  return read;
 }
 
 /** The diff from `at`. The listed change read, so what git could not read is from the record's commit. */

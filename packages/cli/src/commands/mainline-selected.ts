@@ -7,11 +7,12 @@
  * below it. A read that works the selection out hands it to that rule.
  */
 
-import { existsSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { DeclaredSuite, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
 import { ConfigError } from '../config-values.js';
+import { OperatorError } from '../exit.js';
 import { readerMainline, type Env, type ReaderMainline } from '../share-lines.js';
 
 /**
@@ -24,11 +25,6 @@ export function rootShare(config: RootConfig | undefined) {
   const value = config?.value['share'];
   if (config === undefined || value === undefined) return undefined;
   return parseShare(value, { source: config.file, baseDir: dirname(config.file) });
-}
-
-/** The one suite a root config declares, which a reader that names none reads. */
-export function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
-  return declared?.length === 1 ? declared[0]!.name : undefined;
 }
 
 /** What {@link selectMainline} worked out, and the share and cache it asked. */
@@ -76,12 +72,36 @@ export async function selectedMainline(root: string, declared: DeclaredSuite | u
 }
 
 /**
+ * Whether the journal is on disk, distinguishing *missing* from *unreadable*.
+ *
+ * Anything other than ENOENT is handed on: a directory in its place, a
+ * permission the operator lost, a mount that went away. Reporting those as "no
+ * recording here" would be the one failure this whole subsystem is written to
+ * refuse — a run that ignored a snapshot looking exactly like a run that never
+ * had one.
+ */
+export async function recordHeld(file: string): Promise<boolean> {
+  try {
+    await stat(file);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return false;
+    throw new OperatorError(
+      `the recorded execution journal at ${file} could not be reached: ` +
+        `${error instanceof Error ? error.message : String(error)}. A reader that treated ` +
+        'this as "nothing recorded" would pass over a record it holds and look exactly like a clean answer.',
+      { cause: error },
+    );
+  }
+}
+
+/**
  * The nearest record of `suite`, judged by the mainline selected for it. A
  * checkout's own record answers before anything fetched, so the selection, a
  * git process or two, is worked out only without one.
  */
 export async function selectedRecord(root: string, suite: string | undefined, declared: DeclaredSuite | undefined): Promise<string> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const held = existsSync(selection.testCoverageFile(root, { suite }));
+  const held = await recordHeld(selection.testCoverageFile(root, { suite }));
   return selection.readableTestCoverage(root, { suite, selected: held ? undefined : await selectedMainline(root, declared) });
 }
