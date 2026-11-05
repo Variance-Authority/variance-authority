@@ -296,8 +296,9 @@ the action sends the run there. The
 
 The baseline root is ignored by git on purpose, and the CI job restores it from
 the runner's cache before every run, so the cache decides how long the baselines
-last. Without the restore, a run starts with an empty root and reports every subject `new`, as [Committed means
-committed](#committed-means-committed) describes.
+last. Without the restore, a run starts with an empty root and reports every
+subject `new`, as [Committed means committed](#committed-means-committed)
+describes.
 
 A reviewer reads the report and adds the `variance: accept` label. That starts a
 run that accepts every changed subject, compares again, and saves the baseline
@@ -329,8 +330,8 @@ review of a diff. A push after an accept does not dismiss a reviewer's approval 
 request, and it does not need to: a push that changes a pixel turns the check red again. The
 store lasts as long as GitHub keeps the cache entry. GitHub removes an entry
 nothing has restored for seven days, and after that every subject reports `new`
-until the next push to `main`, or a dispatch with `accept` ticked, records it
-again. A pull request from a fork runs with a read-only
+until the next push to `main` records it again. A pull request from a fork runs
+with a read-only
 token: the label run still accepts, but it cannot take the label off again, and
 the pull request gets no comment.
 
@@ -416,9 +417,9 @@ Any other label compares again and accepts nothing, so a red check stays red. Th
 job does not skip on that label, because a skipped job reports success and would
 cover the red.
 
-GitHub keeps one queued run per `concurrency` group, so a push can displace a
-label's queued run. The label then stays on with nothing accepted: take it off
-and add it again.
+GitHub keeps one queued run per `concurrency` group, so any later event can
+displace a label's queued run. The label then stays on with nothing accepted:
+take it off and add it again.
 
 A subject with no baseline reports `new` and the check stays green, so a pull
 request is green until the first push to `main` records a store.
