@@ -27,7 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     # Most of this is the wait for the run a tick reruns to finish.
     timeout-minutes: 60
-    # A second tick waits for the first, then finds the box gone.
+    # One at a time, because a rerun is refused while another goes. GitHub keeps
+    # one waiting run per group, so a third edit here can drop the second: that
+    # box stays ticked with nothing logged, and ticking it again counts.
     concurrency:
       group: variance-tick-${{ github.event.issue.number }}
       cancel-in-progress: false

@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { commentMarker } from '@variance-authority/cli';
+import { commentMarker, renderComment } from '@variance-authority/cli';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /**
@@ -38,6 +38,10 @@ interface Repo {
   /** What the run answers, in order; the last one repeats. */
   statuses: string[];
   attempt: number;
+  /** The id the job has in the run's latest attempt; each attempt gives it a new one. */
+  latestJob: number;
+  /** A head the pull request moves to while the run is being waited for. */
+  pushed?: string;
   calls: string[];
   url: string;
 }
@@ -57,6 +61,7 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
     head: HEAD,
     statuses: ['completed'],
     attempt: 1,
+    latestJob: JOB,
     calls: [],
     url: '',
     ...overrides,
@@ -76,12 +81,16 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
       };
       if (path === '/repos/o/r/pulls/7') return reply(200, { head: { sha: repo.head } });
       if (path.startsWith('/repos/o/r/collaborators/')) return reply(200, { permission: repo.permission });
-      if (path === `/repos/o/r/actions/jobs/${JOB}`) return reply(200, { run_id: RUN });
+      if (path === `/repos/o/r/actions/jobs/${JOB}` && request.method === 'GET') return reply(200, { run_id: RUN, name: 'gate (tribunal)' });
+      if (path === `/repos/o/r/actions/runs/${RUN}/jobs`) {
+        return reply(200, { jobs: [{ id: 1, name: 'gate (site)' }, { id: repo.latestJob, name: 'gate (tribunal)' }] });
+      }
       if (path === `/repos/o/r/actions/runs/${RUN}`) {
+        if (repo.pushed) repo.head = repo.pushed;
         const status = repo.statuses.length > 1 ? repo.statuses.shift() : repo.statuses[0];
         return reply(200, { status, run_attempt: repo.attempt });
       }
-      if (path === `/repos/o/r/actions/jobs/${JOB}/rerun`) return reply(201, {});
+      if (path === `/repos/o/r/actions/jobs/${repo.latestJob}/rerun`) return reply(201, {});
       if (path === '/repos/o/r/issues/7/comments') return reply(200, [{ id: 1, body: 'a reviewer said something', user: { type: 'User' } }, repo.comment]);
       if (path === '/repos/o/r/issues/comments/9') {
         if (request.method === 'PATCH') repo.comment.body = (JSON.parse(text) as { body: string }).body;
@@ -189,6 +198,35 @@ describe('a tick', () => {
     expect(repo.calls).not.toContain(rerun);
   });
 
+  it('reruns the job as the run knows it now, after another box in that run started a new attempt', async () => {
+    const repo = await github({ attempt: 2, latestJob: 66 });
+
+    const { code } = await tick(repo, ['answer'], edited(repo, docket(' ')));
+
+    expect(code).toBe(0);
+    expect(repo.calls).toContain('POST /repos/o/r/actions/jobs/66/rerun');
+  });
+
+  it('accepts nothing on a push that landed during that wait', async () => {
+    const repo = await github({ pushed: OLD });
+
+    await tick(repo, ['answer'], edited(repo, docket(' ')));
+
+    expect(repo.calls).not.toContain(rerun);
+    expect(repo.calls.filter((call) => call.startsWith('PATCH'))).toEqual([]);
+  });
+
+  it('keeps a login with an underscore, which a managed account has', async () => {
+    const repo = await github();
+
+    await tick(repo, ['answer'], edited(repo, docket(' '), { login: 'ana_acme', type: 'User' }));
+    const { outputs } = await tick(repo, ['read', '--marker', MARKER], {
+      pull_request: { number: 7, title: 'Move a button', head: { sha: HEAD } },
+    }, { GITHUB_RUN_ID: String(RUN), GITHUB_RUN_ATTEMPT: '2', VARIANCE_TICK_JOB: '56' });
+
+    expect(outputs).toContain('ticked by @ana_acme');
+  });
+
   it('accepts nothing for somebody without write access, and says why', async () => {
     for (const permission of ['read', 'triage', 'none']) {
       const repo = await github({ permission });
@@ -238,7 +276,7 @@ describe('a tick', () => {
 });
 
 describe('the run a tick restarted', () => {
-  const pull = { pull_request: { number: 7, head: { sha: HEAD } } };
+  const pull = { pull_request: { number: 7, title: 'Move a button', head: { sha: HEAD } } };
   const record = (attempt: number, head = HEAD, run = RUN) =>
     `${MARKER}\n\nAccepted by ana on \`aaaaaaa\`. <!-- variance-accepted by=ana head=${head} run=${run} attempt=${attempt} -->\n`;
   const env = (attempt: number) => ({ GITHUB_RUN_ID: String(RUN), GITHUB_RUN_ATTEMPT: String(attempt), VARIANCE_TICK_JOB: '56' });
@@ -249,15 +287,15 @@ describe('the run a tick restarted', () => {
 
     const { out, outputs } = await tick(repo, read, pull, env(2));
 
-    expect(outputs).toContain('accept=true\n');
-    expect(outputs).toContain('intent=ticked by @ana\n');
+    expect(outputs).toContain('accept<<__variance__\ntrue\n');
+    expect(outputs).toContain('intent<<__variance__\nMove a button — accepted: ticked by @ana\n');
     expect(out).toContain('accepting: ticked by @ana');
   });
 
   it('accepts nothing on a re-run with no record for the attempt before it', async () => {
     const repo = await github({ comment: { id: 9, body: record(1), user: { type: 'Bot' } } });
 
-    expect((await tick(repo, read, pull, env(3))).outputs).not.toContain('accept=true');
+    expect((await tick(repo, read, pull, env(3))).outputs).not.toContain('accept<<');
   });
 
   it('accepts nothing on a record of another head, another run, or a comment no bot wrote', async () => {
@@ -268,7 +306,7 @@ describe('the run a tick restarted', () => {
     ]) {
       const repo = await github({ comment });
 
-      expect((await tick(repo, read, pull, env(2))).outputs).not.toContain('accept=true');
+      expect((await tick(repo, read, pull, env(2))).outputs).not.toContain('accept<<');
     }
   });
 
@@ -278,7 +316,7 @@ describe('the run a tick restarted', () => {
     const { outputs } = await tick(repo, read, pull, env(1));
 
     expect(repo.calls).toEqual([]);
-    expect(outputs).toContain(`box=- [ ] Accept this change <!-- variance-tick head=${HEAD} job=56 -->\n`);
+    expect(outputs).toContain(`box<<__variance__\n- [ ] Accept this change <!-- variance-tick head=${HEAD} job=56 -->\n`);
   });
 
   it('offers no box when the job has no id to rerun', async () => {
@@ -286,16 +324,28 @@ describe('the run a tick restarted', () => {
 
     const { outputs } = await tick(repo, read, pull, { ...env(1), VARIANCE_TICK_JOB: '' });
 
-    expect(outputs).not.toContain('box=');
+    expect(outputs).not.toContain('box<<');
   });
 
-  it('writes the box the answer recognises', async () => {
+  it('writes a box that survives the docket and that the answer recognises', async () => {
     const repo = await github();
     const { outputs } = await tick(repo, read, pull, { ...env(1), VARIANCE_TICK_JOB: String(JOB) });
-    const line = /^box=(.*)$/m.exec(outputs)?.[1] ?? '';
+    const line = /^- \[ \].*$/m.exec(outputs)?.[0] ?? '';
+    const before = renderComment({
+      project: 'tribunal',
+      toAccept: `tick the box below.\n\n${line}`,
+      report: {
+        runVersion: 1,
+        at: '2026-08-01T10:00:00.000Z',
+        identity: { renderer: 'playwright-chromium', engine: 'chromium@131', platform: 'linux/x64', deviceScaleFactor: 1, fonts: [] },
+        retention: 'durable',
+        observations: [{ subject: 'story:a', verdict: 'changed', because: 'pixels differ', changedPixels: 9, regions: [], images: { after: 'a.png' } }],
+        notObserved: [],
+      },
+    });
 
-    repo.comment.body = `${MARKER}\n\n${line.replace('[ ]', '[x]')}\n`;
-    await tick(repo, ['answer'], edited(repo, `${MARKER}\n\n${line}\n`));
+    repo.comment.body = before.replace('- [ ]', '- [x]');
+    await tick(repo, ['answer'], edited(repo, before));
 
     expect(repo.calls).toContain(rerun);
   });

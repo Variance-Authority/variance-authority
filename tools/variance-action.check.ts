@@ -88,6 +88,21 @@ describe('the variance action', () => {
 });
 
 /** The `run:` block of the step whose `name:` is `step`, unindented. */
+async function runBlock(step: string): Promise<string> {
+  const lines = (await readFile(ACTION, 'utf8')).split('\n');
+  const named = lines.findIndex((line) => line.trim().replace(/^- /, '') === `name: ${step}`);
+  if (named < 0) throw new Error(`the action has no step ${step}`);
+  const run = lines.findIndex((line, at) => at > named && line.trim() === 'run: |');
+  const indent = lines[run]!.length - lines[run]!.trimStart().length;
+  const body: string[] = [];
+  for (const line of lines.slice(run + 1)) {
+    if (line.trim() !== '' && line.length - line.trimStart().length <= indent) break;
+    body.push(line);
+  }
+  const inner = Math.min(...body.filter((line) => line.trim() !== '').map((line) => line.length - line.trimStart().length));
+  return body.map((line) => line.slice(inner)).join('\n');
+}
+
 describe('the workflow that answers a tick', () => {
   const tick = () => readFile(join(ROOT, '.github/workflows/variance-tick.yml'), 'utf8');
 
@@ -106,7 +121,7 @@ describe('the workflow that answers a tick', () => {
     expect(workflow).toContain('sparse-checkout: .github/actions/variance');
   });
 
-  it('waits for no other tick, and cancels none', async () => {
+  it('runs one tick of a pull request at a time, because a rerun is refused while another goes', async () => {
     const workflow = await tick();
 
     expect(workflow).toContain('group: variance-tick-${{ github.event.issue.number }}');
@@ -114,20 +129,44 @@ describe('the workflow that answers a tick', () => {
   });
 });
 
-async function runBlock(step: string): Promise<string> {
-  const lines = (await readFile(ACTION, 'utf8')).split('\n');
-  const named = lines.findIndex((line) => line.trim() === `- name: ${step}`);
-  if (named < 0) throw new Error(`the action has no step ${step}`);
-  const run = lines.findIndex((line, at) => at > named && line.trim() === 'run: |');
-  const indent = lines[run]!.length - lines[run]!.trimStart().length;
-  const body: string[] = [];
-  for (const line of lines.slice(run + 1)) {
-    if (line.trim() !== '' && line.length - line.trimStart().length <= indent) break;
-    body.push(line);
+describe('the docket a tick needs', () => {
+  /** What `--to-accept` received, when the render step has `box` to add. */
+  async function toAccept(box: string): Promise<string> {
+    const at = await mkdtemp(join(tmpdir(), 'variance-action-render-'));
+    try {
+      const fake = join(at, 'variance');
+      await writeFile(
+        fake,
+        `#!/bin/bash\nwhile [ $# -gt 0 ]; do if [ "$1" = --to-accept ]; then printf %s "$2" > "${at}/said"; fi; shift; done\n`,
+        { mode: 0o755 },
+      );
+      execFileSync('/bin/bash', ['-c', await runBlock('render the docket')], {
+        env: {
+          ...process.env,
+          VARIANCE_COMMAND: fake,
+          VARIANCE_CONFIG: 'c.json',
+          VARIANCE_RUN_URL: '',
+          VARIANCE_IMAGE_ROOT: '',
+          VARIANCE_TO_ACCEPT: 'tick the box below.',
+          VARIANCE_TICK_BOX: box,
+          GITHUB_OUTPUT: join(at, 'output'),
+          RUNNER_TEMP: at,
+        },
+      });
+      return await readFile(join(at, 'said'), 'utf8');
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
   }
-  const inner = Math.min(...body.filter((line) => line.trim() !== '').map((line) => line.length - line.trimStart().length));
-  return body.map((line) => line.slice(inner)).join('\n');
-}
+
+  it('sets the box apart from the words, as a list of its own', async () => {
+    expect(await toAccept('- [ ] Accept this change')).toBe('tick the box below.\n\n- [ ] Accept this change');
+  });
+
+  it('adds nothing when the run offers no box', async () => {
+    expect(await toAccept('')).toBe('tick the box below.');
+  });
+});
 
 /** A report in which every subject was observed, and one changed. */
 const CHANGED = { observations: [{ verdict: 'changed' }], notObserved: [] };

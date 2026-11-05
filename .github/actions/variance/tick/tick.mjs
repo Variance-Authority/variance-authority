@@ -30,7 +30,7 @@ const POLL_SECONDS = Number(process.env.VARIANCE_TICK_POLL_SECONDS ?? 15);
 
 const WRITERS = new Set(['admin', 'write']);
 const BOX = /^- \[( |x|X)\] .*<!-- variance-tick head=([0-9a-f]{40}) job=(\d+) -->[ \t\r]*$/m;
-const RECORD = /<!-- variance-accepted by=([A-Za-z0-9-]+) head=([0-9a-f]{40}) run=(\d+) attempt=(\d+) -->/;
+const RECORD = /<!-- variance-accepted by=([A-Za-z0-9_-]+) head=([0-9a-f]{40}) run=(\d+) attempt=(\d+) -->/;
 
 const box = (head, job) => `- [ ] Accept this change <!-- variance-tick head=${head} job=${job} -->`;
 const record = (by, head, run, attempt) =>
@@ -106,7 +106,7 @@ async function answer() {
 
   // A rerun is refused while its run goes, and the head and the box may both
   // move in this wait. The job's `timeout-minutes` bounds it.
-  const { run_id: run } = await github(`actions/jobs/${job}`);
+  const { run_id: run, name } = await github(`actions/jobs/${job}`);
   let state = await github(`actions/runs/${run}`);
   while (state.status !== 'completed') {
     note(`waiting for run ${run} to finish.`);
@@ -119,15 +119,19 @@ async function answer() {
   const still = boxIn(comment.body);
   if (!still?.ticked || still.head !== head || still.job !== job) return note('the box is no longer ticked; nothing accepted.');
 
+  // A job has a new id in each attempt, and a second box in this run may have
+  // started one since this box was written.
+  const { jobs } = await github(`actions/runs/${run}/jobs?per_page=${PER_PAGE}`);
+  const latest = jobs.find((candidate) => candidate.name === name);
+  if (!latest) throw new Error(`run ${run} has no job ${name} to rerun`);
+
   await github(`issues/comments/${comment.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ body: comment.body.replace(BOX, record(by, head, run, state.run_attempt)) }),
   });
-  await github(`actions/jobs/${job}/rerun`, { method: 'POST' });
+  await github(`actions/jobs/${latest.id}/rerun`, { method: 'POST' });
 
-  const said = `accepted by @${by} on ${head.slice(0, 7)}; run ${run} is running again.`;
-  console.log(`::notice::variance: ${said}`);
-  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `variance: ${said}\n`);
+  console.log(`::notice::variance: accepted by @${by} on ${head.slice(0, 7)}; run ${run} is running again.`);
 }
 
 /**
@@ -157,15 +161,15 @@ async function read() {
 
   const { pull_request: pull } = event();
   const job = process.env.VARIANCE_TICK_JOB;
-  const output = (line) => appendFileSync(process.env.GITHUB_OUTPUT, `${line}\n`);
-  if (job) output(`box=${box(pull.head.sha, job)}`);
+  const output = (key, value) => appendFileSync(process.env.GITHUB_OUTPUT, `${key}<<__variance__\n${value}\n__variance__\n`);
+  if (job) output('box', box(pull.head.sha, job));
   if (Number(process.env.GITHUB_RUN_ATTEMPT) < 2) return;
 
   try {
     const by = await tickedBy(pull.number, pull.head.sha, marker);
     if (!by) return;
-    output('accept=true');
-    output(`intent=ticked by @${by}`);
+    output('accept', 'true');
+    output('intent', `${pull.title} — accepted: ticked by @${by}`);
     console.log(`::notice::variance: accepting: ticked by @${by}`);
   } catch (error) {
     warn(`could not read the docket, so this run only compares: ${error.message}`);

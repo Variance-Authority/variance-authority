@@ -213,8 +213,8 @@ inputs:
       `true` puts a box under `to-accept`, on a `pull_request` run. A reviewer
       with write access ticks it, a workflow on `issue_comment` running
       `variance/tick` names them in the comment and reruns this job, and that
-      run accepts as `accept: true` would, with `ticked by @them` for its
-      intent. Accepting here saves to the runner's cache, so a git or LFS store
+      run accepts as `accept: true` would, with `accepted: ticked by @them` in
+      its intent. Accepting here saves to the runner's cache, so a git or LFS store
       leaves this off.
     required: false
     default: 'false'

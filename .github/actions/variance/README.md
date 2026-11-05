@@ -69,7 +69,7 @@ jobs:
 The person needs write access, and the box must go from unticked to ticked on the
 head the pull request is still at. Anything else accepts nothing and says why in
 that job's log. The tick waits for a run still going, then reruns it, so what is
-accepted is what that run rendered. The rerun records `ticked by @them` as its
-intent and names them in its log; the name in the comment lasts until the next
+accepted is what that run rendered. The rerun's intent ends `accepted: ticked by
+@them`, and its log names them; the name in the comment lasts until the next
 run rewrites it, and the comment's edit history keeps it after that. `actions-cache`
 is the store this accepts into, so a git or LFS store leaves the input off.
