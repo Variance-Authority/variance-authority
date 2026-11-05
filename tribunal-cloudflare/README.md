@@ -167,8 +167,10 @@ credential in it: a token in a document is a token in everybody's devtools.
 
 `access` is the other way to name a reviewer, and the values are your own:
 provisioning registers no App for it and makes no Access application. Put an
-Access application in front of the deployment, add `access` to
-`REVIEW_CREDENTIALS`, and set both of:
+Access application in front of the deployment as
+[your company's SSO](https://variance-authority.dev/reference/packages/tribunal#your-companys-sso)
+says, with the bypass a workflow needs under `/api`, set `REVIEW_CREDENTIALS` to
+`access`, and set both of:
 
 - `ACCESS_TEAM_DOMAIN` — e.g. `your-team.cloudflareaccess.com`, where the signing
   keys are published.

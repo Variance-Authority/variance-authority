@@ -23,6 +23,11 @@ tag, so a token minted for a neighbouring application in the same team is
 refused. A settable header is never trusted, because an origin reachable beside
 its gate turns that header into a request header like any other.
 
+A credential that rides along by itself proves nothing about who sent the write:
+a write a browser carried here from another origin never reaches a policy,
+declared or a host's own, whatever cookie came with it. `SameSite=Lax` on a cookie is a second guard behind
+that refusal.
+
 ## Depends on
 
 Nothing in this block. It reads the request and the deployment's configuration.
@@ -63,10 +68,10 @@ all — there would be nothing between an approve button and the internet.
 - `packages/tribunal/src/github-signin.ts` — the GitHub sign-in, the write check
   and the signed session
 - `packages/tribunal/src/policy.ts` — `declaredPolicy`, which answers a principal
-  from what the deployment declared
+  from what the deployment declared, and `LOOPBACK`
 - `tribunal-cloudflare/app/page.tsx` — rendered per request, because who is asking
   is a per-request fact
-- `packages/tribunal/src/node/bin.ts` — `LOOPBACK`, `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
+- `packages/tribunal/src/node/bin.ts` — `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
   running the process
 - `packages/tribunal/src/node/serve.ts` — `reviewer`, carried into the served page
 

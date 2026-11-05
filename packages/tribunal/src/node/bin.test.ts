@@ -13,6 +13,7 @@ import {
   SHARE_TOKEN_VARIABLE,
   STORAGE_VARIABLE,
   TRUST_NETWORK_VARIABLE,
+  ORIGIN_VARIABLE,
   policyFor,
   readArguments,
   readConfig,
@@ -158,6 +159,14 @@ describe('who is allowed what', () => {
       capability: 'review',
       name: 'marina',
     });
+  });
+
+  it('takes the address it was told a proxy answers at, and no other name', async () => {
+    const config = readConfig(env({ [REVIEWER_VARIABLE]: 'marina', [ORIGIN_VARIABLE]: 'https://review.example.com' }));
+    const reachedAs = (host: string) => new Request('https://review.example.com/auth/me', { headers: { host } });
+
+    expect(await policyFor(config).principal(reachedAs('review.example.com'))).toMatchObject({ name: 'marina' });
+    expect(await policyFor(config).principal(reachedAs('attacker.example'))).toBeNull();
   });
 
   it('grants nothing to an anonymous caller once the socket is on a network', async () => {

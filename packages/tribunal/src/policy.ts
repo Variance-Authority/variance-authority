@@ -1,6 +1,6 @@
 import { createGithubSignIn, cookieOf, SIGN_IN_PATH } from './github-signin.js';
 import { createIssuer, unverifiedIssuer } from './issuer.js';
-import { equalTokens, type Policy, type Principal } from './worker-auth.js';
+import { bearerOf, equalTokens, type Policy, type Principal } from './worker-auth.js';
 
 /**
  * Who this deployment recognizes, read from what the deployer declared.
@@ -29,6 +29,9 @@ import { equalTokens, type Policy, type Principal } from './worker-auth.js';
 const MIN_TOKEN = 16;
 
 const GITHUB_ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
+
+/** Addresses that can only be reached from the machine the process is on. */
+export const LOOPBACK: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '::1']);
 
 const INGEST_MECHANISMS = ['token', 'github-actions'];
 const REVIEW_MECHANISMS = ['access', 'github', 'loopback'];
@@ -59,6 +62,8 @@ const SECRETS: Readonly<Record<string, readonly string[]>> = {
 export interface PolicyOptions {
   /** Whether the socket is reachable only from this machine. Only then may `loopback` be declared. */
   readonly loopback?: boolean;
+  /** The address a proxy in front of a loopback bind answers at, the one name `loopback` takes besides the machine's own. */
+  readonly origin?: string;
   readonly log?: (line: string) => void;
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
@@ -148,6 +153,7 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
       })
     : null;
   const reviewer = mechanisms.has('loopback') ? needed(values, 'REVIEWER', 'loopback') : null;
+  const proxy = options.origin === undefined ? null : new URL(options.origin).hostname;
 
   async function machine(bearer: string): Promise<Principal | null> {
     if (actions !== null && unverifiedIssuer(bearer) === actions.issuer) {
@@ -169,7 +175,7 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
     if (typeof email === 'string') return { capability: 'review', name: email };
     const login = await github?.login(request);
     if (typeof login === 'string') return { capability: 'review', name: login };
-    if (reviewer !== null) return { capability: 'review', name: reviewer };
+    if (reviewer !== null && atThisMachine(request, proxy)) return { capability: 'review', name: reviewer };
     return view === 'public' ? { capability: 'view' } : null;
   }
 
@@ -180,6 +186,19 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
     },
     ...(github === null ? {} : { serve: (request: Request) => github.serve(request), signIn: SIGN_IN_PATH }),
   };
+}
+
+/**
+ * Whether a caller reached this by a name for this machine. Binding to loopback
+ * says who can open the socket and nothing about who wrote the page: a name of
+ * somebody else's that resolves here makes that page same-origin with this
+ * service, and only `Host` still carries the name it came by.
+ */
+function atThisMachine(request: Request, proxy: string | null): boolean {
+  const named = request.headers.get('host') ?? new URL(request.url).host;
+  if (/[/?#@\\]/.test(named) || !URL.canParse(`http://${named}`)) return false;
+  const { hostname } = new URL(`http://${named}`);
+  return LOOPBACK.has(hostname.replace(/^\[|\]$/g, '')) || hostname === proxy;
 }
 
 function githubActions(values: Values, options: PolicyOptions) {
@@ -281,9 +300,4 @@ function strong(name: string, value: string): void {
         'nobody notices until it matters',
     );
   }
-}
-
-function bearerOf(request: Request): string | null {
-  const match = /^Bearer\s+(.+)$/i.exec((request.headers.get('authorization') ?? '').trim());
-  return match?.[1] ?? null;
 }

@@ -120,12 +120,15 @@ under this prefix, as `VARIANCE_TRIBUNAL_GITHUB_REPOSITORY`.
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | `30` | days of builds `POST /review/sweep` keeps |
 | `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name `loopback` writes on decisions |
 | `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind; what that costs is below |
-| `VARIANCE_TRIBUNAL_ORIGIN` | the request's `Host` | the address people reach this at, such as `https://review.example.com`. Set it behind a proxy that terminates TLS, because sign-in hands this address to GitHub |
+| `VARIANCE_TRIBUNAL_ORIGIN` | the request's `Host` | the address people reach this at, such as `https://review.example.com`. Set it behind a proxy that terminates TLS, because sign-in hands this address to GitHub, and behind any proxy in front of `loopback`, which recognizes no other name |
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review page,
 and a caller with no bearer decides as `VARIANCE_TRIBUNAL_REVIEWER`: anything that
-can open `127.0.0.1:7789` is already running as the person who started it. A
-bearer is read as a machine here too, so a wrong one is refused.
+can open `127.0.0.1:7789` is already running as the person who started it. That
+holds for a caller who came by a name for this machine: `127.0.0.1`, `localhost`,
+`::1`, or the host of `VARIANCE_TRIBUNAL_ORIGIN`. Any other name in `Host` decides
+nothing, because a site can point its own name here and call this service its own
+origin. A bearer is read as a machine here too, so a wrong one is refused.
 
 **On a network bind nobody decides until you declare who**, and the review page
 is served only once `VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS` names somebody. There
@@ -134,7 +137,7 @@ button and the internet. For a reviewer who is not at the machine, declare
 `github` or `access` behind a proxy that terminates TLS, with
 `VARIANCE_TRIBUNAL_ORIGIN` naming its address, mount the Next.js adapter
 behind your own sign-in, or leave the process on loopback behind a proxy that
-authenticates.
+authenticates, with `VARIANCE_TRIBUNAL_ORIGIN` naming its address.
 
 The tokens are never printed and never rendered. The startup line names the
 mechanisms, not their values, and the served page has no credential in it: the
@@ -243,8 +246,8 @@ When your Cloudflare login is missing, the command runs `wrangler login`. When t
 login sees several accounts, it lists them and stops until `account_id` picks one.
 When R2 is off on the account, it prints the dashboard address where you enable
 it; run the command again afterwards. A deployment that declares `access` gets no
-App, and its two values are yours, from the Access application you put in front of
-it. `SHARE_TOKEN` is optional and set by hand: `wrangler secret put SHARE_TOKEN`,
+App, and its two values come from [your company's SSO](#your-companys-sso).
+`SHARE_TOKEN` is optional and set by hand: `wrangler secret put SHARE_TOKEN`,
 16 characters or more and not the ingest token.
 
 `wrangler d1 migrations apply` is what puts the schema into your database, and
@@ -268,7 +271,7 @@ mechanism declared:
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 | `INGEST_CREDENTIALS` | var | what may write a run: `github-actions`, `token`, or both, separated by a comma |
-| `REVIEW_CREDENTIALS` | var | who may decide: `github`, `access`, or both, separated by a comma. `loopback` is the Node service's alone |
+| `REVIEW_CREDENTIALS` | var | who may decide: `github`, `access`, or both, separated by a comma. Behind [your company's SSO](#your-companys-sso) it is `access` alone, because a second way in undoes the list of approvers. `loopback` is the Node service's alone |
 | `VIEW` | var, optional | `public` opens reading to anybody, who cannot decide. It takes no other value |
 | `GITHUB_ACTIONS_REPOSITORIES` | var, `github-actions` | whose workflows may push: `owner/name` separated by commas, any case, or `owner/*` |
 | `GITHUB_ACTIONS_AUDIENCE` | var, `github-actions` | the audience a workflow's token must name |
@@ -279,7 +282,7 @@ mechanism declared:
 | `GITHUB_CLIENT_SECRET` | secret, `github` | the GitHub App's client secret. 16 characters or more |
 | `GITHUB_SESSION_SECRET` | secret, `github` | signs the session cookie. 16 characters or more. Replacing it signs everybody out |
 | `ACCESS_TEAM_DOMAIN` | var, `access` | e.g. `your-team.cloudflareaccess.com`, where the signing keys are published |
-| `ACCESS_AUD` | var, `access` | the Access application's audience tag |
+| `ACCESS_AUD` | var, `access` | the audience tag of the Access application that names the reviewers |
 | `INGEST_TOKEN` | secret, `token` | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `SHARE_TOKEN` | secret, optional | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more |
 
@@ -300,9 +303,10 @@ no secret is stored anywhere. The job needs `id-token: write`, and a `token` of
 `{ "github-actions": { "audience": "…" } }` in the suite's configuration asks for
 it on use.
 
-**With `access`, Cloudflare Access names the person.** The service verifies the
-JWT against the team's published keys and writes the decision under its email. A
-service token has no email, so it decides nothing.
+**With `access`, your company's SSO names the person**, through
+[Cloudflare Access](#your-companys-sso). The service verifies the JWT against the
+team's published keys and writes the decision under its email. A service token has
+no email, so it decides nothing.
 
 A bad environment answers **500 with a sentence**, not a deployment-wide platform
 error: construction happens inside `fetch`, so *github is declared and needs
@@ -317,6 +321,65 @@ tenant needs a second deployment.
 a person who is not recognized goes to the sign-in. With `VIEW=public` they read
 the same page with nothing to decide with, and a link to sign in.
 
+### Your company's SSO
+
+Cloudflare Access can sign people in through the provider your company already
+runs, so tribunal needs no sign-in of its own for them: Okta, Microsoft Entra ID,
+Google Workspace, or anything that speaks SAML or OIDC. Setting it up takes an
+admin of that provider and an admin of the Cloudflare account, once:
+
+1. Serve the deployment from a hostname in your Cloudflare zone, as a route with
+   `custom_domain: true`, with `workers_dev` and `preview_urls` both set to `false`:
+   Access guards a hostname, and any other address that reaches the Worker walks
+   around it. Wrangler keeps an existing `preview_urls` when the key is absent, so
+   write it down, and check that no other route or custom domain points at the
+   Worker. `GITHUB_ACTIONS_AUDIENCE`, and the suite's `endpoint` and `audience`, name
+   the new hostname.
+2. In Cloudflare Zero Trust, add your company's provider as a login method. Its
+   admin registers Cloudflare on their side.
+3. Add a self-hosted Access application on the deployment's hostname, with a policy
+   naming the people or groups who review. Everybody it lets in can decide, so this
+   policy is your list of approvers. Give the same application the paths
+   `review/builds/*` and `review/concerns/*`, under the mount if the API has one:
+   step 4 opens their parents, and these are where a decision is recorded and a
+   concern is raised or moved. In its cookie settings, set `SameSite` to `Lax`, so a browser
+   holds the cookie back from another site's write before the service has to refuse
+   it, and leave the cookie's path attribute off, because the page reads step 4's
+   paths with that cookie.
+4. Add a second application on the same hostname, with a Bypass policy for everyone,
+   on the paths `auth/me`, `version`, `baseline`, `cache`, `v1`, `share`,
+   `review/builds`, `review/have`, `review/changelog`, `review/decisions` and
+   `review/concerns`, under the mount if the API has one. A workflow, a developer's
+   CLI and the provisioner cannot sign in, and these are the paths they call. The service guards them instead of Access: it asks
+   every request for its credential, a reviewer's browser still carries its Access
+   cookie there, and Access logs nothing that bypasses it.
+5. Set `ACCESS_TEAM_DOMAIN` to the team domain and `ACCESS_AUD` to the first
+   application's audience tag, set `REVIEW_CREDENTIALS` to `access`, replacing
+   `github`, and delete `GITHUB_CLIENT_ID` and `GITHUB_REPOSITORY` from `vars`.
+6. Check that Access holds the paths from step 3, with a POST that has no cookie,
+   with the mount in the address if the API has one:
+
+   ```bash
+   curl -si -X POST https://your-hostname/review/builds/any/subjects/any/decision
+   curl -si -X POST https://your-hostname/review/concerns/raise
+   ```
+
+   Access answers with a redirect to sign in. An answer with
+   `www-authenticate: Bearer` came from the service, so the request went past Access
+   and step 4 won. The service still asks for a credential, but removing a reviewer
+   then waits for their session to run out, so shorten the session.
+
+Leave `VIEW` unset. Access keeps the page behind a sign-in, but with `VIEW=public`
+the paths in step 4 answer anybody. An open project that wants public reading
+declares `github` and `VIEW=public`.
+
+To remove a reviewer, take them out of the policy and revoke their session in Zero
+Trust, which ends everything they can write: every reviewer write sits on a path
+from step 3. The paths in step 4 check only that their token is signed and
+unexpired, so until the session runs out, that token still reads the evidence there. How long that is
+comes from the application's session duration, or from the policy's if it sets one.
+A shorter session closes that sooner.
+
 ## The HTTP API
 
 Recognition happens before routing. A caller this deployment does not recognize
@@ -324,14 +387,16 @@ gets the same response for a wrong credential, a missing one, and a path that do
 not exist. A machine sends `Authorization: Bearer <token>`: the ingest token, the
 share token, or the token a workflow's runner signed. A bearer is read as a machine
 and nothing else, so a wrong one is refused even with `VIEW=public`. A person sends
-no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. Only
-`GET /auth/me` and the sign-in answer a caller nobody recognized.
+no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. A
+write a browser sent from another origin, a sibling subdomain included, is not
+recognized, whatever cookie it carries, under any policy. A bearer is the way to
+write across origins on purpose. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
 
 | method and path | capability | what it does |
 |---|---|---|
 | `GET /auth/me` | none needed | `{"capability":"review","name":"…","signIn":"…"}`: who this request is, and where a person signs in. Each key is absent when it has no value |
 | `GET /auth/github/login[?return]`, `GET /auth/github/callback` | none needed | the sign-in, with `github` declared. `return` is a path on this deployment to come back to |
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":6,"schema":21}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":8,"schema":21}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest, from `GITHUB_ACTIONS_BASELINE_REF` under `github-actions` | store an approved image |
@@ -354,7 +419,7 @@ no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. Onl
 | `GET /review/decisions[?build&subject&limit]` | review, share or view | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
 | `POST /review/sweep[?days=N]` | review | retention, below |
 | `GET /review/concerns[?build&subject&state]` | review, share or view | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
-| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
+| `POST /review/concerns/raise` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
 | `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
@@ -686,7 +751,7 @@ export default {
 | `db` | required | the D1 binding |
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
-| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
+| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `origin`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied by the packaged Worker's `scheduled` handler and by `POST /review/sweep` |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -748,7 +813,8 @@ to `true`. `openDatabase` opens, creates or migrates the file and reports the
 staging file and renames it, so a reader never sees half of one.
 
 `{ loopback: true }` is what admits `loopback`, which makes every caller with no
-bearer the reviewer. That is right for a loopback bind and wrong for anything
+bearer who came by a name for this machine the reviewer. `origin` adds the address
+of a proxy in front of it. That is right for a loopback bind and wrong for anything
 else, so state it only there: the executable derives it from the bind address, and
 without it `declaredPolicy` refuses `loopback`.
 

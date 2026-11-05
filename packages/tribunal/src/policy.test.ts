@@ -147,10 +147,36 @@ describe('which credential a request is read as', () => {
     expect(principal).toBeNull();
   });
 
-  it('names the person at the machine on loopback', async () => {
-    const policy = declaredPolicy({ REVIEW_CREDENTIALS: 'loopback', REVIEWER: 'me' }, { loopback: true });
+  describe('reached by a name', () => {
+    const atMachine = (options: { origin?: string } = {}) =>
+      declaredPolicy({ REVIEW_CREDENTIALS: 'loopback', REVIEWER: 'me' }, { loopback: true, ...options });
+    const reachedAs = (host: string) => new Request('http://127.0.0.1:7789/auth/me', { headers: { host } });
 
-    expect(await policy.principal(anonymous())).toEqual({ capability: 'review', name: 'me' });
+    it.each(['127.0.0.1:7789', 'localhost:7789', '[::1]:7789'])('names the person who came by %s', async (host) => {
+      expect(await atMachine().principal(reachedAs(host))).toEqual({ capability: 'review', name: 'me' });
+    });
+
+    it('names nobody who came by a name of somebody else\'s, whatever address the request was given', async () => {
+      expect(await atMachine().principal(reachedAs('attacker.example:7789'))).toBeNull();
+    });
+
+    it.each(['not a host', 'attacker.example@localhost', 'localhost/x', 'localhost#x', 'localhost\\.x'])(
+      'names nobody whose Host is not a name alone: %s',
+      async (host) => {
+        expect(await atMachine().principal(reachedAs(host))).toBeNull();
+      },
+    );
+
+    it('refuses to start on an origin that is no address', () => {
+      expect(() => atMachine({ origin: 'nonsense' })).toThrow();
+    });
+
+    it('names the person who came through the proxy the deployer declared', async () => {
+      const policy = atMachine({ origin: 'https://review.example.com' });
+
+      expect(await policy.principal(reachedAs('review.example.com'))).toEqual({ capability: 'review', name: 'me' });
+      expect(await policy.principal(reachedAs('attacker.example'))).toBeNull();
+    });
   });
 
   it('admits an anonymous reader to view only where the deployment opened viewing', async () => {

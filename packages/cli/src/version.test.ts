@@ -86,10 +86,10 @@ describe('knowing which halves are talking', () => {
   });
 
   it('says nothing to a deployment from the same release', () => {
-    // API 7 is the release that serves `/auth/me` and takes a job's own token; a
-    // CLI from it that called itself the older half sends somebody after a
-    // version number that is not the problem.
-    expect(versionNote({ known: true, api: 7 }, SHARE)).toBeUndefined();
+    // API 8 is the release that raises a concern at its own path; a CLI from it
+    // that called itself the older half sends somebody after a version number
+    // that is not the problem.
+    expect(versionNote({ known: true, api: 8 }, SHARE)).toBeUndefined();
   });
 
   it('names every capability a deployment lacks, and only those this project uses', () => {
