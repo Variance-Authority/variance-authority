@@ -239,8 +239,8 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
+          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} most of \`${query}\`, ` +
+            'the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),

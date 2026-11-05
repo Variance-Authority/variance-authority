@@ -1,0 +1,81 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { treeOf } from '@variance-authority/mcp/tools';
+import { readHelp } from '@variance-authority/package/help';
+import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
+import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
+import { answerSearch, searchIndexOf } from './search.js';
+
+/**
+ * A row sharing one common word with a question is no evidence of what was
+ * asked, so what a description answers holds most of the question's rarity, and
+ * a concept the repository lacks is told as a plain none.
+ */
+
+const before = process.env['VARIANCE_AUTHORITY_CACHE'];
+afterEach(() => {
+  if (before === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
+});
+
+const ask = async (files: Record<string, string>, query: string): Promise<string> => {
+  const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], files);
+  return answerSearch(searchIndexOf(readHelp(root)), { query }, treeOf([], root), root);
+};
+
+/** Thirty names holding `file`, so the word is common among what was reached. */
+const FILES = {
+  'src/paths.ts': Array.from({ length: 30 }, (_, at) => `export const fileAt${at} = ${at};\n`).join(''),
+};
+
+describe('a concept nothing implements', () => {
+  it('is a plain none, though a common word of the question is held', async () => {
+    const said = await ask(FILES, 'xylophone quantum banana file');
+    expect(said).not.toContain('[holds:');
+    expect(said).not.toContain('The nearest follow.');
+    expect(said).not.toMatch(/fileAt\d/u);
+    expect(said).toContain('`packages` lists every entrypoint');
+  });
+
+  it('counts none of the names sharing the common word', async () => {
+    const said = await ask(FILES, 'xylophone quantum banana file');
+    expect(said).not.toMatch(/\d+ names? (?:and files )?in this repository/u);
+  });
+});
+
+describe('a question whose words are not equally rare', () => {
+  const FIXTURE = {
+    ...FILES,
+    'src/rare.ts': '/** Weighs a xylophone against a file. */\nexport const tuned = 1;\n\n/** Plays a xylophone. */\nexport const played = 1;\n',
+  };
+
+  it('neither shows nor counts a row holding only the common word, beside a row holding the rare one', async () => {
+    const said = await ask(FIXTURE, 'xylophone file');
+    expect(said).toMatch(/^2 names and files in this repository hold most of `xylophone file`/mu);
+    expect(said).toMatch(/^tuned .*\[holds: file, xylophone\]/mu);
+    expect(said).toMatch(/^played .*\[holds: xylophone\]/mu);
+    expect(said).not.toMatch(/fileAt\d/u);
+  });
+
+  it('keeps a row lacking one rare word when the rest of the question outweighs it', async () => {
+    // The shape of `count probes and measure their overhead`: `census` holds
+    // three of the four words, and not the rarest.
+    const said = await ask({
+      ...FILES,
+      'src/census.ts': '/** Counts the file probes and measures them. */\nexport const census = 1;\n',
+      'src/probes.ts': '/** One probe. */\nexport const probe = 1;\n\n/** Another probe. */\nexport const sonde = 1;\n',
+      'src/gauges.ts': '/** One measure. */\nexport const gauge = 1;\n\n/** Another measure. */\nexport const meter = 1;\n',
+      'src/overhead.ts': '/** The overhead. */\nexport const toll = 1;\n',
+    }, 'file probes measure overhead');
+    expect(said).toMatch(/^census .*\[holds: file, measure, probes\]/mu);
+  });
+});
+
+describe('the opening over a question no name writes', () => {
+  it('says the nearest follow only when a row passes the cut', async () => {
+    const files = { ...FILES, 'src/rare.ts': '/** Plays a xylophone. */\nexport const played = 1;\n' };
+    const held = await ask(files, 'xylophone file');
+    expect(held).toContain('writes `xylophone file`. The nearest follow.');
+    const none = await ask(files, 'quantum banana file');
+    expect(none).toContain('writes `quantum banana file`. `packages` lists every entrypoint');
+  });
+});

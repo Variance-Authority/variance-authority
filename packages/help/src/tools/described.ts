@@ -20,9 +20,9 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * word is in it. So the question is cut into stems by the rule the installed
  * packages were cut by — the sense addon owns it, stopwords included — and a name
  * answers when its own words, or the documentation of a row that publishes or
- * exports it, hold any of the question's distinct stems. One word of three is
- * still the nearest the repository has, and leaving it out would answer that the
- * repository has nothing; how much it holds decides where it sits, below. A
+ * exports it, hold any of the question's distinct stems. Only a row that
+ * {@link carriesMost} of the question is shown or counted, so a concept the
+ * repository lacks is told as a none; how much it holds decides where it sits. A
  * dictionary term stands for a stem when it reduces to it, so `files` stands for
  * `file` and `filter` does not. A name its file declares and does not export is in
  * no row, so the source index answers for it by the same rule, its name and its
@@ -143,7 +143,7 @@ interface Counted {
   readonly docLengths: readonly number[];
 }
 
-const countedOf = (one: Reached): Counted =>
+export const countedOf = (one: Reached): Counted =>
   'holds' in one ? one : { holds: one.words, docLengths: one.docLength === undefined ? [] : [one.docLength] };
 
 /** What a description reached, a name's phrase not yet counted. */

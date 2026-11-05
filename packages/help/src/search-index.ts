@@ -166,6 +166,8 @@ export interface SearchIndex {
   exportedAt(row: number): string;
   /** The file of one published row. */
   publishedAt(row: number): string;
+  /** How many names the index holds. */
+  readonly nameCount: number;
   /** How many dictionary terms there are; they are ordered by their UTF-8 bytes. */
   readonly termCount: number;
   term(id: number): string;
@@ -327,6 +329,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     exportedKind: (row) => expKind[row] ?? 0,
     exportedAt: (row) => string(exp.at[row] ?? NONE),
     publishedAt: (row) => string(pub.at[row] ?? NONE),
+    nameCount: nameString.length,
     termCount: termOff.length - 1,
     term: (id) => termBlob.toString('utf8', termOff[id] ?? 0, termOff[id + 1] ?? 0),
     termBytes: (id) => termBlob.subarray(termOff[id] ?? 0, termOff[id + 1] ?? 0),

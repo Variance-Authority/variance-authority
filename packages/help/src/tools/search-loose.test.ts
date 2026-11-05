@@ -73,10 +73,10 @@ describe('a name the substring cannot reach', () => {
   });
 
   it('requires every word to land, so a two-word query is not the union', () => {
-    // Any of the words is the described section's rule, and it says which it holds.
+    // A word nothing holds outweighs one a row holds, so no row carries the question.
     const text = ask({ query: 'numbers unwritten' });
     expect(text).not.toContain('loosely');
-    expect(text).toMatch(/Span .*\[holds: numbers\]/);
+    expect(text).not.toContain('[holds:');
   });
 });
 

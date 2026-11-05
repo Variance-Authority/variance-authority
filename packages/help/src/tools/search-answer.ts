@@ -5,7 +5,8 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type Reached, type RowOrder } from './described.js';
+import { carriesMost } from './carried.js';
+import { countedOf, describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
@@ -280,21 +281,19 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
   const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
-  // Which reading a name both reach is told by is decided by what each holds, never
-  // by how many rows print. A name holding at least half the stems through one row
-  // is the described section's, which prints first, and the loose pass offers none
-  // of them a second time. A name holding fewer is the loose section's when every
-  // word reaches it there, since every word one character off says more than under
-  // half the stems do: held on so few, it would sort past the rows shown.
-  const strong = Math.ceil(describedWordsNative(query).length / 2);
-  const held = (one: Reached): boolean => one.words.length >= strong;
+  // Only what carries most of the question answers it, and a name carrying it is
+  // the described section's, which prints first: the loose pass offers none of
+  // them a second time. What holds less is the loose section's when every word
+  // reaches it there, and otherwise nobody's.
+  const asked = describedWordsNative(query).map(([, word]) => word);
+  const carried = described?.filter(carriesMost(asked, described.map(countedOf), index.nameCount));
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
   // substring answered are kept out: a name the caller can already see must
   // not be offered back to them as something else. Whether a name is in the
   // answer is the dictionary's to say; where it sits is not.
-  const claimed = new Set([...named, ...answered, ...(reached ?? []).filter(held).map(({ name }) => name)]);
+  const claimed = new Set([...named, ...answered, ...(carried ?? []).flatMap((one) => ('tied' in one ? [one.name] : []))]);
   const viaDoc = new Map<number, Set<number>>();
   const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
@@ -302,11 +301,9 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc, undefined, undefined, said);
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
-  const describedHere = new Set((described ?? []).flatMap((one) => ('match' in one && held(one) ? [declaredKey(one.match)] : [])));
+  const describedHere = new Set((carried ?? []).flatMap((one) => ('match' in one ? [declaredKey(one.match)] : [])));
   const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
-  const keptHere = new Set(kept.map(declaredKey));
-  const left = described?.filter((one) => ('match' in one ? !keptHere.has(declaredKey(one.match)) : 'file' in one || !loose.has(one.name)));
-  const heldRows = described === undefined || left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP, described)
+  const heldRows = described === undefined || carried === undefined ? undefined : describedShown(index, query, carried, DESCRIBED_CAP, described)
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...told(one.match), words: one.words }];
       if ('file' in one) return [{ ...fileMatch(root, one.file, since, said), words: one.words }];
@@ -321,8 +318,8 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length).map(told)];
   const membersUnread = root === undefined || (inside?.length ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
   const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
-  if (left === undefined || heldRows === undefined) return { answer: loosely, area };
-  return { answer: { ...loosely, described: { total: left.length, shown: heldRows } }, area };
+  if (carried === undefined || heldRows === undefined) return { answer: loosely, area };
+  return { answer: { ...loosely, described: { total: carried.length, shown: heldRows } }, area };
 }
 
 /**

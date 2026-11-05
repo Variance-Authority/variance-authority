@@ -629,8 +629,9 @@ So `page sink` finds the doc "installs the page's sink" and not "a page and its
 sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it. So do the names holding any of your
-words, matched by stem, the ones holding most of them first, each labelled with
+after that answer and never inside it. So do the names holding most of your
+words, matched by stem, a rare word counting for more than a common one, the
+ones holding the most first, each labelled with
 the words it holds; both come
 before any installed package.
 
