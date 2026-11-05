@@ -133,7 +133,7 @@ export type ReachedName = Omit<DescribedName, 'near'> & Counted & {
    * other row with a doc weighing as much, by {@link RowOrder}.
    */
   readonly tied: readonly RowPick[];
-  /** Every row it could be shown through, the best first. */
+  /** Every row it can still be shown through, the best first. */
   readonly picks: readonly RowPick[];
 };
 

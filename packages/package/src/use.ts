@@ -359,6 +359,18 @@ export function ownBinding(local: string | null | undefined, imported: ReadonlyS
   return imported.has(name) ? undefined : name;
 }
 
+/**
+ * The declaration an export on `line` binds. A name is a spelling and may be
+ * declared twice, `const Kind` and `type Kind`, or `function same` and the
+ * `function same` a module hands out: an export takes the declaration on its
+ * own line, else the first. One rule for every reader of exports.
+ */
+// FIXME: `export { Rate }` binds both `interface Rate` and `const Rate`, and
+// answers one alone; spec 0104 answers each declaration apart.
+export function boundDeclaration<Declared extends { readonly line: number }>(named: readonly Declared[], line: number): Declared | undefined {
+  return named.find((one) => one.line === line) ?? named[0];
+}
+
 /** The `local` of a use of `bound`, when its statement renames it. */
 function renamed(bound: Bound): { readonly local?: string } {
   return bound.local === undefined ? {} : { local: bound.local };

@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
+  boundDeclaration,
   gatheringUsage,
   kindOf,
   landing,
@@ -20,7 +21,7 @@ import {
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
-import { boundSymbol, docOf, headOf } from './indexed-surface.js';
+import { docOf, headOf } from './indexed-surface.js';
 
 /** An import by path while its file's targets are still to come. */
 type Pending = { -readonly [key in keyof Deep]: Deep[key] };
@@ -63,7 +64,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
           const named = published.from === undefined
             ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local)
             : [];
-          const bound = boundSymbol(named, published.line);
+          const bound = boundDeclaration(named, published.line);
           const span = published.doc ?? bound?.doc;
           if (span !== undefined || bound?.signature !== undefined) text ??= readFileSync(join(root, at), 'utf8');
           const doc = text === undefined ? undefined : docOf(text, span);

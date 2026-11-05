@@ -3,6 +3,7 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import type { Parsed, SourceSymbol, TextSpan } from '@variance-authority/sense';
 import {
+  boundDeclaration,
   requested,
   type Declaration,
   type DeclarationKind,
@@ -60,16 +61,6 @@ function declaration(
     ...(head === undefined ? {} : { signature: head }),
     ...(prose === undefined ? {} : { doc: prose }),
   };
-}
-
-/**
- * The declaration an export on `line` binds. A name is a spelling and may be
- * declared twice, `const Kind` and `type Kind`, or `function same` and the
- * `function same` a module hands out: an export takes the declaration on its
- * own line, else the first.
- */
-export function boundSymbol(named: readonly SourceSymbol[], line: number): SourceSymbol | undefined {
-  return named.find((symbol) => symbol.line === line) ?? named[0];
 }
 
 function symbolsByName(symbols: readonly SourceSymbol[]): Map<string, SourceSymbol[]> {
@@ -220,7 +211,7 @@ export async function indexedNames(
         // the import it names, `logger` as `const logger: typeof OriginalLogger`.
         // Only a name bound here and declared nowhere here goes to its import.
         const bound = published.local ?? name;
-        const symbol = boundSymbol(local.get(bound) ?? [], published.line);
+        const symbol = boundDeclaration(local.get(bound) ?? [], published.line);
         if (symbol !== undefined) {
           add(found, name, { ...declarationOfSymbol(file, symbol, text), declared: name });
           continue;

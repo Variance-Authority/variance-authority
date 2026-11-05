@@ -1,5 +1,5 @@
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
-import type { ReachedName, RowPick } from './described.js';
+import type { Reached, RowPick } from './described.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -41,8 +41,9 @@ export function representedBy(picks: readonly RowPick[]): RowPick & { readonly t
   return { ...chosen, tied: picks.filter((one) => one === chosen || (one.docLength !== undefined && one.weighs === chosen.weighs)) };
 }
 
-/** `one` shown through the best of its rows that `carries` admits; `undefined` when none does. */
-export function carriedThrough(one: ReachedName, carries: (row: { readonly words: readonly string[] }) => boolean): ReachedName | undefined {
+/** `one` shown through the best of its rows that `carries` admits; `undefined` when none does. A file or a declaration is its one row. */
+export function carriedThrough(one: Reached, carries: (row: { readonly words: readonly string[] }) => boolean): Reached | undefined {
+  if (!('picks' in one)) return carries(one) ? one : undefined;
   const picks = one.picks.filter(carries);
-  return picks.length === 0 ? undefined : { ...one, ...representedBy(picks) };
+  return picks.length === 0 ? undefined : { ...one, ...representedBy(picks), picks };
 }
