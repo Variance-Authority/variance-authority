@@ -72,9 +72,10 @@ pull request, with the new reason.
 - **Compress after the difference is verified.** Raster compression is a storage
   step: the compare path keeps the browser's bytes, and an image is compressed
   only when a difference is about to be stored. Most runs change nothing.
-- **A recording never makes the user's run slower.** A figure distorted by
-  shared state is attributed with a run-level row or note, not repaired with run
-  time.
+- **A figure is never repaired with run time.** Recording has the cost
+  `cases.ts` measures and no more: a figure distorted by shared state is
+  attributed with a run-level row or note, not fixed by a reload or any other
+  time the user's run pays.
 - **The coverage record may at most double for a feature**, and tries not to.
   Measure the size, use the exact encoding unless it approaches doubling, and
   still minimise. A spec states the measured cost, never a size gate nobody

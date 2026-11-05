@@ -242,8 +242,9 @@ checkout and a re-run of the one failing file.
 
 Look around:
 
-- `git fetch` and rebase onto `origin/main`. What landed since you branched can
-  change every answer CI is about to give. If the rebase brought anything in,
+- `git fetch` and, before the first push, rebase onto `origin/main`; a pushed
+  branch merges it instead and is never rebased. What landed since you branched
+  can change every answer CI is about to give. If either brought anything in,
   pre-verify again.
 - Open PRs touching the same files: `gh pr list --json number,title,files`.
 - The PR's kind, its title's prefix, and whether it carries everything that

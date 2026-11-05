@@ -6,10 +6,10 @@ the change reached and reports how coverage moved against the mainline's record.
 
 ## Look around
 
-**What landed since you branched?** `git fetch`, then rebase onto
-`origin/main`. CI compares the PR against `main`'s record, so a fix that landed
+**What landed since you branched?** `git fetch`, then, before the first push,
+rebase onto `origin/main`; a pushed branch [merges it](outer-loop.md). CI compares the PR against `main`'s record, so a fix that landed
 after your branch point changes what CI will say about yours. A PR opened on a
-stale base gets comments describing code that no longer exists. If the rebase
+stale base gets comments describing code that no longer exists. If either
 brought anything in, [pre-verify](pre-verify.md) again: the green you had was on
 the old base.
 
