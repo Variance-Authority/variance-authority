@@ -1,5 +1,81 @@
 # @variance-authority/sense
 
+## 0.25.0
+
+### Minor Changes
+
+- ea70ad3: `ask symbol` and `ask uses`, on `variance ask`, `variance serve`, `variance-authority-help` and its server, and `docs_search` over either server, look at the files their answer rests on: when one changed or went away after the generation, the question is read again before it is answered, so a renamed export is no longer given under its old name and a declaration, its members and each use `uses` lists are given at the lines the file holds today. The files are those that declare the name or pass it on, the entry that publishes it and each row `uses` lists, and for `docs_search` each row it prints with the entry and barrels that publish it, so a name a barrel stopped passing on is no longer called published. An answer whose files are unchanged keeps its `Snapshot <T>.`. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on is saved during the read that answers it, the answer or the refusal stands and says it was not compared, and why, on its one date line. `serve` from `@variance-authority/mcp` takes `outlived`, which sends an answered call to `again`; `again` is given the call's arguments and may return `unseen`, which reaches the tool on `ToolInvocation`. `@variance-authority/help` exports `outlived` and `refusalFooter`, which gives a refusal the reason a look found. `variance-authority-help`'s server keeps no copy of a reading after a call, so a found answer's re-read fits the default heap. A generation now says when its read began, on `readStartedAt` beside `generatedAt`, and that is the time the files are compared with, so a file saved during the read counts as changed. `updateSourceIndex` answers it, `publishWorkspaceFromIndex` takes it, a refresh of `--changed-file` keeps the time of the read it refreshed and gives a listed file's names at the lines it holds now, with no generation to refresh the read is whole and the list is not used, and a value published before it is refused and read again once. A file written after the read gives no text of today's: a declaration and its members are listed by the names recorded, on every path including `--just-answer`. A read whose source index cannot be saved is dropped whole, so a value never pairs with the lines of the read before it. `refreshWorkspace` and `variance index` now keep a published name's entry only while what it was cut from is unchanged, so a declaration that moved or was rewritten, or an `export … from` that changed, the binding it imports included, is documented again; a generation records that on `forwardsDigest`, and `@variance-authority/sense` exports `forwardsDigest` and `HelpReading.exportedOf`. `Named` from `@variance-authority/package/help` gains `boundLine`.
+- f0948b4: `variance review` reports where a run's loads drifted from the walk against the mainline's record: each load a test file's imports and the suite's `before` files do not reach, grown or shrunk since the baseline, with the test file and the loaded file. The baseline is the mainline's record read against the merge base's walk, from the `before` the merge base declares, and a record at another mainline commit stands in when the commits between touch nothing the walk reads, declare the same `before` and install the same packages. A change that edits a manifest, a workspace or a `tsconfig*.json`, or a checkout that moved a walked file after its runs, is named as not checked. A row is an observed load, not a failure. `unreachedLoads` is `driftFromWalk`, and a `__mocks__` file is no longer exempt by its path.
+- e80c2c0: `variance index` no longer keeps its lock in the temporary directory, so a
+  `$TMPDIR/variance-authority-<uid>` that others may write in stops it no more, and
+  no `TMPDIR` needs setting. The lock is `.work/index-turn` in the primary
+  checkout's cache, with `.work/index-turn.holder` beside it: the checkouts of one
+  repository index one at a time, whatever cache each has, and two repositories may
+  index at once, even in one cache. A worktree's index writes those two files into
+  the primary checkout, so one that does not ignore `node_modules` shows it as
+  untracked. A worktree of a bare or `--separate-git-dir`
+  repository has no primary checkout to find, so it waits for none. A file system
+  that refuses the lock no longer stops the index, which runs and prints why on
+  stdout, after the index's own line. The old directory is left where it is, and
+  nothing reads it.
+
+  **Breaking:** `indexTurnPath(root)` in `@variance-authority/sense` takes the
+  checkout whose turn it names, and `inIndexTurn(root, work, waiting, alone)`
+  requires both callbacks: `waiting` is no longer optional, and `alone(path, reason)`
+  is told when the file system refuses the turn. Neither keeps its old signature.
+
+### Patch Changes
+
+- 2886873: A selection that keeps none of the files the runner found now says what that
+  means: `selected none of 340, so none of them runs`. Exit codes do not change. A
+  script that matches the whole line matches its new end; the start of the line is
+  as it was.
+- 969b1e9: A run or `variance journeys` over a record in the checkout's cache written under
+  other probes replaces it, stays green and prints one line naming the file and
+  both sets of probes, so an upgrade no longer fails the first run after it. A
+  record handed in by `coverageFile` or `--into` is still refused and left byte for
+  byte. `prepareRecord(lock, root, instrumentation, { alone, cacheRoot })` is the
+  new export from `@variance-authority/sense/test-selection`: it replaces such a
+  record and then seeds the checkout's base, and says what it laid, so `noteSeeded`
+  is no longer exported.
+
+  Seeding now runs in the hold the run lands in: `seedTestCoverage` and
+  `layFetchedMainline` take the `IndexLock` of `withIndexLock` in place of the file,
+  so a run another writer landed is never copied over. A hold that finds the lock
+  busy records nothing and says so.
+- 26ddc75: `variance covering` reads the record `variance select` reads: in a checkout that has not recorded the suite, the mainline's at the merge base, fetched when this machine does not hold it, and the answer names that record with the same `record of "<suite>":` line, or `source` under `--format json`. When the share cannot be reached it answers from the record held here and says how far behind that is. `--since` lists what the change changed, from the merge base with `<ref>`, whatever the record holds of it: a change you committed and recorded is still your change, and `nothing has changed` means only that the merge base and the tree agree. The record's commit says how to read each file: a line stands on the line the record holds it at, a hunk from there is the change's where it meets one of the change's in the working tree, so one hunk both sides wrote is answered whole. A path the record's commit held no file by, added or renamed since, is listed with no row and says so, with `absentAt` under `--format json`, at one git process per batch of paths, a refusal in git's words when that commit does not read, and `--file` with the name that commit held reads what it recorded. A ref that does not read as a diff is one `undiffed` refusal at exit 2, before any record is read, including under `--execution`; such a ref used to be answered from the record's commit. A record made at a commit this clone lacks names what to fetch. A `--text` question, which an editor asks on every repaint, reads the records in the same order and does not fetch. A record fetched for another mainline is read by none of `covering`, `select`, `coverage`, `review`, `run`, `distill` and `journeys`, and laid by no `variance journeys` landing: each passes over that pointer to the next record this machine holds. `covering` and `select` ask the share first, and their `record of "<suite>":` line names the record they read, the primary checkout's included. `coverage` and `review` ask it only for the base they compare with, and name that base. What they read otherwise, and what `run`, `distill` and `journeys` read, is fetched by nothing and names no source. `variance ask` and the tools of `@variance-authority/mcp` do not judge by the selection, nor do `variance index`'s journey walk or a runner seam: they read through sense, which has no selection, so they take what was fetched, and `variance ask orient` can print a record `covering` refuses. The selection is a mainline's name, handed in through `selected` on `lastFetchedMainline`, `readableTestCoverage` and `prepareRecord`. `--format refs` says whose record it read on stderr. `@variance-authority/sense/test-selection` exports `cachedRecord`, `cachedSuite`, `changeInRecord`, `ChangeRead` and `absentText` and, from `@variance-authority/sense`, `existingAt`, and `CoveringChange` carries `absentAt`.
+
+  `covering --since` reads the change in the checkout `--root` names, not the directory it was asked from.
+- 764c65a: `variance ask uses --name` keeps naming every exported namesake of a published name after a second `variance index`, where it used to lose them on any run that found the same exported names. The snapshot's version moves, so a value a refresh wrote without them is read again.
+- 5367411: `textAtRecording` stops starting a git process for a text it reads. A text, and a
+  path the commit does not hold, come from one `git cat-file --batch` the addon
+  leaves open, so a selection that asks the same paths in jumps, for hours on a
+  branch far from the record's commit, starts no process for them, whichever order
+  it asks in. A git-LFS pointer's content and a read git refuses start processes
+  each time they reach git.
+
+  A reader holds the answers asked most recently, a path the commit does not hold
+  included, up to 8 MB of text, and nothing nobody asked for. The bound is on that
+  text: the open process's memory is git's, and it stays until Node exits. While
+  everything asked fits, a path at a commit reaches git once. Past it, an answer
+  goes when it and what was held after it no longer fit 8 MB, and the next ask for
+  it reaches git again. A text over 8 MB is never held: it reaches git at every
+  ask, and lets go of nothing.
+
+  A path git refused fails again when it is asked again, where a path from a
+  refused window used to read as absent the second time.
+- 569d669: `variance ask slowest-tests` now says who is close to a limit. Each suite's
+  answer opens with the record it read: whose it is, at which commit, how old. Then
+  come the cases closest to their limit, each as its run and its limit, so 4.9 s of
+  5 s stands above 40 s of 60 s, and then the slowest files and cases. `--over 3s`
+  keeps the cases that ran at least that long, and `--from` and `--to` narrow all
+  of it. The record gains a `tests.limit` column, written by the harness under
+  Vitest, Jest, Rstest and Playwright, and `startRecording().finish()` takes a
+  case's `limit` from any other runner. A case with no recorded limit is counted
+  beside that ranking, and a record from before the column lists its cases by time
+  alone and says so. A passing Playwright test that drives no page now has a row in
+  the record, so its time and limit are read like any other case's.
+
 ## 0.24.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

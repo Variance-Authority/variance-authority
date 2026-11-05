@@ -1,5 +1,29 @@
 # @variance-authority/help
 
+## 0.25.0
+
+### Minor Changes
+
+- ea70ad3: `ask symbol` and `ask uses`, on `variance ask`, `variance serve`, `variance-authority-help` and its server, and `docs_search` over either server, look at the files their answer rests on: when one changed or went away after the generation, the question is read again before it is answered, so a renamed export is no longer given under its old name and a declaration, its members and each use `uses` lists are given at the lines the file holds today. The files are those that declare the name or pass it on, the entry that publishes it and each row `uses` lists, and for `docs_search` each row it prints with the entry and barrels that publish it, so a name a barrel stopped passing on is no longer called published. An answer whose files are unchanged keeps its `Snapshot <T>.`. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on is saved during the read that answers it, the answer or the refusal stands and says it was not compared, and why, on its one date line. `serve` from `@variance-authority/mcp` takes `outlived`, which sends an answered call to `again`; `again` is given the call's arguments and may return `unseen`, which reaches the tool on `ToolInvocation`. `@variance-authority/help` exports `outlived` and `refusalFooter`, which gives a refusal the reason a look found. `variance-authority-help`'s server keeps no copy of a reading after a call, so a found answer's re-read fits the default heap. A generation now says when its read began, on `readStartedAt` beside `generatedAt`, and that is the time the files are compared with, so a file saved during the read counts as changed. `updateSourceIndex` answers it, `publishWorkspaceFromIndex` takes it, a refresh of `--changed-file` keeps the time of the read it refreshed and gives a listed file's names at the lines it holds now, with no generation to refresh the read is whole and the list is not used, and a value published before it is refused and read again once. A file written after the read gives no text of today's: a declaration and its members are listed by the names recorded, on every path including `--just-answer`. A read whose source index cannot be saved is dropped whole, so a value never pairs with the lines of the read before it. `refreshWorkspace` and `variance index` now keep a published name's entry only while what it was cut from is unchanged, so a declaration that moved or was rewritten, or an `export … from` that changed, the binding it imports included, is documented again; a generation records that on `forwardsDigest`, and `@variance-authority/sense` exports `forwardsDigest` and `HelpReading.exportedOf`. `Named` from `@variance-authority/package/help` gains `boundLine`.
+
+### Patch Changes
+
+- 75772a5: `@variance-authority/help` declares Node 22.15, the floor of the `@variance-authority/sense` it loads. On an older Node it installed and then failed at import.
+- 764c65a: `variance ask uses --name` keeps naming every exported namesake of a published name after a second `variance index`, where it used to lose them on any run that found the same exported names. The snapshot's version moves, so a value a refresh wrote without them is read again.
+- 43fd313: The docs print one way to connect an agent in a git repository with no config: install, `variance index`, an MCP entry that launches through `npx`, and a line that lists the tools. MCP entries no longer name a bare binary, which a client cannot find on its own `PATH`, and `variance serve` and `variance doctor` are named with the config they need.
+- e223244: `ask orient` names the package of a file the source index holds no parse of, and says `outside index` for it: `README.md  variance-authority, outside index`. It used to print `not in the source index` in the package's place. A path no package was read for, such as one git does not list, prints `outside index` alone.
+- 569d669: `variance ask slowest-tests` now says who is close to a limit. Each suite's
+  answer opens with the record it read: whose it is, at which commit, how old. Then
+  come the cases closest to their limit, each as its run and its limit, so 4.9 s of
+  5 s stands above 40 s of 60 s, and then the slowest files and cases. `--over 3s`
+  keeps the cases that ran at least that long, and `--from` and `--to` narrow all
+  of it. The record gains a `tests.limit` column, written by the harness under
+  Vitest, Jest, Rstest and Playwright, and `startRecording().finish()` takes a
+  case's `limit` from any other runner. A case with no recorded limit is counted
+  beside that ranking, and a record from before the column lists its cases by time
+  alone and says so. A passing Playwright test that drives no page now has a row in
+  the record, so its time and limit are read like any other case's.
+
 ## 0.24.1
 
 ### Patch Changes
