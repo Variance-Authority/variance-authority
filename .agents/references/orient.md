@@ -34,6 +34,11 @@ question for the diff. [Pre-verify](pre-verify.md) says how that selection is ma
 that landed after your branch point may already answer the task, or change the
 code under it.
 
+**What you count.** A report that counts the tree measures `origin/main`,
+fetched at the start, in a worktree with its own install and build. The primary
+checkout's HEAD is whatever was last pulled: sites already fixed, lines moved,
+`variance` answering from an older build.
+
 ## Every answer has an owner
 
 Computing an answer yourself is a defect (ADR-0069). Before writing a loop, name
@@ -43,7 +48,9 @@ parser owns what a module declares; the recording owns what ran. Four rules
 follow, and none of them needs a measurement to apply.
 
 - **Carry, never recompute.** A value an upstream stage produced is propagated,
-  not derived again at the far end.
+  not derived again at the far end. When both ends of a join derive a key, the
+  two drift apart without an error: carry it from where it was made and join on
+  exact identity, or refuse the join.
 - **Holding an answer and not using it is a bug.** `scan_graph_with_tree`
   computed every file's object name, spelled an identity out of it, and then
   opened all of them off the disk.
@@ -54,6 +61,18 @@ follow, and none of them needs a measurement to apply.
 - **Fall back, never fake.** When the owner cannot answer, compute it and say
   so. `read_blob` drops to `open_and_parse` on every failure path, and that valve
   is what makes the other three safe to apply without hedging.
+
+Three owners are mistaken most often. Under test the runner's alias table says
+what an import meant, so a file missing from a row is not an untested file: an
+alias may have answered for it. What changed is the source index's answer:
+compare the digests already held, read a file's text only where they differ, and
+never run `git diff --name-only` per commit or hash files. The index's digest is
+the git blob name (`git:`), never compared with `v1:`, and a record without it
+reads as not known. File finding by flat name is git's, which no Node reader
+beats; sense answers what git cannot, a name reachable from an entry.
+
+A consumer reads published layers and one update step writes them, so nothing
+rebuilds from scratch. A layer missing in CI fails loudly; locally it is built.
 
 The design question is *whose answer are we ignoring*, and it is answered by
 reading. Neither defect above would have survived it being asked, and neither

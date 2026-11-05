@@ -116,4 +116,5 @@ that evidence, as it is for visual order dependence (0012).
 
 **Seeing through the cache.** Nothing here patches a memoizer or clears one.
 
-**Cases that overlap in time.** Interleaving tests stay unsupported.
+**Cases that overlap in time.** Under the flat mode a file with two cases open at
+once is recorded whole.

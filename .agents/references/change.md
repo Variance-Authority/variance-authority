@@ -107,10 +107,14 @@ file that does two jobs is split, not extended.
 | `packages/*/README.md`, `cases/*/README.md` | How to use the package or example, in the `context-docs` skill's *Package README* role. Short: what grows past that moves to `docs/`. | Present |
 | JSDoc on exported symbols | What the symbol accepts, returns and refuses. | Present |
 | Source docstrings | Why this code is shaped this way. | Present |
+| `.agents/references/positions.md` | What the project has decided about its subject, for the agent working on it. | Present |
 | `.changeset/*.md` | What this change does to a published package, for someone upgrading. | Present |
 
-**Does it ship?** A change to a published package's code, manifest, schema or
-skills carries a changeset: `yarn changeset`, the product's bump, and a body
+**Does it ship?** `.agents/skills/variance-authority` and `variance-testing` are
+symlinks into `packages/cli/skills/`, so `git diff -- .agents/` shows nothing
+after a skill edit: diff the package path. A change to a published package's
+code, manifest, schema or skills carries a changeset: `yarn changeset`, the
+product's bump, and a body
 saying what the user sees and runs. It is written with the change, because only
 its author knows what the change does; at release time it is reconstructed from
 diffs, or it is missing and the changelog says only that the version moved.
@@ -136,6 +140,9 @@ surface — the root `README.md`, `docs/`, package and example `README.md` files
 the site, CLI output and error messages. Read it before writing any of them.
 
 ## Code rules
+
+Standing decisions no check enforces are in [positions](positions.md), read with
+these.
 
 - **Absent is not empty** (ADR-0002). A thing the run could not determine is
   missing from the output, never zero, never `[]`.
