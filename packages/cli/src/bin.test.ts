@@ -95,6 +95,11 @@ describe('parseArgs', () => {
     expect(parseArgs(['accept', '--all']).all).toBe(true);
   });
 
+  it('takes who accepted from --by, and leaves it absent without one', () => {
+    expect(parseArgs(['accept', '--all', '--by', 'ana'])).toMatchObject({ command: 'accept', by: 'ana' });
+    expect(parseArgs(['accept', '--all'])).not.toHaveProperty('by');
+  });
+
   it('splits --shape on commas, so one accept can name several shapes', () => {
     expect(parseArgs(['accept', '--shape', 'v1:aaa, v1:bbb'])).toMatchObject({
       command: 'accept',

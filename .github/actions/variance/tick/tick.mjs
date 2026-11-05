@@ -18,12 +18,7 @@
 
 import { appendFileSync, readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
-
-const API_VERSION = '2022-11-28';
-const PER_PAGE = 100;
-
-/** Pages of comments `read` looks through, as in `post-comment.mjs`. */
-const MAX_PAGES = 50;
+import { forge, PER_PAGE } from '../forge.mjs';
 
 /** Seconds between two looks at a run still going. */
 const POLL_SECONDS = Number(process.env.VARIANCE_TICK_POLL_SECONDS ?? 15);
@@ -50,20 +45,7 @@ function boxIn(body) {
   return found ? { ticked: found[1] !== ' ', head: found[2], job: found[3] } : undefined;
 }
 
-async function github(path, options = {}) {
-  const api = process.env.GITHUB_API_URL ?? 'https://api.github.com';
-  const response = await fetch(`${api}/repos/${process.env.GITHUB_REPOSITORY}/${path}`, {
-    ...options,
-    headers: {
-      accept: 'application/vnd.github+json',
-      authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-      'x-github-api-version': API_VERSION,
-    },
-  });
-  if (!response.ok) throw new Error(`${options.method ?? 'GET'} ${path} answered ${response.status}`);
-  const text = await response.text();
-  return text ? JSON.parse(text) : undefined;
-}
+const { request, commentPages } = forge();
 
 const event = () => JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 
@@ -86,7 +68,7 @@ function notATick({ action, changes, comment, issue, sender }) {
 }
 
 async function currentHead(number, head) {
-  const pull = await github(`pulls/${number}`);
+  const pull = await request('GET', `pulls/${number}`);
   return pull.head.sha === head;
 }
 
@@ -101,35 +83,34 @@ async function answer() {
   const stale = `the box belongs to ${head.slice(0, 7)}, and the pull request has moved on; nothing accepted.`;
 
   if (!(await currentHead(number, head))) return note(stale);
-  const { permission } = await github(`collaborators/${by}/permission`);
+  const { permission } = await request('GET', `collaborators/${by}/permission`);
   if (!WRITERS.has(permission)) return note(`@${by} has ${permission} access, not write; nothing accepted.`);
 
   // A rerun is refused while its run goes, and the head and the box may both
   // move in this wait. The job's `timeout-minutes` bounds it.
-  const { run_id: run, name } = await github(`actions/jobs/${job}`);
-  let state = await github(`actions/runs/${run}`);
+  const { run_id: run, name } = await request('GET', `actions/jobs/${job}`);
+  let state = await request('GET', `actions/runs/${run}`);
   while (state.status !== 'completed') {
     note(`waiting for run ${run} to finish.`);
     await sleep(POLL_SECONDS * 1000);
-    state = await github(`actions/runs/${run}`);
+    state = await request('GET', `actions/runs/${run}`);
   }
 
   if (!(await currentHead(number, head))) return note(stale);
-  const comment = await github(`issues/comments/${payload.comment.id}`);
+  const comment = await request('GET', `issues/comments/${payload.comment.id}`);
   const still = boxIn(comment.body);
   if (!still?.ticked || still.head !== head || still.job !== job) return note('the box is no longer ticked; nothing accepted.');
 
   // A job has a new id in each attempt, and a second box in this run may have
   // started one since this box was written.
-  const { jobs } = await github(`actions/runs/${run}/jobs?per_page=${PER_PAGE}`);
+  const { jobs } = await request('GET', `actions/runs/${run}/jobs?per_page=${PER_PAGE}`);
   const latest = jobs.find((candidate) => candidate.name === name);
   if (!latest) throw new Error(`run ${run} has no job ${name} to rerun`);
 
-  await github(`issues/comments/${comment.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ body: comment.body.replace(BOX, record(by, head, run, state.run_attempt)) }),
+  await request('PATCH', `issues/comments/${comment.id}`, {
+    body: comment.body.replace(BOX, record(by, head, run, state.run_attempt)),
   });
-  await github(`actions/jobs/${latest.id}/rerun`, { method: 'POST' });
+  await request('POST', `actions/jobs/${latest.id}/rerun`);
 
   console.log(`::notice::variance: accepted by @${by} on ${head.slice(0, 7)}; run ${run} is running again.`);
 }
@@ -137,19 +118,18 @@ async function answer() {
 /**
  * Who ticked for the attempt before this one, in the comment carrying `marker`.
  *
- * Only that attempt's record counts, so re-running a job by hand accepts nothing.
+ * Only that attempt's record counts, so re-running a job by hand accepts nothing,
+ * and only a bot's comment, since anybody can paste a record into their own.
  */
 async function tickedBy(number, head, marker) {
   const run = process.env.GITHUB_RUN_ID;
   const attempt = String(Number(process.env.GITHUB_RUN_ATTEMPT) - 1);
-  for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const comments = await github(`issues/${number}/comments?per_page=${PER_PAGE}&page=${page}`);
+  for await (const comments of commentPages(number)) {
     for (const comment of comments) {
       if (comment.user?.type !== 'Bot' || !comment.body?.includes(marker)) continue;
       const found = RECORD.exec(comment.body);
       if (found && found[2] === head && found[3] === run && found[4] === attempt) return found[1];
     }
-    if (comments.length < PER_PAGE) return undefined;
   }
   return undefined;
 }
@@ -169,6 +149,7 @@ async function read() {
     const by = await tickedBy(pull.number, pull.head.sha, marker);
     if (!by) return;
     output('accept', 'true');
+    output('by', by);
     output('intent', `${pull.title} — accepted: ticked by @${by}`);
     console.log(`::notice::variance: accepting: ticked by @${by}`);
   } catch (error) {

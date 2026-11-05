@@ -68,8 +68,12 @@ jobs:
 
 The person needs write access, and the box must go from unticked to ticked on the
 head the pull request is still at. Anything else accepts nothing and says why in
-that job's log. The tick waits for a run still going, then reruns it, so what is
-accepted is what that run rendered. The rerun's intent ends `accepted: ticked by
-@them`, and its log names them; the name in the comment lasts until the next
-run rewrites it, and the comment's edit history keeps it after that. `actions-cache`
-is the store this accepts into, so a git or LFS store leaves the input off.
+that job's log. The tick waits for a run still going, then reruns it: the rerun
+renders that commit again and accepts what it renders, as the label's run does.
+The approval row names the person where a history is kept, as `by`. The rerun's
+intent ends `accepted: ticked by @them`, and its log names them; the name in the
+comment lasts until the next run rewrites it, and the comment's edit history keeps
+it after that. `actions-cache` is the store this accepts into, so a git or LFS
+store leaves the input off. The box needs the docket written by a bot or an app:
+with a personal token as `github-token` the comment is a person's, the workflow
+skips the edit, and the box does nothing.

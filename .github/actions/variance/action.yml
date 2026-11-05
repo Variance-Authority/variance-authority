@@ -214,7 +214,9 @@ inputs:
       with write access ticks it, a workflow on `issue_comment` running
       `variance/tick` names them in the comment and reruns this job, and that
       run accepts as `accept: true` would, with `accepted: ticked by @them` in
-      its intent. Accepting here saves to the runner's cache, so a git or LFS store
+      its intent and on the approval row where a history is kept. It needs the
+      comment written by a bot or an app, so a personal `github-token` leaves it
+      off. Accepting here saves to the runner's cache, so a git or LFS store
       leaves this off.
     required: false
     default: 'false'
@@ -347,6 +349,7 @@ runs:
         VARIANCE_PROFILE: ${{ inputs.profile }}
         VARIANCE_SUBJECTS: ${{ inputs.subjects }}
         VARIANCE_INTENT: ${{ steps.tick.outputs.intent || inputs.intent }}
+        VARIANCE_BY: ${{ steps.tick.outputs.by }}
       run: |
         set -euo pipefail
 
@@ -358,7 +361,7 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND "${args[@]}"
         # shellcheck disable=SC2086
-        $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all
+        $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all ${VARIANCE_BY:+--by "$VARIANCE_BY"}
 
     - id: run
       name: variance run

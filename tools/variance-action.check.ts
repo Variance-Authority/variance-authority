@@ -61,6 +61,13 @@ describe('the variance action', () => {
     expect(action.match(/VARIANCE_INTENT: \$\{\{ steps\.tick\.outputs\.intent \|\| inputs\.intent \}\}/g)).toHaveLength(2);
   });
 
+  it('hands the name to the accept, so the approval row carries it', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain('VARIANCE_BY: ${{ steps.tick.outputs.by }}');
+    expect(action).toContain('accept --config "$VARIANCE_CONFIG" --all ${VARIANCE_BY:+--by "$VARIANCE_BY"}');
+  });
+
   it('puts the box under the words that ask for it', async () => {
     const action = await readFile(ACTION, 'utf8');
 

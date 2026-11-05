@@ -42,6 +42,8 @@ interface Repo {
   latestJob: number;
   /** A head the pull request moves to while the run is being waited for. */
   pushed?: string;
+  /** A pull request whose every page of comments is full. */
+  endless?: boolean;
   calls: string[];
   url: string;
 }
@@ -91,6 +93,9 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
         return reply(200, { status, run_attempt: repo.attempt });
       }
       if (path === `/repos/o/r/actions/jobs/${repo.latestJob}/rerun`) return reply(201, {});
+      if (path === '/repos/o/r/issues/7/comments' && repo.endless) {
+        return reply(200, Array.from({ length: 100 }, (_, id) => ({ id, body: 'a reviewer said something', user: { type: 'User' } })));
+      }
       if (path === '/repos/o/r/issues/7/comments') return reply(200, [{ id: 1, body: 'a reviewer said something', user: { type: 'User' } }, repo.comment]);
       if (path === '/repos/o/r/issues/comments/9') {
         if (request.method === 'PATCH') repo.comment.body = (JSON.parse(text) as { body: string }).body;
@@ -289,7 +294,17 @@ describe('the run a tick restarted', () => {
 
     expect(outputs).toContain('accept<<__variance__\ntrue\n');
     expect(outputs).toContain('intent<<__variance__\nMove a button — accepted: ticked by @ana\n');
+    expect(outputs).toContain('by<<__variance__\nana\n');
     expect(out).toContain('accepting: ticked by @ana');
+  });
+
+  it('says so, rather than concluding there was no tick, when the comments outrun what it reads', async () => {
+    const repo = await github({ endless: true });
+
+    const { out, outputs } = await tick(repo, read, pull, env(2));
+
+    expect(outputs).not.toContain('accept<<');
+    expect(out).toContain('could not read the docket');
   });
 
   it('accepts nothing on a re-run with no record for the attempt before it', async () => {
