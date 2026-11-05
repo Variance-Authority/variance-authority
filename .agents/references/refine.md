@@ -149,6 +149,21 @@ the loop decides, and a tie goes to the smaller change. A closed issue is
 reopened when new evidence arrives, and the review starts over; the owner may
 reopen one at any time.
 
+**A verdict is a comment.** Whoever runs the review posts the verdict on the
+issue, with its reason, ending in `<!-- idea-verdict: <name> -->`, where the name
+is `incomplete`, `build`, `yes-but` or `no-because`, or `none` for an issue that
+changes nothing the product does and so has no idea to review. Only a comment
+from the owner or a member counts, as the repository is public.
+
+**Filing an issue is all a session owes the loop.** `node tools/idea.mjs queue`
+lists the open issues that still need a verdict: no verdict and no `idea: build`
+yet, or an edit after the last of them. An epic is a list, not a change, and an
+outsider's issue is a report, so neither is listed. Whole briefs come first,
+since they wait only for the review; the rest follow in the order of "What comes
+first", each with the reviews already spent on it. An hourly sweep takes the top
+of that list: it writes the brief an issue lacks, runs the review and posts the
+verdict.
+
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
 model, on a reason the idea review could have seen — is an escape. Add it to
