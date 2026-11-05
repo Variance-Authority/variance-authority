@@ -266,12 +266,10 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, ELSEWHERE_CAP) } }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
-  // The installed packages that describe the words are a different answer from
-  // this repository's names, and never stand in for them: only an installed
-  // name holding the query as written — which the caller asked for by name —
-  // ends the search for names of this repository's own.
-  // A held row ends it only by being the question: one that only holds the words
-  // prints beside the readings below, which may hold the name that was meant.
+  // Installed packages that describe the words never stand in for this repository's
+  // names: only an installed name holding the query as written ends the search.
+  // A held row ends it only by being the question: one that holds the words prints
+  // beside the readings below, which may hold the name that was meant.
   if (others || (read?.exact ?? 0) > 0 || (aliases?.length ?? 0) > 0) return { answer, area };
 
   // The empty answer read as a description: names holding any of its words,
@@ -280,12 +278,11 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
   const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
-  // Which reading a name both reach is told by is decided by what each holds, never
-  // by how many rows print. A name holding at least half the stems through one row
-  // is the described section's, which prints first, and the loose pass offers none
-  // of them a second time. A name holding fewer is the loose section's when every
-  // word reaches it there, since every word one character off says more than under
-  // half the stems do: held on so few, it would sort past the rows shown.
+  // What a name both readings reach is told by is what each holds, never how many rows
+  // print. Holding at least half the stems through one row, it is the described
+  // section's, which prints first, and the loose pass leaves it. Holding fewer, it is the
+  // loose section's when every word reaches it there, as every word one character off
+  // says more; held on so few, it would sort past the rows shown.
   const strong = Math.ceil(describedWordsNative(query).length / 2);
   const held = (one: Reached): boolean => one.words.length >= strong;
 
