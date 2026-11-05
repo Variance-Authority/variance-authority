@@ -15,7 +15,7 @@
  * those names is what the graph's lookup of each importer's bindings is for.
  *
  * The two texts have owners, and neither is recomputed: git holds the one at
- * the merge base, read through the same windowed `cat-file --batch` the
+ * the merge base, read through the same open `cat-file --batch` the
  * recording's frames use, and the working tree holds the other. No frame is
  * needed here. The execution record's line numbers are coordinates in the text
  * it ran, so its reading must find that text first; a walk over the file graph

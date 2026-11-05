@@ -54,7 +54,7 @@ fn lacking<'a>(root: &str, oids: &[&'a str]) -> Vec<&'a str> {
 }
 
 /// [`remote`], asked once per checkout.
-fn promised(root: &str) -> Option<String> {
+pub(crate) fn promised(root: &str) -> Option<String> {
     static ASKED: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
     let asked = ASKED.get_or_init(Mutex::default);
     if let Some(known) = asked.lock().ok().and_then(|held| held.get(root).cloned()) {

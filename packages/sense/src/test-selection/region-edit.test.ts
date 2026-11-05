@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { gitReads } from './__fixtures__/git-reads.js';
 import { NO_OWNER } from './format-layout.js';
 import { editsBetween, landedThrough, NO_EDIT, regionTouched } from './region-edit.js';
 import { NO_LINE } from './written-lines.js';
@@ -219,6 +220,36 @@ describe('editsBetween', () => {
     try {
       execFileSync('git', ['init', '--quiet'], { cwd: root });
       expect(() => editsBetween(root, undefined, ['0'.repeat(40)])('src/a.ts', 'v1:one', 'v1:two')).toThrow(/commit 000000000000 is not in this checkout's object store/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reads a path once at each commit, though every text it looks for turns from one commit to the other', () => {
+    const root = mkdtempSync(join(tmpdir(), 'variance-region-edit-'));
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' }).trim();
+    const commitOf = (text: string): string => {
+      writeFileSync(join(root, 'a.ts'), text);
+      git('add', '.');
+      git('commit', '--quiet', '-m', text);
+      return git('rev-parse', 'HEAD');
+    };
+    try {
+      git('init', '--quiet');
+      const commits = [commitOf('export const a = 1;\n'), commitOf('export const a = 2;\n')];
+      writeFileSync(join(root, 'a.ts'), 'export const a = 3;\n');
+      const edits = editsBetween(root, undefined, commits);
+      const reads = gitReads(() => {
+        for (const file of ['a.ts', 'added-since.ts']) {
+          for (const ask of [1, 2, 3, 4, 5]) expect(edits(file, `v1:before${ask}`, `v1:after${ask}`)).toBeUndefined();
+        }
+      });
+
+      for (const commit of commits) {
+        for (const file of ['a.ts', 'added-since.ts']) {
+          expect(reads(commit, file), `${file} at ${commit}`).toBe(1);
+        }
+      }
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

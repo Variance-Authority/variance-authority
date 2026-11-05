@@ -17,10 +17,40 @@
 //! [`blobs_at`] is the same listing without the bodies: each path's blob name,
 //! `git:<object>`, for a reader that only asks whether two commits hold the
 //! same text.
+//!
+//! [`text_at`] is one path at one commit, for a reader that asks them one at a
+//! time and again, in jumps, and asks again for what it let go of. A process per
+//! read made each of those a cost of its own: 211,697 processes for 405 paths.
+//! So [`blob_at`] answers from a `git cat-file --batch` that stays open: a text
+//! or an absent path costs a round trip on a pipe, and holding one buys a reader
+//! an inflate and a pipe, not a process.
+//!
+//! The name `<commit>:<path>` serves every commit from the one process, so a
+//! turn between commits needs nothing there. There is one process, for the last
+//! checkout asked at, rather than one a reader: a caller may build a reader a
+//! file, and each would leave a child behind until something collected it. It
+//! ends with its standard input, when this process does.
+//!
+//! Git answers `missing` alike for a path the tree does not list and a blob it
+//! lists and the store lacks, so a path is absent only when the tree that would
+//! list it does not, read from the same process. A submodule is read from that
+//! tree too, because only a newer git names one on the pipe. The process answers
+//! only what that settles, and only a name [`plain`] says it reads as a listing
+//! does. Anything else goes to [`read`], which names git's reason: a commit this
+//! clone lacks, a blob the tree names and the store does not, a process that
+//! died. That read starts processes every time it runs, two for a commit the
+//! store lacks, and a refused read is held nowhere. A git-LFS pointer's content
+//! takes `git lfs smudge` and the processes it starts; a reader spares them while
+//! it holds the content. [`fetch_texts_at`] is what such a reader does first in a
+//! partial clone, because git asked for each blob makes a request apiece, as
+//! `promisor.rs` describes.
 
 // compass: variance-authority.reach.source-index
 
 use std::collections::HashMap;
+use std::io::{self, BufRead, BufReader, Write};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::{Mutex, PoisonError};
 
 use napi_derive::napi;
 
@@ -49,6 +79,36 @@ pub struct CommitTexts {
 #[napi(catch_unwind)]
 pub fn texts_at(root: String, commits: Vec<String>, paths: Vec<Vec<String>>) -> napi::Result<CommitTexts> {
     read(&root, &commits, &paths).map_err(napi::Error::from_reason)
+}
+
+/// `file` at `commit`, `None` a path the commit does not hold, and an error
+/// carrying git's reason for one it could not read.
+#[napi(catch_unwind)]
+pub fn text_at(root: String, commit: String, file: String) -> napi::Result<Option<String>> {
+    if let Some(found) = blob_at(&root, &commit, &file) {
+        let found = found.map(|body| content(&root, &file, &commit, body)).transpose();
+        let found = found.map_err(|why| napi::Error::from_reason(unread(&[&commit], &why)))?;
+        return Ok(found.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()));
+    }
+    let mut found = read(&root, &[commit], &[vec![file]]).map_err(napi::Error::from_reason)?;
+    match found.refused.pop() {
+        Some(why) => Err(napi::Error::from_reason(why)),
+        None => Ok(found.text.pop()),
+    }
+}
+
+/// In a partial clone, fetch the blobs `commit` names at `files` in one request.
+/// Nothing to do in any other clone. A fetch that failed is not reported: the
+/// read of a text it left behind gives git's reason.
+#[napi(catch_unwind)]
+pub fn fetch_texts_at(root: String, commit: String, files: Vec<String>) {
+    if crate::promisor::promised(&root).is_none() {
+        return;
+    }
+    if let Ok(named) = blobs(&root, &commit, &files) {
+        let oids: Vec<&str> = named.values().map(String::as_str).collect();
+        let _ = crate::promisor::fetch(&root, &oids);
+    }
 }
 
 /// The blob name, `git:<object>`, of `paths[at]` at `commits[at]`, in the
@@ -158,11 +218,20 @@ pub(crate) fn each_content(root: &str, blobs: &[Blob]) -> Result<Vec<Result<Vec<
         .iter()
         .zip(read)
         .map(|(blob, body)| match body {
-            Ok(body) if crate::lfs::pointer(&body) => crate::lfs::smudge(root, blob.path, blob.commit, &body),
-            Ok(body) => Ok(body),
+            Ok(body) => content(root, blob.path, blob.commit, body),
             Err(why) => Err(after_fetch(why)),
         })
         .collect())
+}
+
+/// `body`, the blob at `path`, as the file it stands for: a git-LFS pointer's
+/// content or git-lfs's reason, and anything else as it is.
+fn content(root: &str, path: &str, commit: &str, body: Vec<u8>) -> Result<Vec<u8>, String> {
+    if crate::lfs::pointer(&body) {
+        crate::lfs::smudge(root, path, commit, &body)
+    } else {
+        Ok(body)
+    }
 }
 
 /// Why `commit` was not read when the checkout does not hold it, for a reader
@@ -192,35 +261,67 @@ pub(crate) fn absent(root: &str, commit: &str) -> Option<String> {
 fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, String> {
     let asked: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
     let out = answer(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
-    let cut = || "git cat-file --batch ended its answer early".to_owned();
+    let mut rest = out.as_slice();
     let mut read = Vec::with_capacity(oids.len());
-    let mut at = 0;
     for _ in oids {
-        let end = at + out.get(at..).ok_or_else(cut)?.iter().position(|&byte| byte == b'\n').ok_or_else(cut)?;
-        let head = String::from_utf8_lossy(&out[at..end]).into_owned();
-        at = end + 1;
-        // `<object> missing` alone, or `<object> <type> <size>`, then the body and a newline.
-        if head.ends_with(" missing") {
-            read.push(Err(format!("git answered `{head}`")));
-            continue;
-        }
-        let Some(Ok(size)) = head.rsplit(' ').next().map(str::parse::<usize>) else {
-            return Err(format!("git answered `{head}`"));
-        };
-        read.push(Ok(out.get(at..at + size).ok_or_else(cut)?.to_vec()));
-        at += size + 1;
+        read.push(match reply(&mut rest)? {
+            Reply::Object { body, .. } => Ok(body),
+            Reply::Missing(name) => Err(format!("git answered `{name} missing`")),
+        });
     }
     Ok(read)
+}
+
+/// What git said to one name.
+enum Reply {
+    /// A submodule's commit comes as a `submodule` with no body, from a git
+    /// new enough to say so. An older one answers `missing`.
+    Object { oid: String, kind: String, body: Vec<u8> },
+    /// Git holds nothing under this name. It says so alike for a path the tree
+    /// does not list, a commit the store lacks, and a blob the tree names and
+    /// the store lacks, so this alone settles none of them.
+    Missing(String),
+}
+
+/// One answer of a `cat-file --batch`, read from `from`: `<name> missing`,
+/// `<object> submodule`, or `<object> <type> <size>`, then the body and a newline.
+fn reply(from: &mut impl BufRead) -> Result<Reply, String> {
+    let cut = || "git cat-file --batch ended its answer early".to_owned();
+    let mut head = Vec::new();
+    from.read_until(b'\n', &mut head).map_err(|why| why.to_string())?;
+    if head.pop() != Some(b'\n') {
+        return Err(cut());
+    }
+    let head = String::from_utf8_lossy(&head).into_owned();
+    if let Some(name) = head.strip_suffix(" missing") {
+        return Ok(Reply::Missing(name.to_owned()));
+    }
+    let mut fields = head.split(' ');
+    let (oid, kind, size) = (fields.next(), fields.next(), fields.next());
+    let (Some(oid), Some(kind)) = (oid, kind) else {
+        return Err(format!("git answered `{head}`"));
+    };
+    let mut body = Vec::new();
+    if kind != "submodule" {
+        let Some(size) = size.and_then(|size| size.parse::<usize>().ok()) else {
+            return Err(format!("git answered `{head}`"));
+        };
+        body.resize(size + 1, 0);
+        from.read_exact(&mut body).map_err(|_| cut())?;
+        body.pop();
+    }
+    Ok(Reply::Object { oid: oid.to_owned(), kind: kind.to_owned(), body })
 }
 
 /// The blob `commit`'s tree names at each of `files` that is one. A path the
 /// tree does not list, or lists as a directory or a submodule, names none. A
 /// blobless clone holds the trees, so listing them fetches nothing; a treeless
-/// one fetches them as git's lazy fetch does.
+/// one fetches them as git's lazy fetch does. A path is its bytes, so git on
+/// macOS is told not to recompose the one on this command line.
 fn blobs(root: &str, commit: &str, files: &[String]) -> Result<HashMap<String, String>, String> {
     let mut oids = HashMap::new();
     for chunk in files.chunks(PATHS_PER_LISTING) {
-        let mut args = vec!["--literal-pathspecs", "ls-tree", "-z", "--full-tree", commit, "--"];
+        let mut args = vec!["-c", "core.precomposeunicode=false", "--literal-pathspecs", "ls-tree", "-z", "--full-tree", commit, "--"];
         args.extend(chunk.iter().map(String::as_str));
         let listed = answer(root, &args, None)?;
         // `<mode> <type> <object>\t<path>`, and only a blob is a text.
@@ -237,4 +338,155 @@ fn blobs(root: &str, commit: &str, files: &[String]) -> Result<HashMap<String, S
         }
     }
     Ok(oids)
+}
+
+/// The process, for whichever checkout was asked last.
+static OPEN: Mutex<Option<Open>> = Mutex::new(None);
+
+struct Open {
+    root: String,
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+/// Past this a path is no checkout's, and a command line may refuse it where a
+/// pipe would not. 4096 is the longest path Linux takes.
+const LONGEST_PATH: usize = 4096;
+
+/// Whether the process reads `<commit>:<file>` as a listing reads `commit` and
+/// `file`. It reads a whole line as one revision: a name other than a full object
+/// is parsed there and not by `ls-tree`, a newline or a NUL ends it early, a
+/// trailing CR is dropped, and `./` is the working directory's. A listing refuses
+/// or normalises what is no path in a tree, so only the one that is goes this way.
+fn plain(commit: &str, file: &str) -> bool {
+    let full = matches!(commit.len(), 40 | 64) && commit.bytes().all(|byte| byte.is_ascii_hexdigit());
+    let in_a_tree = file.len() <= LONGEST_PATH && file.split('/').all(|name| !matches!(name, "" | "." | ".."));
+    full && in_a_tree && !file.contains(['\n', '\0']) && !file.ends_with('\r')
+}
+
+/// `file` at `commit`: `Some(Some(bytes))` its blob, `Some(None)` a path the
+/// commit does not hold, `None` when this cannot say and the read that names
+/// the reason must.
+fn blob_at(root: &str, commit: &str, file: &str) -> Option<Option<Vec<u8>>> {
+    if !plain(commit, file) {
+        return None;
+    }
+    let mut slot = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if !matches!(&*slot, Some(open) if open.root == root) {
+        *slot = Open::start(root).ok();
+    }
+    let answered = slot.as_mut()?.answer(commit, file);
+    answered.unwrap_or_else(|_| {
+        *slot = None;
+        None
+    })
+}
+
+impl Open {
+    fn start(root: &str) -> io::Result<Open> {
+        let mut child = Command::new("git")
+            .args(["cat-file", "--batch"])
+            .current_dir(root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()?;
+        let (stdin, stdout) = (child.stdin.take(), child.stdout.take());
+        let (Some(stdin), Some(stdout)) = (stdin, stdout) else {
+            return Err(io::ErrorKind::BrokenPipe.into());
+        };
+        Ok(Open { root: root.to_owned(), child, stdin, stdout: BufReader::new(stdout) })
+    }
+
+    fn answer(&mut self, commit: &str, file: &str) -> Result<Option<Option<Vec<u8>>>, String> {
+        Ok(match self.ask(&format!("{commit}:{file}"))? {
+            Reply::Object { kind, body, .. } if kind == "blob" => Some(Some(body)),
+            // A directory, or a submodule's commit: only a blob is a text.
+            Reply::Object { .. } => Some(None),
+            Reply::Missing(_) => self.nothing_at(commit, file)?.then_some(None),
+        })
+    }
+
+    /// Whether `commit` holds no text at `path` or under it, read from the tree
+    /// that would list it: that tree does not, or lists a submodule, whose files
+    /// are no text here. False for anything else it lists, and when that tree
+    /// cannot be read, a commit the store lacks included.
+    fn nothing_at(&mut self, commit: &str, path: &str) -> Result<bool, String> {
+        let (parent, name) = path.rsplit_once('/').map_or((None, path), |(parent, name)| (Some(parent), name));
+        let tree = parent.map_or_else(|| format!("{commit}^{{tree}}"), |parent| format!("{commit}:{parent}"));
+        match (self.ask(&tree)?, parent) {
+            (Reply::Object { oid, kind, body }, _) if kind == "tree" => {
+                Ok(mode_in(&body, name, oid.len() / 2).is_none_or(|mode| mode == GITLINK))
+            }
+            (Reply::Object { .. }, _) => Ok(true),
+            (Reply::Missing(_), Some(parent)) => self.nothing_at(commit, parent),
+            (Reply::Missing(_), None) => Ok(false),
+        }
+    }
+
+    /// One name out and its whole answer back, so neither pipe ever fills.
+    fn ask(&mut self, name: &str) -> Result<Reply, String> {
+        writeln!(self.stdin, "{name}").and_then(|()| self.stdin.flush()).map_err(|why| why.to_string())?;
+        reply(&mut self.stdout)
+    }
+}
+
+/// The mode a tree lists a submodule under.
+const GITLINK: &[u8] = b"160000";
+
+/// The mode `tree`, a tree object's body of `<mode> <name>\0<object>` entries
+/// with objects of `width` bytes, lists `name` under.
+fn mode_in<'a>(tree: &'a [u8], name: &str, width: usize) -> Option<&'a [u8]> {
+    let mut rest = tree;
+    while let Some(end) = rest.iter().position(|byte| *byte == 0) {
+        let (entry, after) = rest.split_at(end);
+        if let Some(space) = entry.iter().position(|byte| *byte == b' ') {
+            if &entry[space + 1..] == name.as_bytes() {
+                return Some(&entry[..space]);
+            }
+        }
+        rest = after.get(1 + width..).unwrap_or_default();
+    }
+    None
+}
+
+impl Drop for Open {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_process_that_died_leaves_the_read_to_the_caller_and_the_next_one_a_new_process() {
+        let root = std::env::temp_dir().join(format!("variance-text-session-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let git = |args: &[&str]| crate::git::answer(root.to_str().unwrap(), args, None).unwrap();
+        git(&["init", "--quiet"]);
+        std::fs::write(root.join("a.ts"), "a").unwrap();
+        git(&["add", "--all"]);
+        git(&["-c", "user.name=t", "-c", "user.email=t@t", "commit", "--quiet", "--message", "a"]);
+        let head = git(&["rev-parse", "HEAD"]);
+        let commit = String::from_utf8_lossy(&head).trim().to_owned();
+        let at = root.to_str().unwrap();
+
+        assert_eq!(blob_at(at, &commit, "a.ts"), Some(Some(b"a".to_vec())));
+        {
+            let mut slot = OPEN.lock().unwrap();
+            let open = slot.as_mut().unwrap();
+            open.child.kill().unwrap();
+            open.child.wait().unwrap();
+        }
+
+        assert_eq!(blob_at(at, &commit, "a.ts"), None);
+        assert_eq!(blob_at(at, &commit, "a.ts"), Some(Some(b"a".to_vec())));
+        assert_eq!(blob_at(at, &commit, "b.ts"), Some(None));
+        *OPEN.lock().unwrap() = None;
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }
