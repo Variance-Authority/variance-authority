@@ -70,6 +70,10 @@ fallback, a shortcut, an early return, a threshold, a cap, a cache, a filter.
 - **A false positive is a defect.** A tool, a page or an error message that
   reports something that did not happen is wrong, however rarely it fires.
 
+A review-flow finding is classified by baseline placement before a fix is
+proposed: cache, LFS and tribunal each own their approval semantics, and a need
+one placement owns is no gap in another.
+
 ## Skip
 
 What `yarn verify:rules` and CI hold, `dist/`, `yarn.lock`, and

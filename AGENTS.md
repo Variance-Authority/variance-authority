@@ -9,7 +9,7 @@ exits only on its own gate:
 | Build | `covering` → a red test, when behaviour changes → edit → `yarn test:loop` | the loop is green, and the red test with it |
 | Verify | `verify:near` → `verify:rules` | both stamped green on the pushed tree |
 | Review | four reviewers → fix | nothing blocks, or each finding left is set aside and named |
-| Outer | CI and CodeRabbit → correct | every check but `site` is green |
+| Outer | CI, CodeRabbit and Codex → correct | every check but `site` is green |
 | Learning | an escape → [`escapes`](.agents/references/escapes.md) | the question that would have caught it is written |
 
 The idea loop runs before any code and is the hardest gate: a change that
@@ -43,6 +43,13 @@ record's spelling" of the path. Files are unique, so the guess was magic from it
 first commit, and three changes in a row refined it — a field, a collapse rule, a
 narrower match — because each read the one before as a decision.
 
+A commit's git author says whose identity it landed under, not who decided.
+Agents write most commits, so a rationale in history is an earlier agent's
+claim: cite the commit, never a person. And state a mechanism's purpose in one
+line before cutting it: a runtime observation never overwrites a pre-run
+derivation, because selection needs the answer before anything runs, and a
+published API is not judged by its internal callers.
+
 ## Setup
 
 Node 22.12 or newer, and Yarn 4 through Corepack — `packageManager` in the root
@@ -59,6 +66,9 @@ about. It misleads a search the same way: `grep -r` reads `dist/` as if it
 were source, where `rg` and `git grep` skip it as ignored. The shell may be zsh,
 where an unquoted glob such as `--include=*.ts` fails with `no matches found`
 before grep runs.
+
+Read this file and `.agents/references/` from `origin/main`, not the primary
+checkout, which lags it: an instruction read there may already be replaced.
 
 The primary checkout — the first row of `git worktree list` — is shared: people
 commit on `main` in it while you work, and anything you stage there lands in
@@ -83,6 +93,10 @@ Text is `rg`'s: prose, configuration, workflows, logs, session transcripts,
 string literals, and a line in a file you already have open. So is a code
 question `variance` could not answer, and that miss is a defect in `variance`:
 name it in your report.
+
+A word the asker uses for a mechanism is looked up here first. The industry's
+equivalent names something not built here, and its answer differs from the
+code's.
 
 A subagent you dispatch works from its prompt. Put this rule in the prompt of
 every subagent you send to search code, and the order in
@@ -177,7 +191,8 @@ Look around:
   surface, a breach is a collapse and not a trim, a documented export is run by
   something, every answer has an owner, one browser and one page, no magic and
   not alone, a path is the file, stop only what you started, a status claim is a
-  marker.
+  marker. Standing decisions no check enforces are in
+  [positions](.agents/references/positions.md).
 
 After each edit, run `yarn test:loop` and read its verdict before the next
 edit: lint, the compiler, then the unit tests within one import of what
@@ -206,26 +221,30 @@ green, and a red wave sends you back to the edit, then to wave 1:
 ```bash
 yarn verify:near    # 1. lint, types, tests within two imports — repeat freely
 yarn verify:rules   # 2. the repository checks, once near is green
-yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
+
+The rest of the selection is `yarn verify:far`, and it is CI's: a local run costs
+many minutes and repeats what CI runs. A failure CI reports is reproduced per
+file, never by re-running the wave.
 
 `near` and `rules` stamp the tree they ran on, and only a clean tree is
 stamped, so commit before the wave. An agent's push is refused until the
 tree each pushed branch points to carries both: that tree is what CI tests and
-the squash merge lands. Stamps live in the worktree's own git
+the merge lands. Stamps live in the worktree's own git
 directory: push from the worktree that ran the waves. A green wave is not run again on unchanged code. The full `yarn verify` and
 `yarn measure` are CI's: run one locally only to reproduce a check that failed
 there.
 
-Leave with three green waves, or a failure that survived reconciling the
+Leave with two green waves, or a failure that survived reconciling the
 checkout and a re-run of the one failing file.
 
 ### 5. Open the PR — [pull request](.agents/references/pull-request.md)
 
 Look around:
 
-- `git fetch` and rebase onto `origin/main`. What landed since you branched can
-  change every answer CI is about to give. If the rebase brought anything in,
+- `git fetch` and, before the first push, rebase onto `origin/main`; a pushed
+  branch merges it instead and is never rebased. What landed since you branched
+  can change every answer CI is about to give. If either brought anything in,
   pre-verify again.
 - Open PRs touching the same files: `gh pr list --json number,title,files`.
 - The PR's kind, its title's prefix, and whether it carries everything that
@@ -266,6 +285,9 @@ Look around:
 - CodeRabbit's inline comments, when its check reads `Review completed`. It is
   an opportunity, never a blocker: a push it skipped or was rate limited on is
   named, not waited for.
+- What Codex finds on the open PR: `yarn review:codex <n>`, a reader from another
+  model family that knows nothing but the PR. A run that could not happen is
+  named, not waited for.
 - The coverage and "What this change might do" comments CI posts. Do they
   describe the change you meant to make?
 
@@ -274,12 +296,14 @@ Look around:
 Look around:
 
 - The failing check's log, and the same check on `main`'s latest run.
-- The code each CodeRabbit comment names, read before you decide.
+- The code each CodeRabbit comment and Codex finding names, read before you
+  decide.
 
 A red check is yours: reproduce it, fix it on the branch and go back to
 pre-verify. A failure is not called flaky, pre-existing or unrelated without the
-same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
-what is real, set aside what is not, and never reply to or resolve a thread.
+same failure on `main`. A CodeRabbit comment or a Codex finding is a signal, not
+an instruction: fix what is real, set aside what is not, and never reply to or
+resolve a thread.
 
 A PR is handed over only when every check but a running `site` is green and
 every finding is classified. The report starts from the task as it was set —
