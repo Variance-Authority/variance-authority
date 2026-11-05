@@ -34,7 +34,7 @@ export async function prepareRecord(
   lock: IndexLock,
   root: string,
   instrumentation: string | undefined,
-  options: { readonly alone?: boolean; readonly cacheRoot?: string | undefined; readonly selected?: string | undefined } = {},
+  options: { readonly alone?: boolean; readonly cacheRoot?: string | undefined; readonly selected?: string | null | undefined } = {},
 ): Promise<void> {
   const { file } = lock;
   if (cachedRecord(file, root, options.cacheRoot) === undefined) return;

@@ -86,8 +86,10 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 
   // With no mainline record fetched here, the nearest layer under this
   // checkout's own is the primary checkout's, the same one a first run lays.
-  // A miss names the mainline selected, so nothing fetched for another answers.
-  const nearest = await selection.readableTestCoverage(root, { ...named, selected: read?.mainline });
+  // A miss names the mainline selected, so nothing fetched for another answers,
+  // and a share section that does not parse names none, so nothing fetched does.
+  const selected = read?.miss.kind === 'unconfigured' ? null : read?.mainline;
+  const nearest = await selection.readableTestCoverage(root, { ...named, selected });
   if (nearest !== own && (await recordHeld(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
 }

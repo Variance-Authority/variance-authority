@@ -36,8 +36,8 @@ export interface RecordLocationOptions {
   readonly suite?: string | undefined;
   /** The cache directory, when the caller already knows it. */
   readonly cacheRoot?: string | undefined;
-  /** The name of the mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by. */
-  readonly selected?: string | undefined;
+  /** The name of the mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by; `null` when it could not read the selection. */
+  readonly selected?: string | null | undefined;
 }
 
 /**
@@ -176,7 +176,7 @@ export async function seedTestCoverage(
   root: string,
   instrumentation: string | undefined,
   cacheRoot?: string,
-  selected?: string,
+  selected?: string | null,
 ): Promise<Seeded | undefined> {
   const { file } = lock;
   const layers = repositoryLayers(root, cacheRoot);

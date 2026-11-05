@@ -95,18 +95,16 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * The newest mainline record of `suite` fetched on this machine, or undefined
  * when the suite is not given to the share or nothing has been fetched.
  *
- * Two caches are asked, this checkout's and a worktree's primary's, the newest
- * winning; a caller that names `cacheRoot` asks that one only. A pointer whose
- * record is not on disk or does not read in this build is passed over, and so
- * is one for another mainline than `selected`, the name a reader that worked
- * out the selection hands in. A caller with none to hand in takes the newest.
- *
- * FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
- *
- * Synchronous, as {@link nearestTestCoverage} cannot wait. It opens the record,
- * so a reader asks it only once the checkout's own layer has none.
+ * Two caches are asked, this checkout's and a worktree's primary's, or
+ * `cacheRoot` alone, the newest winning. A pointer whose record is not on disk
+ * or does not read in this build is passed over, and so is one for another
+ * mainline than `selected`. `null` is a selection that could not be read, so
+ * none answers; a caller with none to hand in takes the newest. Synchronous, as
+ * {@link nearestTestCoverage} cannot wait, and it opens the record, so a reader
+ * asks it only once the checkout's own layer has none.
  */
-export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string): LastFetched | undefined {
+export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
+  if (selected === null) return undefined;
   const declared = declaredSuites(root);
   const name = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
@@ -114,6 +112,7 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   for (const cache of fetchCaches(root, cacheRoot)) {
     const readRoot = mainlineReadRoot(cache, name);
     const pointer = readFetchedMainline(readRoot);
+    // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
     if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
     if (newest !== undefined && newest.fetched >= pointer.fetched) continue;
     const coverage = join(readRoot, pointer.commit, 'coverage.bin');

@@ -23,6 +23,7 @@ import { readerMainline } from '../share-lines.js';
 import { landSuite } from './journeys-command.js';
 import { landJourneys } from './land.js';
 import { cloneOf, git, published, ranWhole } from './mainline-fixture.js';
+import { selectedRecord } from './mainline-selected.js';
 import { probesGap } from './probes-gap.js';
 import { suiteBase } from './suite-base.js';
 import { recordedSuite } from './suite-record.js';
@@ -61,7 +62,7 @@ afterEach(async () => {
 });
 
 /** The clone, with `release`'s record fetched into its cache, and this checkout's own path still empty. */
-async function fetchedForRelease(declares?: Readonly<Record<string, unknown>>) {
+async function fetchedForRelease(declares?: Readonly<Record<string, unknown>>, share?: unknown) {
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   const { dir, origin, first } = await published(home, { publish: false });
   const recorded = testCoverageFile(dir, { suite: 'unit' });
@@ -69,6 +70,7 @@ async function fetchedForRelease(declares?: Readonly<Record<string, unknown>>) {
   const clone = await cloneOf(home, origin);
   // Before anything reads it: a process reads the root config once.
   if (declares !== undefined) await alsoDeclares(clone, declares);
+  if (share !== undefined) await sharesAs(clone, share);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
   const kept = await fetchedInto(clone, recorded, { mainline: 'release', commit: first, fetched: new Date().toISOString() });
   process.chdir(clone);
@@ -80,6 +82,12 @@ async function alsoDeclares(checkout: string, suites: Readonly<Record<string, un
   const config = join(checkout, 'variance.config.json');
   const held = JSON.parse(await readFile(config, 'utf8')) as { suites: Record<string, unknown> };
   await writeFile(config, JSON.stringify({ ...held, suites: { ...held.suites, ...suites } }));
+}
+
+/** `checkout`'s root config, with `share` in place of its share section. */
+async function sharesAs(checkout: string, share: unknown): Promise<void> {
+  const config = join(checkout, 'variance.config.json');
+  await writeFile(config, JSON.stringify({ ...(JSON.parse(await readFile(config, 'utf8')) as object), share }));
 }
 
 /** Keep `recorded` in `checkout`'s cache, as a fetch of `pointer` would, and say where. */
@@ -190,6 +198,28 @@ describe('a first run', () => {
     await withIndexLock(own, (lock) => prepareRecord(lock, clone, 'fixture'));
 
     expect((await readOwnLayer(own))?.pinned).toMatchObject({ mainline: 'release' });
+  });
+});
+
+describe('a share section that does not parse', () => {
+  it('reads nothing fetched, since nothing says which mainline this checkout reads', async () => {
+    const { clone, own } = await fetchedForRelease(undefined, { mainlines: 'not a list' });
+
+    expect(await suiteBase(clone, { env: {} })).toMatchObject({ from: 'none', file: own, missed: { miss: { kind: 'unconfigured' } } });
+  });
+
+  it('hands a reader of the fetched record no selection to pass it on', async () => {
+    const { clone, own } = await fetchedForRelease(undefined, { mainlines: 'not a list' });
+
+    expect(await selectedRecord(clone, 'unit', declaredSuites(clone)?.find((one) => one.name === 'unit'))).toBe(own);
+  });
+
+  it('lays nothing of it on a first run', async () => {
+    const { clone, first, own } = await fetchedForRelease(undefined, { mainlines: 'not a list' });
+
+    await landJourneys(clone, [await shardAt(first)], own);
+
+    expect((await readOwnLayer(own))?.pinned).toBeUndefined();
   });
 });
 

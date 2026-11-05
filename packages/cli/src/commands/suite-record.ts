@@ -69,7 +69,7 @@ export async function landingRecord(
   root: string,
   suite?: string,
   into?: string,
-): Promise<{ readonly file: string; readonly selected: string | undefined }> {
+): Promise<{ readonly file: string; readonly selected: string | null | undefined }> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (into !== undefined) {
     const inside = selection.cachedRecord(into, root);

@@ -60,15 +60,15 @@ export async function selectMainline(
 
 /**
  * {@link selectMainline} for a read that goes to a fetched record without
- * `mainlineBase`: the mainline's name, to hand it. Nothing when none was
- * chosen, for a suite not given to the share, or for a share section that does
- * not parse, which that reader says where it asks the share. `declared` is the
- * suite as the caller resolved it.
+ * `mainlineBase`: the mainline's name, to hand it. Nothing when none was chosen
+ * or for a suite not given to the share. `null` for a share section that does
+ * not parse, so nothing fetched answers, which that reader says where it asks
+ * the share. `declared` is the suite as the caller resolved it.
  */
-export async function selectedMainline(root: string, declared: DeclaredSuite | undefined): Promise<string | undefined> {
+export async function selectedMainline(root: string, declared: DeclaredSuite | undefined): Promise<string | null | undefined> {
   if (declared?.carry !== 'share') return undefined;
   const selected = await selectMainline(root);
-  return 'unconfigured' in selected ? undefined : selected.named?.name;
+  return 'unconfigured' in selected ? null : selected.named?.name;
 }
 
 /**

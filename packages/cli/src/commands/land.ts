@@ -82,7 +82,7 @@ async function landCombined(
   shards: readonly string[],
   at: string,
   combinedAt: string,
-  selected: string | undefined,
+  selected: string | null | undefined,
 ): Promise<LandedJourneys> {
   let combined;
   try {
