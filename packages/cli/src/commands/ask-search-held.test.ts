@@ -1,6 +1,7 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
@@ -195,5 +196,14 @@ describe('the words of an empty answer', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const { out } = await run(['ask', 'search', '--query', 'rewindAl', '--format', 'json']);
     expect(JSON.parse(out)).not.toHaveProperty('membersUnread');
+  });
+
+  it('still answers when the source index does not read, and says so', async () => {
+    const root = checkout(HELD);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(sourceIndexPath(root), 'not a source index');
+    const { code, out } = await run(['ask', 'search', '--query', 'qqzzq']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('run `variance index`');
   });
 });
