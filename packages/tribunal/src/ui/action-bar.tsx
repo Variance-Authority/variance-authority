@@ -14,6 +14,7 @@
 
 import type { ReactElement } from 'react';
 import type { ConcernState } from '../concern-types.js';
+import { useReading } from './reading.js';
 import { useKeys, useKeysOn } from './keys.js';
 import { number } from './text.js';
 
@@ -52,13 +53,13 @@ export function ActionBar({
     if (to !== undefined) onGo?.(to);
   };
 
+  const reading = useReading();
   const [keysOn, flipKeys] = useKeysOn();
   const walking = keysOn && !writing;
   useKeys(
     {
       ...(walking ? { j: () => go(place?.next), k: () => go(place?.previous) } : {}),
-      f: () => onSuspect('open'),
-      i: () => onSuspect('investigating'),
+      ...(reading ? {} : { f: () => onSuspect('open'), i: () => onSuspect('investigating') }),
     },
     keysOn,
   );
@@ -74,22 +75,26 @@ export function ActionBar({
   return (
     <section className="va-actionbar" aria-label="What you can do with this render">
       <div className="va-actionbar-acts">
-        <button
-          type="button"
-          className="va-suspicious"
-          aria-keyshortcuts={f.shortcut}
-          onClick={() => onSuspect('open')}
-        >
-          Looks suspicious {f.hint}
-        </button>
-        <button
-          type="button"
-          aria-keyshortcuts={i.shortcut}
-          onClick={() => onSuspect('investigating')}
-          title="Raise a concern that you are already looking into"
-        >
-          Investigate {i.hint}
-        </button>
+        {reading ? null : (
+          <>
+            <button
+              type="button"
+              className="va-suspicious"
+              aria-keyshortcuts={f.shortcut}
+              onClick={() => onSuspect('open')}
+            >
+              Looks suspicious {f.hint}
+            </button>
+            <button
+              type="button"
+              aria-keyshortcuts={i.shortcut}
+              onClick={() => onSuspect('investigating')}
+              title="Raise a concern that you are already looking into"
+            >
+              Investigate {i.hint}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="va-actionbar-acts">

@@ -12,24 +12,17 @@
  *
  * ```ts
  * import { createDirectoryBucket, openDatabase, serveTribunal } from '@variance-authority/tribunal/node';
- * import { createTribunal } from '@variance-authority/tribunal/worker';
+ * import { createTribunal, declaredPolicy } from '@variance-authority/tribunal/worker';
  *
  * const db = await openDatabase('variance-tribunal.db');
  * const tribunal = createTribunal({
  *   db,
  *   bucket: createDirectoryBucket('variance-tribunal-objects'),
  *   project: 'todomvc',
- *   ingestToken: process.env.INGEST_TOKEN!,
- *   reviewToken: process.env.REVIEW_TOKEN!,
+ *   policy: declaredPolicy(process.env),
  * });
  *
- * await serveTribunal({
- *   tribunal,
- *   host: '127.0.0.1',
- *   port: 7789,
- *   authorize: () => 'review',
- *   tokens: { ingest: process.env.INGEST_TOKEN!, review: process.env.REVIEW_TOKEN! },
- * });
+ * await serveTribunal({ tribunal, host: '127.0.0.1', port: 7789 });
  * ```
  *
  * Or run `variance-authority-tribunal` and configure it with an environment —
@@ -52,4 +45,5 @@ export {
   type TribunalService,
   type TribunalServiceOptions,
 } from './serve.js';
-export { reviewPage, uiAsset, type ReviewPageOptions } from './ui-assets.js';
+export { uiAsset } from './ui-assets.js';
+export { reviewPage, type ReviewPageOptions } from '../ui/page.js';

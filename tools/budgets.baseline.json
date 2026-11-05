@@ -640,7 +640,7 @@
     9
   ],
   "packages/cli/src/commands/push.ts overview": [
-    54
+    53
   ],
   "packages/cli/src/commands/reach-command.ts block": [
     8
@@ -3538,14 +3538,13 @@
     6
   ],
   "packages/tribunal/src/next.ts overview": [
-    33
+    18
   ],
   "packages/tribunal/src/node/bin.ts docblock": [
-    15,
     12
   ],
   "packages/tribunal/src/node/bin.ts overview": [
-    22
+    20
   ],
   "packages/tribunal/src/node/bucket.ts docblock": [
     11
@@ -3557,16 +3556,10 @@
     23
   ],
   "packages/tribunal/src/node/index.ts overview": [
-    30
+    23
   ],
   "packages/tribunal/src/node/serve.ts docblock": [
     11
-  ],
-  "packages/tribunal/src/node/serve.ts overview": [
-    22
-  ],
-  "packages/tribunal/src/node/ui-assets.ts overview": [
-    25
   ],
   "packages/tribunal/src/objects.test.ts block": [
     10
@@ -3827,9 +3820,6 @@
   "packages/tribunal/src/ui/viewer.tsx overview": [
     22
   ],
-  "packages/tribunal/src/version.ts docblock": [
-    22
-  ],
   "packages/tribunal/src/version.ts overview": [
     19
   ],
@@ -3837,7 +3827,7 @@
     11
   ],
   "packages/tribunal/src/worker-entry.ts overview": [
-    22
+    19
   ],
   "packages/tribunal/src/worker-input.ts docblock": [
     12
@@ -3846,7 +3836,7 @@
     31
   ],
   "packages/tribunal/src/worker.ts overview": [
-    44
+    38
   ],
   "packages/tribunal/stories/record.mjs overview": [
     18
@@ -4060,9 +4050,6 @@
   "tools/workspaces.ts docblock": [
     12,
     11
-  ],
-  "tribunal-cloudflare/app/api/[[...path]]/route.ts overview": [
-    21
   ],
   "vitest.config.mts block": [
     25,

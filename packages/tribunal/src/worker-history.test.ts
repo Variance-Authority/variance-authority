@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createTribunal, type Tribunal } from './worker.js';
-import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
 /**
  * Every path the history protocol defines, served by this deployment.
@@ -31,8 +31,7 @@ beforeEach(async () => {
     db,
     bucket,
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW }),
   });
 });
 

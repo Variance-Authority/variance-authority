@@ -1,80 +1,75 @@
 import { Forbidden } from './worker-http.js';
 
 /**
- * Which secret a request presented, whether the deployment's secrets are distinct
- * at all, and whether the one presented may do what was asked.
+ * Who a request is, and whether they may do what was asked.
  *
- * Apart from the router because none of it is about routes. Read together it is
- * the whole authentication story — the check that runs before anything is parsed,
- * the comparison that must not leak, the length below which a shared secret is a
- * public one, and the capability rule that runs *after* a route is chosen. The
- * argument for why there are separate tokens rather than one lives in
- * [`worker.ts`](./worker.ts), where an operator configuring a deployment meets it
- * first.
+ * Apart from the router because none of it is about routes. Who the request is
+ * comes from the deployment's {@link Policy}, before anything is parsed; the
+ * capability rules here run *after* a route is chosen. A person's decision is
+ * written under the name the policy proved, never one a body states.
  */
 
-/** Which secret a request presented, or nothing at all. */
-export type Granted = 'ingest' | 'review' | 'share';
-
-/** The shortest token this will start with. A short shared secret is a public one. */
-const MIN_TOKEN = 16;
+/** What a request may do. `view` reads what review reads and never writes. */
+export type Granted = 'ingest' | 'review' | 'share' | 'view';
 
 /**
- * The one sentence a caller holding neither token ever gets.
+ * Who a request is. Only a reviewer has a name, because only a reviewer's actions
+ * are attributed. `moves: false` is a run that writes itself and no baseline.
+ */
+export type Principal =
+  | { readonly capability: 'ingest'; readonly moves?: false }
+  | { readonly capability: 'share' | 'view' }
+  | { readonly capability: 'review'; readonly name: string };
+
+/**
+ * Who this deployment recognizes. {@link declaredPolicy} builds one from what a
+ * deployer declared, and a host with its own idea of a person writes its own.
+ */
+export interface Policy {
+  /** `null` is a request this deployment does not recognize. */
+  principal(request: Request): Promise<Principal | null> | Principal | null;
+  /** Answers routes the mechanism owns, such as a sign-in, and `null` for the rest. */
+  serve?(request: Request): Promise<Response | null>;
+  /** Where a person goes to become a reviewer. Absent, nothing here signs anybody in. */
+  readonly signIn?: string;
+}
+
+/**
+ * The one sentence a caller who is not recognized ever gets.
  *
- * Identical for a missing token, a wrong token, and a path that does not exist.
- * Any variation between those three is an oracle.
+ * Identical for nothing presented, a wrong credential, and a path that does not
+ * exist. Any variation between those three is an oracle.
  */
 export const UNAUTHENTICATED = 'a valid bearer token is required';
 
-/**
- * The secrets, and nothing else this file has any business reading.
- *
- * Structural rather than `TribunalOptions` on purpose: authentication cannot be
- * made to depend on a project name or a retention window by a later edit, because
- * it cannot see them.
- */
-interface Secrets {
-  readonly ingestToken: string;
-  readonly reviewToken: string;
-  /** Optional: a deployment that shares nothing, or shares only with CI, has no reader to give one to. */
-  readonly shareToken?: string | undefined;
+/** Open to anybody and carries no data: who this request is, and where to become somebody. */
+export const ME_PATH = '/auth/me';
+
+/** What {@link ME_PATH} answers. A page reads this to know whether to offer a decision or a sign-in. */
+export interface Introduced {
+  readonly capability?: Granted;
+  readonly name?: string;
+  readonly signIn?: string;
+}
+
+export function introduced(principal: Principal | null, policy: Policy): Introduced {
+  return {
+    ...(principal === null ? {} : { capability: principal.capability }),
+    ...(principal?.capability === 'review' ? { name: principal.name } : {}),
+    ...(policy.signIn === undefined ? {} : { signIn: policy.signIn }),
+  };
 }
 
 /**
- * Which token was presented, compared in constant time.
+ * Whether two tokens are the same, compared in constant time.
  *
  * Both are hashed to a fixed 32 bytes before comparison and the comparison never
  * exits early. `===` on strings leaks the length of the common prefix through
- * timing; comparing raw strings of different lengths leaks the token's length. A
- * digest makes every comparison the same shape whatever arrives.
- *
- * Every candidate is always checked, even after one matches, so that "which
- * token is this" costs the same whichever it is.
+ * timing; comparing raw strings of different lengths leaks the token's length.
  */
-export async function grant(request: Request, secrets: Secrets): Promise<Granted | null> {
-  const header = request.headers.get('authorization');
-  if (header === null) return null;
-
-  const match = /^Bearer (.+)$/i.exec(header.trim());
-  const presented = match?.[1];
-  if (presented === undefined) return null;
-
-  const digest = await fingerprint(presented);
-  const isIngest = equal(digest, await fingerprint(secrets.ingestToken));
-  const isReview = equal(digest, await fingerprint(secrets.reviewToken));
-  const isShare =
-    secrets.shareToken !== undefined && equal(digest, await fingerprint(secrets.shareToken));
-
-  return isIngest ? 'ingest' : isReview ? 'review' : isShare ? 'share' : null;
-}
-
-async function fingerprint(token: string): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)));
-}
-
-function equal(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.length !== right.length) return false;
+export async function equalTokens(presented: string, held: string): Promise<boolean> {
+  const left = await fingerprint(presented);
+  const right = await fingerprint(held);
   let difference = 0;
   for (let index = 0; index < left.length; index += 1) {
     difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
@@ -82,43 +77,25 @@ function equal(left: Uint8Array, right: Uint8Array): boolean {
   return difference === 0;
 }
 
-export function refuseWeakTokens(secrets: Secrets): void {
-  const named: (readonly [string, string])[] = [
-    ['ingestToken', secrets.ingestToken],
-    ['reviewToken', secrets.reviewToken],
-  ];
-  // Set is set: an empty `shareToken` is a secret nobody has to guess, so it is
-  // refused like a short one rather than read as "no share token".
-  if (secrets.shareToken !== undefined) named.push(['shareToken', secrets.shareToken]);
+async function fingerprint(token: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)));
+}
 
-  for (const [name, token] of named) {
-    if (token.trim().length < MIN_TOKEN) {
-      throw new Error(
-        `\`${name}\` is shorter than ${MIN_TOKEN} characters. This deployment holds every ` +
-          'baseline and every observation a project has produced, and it can promote one; a ' +
-          'guessable shared secret in front of that is not a configuration mistake anybody ' +
-          'notices until it matters',
-      );
-    }
+/**
+ * The name a person's action is written under: the proved one.
+ *
+ * A body may repeat it, and the console does. A body naming somebody else is
+ * refused rather than corrected, because the caller believes something false about
+ * who is signed in and the record must not quietly disagree with them.
+ */
+export function attributed(principal: Principal, stated: unknown, path: string): string {
+  if (principal.capability !== 'review') {
+    throw new Forbidden(`${path} is written by a reviewer, and this request has no name to write`);
   }
-
-  if (secrets.ingestToken === secrets.reviewToken) {
-    throw new Error(
-      'the ingest token and the review token are the same value, so this deployment has one ' +
-        'secret and not two. The separation is the whole point: the ingest token lives in CI ' +
-        'configuration, and approving promotes a baseline — anything that can read a build log ' +
-        'would be able to approve a regression',
-    );
+  if (stated !== undefined && stated !== principal.name) {
+    throw new Forbidden(`${path} is written as ${principal.name}, and this request says ${String(stated)}`);
   }
-
-  if (secrets.shareToken === secrets.ingestToken || secrets.shareToken === secrets.reviewToken) {
-    throw new Error(
-      `the share token is the same value as the ${
-        secrets.shareToken === secrets.ingestToken ? 'ingest' : 'review'
-      } token. The share token exists to be handed to machines that only read a share, and ` +
-        'handing one out would then hand out everything the other token can do',
-    );
-  }
+  return principal.name;
 }
 
 /** Why the share token was refused, whatever else the route wanted. */
@@ -127,13 +104,18 @@ const SHARE_ONLY =
   'the decision history — and never decides, so a machine that only reads cannot write to ' +
   'this deployment or decide on a build';
 
+/** Why a viewer was refused, whatever the route wanted. */
+const VIEW_ONLY = 'This deployment is open to view and a decision has a name on it: sign in to decide';
+
 export function requires(granted: Granted, needed: Granted, path: string): void {
   if (granted === needed) return;
   throw new Forbidden(
-    `${path} is served to the ${needed} token and this request presented the ${granted} one. ` +
+    `${path} takes the ${needed} capability and this request holds ${granted}. ` +
       (granted === 'share'
         ? SHARE_ONLY
-        : needed === 'review'
+        : granted === 'view'
+          ? VIEW_ONLY
+          : needed === 'review'
           ? 'What people decide and write on the review surface, a baseline promoted among it, ' +
             'is not something a build log can do'
           : 'Writing to this deployment is something CI does, not something a reviewer does'),
@@ -141,52 +123,78 @@ export function requires(granted: Granted, needed: Granted, path: string): void 
 }
 
 /**
+ * Who may change what later runs compare against.
+ *
+ * A branch's workflow holds the same proof as the default branch's, and anybody who
+ * can push a branch can write that workflow, so a baseline moved from there would
+ * move it for everybody with no review. Its run is still taken.
+ */
+export function movesBaselines(principal: Principal, path: string): void {
+  requires(principal.capability, 'ingest', path);
+  if (principal.capability === 'ingest' && principal.moves === false) {
+    throw new Forbidden(
+      `${path} changes what later runs compare against, and this workflow ran on a ref other than ` +
+        'the one GITHUB_ACTIONS_BASELINE_REF names',
+    );
+  }
+}
+
+/**
  * The history routes that answer a question rather than record one.
  *
- * The ingest and review tokens may ask. The split everywhere else in the router
+ * Ingest and a reviewer may ask. The split everywhere else in the router
  * is *who is allowed to write*, and these five write nothing: churn, reach,
  * flakiness, the value journey and the last change are derived from rows already
  * recorded. A reviewer looking at a build needs exactly these to know whether the
  * difference in front of them is the third this week or the first this year, and
- * the browser that draws that page holds the review token — so refusing them
- * would mean a review surface that can approve a change it cannot put in context.
+ * refusing them would mean a review surface that can approve a change it cannot
+ * put in context.
  *
  * It stays a rule with a name rather than an omitted check, because the next
  * history route added is a write far more often than it is a read, and the
  * default has to be the strict one.
  */
 export function readable(granted: Granted, path: string): void {
-  if (granted !== 'ingest') requires(granted, 'review', path);
+  if (granted !== 'ingest') seen(granted, path);
 }
 
 /**
- * Who may read what review settled: the review token and the share token.
+ * What a reviewer reads, which is what a viewer reads: an opened deployment shows
+ * the evidence and only the deciding is closed.
+ */
+export function seen(granted: Granted, path: string): void {
+  if (granted !== 'view') requires(granted, 'review', path);
+}
+
+/**
+ * Who may read what review settled: everybody but ingest.
  *
  * The record of decisions is what an agent or a developer's machine asks after
  * the fact — was this subject approved, by whom, and why — and those readers
- * hold the share token, which cannot decide. The review token reads it because
- * it wrote it. The ingest token is refused: CI holds it, and a build log is not
- * a reader of reviews, so the token most likely to leak gains nothing here.
+ * hold the share token, which cannot decide. A reviewer reads it because they
+ * wrote it, a viewer because the deployment opened it. Ingest is refused: CI holds
+ * it, and a build log is not a reader of reviews, so the credential most likely to
+ * leak gains nothing here.
  *
  * Only reads pass through this rule. A route that writes a decision or a concern
  * keeps {@link requires} with `review`, so the share token still never decides.
  */
 export function attested(granted: Granted, path: string): void {
-  if (granted === 'review' || granted === 'share') return;
+  if (granted === 'review' || granted === 'share' || granted === 'view') return;
   throw new Forbidden(
-    `${path} is read with the review token or the share token, and this request presented the ` +
-      'ingest one. CI holds the ingest token, and what reviewers decided is not for a build log to read',
+    `${path} is read by a reviewer or with the share token, and this request presented an ingest ` +
+      'credential. CI holds that, and what reviewers decided is not for a build log to read',
   );
 }
 
 /**
- * Who may open a share: the ingest token reads and writes it, the share token
- * only reads it, and the review token does neither.
+ * Who may open a share: ingest reads and writes it, the share token only reads
+ * it, and a person does neither.
  *
- * The review token is refused because it is held by people and by the browser
- * that draws the review surface, and a share is the record runs read and write.
- * Letting it read would make the share token pointless for the one case it is
- * for — a reader that must not be able to decide on a build.
+ * A person is refused because a share is the record runs read and write, and a
+ * reviewer's browser has no use for it. Letting them read would make the share
+ * token pointless for the one case it is for — a reader that must not be able to
+ * decide on a build.
  */
 export function sharable(granted: Granted, writes: boolean, path: string): void {
   if (granted === 'ingest') return;
@@ -196,6 +204,6 @@ export function sharable(granted: Granted, writes: boolean, path: string): void 
       ? `${path} is written with the ingest token, and the share token only reads. Publishing ` +
           'a line is something CI does'
       : `${path} is a share, served to the ingest token and the share token, and this request ` +
-          'presented the review token. The review token is for people deciding on builds',
+          'presented neither. A person reads the review surface',
   );
 }

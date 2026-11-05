@@ -5654,6 +5654,7 @@ __metadata:
       optional: true
   bin:
     variance-authority-tribunal: ./dist/node/bin.js
+    variance-authority-tribunal-provision: ./dist/provision/bin.js
   languageName: unknown
   linkType: soft
 

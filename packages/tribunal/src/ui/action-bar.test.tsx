@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { queueOf } from './rail.js';
+import { Reading } from './reading.js';
 import { SubjectPanel, type Place } from './subject.js';
 
 /**
@@ -373,5 +374,51 @@ describe('queueOf', () => {
     ]);
 
     expect(order.map((each) => each.subject)).toEqual(['large', 'small', 'fresh']);
+  });
+});
+
+describe('a reader decides nothing', () => {
+  it('draws no move that writes, and keeps the walk', async () => {
+    const client = clientThat();
+    await act(async () =>
+      root.render(
+        <Reading.Provider value={true}>
+          <SubjectPanel
+            client={client}
+            reviewer="nobody"
+            build="ci-1"
+            subject={subject('Card/Default')}
+            place={undefined}
+            onDecided={() => undefined}
+          />
+        </Reading.Provider>,
+      ),
+    );
+
+    const labels = [...host.querySelectorAll('button')].map((button) => button.textContent ?? '');
+    for (const word of ['Approve', 'Reject', 'Looks suspicious', 'Investigate']) {
+      expect(labels.filter((label) => label.includes(word))).toEqual([]);
+    }
+  });
+
+  it('still shows the decision somebody took', async () => {
+    await act(async () =>
+      root.render(
+        <Reading.Provider value={true}>
+          <SubjectPanel
+            client={clientThat()}
+            reviewer="nobody"
+            build="ci-1"
+            subject={subject('Card/Default', {
+              decision: { decision: 'approved', by: 'thearnica', at: '2026-06-01T12:00:00.000Z' },
+            })}
+            place={undefined}
+            onDecided={() => undefined}
+          />
+        </Reading.Provider>,
+      ),
+    );
+
+    expect(host.textContent).toContain('approved by thearnica');
   });
 });

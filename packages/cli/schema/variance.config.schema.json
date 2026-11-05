@@ -224,7 +224,7 @@
       "description": "Who moves an artifact to the next machine. `actions-cache`: the CI host, from job to job, with the path and key `variance carry` prints. `share`: variance itself, through the `share` section, where a checkout can read it too."
     },
     "secret": {
-      "description": "A value the config declares and does not contain. Either the string itself, or `{ \"env\": \"NAME\" }` naming the environment variable that holds it — a declaration, so the config still determines the run completely while the secret stays out of version control.",
+      "description": "A value the config declares and does not contain. Either the string itself, or `{ \"env\": \"NAME\" }` naming the environment variable that holds it — a declaration, so the config still determines the run completely while the secret stays out of version control. Or `{ \"github-actions\": { \"audience\": \"…\" } }`, the token the runner issues to the job, so nothing is stored at all.",
       "oneOf": [
         { "type": "string", "minLength": 1 },
         {
@@ -236,6 +236,26 @@
               "type": "string",
               "minLength": 1,
               "description": "The environment variable holding the value. An unset or empty variable is refused by this name, not by the field."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["github-actions"],
+          "properties": {
+            "github-actions": {
+              "description": "The token the runner issues to this job, asked for when the value is used, so nothing is stored.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["audience"],
+              "properties": {
+                "audience": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The audience the runner's identity token is issued for: the one the tribunal declares in `GITHUB_ACTIONS_AUDIENCE`. The job needs `id-token: write` in its `permissions`."
+                }
+              }
             }
           }
         }

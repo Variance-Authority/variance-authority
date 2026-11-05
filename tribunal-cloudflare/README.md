@@ -2,8 +2,8 @@
 
 This directory is a deployable **review console** that is never itself deployed.
 It is a complete [vinext](https://vinext.dev/) app on a Worker — D1 for rows, R2
-for images, Cloudflare Access for the people who decide — and it exists to be
-read, run locally, and copied. Its `wrangler.jsonc` carries a placeholder
+for images, GitHub or Cloudflare Access for the people who decide — and it exists
+to be read, run locally, and copied. Its `wrangler.jsonc` carries a placeholder
 `database_id`, so nothing here points at a database that exists; its dependency
 on [`@variance-authority/tribunal`](../packages/tribunal/README.md) is a `link:`
 into this repository, so it always builds against the package as it stands here
@@ -23,22 +23,23 @@ be the baseline the next run is judged against.
 
 ## The files
 
-Eight files are the whole app; everything else is
+Ten files are the whole app; everything else is
 [`@variance-authority/tribunal`](../packages/tribunal/README.md).
 
 | file | what it is |
 | --- | --- |
-| `app/api/[[...path]]/route.ts` | the package's whole router, mounted once, plus this deployment's authorization policy |
-| `app/tribunal.ts` | builds the service from the Worker's bindings, once per isolate |
-| `app/access.ts` | verifies the Cloudflare Access JWT and answers who is asking |
+| `app/api/[[...path]]/route.ts` | the package's whole router, mounted once at `/api` |
+| `app/auth/[[...path]]/route.ts` | the same router at the root of the host, for the sign-in GitHub returns to |
+| `app/routes.ts` | builds both mounts on the first request, so a refused declaration answers 500 with its sentence |
+| `app/tribunal.ts` | builds the service from the Worker's bindings and what you declared, once per isolate |
 | `app/page.tsx` | the review page, rendered per request because who is asking is a per-request fact |
 | `app/review.tsx` | the client component, holding no credential |
 | `app/layout.tsx`, `app/env.ts`, `app/cloudflare.d.ts` | shell, binding types |
 | `wrangler.jsonc` | the deployment descriptor you edit |
 
-Everything under `/api` is the package's own router. The service a run talks to
-and the pages a reviewer reads are one deployment, and no route is reimplemented
-here to fall behind the package's.
+Everything under `/api` and `/auth` is the package's own router. The service a run
+talks to and the pages a reviewer reads are one deployment, and no route is
+reimplemented here to fall behind the package's.
 
 ## Running this copy
 
@@ -72,49 +73,51 @@ yarn wrangler d1 migrations apply variance-tribunal --local \
   --persist-to .wrangler/local --config dist/server/wrangler.json
 yarn wrangler dev --config dist/server/wrangler.json --persist-to .wrangler/local \
   --var PROJECT:todomvc \
-  --var INGEST_TOKEN:local-ingest-token-0123 --var REVIEW_TOKEN:local-review-token-0123
+  --var INGEST_CREDENTIALS:token --var INGEST_TOKEN:local-ingest-token-0123 \
+  --var VIEW:public
 ```
 
 `PROJECT` scopes every row and object key — one deployment holds one project, and
-`todomvc` above is just a name for the suite you point at it. There is no Access
-in front of a local Worker, so `/` refuses to draw the review surface and the two
-bearer tokens are how the API is exercised.
+`todomvc` above is just a name for the suite you point at it. The bearer token is
+how the API is exercised, and `VIEW:public` draws the review surface at `/` with
+nothing to decide with. Deciding takes `github` or `access` with their values,
+because `loopback` is the Node service's alone. With neither list declared, `/api`
+answers 500 with a sentence naming them.
 
 ## Your own deployment
 
 A deployment of yours is a small project in your own git that installs
 `@variance-authority/tribunal` from npm instead of linking it, and the package's
-README carries that route end to end — a `worker.ts` of two lines, a
-`wrangler.jsonc`, and the resources below:
+README carries that route end to end — one command that writes the
+`wrangler.jsonc`, makes the resources below and deploys:
 [Deploy it on Cloudflare](../packages/tribunal/README.md#deploy-it-on-cloudflare).
 That page also covers the other deployment, a single Node process on your own
 machine that needs no Cloudflare account at all.
 
-Copy from here when you want the console's pages rather than the bare API: `app/`
-is the part the package does not ship, and the `link:` in `package.json` becomes
-a caret range on the current version of `@variance-authority/tribunal` in yours.
+Copy from here when you want the review pages in an app you build rather than the
+packaged Worker: `app/` is the part the package does not ship, and the `link:` in
+`package.json` becomes a caret range on the current version of
+`@variance-authority/tribunal` in yours.
 
 ### The resources, in order
 
 ```bash
-yarn wrangler d1 create variance-tribunal      # put the printed id in wrangler.jsonc
-yarn wrangler r2 bucket create variance-tribunal
-
-yarn build
-yarn wrangler d1 migrations apply variance-tribunal --remote \
-  --config dist/server/wrangler.json
-
-yarn wrangler secret put INGEST_TOKEN          # ≥16 characters
-yarn wrangler secret put REVIEW_TOKEN          # ≥16 characters, and not the other one
-yarn wrangler secret put SHARE_TOKEN           # optional: ≥16 characters, and neither of the others
-
-yarn deploy
+yarn variance-authority-tribunal-provision --config wrangler.jsonc --mount /api --skip-deploy
+yarn build && yarn deploy
 ```
 
-The tokens are secrets, not `vars`: they are the deployment's capabilities,
-and `wrangler.jsonc` is in git. `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are `vars`
-and are safe there — a team domain and an audience tag are public identifiers,
-and neither authorizes anything on its own. `RETENTION_DAYS`, if you set it,
+Provisioning writes the database id and what it declares into `wrangler.jsonc`;
+commit them. It makes the database and the bucket, declares `github-actions` for
+runs and `github` for people, registers the GitHub App and mints the session key:
+[Deploy it on Cloudflare](../packages/tribunal/README.md#deploy-it-on-cloudflare)
+has the whole list. `--mount /api` says where this app serves the API, and
+`--skip-deploy` leaves publishing to the build above.
+
+`GITHUB_CLIENT_SECRET`, `GITHUB_SESSION_SECRET` and any token are secrets, not
+`vars`: they are the deployment's capabilities, and `wrangler.jsonc` is in git.
+The two lists and the values beside them are `vars` and are safe there — a client
+id, a repository name, a team domain and an audience tag are public identifiers,
+and none of them authorizes anything on its own. `RETENTION_DAYS`, if you set it,
 bounds how many days of builds `POST /review/sweep` keeps; unset, the package's
 default applies.
 
@@ -127,68 +130,71 @@ Worker's would be a second database wearing the same name.
 
 ## Who is allowed what
 
-`app/api/[[...path]]/route.ts` is this deployment's policy, and the package
-supplies no default for it, because a default is a published approve button. It
-is ten lines:
+`vars` in `wrangler.jsonc` is this deployment's policy: `app/tribunal.ts` passes
+them to `declaredPolicy`, and the package declares nothing for you, because a
+default is a published approve button. Provisioning writes these two:
 
-```ts
-authorize: async (request: Request) => {
-  const header = request.headers.get('authorization') ?? '';
-  const bearer = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null;
-  if (bearer !== null && bearer === TOKENS.ingest) return 'ingest';
-  if (bearer !== null && bearer === TOKENS.review) return 'review';
-  if (bearer !== null && TOKENS.share !== undefined && bearer === TOKENS.share) return 'share';
-  return (await identify(request)) === null ? null : 'review';
-},
+```jsonc
+"vars": {
+  "PROJECT": "todomvc",
+  "INGEST_CREDENTIALS": "github-actions",
+  "REVIEW_CREDENTIALS": "github"
+}
 ```
 
 | The request carries | It gets | Because |
 | --- | --- | --- |
-| `Authorization: Bearer <INGEST_TOKEN>` | ingest | CI writes builds and cannot decide them |
-| `Authorization: Bearer <REVIEW_TOKEN>` | review | a machine acting for the operator — a script approving on `main` |
+| `Authorization: Bearer <a token a runner signed>` | ingest | with `github-actions` declared, a workflow in `GITHUB_ACTIONS_REPOSITORIES` writes builds and cannot decide them |
+| `Authorization: Bearer <INGEST_TOKEN>` | ingest | with `token` declared, CI writes builds and cannot decide them |
 | `Authorization: Bearer <SHARE_TOKEN>` | share | a machine that reads the share at `/api/share` and writes nothing |
-| A valid Access JWT | review | a person, with a name to put on the decision |
+| A GitHub session | review | with `github` declared, a person with write access to `GITHUB_REPOSITORY`, with a login to put on the decision |
+| A valid Access JWT | review | with `access` declared, a person with an email to put on the decision |
+| Nothing, with `VIEW` set to `public` | view | anybody reads what a reviewer reads and decides nothing |
 | Anything else | 401 | |
 
-A caller cannot choose its own capability: `createTribunalRoutes`, the package
-function that turns that policy plus the service into `GET`/`POST`/`PUT`/`HEAD`
-handlers, replaces the authorization header with the token the answer implies, so
-a browser sending `Bearer <anything>` is still whatever the policy above says it
-is.
+A caller cannot choose its own capability: a bearer is read as a machine and
+nothing else, so a browser sending `Bearer <anything>` is refused or is what that
+token proves, even with `VIEW` set to `public`.
 
-The page at `/` is drawn for an Access identity and never for a bearer. A
-rendered review surface has to put a reviewer's name on a decision, and a token
-has none to give — it can be held by anything the operator handed it to. That is
-also why no page ever carries `REVIEW_TOKEN`: a token in a document is a token in
-everybody's devtools, and this one promotes baselines.
+The page at `/` is drawn for a reviewer or a viewer and never for a bearer. With
+`github` declared, a person who is not recognized goes to the sign-in; anybody
+else gets a page naming `REVIEW_CREDENTIALS` and `VIEW`. A rendered review surface
+has to put a reviewer's name on a decision, and a token has none to give — it can
+be held by anything the operator handed it to. That is also why no page has a
+credential in it: a token in a document is a token in everybody's devtools.
 
 ## Access
 
-Put an Access application in front of the deployment, then set both of:
+`access` is the other way to name a reviewer, and the values are your own:
+provisioning registers no App for it and makes no Access application. Put an
+Access application in front of the deployment, add `access` to
+`REVIEW_CREDENTIALS`, and set both of:
 
 - `ACCESS_TEAM_DOMAIN` — e.g. `your-team.cloudflareaccess.com`, where the signing
   keys are published.
 - `ACCESS_AUD` — the application's audience tag, so a token minted for another
   application in the same team is refused here.
 
-Both live in `vars` in `wrangler.jsonc`, where they ship empty.
+Both live in `vars` in `wrangler.jsonc`.
 
-`app/access.ts` verifies the JWT's RS256 signature against those keys and checks
+`declaredPolicy` verifies the JWT's RS256 signature against those keys and checks
 `aud`, `exp` and `iss`. It does not read
 `Cf-Access-Authenticated-User-Email`, which is a header and therefore something a
-request can simply claim.
+request can simply claim. The decision is written under the JWT's email, so a
+service token, which has none, decides nothing.
 
-With either variable unset, `/` explains that it has no way to know who is asking
-and draws no review surface. The API is unaffected: a bearer still works, which
-is the same shape the single-process Node deployment has when it is bound to
-anything but loopback.
+With `access` declared and either variable unset, `/api` answers 500 with a
+sentence naming it.
 
 ## Pointing a run at it
 
 In the suite you are capturing — not in this directory — `baselines.kind` becomes
-`"remote"` and the endpoint is the deployment's URL with `/api`. The ingest token
-goes here, never the review one: a run records candidates and does not decide
-them.
+`"remote"` and the endpoint is the deployment's URL with `/api`. A run records
+candidates and does not decide them, so it presents an ingest credential. With
+`github-actions` declared that is the token its runner signs: the workflow needs
+`id-token: write` under `permissions`, `audience` is `GITHUB_ACTIONS_AUDIENCE`, and
+only `GITHUB_ACTIONS_BASELINE_REF` moves a baseline. With `token` declared, it is
+`{ "env": "VARIANCE_INGEST_TOKEN" }`.
 
 ```jsonc
 // variance.config.json
@@ -205,7 +211,7 @@ them.
   "baselines": {
     "kind": "remote",
     "endpoint": "https://variance-tribunal-console.example.workers.dev/api",
-    "token": "the ingest token"
+    "token": { "github-actions": { "audience": "https://variance-tribunal-console.example.workers.dev" } }
   },
   "report": "out/report.json"
 }

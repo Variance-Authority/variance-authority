@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,7 +28,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = join(ROOT, 'packages/tribunal/dist/ui/browser-entry.js');
-const OUT = join(ROOT, 'packages/tribunal/dist/ui/review.bundle.js');
+const OUT = join(ROOT, 'packages/tribunal/dist/public/ui/review.js');
+const FONTS = join(ROOT, 'packages/tribunal/fonts');
 
 // A missing entry means `tsc` did not emit, which is a build-ordering problem and
 // not something to paper over with an empty bundle: the failure would arrive as a
@@ -47,4 +48,8 @@ await build({
   define: { 'process.env.NODE_ENV': '"production"' },
 });
 
-console.log(`tribunal-ui: packages/tribunal/dist/ui/review.bundle.js`);
+// Laid out as the browser asks for it, so a Worker's `assets` directory is this
+// folder and an upgrade copies nothing.
+cpSync(FONTS, join(dirname(OUT), 'fonts'), { recursive: true });
+
+console.log(`tribunal-ui: packages/tribunal/dist/public`);

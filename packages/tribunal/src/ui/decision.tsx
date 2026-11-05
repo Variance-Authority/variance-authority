@@ -6,11 +6,12 @@
  * live and the reason stands beside them. {@link decidableOf} is the one reading
  * of what each button may do: the rows on a change page take it from here, so the
  * two pages cannot disagree about a render, and the batch settles only what it
- * can approve.
+ * can approve. A reader sees the decision taken and is offered neither.
  */
 
 import { useId, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
+import { useReading } from './reading.js';
 import { when } from './text.js';
 
 /** What a render lets a reviewer do, and the sentence for what it does not. */
@@ -47,6 +48,7 @@ export function DecisionControls({
   readonly busy: boolean;
   readonly onDecide: (decision: Decision) => void;
 }): ReactElement {
+  const reading = useReading();
   const decidable = decidableOf(subject);
   const decided = subject.decision;
   const id = useId();
@@ -60,30 +62,34 @@ export function DecisionControls({
           {decided.note === undefined ? null : <> — {decided.note}</>}
         </p>
       )}
-      {decidable.why === undefined ? null : (
-        <p className="va-note" id={id}>
-          {decidable.why}
-        </p>
+      {reading ? null : (
+        <>
+          {decidable.why === undefined ? null : (
+            <p className="va-note" id={id}>
+              {decidable.why}
+            </p>
+          )}
+          <button
+            type="button"
+            className="va-approve"
+            disabled={busy || !decidable.approve}
+            aria-describedby={described}
+            title={decidable.approve ? 'Make this build’s candidate the baseline' : undefined}
+            onClick={() => onDecide('approved')}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            className="va-reject"
+            disabled={busy || !decidable.reject}
+            aria-describedby={described}
+            onClick={() => onDecide('rejected')}
+          >
+            Reject
+          </button>
+        </>
       )}
-      <button
-        type="button"
-        className="va-approve"
-        disabled={busy || !decidable.approve}
-        aria-describedby={described}
-        title={decidable.approve ? 'Make this build’s candidate the baseline' : undefined}
-        onClick={() => onDecide('approved')}
-      >
-        Approve
-      </button>
-      <button
-        type="button"
-        className="va-reject"
-        disabled={busy || !decidable.reject}
-        aria-describedby={described}
-        onClick={() => onDecide('rejected')}
-      >
-        Reject
-      </button>
     </div>
   );
 }

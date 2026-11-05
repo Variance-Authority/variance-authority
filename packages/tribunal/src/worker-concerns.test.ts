@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TRIBUNAL_API, createTribunal, type Tribunal } from './worker.js';
 import { ingest } from './__fixtures__/review.js';
-import { createMemoryR2, createSqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1 } from './testing.js';
 import { createReviewClient } from './ui/client.js';
 
 const INGEST = 'ingest-token-0123456789';
@@ -19,8 +19,7 @@ beforeEach(async () => {
     db: await createSqliteD1(),
     bucket: createMemoryR2(),
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW }),
   });
   expect((await call('/review/builds', { token: INGEST, body: ingest() })).status).toBe(201);
 });
@@ -52,7 +51,7 @@ describe('the concern routes', () => {
 
     const moved = await call(`/review/concerns/${concern.id}`, {
       token: REVIEW,
-      body: { state: 'resolved', by: 'anton', note: 'Intended' },
+      body: { state: 'resolved', by: 'marina', note: 'Intended' },
     });
     expect(moved.status).toBe(200);
 
@@ -133,7 +132,7 @@ describe('the concern routes', () => {
     });
 
     const raised = await client.raise({ ...RAISE, region: { x: 1, y: 2, width: 3, height: 4 }, evidence: ['baseline'] });
-    const moved = await client.moveConcern(raised.id, { state: 'investigating', by: 'anton', note: 'Looking' });
+    const moved = await client.moveConcern(raised.id, { state: 'investigating', by: 'marina', note: 'Looking' });
     const listed = await client.concerns({ seenIn: 'ci-1001', state: 'investigating' });
 
     expect(moved.events.map((event) => event.state)).toEqual(['open', 'investigating']);

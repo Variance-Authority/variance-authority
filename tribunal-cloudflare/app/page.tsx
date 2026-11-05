@@ -1,37 +1,36 @@
+import type { Introduced } from '@variance-authority/tribunal/worker';
 import { headers } from 'next/headers';
-import { identify } from './access';
+import { redirect } from 'next/navigation';
 import { Review } from './review';
+import { tribunal } from './tribunal';
 
 /**
  * Rendered per request, because who is asking is a per-request fact.
  *
- * There is no anonymous view of this page. A reader with no Access identity is
- * not shown a read-only docket, because the only thing that would buy is a
- * second code path that has to stay in step with the first one about which
- * evidence is public — and none of it is.
+ * The question is the service's own `/auth/me`, so this page cannot disagree with
+ * the routes about who may read or decide. A reader the deployment opened to is
+ * drawn the same surface with nothing to decide with.
  */
 export const dynamic = 'force-dynamic';
 
 export default async function ReviewPage(): Promise<React.ReactElement> {
-  const identity = await identify(new Request('https://review.invalid/', { headers: await headers() }));
+  const asked = new Request('https://review.invalid/auth/me', { headers: await headers() });
+  const answer = await tribunal().fetch(asked);
+  if (!answer.ok) throw new Error(`/auth/me answered ${answer.status}`);
+  const me = (await answer.json()) as Introduced;
 
-  if (identity === null) {
+  if (me.capability === undefined && me.signIn !== undefined) redirect(`/api${me.signIn}?return=/`);
+  if (me.capability !== 'review' && me.capability !== 'view') {
     return (
       <main className="va-review">
         <h1>No reviewer</h1>
         <p>
-          This deployment draws an approve button, so it serves the review surface only to somebody
-          Cloudflare Access has authenticated. Either this request carried no Access assertion, or
-          <code>ACCESS_TEAM_DOMAIN</code> and <code>ACCESS_AUD</code> are not set on the Worker — in
-          which case nothing here can tell one visitor from another, and the button stays undrawn.
-        </p>
-        <p>
-          Ingest is unaffected: <code>variance run</code> holds the ingest token and posts to{' '}
-          <code>/api</code> without ever reaching this page.
+          This deployment recognizes nobody here. <code>REVIEW_CREDENTIALS</code> says who may decide
+          and <code>VIEW</code> whether anybody else may read.
         </p>
       </main>
     );
   }
 
-  return <Review reviewer={identity.email} />;
+  return <Review reviewer={me.name} />;
 }

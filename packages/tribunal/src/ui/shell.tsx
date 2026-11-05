@@ -7,8 +7,9 @@
  * to learn twice.
  */
 
-import { Fragment, type ReactElement, type ReactNode } from 'react';
+import { Fragment, useContext, type ReactElement, type ReactNode } from 'react';
 import { Mark } from './mark.js';
+import { SignIn } from './reading.js';
 import { hrefOf, type Route } from './route.js';
 import { segments } from './text.js';
 
@@ -119,6 +120,7 @@ export function Topbar({
   readonly subtitle?: string | undefined;
   readonly children?: ReactNode;
 }): ReactElement {
+  const signIn = useContext(SignIn);
   return (
     <header className="va-topbar">
       <Mark />
@@ -137,6 +139,11 @@ export function Topbar({
         {subtitle === undefined ? null : <span className="va-topbar-sub">{subtitle}</span>}
       </span>
       {children}
+      {signIn === undefined ? null : (
+        <a href={signIn} className="va-mode">
+          Sign in to decide
+        </a>
+      )}
     </header>
   );
 }

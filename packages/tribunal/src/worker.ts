@@ -24,7 +24,18 @@ import { createD1Backend } from './history.js';
 import { BaselineMoved, ReviewError, createReviewStore } from './review.js';
 import { createBucketStore } from './store.js';
 import { VERSION_PATH, serviceVersion } from './version.js';
-import { UNAUTHENTICATED, grant, readable, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
+import {
+  ME_PATH,
+  UNAUTHENTICATED,
+  attributed,
+  introduced,
+  movesBaselines,
+  readable,
+  requires,
+  seen,
+  type Policy,
+  type Principal,
+} from './worker-auth.js';
 import {
   BadRequest,
   FoldedKey,
@@ -70,48 +81,41 @@ import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share
  * `@variance-authority/history/client`, and an `http` share whose endpoint is
  * `<deployment>/share` all reach this deployment unchanged.
  *
- * ## The Worker never calls anything
+ * ## The Worker calls only who it must to know a person
  *
  * No status check, no pull-request comment, no webhook, no telemetry. The
- * pipeline reports to the server and the server reports to nobody. That is the
- * project's standing constraint, and it is also what keeps this deployment free
- * of a credential for somebody else's system: there is nothing here to steal that
- * is useful anywhere but here.
+ * pipeline reports to the server and the server reports to nobody. What goes out
+ * is what recognizing a caller needs and nothing else: an issuer's public keys,
+ * and GitHub during a sign-in. The token a sign-in yields is discarded, so there is
+ * still nothing here to steal that is useful anywhere but here.
  *
- * ## Three tokens, and what each one is for
+ * ## Four capabilities, and what each one is for
  *
- * `ingest` is written into CI configuration and can write builds, baselines,
- * history and the share. `review` belongs to people and can read the review
- * surface and decide. They are separate because deciding *promotes a baseline*,
- * and one secret doing both means anything that can read a CI log can approve a
- * regression.
+ * `ingest` belongs to CI and can write builds, baselines, history and the share.
+ * `review` belongs to a named person and can read the review surface and decide.
+ * They are separate because deciding *promotes a baseline*, and one credential
+ * doing both means anything that can read a CI log can approve a regression.
  *
- * `share` is optional, reads, and never decides: the share, and what review
- * settled — the changelog, the decision history and the concerns. It is for a
- * reader that should have a run's derived record and the verdicts on it and no
- * more, such as a developer's machine or an agent, and would otherwise be handed a
- * token that can write or approve to get them.
+ * `share` reads and never decides: the share, and what review settled. `view` reads
+ * what a reviewer reads and writes nothing; it exists for a deployment that opened
+ * itself to anybody. Who holds which is the {@link Policy}'s to say.
  *
- * No two may be equal, and construction refuses it. A deployment that set two to
- * the same value would satisfy every check in this file while having one secret
- * fewer than it says, and nothing in a request would show it.
+ * ## Recognition happens before routing
  *
- * ## Authentication happens before routing
- *
- * A caller holding neither token gets one sentence, whatever it asked for,
+ * A caller the policy does not recognize gets one sentence, whatever it asked for,
  * including for paths that do not exist. The alternative — 404 for unknown paths,
- * 401 for known ones — hands an unauthorised caller a map of the API, and on a
- * subject-scoped path it answers "that subject exists" to somebody holding
- * nothing.
+ * 401 for known ones — hands them a map of the API, and on a subject-scoped path it
+ * answers "that subject exists" to somebody holding nothing. Two things answer
+ * first and carry no data: the routes the policy serves itself, and {@link ME_PATH}.
  *
  * The *capability* check happens after routing, and deliberately: it can only be
- * reached by someone already holding a valid token, so telling them which one a
- * route wants reveals nothing they could not learn by trying.
+ * reached by someone already recognized, so telling them what a route wants reveals
+ * nothing they could not learn by trying.
  *
  * ## What is next door
  *
- * The token comparison and the capability rule are in
- * [`worker-auth.ts`](./worker-auth.ts), the share in
+ * Who may do what is in [`worker-auth.ts`](./worker-auth.ts), who a request is in
+ * [`policy.ts`](./policy.ts), the share in
  * [`worker-share.ts`](./worker-share.ts), the reads of what review settled in
  * [`worker-attested.ts`](./worker-attested.ts); the refusals and the readers every route
  * validates in are in [`worker-http.ts`](./worker-http.ts) and
@@ -122,22 +126,13 @@ import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share
 export interface TribunalOptions extends TribunalBindings {
   /** Scopes every row and object. One deployment, several repositories. */
   readonly project: string;
-  /** Written into CI. Writes builds, baselines and history. At least 16 characters. */
-  readonly ingestToken: string;
-  /** Held by people. Reads the review surface and decides. At least 16 characters. */
-  readonly reviewToken: string;
-  /**
-   * Handed to machines that only read: the share under `/share/`, the changelog
-   * and the decision history. It never decides. At least 16 characters when set;
-   * unset, only the ingest token opens the share.
-   */
-  readonly shareToken?: string;
+  /** Who this deployment recognizes. There is no default: {@link declaredPolicy} reads one from what was declared. */
+  readonly policy: Policy;
   /**
    * Days of builds to keep when `POST /review/sweep` is called.
    *
-   * Applied on request rather than on a timer, because a Worker has no timer and
-   * this package will not invent a cron the operator did not ask for. Wire it to a
-   * scheduled trigger, or call it from a CI job, or never.
+   * Applied by {@link Tribunal.sweep}, which the packaged Worker's cron calls, and
+   * on request for a host with no schedule of its own.
    */
   readonly retentionDays?: number;
   readonly now?: () => Date;
@@ -149,11 +144,13 @@ export interface TribunalOptions extends TribunalBindings {
  * Deliberately nothing else. A handler is what a Worker exports, what a Next
  * route handler is, and what `node:http` can be adapted to in a dozen lines — so
  * the three deployments differ in their wiring and not in their router. It is
- * also the reason a `Tribunal` cannot be asked for its own tokens: a value with
- * one method has nothing to leak when it is logged.
+ * also the reason a `Tribunal` cannot be asked for its own secrets: a value of
+ * two methods has nothing to leak when it is logged.
  */
 export interface Tribunal {
   fetch(request: Request): Promise<Response>;
+  /** Removes what retention says has expired. A deployment's schedule calls this, and no person has to. */
+  sweep(): Promise<unknown>;
 }
 
 /**
@@ -176,17 +173,8 @@ const BASELINE_PUT_PATH = '/baseline/put';
 const CACHE_FIND_PATH = '/cache/find';
 const CACHE_PUT_PATH = '/cache/put';
 
-/**
- * Build the service over a database, a bucket and its tokens.
- *
- * Refuses a token under 16 characters and refuses two identical ones, here
- * rather than on the first request: a deployment whose ingest token also
- * promotes baselines is a misconfiguration that would otherwise be discovered by
- * the build log that used it.
- */
+/** Build the service over a database, a bucket and who it recognizes. */
 export function createTribunal(options: TribunalOptions): Tribunal {
-  refuseWeakTokens(options);
-
   const baselines = createBucketStore(options);
   const history = createD1Backend(options.db);
   const review = createReviewStore(options);
@@ -198,20 +186,19 @@ export function createTribunal(options: TribunalOptions): Tribunal {
 
   return {
     async fetch(request: Request): Promise<Response> {
-      const granted = await grant(request, options);
-      if (granted === null) {
-        return json(401, { error: UNAUTHENTICATED }, { 'www-authenticate': 'Bearer' });
-      }
-
-      let url: URL;
+      // Inside the `try`: an issuer that cannot be reached is a failure to report,
+      // and never a caller refused.
       try {
-        url = new URL(request.url);
-      } catch {
-        return json(400, { error: `"${request.url}" is not a request URL` });
-      }
+        const served = await options.policy.serve?.(request);
+        if (served !== null && served !== undefined) return served;
 
-      try {
-        return await route(surfaces, granted, url, request);
+        const principal = await options.policy.principal(request);
+        const url = new URL(request.url);
+        if (url.pathname === ME_PATH) return json(200, introduced(principal, options.policy));
+        if (principal === null) {
+          return json(401, { error: UNAUTHENTICATED }, { 'www-authenticate': 'Bearer' });
+        }
+        return await route(surfaces, principal, url, request);
       } catch (error) {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
@@ -228,6 +215,8 @@ export function createTribunal(options: TribunalOptions): Tribunal {
         return json(500, { error: error instanceof Error ? error.message : String(error) });
       }
     },
+
+    sweep: () => review.sweep(retentionDays),
   };
 }
 
@@ -243,10 +232,11 @@ interface Surfaces {
 
 async function route(
   surfaces: Surfaces,
-  granted: Granted,
+  principal: Principal,
   url: URL,
   request: Request,
 ): Promise<Response> {
+  const granted = principal.capability;
   const path = url.pathname;
 
   // --------------------------------------------------------------- version
@@ -283,7 +273,7 @@ async function route(
   }
 
   if (path === BASELINE_PUT_PATH) {
-    requires(granted, 'ingest', path);
+    movesBaselines(principal, path);
     requireMethod(request, 'POST');
     const body = await asRecordBody(request);
     const raster = rasterFrom(body['raster']);
@@ -306,7 +296,8 @@ async function route(
   }
 
   if (path === CACHE_PUT_PATH) {
-    requires(granted, 'ingest', path);
+    // A run takes a hit as its own render, so a raster written here reaches a baseline.
+    movesBaselines(principal, path);
     requireMethod(request, 'POST');
     const body = await asRecordBody(request);
     const raster = rasterFrom(body['raster']);
@@ -329,7 +320,7 @@ async function route(
   }
 
   if (path === APPROVALS_PATH) {
-    requires(granted, 'ingest', path);
+    movesBaselines(principal, path);
     requireMethod(request, 'POST');
     await surfaces.history.appendApprovals(await asApprovals(request));
     return new Response(null, { status: 204 });
@@ -397,7 +388,7 @@ async function route(
   }
 
   // ---------------------------------------------------------------- review
-  if (path === CONCERNS_PATH || path.startsWith(`${CONCERNS_PATH}/`)) return surfaces.concerns(granted, url, request);
+  if (path === CONCERNS_PATH || path.startsWith(`${CONCERNS_PATH}/`)) return surfaces.concerns(principal, url, request);
   if (path === '/review/builds' && request.method === 'POST') {
     // The one review route the ingest token owns, and the only one it owns:
     // posting a build is what CI does, and everything else on this surface is
@@ -419,7 +410,7 @@ async function route(
   }
 
   if (path === '/review/builds') {
-    requires(granted, 'review', path);
+    seen(granted, path);
     requireMethod(request, 'GET');
     const limit = optional(url, 'limit');
     return json(200, { builds: await surfaces.review.builds(limit === undefined ? undefined : count(limit)) });
@@ -439,7 +430,7 @@ async function route(
 
   const build = /^\/review\/builds\/([^/]+)$/.exec(path);
   if (build?.[1] !== undefined) {
-    requires(granted, 'review', path);
+    seen(granted, path);
     requireMethod(request, 'GET');
     const detail = await surfaces.review.build(decodeURIComponent(build[1]));
     return detail === null
@@ -451,19 +442,21 @@ async function route(
   if (decision?.[1] !== undefined && decision[2] !== undefined) {
     requires(granted, 'review', path);
     requireMethod(request, 'POST');
+    const body = await asRecordBody(request);
     return json(
       200,
       await surfaces.review.decide({
         build: decodeURIComponent(decision[1]),
         subject: decodeURIComponent(decision[2]),
-        ...asDecisionBody(await asRecordBody(request)),
+        ...asDecisionBody(body),
+        by: attributed(principal, body['by'], path),
       }),
     );
   }
 
   const image = /^\/review\/builds\/([^/]+)\/subjects\/([^/]+)\/(before|after|diff)\.png$/.exec(path);
   if (image?.[1] !== undefined && image[2] !== undefined && image[3] !== undefined) {
-    requires(granted, 'review', path);
+    seen(granted, path);
     requireMethod(request, 'GET');
     const bytes = await surfaces.review.image(
       decodeURIComponent(image[1]),
@@ -490,4 +483,6 @@ async function route(
 
 /** Re-exported so an entry can recognise a store failure, and read the contract the router answers with. */
 export { RasterStoreError };
+export { declaredPolicy, type PolicyOptions } from './policy.js';
+export type { Introduced, Policy, Principal } from './worker-auth.js';
 export { TRIBUNAL_API, VERSION_PATH, serviceVersion, type ServiceVersion } from './version.js';
