@@ -141,6 +141,7 @@ describe('which credential a request is read as', () => {
     ['a sibling subdomain', { 'sec-fetch-site': 'same-site' }],
     ['a browser that names only its origin', { origin: 'https://attacker.example' }],
     ['a sandboxed frame', { origin: 'null' }],
+    ['the same host over another scheme', { origin: 'http://tribunal.example' }],
   ])('does not take a write from %s on a reviewer\'s cookie', async (_, headers) => {
     const policy = declaredPolicy(ACCESS_VALUES, transport());
     const token = await edge.sign({ iss: TEAM, aud: 'application-tag', exp: NOW + 300, email: 'a@example.com' });

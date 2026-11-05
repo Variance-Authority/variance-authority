@@ -48,7 +48,7 @@ export function crossSite(request: Request): boolean {
   if (site !== null) return site !== 'same-origin' && site !== 'none';
   const origin = request.headers.get('origin');
   if (origin === null) return false;
-  return !URL.canParse(origin) || new URL(origin).host !== new URL(request.url).host;
+  return origin !== new URL(request.url).origin;
 }
 
 /**
