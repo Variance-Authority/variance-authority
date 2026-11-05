@@ -3082,8 +3082,9 @@ a sentence changes meaning the day the wording improves.
 On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
-[`carry`](#what-the-next-job-reads) names, and accepts on a label or a tick in
-the comment. `v1` is the major of its inputs and outputs:
+[`carry`](#what-the-next-job-reads) names, and accepts when the job sets its
+`accept` input, which the workflow ties to a label. `v1`
+is the major of its inputs and outputs:
 
 ```yaml
 permissions:
@@ -3101,6 +3102,8 @@ steps:
 
 It runs the CLI from your `node_modules`, whatever version your lockfile holds,
 and downloads nothing during the run.
+[The whole job](https://variance-authority.dev/docs/placement#the-whole-job)
+adds Node, the browser and the accept.
 Its inputs are in its
 [`action.yml`](https://github.com/Variance-Authority/action/blob/main/action.yml).
 
