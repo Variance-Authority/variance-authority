@@ -374,11 +374,10 @@ describe('every package says what it is', () => {
  * harness the same day it was repaired for a different one.
  *
  * The version is read from the lockfile rather than from `package.json`, because
- * `^1.55.0` is the range and the resolution is what gets installed. A range is
- * what the repository runs: the exact pin beside it is the case that holds the
- * oldest Playwright, which no image serves.
+ * `^1.55.0` is the range and the resolution is what gets installed.
  */
 describe('a pinned browser image matches the playwright it runs', () => {
+  // A range, because the exact pin beside it is the oldest case's, which no image serves.
   const resolved = /^"playwright@npm:[^"]*\^[^"]*":\n  version: (\S+)$/m.exec(
     readFileSync(join(ROOT, 'yarn.lock'), 'utf8'),
   )?.[1];

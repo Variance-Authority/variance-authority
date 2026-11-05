@@ -36,7 +36,10 @@ const browser = ((): string | undefined => {
 })();
 
 if (browser === undefined) {
-  unbuilt('\ncases/playwright-oldest-case: skipped.\n  no browser — npx playwright install chromium\n');
+  unbuilt(
+    '\ncases/playwright-oldest-case: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 let directory: string;
