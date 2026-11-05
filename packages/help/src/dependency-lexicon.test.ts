@@ -150,3 +150,21 @@ it('reads a namespace a declaration assigns to its export however the statement 
   const squeeze = queryDependencyLexicon(root, 'squeeze', undefined, true)?.shown[0];
   expect(squeeze).toMatchObject({ kind: 'function', line: 3, signature: 'function squeeze(): boolean;' });
 });
+
+it('names the function a package hands out, not an earlier one spelled the same', async () => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
+  const root = mkdtempSync(join(tmpdir(), 'va-lexicon-fixture-'));
+  execFileSync('git', ['init', '--quiet', root]);
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { 'same-kit': '1.0.0' } }));
+  execFileSync('git', ['add', '.'], { cwd: root });
+  const installed = join(root, 'node_modules', 'same-kit');
+  mkdirSync(installed, { recursive: true });
+  writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'same-kit', version: '1.0.0', types: 'index.ts' }));
+  writeFileSync(join(installed, 'index.ts'), 'function same() {}\nexport = function same(value: string) { return value; };\n');
+  await updateSourceIndex(root);
+  await refreshDependencyLexicon(root);
+
+  expect(queryDependencyLexicon(root, '', undefined, false, undefined, 100)?.shown).toEqual([
+    expect.objectContaining({ line: 2, signature: 'function same(value: string)' }),
+  ]);
+});

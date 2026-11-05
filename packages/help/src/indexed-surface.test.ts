@@ -72,6 +72,20 @@ describe('published names from indexed declaration facts', () => {
     expect([...names('entry.ts').get('default')!.keys()]).toEqual(['function']);
   });
 
+  it('binds a handed-out function to its own declaration, not an earlier one spelled the same', async () => {
+    const text = 'function same() {}\nmodule.exports = function same(value) { return value; };\n';
+    await writeFile(join(root, 'handed.js'), text);
+    const offering: Offering = {
+      name: 'handed',
+      manifest: 'package.json',
+      declared: {},
+      entrypoints: [{ subpath: '.', source: 'handed.js' }],
+    };
+
+    const names = await indexedNames(root, [offering], new Map([['handed.js', { parsed: parsed('handed.js', text), targets: [] }]]));
+    expect(names('handed.js').get('default')?.get('function')).toMatchObject({ line: 2, signature: 'function same(value)' });
+  });
+
   it('keeps an anonymous default value without inventing a signature', async () => {
     const text = "export default 'example' as const;";
     await writeFile(join(root, 'literal.ts'), text);

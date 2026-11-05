@@ -62,12 +62,14 @@ function declaration(
   };
 }
 
-function localDeclarations(at: string, source: IndexedSource, text: string): Map<string, Declaration> {
-  const local = new Map<string, Declaration>();
-  for (const symbol of source.parsed.symbols ?? []) {
-    if (!local.has(symbol.name)) local.set(symbol.name, declarationOfSymbol(at, symbol, text));
-  }
-  return local;
+/**
+ * The declaration an export on `line` binds. A name is a spelling and may be
+ * declared twice, `const Kind` and `type Kind`, or `function same` and the
+ * `function same` a module hands out: an export takes the declaration on its
+ * own line, else the first.
+ */
+export function boundSymbol(named: readonly SourceSymbol[], line: number): SourceSymbol | undefined {
+  return named.find((symbol) => symbol.line === line) ?? named[0];
 }
 
 function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): Declaration {
@@ -172,7 +174,7 @@ export async function indexedNames(
       reached.set(file, found);
       return found;
     }
-    const local = localDeclarations(file, source, text);
+    const local = Map.groupBy(source.parsed.symbols ?? [], (symbol) => symbol.name);
 
     for (const published of source.parsed.exports ?? []) {
       const specifier = published.from;
@@ -212,9 +214,9 @@ export async function indexedNames(
         // the import it names, `logger` as `const logger: typeof OriginalLogger`.
         // Only a name bound here and declared nowhere here goes to its import.
         const bound = published.local ?? name;
-        const value = local.get(bound);
-        if (value !== undefined) {
-          add(found, name, { ...value, declared: name });
+        const symbol = boundSymbol(local.get(bound) ?? [], published.line);
+        if (symbol !== undefined) {
+          add(found, name, { ...declarationOfSymbol(file, symbol, text), declared: name });
           continue;
         }
         const imported = source.parsed.requests.flatMap((request, index) =>

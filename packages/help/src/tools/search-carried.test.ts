@@ -113,3 +113,14 @@ describe('the opening over a question no name writes', () => {
     expect(none).toContain('writes `quantum banana file`. `packages` lists every entrypoint');
   });
 });
+
+describe('a name written in two rows', () => {
+  it('answers through the row carrying the question, though the ranking prefers a shorter doc', async () => {
+    const said = await ask({
+      'src/colours.ts': Array.from({ length: 30 }, (_, at) => `/** Holds amber. */\nexport const shade${at} = ${at};\n`).join(''),
+      'src/long.ts': `/** Mixes amber with cobalt and violet, ${'at great length and over many words, '.repeat(12)}until they settle. */\nexport const pigment = 1;\n`,
+      'src/short.ts': '/** Holds violet. */\nexport const pigment = 2;\n',
+    }, 'amber cobalt violet quantum');
+    expect(said).toMatch(/^pigment .*\[holds: (?=.*amber)(?=.*cobalt)(?=.*violet)/mu);
+  });
+});

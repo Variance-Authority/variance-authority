@@ -5,8 +5,8 @@ import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
-import { carriesMost } from './carried.js';
-import { countedOf, describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type RowOrder } from './described.js';
+import { carriedThrough, carriesMost } from './carried.js';
+import { countedOf, describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type Reached, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
@@ -293,7 +293,9 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const everywhere = area === undefined
     ? described
     : [...(describedNames(index, query, undefined, already, shownRowOrder(index, undefined, undefined), everyDeclaration) ?? []), ...everyDeclaration];
-  const carried = described?.filter(carriesMost(asked, (everywhere ?? []).map(countedOf), index.nameCount));
+  const carries = carriesMost(asked, (everywhere ?? []).map(countedOf), index.nameCount);
+  // Each of a name's rows is asked, not only the row the ranking would show.
+  const carried = described?.flatMap((one): Reached | readonly Reached[] => ('tied' in one ? carriedThrough(one, carries) ?? [] : carries(one) ? [one] : []));
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the

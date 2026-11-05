@@ -3,7 +3,7 @@ import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { saidAt } from './as-read.js';
-import { holdersOf } from './carried.js';
+import { holdersOf, representedBy } from './carried.js';
 import { declaredMatch } from './declared.js';
 import type { Said } from './held-sentence.js';
 import type { DeclaredRead, FileMatch } from './search-matches.js';
@@ -132,7 +132,15 @@ export type ReachedName = Omit<DescribedName, 'near'> & Counted & {
    * The rows it can be shown through: the one it is weighed through, then each
    * other row with a doc weighing as much, by {@link RowOrder}.
    */
-  readonly tied: readonly Pick<DescribedName, 'through' | 'words' | 'signed' | 'docLength'>[];
+  readonly tied: readonly RowPick[];
+  /** Every row it could be shown through, the best first. */
+  readonly picks: readonly RowPick[];
+};
+
+/** One row a name could be shown through. */
+export type RowPick = Pick<DescribedName, 'through' | 'words' | 'named' | 'signed' | 'docLength'> & {
+  /** What the row weighs against the question. */
+  readonly weighs: number;
 };
 
 /** What one reached thing counts for in every word's rarity and the mean doc length: the same whichever row it is weighed through. */
@@ -232,14 +240,11 @@ export function describedNames(
   const weight = weightOf([...candidates, ...others.map(countedOf)]);
   return candidates.map(({ name, rows, holds, docLengths }): ReachedName => {
     const own = wordsOf(named.get(name));
-    const picks = rows.map((row) => ({
-      through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)),
-    }));
-    const chosen = picks.reduce((best, one) => ((weight(best) - weight(one) || order(one.through, best.through)) < 0 ? one : best));
-    // A row with no doc writes no phrase, so it never comes before the row chosen.
-    const most = weight(chosen);
-    const alike = picks.filter((one) => one !== chosen && one.docLength !== undefined && weight(one) === most);
-    return { name, ...chosen, rows: rows.length, rank: index.rank(name), holds, docLengths, tied: [chosen, ...alike.sort((a, b) => order(a.through, b.through))] };
+    const picks = rows.map((row) => {
+      const pick = { through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)) };
+      return { ...pick, weighs: weight(pick) };
+    }).sort((a, b) => b.weighs - a.weighs || order(a.through, b.through));
+    return { name, ...representedBy(picks), rows: rows.length, rank: index.rank(name), holds, docLengths, picks };
   });
 }
 

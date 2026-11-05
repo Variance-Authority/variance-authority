@@ -1,4 +1,5 @@
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
+import type { ReachedName, RowPick } from './described.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -29,4 +30,19 @@ export function carriesMost(
   const rareOf = (word: string): number => rarity(population, holders.get(word) ?? 0);
   const whole = heldWeight(asked, rareOf, () => 1);
   return ({ words }) => 2 * heldWeight(words, rareOf, () => 1) >= whole;
+}
+
+/**
+ * The row of `picks`, best first, a name is shown through, and the rows level
+ * with it. A row with no doc writes no phrase, so it never comes before the row chosen.
+ */
+export function representedBy(picks: readonly RowPick[]): RowPick & { readonly tied: readonly RowPick[] } {
+  const chosen = picks[0] as RowPick;
+  return { ...chosen, tied: picks.filter((one) => one === chosen || (one.docLength !== undefined && one.weighs === chosen.weighs)) };
+}
+
+/** `one` shown through the best of its rows that `carries` admits; `undefined` when none does. */
+export function carriedThrough(one: ReachedName, carries: (row: { readonly words: readonly string[] }) => boolean): ReachedName | undefined {
+  const picks = one.picks.filter(carries);
+  return picks.length === 0 ? undefined : { ...one, ...representedBy(picks) };
 }
