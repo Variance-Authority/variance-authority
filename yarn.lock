@@ -12679,6 +12679,7 @@ __metadata:
     unified: "npm:^11.0.0"
     vite: "npm:^6.4.3"
     vitest: "npm:^5.0.5"
+    yaml: "npm:^2.9.0"
   languageName: unknown
   linkType: soft
 
