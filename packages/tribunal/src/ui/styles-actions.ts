@@ -16,7 +16,8 @@ export const ACTION_STYLES = `
 .va-subject-decision .va-approve { background: var(--va-good); border-color: var(--va-good); color: #ffffff; }
 .va-subject-decision .va-approve:disabled { background: var(--va-sunken); border-color: var(--va-line-firm); color: var(--va-ink-3); }
 .va-subject-decision .va-note, .va-subject-decision .va-decision { margin: 0; }
-.va-subject-says { flex: none; padding: 0 1rem; }
+.va-subject-decision .va-decision { max-height: 4.5em; overflow-wrap: anywhere; overflow-y: auto; }
+.va-subject-says { flex: none; max-height: 25vh; overflow-wrap: anywhere; overflow-y: auto; padding: 0 1rem; }
 .va-subject-says > * { margin: 0.5rem 0; }
 .va-actionbar { align-items: center; background: var(--va-surface); border-top: 1px solid var(--va-line); display: flex; flex: none; flex-wrap: wrap; gap: 0.6rem 1.2rem; justify-content: space-between; min-width: 0; padding: 0.6rem 1rem; }
 .va-actionbar-acts { align-items: center; display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 0.4rem; min-width: 0; }

@@ -394,3 +394,9 @@ export const PanelNoImageKept = panel({
 });
 
 export const PanelNoDocument = panel({ ...composed, approvable: false });
+
+/** A note has no length limit, and the picture and the buttons stay on the page under it. */
+export const PanelLongNote = panel({
+  ...composed,
+  decision: { decision: 'rejected', by: 'marina', at: '2026-01-01T00:00:00.000Z', note: 'The footer moved. '.repeat(200) },
+});
