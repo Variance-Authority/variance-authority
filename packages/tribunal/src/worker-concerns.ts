@@ -23,16 +23,16 @@ import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, s
  * reads what a reviewer suspects without any path to raise or move a concern.
  * Ingest reads none of it, because what a concern holds is what a person wrote, and
  * an ingest credential lives where a failing job prints its environment.
- *
- * The read and the raise sit on different paths because Cloudflare Access tells
- * paths apart and not methods: a machine reads past Access, and everything a
- * reviewer writes sits under a path Access holds, so removing a reviewer ends it.
  */
 
 /** Every route in this file is this path or under it, and nothing else in the router is. */
 export const CONCERNS_PATH = '/review/concerns';
 
-/** Where a reviewer raises a concern, under {@link CONCERNS_PATH} and apart from its read. */
+/**
+ * Where a reviewer raises a concern, apart from its read because Cloudflare Access
+ * tells paths apart and not methods: a machine reads past Access, and everything a
+ * reviewer writes sits under a path Access holds, so removing a reviewer ends it.
+ */
 export const RAISE_PATH = `${CONCERNS_PATH}/raise`;
 
 export type ConcernRoute = (principal: Principal, url: URL, request: Request) => Promise<Response>;
