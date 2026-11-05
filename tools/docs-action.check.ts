@@ -159,6 +159,7 @@ describe('a printed workflow asks the action for what it declares', () => {
 interface Job {
   readonly if?: unknown;
   readonly concurrency?: Node;
+  readonly steps: readonly Node[];
 }
 
 interface Workflow {
@@ -198,6 +199,21 @@ describe('the whole job keeps a person’s decision', () => {
   // One pull request's runs one at a time, so two never write the comment or the store at once.
   it('keys the group on the pull request', () => {
     expect(printedJob().jobs.variance.concurrency?.['group']).toBe('variance-${{ github.ref }}');
+  });
+
+  // `queue: max` keeps every push to `main`, and GitHub does not guarantee their
+  // order. A run writes the store `main` compares against, so it asks for the
+  // head once it holds the group: a newer run that went first has moved it.
+  it('lets a push write the store only while it is the head of main', () => {
+    const steps = printedJob().jobs.variance.steps;
+    const head = steps.findIndex((step) => step['id'] === 'head');
+    const action = steps.findIndex((step) => String(step['uses']).startsWith('Variance-Authority/action@'));
+
+    expect(head).toBeGreaterThanOrEqual(0);
+    expect(head).toBeLessThan(action);
+    expect(steps[head]).toMatchObject({ if: "github.event_name == 'push'" });
+    expect(steps[head]?.['run']).toContain('$GITHUB_SHA');
+    expect(steps[action]).toMatchObject({ if: "steps.head.outputs.superseded != 'true'" });
   });
 
   it('reports to a merge queue, which waits on a check nothing else would start', () => {
