@@ -93,17 +93,28 @@ lines. `variance index
 step's log is where its lines are read, and nothing may outlive the step that
 saves the cache.
 
-One index works at a time on a machine. The update and the follow-ups each use
-every core, so two checkouts indexing at once would each take longer than they
-do one after the other. The second waits for the first and prints that on
-stderr:
+The checkouts of one repository, its primary checkout and its worktrees, index
+one at a time. The update and the follow-ups each use every core, so two
+checkouts indexing at once would each take longer than they do one after the
+other. The second waits for the first and prints that on stderr:
 
 ```text
-waiting for process 48213, which is indexing /home/you/other-checkout: one index at a time uses this machine's cores
+waiting for process 48213, which is indexing /home/you/other-checkout: an index uses every core, so checkouts of one repository take turns
 ```
 
 The turn is a lock the operating system holds for the process, so a process
-that crashes lets it go.
+that crashes lets it go. It is a file in the primary checkout's [cache](cache.md),
+and a worktree takes its turn there though it has a cache of its own. A worktree
+of a bare repository, or of one made with `--separate-git-dir`, has no primary
+checkout variance can find, so it waits for no other checkout. Two repositories
+index at once, even when they share a cache: that is slower, not wrong. For the
+same reason a file system that refuses the lock does not stop the index, as when
+a worktree cannot write its primary checkout's cache. It runs, and prints why
+on stdout after the index's own line:
+
+```text
+no index turn at <path>: <reason>, so this index may run beside another of this repository
+```
 
 When the file system refuses the index itself, the command prints
 `source index not written: <reason>, at <path>` and exits `2`. Every reader of
@@ -209,9 +220,10 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 ```
 
 A git worktree keeps its own index under
-`test-selection/<primary digest>/.work/<digest>/`, beneath the checkout it was
-cut from. Its first `variance index` starts from a copy of that checkout's
-index and reads only the files that differ between the two.
+`test-selection/<primary digest>/.work/<digest>/` in its own cache, where
+`<primary digest>` names the checkout it was cut from. Its first `variance
+index` starts from a copy of that checkout's index and reads only the files that
+differ between the two.
 `sourceIndexPath(root)` returns the path for a checkout. Cache the whole
 `<cache>` directory and you do not need to compute either.
 
