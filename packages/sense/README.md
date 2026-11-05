@@ -1164,8 +1164,9 @@ it, or left a region of it with no code the map carries back, the build stops
 and names the file and the region. A `load` hook counts as a transform: one that
 returned rewritten text with no map is named the same way, under a build and a
 dev server alike. A map that names the file but carries a text for it that is
-not the file on disk is refused, and so is an empty map returned with
-rewritten code where the file has more than one region. Text the transforms
+not the file on disk, on a line a region other than the module's sits on, is
+refused, and so is an empty map returned with rewritten code where the file has
+more than one region. Text the transforms
 wrote from a file the instrumenter can parse, that it cannot, stops the build
 too. An import of a variant of a file, such as `?raw` or a single-file
 component's `?vue&type=script`, is placed where its map leads back to the file;
