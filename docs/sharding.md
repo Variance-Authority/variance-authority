@@ -241,8 +241,11 @@ jobs:
 
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
 all selects. Both jobs read the record from the share, so the suite needs
-`"carry": "share"`: with no record to read, every test file runs. In CI a
-selection needs the [source index](source-index.md), so each job builds it first.
+`"carry": "share"`: with no record to read, every test file runs. Each shard here
+asks the share itself, so a publish between two shards' starts can split them
+differently; [When nothing is recorded](#when-nothing-is-recorded) shows how to
+fetch the record once. In CI a selection needs the
+[source index](source-index.md), so each job builds it first.
 [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
 
