@@ -114,20 +114,6 @@ A test file the record has not seen yet, such as one added on your branch,
 does not make the shard place by count. It is priced at the median of the files
 the record has, so new files do not all land on one shard.
 
-## Run a failed shard again
-
-A shard run again selects what it selected the first time. Selection takes the
-commit, the shard's number and the record, and the first two do not change on a
-re-run. The record stays the one `plan` handed, because the re-run downloads the
-artifact the first attempt uploaded, and `carry receive` lays it down however
-far your mainline has moved. Without it the shard would read a newer record, and
-it could take files no other shard took or leave out the one that failed.
-
-The artifact has to outlast the run. GitHub re-runs a job for 30 days, so
-`retention-days: 30` keeps it for all of them. A shard whose artifact is gone
-stops at the download, rather than place its files by another record. Run the
-whole build again then, `plan` included.
-
 ## Choose how many shards
 
 `variance shards` reads the same record and answers how many shards to start.
@@ -274,6 +260,20 @@ same record. In CI a selection needs the
 [source index](source-index.md), so each job builds it first.
 [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
+
+## Run a failed shard again
+
+A shard run again selects what it selected the first time. Selection takes the
+commit, the shard's number and the record, and the first two do not change on a
+re-run. The record stays the one `plan` handed, because the re-run downloads the
+artifact the first attempt uploaded, and `carry receive` lays it down however
+far your mainline has moved. Without it the shard would read a newer record, and
+it could take files no other shard took or leave out the one that failed.
+
+The artifact has to outlast the run. GitHub re-runs a job for 30 days, so
+`retention-days: 30` keeps it for all of them. A shard whose artifact is gone
+stops at the download, rather than place its files by another record. Run the
+whole build again then, `plan` included.
 
 ## Every shard computes the same split
 
