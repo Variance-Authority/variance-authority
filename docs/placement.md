@@ -1,21 +1,10 @@
 # Where baselines live
 
 Approved images have to sit somewhere between runs, one per **subject** — the
-named UI state a baseline belongs to, such as a story or a test — and
-there are three places to put them: committed to the repository, tracked
-through git-LFS, or stored by a service. They differ in what a clone costs, who
-can approve a change, and what happens to the repository as history grows. This
-page is the reference for choosing one while you set a project up.
-
-A committed baseline is reviewed as a file in a pull request, so it is named
-for what it is an image of: the story or test, and its variant. A change to the
-primary button lists `Ui/Button/Primary-chromium.webp` and its `.json` record,
-and nothing about the machine that painted it. That machine — renderer, browser
-engine version, platform, device scale factor and fonts — is written into the
-record. An image painted on another machine is still compared, and the field
-that differs is named as the cause, so where a baseline is stored has no say in
-a verdict. What placement decides is **who has the bytes when the next run
-starts**, and what that costs.
+named UI state a baseline belongs to, such as a story or a test. Where they sit
+has no say in a verdict. It decides **who has the bytes when the next run
+starts**, and what that costs. This page is the reference for choosing while you
+set a project up.
 
 There are three answers and no default. Set `baselines.kind` explicitly.
 
@@ -25,12 +14,12 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 | `lfs` | the same files, through the LFS filter | `git lfs install` | LFS storage and bandwidth |
 | `remote` | nothing in the repository | a deployment and a token | a network hop, and a run that cannot call it stops |
 
-`directory` has one more arrangement: a root git ignores, which your CI keeps in
-its cache between runs. Nothing is committed, so nothing lands in git history,
-and the cache decides how long the baselines last. A pull request goes red on a
-change and green on a label, and [the whole job](#the-whole-job) prints that
-workflow. [Who accepts a change](#who-accepts-a-change) compares all three
-arrangements by who approves.
+`directory` can also use a root git ignores, which your CI keeps in its cache, so
+nothing lands in git history and a pull request goes red on a change and green
+on a label: [the whole job](#the-whole-job) prints that workflow. [Who accepts a
+change](#who-accepts-a-change) compares all three by who approves.
+
+## Durable baselines
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -67,6 +56,15 @@ identity is one of them — an empty root on a clean checkout is a store nobody 
 same as a store nobody has written to yet.
 
 ## What a committed baseline is called
+
+A committed baseline is reviewed as a file in a pull request, so it is named
+for what it is an image of: the story or test, and its variant. A change to the
+primary button lists `Ui/Button/Primary-chromium.webp` and its `.json` record,
+and nothing about the machine that painted it. That machine — renderer, browser
+engine version, platform, device scale factor and fonts — is written into the
+record. An image painted on another machine is still compared, and the field
+that differs is named as the cause, so where a baseline is stored has no say in
+a verdict.
 
 Under `directory` and `lfs`, `baselines.path` names each file. It is a template
 under `baselines.root`, the store adds `.webp` and `.json`, and when you set none
@@ -297,8 +295,8 @@ the action sends the run there. The
 ### The CI cache
 
 The baseline root is ignored by git on purpose, and the CI job restores it from
-the runner's cache before every run. Without the restore, a run starts with an
-empty root and reports every subject `new`, as [Committed means
+the runner's cache before every run, so the cache decides how long the baselines
+last. Without the restore, a run starts with an empty root and reports every subject `new`, as [Committed means
 committed](#committed-means-committed) describes.
 
 A reviewer reads the report and adds the `variance: accept` label. That starts a
@@ -417,9 +415,9 @@ label, so `labeled` here means this one, and the step that takes it off means th
 next change needs the next label.
 
 A subject with no baseline reports `new` and the check stays green, so a pull
-request is green until the first push to `main` records a store. For a [served route](start-routes.md), replace
-`npm run build-storybook` with the step that builds or starts what the collector
-reads.
+request is green until the first push to `main` records a store. For a [served
+route](start-routes.md), replace `npm run build-storybook` with the step that
+builds or starts what the collector reads.
 
 ### Git
 
