@@ -134,28 +134,106 @@ directory.
 
 ## In CI
 
-Cache the whole directory, restore it to the same absolute path it was
-written from, because `<repository>` is a digest of that path, and save it only
-from your main branch:
+This workflow runs your whole suite on each push to your main branch and saves
+what it recorded. On a pull request it restores that recording and runs only the
+test files the change needs. [Wrap your runner configuration](test-an-edit.md#wrap-once-then-set-one-variable)
+first, then use this workflow with your own install and test commands in place
+of `npm ci` and `npx vitest run`, and your own main branch in place of `main`:
 
 ```yaml
-- uses: actions/cache/restore@v4
-  with:
-    path: node_modules/.cache/variance-authority
-    key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
-    restore-keys: |
-      variance-${{ runner.os }}-${{ runner.arch }}-
-# … your tests …
-- if: github.ref == 'refs/heads/main'
-  uses: actions/cache/save@v4
-  with:
-    path: node_modules/.cache/variance-authority
-    key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+name: tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules/.cache/variance-authority
+          key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: |
+            variance-${{ runner.os }}-${{ runner.arch }}-
+      - run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            npx variance index
+            export VARIANCE_AUTHORITY_SINCE=
+          fi
+          npx vitest run
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/variance-authority
+          key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
 ```
+
+Once your main branch has saved a recording, a pull request prints how many test
+files it kept before the first one starts:
+
+```text
+variance-authority: selected 1 of 2
+```
+
+Until then, or once the cache has dropped the recording, a pull request restores
+nothing and every test file runs. A failing run on your main branch saves
+nothing, so pull requests keep selecting from the last recording saved. Five
+things in the workflow decide that line:
+
+- **The full history is fetched.** The recording names the commit it was made at,
+  and the run reads what changed since that commit. A shallow checkout does not
+  have it: every test file runs, then the run exits `1` with a message that names
+  the commit.
+- **The restore comes after the install.** `npm ci` deletes `node_modules`, and
+  this directory is inside it.
+- **A pull request builds the source index.** Selection reads the
+  [source index](source-index.md), and in CI a run that finds none fails and names
+  the missing step. `npx variance index` builds it after the restore.
+- **Only a pull request sets the variable.** `VARIANCE_AUTHORITY_SINCE` selects
+  whenever it is set, even empty, so the shell exports it for a pull request and
+  your main branch runs the whole suite.
+- **The checkout path is the same on every run.** `<repository>` is a digest of
+  the absolute path of the checkout. A GitHub-hosted runner keeps that path from
+  run to run. If yours changes it, the run finds no recording and every test file
+  runs.
 
 With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
+
+Four things in your repository change what you write:
+
+- **Jest with nothing to run.** A change no test ran, such as a README edit,
+  prints `selected none of 2, so none of them runs`, and a lone Jest project
+  then exits `1`. Set `passWithNoTests: true` in the object you wrap. It applies
+  to your main branch's run too, where a suite that finds no test then passes.
+  Vitest exits `0` here.
+- **A Jest preset.** The wrap gives a configuration with no `transform` of its
+  own Jest's default, so `ts-jest` and any other preset's transformer never runs.
+  Copy the preset's `transform` into the object you wrap, as
+  [the Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) shows.
+- **Declared suites.** Once `variance.config.json` declares
+  [`suites`](../packages/sense/README.md#where-the-snapshot-lives-and-when-it-is-rebuilt), a wrap that names none
+  stops before the run starts, so name one:
+  `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
+  inside this directory, and the workflow does not change. For a suite that
+  declares `"carry": "actions-cache"`,
+  [`variance carry`](../packages/cli/README.md#what-the-next-job-reads) can name
+  the path and the key instead of this workflow.
+- **One configuration per package.** With no suites declared, every wrapped
+  configuration in the checkout writes to one recording at the repository root.
+  Each run adds its own test files to it, and the path above covers them all.
+  Run them in one job: a cache key is saved once, so a second job's save under
+  the same key keeps nothing.
 
 A pull request saves nothing here because `variance review` compares your
 change with the cases the last run replaced, which the suite keeps in this
