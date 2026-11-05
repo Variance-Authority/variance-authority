@@ -25,7 +25,7 @@ export type Since = (walk: Walk, since: string) => Promise<readonly string[]>;
 
 /** The part of `covering-since.ts` {@link sinceInProcess} calls. */
 interface CoveringSince {
-  listedChange(since: string): Promise<unknown>;
+  listedChange(since: string, root: string): Promise<unknown>;
   changeSince(listed: unknown, since: string, root: string, at: string): Promise<ReadonlyMap<string, readonly LineRange[]>>;
 }
 
@@ -50,7 +50,7 @@ export async function sinceInProcess(walk: Walk, since: string): Promise<readonl
   const from = process.cwd();
   process.chdir(walk.root);
   try {
-    const lines = await changeSince(await listedChange(since), since, walk.root, commit!);
+    const lines = await changeSince(await listedChange(since, walk.root), since, walk.root, commit!);
     walk.actions.push({ action: 'since in-process', since, lines: [...lines] });
     return entered(coveringChange(index, lines));
   } finally {

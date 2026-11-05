@@ -65,6 +65,18 @@ async function aClone() {
 const namesOf = (answer: Covering) => answer.changed?.flatMap((change) => change.regions.flatMap((region) => region.tests.map((test) => test.id)));
 
 describe('a change the record already holds', () => {
+  it('reads the change in the checkout `--root` names, from any directory', async () => {
+    const { clone } = await aClone();
+    await writeFile(join(clone, 'src/total.ts'), EDITED);
+    await git(clone, 'commit', '--quiet', '-am', 'the change');
+    await recordIn(clone, await git(clone, 'rev-parse', 'HEAD'), ['test/total.test.ts'], [DISCOUNTS]);
+    process.chdir(home);
+
+    const answer = await asked([...since, '--root', clone]);
+
+    expect(namesOf(answer)).toContain(DISCOUNTS.id);
+  });
+
   it('answers for a committed change the record ran, the tree clean', async () => {
     const { clone } = await aClone();
     await writeFile(join(clone, 'src/total.ts'), EDITED);
@@ -100,7 +112,7 @@ describe('a change the record already holds', () => {
       process.chdir(dir);
       return { dir, at: await git(dir, 'rev-parse', 'HEAD') };
     }
-    const answered = async (dir: string, at: string) => changeSince(await listedChange('mainline'), 'mainline', dir, at);
+    const answered = async (dir: string, at: string) => changeSince(await listedChange('mainline', dir), 'mainline', dir, at);
 
     it('names a line the change wrote where the record holds it, past lines the tree put above it', async () => {
       const branch = held.map((line, at) => (at === 4 ? 'the change' : line));
@@ -192,7 +204,7 @@ describe('a file the mainline renamed since the record', () => {
     });
     await writeFile(join(clone, 'src/sum.ts'), `// the mainline's line\n${EDITED}`);
 
-    const lines = await changeSince(await listedChange('origin/main'), 'origin/main', clone, (await asked(since)).at);
+    const lines = await changeSince(await listedChange('origin/main', clone), 'origin/main', clone, (await asked(since)).at);
 
     expect([...lines.keys()]).toEqual(['src/sum.ts']);
   });
@@ -202,7 +214,7 @@ describe('a file the mainline renamed since the record', () => {
     await writeFile(join(clone, 'src/sum.ts'), EDITED);
     const { at } = await asked(since);
     const trace = join(home, 'git-trace');
-    const listed = await listedChange('origin/main');
+    const listed = await listedChange('origin/main', clone);
     vi.stubEnv('GIT_TRACE', trace);
 
     const [one, other] = [await changeSince(listed, 'origin/main', clone, at), await changeSince(listed, 'origin/main', clone, at)];

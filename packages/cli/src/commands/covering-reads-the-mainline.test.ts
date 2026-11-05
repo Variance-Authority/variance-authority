@@ -175,7 +175,7 @@ describe('a file the change and the commits since the record both wrote', () => 
     process.chdir(dir);
     return { dir, at };
   }
-  const answered = async (dir: string, at: string) => changeSince(await listedChange('HEAD'), 'HEAD', dir, at);
+  const answered = async (dir: string, at: string) => changeSince(await listedChange('HEAD', dir), 'HEAD', dir, at);
 
   it("answers for the change's hunk, in the record's numbers, and not for the mainline's", async () => {
     const mainline = rewritten(held, 2, 'the mainline');

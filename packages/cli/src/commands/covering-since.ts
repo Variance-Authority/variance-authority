@@ -37,9 +37,9 @@ const readChange = (diff: string): ChangeRead => ({ lines: changedLines(diff), h
  * The change since `since`'s merge base. A ref that does not read is one
  * refusal, before any record is read: every suite would give it the same way.
  */
-export async function listedChange(since: string): Promise<ListedChange> {
-  const base = (await diffPoint(since))?.base;
-  const diff = base === undefined ? undefined : await diffSince(since, [], base, { unified: 0 });
+export async function listedChange(since: string, root: string): Promise<ListedChange> {
+  const base = (await diffPoint(since, [], root))?.base;
+  const diff = base === undefined ? undefined : await diffSince(since, [], base, { cwd: root, unified: 0 });
   if (base === undefined || diff === undefined) {
     throw new OperatorError(
       `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a git checkout ` +
@@ -60,12 +60,12 @@ export async function listedChange(since: string): Promise<ListedChange> {
 export async function changeSince(listed: ListedChange, since: string, root: string, at: string | undefined): Promise<ReadonlyMap<string, readonly LineRange[]>> {
   const lines = at === undefined || at === listed.base ? listed.lines : await inRecordAt(listed, at, since, root);
 
-  // `git` names files from the repository root and the index from the run's. The working directory is always
-  // a real path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the
-  // two never meet.
-  const here = process.cwd();
+  // `git` names files from the repository root and the index from the run's. The top level is always a real
+  // path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the two
+  // never meet.
+  const top = (await topLevel(root)) ?? root;
   const base = await realpath(root);
-  const rooted = (file: string): string => (here === base ? file : relative(base, resolve(here, file)));
+  const rooted = (file: string): string => (top === base ? file : relative(base, resolve(top, file)));
   return new Map([...lines].map(([file, ranges]) => [rooted(file), ranges]));
 }
 
@@ -78,7 +78,7 @@ function inRecordAt(listed: ListedChange, at: string, since: string, root: strin
 
 /** The diff from `at`. The listed change read, so what git could not read is from the record's commit. */
 async function readFrom(at: string, since: string, root: string): Promise<string> {
-  const diff = await diffSince(since, [], at, { unified: 0 });
+  const diff = await diffSince(since, [], at, { cwd: root, unified: 0 });
   if (diff !== undefined) return diff;
   await requireCommit(at, (await topLevel(root)) ?? root, 'The record');
   throw new OperatorError(unreadDiff('The record', at), { kind: 'undiffed' });

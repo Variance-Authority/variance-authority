@@ -65,7 +65,7 @@ export interface CoveringSuites {
  */
 export async function coveringAnswer(question: ParsedCovering): Promise<Covering | CoveringSuites> {
   // Read once: every suite's answer starts from the same change.
-  const request: CoveringQuestion = question.since === undefined ? question : { ...question, listed: await listedChange(question.since) };
+  const request: CoveringQuestion = question.since === undefined ? question : { ...question, listed: await listedChange(question.since, question.root) };
   if (request.execution !== undefined) return covering(request);
   const declared = asOperator(() => declaredSuites(request.root));
   if (request.suite !== undefined || declared === undefined) {
