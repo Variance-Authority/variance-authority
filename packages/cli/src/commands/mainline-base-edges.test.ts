@@ -9,8 +9,10 @@ import {
   commitRunsFile,
   declaredSuites,
   mainlineReadRoot,
+  readFetchedMainline,
   testCoverageFile,
   withCaseSections,
+  writeFetchedMainline,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
@@ -18,8 +20,9 @@ import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { MISS_STANDS_MS, mainlineBase, mainlineMissed } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, git, gitPublished, published, publishTo, ranWhole, recordIn } from './mainline-fixture.js';
-import { suiteBase } from './suite-base.js';
+import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare } from './suite-share.js';
+import { suiteTimes } from './suite-times.js';
 
 /**
  * The edges of reading the mainline's record that the readers' own tests do
@@ -54,6 +57,11 @@ async function laptop(origin: string, ...clone: string[]) {
   const base = (now: number) => mainlineBase(dir, declared, { env: LOCAL, now });
   const reach = (url: string) => git(dir, 'remote', 'set-url', 'origin', url);
   return { dir, readRoot, base, reach, nowhere: join(home, 'nowhere.git') };
+}
+
+/** What `dir` last fetched, marked as another job of its run handed it on, as `take-base` lays it. */
+async function handed(dir: string, readRoot: string): Promise<void> {
+  await writeFetchedMainline(cacheRootFor(dir), 'unit', { ...readFetchedMainline(readRoot)!, handed: true });
 }
 
 /** A commit pushed to `ci`'s `main`, and none of its records published. */
@@ -261,6 +269,32 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
 
     expect(read).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 2 * 60_000) });
     expect(third).not.toBe(second);
+  });
+
+  it('behind the merge base, stands when its run handed it on, with a newer record on the line', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, readRoot, base } = await laptop(origin);
+    await base(NOW);
+    await publishedNext(ci);
+    await git(dir, 'pull', '--quiet');
+    await handed(dir, readRoot);
+
+    expect(await base(NOW + DAY)).toMatchObject({ commit: first, distance: 1, earlier: { reused: 'handed' } });
+  });
+
+  it('keeps a checkout\'s own layer on the record its run handed on, for the times and the base alike', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, readRoot } = await laptop(origin);
+    const read = await suiteBase(dir, { env: LOCAL });
+    if (read.from !== 'mainline') throw new Error('the line gave no record');
+    await layMainline(dir, read.mainline, 'fixture');
+    await publishedNext(ci);
+    await git(dir, 'pull', '--quiet');
+    await handed(dir, readRoot);
+
+    await suiteTimes({ root: dir });
+
+    expect(await suiteBase(dir, { env: LOCAL })).toMatchObject({ from: 'own', repin: { repinned: false }, layer: { pinned: { commit: first } } });
   });
 
   it('behind the merge base, passes over a record kept there by another suite\'s job', async () => {

@@ -7,7 +7,8 @@
  * the cache, beneath every layer a run writes, and `fetched.json` names the one
  * fetched last, which is how the runner seams in
  * `@variance-authority/sense/test-selection` lay it under a checkout's first run.
- * When the record fetched last stands without asking is {@link reuseOf}'s to say.
+ * A record its run handed on stands without asking; when any other fetched last
+ * stands is {@link reuseOf}'s to say.
  */
 
 import { readFileSync } from 'node:fs';
@@ -57,11 +58,12 @@ export interface MainlineRecord {
    * Present when it is the record fetched earlier: reused without asking
    * because the line holds nothing nearer `HEAD`'s merge base with the mainline
    * (`nearest`), was asked at this same merge base (`asked`), or was not to be
-   * asked at all ({@link MainlineAsk.fetch}), or kept because
+   * asked at all ({@link MainlineAsk.fetch}), or is the one this run read and
+   * handed on, however far behind that merge base (`handed`), or kept because
    * the mainline gave no record, now or, as `asked` says, earlier within
    * {@link MISS_STANDS_MS}.
    */
-  readonly earlier?: { readonly reused: 'nearest' | 'asked' | 'offline' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
+  readonly earlier?: { readonly reused: 'nearest' | 'asked' | 'offline' | 'handed' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -152,10 +154,11 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const now = here.now ?? Date.now();
   const readRoot = selection.mainlineReadRoot(cacheRoot, suite);
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
-  // With no mainline named nothing says it is another's, and it stands, though only a named one is reused unasked.
+  // With no mainline named nothing says it is another's, and it stands, though only a named one, or one handed on, is reused unasked.
   // Both caches when the caller named none, as a runner seam reads them.
   const held = selection.lastFetchedMainline(root, suite, here.cacheRoot, named?.name);
   if (here.fetch !== 'always') {
+    if (held?.handed === true) return measured(place, root, held, { reused: 'handed' }, named?.base);
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
@@ -376,6 +379,7 @@ const KEPT = {
   nearest: 'the line holds nothing nearer the merge base',
   asked: 'the line was asked at this merge base',
   offline: 'the line was not asked',
+  handed: 'this run read the line once and handed it on',
 } as const;
 
 /**

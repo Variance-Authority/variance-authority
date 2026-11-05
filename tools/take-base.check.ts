@@ -14,8 +14,8 @@ import { afterEach, describe, expect, it } from 'vitest';
  * line moves when a push to `main` publishes: two shards read two records,
  * place the slice by two sets of durations, and the fold refuses a file both
  * ran. `check.yml` reads the line once and hands the read root on; this is the
- * step that takes it. The pointer keeps the merge base the line was asked at,
- * which is the job's own, so the job asks the line no more. A miss is an answer
+ * step that takes it. The pointer is marked as handed, so every reader in the
+ * job answers with it and asks the line no more. A miss is an answer
  * too, handed and stamped as given now, because it names no commit and stands
  * for a while; and a job told an artifact was uploaded that cannot find it
  * stops, rather than ask the line itself.
@@ -57,7 +57,7 @@ describe('take-base', () => {
     take(handed, cache);
 
     const readRoot = mainlineReadRoot(cache, 'unit');
-    expect(readFetchedMainline(readRoot)).toEqual(read);
+    expect(readFetchedMainline(readRoot)).toEqual({ ...read, handed: true });
     expect(existsSync(join(readRoot, OLD, 'coverage.bin'))).toBe(true);
   });
 

@@ -4,17 +4,9 @@
  * each read says goes to stderr; `dir=` and `commit=` go to `$GITHUB_OUTPUT`.
  *
  * `dir` is the cache's read root, which the job hands to every other job:
- * a pointer per suite to the record it read, asked at this checkout's merge
- * base with the mainline. `commit` is the commit the records were made at,
- * which a pull request's head is merged with, or empty when the suites'
- * records were made at different commits, or none was read.
- *
- * The job runs it twice on a pull request: once on GitHub's merge to learn
- * the commit, and again on the head merged with that commit, whose merge base
- * the other jobs then stand on. A job reuses a pointer only when it stands at
- * the merge base the pointer was asked at, or when the record is at or past
- * its own: asked once on GitHub's merge, the pointer would send each job to
- * the line again whenever the head already held the record's commit.
+ * a pointer per suite to the record it read. `commit` is the commit the
+ * records were made at, which a pull request's head is merged with, or empty
+ * when the suites' records were made at different commits, or none was read.
  */
 
 import { appendFileSync } from 'node:fs';

@@ -108,7 +108,8 @@ holds no record of it. A record that is not there never fails a build:
   `variance share --suite <name>` keeps it under
   `node_modules/.cache/variance-authority/share/`. Pass that directory to each
   shard as an artifact, and a shard at the same commit reads it without asking
-  the share again.
+  the share again, while the record is the one at the shard's merge base. A
+  git share may still gain that record, so a shard holding an older one asks.
 - **`variance shards` answers one shard.** [Choose how many shards](#choose-how-many-shards)
   counts by the times, so with none it answers one and says so. Pass
   `--unrecorded <n>` to start `n` shards until there are times.

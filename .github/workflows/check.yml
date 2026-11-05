@@ -365,25 +365,6 @@ jobs:
           head: ${{ github.event.pull_request.head.sha }}
           on-conflict: stay
 
-      # The pointers handed on are asked at the merge base the other jobs will
-      # stand on: the merged checkout's, past the record's commit when the head
-      # already held it. Behind it, the read just made reads the same record
-      # without asking the line. Past it, the line can answer with a record
-      # nearer the merge base, which the jobs read while standing on the merge
-      # made with the first: a wider run, not a narrower one, and said here.
-      - name: read the mainline at the merge
-        id: reread
-        if: steps.merge.outputs.merged == 'true'
-        shell: bash
-        env:
-          MERGED_WITH: ${{ steps.read.outputs.commit }}
-        run: |
-          node tools/read-mainline.mjs
-          read=$(sed -n 's/^commit=//p' "$GITHUB_OUTPUT" | tail -n 1)
-          if [ "$read" != "$MERGED_WITH" ]; then
-            echo "::notice::The head is merged with $MERGED_WITH, and the mainline read at that merge answered ${read:-no single commit}: the run measures the commits between them as well."
-          fi
-
       - name: freeze the read
         shell: bash
         env:
@@ -400,7 +381,7 @@ jobs:
           path: ${{ runner.temp }}/base
           include-hidden-files: true
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 30
 
       # What this pull request's last push ran, as its `record` job left it in
       # the Actions cache. A second push then runs what changed since the first
@@ -461,7 +442,7 @@ jobs:
           path: ${{ steps.plan.outputs.pushed-path }}
           include-hidden-files: true
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 30
 
       - name: reconcile the merged install
         if: steps.merge.outputs.merged == 'true'
@@ -480,7 +461,7 @@ jobs:
             packages/sense/npm/*/scan.node
             packages/sense/npm/*/scan.node.tree
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
       # Keep the same carried/mainline record the suite jobs will read. Prices
       # and collection are read after the merge, on the suite jobs' own tree.
@@ -714,7 +695,7 @@ jobs:
           path: ${{ runner.temp }}/shard-record
           include-hidden-files: true
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 30
 
       - name: hand the slice on
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'slice' }}
@@ -723,7 +704,7 @@ jobs:
           name: variance-slice-${{ matrix.suite }}
           path: ${{ steps.base.outputs.record }}
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 30
 
   record:
     # The suite's record of this change, made whole again from the jobs that
@@ -987,7 +968,7 @@ jobs:
           name: variance-records
           path: ${{ steps.records.outputs.dir }}
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 30
 
   publish:
     # The record a push to `main` made, published to `refs/variance/mainline/main`
@@ -1288,7 +1269,7 @@ jobs:
           path: ${{ steps.read.outputs.dir }}
           include-hidden-files: true
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 30
 
       # Each slice's files listed under its own config, so a test file the
       # group adds is counted. Workers are the slice's from `vitest.config.mts`,
@@ -1312,7 +1293,7 @@ jobs:
             packages/sense/npm/*/scan.node
             packages/sense/npm/*/scan.node.tree
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
   queue:
     # A merge group's gate, and the only harness a group runs: lint and the
