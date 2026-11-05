@@ -326,17 +326,24 @@ Google Workspace, or anything that speaks SAML or OIDC. Setting it up takes an
 admin of that provider and an admin of the Cloudflare account, once:
 
 1. Serve the deployment from a hostname in your Cloudflare zone, as a route with
-   `custom_domain: true` and with `workers_dev` set to `false`: Access guards a hostname, and a `workers.dev` address left open
-   walks around it. `GITHUB_ACTIONS_AUDIENCE`, and the suite's `endpoint` and
-   `audience`, name the new hostname.
+   `custom_domain: true`, with `workers_dev` and `preview_urls` both set to `false`:
+   Access guards a hostname, and any other address that reaches the Worker walks
+   around it. Wrangler keeps an existing `preview_urls` when the key is absent, so
+   write it down, and check that no other route or custom domain points at the
+   Worker. `GITHUB_ACTIONS_AUDIENCE`, and the suite's `endpoint` and `audience`, name
+   the new hostname.
 2. In Cloudflare Zero Trust, add your company's provider as a login method. Its
    admin registers Cloudflare on their side.
 3. Add a self-hosted Access application on the deployment's hostname, with a policy
    naming the people or groups who review. Everybody it lets in can decide, so this
-   policy is your list of approvers.
+   policy is your list of approvers. Give the same application the paths
+   `review/builds/*` and `review/concerns/*`, under the mount if the API has one:
+   step 4 opens their parents, and these are where a decision is recorded and a
+   concern is moved. In its cookie settings, set `SameSite` to `Lax`.
 4. Add a second application on the same hostname, with a Bypass policy for everyone,
-   on the paths `version`, `baseline`, `cache`, `v1`, `share` and `review`, under the
-   mount if the API has one. A workflow or a developer's CLI cannot sign in, and
+   on the paths `version`, `baseline`, `cache`, `v1`, `share`, `review/builds`,
+   `review/have`, `review/changelog`, `review/decisions` and `review/concerns`, under
+   the mount if the API has one. A workflow or a developer's CLI cannot sign in, and
    these are the paths they call. The service guards them instead of Access: it asks
    every request for its credential, a reviewer's browser still carries its Access
    cookie there, and Access logs nothing that bypasses it.
@@ -348,6 +355,12 @@ Leave `VIEW` unset. Access keeps the page behind a sign-in, but with `VIEW=publi
 the paths in step 4 answer anybody. An open project that wants public reading
 declares `github` and `VIEW=public`.
 
+To remove a reviewer, take them out of the policy and revoke their session in Zero
+Trust, which ends their decisions. The paths in step 4 check only that their token
+is signed and unexpired, so until the application's session duration runs out,
+that token still reads the evidence there and can raise a concern. A shorter session
+closes that sooner.
+
 ## The HTTP API
 
 Recognition happens before routing. A caller this deployment does not recognize
@@ -355,8 +368,9 @@ gets the same response for a wrong credential, a missing one, and a path that do
 not exist. A machine sends `Authorization: Bearer <token>`: the ingest token, the
 share token, or the token a workflow's runner signed. A bearer is read as a machine
 and nothing else, so a wrong one is refused even with `VIEW=public`. A person sends
-no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. Only
-`GET /auth/me` and the sign-in answer a caller nobody recognized.
+no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. A
+write a browser sent from another site is not recognized, whatever cookie it
+carries. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
 
 | method and path | capability | what it does |
 |---|---|---|

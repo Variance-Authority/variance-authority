@@ -136,12 +136,63 @@ describe('which credential a request is read as', () => {
     expect(principal).toEqual({ capability: 'review', name: 'a@example.com' });
   });
 
+  it.each([
+    ['a form on another site', { 'sec-fetch-site': 'cross-site' }],
+    ['a sibling subdomain', { 'sec-fetch-site': 'same-site' }],
+    ['a browser that names only its origin', { origin: 'https://attacker.example' }],
+    ['a sandboxed frame', { origin: 'null' }],
+  ])('does not take a write from %s on a reviewer\'s cookie', async (_, headers) => {
+    const policy = declaredPolicy(ACCESS_VALUES, transport());
+    const token = await edge.sign({ iss: TEAM, aud: 'application-tag', exp: NOW + 300, email: 'a@example.com' });
+
+    const principal = await policy.principal(
+      new Request('https://tribunal.example/review/sweep', {
+        method: 'POST',
+        headers: { cookie: `CF_Authorization=${token}`, ...headers },
+      }),
+    );
+
+    expect(principal).toBeNull();
+  });
+
+  it.each([
+    ['the page itself', 'POST', { 'sec-fetch-site': 'same-origin', origin: 'https://tribunal.example' }],
+    ['a browser that names only its origin', 'POST', { origin: 'https://tribunal.example' }],
+    ['a caller that is no browser', 'POST', {}],
+    ['a read from another site', 'GET', { 'sec-fetch-site': 'cross-site' }],
+  ])('recognizes the reviewer on %s', async (_, method, headers) => {
+    const policy = declaredPolicy(ACCESS_VALUES, transport());
+    const token = await edge.sign({ iss: TEAM, aud: 'application-tag', exp: NOW + 300, email: 'a@example.com' });
+
+    const principal = await policy.principal(
+      new Request('https://tribunal.example/review/sweep', {
+        method,
+        headers: { cookie: `CF_Authorization=${token}`, ...headers },
+      }),
+    );
+
+    expect(principal).toEqual({ capability: 'review', name: 'a@example.com' });
+  });
+
   it('does not take a decision from an Access service token', async () => {
     const policy = declaredPolicy(ACCESS_VALUES, transport());
     const token = await edge.sign({ iss: TEAM, aud: 'application-tag', exp: NOW + 300, common_name: 'machine' });
 
     const principal = await policy.principal(
       new Request('https://tribunal.example/', { headers: { 'cf-access-jwt-assertion': token } }),
+    );
+
+    expect(principal).toBeNull();
+  });
+
+  it('does not take a write from another site on loopback either', async () => {
+    const policy = declaredPolicy(
+      { REVIEW_CREDENTIALS: 'loopback', REVIEWER: 'me' },
+      { ...transport(), loopback: true },
+    );
+
+    const principal = await policy.principal(
+      new Request('http://127.0.0.1:8787/review/sweep', { method: 'POST', headers: { origin: 'https://attacker.example' } }),
     );
 
     expect(principal).toBeNull();
