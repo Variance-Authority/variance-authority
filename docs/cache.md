@@ -137,8 +137,8 @@ directory.
 This workflow runs your whole suite on each push to your main branch and saves
 what it recorded. On a pull request it restores that recording and runs only the
 test files the change needs. [Wrap your runner configuration](test-an-edit.md#wrap-once-then-set-one-variable)
-first, then use this workflow with your own test command in place of
-`npx vitest run`:
+first, then use this workflow with your own install and test commands in place
+of `npm ci` and `npx vitest run`, and your own main branch in place of `main`:
 
 ```yaml
 name: tests
@@ -166,7 +166,10 @@ jobs:
           restore-keys: |
             variance-${{ runner.os }}-${{ runner.arch }}-
       - run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then export VARIANCE_AUTHORITY_SINCE=; fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            npx variance index
+            export VARIANCE_AUTHORITY_SINCE=
+          fi
           npx vitest run
       - if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
@@ -182,15 +185,20 @@ files it kept before the first one starts:
 variance-authority: selected 1 of 2
 ```
 
-Until then a pull request restores nothing, and every test file runs. Four
+Until then, or once the cache has dropped the recording, a pull request restores
+nothing and every test file runs. A failing run on your main branch saves
+nothing, so pull requests keep selecting from the last recording saved. Five
 things in the workflow decide that line:
 
-- **Every commit is checked out.** The recording names the commit it was made at,
+- **The full history is fetched.** The recording names the commit it was made at,
   and the run reads what changed since that commit. A shallow checkout does not
   have it: every test file runs, then the run exits `1` with a message that names
   the commit. `filter: tree:0` keeps the full history small.
 - **The restore comes after the install.** `npm ci` deletes `node_modules`, and
   this directory is inside it.
+- **A pull request builds the source index.** Selection reads the
+  [source index](source-index.md), and in CI a run that finds none fails and names
+  the missing step. `npx variance index` builds it after the restore.
 - **Only a pull request sets the variable.** `VARIANCE_AUTHORITY_SINCE` selects
   whenever it is set, even empty, so the shell exports it for a pull request and
   your main branch runs the whole suite.
@@ -206,7 +214,8 @@ in the key.
 Four things in your repository change what you write:
 
 - **Jest with nothing to run.** A change no test ran, such as a README edit,
-  prints `selected none of 2`, and a lone Jest project then exits `1`. Set
+  prints `selected none of 2, so none of them runs`, and a lone Jest project
+  then exits `1`. Set
   `passWithNoTests: true` in the object you wrap. Vitest exits `0` here.
 - **A Jest preset.** The wrap gives a configuration with no `transform` of its
   own Jest's default, so `ts-jest` and any other preset's transformer never runs.
@@ -216,13 +225,16 @@ Four things in your repository change what you write:
   [`suites`](../packages/sense/README.md#where-the-snapshot-lives-and-when-it-is-rebuilt), a wrap that names none
   stops before the run starts, so name one:
   `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
-  inside this directory, and the workflow does not change.
+  inside this directory, and the workflow does not change. With declared suites,
+  [`variance carry`](../packages/cli/README.md#what-the-next-job-reads) can name
+  the path and the key instead of this workflow.
 - **One configuration per package.** With no suites declared, every wrapped
   configuration in the checkout writes to one recording at the repository root.
   Each run adds its own test files to it, and the path above covers them all.
   Run them in one job: a cache key is saved once, so a second job's save under
-  the same key keeps nothing. In a matrix, add the matrix value to `key` and
-  `restore-keys`, so each job restores what it saved.
+  the same key keeps nothing. In a matrix over packages, add the matrix value to
+  `key` and `restore-keys`, so each job restores what it saved. Shards of one
+  suite read one record, as [sharding](sharding.md) describes.
 
 A pull request saves nothing here because `variance review` compares your
 change with the cases the last run replaced, which the suite keeps in this

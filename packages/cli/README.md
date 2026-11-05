@@ -2477,6 +2477,7 @@ plan:
     - id: count
       run: |
         set -o pipefail
+        npx variance index
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
         shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
         echo "shards=$shards" >> "$GITHUB_OUTPUT"
@@ -2487,6 +2488,7 @@ test:
     matrix:
       shard: ${{ fromJSON(needs.plan.outputs.shards) }}
   steps:
+    - run: npx variance index
     - run: VARIANCE_AUTHORITY_SINCE= npx vitest run --shard ${{ matrix.shard }}
 ```
 
