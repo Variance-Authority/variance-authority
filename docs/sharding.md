@@ -164,11 +164,13 @@ soonest, and it names that file.
 ### Start only what the change needs
 
 On a pull request, a wrapped configuration can skip the test files the change
-cannot affect: set `VARIANCE_AUTHORITY_SINCE` to the ref the change is measured
-from, such as `origin/main`, and the run removes the files
+cannot affect: restore the recording your main branch saved, as
+[the CI workflow](cache.md#in-ci) does, set `VARIANCE_AUTHORITY_SINCE`, and the
+run removes the files
 [`variance select`](../packages/sense/README.md#let-the-runner-skip-them)
-leaves out before any starts. Set at all, even empty, it selects. Each shard
-then places only the files the change selects.
+leaves out before any starts. Set at all, even empty, it selects, and the change
+is measured from the commit the recording names. Each shard then places only the
+files the change selects.
 
 `variance shards` counts the same way with two flags:
 
@@ -228,7 +230,7 @@ jobs:
           fetch-depth: 0
       - run: npm ci
       - run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then export VARIANCE_AUTHORITY_SINCE=origin/main; fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then export VARIANCE_AUTHORITY_SINCE=; fi
           npx vitest run --shard ${{ matrix.shard }}
 ```
 

@@ -330,8 +330,9 @@ kind, under `suites` in the root `variance.config.json`:
 
 The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
 suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
-seam takes a `suite` option that names the one it runs. A run under one suite
-never replaces what another suite recorded. Once any suite is declared, a seam
+seam takes a `suite` option that names the one it runs, as in
+`withTestSelection(config, { suite: 'unit' })`. A run under one suite never
+replaces what another suite recorded. Once any suite is declared, a seam
 that names none, or names one the file does not declare, stops before the run
 starts. `declaredSuites(root)` returns what the file declares, and
 `testCoverageFile(root, { suite })` the path of one suite's record. A

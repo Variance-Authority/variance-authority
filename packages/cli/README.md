@@ -2487,7 +2487,7 @@ test:
     matrix:
       shard: ${{ fromJSON(needs.plan.outputs.shards) }}
   steps:
-    - run: VARIANCE_AUTHORITY_SINCE=origin/main npx vitest run --shard ${{ matrix.shard }}
+    - run: VARIANCE_AUTHORITY_SINCE= npx vitest run --shard ${{ matrix.shard }}
 ```
 
 ### `reach`: what a diff reaches, for a pipe
