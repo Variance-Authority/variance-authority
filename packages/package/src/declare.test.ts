@@ -30,6 +30,10 @@ describe('a doc above the first statement', () => {
     expect(read('import a from "a";\n\n/** The banner. */\n\nexport const MAC = a;\n').get('MAC')?.doc).toBeUndefined();
   });
 
+  it('is the file\'s banner under a directive, which no doc documents', () => {
+    expect(read('\'use strict\';\n\n/** The banner. */\n\nexport const MAC = 1;\n').get('MAC')?.doc).toBeUndefined();
+  });
+
   it('leaves the doc under a banner to the statement it stands on', () => {
     expect(read('/** The banner. */\n\n/** The constant. */\nexport const MAC = 1;\n').get('MAC')?.doc).toBe('The constant.');
   });

@@ -64,20 +64,6 @@ pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLeve
     }
 }
 
-/// The function or class a module hands out whole, by the one name the
-/// statement spells for it. An anonymous value spells none, and any other value
-/// declares nothing.
-pub(crate) fn named_value<'p, 'a>(value: &'p Expression<'a>) -> Option<(&'p oxc_ast::ast::BindingIdentifier<'a>, &'static str, Span)> {
-    match value.get_inner_expression() {
-        Expression::FunctionExpression(function) => {
-            let end = function.body.as_ref().map_or(function.span.end, |body| body.span.start);
-            Some((function.id.as_ref()?, "function", Span::new(function.span.start, end)))
-        }
-        Expression::ClassExpression(class) => Some((class.id.as_ref()?, "class", Span::new(class.span.start, class.body.span.start))),
-        _ => None,
-    }
-}
-
 fn declaration<'a>(declared: &Declaration<'a>, statement: Span, exported: bool, visit: &mut impl FnMut(TopLevel<'a>)) {
     let declare = declared.declare();
     let mut bind = |name: &oxc_ast::ast::BindingIdentifier<'a>, kind: &'static str, signature: Span| {

@@ -20,6 +20,13 @@ fn a_doc_a_blank_line_parts_from_the_first_statement_is_the_files() {
 }
 
 #[test]
+fn a_doc_parted_from_the_first_statement_under_a_directive_is_the_files() {
+    let (file, declared) = docs("'use strict';\n\n/** The banner. */\n\nconst MAC = 1;\n", "MAC");
+    assert_eq!(file.as_deref(), Some("The banner."));
+    assert_eq!(declared, None);
+}
+
+#[test]
 fn a_doc_on_the_first_statement_is_that_statements() {
     let (file, declared) = docs("/** The constant. */\nconst MAC = 1;\n", "MAC");
     assert_eq!(file, None);

@@ -44,11 +44,25 @@ fn handed_out_once<'p, 'a>(body: &'p [Statement<'a>]) -> Option<&'p Statement<'a
     handing.next().is_none().then_some(once)
 }
 
+/// The function or class a module hands out whole, by the one name the
+/// statement spells for it. An anonymous value spells none, and any other value
+/// declares nothing.
+fn named_value<'p, 'a>(value: &'p Expression<'a>) -> Option<(&'p BindingIdentifier<'a>, &'static str, Span)> {
+    match value.get_inner_expression() {
+        Expression::FunctionExpression(function) => {
+            let end = function.body.as_ref().map_or(function.span.end, |body| body.span.start);
+            Some((function.id.as_ref()?, "function", Span::new(function.span.start, end)))
+        }
+        Expression::ClassExpression(class) => Some((class.id.as_ref()?, "class", Span::new(class.span.start, class.body.span.start))),
+        _ => None,
+    }
+}
+
 /// The statement of `body` that hands out the module, with the named function
 /// or class it hands out, when it hands out one.
 pub(crate) fn handed_out_named<'p, 'a>(body: &'p [Statement<'a>]) -> Option<(&'p Statement<'a>, (&'p BindingIdentifier<'a>, &'static str, Span))> {
     let once = handed_out_once(body)?;
-    Some((once, crate::top_level::named_value(handed_out(once)?)?))
+    Some((once, named_value(handed_out(once)?)?))
 }
 
 /// The object `statement` hands out as the module, if it hands out an object literal.

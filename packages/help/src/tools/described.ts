@@ -3,6 +3,7 @@ import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { saidAt } from './as-read.js';
+import { holdersOf } from './carried.js';
 import { declaredMatch } from './declared.js';
 import type { Said } from './held-sentence.js';
 import type { DeclaredRead, FileMatch } from './search-matches.js';
@@ -427,11 +428,10 @@ const FIELD_WEIGHTS = { name: 3, doc: 2, signature: 0.5 } as const;
  * both factors, and a word most rows hold adds little to either. An integer.
  */
 function weightOf(population: readonly Counted[]): Weight {
-  const holders = new Map<string, number>();
+  const holders = holdersOf(population);
   let docBytes = 0;
   let docs = 0;
   for (const one of population) {
-    for (const word of one.holds) holders.set(word, (holders.get(word) ?? 0) + 1);
     // Absent is not empty: a row without a doc says nothing of how long a doc is.
     for (const length of one.docLengths) {
       if (length === 0) continue;

@@ -2,6 +2,13 @@ import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 
 // compass: variance-authority.report.agent-surface
 
+/** How many of `rows` hold each word. */
+export function holdersOf(rows: readonly { readonly holds: readonly string[] }[]): Map<string, number> {
+  const holders = new Map<string, number>();
+  for (const one of rows) for (const word of one.holds) holders.set(word, (holders.get(word) ?? 0) + 1);
+  return holders;
+}
+
 /**
  * Whether a row carries most of the question: the words it holds weigh at least
  * half of what `asked` weighs, each word its {@link rarity} among the repository's
@@ -15,8 +22,7 @@ export function carriesMost(
   reached: readonly { readonly holds: readonly string[] }[],
   names: number,
 ): (row: { readonly words: readonly string[] }) => boolean {
-  const holders = new Map<string, number>();
-  for (const one of reached) for (const word of one.holds) holders.set(word, (holders.get(word) ?? 0) + 1);
+  const holders = holdersOf(reached);
   // Counted over the reached rows alone, a word most of them hold would weigh
   // little however rare it is in the repository.
   const population = Math.max(names, reached.length);
