@@ -327,7 +327,7 @@ On macOS none of this bites. The system has had no subpixel antialiasing since
 10.14, all four candidate flags are no-ops, and every engine paints greyscale
 headed or headless at 1x and 2x. Where fontconfig is live — Linux, so most CI —
 the flags are load-bearing for Chromium and absent for the other two. Measured in
-`mcr.microsoft.com/playwright:v1.62.1-noble`: Chromium painting a webfont emits
+Playwright 1.62.1's Noble image: Chromium painting a webfont emits
 6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit
 are unaffected because the flags were never passed to them.
 
@@ -342,7 +342,7 @@ raster tier for them. The semantic tier is unaffected and stays local.
 
 The container is cheap, which is not what people assume. Measured on an Apple M4
 Max (16 cores, 64 GB) under Docker Desktop 29.0.1 with Playwright 1.62.1,
-`mcr.microsoft.com/playwright:v1.62.1-noble` costs WebKit 1.66x per paint against
+its Noble image costs WebKit 1.66x per paint against
 native macOS and Chromium roughly 1.1x — the least repeatable of the three cells,
 and not worth quoting to two figures. Firefox it costs nothing at all: Firefox is
 *faster* in the container, 7.5 ms against 8.3. The same image run as arm64 and as

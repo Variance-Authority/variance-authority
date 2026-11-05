@@ -387,8 +387,9 @@ describe('a pinned browser image matches the playwright it runs', () => {
   })
     .trim()
     .split('\n')
-    // This file names the registry to find the pins, and is not one.
-    .filter((line) => !line.startsWith('tools/'));
+    // This file names the registry to find the pins, and is not one. A journal
+    // records the image a measurement ran on, and pins nothing.
+    .filter((line) => !line.startsWith('tools/') && !line.startsWith('docs/context/journal/'));
 
   it('reads a resolved playwright version out of the lockfile', () => {
     expect(resolved).toMatch(/^\d+\.\d+\.\d+$/);
