@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asked, issueOf, pending, queued, ranked, refusal, reviewCount } from './idea.mjs';
+import { asked, issueOf, pending, queued, ranked, refusal } from './idea.mjs';
 
 /**
  * CI's `idea` job asks every pull request a run would merge for an issue that
@@ -101,9 +101,9 @@ describe('the queue of issues the idea loop owes a verdict', () => {
     authorAssociation: 'MEMBER',
     lastEditedAt: null,
     parent: null,
-    labels: { nodes: [] as { name: string }[] },
+    labels: { nodes: [] as { name: string; description?: string }[] },
     comments: { nodes: [] as ReturnType<typeof verdict>[] },
-    timelineItems: { nodes: [] as { createdAt: string; label: { name: string } }[] },
+    timelineItems: { nodes: [] as { createdAt: string; label?: { name: string } }[] },
     ...over,
   });
   const labelled = (...names: string[]) => ({ labels: { nodes: names.map((name) => ({ name })) } });
@@ -149,23 +149,67 @@ describe('the queue of issues the idea loop owes a verdict', () => {
     expect(pending(issue(labelled('epic')))).toBe(false);
   });
 
-  it('counts the reviews that ended without build, and not incomplete, which decides nothing', () => {
-    const nodes = [verdict('incomplete', '2026-11-01T00:00:00Z'), verdict('yes-but', '2026-11-02T00:00:00Z'), verdict('yes-but', '2026-11-03T00:00:00Z')];
-    expect(reviewCount(issue({ comments: { nodes } }))).toBe(2);
+  it('agrees with CI on a labelled issue, so a comment after an edit does not clear what CI still refuses', () => {
+    const labelEvent = { createdAt: '2026-11-01T00:00:00Z', label: { name: 'idea: build' } };
+    expect(
+      pending(
+        issue({
+          ...labelled('idea: build'),
+          lastEditedAt: '2026-11-02T00:00:00Z',
+          timelineItems: { nodes: [labelEvent] },
+          comments: { nodes: [verdict('build', '2026-11-03T00:00:00Z')] },
+        }),
+      ),
+    ).toBe(true);
   });
 
-  it('ranks whole briefs first, then v1, structural, architecture and the rest, newest first within each', () => {
-    const brief = '## Root cause\n\ntext';
+  it('holds an issue a build comment answered without the label, since only the label lets code start', () => {
+    expect(pending(issue({ comments: { nodes: [verdict('build', '2026-11-02T00:00:00Z')] } }))).toBe(true);
+  });
+
+  it('holds an issue reopened after its verdict, since the review starts over', () => {
+    expect(
+      pending(
+        issue({
+          comments: { nodes: [verdict('no-because', '2026-11-02T00:00:00Z')] },
+          timelineItems: { nodes: [{ createdAt: '2026-11-03T00:00:00Z' }] },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('reads no verdict from a name the loop does not have', () => {
+    expect(pending(issue({ comments: { nodes: [verdict('yes-buut', '2026-11-02T00:00:00Z')] } }))).toBe(true);
+  });
+
+  const scored = (reach: number, impact: number, confidence: number, effort: number) => ({
+    labels: {
+      nodes: [
+        { name: 'reach:x', description: `RICE reach ${reach}: a` },
+        { name: 'impact:x', description: `RICE impact ${impact}: a` },
+        { name: 'confidence:x', description: `RICE confidence ${confidence}%: a` },
+        { name: 'effort:x', description: `RICE effort ${effort}: a` },
+      ],
+    },
+  });
+
+  it('ranks briefs first, then v1, structural, architecture and the rest', () => {
     const rows = ranked([
       issue({ number: 1 }),
       issue({ number: 2, ...labelled('architecture') }),
       issue({ number: 3, ...labelled('structural') }),
       issue({ number: 4, parent: { number: 942 } }),
-      issue({ number: 5, body: brief }),
-      issue({ number: 6, body: brief }),
-      issue({ number: 7 }),
+      issue({ number: 5, body: '## Root cause\n\ntext' }),
     ]);
-    expect(rows.map((row) => row.number)).toEqual([6, 5, 4, 3, 2, 7, 1]);
-    expect(rows[0]).toEqual({ number: 6, title: 'a title', brief: true, reviews: 0 });
+    expect(rows.map((row) => row.number)).toEqual([5, 4, 3, 2, 1]);
+  });
+
+  it('ranks by score within a tier, with an unscored issue after the scored ones and no score of its own', () => {
+    const rows = ranked([issue({ number: 3 }), issue({ number: 1, ...scored(1, 1, 50, 4) }), issue({ number: 2, ...scored(3, 3, 100, 1) })]);
+    expect(rows).toEqual([
+      { number: 2, title: 'a title', brief: false, score: 9 },
+      { number: 1, title: 'a title', brief: false, score: 0.125 },
+      { number: 3, title: 'a title', brief: false },
+    ]);
   });
 });

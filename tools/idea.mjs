@@ -5,24 +5,21 @@
  * in the merge queue it is every entry at or ahead of the group's head, since a
  * group merges them all.
  *
- * `node tools/idea.mjs queue [--limit <n>]` prints the issues the loop still owes
- * a verdict, as JSON in refine's order. A verdict is a comment marked
+ * `node tools/idea.mjs queue` prints the issues the loop still owes a verdict,
+ * ranked, as JSON. A verdict is a comment marked
  * `<!-- idea-verdict: <name> -->`, so the queue needs nothing but the issues.
  */
 
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
 
 const LABEL = 'idea: build';
 const NAMES = /^(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|part of) #(\d+)/i;
 /** Kinds that leave what the product does alone, from the pull request reference's table; any other kind, or none, is asked. */
 const IDEALESS = new Set(['docs', 'chore', 'ci', 'test', 'refactor', 'revert']);
-const VERDICT = /<!-- idea-verdict: ([\w-]+) -->/;
+const VERDICT = /<!-- idea-verdict: (incomplete|build|yes-but|no-because|none) -->/;
 /** Who can answer for the loop: the repository is public, and anybody else's comment or issue is a report. */
 const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-/** Verdicts that are no review of the idea: `incomplete` decides nothing, `none` says the loop does not apply, `build` passed. */
-const UNCOUNTED = new Set(['incomplete', 'none', 'build']);
 const V1 = 942;
 /** Labels that outrank the rest, after v1, in refine's order. */
 const TIERS = ['structural', 'architecture'];
@@ -50,7 +47,7 @@ export const issueOf = (body) => {
 
 /** Why the issue does not approve the change, or nothing when it does. */
 export const refusal = (n, issue) => {
-  if (!issue.labels.nodes.some((label) => label.name === LABEL)) return `#${n} does not carry '${LABEL}': its idea has not passed review.`;
+  if (!carries(issue, LABEL)) return `#${n} does not carry '${LABEL}': its idea has not passed review.`;
   const labelled = labelledAt(issue);
   if (issue.lastEditedAt && labelled && issue.lastEditedAt > labelled)
     return `#${n} was edited at ${issue.lastEditedAt}, after '${LABEL}' was put on at ${labelled}. Review it again (refine, "The idea loop").`;
@@ -67,41 +64,50 @@ const verdicts = (issue) =>
     return name ? [{ name, at: comment.createdAt }] : [];
   });
 
-/** Whether the loop owes the issue a verdict: none yet, or an edit no verdict has seen. */
+/** Whether the loop owes the issue a verdict. CI answers for a labelled issue; `build` without the label lets no code start, so it settles nothing. */
 export const pending = (issue) => {
   if (!TRUSTED.has(issue.authorAssociation) || carries(issue, 'epic')) return false;
-  const answers = verdicts(issue).map((verdict) => verdict.at);
-  if (carries(issue, LABEL)) answers.push(labelledAt(issue));
-  const settled = answers.filter(Boolean).sort().at(-1);
-  return !settled || Boolean(issue.lastEditedAt && issue.lastEditedAt > settled);
+  if (carries(issue, LABEL)) return refusal(issue.number, issue) !== undefined;
+  const settled = verdicts(issue).filter((verdict) => verdict.name !== 'build').at(-1)?.at;
+  const reopened = issue.timelineItems.nodes.filter((event) => !event.label).map((event) => event.createdAt);
+  const changed = [issue.lastEditedAt, ...reopened].filter(Boolean).sort().at(-1);
+  return !settled || changed > settled;
 };
 
-/** The reviews that ended without build; the third closes the issue (refine, "The idea loop"). */
-export const reviewCount = (issue) => verdicts(issue).filter((verdict) => !UNCOUNTED.has(verdict.name)).length;
-
 const tierOf = (issue) => {
-  if (issue.number === V1 || issue.parent?.number === V1) return 0;
+  if (issue.parent?.number === V1) return 0;
   const tier = TIERS.findIndex((name) => carries(issue, name));
   return tier === -1 ? TIERS.length + 1 : tier + 1;
 };
 
 const isBrief = (issue) => /^## Root cause/m.test(issue.body ?? '');
 
-/** The queue in refine's order: a whole brief waits only for its review, so it goes first; then rank, newest first. */
+/** One RICE factor, from the scale the label's description holds. */
+const factor = (issue, kind) => {
+  const label = issue.labels.nodes.find((node) => node.name.startsWith(`${kind}:`));
+  return Number(/^RICE \w+ (\d+)/.exec(label?.description ?? '')?.[1]);
+};
+
+/** Reach × impact × confidence ÷ effort; an issue short of a label has no score, which is not a score of nothing. */
+const scoreOf = (issue) => {
+  const score = (factor(issue, 'reach') * factor(issue, 'impact') * factor(issue, 'confidence')) / 100 / factor(issue, 'effort');
+  return Number.isNaN(score) ? undefined : score;
+};
+
+/** The queue: a brief waits only for its review, so it goes first; then refine's tiers, then the score, then the newest. */
 export const ranked = (issues) =>
   issues
-    .toSorted((a, b) => isBrief(b) - isBrief(a) || tierOf(a) - tierOf(b) || b.number - a.number)
-    .map((issue) => ({ number: issue.number, title: issue.title, brief: isBrief(issue), reviews: reviewCount(issue) }));
+    .toSorted((a, b) => isBrief(b) - isBrief(a) || tierOf(a) - tierOf(b) || (scoreOf(b) ?? -1) - (scoreOf(a) ?? -1) || b.number - a.number)
+    .map((issue) => ({ number: issue.number, title: issue.title, brief: isBrief(issue), score: scoreOf(issue) }));
 
-const repository = () =>
-  process.env.GITHUB_REPOSITORY ?? execFileSync('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { encoding: 'utf8' }).trim();
-
-const graph = (query, variables) => {
-  const [owner, name] = repository().split('/');
+const gh = (query, variables, ...flags) => {
+  const [owner, name] = (process.env.GITHUB_REPOSITORY ?? '{owner}/{repo}').split('/');
   const fields = Object.entries({ owner, name, ...variables }).flatMap(([key, value]) => ['-F', `${key}=${value}`]);
-  const out = execFileSync('gh', ['api', 'graphql', '-f', `query=${query}`, ...fields], { encoding: 'utf8' });
-  return JSON.parse(out).data.repository;
+  const out = execFileSync('gh', ['api', 'graphql', ...flags, '-f', `query=${query}`, ...fields], { encoding: 'utf8', maxBuffer: 2 ** 28 });
+  return JSON.parse(out);
 };
+
+const graph = (query, variables) => gh(query, variables).data.repository;
 
 const QUEUE = `query($owner: String!, $name: String!, $branch: String!) { repository(owner: $owner, name: $name) {
   mergeQueue(branch: $branch) { entries(first: 100) { nodes { position headCommit { oid } pullRequest { number } } } } } }`;
@@ -111,21 +117,16 @@ const ISSUE = `query($owner: String!, $name: String!, $n: Int!) { repository(own
   lastEditedAt labels(first: 50) { nodes { name } }
   timelineItems(itemTypes: LABELED_EVENT, last: 50) { nodes { ... on LabeledEvent { createdAt label { name } } } } } } }`;
 
-const OPEN = `query($owner: String!, $name: String!, $after: String) { repository(owner: $owner, name: $name) {
-  issues(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes {
-    number title body authorAssociation lastEditedAt parent { number } labels(first: 50) { nodes { name } }
-    comments(last: 50) { nodes { authorAssociation createdAt body } }
-    timelineItems(itemTypes: LABELED_EVENT, last: 50) { nodes { ... on LabeledEvent { createdAt label { name } } } } } } } }`;
+const OPEN = `query($owner: String!, $name: String!, $endCursor: String) { repository(owner: $owner, name: $name) {
+  issues(states: OPEN, first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor } nodes {
+    number title body authorAssociation lastEditedAt parent { number } labels(first: 50) { nodes { name description } }
+    comments(last: 100) { nodes { authorAssociation createdAt body } }
+    timelineItems(itemTypes: [LABELED_EVENT, REOPENED_EVENT], last: 50) {
+      nodes { ... on LabeledEvent { createdAt label { name } } ... on ReopenedEvent { createdAt } } } } } } }`;
 
-const openIssues = (after = null) => {
-  const { nodes, pageInfo } = graph(OPEN, { after }).issues;
-  return pageInfo.hasNextPage ? [...nodes, ...openIssues(pageInfo.endCursor)] : nodes;
-};
-
-const queue = (args) => {
-  const { limit } = parseArgs({ args, options: { limit: { type: 'string' } } }).values;
-  const rows = ranked(openIssues().filter(pending));
-  console.log(JSON.stringify(limit === undefined ? rows : rows.slice(0, Number(limit)), null, 2));
+const queue = () => {
+  const issues = gh(OPEN, {}, '--paginate', '--slurp').flatMap((page) => page.data.repository.issues.nodes);
+  console.log(JSON.stringify(ranked(issues.filter(pending)), null, 2));
 };
 
 const main = () => {
@@ -157,6 +158,6 @@ const main = () => {
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  if (process.argv[2] === 'queue') queue(process.argv.slice(3));
+  if (process.argv[2] === 'queue') queue();
   else main();
 }

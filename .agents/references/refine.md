@@ -151,18 +151,20 @@ reopen one at any time.
 
 **A verdict is a comment.** Whoever runs the review posts the verdict on the
 issue, with its reason, ending in `<!-- idea-verdict: <name> -->`, where the name
-is `incomplete`, `build`, `yes-but` or `no-because`, or `none` for an issue that
-changes nothing the product does and so has no idea to review. Only a comment
-from the owner or a member counts, as the repository is public.
+is `incomplete`, `build`, `yes-but` or `no-because`. Whoever picks an issue up
+for review posts `none` instead when it changes nothing the product does, so has
+no idea to review. Only a comment from the owner, a member or a collaborator
+counts, as the repository is public, and `build` still needs its label: the
+label is what CI reads.
 
 **Filing an issue is all a session owes the loop.** `node tools/idea.mjs queue`
-lists the open issues that still need a verdict: no verdict and no `idea: build`
-yet, or an edit after the last of them. An epic is a list, not a change, and an
-outsider's issue is a report, so neither is listed. Whole briefs come first,
-since they wait only for the review; the rest follow in the order of "What comes
-first", each with the reviews already spent on it. An hourly sweep takes the top
-of that list: it writes the brief an issue lacks, runs the review and posts the
-verdict.
+lists the open issues that still need a verdict: none yet, or an edit or a reopen
+after the last one, or a label CI would refuse. An epic is a list, not a change,
+and an outsider's issue is a report, so neither is listed. Issues holding a brief
+come first, since they wait only for the review; the rest follow "What comes
+first", by score within each rank. A scheduled sweep on the owner's machine takes
+the top of that list: it writes the brief an issue lacks, runs the review and
+posts the verdict.
 
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
