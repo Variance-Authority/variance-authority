@@ -10,7 +10,8 @@
  * `testSequencer` is a global setting, so the project's own is chained rather
  * than replaced: it sorts, caches and answers everything else. The shard is
  * never its: placed by the times recorded, or by file count when none are, as
- * `shard-placement.ts` places every runner's.
+ * `shard-placement.ts` places every runner's. `sort` is its too, once
+ * `refuseUnfound` has asked whether a selected run found anything to select from.
  */
 
 // compass: variance-authority.reach
@@ -19,6 +20,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
+import { refuseUnfound } from './jest-selection.js';
 import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
 
@@ -100,6 +102,7 @@ export function placingSequencer(
   let read: Promise<SuiteTimes> | undefined;
   let told = false;
   const handed = {
+    sorting: refuseUnfound,
     own: (): SequencerClass => {
       const at = path === undefined ? jestSequencer(options.rootDir) : from.resolve(path, { paths: [options.rootDir] });
       const module = from(at) as SequencerClass | { default: SequencerClass };

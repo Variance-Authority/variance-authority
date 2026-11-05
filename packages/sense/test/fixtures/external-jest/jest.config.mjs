@@ -17,6 +17,8 @@ const cases = process.env['FIXTURE_CASES'];
 // What the configuration says about a run with no tests, as JSON. Absent, it
 // says nothing.
 const passes = process.env['FIXTURE_PASS_WITH_NO_TESTS'];
+// The pattern a run with a broken `testMatch` takes. Absent, it finds the cases.
+const testMatch = process.env['FIXTURE_TEST_MATCH'] ?? '<rootDir>/test/*.case.ts';
 const selection = skip === undefined
   ? {}
   : { selection: async () => ({
@@ -33,7 +35,7 @@ export default withTestSelection(
     testEnvironment: '<rootDir>/test/environment.ts',
     testTimeout: 4321,
     ...(passes === undefined ? {} : { passWithNoTests: JSON.parse(passes) }),
-    testMatch: ['<rootDir>/test/*.case.ts'],
+    testMatch: [testMatch],
     transform: {
       '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
     },

@@ -207,7 +207,9 @@ ways:
 - **No test runs.** The run prints `selected none of 340, so none of them
   runs`: no recorded test ran the code you changed, the tests that did already
   ran the text you have now, or they sit further than one import away. Vitest
-  and Jest then exit 0.
+  and Jest then exit 0. A run that found no test file at all has nothing to
+  select from, so it fails as the runner fails: check `testMatch` and the working
+  directory.
   The lines under it say which: a file left for a later leg is counted with the
   setting that runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
   Exit 0 here says nothing near the edit failed, not that the change is done.

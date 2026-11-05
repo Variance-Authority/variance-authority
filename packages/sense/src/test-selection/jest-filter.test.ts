@@ -169,6 +169,16 @@ module.exports.setup = async () => { ready = true; };
     expect(lines).toEqual([]);
   });
 
+  it('takes no passWithNoTests when the command line replaces the sequencer that would refuse an unfound run', () => {
+    const lines: string[] = [];
+    const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
+
+    expect(selectingFilter({}, { ...options, argv: ['node', 'jest', '--testSequencer=./mine.cjs'] })).toEqual({ filter: SELECTION_FILTER });
+    expect(lines).toEqual([
+      'variance-authority: --testSequencer replaces the sequencer that tells an empty selection from a run that found no file, so Jest fails both',
+    ]);
+  });
+
   it('says that a filter named on the command line turns the selection off', () => {
     const lines: string[] = [];
     const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };

@@ -210,13 +210,8 @@ With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
 
-Four things in your repository change what you write:
+Three things in your repository change what you write:
 
-- **Jest with nothing to run.** A change no test ran, such as a README edit,
-  prints `selected none of 2, so none of them runs`, and a lone Jest project
-  then exits `1`. Set `passWithNoTests: true` in the object you wrap. It applies
-  to your main branch's run too, where a suite that finds no test then passes.
-  Vitest exits `0` here.
 - **A Jest preset.** The wrap gives a configuration with no `transform` of its
   own Jest's default, so `ts-jest` and any other preset's transformer never runs.
   Copy the preset's `transform` into the object you wrap, as

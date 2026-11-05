@@ -140,8 +140,16 @@ that run's config when the selection dropped files and left the run, or its
 shard, none. A Vitest run that drops nothing keeps the project's setting. Jest
 freezes its global configuration before `filter` runs, so the Jest seam sets
 `passWithNoTests` when it writes the configuration, on any run whose filter it
-installed, and a selected run that found no file exits 0 too. A run with no
-selection takes no flag, so Jest's own exit stands there. Playwright reads
+installed. That flag cannot tell an empty selection from a run with nothing to
+select from, so the filter counts what Jest found across every project, and the
+seam's sequencer, whose `sort` Jest calls once after every filter, throws when the
+count is 0 and the project did not set `passWithNoTests` itself: Jest's exit 1
+stands on a run that found no file. A project that found none beside one that found
+some is not that failure, because Jest's own check is on the whole run. `--listTests`,
+`--onlyChanged` and `--lastCommit` keep their own exit. A `--testSequencer` on the
+command line replaces the seam's sequencer, so the seam takes no flag there and
+Jest fails both. A run with no selection takes no flag, so Jest's own exit stands
+there. Playwright reads
 `passWithNoTests` from the command line only, so its reporter turns a failed
 run whose one error is "No tests found" into a passed one when the selection
 kept no file.
@@ -250,7 +258,9 @@ These are the owner's to decide; each has a recommendation.
    count printed, or 0 by the seam's choice, which overrides that option.
    Answered: 0. A pull request that reaches no test is not a failed run, and a
    project cannot set `passWithNoTests` for selected runs alone. Vitest's own
-   `--changed` makes the same choice.
+   `--changed` makes the same choice. A run that found no file has nothing to
+   select from, so the runner's own exit stands: a selection never changes the
+   verdict there.
 6. **Runners in the first cut.** Jest and Vitest (recommended: they have a drop
    point that costs nothing per file; Rstest has none named and Playwright's
    brings back the costs refused above), or all four together. Answered for

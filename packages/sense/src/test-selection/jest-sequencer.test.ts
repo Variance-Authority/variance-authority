@@ -4,7 +4,9 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import Sequencer from './jest-sequencer.cjs';
+import filter from './jest-filter.cjs';
 import { PLACING_SEQUENCER, placingSequencer } from './jest-placing.js';
+import { selectingFilter } from './jest-selection.js';
 
 const root = resolve('/checkout');
 /** A directory that resolves the Jest this repository tests against. */
@@ -19,9 +21,88 @@ const times = async () => ({
 });
 const sequencer = () => new Sequencer({ contexts: [], globalConfig: {} } as never);
 const temporary: string[] = [];
+/** Where a selecting configuration leaves its filter, which one test must not hand the next. */
+const HANDED = Symbol.for('variance-authority:jest-selection');
 
 afterEach(async () => {
+  delete (globalThis as { [HANDED]?: unknown })[HANDED];
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe('the Jest sequencer when a selected run has no file to run', () => {
+  const UNFOUND = 'variance-authority: Jest found no test file';
+  const selecting = (config: { readonly [key: string]: unknown } = {}, argv: readonly string[] = ['jest']) => {
+    const skip = new Set(['a.test.ts']);
+    const configured = selectingFilter(config, { root, rootDir, selection: async () => ({ whole: skip, skip, notes: [] }), argv, say: () => {} });
+    placingSequencer(config, { root, rootDir, times, say: () => {}, argv });
+    return configured;
+  };
+  const sorted = async (globalConfig: { readonly [key: string]: unknown } = {}, tests: readonly unknown[] = []) =>
+    new Sequencer({ contexts: [], globalConfig } as never).sort(tests as never);
+
+  it('refuses a run no project found a file for', async () => {
+    selecting();
+    await filter([]);
+    await filter([]);
+
+    await expect(sorted()).rejects.toThrow(UNFOUND);
+  });
+
+  it('refuses a run whose filter Jest never called, as a configuration\'s skipFilter leaves it', async () => {
+    selecting();
+
+    await expect(sorted()).rejects.toThrow(UNFOUND);
+  });
+
+  it('passes a run whose selection kept none of what one project found', async () => {
+    selecting();
+    await filter([]);
+    await filter([resolve(root, 'a.test.ts')]);
+
+    await expect(sorted()).resolves.toEqual([]);
+  });
+
+  it('leaves a run alone that has a file to run, whatever the filter saw', async () => {
+    selecting();
+
+    await expect(sorted({}, [test('a.test.ts')])).resolves.toHaveLength(1);
+  });
+
+  it.each([
+    ['--onlyChanged', { onlyChanged: true }],
+    ['--lastCommit', { lastCommit: true }],
+    ['--listTests', { listTests: true }],
+    ['--collectTests', { collectTests: true }],
+  ])('leaves the exit to Jest under %s, which does not fail a run with no file', async (_flag, globalConfig) => {
+    selecting();
+    await filter([]);
+
+    await expect(sorted(globalConfig)).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['the configuration', { passWithNoTests: true }, ['jest']],
+    ['--passWithNoTests', {}, ['jest', '--passWithNoTests']],
+    ['--pass-with-no-tests', {}, ['jest', '--pass-with-no-tests']],
+  ])('leaves a run with no file passing when %s says so', async (_who, config, argv) => {
+    selecting(config, argv);
+    await filter([]);
+
+    await expect(sorted()).resolves.toEqual([]);
+  });
+
+  it('still refuses when the configuration\'s false stands', async () => {
+    selecting({ passWithNoTests: false });
+    await filter([]);
+
+    await expect(sorted()).rejects.toThrow(UNFOUND);
+  });
+
+  it('has nothing to say on a run the selection did not wrap', async () => {
+    expect(selecting({}, ['jest', '--watch'])).toEqual({});
+
+    await expect(sorted()).resolves.toEqual([]);
+  });
 });
 
 describe('the Jest sequencer under --shard', () => {

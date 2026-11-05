@@ -126,8 +126,9 @@ and `selected none of 1072` above it did not say the two were one answer. The
 exit code stays 0 and nothing wraps the run: the seam's headline says it,
 `selected none of 1072, so none of them runs`. The line says only what the seam
 knows, because the runner's next words are the runner's: Jest asks once per
-project, so a project that keeps nothing can sit beside one that runs, and a
-selected Jest run left no file exits 0. Under Vitest the line stands above the
+project, so a project that keeps nothing can sit beside one that runs, a selected
+Jest run that found files and kept none exits 0, and one that found no file fails
+as Jest fails. Under Vitest the line stands above the
 runner's rather than after it, because the seam says it when the selection is
 made. The exit 0 of such a run means lint and the compiler passed and no test
 ran, and the verdict's words are what tell it from a run whose tests passed.
