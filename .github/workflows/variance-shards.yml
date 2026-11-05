@@ -357,6 +357,7 @@ jobs:
 
           marker=$(node packages/cli/dist/bin.js comment --config cases/storybook-case/variance.config.json --marker)
           echo "marker=$marker" >> "$GITHUB_OUTPUT"
+          node packages/cli/dist/bin.js comment --config cases/storybook-case/variance.config.json --cleared > "$RUNNER_TEMP/variance-cleared.md"
 
           reports=()
           while IFS= read -r line; do
@@ -375,6 +376,7 @@ jobs:
             "${reports[@]}"
 
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
+        id: post
         name: post the docket
         shell: bash
         env:
@@ -384,6 +386,7 @@ jobs:
           # This gate posted the docket before the marker named its project.
           node .github/actions/variance/post-comment.mjs \
             --body-file "$RUNNER_TEMP/variance-comment.md" \
+            --cleared-file "$RUNNER_TEMP/variance-cleared.md" \
             --marker "$VARIANCE_MARKER" \
             --adopt-unkeyed true
 
@@ -392,7 +395,15 @@ jobs:
         shell: bash
         env:
           CODE: ${{ steps.report.outputs.exit-code }}
+          DOCKET_URL: ${{ steps.post.outputs.comment-url }}
         run: |
+          # An address comes only with a comment GitHub took.
+          if [ -n "${DOCKET_URL:-}" ]; then
+            WHERE="the docket is in the pull request comment at $DOCKET_URL"
+          else
+            WHERE="the report is in the variance report step above"
+          fi
+
           case "${CODE:-}" in
             0)
               echo "nothing needs review, across every shard."
@@ -402,7 +413,7 @@ jobs:
               # another: the shards placed the suite differently, which is not a
               # change in the product. The docket
               # lists it; packages/cli/README.md explains it.
-              echo "::error::variance found changes that need review; the docket is in the pull request comment."
+              echo "::error::variance found changes that need review; $WHERE"
               exit 1
               ;;
             2)

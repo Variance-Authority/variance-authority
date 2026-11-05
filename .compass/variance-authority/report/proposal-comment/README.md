@@ -17,7 +17,9 @@ In: the artifact, the limits each list stops at, and optionally where the full
 report and the images were published.
 
 Out: a markdown body leading with **drift**, then causes, then what has no
-cause, then coverage — or the empty string.
+cause, then coverage — or the empty string. Where the operator asks, it carries a
+box, and a tick in it reaches [`promotion`](../../retention/promotion/README.md)
+through the [forge](../../../externals/code-forge.md).
 
 ## Depends on
 

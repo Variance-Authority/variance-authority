@@ -125,6 +125,8 @@ export type Parsed =
       readonly all: boolean;
       /** Difference shapes to accept wherever they are the whole change. */
       readonly shapes: readonly string[];
+      /** `--by <name>`: who accepted, for a caller that knows. */
+      readonly by?: string;
       /**
        * `--message-file <path>`: write the commit message explaining this update.
        *
@@ -343,6 +345,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
             `${flags.positionals.join(', ')} as well is asking for two different sets`,
         );
       }
+      const by = flags.values.get('--by');
       const messageFile = flags.values.get('--message-file');
       const message = flags.values.get('--message');
       if (message !== undefined && messageFile === undefined) {
@@ -361,6 +364,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         subjects: flags.positionals,
         all,
         shapes,
+        ...(by !== undefined ? { by } : {}),
         ...(messageFile !== undefined ? { messageFile: resolve(messageFile) } : {}),
         ...(message !== undefined ? { message } : {}),
       };

@@ -135,7 +135,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   story: ['--file', '--name', '--project', '--label', '--in', '--package', '--around', '--whole', '--compare', '--root', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
-  accept: ['--all', '--shape', '--message-file', '--message'],
+  accept: ['--all', '--shape', '--by', '--message-file', '--message'],
   changelog: ['--component', '--subject', '--limit', '--since'],
   journeys: ['--all', '--file', '--limit', '--into', '--suite', '--format'],
   coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--root', '--format'],
@@ -150,7 +150,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
   carry: ['--config', '--format'],
-  comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker'],
+  comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker', '--cleared'],
 };
 
 export const USAGE = [
@@ -170,7 +170,7 @@ export const USAGE = [
   'variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
-  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
+  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]',
   'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev|instant>]',
   'variance journeys [--config <path> | --suite <name>] [--all] [--file <path>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file> | combine <record.bin>... --into <new-record> | inspect <record.bin> [--format text|json]',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
@@ -180,7 +180,7 @@ export const USAGE = [
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]',
-  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
+  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared',
   '',
   '`--version` prints the version of this tool.',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',

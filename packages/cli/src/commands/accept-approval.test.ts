@@ -4,6 +4,7 @@ import { createAbsentStore, type Approval, type HistoryStore } from '@variance-a
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import { createEphemeralStore } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
+import { parseArgs } from '../bin.js';
 import { accept, formatAcceptance } from './accept.js';
 import type { CliRunReport } from './run.js';
 
@@ -105,6 +106,33 @@ describe('recording that somebody accepted', () => {
       [{ project: 'shop', subject: 'fixture:a', run: 'github-9-1', at: '2026-08-10T12:00:00.000Z' }],
     ]);
     expect(result.approvals).toEqual({ recorded: 1 });
+  });
+
+  it('takes who accepted from --by, and leaves it absent without one', () => {
+    expect(parseArgs(['accept', '--all', '--by', 'ana'])).toMatchObject({ command: 'accept', by: 'ana' });
+    expect(parseArgs(['accept', '--all'])).not.toHaveProperty('by');
+  });
+
+  it('names who accepted on every row, when the caller knows', async () => {
+    // A forge knows who ticked a box. The row is where "who approved this" is
+    // asked, so the name belongs on it rather than in a line of a log.
+    const { store } = recordingStore();
+    const { store: history, approved } = approvingStore();
+
+    await accept({
+      report: { ...reportOf([observation({})]), run: RUN },
+      reportDir: '/repo/out',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+      history,
+      project: 'shop',
+      by: 'ana',
+      now: () => '2026-08-10T12:00:00.000Z',
+    });
+
+    expect(approved.flat().map((row) => row.by)).toEqual(['ana']);
   });
 
   it('records nothing, and says so, for a report that cannot name its run', async () => {

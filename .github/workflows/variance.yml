@@ -40,6 +40,10 @@ name: variance
 #   `variance: accept <project>` for the `tribunal` and `site` checks. The run saves
 #   into the pull request's own cache scope, which its later runs read first, and
 #   takes the label off again so the next change needs the next press.
+# - **On a pull request, by ticking the docket's box.** `variance-tick.yml`
+#   checks the person may, names them in the comment and reruns this check,
+#   which accepts into the same scope. The box is the head's, and the next push
+#   brings a new one.
 # - **On `main`, by landing there.** A pull request is where a change is
 #   judged, and merging it is the person's answer, whatever its check said at
 #   the time: green, red, still running, or never run because the check is new.
@@ -343,8 +347,9 @@ jobs:
               && 'approve or reject each subject on the review service, then re-run this check.'
               || env.VARIANCE_REVIEW == 'git'
               && 'check the report, then add the **variance: accept** label. The accepted images are committed to this branch, and the next run compares against them.'
-              || 'check the report, then add the **variance: accept** label to this pull request.'
+              || 'check the report, then tick the box below or add the **variance: accept** label to this pull request.'
             }}
+          tick-to-accept: ${{ env.VARIANCE_REVIEW == 'cache' }}
 
           # On under `git`, and only on the run the label started: it accepts
           # every changed subject and pushes the images to the pull request's
@@ -625,8 +630,11 @@ jobs:
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          # This project's label, not the case's.
-          to-accept: 'check the report, then add the **${{ matrix.label }}** label to this pull request.'
+          # This project's label, not the case's. The second sentence runs on
+          # every row and is there for `tribunal`, which shares its name with the
+          # service and is not it.
+          to-accept: 'check the report, then tick the box below or add the **${{ matrix.label }}** label to this pull request. That is the whole review: no review service holds this run.'
+          tick-to-accept: 'true'
 
       # A server that exits mid-read leaves only `ERR_CONNECTION_REFUSED` in
       # the read's log; why it exited is in its own.

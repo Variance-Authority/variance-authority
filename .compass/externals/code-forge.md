@@ -31,6 +31,10 @@ did not happen. The system renders the comment body; the forge's own integration
 posts it. A tribunal also verifies the runner's signed token, signs a person in
 through a GitHub App and asks whether they can write to the repository.
 
+One thing comes back: a person's edit of that comment. A tick in its box arrives
+as an event outside the change's run, so the forge is asked who may accept, keeps
+their name in the comment for one attempt, and reruns the job. Nothing else crosses.
+
 ## Their chart
 
 —
