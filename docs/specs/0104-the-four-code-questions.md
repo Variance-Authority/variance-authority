@@ -51,7 +51,8 @@ it is a read or a write.
 
 ## The questions
 
-**`symbol <name>`** answers every declaration of `name`, published first, each
+**`symbol <name>`** answers every declaration of `name`, published first, or by
+[place](0109-a-name-is-answered-from-where-it-is-asked.md) under `--from`, each
 on its own: two packages that declare a name are two rows, never one row
 "also published by" the other. `Container.member` and `--file`/`--kind` narrow
 to one. A local alias answers with the declaration it imports.
