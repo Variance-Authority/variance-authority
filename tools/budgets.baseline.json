@@ -1515,9 +1515,6 @@
   "packages/help/src/tools/search-answer.ts docblock": [
     12
   ],
-  "packages/help/src/tools/search.ts block": [
-    6
-  ],
   "packages/help/src/tools/search.ts overview": [
     76
   ],

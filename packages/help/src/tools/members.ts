@@ -54,13 +54,17 @@ export interface Members {
   readonly elsewhere?: readonly string[];
 }
 
+/** Whether a container is told by what it is, having no name to write. */
+export const isUnnamedContainer = (by: string): boolean => /^a (?:type literal|class)$/u.test(by);
+
 /** The container a member is declared on, as a sentence names it. */
 export function containerOf(by: string): string {
-  return /^a (?:type literal|class)$/u.test(by) ? by : `\`${by}\``;
+  return isUnnamedContainer(by) ? by : `\`${by}\``;
 }
 
 /** Identifiers joined by dots: the only names that write a container's member. */
 const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
+
 
 /**
  * The member a name asks for and the container it is on: `Tree.chainsTo` is
@@ -179,6 +183,16 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
   );
 }
 
+/** The languages of the checkout at `root` whose members were not read, by name; none when its index does not read. */
+export function membersUnreadOf(root: string, name: string): readonly string[] {
+  try {
+    return unreadMemberLanguages(memberDeclarationsOf(root, name)?.extensions ?? []);
+  } catch {
+    // A question's other readings say why the index does not read.
+    return [];
+  }
+}
+
 /**
  * Where a reading of the member asked for stops, given the languages `elsewhere`
  * names: members are read from JavaScript and TypeScript only, so a member of
@@ -187,16 +201,21 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
  * declarations were not read.
  */
 export function membersStop(members: Members): string | undefined {
-  const name = members.member;
   const languages = members.elsewhere ?? [];
   if (languages.length === 0) return undefined;
   const there = members.declared.length === 0 ? 'there' : 'there too';
-  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
-  return (
-    `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them: ` +
-    `if \`${name}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`
-  );
+  return `${unread(languages)}: if \`${members.member}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`;
 }
+
+/** Where a search for words stops, given the same languages: its question may be a phrase, so it names no member. */
+export function unreadStop(languages: readonly string[]): string | undefined {
+  return languages.length === 0 ? undefined : `${unread(languages)}: a member there is for their language server's workspace symbols to find.`;
+}
+
+const unread = (languages: readonly string[]): string => {
+  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
+  return `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them`;
+};
 
 /** `N places`, in words a sentence takes. */
 export function places(count: number): string {

@@ -152,6 +152,7 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.member_declaration_name, at),
                 columns.member_declaration_line.at(at),
                 id(columns.member_declaration_on, at),
+                span(columns.member_declaration_doc[0], columns.member_declaration_doc[1], at),
             );
         }
         for at in columns.member_uses.range(row) {

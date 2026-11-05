@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::read::Lines;
 use crate::top_level::top_level;
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct TextSpan {
     pub start: u32,
     pub end: u32,

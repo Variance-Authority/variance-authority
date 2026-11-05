@@ -263,7 +263,7 @@ repository's own fixture and the substring finds nothing, which is printed
 first, as a miss of the text you typed rather than of the code:
 
 ```
-No name in this repository, nor the doc of one, writes `meesure`. The nearest follow.
+No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `meesure`. The nearest follow.
 
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.

@@ -103,6 +103,17 @@ describe('outlived', () => {
     expect(await outlived('docs_search', help, { query }, { root }, after(help))).toBe(true);
   });
 
+  it.each([
+    ['chainsTo', 'packages/kit/src/held.ts', { 'packages/kit/src/held.ts': 'export interface Tree {\n  chainsTo: string;\n}\n' }],
+    ['rarityOf', 'packages/kit/src/uses.ts', { 'packages/kit/src/rarity.ts': 'export const rarity = 1;\n', 'packages/kit/src/uses.ts': "import { rarity as rarityOf } from './rarity.js';\nexport const shown = rarityOf;\n" }],
+  ])('says so of `docs_search` for `%s` when %s, which holds the row it shows, changed', async (query, file, files) => {
+    const root = await fixture.published(files);
+    const help = await readWorkspace(root);
+    expect(await outlived('docs_search', help, { query }, { root }, after(help))).toBe(false);
+    appendFileSync(join(root, file), '// moved\n');
+    expect(await outlived('docs_search', help, { query }, { root }, after(help))).toBe(true);
+  });
+
   it('leaves a `docs_search` answer as it is when a barrel that passes on none of its rows changed', async () => {
     const root = await fixture.published({ ...BARRELS, 'packages/kit/src/aside.ts': "export { taxOf } from './tax.js';\n" });
     const help = await readWorkspace(root);

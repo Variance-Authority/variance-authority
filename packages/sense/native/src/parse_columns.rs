@@ -91,6 +91,7 @@ pub struct ParseColumns {
     member_declaration_name: Vec<u32>,
     member_declaration_line: Vec<u32>,
     member_declaration_on: Vec<u32>,
+    member_declaration_doc: [Vec<u32>; 2],
     member_uses: Vec<u32>,
     member_use_name: Vec<u32>,
     member_use_line: Vec<u32>,
@@ -224,10 +225,11 @@ impl ParseColumns {
         self.member_through_default.push(u8::from(through_default));
     }
 
-    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32) {
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, doc: Span) {
         self.member_declaration_name.push(name);
         self.member_declaration_line.push(line);
         self.member_declaration_on.push(on);
+        span(&mut self.member_declaration_doc, doc);
     }
 
     pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32) {
@@ -277,6 +279,7 @@ impl ParseColumns {
         let [doc_start, doc_end] = self.doc;
         let [nested_signature_start, nested_signature_end] = self.nested_signature;
         let [nested_doc_start, nested_doc_end] = self.nested_doc;
+        let [member_declaration_doc_start, member_declaration_doc_end] = self.member_declaration_doc;
         vec![
             u32s("parses.key", self.digest),
             u32s("parses.key-way", self.way),
@@ -337,6 +340,8 @@ impl ParseColumns {
             u32s("member-declarations.name", self.member_declaration_name),
             u32s("member-declarations.line", self.member_declaration_line),
             u32s("member-declarations.on", self.member_declaration_on),
+            u32s("member-declarations.doc-start", member_declaration_doc_start),
+            u32s("member-declarations.doc-end", member_declaration_doc_end),
             u32s("parses.member-uses", self.member_uses),
             u32s("member-uses.name", self.member_use_name),
             u32s("member-uses.line", self.member_use_line),
