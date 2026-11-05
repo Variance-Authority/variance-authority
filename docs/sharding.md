@@ -4,10 +4,9 @@ Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
 takes whole test files by how long they took on the last recorded run, not by
 how many there are. Each file goes in turn, longest first, to the shard with
 the least time so far, so the shards finish close together. Each shard
-computes the split from the record it reads and the files it collects, without
-talking to the others, so shards that read one record at one commit run every
-file in exactly one shard. A Playwright setup or teardown project is the
-exception: Playwright runs it in every shard that keeps a test depending on it.
+computes the split from the record the run handed it and the files it collects,
+without talking to the others, so shards that read one record at one commit run
+every file in exactly one shard, and a shard run again takes the files it took.
 
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
 on four shards:
@@ -72,7 +71,9 @@ done by `@variance-authority/cli`, so the project installs it, and the suite
 needs `"carry": "share"` beside a `share` section in `variance.config.json`.
 [A suite your checkout has not recorded](sharing.md#a-suite-your-checkout-has-not-recorded)
 covers which record is read when. Until a record is published, the shards are
-placed as [when nothing is recorded](#when-nothing-is-recorded) shows.
+placed as [when nothing is recorded](#when-nothing-is-recorded) shows. Each
+shard asks for itself here; to hold a build and its re-runs to one record, have
+[one job ask for all of them](#run-a-failed-shard-again).
 
 ## When nothing is recorded
 
@@ -99,16 +100,6 @@ holds no record of it. A record that is not there never fails a build:
   or a record that is there and does not read, stops the shard before any test
   runs, and the error names what failed. Another shard may have read it, and
   the two would place different files. Run the job again.
-- **Shards that read different records split differently**, so a file can run
-  in two shards or in none. Each shard asks the share when it starts, so a
-  publish that lands between two shards' starts gives them two records. The
-  line in each shard's log names what it read. On the push to your mainline,
-  step 2's fold fails the build as unstable sharding and names both records.
-  On a pull request, fetch the record once: in the job that plans the shards,
-  `variance share --suite <name>` keeps it under
-  `node_modules/.cache/variance-authority/share/`. Pass that directory to each
-  shard as an artifact, and a shard at the same commit reads it without asking
-  the share again.
 - **`variance shards` answers one shard.** [Choose how many shards](#choose-how-many-shards)
   counts by the times, so with none it answers one and says so. Pass
   `--unrecorded <n>` to start `n` shards until there are times.
@@ -116,6 +107,72 @@ holds no record of it. A record that is not there never fails a build:
 A test file the record has not seen yet, such as one added on your branch,
 does not make the shard place by count. It is priced at the median of the files
 the record has, so new files do not all land on one shard.
+
+## Run a failed shard again
+
+Shards that read different records split differently, so a file can run in two
+shards or in none. A shard that asks the share for itself reads what the share
+holds at that moment: a publish between two shards' starts gives them two
+records, and a shard run again after your mainline moved reads a newer one than
+the first attempt did. It could take files no other shard took, or leave out the
+one that failed.
+
+So one job asks once and hands what it read to every shard. `carry hand` reads
+the share into a directory, the artifact carries it, and `carry receive` lays it
+down for the shard:
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: npm ci
+      - run: npx variance carry hand "$RUNNER_TEMP/base"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+          retention-days: 30
+          if-no-files-found: error
+
+  test:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+      - run: npx variance carry receive "$RUNNER_TEMP/base"
+      - run: npx vitest run --shard ${{ matrix.shard }}
+```
+
+A shard run again now selects what it selected the first time. Selection takes
+the commit, the shard's number and the record, and none of them changes on a
+re-run: the re-run downloads the artifact the first attempt uploaded, and
+`carry receive` lays it down however far your mainline has moved. Give `plan` the
+share's token: what it could not read is the answer every shard gets, and they
+run what a suite with no record runs.
+
+The artifact has to outlast the run. GitHub re-runs a job for 30 days, so
+`retention-days: 30` keeps it for all of them. A shard whose artifact is gone
+stops at the download, rather than place its files by another record. Run the
+whole build again then, `plan` included.
+
+Shards that ask for themselves still can differ. The line in each shard's log
+names what it read, and on the push to your mainline, step 2's fold fails the
+build as unstable sharding and names both records.
 
 ## Choose how many shards
 
@@ -212,6 +269,7 @@ jobs:
       - id: count
         run: |
           set -o pipefail
+          npx variance carry hand "$RUNNER_TEMP/base"
           npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
           since=()
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
@@ -220,6 +278,12 @@ jobs:
           fi
           shards=$(npx variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+          retention-days: 30
+          if-no-files-found: error
 
   test:
     needs: plan
@@ -234,6 +298,11 @@ jobs:
         with:
           fetch-depth: 0
       - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+      - run: npx variance carry receive "$RUNNER_TEMP/base"
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             npx variance index
@@ -243,11 +312,9 @@ jobs:
 ```
 
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
-all selects. Both jobs read the record from the share, so the suite needs
-`"carry": "share"`: with no record to read, every test file runs. Each shard here
-asks the share itself, so a publish between two shards' starts can split them
-differently; [When nothing is recorded](#when-nothing-is-recorded) shows how to
-fetch the record once. In CI a selection needs the
+all selects. The record comes from the share, so the suite needs
+`"carry": "share"`: with no record to read, every test file runs. `plan` hands every
+shard its one read, as in [a shard run again](#run-a-failed-shard-again). In CI a selection needs the
 [source index](source-index.md), so each job builds it first.
 [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
@@ -255,12 +322,14 @@ lists every flag and the JSON.
 ## Every shard computes the same split
 
 No shard tells another what to take. Each one computes the whole split from
-three inputs and keeps its own part:
+three inputs and keeps its own part. A Playwright setup or teardown project is
+the exception: Playwright runs it in every shard that keeps a test depending on
+it.
 
 - **The files**: what the runner collected, after the change's selection. Shards
   that check out the same commit collect the same files.
-- **The times**: the record they read. Shards of one build read the same one.
-  Each shard's record names the record it read, and combining the shards'
+- **The times**: the record `carry hand` read. Shards of one build read the same
+  one. Each shard's record names the record it read, and combining the shards'
   records fails the build when two of them name different ones, since a file
   may then have run in no shard. A JVM shard names the record it read
   `unknown`: Surefire or Gradle hands the agent the classes `variance select`

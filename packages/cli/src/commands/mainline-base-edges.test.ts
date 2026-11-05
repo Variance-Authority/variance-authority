@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
 import {
@@ -9,17 +9,20 @@ import {
   commitRunsFile,
   declaredSuites,
   mainlineReadRoot,
+  readFetchedMainline,
   testCoverageFile,
   withCaseSections,
+  writeFetchedMainline,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { MISS_STANDS_MS, mainlineBase, mainlineMissed } from './mainline-base.js';
-import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, git, gitPublished, published, publishTo, ranWhole, recordIn } from './mainline-fixture.js';
-import { suiteBase } from './suite-base.js';
+import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, forgetLineAnswers, git, gitPublished, published, publishedAt, publishTo, recordIn } from './mainline-fixture.js';
+import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare } from './suite-share.js';
+import { suiteTimes } from './suite-times.js';
 
 /**
  * The edges of reading the mainline's record that the readers' own tests do
@@ -56,6 +59,11 @@ async function laptop(origin: string, ...clone: string[]) {
   return { dir, readRoot, base, reach, nowhere: join(home, 'nowhere.git') };
 }
 
+/** What `dir` last fetched, marked as another job of its run handed it on, as `carry receive` lays it. */
+async function handed(dir: string, readRoot: string): Promise<void> {
+  await writeFetchedMainline(cacheRootFor(dir), 'unit', { ...readFetchedMainline(readRoot)!, handed: true });
+}
+
 /** A commit pushed to `ci`'s `main`, and none of its records published. */
 async function pushed(ci: string): Promise<string> {
   await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'next');
@@ -66,30 +74,8 @@ async function pushed(ci: string): Promise<string> {
 /** A commit pushed to `ci`'s `main`, and the record CI made there published to the mainline. */
 async function publishedNext(ci: string): Promise<string> {
   const commit = await pushed(ci);
-  await publishedAt(ci, commit);
+  await publishedAt(home, ci, commit);
   return commit;
-}
-
-/** The record CI made at `commit` published to the mainline: that commit's job finishing, whenever it does. */
-async function publishedAt(ci: string, commit: string): Promise<void> {
-  const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
-  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
-  await git(ci, 'checkout', '--quiet', commit);
-  await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
-  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), commit);
-  const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
-  await git(ci, 'checkout', '--quiet', 'main');
-  if (reader === undefined) vi.unstubAllEnvs();
-  else vi.stubEnv('VARIANCE_AUTHORITY_CACHE', reader);
-  // The latest keeps a newer commit's record when that job finished first.
-  expect(done).toMatchObject({ published: { atCommit: { kept: [commit] } } });
-}
-
-/** Take back the git cell's held answers under `cache`, as a minute passing would. */
-async function forgetLineAnswers(cache: string): Promise<void> {
-  const held = (await readdir(cache, { recursive: true })).filter((path) => basename(path) === 'variance-fetched');
-  for (const dir of held) await rm(join(cache, dir), { recursive: true, force: true });
-  expect(held).not.toEqual([]);
 }
 
 describe('a line that gave no record a moment ago', () => {
@@ -255,12 +241,38 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     expect(again).toMatchObject({ commit: first, distance: 1, fetched: at(NOW + 60_000) });
     expect(again).not.toHaveProperty('earlier');
 
-    await publishedAt(ci, second);
+    await publishedAt(home, ci, second);
     await forgetLineAnswers(join(home, 'laptop-cache'));
     const read = await base(NOW + 2 * 60_000);
 
     expect(read).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 2 * 60_000) });
     expect(third).not.toBe(second);
+  });
+
+  it('behind the merge base, stands when its run handed it on, with a newer record on the line', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, readRoot, base } = await laptop(origin);
+    await base(NOW);
+    await publishedNext(ci);
+    await git(dir, 'pull', '--quiet');
+    await handed(dir, readRoot);
+
+    expect(await base(NOW + DAY)).toMatchObject({ commit: first, distance: 1, earlier: { reused: 'handed' } });
+  });
+
+  it('keeps a checkout\'s own layer on the record its run handed on, for the times and the base alike', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const { dir, readRoot } = await laptop(origin);
+    const read = await suiteBase(dir, { env: LOCAL });
+    if (read.from !== 'mainline') throw new Error('the line gave no record');
+    await layMainline(dir, read.mainline, 'fixture');
+    await publishedNext(ci);
+    await git(dir, 'pull', '--quiet');
+    await handed(dir, readRoot);
+
+    await suiteTimes({ root: dir });
+
+    expect(await suiteBase(dir, { env: LOCAL })).toMatchObject({ from: 'own', repin: { repinned: false }, layer: { pinned: { commit: first } } });
   });
 
   it('behind the merge base, passes over a record kept there by another suite\'s job', async () => {
@@ -305,7 +317,7 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
     await git(dir, 'checkout', '--quiet', '-b', 'older', second);
     expect(await base(NOW)).toMatchObject({ commit: third, distance: -1, fetched: at(NOW) });
 
-    await publishedAt(ci, second);
+    await publishedAt(home, ci, second);
     await forgetLineAnswers(join(home, 'laptop-cache'));
 
     expect(await base(NOW + 60_000)).toMatchObject({ commit: second, distance: 0, fetched: at(NOW + 60_000) });
