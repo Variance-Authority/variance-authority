@@ -12,7 +12,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const MODEL = 'gpt-6.1-terra';
+const MODEL = 'gpt-6.1-sol';
 const EFFORT = 'medium';
 /** Where the ChatGPT desktop app keeps the CLI, which it does not put on `PATH`. */
 const APP = '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex';
