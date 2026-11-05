@@ -201,19 +201,46 @@ describe('the whole job keeps a person’s decision', () => {
     expect(printedJob().jobs.variance.concurrency?.['group']).toBe('variance-${{ github.ref }}');
   });
 
-  // `queue: max` keeps every push to `main`, and GitHub does not guarantee their
-  // order. A run writes the store `main` compares against, so it asks for the
-  // head once it holds the group: a newer run that went first has moved it.
-  it('lets a push write the store only while it is the head of main', () => {
+  // `queue: max` lets any run start after a newer one, and GitHub does not
+  // guarantee their order. So a run asks for its ref's head once it holds the
+  // group: a newer run that went first has moved it.
+  const stepsOfTheJob = (): { head: Node | undefined; action: Node | undefined; order: number[] } => {
     const steps = printedJob().jobs.variance.steps;
     const head = steps.findIndex((step) => step['id'] === 'head');
     const action = steps.findIndex((step) => String(step['uses']).startsWith('Variance-Authority/action@'));
+    return { head: steps[head], action: steps[action], order: [head, action] };
+  };
 
-    expect(head).toBeGreaterThanOrEqual(0);
-    expect(head).toBeLessThan(action);
-    expect(steps[head]).toMatchObject({ if: "github.event_name == 'push'" });
-    expect(steps[head]?.['run']).toContain('$GITHUB_SHA');
-    expect(steps[action]).toMatchObject({ if: "steps.head.outputs.superseded != 'true'" });
+  it('asks for the head of whatever ref started the run, before the action', () => {
+    const { head, order } = stepsOfTheJob();
+
+    expect(order[0]).toBeGreaterThanOrEqual(0);
+    expect(order[0]).toBeLessThan(order[1]!);
+    expect(head).not.toHaveProperty('if');
+    expect(head?.['env']).toMatchObject({
+      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+      PULL_REQUEST: '${{ github.event.pull_request.number }}',
+      THIS_HEAD: '${{ github.event.pull_request.head.sha || github.sha }}',
+    });
+    expect(head?.['run']).toContain('/pulls/$PULL_REQUEST');
+    expect(head?.['run']).toContain('/commits/heads/$GITHUB_REF_NAME');
+    expect(head?.['run']).toContain('"$THIS_HEAD"');
+  });
+
+  // An older push would save over a newer one, and an older comparison would
+  // replace the report of the head a reviewer is about to label.
+  it('stops a superseded run, except the label’s', () => {
+    expect(stepsOfTheJob().action).toMatchObject({
+      if: "steps.head.outputs.superseded != 'true' || github.event.label.name == 'variance: accept'",
+    });
+  });
+
+  // The accept is what the person meant, so it is kept. Its report is of a commit
+  // the pull request has left, so it leaves the head's comment alone.
+  it('keeps a superseded label’s accept and off the head’s comment', () => {
+    expect(stepsOfTheJob().action?.['with']).toMatchObject({
+      comment: "${{ steps.head.outputs.superseded != 'true' }}",
+    });
   });
 
   it('reports to a merge queue, which waits on a check nothing else would start', () => {

@@ -405,21 +405,27 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build-storybook
 
-      - name: ask whether this push is still the head
+      - name: ask whether this run is still the head
         id: head
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          THIS_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/heads/$GITHUB_REF_NAME" --jq .sha)
-          if [ "$head" != "$GITHUB_SHA" ]; then echo 'superseded=true' >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$PULL_REQUEST" ]; then
+            head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST" --jq .head.sha)
+          else
+            head=$(gh api "repos/$GITHUB_REPOSITORY/commits/heads/$GITHUB_REF_NAME" --jq .sha)
+          fi
+          if [ "$head" != "$THIS_HEAD" ]; then echo 'superseded=true' >> "$GITHUB_OUTPUT"; fi
 
       - uses: Variance-Authority/action@v1
-        if: steps.head.outputs.superseded != 'true' # an older push saves nothing over a newer one
+        if: "steps.head.outputs.superseded != 'true' || github.event.label.name == 'variance: accept'"
         with:
           config: variance.config.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-page: true # the report the comment links to, images included
+          comment: "${{ steps.head.outputs.superseded != 'true' }}" # the comment is the head's
           accept: "${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}"
           to-accept: 'check the report, then add the **variance: accept** label to this pull request'
 ```
@@ -447,13 +453,27 @@ order of their events, and it does not guarantee even that. A push can then
 compare before an accept that came first: the accept is saved, the label is off
 and the check stays red. Re-run the failed job, and it compares against the accept.
 
-Pushes to `main` wait in the same group, so a newer one can run first, and an
-older run that followed would save its commit's store over the newer one. The
-`head` step stops that. A run asks GitHub for the branch's head once it holds the
-group, and a run that is no longer the head skips the action and stays green,
-because the newer commit has a run of its own. A run that is still the head
-cannot be overtaken: any newer push waits behind it and saves after it. If GitHub
-does not answer, the step fails and the run saves nothing.
+Any run can also start after a newer one. An older push would save its commit's
+store over the newer one, and an older comparison would replace the head's report
+in the comment. The `head` step stops both. Once a run holds the group it asks
+GitHub for the head of its branch or pull request, and a run that is no longer the
+head skips the action and stays green, because the newer commit has a run of its
+own. A run that is still the head cannot be overtaken: any newer run waits behind
+it and writes after it. If GitHub does not answer, the step fails, the run saves
+nothing, and re-running the job asks again.
+
+The label's run is the exception, because the accept exists nowhere else. It
+accepts what its commit renders and leaves the comment to the head. The next
+comparison reads that accept, and a head that compared first stays red until you
+re-run its job.
+
+A label accepts the head the pull request is at when you add it, and nothing ties
+that to the report you read. A push lands, its run waits, and the comment still
+shows the commit before it. So before adding the label, check that the `variance`
+check on the pull request's latest commit has finished, and open the report from
+that run. A [tick](https://github.com/Variance-Authority/action#accepting-with-a-tick)
+is tied: its box names the head it was written for, and a push makes it accept
+nothing.
 
 Leave `cancel-in-progress` out: GitHub refuses `true` beside `queue: max`, and
 `true` would stop a running accept. A group holds 100 waiting runs and cancels any
