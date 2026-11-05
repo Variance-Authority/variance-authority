@@ -160,15 +160,16 @@ label is what CI reads.
 **A session that files an issue and does not build it owes the loop nothing
 more.** `node tools/idea.mjs queue` lists what the loop still owes: every open
 issue without `idea: build`, since the loop exits only on the label or a close,
-and every labelled issue CI would refuse. A `none` takes an issue off the list
-until it is edited or reopened. An epic is a list, not a change, and an outsider's
+and every labelled issue CI would refuse. A `none` says the issue was never in
+the loop, and keeps it off the list until it is edited or reopened. An epic is a list, not a change, and an outsider's
 issue is a report, so neither is listed. Issues holding a brief come first, since
 they wait only for the review; the rest follow "What comes first", by score within
 each rank. An `incomplete` nothing has changed since goes last, because another
 review would say the same. A scheduled task on the owner's machine takes the top
 of that list: it writes the brief an issue lacks, runs the review, posts the
-verdict and follows it through, and it counts the verdicts on the issue for the
-three reviews above.
+verdict and follows it through. A `build` on an issue already labelled takes the
+label off and puts it back, since CI reads when it went on. For the three reviews
+above it counts the verdicts since the last reopen, leaving out `incomplete`.
 
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
