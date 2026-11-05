@@ -34,14 +34,14 @@ if (args[1]==='shards') {
     const calls = join(root, 'calls');
     execFileSync(process.execPath, ['tools/plan-suites.mjs'], { cwd: root, stdio: 'pipe', env: {
       ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}`, EVENT: 'pull_request',
-      BASELINE_READ: join(root, 'frozen'), BASELINE_HANDED: 'true', RUNNER_TEMP: root,
+      BASELINE_READ: join(root, 'frozen'), RUNNER_TEMP: root,
       VARIANCE_AUTHORITY_CACHE: join(root, 'carried'), GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: join(root, 'summary'), CALLS: calls,
     } });
     const legs = JSON.parse(readFileSync(output, 'utf8').trim().slice('legs='.length));
     expect(legs).toHaveLength(6);
     expect(legs.every((leg: { mode: string }) => leg.mode === 'whole')).toBe(true);
     const read = readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-    expect(read).toContainEqual({ args: ['tools/take-base.mjs', join(root, 'frozen'), 'true'], cache: join(root, 'whole-plan') });
+    expect(read).toContainEqual({ args: ['packages/cli/dist/bin.js', 'carry', 'receive', join(root, 'frozen')], cache: join(root, 'whole-plan') });
     for (const call of read.filter((call) => call.args[1] === 'shards')) {
       expect(call.cache).toBe(join(root, call.args.includes('--max') ? 'carried' : 'whole-plan'));
     }

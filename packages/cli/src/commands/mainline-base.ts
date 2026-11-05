@@ -88,6 +88,8 @@ export interface MissedMainline {
   readonly at: string;
   readonly miss: MainlineMiss;
   readonly holds?: readonly string[];
+  /** Laid by `carry receive`: the run's answer, which stands past {@link MISS_STANDS_MS} as a handed record stands past the merge base. */
+  readonly handed?: true;
 }
 
 export type MainlineBase = MainlineRecord | MainlineMissed;
@@ -166,7 +168,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
       if (reused !== undefined) return earlier(held, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);
-    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
+    if (noted !== undefined && (noted.handed === true || (noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS))) {
       if (held !== undefined) return measured(place, root, held, { unanswered: noted.miss, asked: noted.at }, named?.base);
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
@@ -301,7 +303,7 @@ export function readMissedMainline(readRoot: string): MissedMainline | undefined
   const reads = typeof miss?.kind === 'string' && (miss.detail === undefined || typeof miss.detail === 'string');
   if (typeof value.mainline !== 'string' || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at)) || !reads) return undefined;
   const holds = Array.isArray(value.holds) && value.holds.every((name) => typeof name === 'string') ? value.holds : undefined;
-  return { mainline: value.mainline, at: value.at, miss: value.miss as MainlineMiss, ...(holds === undefined ? {} : { holds }) };
+  return { mainline: value.mainline, at: value.at, miss: value.miss as MainlineMiss, ...(holds === undefined ? {} : { holds }), ...(value.handed === true ? { handed: true } : {}) };
 }
 
 /** Keep the line's answer that it gave no record under `readRoot`, where {@link readMissedMainline} reads it. */

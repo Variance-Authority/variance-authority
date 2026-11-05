@@ -179,7 +179,7 @@ export const USAGE = [
   'variance prune',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
-  'variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]',
+  'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared',
   '',
   '`--version` prints the version of this tool.',

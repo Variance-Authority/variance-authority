@@ -63,7 +63,6 @@
         "MainlineMissed": "interface",
         "MainlinePassedOver": "interface",
         "MainlineRecord": "interface",
-        "MissedMainline": "interface",
         "NotObserved": "interface",
         "NotObservedKind": "type",
         "OPERATOR_ERROR_MARKER": "const",
@@ -133,7 +132,6 @@
         "questions": "function",
         "readCandidate": "function",
         "readCliRunReport": "function",
-        "readMissedMainline": "function",
         "readVantage": "function",
         "recordOf": "function",
         "recordedExecutionFile": "function",
@@ -150,8 +148,7 @@
         "watch": "function",
         "watching": "function",
         "writeArtifactToDisk": "function",
-        "writeCliRunReport": "function",
-        "writeMissedMainline": "function"
+        "writeCliRunReport": "function"
       }
     }
   },

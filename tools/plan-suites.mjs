@@ -23,7 +23,7 @@ const fullEnv = process.env.BASELINE_READ === undefined ? process.env : {
   ...process.env, VARIANCE_AUTHORITY_CACHE: join(process.env.RUNNER_TEMP ?? tmpdir(), 'whole-plan'),
 };
 if (process.env.BASELINE_READ !== undefined) {
-  run('node', ['tools/take-base.mjs', process.env.BASELINE_READ, process.env.BASELINE_HANDED ?? 'false'], fullEnv);
+  run('node', ['packages/cli/dist/bin.js', 'carry', 'receive', process.env.BASELINE_READ], fullEnv);
 }
 for (const [suite, config, unrecorded] of [
   ['unit', 'vitest.config.mts', 2],

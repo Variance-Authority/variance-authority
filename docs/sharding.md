@@ -4,9 +4,9 @@ Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
 takes whole test files by how long they took on the last recorded run, not by
 how many there are. Each file goes in turn, longest first, to the shard with
 the least time so far, so the shards finish close together. Each shard
-computes the split from the record it reads and the files it collects, without
-talking to the others, so shards that read one record at one commit run every
-file in exactly one shard. A Playwright setup or teardown project is the
+computes the split from the record the run handed it and the files it collects,
+without talking to the others, so shards that read one record at one commit run
+every file in exactly one shard, and a shard run again takes the files it took. A Playwright setup or teardown project is the
 exception: Playwright runs it in every shard that keeps a test depending on it.
 
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
@@ -100,16 +100,11 @@ holds no record of it. A record that is not there never fails a build:
   runs, and the error names what failed. Another shard may have read it, and
   the two would place different files. Run the job again.
 - **Shards that read different records split differently**, so a file can run
-  in two shards or in none. Each shard asks the share when it starts, so a
-  publish that lands between two shards' starts gives them two records. The
-  line in each shard's log names what it read. On the push to your mainline,
-  step 2's fold fails the build as unstable sharding and names both records.
-  On a pull request, fetch the record once: in the job that plans the shards,
-  `variance share --suite <name>` keeps it under
-  `node_modules/.cache/variance-authority/share/`. Pass that directory to each
-  shard as an artifact, and a shard at the same commit reads it without asking
-  the share again, while the record is the one at the shard's merge base. A
-  git share may still gain that record, so a shard holding an older one asks.
+  in two shards or in none. A shard that received the run's record cannot reach
+  another one. A shard that asks the share for itself can: a publish between two
+  shards' starts gives them two records, and the line in each shard's log names
+  what it read. On the push to your mainline, step 2's fold fails the build as
+  unstable sharding and names both records.
 - **`variance shards` answers one shard.** [Choose how many shards](#choose-how-many-shards)
   counts by the times, so with none it answers one and says so. Pass
   `--unrecorded <n>` to start `n` shards until there are times.
@@ -117,6 +112,20 @@ holds no record of it. A record that is not there never fails a build:
 A test file the record has not seen yet, such as one added on your branch,
 does not make the shard place by count. It is priced at the median of the files
 the record has, so new files do not all land on one shard.
+
+## Run a failed shard again
+
+A shard run again selects what it selected the first time. Selection takes the
+commit, the shard's number and the record, and the first two do not change on a
+re-run. The record stays the one `plan` handed, because the re-run downloads the
+artifact the first attempt uploaded, and `carry receive` lays it down however
+far your mainline has moved. Without it the shard would read a newer record, and
+it could take files no other shard took or leave out the one that failed.
+
+The artifact has to outlast the run. GitHub re-runs a job for 30 days, so
+`retention-days: 30` keeps it for all of them. A shard whose artifact is gone
+stops at the download, rather than place its files by another record. Run the
+whole build again then, `plan` included.
 
 ## Choose how many shards
 
@@ -213,6 +222,7 @@ jobs:
       - id: count
         run: |
           set -o pipefail
+          npx variance carry hand "$RUNNER_TEMP/base"
           npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
           since=()
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
@@ -221,6 +231,12 @@ jobs:
           fi
           shards=$(npx variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+          retention-days: 30
+          if-no-files-found: error
 
   test:
     needs: plan
@@ -235,6 +251,11 @@ jobs:
         with:
           fetch-depth: 0
       - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+      - run: npx variance carry receive "$RUNNER_TEMP/base"
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             npx variance index
@@ -244,11 +265,11 @@ jobs:
 ```
 
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
-all selects. Both jobs read the record from the share, so the suite needs
-`"carry": "share"`: with no record to read, every test file runs. Each shard here
-asks the share itself, so a publish between two shards' starts can split them
-differently; [When nothing is recorded](#when-nothing-is-recorded) shows how to
-fetch the record once. In CI a selection needs the
+all selects. The record comes from the share, so the suite needs
+`"carry": "share"`: with no record to read, every test file runs. `plan` asks the
+share once and hands what it read to every shard, so a publish during the build
+moves nothing, and [a shard run again](#run-a-failed-shard-again) stands on the
+same record. In CI a selection needs the
 [source index](source-index.md), so each job builds it first.
 [`shards`: how many CI jobs a suite is worth](../packages/cli/README.md#shards-how-many-ci-jobs-a-suite-is-worth)
 lists every flag and the JSON.
@@ -260,7 +281,7 @@ three inputs and keeps its own part:
 
 - **The files**: what the runner collected, after the change's selection. Shards
   that check out the same commit collect the same files.
-- **The times**: the record they read. Shards of one build read the same one.
+- **The times**: the record `carry hand` read. Shards of one build read the same one.
   Each shard's record names the record it read, and combining the shards'
   records fails the build when two of them name different ones, since a file
   may then have run in no shard. A JVM shard names the record it read

@@ -3,7 +3,7 @@
  * `node tools/keep-base.mjs [suite]`. Named, one suite; unnamed, every suite
  * the root config gives to the share.
  *
- * `suiteBase` reads the record from the line, or the read `take-base.mjs`
+ * `suiteBase` reads the record from the line, or the read `carry receive`
  * already laid, and `layMainline` lays it with the runs record its publishing
  * run carried as a seed: the restore a cache-carried suite gets from the
  * Actions cache, and nothing a developer's checkout does. When the line gave no
