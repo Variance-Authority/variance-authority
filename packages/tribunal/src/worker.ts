@@ -28,7 +28,7 @@ import {
   ME_PATH,
   UNAUTHENTICATED,
   attributed,
-  crossSite,
+  crossOrigin,
   introduced,
   movesBaselines,
   readable,
@@ -194,7 +194,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
         if (served !== null && served !== undefined) return served;
 
         // Here and not in a policy, so a host's own session is covered without knowing.
-        const principal = crossSite(request) ? null : await options.policy.principal(request);
+        const principal = crossOrigin(request) ? null : await options.policy.principal(request);
         const url = new URL(request.url);
         if (url.pathname === ME_PATH) return json(200, introduced(principal, options.policy));
         if (principal === null) {

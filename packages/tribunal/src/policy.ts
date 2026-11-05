@@ -30,6 +30,9 @@ const MIN_TOKEN = 16;
 
 const GITHUB_ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
 
+/** Addresses that can only be reached from the machine the process is on. */
+export const LOOPBACK: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '::1']);
+
 const INGEST_MECHANISMS = ['token', 'github-actions'];
 const REVIEW_MECHANISMS = ['access', 'github', 'loopback'];
 
@@ -59,6 +62,8 @@ const SECRETS: Readonly<Record<string, readonly string[]>> = {
 export interface PolicyOptions {
   /** Whether the socket is reachable only from this machine. Only then may `loopback` be declared. */
   readonly loopback?: boolean;
+  /** The address a proxy in front of a loopback bind answers at, the one name `loopback` takes besides the machine's own. */
+  readonly origin?: string;
   readonly log?: (line: string) => void;
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
@@ -169,7 +174,7 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
     if (typeof email === 'string') return { capability: 'review', name: email };
     const login = await github?.login(request);
     if (typeof login === 'string') return { capability: 'review', name: login };
-    if (reviewer !== null) return { capability: 'review', name: reviewer };
+    if (reviewer !== null && atThisMachine(request, options.origin)) return { capability: 'review', name: reviewer };
     return view === 'public' ? { capability: 'view' } : null;
   }
 
@@ -180,6 +185,19 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
     },
     ...(github === null ? {} : { serve: (request: Request) => github.serve(request), signIn: SIGN_IN_PATH }),
   };
+}
+
+/**
+ * Whether a caller reached this by a name for this machine. Binding to loopback
+ * says who can open the socket and nothing about who wrote the page: a name of
+ * somebody else's that resolves here makes that page same-origin with this
+ * service, and only `Host` still carries the name it came by.
+ */
+function atThisMachine(request: Request, origin: string | undefined): boolean {
+  const named = `http://${request.headers.get('host') ?? new URL(request.url).host}`;
+  if (!URL.canParse(named)) return false;
+  const { hostname } = new URL(named);
+  return LOOPBACK.has(hostname.replace(/^\[|\]$/g, '')) || (origin !== undefined && hostname === new URL(origin).hostname);
 }
 
 function githubActions(values: Values, options: PolicyOptions) {

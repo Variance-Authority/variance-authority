@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
@@ -96,6 +97,28 @@ function call(
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
   });
 }
+
+describe('reached by a name somebody pointed here', () => {
+  // `fetch` will not set `Host`, and the header is the whole question.
+  function asked(host: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      request(`${service.url}/auth/me`, { headers: { host } }, (answer) => {
+        let text = '';
+        answer.on('data', (chunk) => (text += chunk));
+        answer.on('end', () => resolve(text));
+      })
+        .on('error', reject)
+        .end();
+    });
+  }
+
+  it('reaches the policy with the name the browser used', async () => {
+    await serve();
+
+    expect(JSON.parse(await asked(new URL(service.url).host))).toMatchObject({ capability: 'review', name: 'marina' });
+    expect(JSON.parse(await asked('attacker.example:7789'))).not.toHaveProperty('name');
+  });
+});
 
 describe('behind a proxy', () => {
   const echoing = {

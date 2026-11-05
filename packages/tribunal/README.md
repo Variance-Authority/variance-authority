@@ -124,8 +124,11 @@ under this prefix, as `VARIANCE_TRIBUNAL_GITHUB_REPOSITORY`.
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review page,
 and a caller with no bearer decides as `VARIANCE_TRIBUNAL_REVIEWER`: anything that
-can open `127.0.0.1:7789` is already running as the person who started it. A
-bearer is read as a machine here too, so a wrong one is refused.
+can open `127.0.0.1:7789` is already running as the person who started it. That
+holds for a caller who came by a name for this machine: `127.0.0.1`, `localhost`,
+`::1`, or the host of `VARIANCE_TRIBUNAL_ORIGIN`. Any other name in `Host` is
+nobody, because a site can point its own name here and call this service its own
+origin. A bearer is read as a machine here too, so a wrong one is refused.
 
 **On a network bind nobody decides until you declare who**, and the review page
 is served only once `VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS` names somebody. There
@@ -134,7 +137,7 @@ button and the internet. For a reviewer who is not at the machine, declare
 `github` or `access` behind a proxy that terminates TLS, with
 `VARIANCE_TRIBUNAL_ORIGIN` naming its address, mount the Next.js adapter
 behind your own sign-in, or leave the process on loopback behind a proxy that
-authenticates.
+authenticates, with `VARIANCE_TRIBUNAL_ORIGIN` naming its address.
 
 The tokens are never printed and never rendered. The startup line names the
 mechanisms, not their values, and the served page has no credential in it: the
@@ -393,7 +396,7 @@ write across origins on purpose. Only `GET /auth/me` and the sign-in answer a ca
 |---|---|---|
 | `GET /auth/me` | none needed | `{"capability":"review","name":"…","signIn":"…"}`: who this request is, and where a person signs in. Each key is absent when it has no value |
 | `GET /auth/github/login[?return]`, `GET /auth/github/callback` | none needed | the sign-in, with `github` declared. `return` is a path on this deployment to come back to |
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":6,"schema":21}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":8,"schema":21}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest, from `GITHUB_ACTIONS_BASELINE_REF` under `github-actions` | store an approved image |
@@ -748,7 +751,7 @@ export default {
 | `db` | required | the D1 binding |
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
-| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
+| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `origin`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied by the packaged Worker's `scheduled` handler and by `POST /review/sweep` |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -810,7 +813,8 @@ to `true`. `openDatabase` opens, creates or migrates the file and reports the
 staging file and renames it, so a reader never sees half of one.
 
 `{ loopback: true }` is what admits `loopback`, which makes every caller with no
-bearer the reviewer. That is right for a loopback bind and wrong for anything
+bearer who came by a name for this machine the reviewer. `origin` adds the address
+of a proxy in front of it. That is right for a loopback bind and wrong for anything
 else, so state it only there: the executable derives it from the bind address, and
 without it `declaredPolicy` refuses `loopback`.
 

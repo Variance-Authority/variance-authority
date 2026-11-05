@@ -24,7 +24,7 @@ export type Principal =
 /**
  * Who this deployment recognizes. {@link declaredPolicy} builds one from what a
  * deployer declared, and a host with its own idea of a person writes its own. Neither
- * is asked about a write {@link crossSite} refuses.
+ * is asked about a write {@link crossOrigin} refuses.
  */
 export interface Policy {
   /** `null` is a request this deployment does not recognize. */
@@ -43,7 +43,7 @@ export interface Policy {
  * the way across origins on purpose: no form can send one, and a page can only
  * where its host answers the preflight, which nothing here does.
  */
-export function crossSite(request: Request): boolean {
+export function crossOrigin(request: Request): boolean {
   if (request.method === 'GET' || request.method === 'HEAD') return false;
   if (bearerOf(request) !== null) return false;
   const site = request.headers.get('sec-fetch-site');

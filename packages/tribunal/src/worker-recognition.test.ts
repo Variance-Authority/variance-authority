@@ -116,7 +116,7 @@ describe('who may read and who may decide', () => {
 
 describe('a write forged from another site', () => {
   const DECISION = '/review/builds/ci-1/subjects/story:a/decision';
-  const ORIGIN = 'https://tribunal.example';
+  const ORIGIN = 'http://127.0.0.1:8787';
   // A host's own session, which knows nothing of where a write came from.
   const session: Policy = {
     principal: (request) =>
@@ -143,7 +143,7 @@ describe('a write forged from another site', () => {
       ['a sibling subdomain', { 'sec-fetch-site': 'same-site' }],
       ['a browser that names only its origin', { origin: 'https://attacker.example' }],
       ['a sandboxed frame', { origin: 'null' }],
-      ['the same host over another scheme', { origin: 'http://tribunal.example' }],
+      ['the same host over another scheme', { origin: 'https://127.0.0.1:8787' }],
     ])('is refused from %s', async (_name, headers) => {
       expect((await serving(policy).fetch(forged(DECISION, headers))).status).toBe(401);
     });
@@ -162,11 +162,27 @@ describe('a write forged from another site', () => {
       expect((await serving(policy).fetch(forged(DECISION, headers))).status).not.toBe(401);
     });
 
+    it('reaches the route from the page under a mount', async () => {
+      const routes = createTribunalRoutes(serving(policy), { basePath: '/api' });
+
+      expect((await routes.POST(forged(`/api${DECISION}`, { 'sec-fetch-site': 'same-origin' }))).status).not.toBe(401);
+    });
+
     it('leaves a read from another site alone', async () => {
       const read = forged('/review/builds', { 'sec-fetch-site': 'cross-site' }, 'GET');
 
       expect((await serving(policy).fetch(read)).status).not.toBe(401);
     });
+  });
+
+  it('is refused from a name rebound to this machine, which the browser calls its own origin', async () => {
+    const request = new Request(`http://attacker.example:8787${DECISION}`, {
+      method: 'POST',
+      headers: { 'sec-fetch-site': 'same-origin', origin: 'http://attacker.example:8787' },
+      body: '{}',
+    });
+
+    expect((await serving(POLICIES[1]![1]).fetch(request)).status).toBe(401);
   });
 
   it('does not ask a policy about it at all', async () => {
