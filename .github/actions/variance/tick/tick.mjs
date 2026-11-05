@@ -83,6 +83,15 @@ async function finished(run) {
   return state;
 }
 
+/** The job called `name` in the run's latest attempt, which lists every job in the run. */
+async function latestJob(run, name) {
+  for (let page = 1; ; page += 1) {
+    const { jobs } = await request('GET', `actions/runs/${run}/jobs?per_page=${PER_PAGE}&page=${page}`);
+    const found = jobs.find((candidate) => candidate.name === name);
+    if (found || jobs.length < PER_PAGE) return found;
+  }
+}
+
 async function answer() {
   const payload = event();
   const reason = notATick(payload);
@@ -107,8 +116,7 @@ async function answer() {
 
     // A job has a new id in each attempt, and a second box in this run may have
     // started one since this box was written.
-    const { jobs } = await request('GET', `actions/runs/${run}/jobs?per_page=${PER_PAGE}`);
-    const latest = jobs.find((candidate) => candidate.name === name);
+    const latest = await latestJob(run, name);
     if (!latest) throw new Error(`run ${run} has no job ${name} to rerun`);
 
     await request('PATCH', `issues/comments/${comment.id}`, {

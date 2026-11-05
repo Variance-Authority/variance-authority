@@ -42,6 +42,8 @@ interface Repo {
   attempt: number;
   /** The id the job has in the run's latest attempt; each attempt gives it a new one. */
   latestJob: number;
+  /** A run with more jobs than one page holds, the job on the second. */
+  crowded?: boolean;
   /** A head the pull request moves to while the run is being waited for. */
   pushed?: string;
   /** Reruns refused before one is taken, as GitHub refuses one while another goes. */
@@ -90,6 +92,9 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
       if (path.startsWith('/repos/o/r/collaborators/')) return reply(200, { permission: repo.permission });
       if (path === `/repos/o/r/actions/jobs/${JOB}` && request.method === 'GET') return reply(200, { run_id: RUN, name: 'gate (tribunal)' });
       if (path === `/repos/o/r/actions/runs/${RUN}/jobs`) {
+        if (repo.crowded && url.searchParams.get('page') !== '2') {
+          return reply(200, { jobs: Array.from({ length: 100 }, (_, id) => ({ id, name: `gate (${id})` })) });
+        }
         return reply(200, { jobs: [{ id: 1, name: 'gate (site)' }, { id: repo.latestJob, name: 'gate (tribunal)' }] });
       }
       if (path === `/repos/o/r/actions/runs/${RUN}`) {
@@ -221,6 +226,15 @@ describe('a tick', () => {
 
     expect(code).toBe(0);
     expect(repo.calls).toContain('POST /repos/o/r/actions/jobs/66/rerun');
+  });
+
+  it('finds the job past the first page of a crowded run', async () => {
+    const repo = await github({ crowded: true });
+
+    const { code } = await tick(repo, ['answer'], edited(repo, docket(' ')));
+
+    expect(code).toBe(0);
+    expect(repo.calls).toContain(rerun);
   });
 
   it('accepts nothing on a push that landed during that wait', async () => {
