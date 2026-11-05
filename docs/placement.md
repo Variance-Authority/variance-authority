@@ -339,13 +339,20 @@ the pull request gets no comment.
 #### The whole job
 
 This job goes red on a change, green on the label, and judges the next push on
-its own. It needs two things in place first. The config declares the store, with
-the root ignored by git. `carry` names who keeps the root between jobs, and
-`actions-cache` is the runner's cache, which the action restores before the run
-and saves after an accept:
+its own. It needs three things in place first. The config you already run keeps
+its `subjects`, and sets these two keys. `carry` names who keeps the root between
+jobs, and `actions-cache` is the runner's cache, which the action restores before
+the run and saves after an accept:
 
 ```json
+"retention": "durable",
 "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" }
+```
+
+Git ignores the root:
+
+```gitignore
+.variance/
 ```
 
 And the repository has the label:
@@ -410,7 +417,9 @@ label, so `labeled` here means this one, and the step that takes it off means th
 next change needs the next label.
 
 The first push to `main` records what it renders, and pull requests compare
-against that. For a [served route](start-routes.md), replace
+against that. A subject with no baseline reports `new` and the check stays green,
+so a pull request is green before that first push, and after GitHub removes the
+cache entry. For a [served route](start-routes.md), replace
 `npm run build-storybook` with the step that builds or starts what the collector
 reads.
 
