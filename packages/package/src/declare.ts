@@ -121,7 +121,8 @@ export function parseFile(parses: Parses, file: string, at: string): Source {
   const failure = parsed.errors[0];
   if (failure !== undefined) throw new Error(`${at} does not parse: ${failure.message}`);
 
-  const source: Source = { at, text, parsed, writing: readWriting(text, parsed.comments) };
+  const first = parsed.program.body.find((node) => node.type !== 'ImportDeclaration')?.start;
+  const source: Source = { at, text, parsed, writing: readWriting(text, parsed.comments, first) };
   parses.set(file, source);
   return source;
 }

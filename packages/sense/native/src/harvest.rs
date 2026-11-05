@@ -116,9 +116,9 @@ pub struct Harvest {
     /// ends before the first statement that is not an import and documents no
     /// such statement. A doc above an import is the module's, since an import
     /// is not documented, and so is one a blank line parts from that statement,
-    /// since a blank line parts a doc from any statement. A leading licence
-    /// header written as `/**` is read as the module's doc too: no tag is asked
-    /// for, unlike TypeDoc's `@module`.
+    /// the banner a file opens on. A leading licence header written as `/**` is
+    /// read as the module's doc too: no tag is asked for, unlike TypeDoc's
+    /// `@module`.
     pub module_doc: Option<TextSpan>,
     offsets: Offsets,
 }
@@ -151,18 +151,19 @@ impl Harvest {
                 }
                 subject += character.len_utf8();
             }
-            let parted = source.as_bytes()[comment.span.end as usize..subject].iter().filter(|byte| **byte == b'\n').count() > 1;
+            let banner = first == Some(subject as u32)
+                && source.as_bytes()[comment.span.end as usize..subject].iter().filter(|byte| **byte == b'\n').count() > 1;
             let tags = source
                 .get(start + 3..(comment.span.end as usize).saturating_sub(2))
                 .map_or(0, crate::declared_role::tags_in);
-            if tags != 0 && !parted {
+            if tags != 0 && !banner {
                 tagged.insert(subject as u32, tags);
             }
             let doc = offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2));
-            if module_doc.is_none() && first.is_none_or(|first| comment.span.end <= first && (parted || subject as u32 != first)) {
+            if module_doc.is_none() && first.is_none_or(|first| comment.span.end <= first && (banner || subject as u32 != first)) {
                 module_doc = Some(doc);
             }
-            if !parted {
+            if !banner {
                 docs.insert(subject as u32, doc);
             }
         }

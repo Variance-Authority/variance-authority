@@ -7,7 +7,8 @@ import { heldWeight, rarity } from '@variance-authority/mcp/tools';
  * half of what `asked` weighs, each word its {@link rarity} among the repository's
  * `names`. This is Lucene's `minimum_should_match` weighed by rarity, so a row
  * sharing one common word is left out and a word nothing holds weighs the most.
- * `reached` holds every row holding an asked word, and counts each word's holders.
+ * `reached` holds every row of the repository holding an asked word, in an area
+ * too, and counts each word's holders.
  */
 export function carriesMost(
   asked: readonly string[],
@@ -16,8 +17,8 @@ export function carriesMost(
 ): (row: { readonly words: readonly string[] }) => boolean {
   const holders = new Map<string, number>();
   for (const one of reached) for (const word of one.holds) holders.set(word, (holders.get(word) ?? 0) + 1);
-  // Counted over the reached rows alone, a word two of two rows hold would weigh
-  // nothing. In an area this can only keep a row, never cut one.
+  // Counted over the reached rows alone, a word most of them hold would weigh
+  // little however rare it is in the repository.
   const population = Math.max(names, reached.length);
   const rareOf = (word: string): number => rarity(population, holders.get(word) ?? 0);
   const whole = heldWeight(asked, rareOf, () => 1);

@@ -26,6 +26,11 @@ fn a_named_function_handed_out_with_module_exports_is_declared() {
 }
 
 #[test]
+fn a_module_handed_out_twice_declares_neither_value() {
+    assert!(symbols("a.cjs", "module.exports = function a() {};\nmodule.exports = function b() {};\n").is_empty());
+}
+
+#[test]
 fn a_value_that_spells_no_name_declares_nothing() {
     assert!(symbols("a.cts", "export = function () {};\n").is_empty());
     assert!(symbols("a.cjs", "module.exports = class {};\n").is_empty());

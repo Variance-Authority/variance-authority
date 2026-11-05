@@ -30,6 +30,7 @@ fn a_named_value_handed_out_whole_is_the_default_export_bound_to_its_name() {
     assert_eq!(exported("a.cts", "export = class Reader {};\n"), [default("Reader", 1)]);
     assert_eq!(exported("a.cjs", "module.exports = function babel() {};\n"), [default("babel", 1)]);
     assert!(exported("a.cts", "export = function () {};\n").is_empty());
+    assert!(exported("a.cjs", "module.exports = function a() {};\nmodule.exports = function b() {};\n").is_empty());
 }
 
 #[test]

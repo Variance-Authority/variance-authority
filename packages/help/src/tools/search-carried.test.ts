@@ -17,9 +17,9 @@ afterEach(() => {
   else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
 });
 
-const ask = async (files: Record<string, string>, query: string): Promise<string> => {
+const ask = async (files: Record<string, string>, query: string, from?: string): Promise<string> => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], files);
-  return answerSearch(searchIndexOf(readHelp(root)), { query }, treeOf([], root), root);
+  return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, treeOf(from === undefined ? [] : [{ file: from }], root), root);
 };
 
 /** Thirty names holding `file`, so the word is common among what was reached. */
@@ -67,6 +67,40 @@ describe('a question whose words are not equally rare', () => {
       'src/overhead.ts': '/** The overhead. */\nexport const toll = 1;\n',
     }, 'file probes measure overhead');
     expect(said).toMatch(/^census .*\[holds: file, measure, probes\]/mu);
+  });
+});
+
+describe('a question asked from an area', () => {
+  const FIXTURE = {
+    ...FILES,
+    'src/here.ts': '/** Plays a xylophone. */\nexport const played = 1;\n\n/** Reads a file. */\nexport const opened = 1;\n',
+  };
+
+  it('cuts by how the whole repository holds the words, so a row answering it everywhere answers it here', async () => {
+    const alone = {
+      ...FILES,
+      'src/filler.ts': Array.from({ length: 300 }, (_, at) => `export const filler${at} = ${at};\n`).join(''),
+      'src/here.ts': '/** Plays a xylophone. */\nexport const played = 1;\n',
+    };
+    const everywhere = await ask(alone, 'xylophone file');
+    expect(everywhere).toMatch(/^played .*\[holds: xylophone\]/mu);
+    const here = await ask(alone, 'xylophone file', 'src/here.ts');
+    expect(here).toMatch(/^played .*\[holds: xylophone\]/mu);
+  });
+
+  it('keeps out a row holding only the word the rest of the repository holds', async () => {
+    const here = await ask(FIXTURE, 'xylophone file', 'src/here.ts');
+    expect(here).not.toMatch(/^opened .*\[holds:/mu);
+  });
+});
+
+describe('a row holding exactly half of the question', () => {
+  it('stays: of two equally rare words, either one is the nearest there is', async () => {
+    const said = await ask({
+      'src/half.ts': '/** Plays a xylophone. */\nexport const played = 1;\n\n/** Grows a banana. */\nexport const grown = 1;\n',
+    }, 'xylophone banana');
+    expect(said).toMatch(/^played .*\[holds: xylophone\]/mu);
+    expect(said).toMatch(/^grown .*\[holds: banana\]/mu);
   });
 });
 

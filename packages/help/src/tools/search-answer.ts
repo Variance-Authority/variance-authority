@@ -197,7 +197,7 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   // An exported row is reached by its doc as a published one is, and inside an
   // area only through a row whose file is in it.
   const through = docRows(index, saying.exported.rows, within, byName);
-  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, saying.exported.openings, exact, said);
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, said, through, saying.exported.openings, exact);
   return { query, said, area, within, named, hits, answered, rest } as const;
 }
 
@@ -279,14 +279,21 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // stemmed by the rule packages are.
   // A name its file keeps to itself is in no row: the source index answers for it.
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
-  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
+  const already = new Set([...named, ...answered]);
+  const reached = describedNames(index, query, within, already, shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
   // Only what carries most of the question answers it, and a name carrying it is
   // the described section's, which prints first: the loose pass offers none of
   // them a second time. What holds less is the loose section's when every word
   // reaches it there, and otherwise nobody's.
   const asked = describedWordsNative(query).map(([, word]) => word);
-  const carried = described?.filter(carriesMost(asked, described.map(countedOf), index.nameCount));
+  // An area narrows what is shown, not what a word weighs: a row carrying the
+  // question everywhere carries it here.
+  const everyDeclaration = area === undefined ? declarations : describedDeclarations(root, query, undefined) ?? [];
+  const everywhere = area === undefined
+    ? described
+    : [...(describedNames(index, query, undefined, already, shownRowOrder(index, undefined, undefined), everyDeclaration) ?? []), ...everyDeclaration];
+  const carried = described?.filter(carriesMost(asked, (everywhere ?? []).map(countedOf), index.nameCount));
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
@@ -298,7 +305,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
   const alsoFound = published(index, alsoHits, LOOSE_CAP, said, importingOf);
-  const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc, undefined, undefined, said);
+  const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, said, viaDoc);
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
   const describedHere = new Set((carried ?? []).flatMap((one) => ('match' in one ? [declaredKey(one.match)] : [])));
@@ -311,7 +318,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
       const { through } = one;
       const row = through.kind === 'published'
         ? published(index, surface(index, [through.row], area, within), 1, said, importingOf).shown[0]
-        : exported(index, [one.name], new Set(), within, new Map([[one.name, new Set([through.row])]]), undefined, undefined, said).head(1)[0];
+        : exported(index, [one.name], new Set(), within, said, new Map([[one.name, new Set([through.row])]])).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];

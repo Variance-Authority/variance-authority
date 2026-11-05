@@ -34,10 +34,17 @@ fn a_banner_keeps_the_doc_of_the_statement_under_it() {
 }
 
 #[test]
-fn a_doc_parted_from_a_later_statement_is_nobodys() {
+fn a_doc_parted_from_a_later_statement_stays_that_statements() {
     let (file, declared) = docs("const a = 1;\n\n/** A section. */\n\nconst MAC = 1;\n", "MAC");
     assert_eq!(file, None);
-    assert_eq!(declared, None);
+    assert_eq!(declared.as_deref(), Some("A section."));
+}
+
+#[test]
+fn a_role_tag_on_a_banner_is_not_the_first_statements() {
+    let tags = |source: &str| read_module("a.ts", source, &Allocator::default(), true).exports[0].tags;
+    assert_eq!(tags("/** @testOnly */\n\nexport const MAC = 1;\n"), 0);
+    assert_ne!(tags("/** @testOnly */\nexport const MAC = 1;\n"), 0);
 }
 
 #[test]

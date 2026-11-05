@@ -329,8 +329,8 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     }
     // A named function or class the module hands out whole is what an importer's
     // default gets, as `export default function name` is.
-    for statement in &parsed.program.body {
-        let Some((id, _, _)) = crate::assigned_object::handed_out(statement).and_then(crate::top_level::named_value) else { continue };
+    let once = crate::assigned_object::handed_out_once(&parsed.program.body);
+    if let Some((statement, (id, _, _))) = once.zip(once.and_then(crate::assigned_object::handed_out).and_then(crate::top_level::named_value)) {
         let at = oxc_span::GetSpan::span(statement);
         let local = id.name.to_string();
         let tags = roles.of(at.start, Some(&local));

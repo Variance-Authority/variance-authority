@@ -35,6 +35,13 @@ const DOC = [
 ].join('\n');
 
 describe('a row prints the sentence that holds the question', () => {
+  it('ends a sentence where a tag line starts, though no stop closes it', async () => {
+    const doc = '/**\n * Offers a tuned xylophone\n * @see the grower of a banana.\n */';
+    const said = await ask({ 'src/offer.ts': `${doc}\nexport const offer = 1;\n` }, 'banana grower');
+    expect(rowOf(said, 'offer')).toContain('@see the grower of a banana.');
+    expect(rowOf(said, 'offer')).not.toContain('xylophone');
+  });
+
   it('prints it for an exported name, past the doc it opens with', async () => {
     const said = await ask({ 'src/offer.ts': `${DOC}\nexport const offer = 1;\n` }, 'can an old reader take the line back');
     expect(rowOf(said, 'offer')).toContain('A held entry in a newer format is kept on any line, so an old reader cannot take the line back a version.');

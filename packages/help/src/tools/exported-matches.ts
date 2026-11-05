@@ -1,4 +1,3 @@
-import { opening } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
@@ -53,10 +52,10 @@ export function exported(
   names: Iterable<number>,
   shown: ReadonlySet<number>,
   within: ReadonlySet<number> | undefined,
+  said: Said,
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
-  said: Said = opening,
 ): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; rank: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
