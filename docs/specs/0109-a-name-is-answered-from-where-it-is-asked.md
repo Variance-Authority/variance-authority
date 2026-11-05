@@ -11,7 +11,8 @@ answer says a candidate is forbidden from there or marked `@deprecated`:
 `variance restrictions` says so after the import is written, and no reader in
 this repository reads the `@deprecated` tag.
 **Built on:** `docs_symbol`, `publishedDeclarations` and `exportsNamed`;
-`importsOf`; `Tree.reachedFrom`, read under a `wants` as `search` reads it;
+the manifests `Documented` carries; `importsOf`, whose uses name the export they
+took and the lines that use it; `Tree.reachedFrom`, read under a `wants` as `search` reads it;
 `sharedSegments`; `relationBetween` in `packages/sense/src/restrictions.ts`, which
 decides one import against the `.relations.json` files; `ruleFiles` in
 `packages/cli/src/commands/relations-file.ts`, which reads them; the `doc` span the
@@ -19,8 +20,9 @@ index holds on a `SourceSymbol`; and
 [0081](0081-the-tech-stack-is-read-from-the-code.md), whose items 2 and 6 name the
 local abstraction of an installed package and whose item 7 sets the budget.
 **Held by:** a fixture of packages in `packages/help/src/tools/`, one test per rank
-key and per declaration, each failing on today's order; and one measurement over
-Kibana through the built command, below.
+key and per declaration, each failing on today's order; a judged set of imports
+known right and known wrong; and one measurement over Kibana through the built
+command, below.
 
 ## Purpose
 
@@ -40,11 +42,13 @@ file nothing has run and nothing imports yet: the path alone places it.
 ## The answer
 
 `variance ask symbol --name <name> --from <path>` answers every declaration it
-answers today. The ones a file can import come in place order. Each block keeps
-its lines and gains the reason for its place, and an unpublished export gains an
-import line, the relative path from the asked file, which it has no other way to
-print. Nothing is hidden and no candidate is dropped: the reader sees the choice,
-and sees why one came first. The sample leaves out signatures, docs and use counts.
+answers today. The ones that export the name come in place order. Each block keeps
+its lines and gains the reason for its place, and its import line is the door
+chosen for the asked file, or a line saying why there is none. Relevant and
+importable are two answers: the rank says which candidate belongs here, the door
+says whether this file can import it. Nothing is hidden and no candidate is
+dropped: the reader sees the choice, and sees why one came first. The sample
+leaves out signatures, docs and use counts.
 
 ```text
 useConfig [function]
@@ -63,38 +67,77 @@ import { useConfig } from 'beta-kit';
 declared at libs/beta-kit/src/config.ts:4
 not reached from alpha
 restricted from here by libs/.relations.json: beta-kit is for beta
+
+useConfig [function]
+no import from here: the exports of gamma do not open this file
+declared at libs/gamma/src/config.ts:9
+not reached from alpha
 ```
 
 With no `--from` there is no place, so the order and the wording stay as they
 are, published first as [0104](0104-the-four-code-questions.md) says. The command
-takes one `--from`. Where the MCP input gives several paths, a candidate takes the
-best rank any of them gives it.
+takes one `--from`. Where the MCP input gives several paths, each is answered on
+its own, under its path: an import line and a restriction belong to one file, and
+a relative door differs between two files of one package, so no order holds for
+all of them. The reads are shared and the answers are not merged.
 
 **Candidates** are the published declarations and the unpublished exports of the
 exact name, in one list, the files that define it. An export that only passes a
 name on, `export { x } from` or `export default imported`, is followed to its
-origin as it is today and is one candidate with several doors. A candidate with no
-entry has its own file for a door, since a relative import lands there. File-private
+origin as it is today and is one candidate with several doors. File-private
 declarations, `as` bindings and members cannot be imported, so they are not
 candidates: they keep their own blocks after the ranked ones.
 
-A **wrapper** is a candidate that imports the name from another candidate and
-exports the name itself, as `export const useKibana = useKibanaGeneric<T>` does.
-It is 0081's local abstraction for a name the workspace declares. 0081 item 6 owns
-that line for an installed package, and this spec owns it here.
+A **door** is an import the asked file could write, read from the manifests and
+never from where a candidate sits:
+
+- Inside the candidate's package, its own file, by relative path. A candidate in
+  the asking package comes through this door whatever else publishes it.
+- From another package, an entry the manifest opens.
+- From another package with no `exports` field, the file by its path past the
+  package name, which nothing closes.
+
+A package whose `exports` does not open the file offers no door, so the candidate
+keeps its block with no import line and says so: a folder away is not importable.
+Where nothing establishes a door, because a manifest was not read, a file sits in
+no package, or its language has no such manifest, the block says that instead and
+prints no import line either.
+
+Doors are ordered for the asked file before candidates are: open and not restricted
+first, then a package the file reaches, then `byDoor`. The first door is the
+candidate's import line and the one the rank reads, and the rest stay under
+`Also published by`, each with its own restriction. Every door of a candidate
+restricted is the one case where the import line shows a restricted door, and its
+restriction follows.
+
+A **wrapper** is a candidate built on another. Its file imports a binding the index
+resolves to the other candidate, under any local name, and a line using that
+binding lies inside the candidate's declaration. Both
+`export const useKibana = useKibanaGeneric<T>` and
+`export const useConfig = createConfigHook(useBaseConfig)` are wrappers, whatever
+the import is called locally. A file that imports a name and declares something else under it
+is not one, and neither is a file that only passes the name on, which is one
+candidate. A use names the export it took and its lines, but a `SourceSymbol` holds
+where a declaration starts and not where it ends, so it gains its last line. A
+reader that cannot give it leaves wrappers unknown, and key 3 is silent. A wrapper
+is 0081's local abstraction for a name the workspace declares. 0081 item 6 owns that
+line for an installed package, and this spec owns it here.
 
 ### Rank
 
 The keys apply in this order, each breaking the ties of the one before. They are
 compared, never weighted: there is no score to tune and no number to explain.
 
-1. **Allowed.** A candidate restricted from here comes last: the import would fail
-   the gate.
+1. **Importable.** A candidate whose first door is open and not restricted comes
+   first, one whose door nothing establishes next, and one restricted from here or
+   with no door last: that import would fail the gate or fail to resolve.
 2. **Reachable.** The asking package, or a package the imports of its files reach
-   directly or through others, comes before a package they do not reach. This is
-   the closure 0081 item 3 calls *reached through*, not what a manifest declares.
+   directly or through others, comes before a package they do not reach, read at
+   the first door. This is the closure 0081 item 3 calls *reached through*, not
+   what a manifest declares.
 3. **Not wrapped here.** A candidate wrapped by a candidate in the asking package
-   comes after the others.
+   comes after the others, unless the wrapper's file reaches the asking file: there
+   the wrapper is built on the asker and importing it closes a cycle.
 4. **Near.** The candidate and the files importing it, leaving out the asker,
    tests and other candidates, are counted by how many leading folders each shares
    with the asking file. Counts compare from the deepest ring out, and the first
@@ -103,12 +146,14 @@ compared, never weighted: there is no score to tune and no number to explain.
    code-unit order of the path.
 
 The rank is one pure function in `packages/help/src/tools/`, from the
-candidates, the asked paths and what was read to the order and its reasons;
+candidates, the asked path and what was read to the order and its reasons;
 `symbol.run` only renders it. Keys 3 and 4 share one `importsOf` read per
-candidate. Key 4 is written beside `nearestTo` in `shared-segments.ts` and
+candidate, and that read is the index's: an ask opens no source file, and a name
+imported everywhere costs its importers' paths, which step 5 below measures. Key 4
+is written beside `nearestTo` in `shared-segments.ts` and
 replaces `nearestFirst` in `packages/help/src/tools/declared.ts`: a file-private
 name has no importers to count, so the key orders those blocks by the same
-shared segments, and several paths take the best of them. The tree and the rule
+shared segments. The tree and the rule
 files are read ahead of the call, under `symbol`'s `wants`, and only when a path
 is named. With no tree, key 2 is silent and the answer says so. `restsOn` gains
 the rule files, so an edit to a rule shows the answer is stale. An edit to an
@@ -131,8 +176,7 @@ its tag is a line and the rank does not read it.
   import from the asked path to the file the import would land on, which is the
   door and not always the declaring file. It is the decision `restrictedImports`
   takes on one edge. A `restricted` decision names the directory of its rule file
-  and the rule's `message`. A candidate is restricted when every door is; otherwise
-  the doors that are restricted say so and the rest lead.
+  and the rule's `message`. A candidate is restricted when every door is.
 - **`@deprecated`.** One reader of doc tags, beside `tags_in` in
   `packages/sense/native/src/declared_role.rs` and reached through `sense` as
   `describedWordsNative` is, returns a tag and its text from the candidate's own
@@ -173,8 +217,10 @@ today's command.
 | No wrapper is involved, a sample of 58,974 | 8,000 | .62 | .96 | .97 | .96 | .97 | .97 |
 
 Each figure is how often the first answer is the import the code wrote. Kibana
-holds no `.relations.json`, so key 1 is silent on every row and rests on the
-fixture alone. A sixth situation is not in the table: 1,069 cases where the only
+holds no `.relations.json` and the script read no doors, so key 1 is silent on every
+row and rests on the fixture alone. The script also took a wrapper by its file, one
+that imports the name and exports it, and key 3 without its cycle clause; step 5
+below measures the rules as written here. A sixth situation is not in the table: 1,069 cases where the only
 wrapper sits in a package the importer does not reach, at .94 for usage, .96 near
 and .98 for keys 2–4.
 
@@ -185,8 +231,10 @@ key 3 leads with the wrapper every time. Over the two rows that is 148 more
 first answers matching the import and 183 fewer, so key 3 does not raise
 agreement with habit. It changes which one comes first on purpose: your name
 wins. Only 114 of the 281 sit in a package whose habit is the wrapper, so most
-of this code bypasses for a reason or by a habit nothing here can judge. The
-import it wrote stays in the answer, after the wrapper.
+of this code bypasses for a reason or by a habit nothing here can judge. In 8 of
+the 281 the wrapper's file already reaches the asker, the one reason derivable from
+the graph, and key 3 now stands aside there. For the rest the import it wrote stays
+in the answer, after the wrapper, and the judged set decides whether key 3 stays.
 
 The last column is why nothing here hides, and why key 3 stops at the asking
 package. Hiding what a dependency wraps gains three points on the first row and
@@ -215,6 +263,10 @@ wrong imports, and this spec does not make one.
 - **Discover the neighbourhood.** Key 4 reads folders and importers, not
   communities clustered from the import graph: with each case's import held out,
   a Louvain hierarchy scores .74 on the first row where folders score .90.
+- **Promise an install resolves the package.** A door says the package opens the
+  file, not that the asking manifest declares the package. `not reached` speaks for
+  a package nothing here imports; a reached package left undeclared stays the
+  package manager's to refuse.
 - **Say what a change breaks.** A rank is a reading order, never an impact claim.
 - **Read lint rules.** `no-restricted-imports` and its like live in a linter's
   configuration, which this does not read. Only `.relations.json` moves a candidate.
@@ -227,20 +279,31 @@ wrong imports, and this spec does not make one.
 
 ## What would discharge this
 
-1. The fixture: two packages over one kit, a wrapper in each, a forbidden
-   neighbour, a deprecated primitive, and a file nothing imports yet. A test per
-   key and per declaration, failing on today's order.
+1. The fixture: two packages over one kit, a wrapper in each, one of them over an
+   aliased import, a same-named declaration that does not use the name it imports,
+   a forbidden neighbour, a package whose `exports` closes the file, a declaration
+   with an allowed and a restricted door, a deprecated primitive, a file the wrapper
+   is built on, and a file nothing imports yet. A test per key, per door rule and per
+   declaration, failing on today's order, and one asking from two paths.
 2. `ask symbol --from` answers by the rank, with its reasons, and `nearestFirst` is
    gone from `packages/help/src/tools/declared.ts`.
 3. The restriction and `@deprecated` readings, with the reading of rule files moved
    to `sense`.
-4. The table above measured again through the built command on Kibana, by a
-   `*.measure.ts` that records the machine, with the first row at .96 and the last
-   at .97, and an ask under 1 s warm, 0081 item 7's budget. A figure below them
-   means the build differs from the policy that was measured, and that is found
-   before this lands. Key 2 goes if it adds nothing for what it costs. Key 3 is not
-   judged by agreement, which it does not raise: it is the position that your name
-   wins, held by the fixture, and the measurement reports what it costs. Key 1 is
-   held by the fixture.
-5. The skill's reference, `docs/agent-cli.md` and
+4. The judged set, apart from the table, says whether the rank is right where the
+   table says only whether it reproduces. Known right and known wrong come from
+   commits in Kibana's history that swap one candidate of a name for another, the
+   later import right and the earlier wrong, in either direction, and from the
+   fixture's legitimate bypasses. An earlier look over short windows found no such
+   swap, so this reads the whole history. Key 3 is judged here and not by agreement,
+   which it does not raise: it goes if swaps away from a wrapper outnumber swaps to
+   one. Fewer swaps than can decide that is reported, and key 3 stands as the
+   position that your name wins, held by the fixture. Key 1 is held by the fixture.
+5. The table above measured again through the built command on Kibana, by a
+   `*.measure.ts` that records the machine, and an ask under 1 s warm, 0081 item 7's
+   budget, for the most-imported candidate too. This checks the build against the
+   policy and proves nothing about the policy. The figures to meet are .96 on the
+   first row and .97 on the last; every case that moves from them is classified by
+   the door, binding or cycle rule that moved it, and one no rule explains is a
+   defect found before this lands. Key 2 goes if it adds nothing for what it costs.
+6. The skill's reference, `docs/agent-cli.md` and
    [0106](0106-a-need-names-its-next-move.md) say what `--from` does to `symbol`.

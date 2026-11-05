@@ -61,6 +61,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'libs/alpha/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
   'libs/kit/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
   'libs/beta-kit/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
+  'libs/gamma/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
   'cart.ts': "a reader's own module, quoted from a sample test story",
   'price.ts': "a reader's own module, quoted from a sample test story",
   'format.ts': "a reader's own module, quoted from a sample test story",
