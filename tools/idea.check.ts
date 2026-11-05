@@ -112,14 +112,19 @@ describe('the queue of issues the idea loop owes a verdict', () => {
     expect(pending(issue())).toBe(true);
   });
 
-  it('drops an issue once a verdict answers it', () => {
-    expect(pending(issue({ comments: { nodes: [verdict('incomplete', '2026-11-02T00:00:00Z')] } }))).toBe(false);
+  it('drops an issue marked as holding no idea to review', () => {
+    expect(pending(issue({ comments: { nodes: [verdict('none', '2026-11-02T00:00:00Z')] } }))).toBe(false);
   });
 
-  it('holds an issue edited after its verdict, since the edit is what the review has not seen', () => {
-    expect(
-      pending(issue({ lastEditedAt: '2026-11-03T00:00:00Z', comments: { nodes: [verdict('yes-but', '2026-11-02T00:00:00Z')] } })),
-    ).toBe(true);
+  it('holds an open issue with no label whatever the review said, since the loop exits only on the label or a close', () => {
+    for (const names of [['incomplete'], ['yes-but'], ['no-because'], ['yes-but', 'build']]) {
+      const nodes = names.map((name) => verdict(name, '2026-11-02T00:00:00Z'));
+      expect(pending(issue({ comments: { nodes } }))).toBe(true);
+    }
+  });
+
+  it('holds an issue edited after `none`, since the edit may have given it an idea', () => {
+    expect(pending(issue({ lastEditedAt: '2026-11-03T00:00:00Z', comments: { nodes: [verdict('none', '2026-11-02T00:00:00Z')] } }))).toBe(true);
   });
 
   it('drops an issue that carries the label with no comment, as issues reviewed before verdicts were comments do', () => {
@@ -141,7 +146,7 @@ describe('the queue of issues the idea loop owes a verdict', () => {
   });
 
   it('reads no verdict from a comment an outsider wrote, so nobody outside can take an issue off the queue', () => {
-    expect(pending(issue({ comments: { nodes: [verdict('build', '2026-11-02T00:00:00Z', 'NONE')] } }))).toBe(true);
+    expect(pending(issue({ comments: { nodes: [verdict('none', '2026-11-02T00:00:00Z', 'NONE')] } }))).toBe(true);
   });
 
   it('leaves out an issue an outsider filed, and an epic, which is a list and no change', () => {
@@ -163,23 +168,20 @@ describe('the queue of issues the idea loop owes a verdict', () => {
     ).toBe(true);
   });
 
-  it('holds an issue a build comment answered without the label, since only the label lets code start', () => {
-    expect(pending(issue({ comments: { nodes: [verdict('build', '2026-11-02T00:00:00Z')] } }))).toBe(true);
-  });
-
-  it('holds an issue reopened after its verdict, since the review starts over', () => {
+  it('holds an issue reopened after `none`, since the review starts over', () => {
     expect(
       pending(
         issue({
-          comments: { nodes: [verdict('no-because', '2026-11-02T00:00:00Z')] },
+          comments: { nodes: [verdict('none', '2026-11-02T00:00:00Z')] },
           timelineItems: { nodes: [{ createdAt: '2026-11-03T00:00:00Z' }] },
         }),
       ),
     ).toBe(true);
   });
 
-  it('reads no verdict from a name the loop does not have', () => {
-    expect(pending(issue({ comments: { nodes: [verdict('yes-buut', '2026-11-02T00:00:00Z')] } }))).toBe(true);
+  it('reads no verdict from a marker quoted inside a comment, since a verdict ends its comment', () => {
+    const quoted = { ...verdict('none', '2026-11-02T00:00:00Z'), body: 'posted `<!-- idea-verdict: none -->` by mistake' };
+    expect(pending(issue({ comments: { nodes: [quoted] } }))).toBe(true);
   });
 
   const scored = (reach: number, impact: number, confidence: number, effort: number) => ({
@@ -202,6 +204,14 @@ describe('the queue of issues the idea loop owes a verdict', () => {
       issue({ number: 5, body: '## Root cause\n\ntext' }),
     ]);
     expect(rows.map((row) => row.number)).toEqual([5, 4, 3, 2, 1]);
+  });
+
+  it('ranks an unchanged `incomplete` last, so a brief nobody can finish does not hold the top, and normally once it changes', () => {
+    const answered = { comments: { nodes: [verdict('incomplete', '2026-11-02T00:00:00Z')] } };
+    const numbers = (...issues: ReturnType<typeof issue>[]) => ranked(issues).map((row) => row.number);
+    const brief = '## Root cause\n\ntext';
+    expect(numbers(issue({ number: 2, body: brief, ...answered }), issue({ number: 1 }))).toEqual([1, 2]);
+    expect(numbers(issue({ number: 2, body: brief, ...answered, lastEditedAt: '2026-11-03T00:00:00Z' }), issue({ number: 1 }))).toEqual([2, 1]);
   });
 
   it('ranks by score within a tier, with an unscored issue after the scored ones and no score of its own', () => {

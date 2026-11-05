@@ -17,7 +17,7 @@ const LABEL = 'idea: build';
 const NAMES = /^(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|part of) #(\d+)/i;
 /** Kinds that leave what the product does alone, from the pull request reference's table; any other kind, or none, is asked. */
 const IDEALESS = new Set(['docs', 'chore', 'ci', 'test', 'refactor', 'revert']);
-const VERDICT = /<!-- idea-verdict: (incomplete|build|yes-but|no-because|none) -->/;
+const VERDICT = /<!-- idea-verdict: ([\w-]+) -->\s*$/;
 /** Who can answer for the loop: the repository is public, and anybody else's comment or issue is a report. */
 const TRUSTED = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const V1 = 942;
@@ -64,14 +64,24 @@ const verdicts = (issue) =>
     return name ? [{ name, at: comment.createdAt }] : [];
   });
 
-/** Whether the loop owes the issue a verdict. CI answers for a labelled issue; `build` without the label lets no code start, so it settles nothing. */
+/** When the issue last changed under a verdict: its last edit or reopen. */
+const changedAt = (issue) => {
+  const reopened = issue.timelineItems.nodes.filter((event) => !event.label).map((event) => event.createdAt);
+  return [issue.lastEditedAt, ...reopened].filter(Boolean).sort().at(-1);
+};
+
+/** Whether the loop owes the issue a verdict. CI answers for a labelled issue; any other stays owed, as the loop exits on the label or a close, until `none` says it has no idea to review. */
 export const pending = (issue) => {
   if (!TRUSTED.has(issue.authorAssociation) || carries(issue, 'epic')) return false;
   if (carries(issue, LABEL)) return refusal(issue.number, issue) !== undefined;
-  const settled = verdicts(issue).filter((verdict) => verdict.name !== 'build').at(-1)?.at;
-  const reopened = issue.timelineItems.nodes.filter((event) => !event.label).map((event) => event.createdAt);
-  const changed = [issue.lastEditedAt, ...reopened].filter(Boolean).sort().at(-1);
-  return !settled || changed > settled;
+  const exempt = verdicts(issue).filter((verdict) => verdict.name === 'none').at(-1)?.at;
+  return !exempt || changedAt(issue) > exempt;
+};
+
+/** An `incomplete` nothing has changed since: another review would say the same, so it waits behind the rest. */
+const stalled = (issue) => {
+  const last = verdicts(issue).at(-1);
+  return last?.name === 'incomplete' && !(changedAt(issue) > last.at);
 };
 
 const tierOf = (issue) => {
@@ -94,12 +104,13 @@ const scoreOf = (issue) => {
   return Number.isNaN(score) ? undefined : score;
 };
 
-/** The queue: a brief waits only for its review, so it goes first; then refine's tiers, then the score, then the newest. */
+/** The queue: a stalled issue last, a brief first since it waits only for its review, then refine's tiers, the score and the newest. */
 export const ranked = (issues) =>
   issues
-    .toSorted((a, b) => isBrief(b) - isBrief(a) || tierOf(a) - tierOf(b) || (scoreOf(b) ?? -1) - (scoreOf(a) ?? -1) || b.number - a.number)
+    .toSorted((a, b) => stalled(a) - stalled(b) || isBrief(b) - isBrief(a) || tierOf(a) - tierOf(b) || (scoreOf(b) ?? -1) - (scoreOf(a) ?? -1) || b.number - a.number)
     .map((issue) => ({ number: issue.number, title: issue.title, brief: isBrief(issue), score: scoreOf(issue) }));
 
+/** `gh` fills `{owner}` and `{repo}` from the checkout's remote; CI's sparse checkout names the repository in the environment. */
 const gh = (query, variables, ...flags) => {
   const [owner, name] = (process.env.GITHUB_REPOSITORY ?? '{owner}/{repo}').split('/');
   const fields = Object.entries({ owner, name, ...variables }).flatMap(([key, value]) => ['-F', `${key}=${value}`]);
