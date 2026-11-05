@@ -161,7 +161,7 @@ claim it. A path still claimed by a project the config runs stops the run.
 }
 ```
 
-Choose this folder when the baselines are a corpus rather than part of a
+Take the default when the baselines are a corpus rather than part of a
 codebase — something you back up, prune, or point a bucket at. Every image is
 under one root, in a tree that mirrors your story titles and `describe` blocks,
 so a reviewer finds `Ui/Button` in the diff where the sidebar shows it.
@@ -336,8 +336,8 @@ the pull request gets no comment.
 
 #### The whole job
 
-This job goes red on a change, green on the label, and judges the next push on
-its own. It needs three things in place first. The config you already run keeps
+This job goes red on a change, green on the label, and compares the next push
+again. It needs three things in place first. The config you already run keeps
 its `subjects`, and sets these two keys. `carry` names who keeps the root between
 jobs, and `actions-cache` is the runner's cache, which the action restores before
 the run and saves after an accept:
@@ -376,8 +376,6 @@ permissions:
 
 jobs:
   variance:
-    # Any other label is no reason to run.
-    if: github.event.action != 'labeled' || github.event.label.name == 'variance: accept'
     concurrency:
       group: variance-${{ github.ref }} # one comment, written by one run at a time
     runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
@@ -385,7 +383,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: take the label off
-        if: github.event.action == 'labeled'
+        if: github.event.label.name == 'variance: accept'
         continue-on-error: true # a fork's token is read-only
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -404,20 +402,29 @@ jobs:
         with:
           config: variance.config.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          accept: ${{ github.event_name == 'push' || github.event.action == 'labeled' }}
+          accept: ${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}
           to-accept: 'check the report, then add the **variance: accept** label to this pull request'
 ```
 
 `accept` reads the event, not the label. A label stays on a pull request until
 somebody takes it off, so a job that asked whether the label is present would
-accept every push after the first. The `if` has already stopped every other
-label, so `labeled` here means this one, and the step that takes it off means the
-next change needs the next label.
+accept every push after the first. `github.event.label` is the label that started
+this run, and the step that takes it off means the next change needs the next
+label.
+
+Any other label compares again and accepts nothing, so a red check stays red. The
+job does not skip on that label, because a skipped job reports success and would
+cover the red.
+
+GitHub keeps one queued run per `concurrency` group, so a push can displace a
+label's queued run. The label then stays on with nothing accepted: take it off
+and add it again.
 
 A subject with no baseline reports `new` and the check stays green, so a pull
-request is green until the first push to `main` records a store. For a [served
-route](start-routes.md), replace `npm run build-storybook` with the step that
-builds or starts what the collector reads.
+request is green until the first push to `main` records a store.
+
+For a [served route](start-routes.md), replace `npm run build-storybook` with the
+step that builds or starts what the collector reads.
 
 ### Git
 
