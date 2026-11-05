@@ -54,7 +54,7 @@ function readTrail(
   };
 }
 
-/** The concerns card on a subject page: its trail, and the form that adds to it. */
+/** The concerns card on a subject page, drawn once it has a trail or a form to hold. */
 export function Concerns({
   client,
   reviewer,
@@ -169,50 +169,44 @@ export function Concerns({
   const move = (concern: Concern, state: ConcernState): void =>
     void write(() => client.moveConcern(concern.id, { state, by: reviewer }));
 
+  // Nobody flagging a render is the ordinary case, not a thing to read a card about.
+  const quiet =
+    !writing &&
+    failed === null &&
+    (loaded.kind === 'loading' || (loaded.kind === 'ready' && loaded.concerns.length === 0));
+
   return (
     <div className="va-concerns" ref={card}>
-      {failed === null ? null : <p className="va-failure">{failed}</p>}
-      {loaded.kind === 'loading' ? <p className="va-note">Reading concerns…</p> : null}
-      {loaded.kind === 'failed' ? <p className="va-failure">{loaded.message}</p> : null}
-      {loaded.kind === 'ready' && loaded.concerns.length === 0 && !writing ? (
-        <p className="va-note">Nobody has flagged this render.</p>
-      ) : null}
-      {loaded.kind === 'ready'
-        ? loaded.concerns.map((concern) => (
-            <ConcernTrail
-              key={concern.id}
-              concern={concern}
-              build={build}
-              busy={busy}
-              onMove={(state) => move(concern, state)}
-            />
-          ))
-        : null}
+      {quiet ? null : (
+        <section className="va-card">
+          <h2>Concerns</h2>
+          {failed === null ? null : <p className="va-failure">{failed}</p>}
+          {loaded.kind === 'failed' ? <p className="va-failure">{loaded.message}</p> : null}
+          {loaded.kind === 'ready'
+            ? loaded.concerns.map((concern) => (
+                <ConcernTrail
+                  key={concern.id}
+                  concern={concern}
+                  build={build}
+                  busy={busy}
+                  onMove={(state) => move(concern, state)}
+                />
+              ))
+            : null}
 
-      {writing ? (
-        <ConcernForm
-          subject={subject}
-          build={build}
-          reviewer={reviewer}
-          busy={busy}
-          initial={startAs}
-          asked={asked?.seq}
-          onSave={(input) => void save(input)}
-          onCancel={() => setWriting(false)}
-        />
-      ) : (
-        <p className="va-actions">
-          <button
-            type="button"
-            className="va-suspicious"
-            onClick={() => {
-              setStartAs('open');
-              setWriting(true);
-            }}
-          >
-            Looks suspicious
-          </button>
-        </p>
+          {writing ? (
+            <ConcernForm
+              subject={subject}
+              build={build}
+              reviewer={reviewer}
+              busy={busy}
+              initial={startAs}
+              asked={asked?.seq}
+              onSave={(input) => void save(input)}
+              onCancel={() => setWriting(false)}
+            />
+          ) : null}
+        </section>
       )}
     </div>
   );

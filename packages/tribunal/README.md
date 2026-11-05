@@ -368,7 +368,7 @@ than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
 A render you decide on, whose candidate is the same image an earlier build kept,
-says so in its Decision card. A candidate is stored under the SHA-256 of its
+says so under its name. A candidate is stored under the SHA-256 of its
 bytes, so two builds that kept one key for a subject kept one picture. Only
 builds rendered by the same identity count: a baseline is kept per identity, so
 a decision made on another engine or platform says nothing about this one. The
@@ -389,9 +389,13 @@ compared to, so it is named without the warning. Only builds this deployment
 still keeps are counted, so a build removed by `POST /review/sweep` is not named.
 A render that is `unchanged` or `ignored`, or kept no candidate, has no line.
 
-Every move on a subject sits in one bar under the picture, beside what it acts
-on: the subject, the component it names as the cause, its regions, and where it
-stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
+*Approve* and *Reject* sit at the top right of the render, beside its name, and
+stay there while the picture scrolls. A decided render shows who decided it,
+when and why, and both stay live. A render whose image the run did not keep
+offers neither, and the page says why beside them. An image on screen with no
+document behind it can be rejected, not approved: it cannot become a baseline.
+Everything else sits in one bar under the picture, with where the render stands
+in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
 Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 <kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
 concern and <kbd>I</kbd> opens one already under investigation, as
@@ -408,7 +412,7 @@ every single-letter key off, for speech input and screen readers that take
 letters as their own commands; the browser remembers the choice.
 
 A render you would not approve and cannot yet call wrong has a third answer.
-*Looks suspicious*, in the bar or under the subject's concerns, raises a **concern**: a
+*Looks suspicious*, in the bar, raises a **concern**: a
 title, the region you mean or the whole render, the components, files or the
 baseline you are pointing at, a note and your hypothesis. It moves between
 open, investigating and resolved, each step with a name on it. It stays on the

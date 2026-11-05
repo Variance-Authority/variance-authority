@@ -1,30 +1,21 @@
 /**
- * The bar under a subject: what is selected, where it sits, and what can be done
- * about it.
+ * The bar under a subject: where it sits in the queue, and the moves that cost
+ * nothing to undo, each with its key.
  *
- * Every move a reviewer has on a render used to live in the right-hand column,
- * at the height its card happened to sit: *Approve* at the top, *Looks
- * suspicious* one card down, and the way to the next render back in the rail on
- * the other side of the screen. A reviewer could not see what was on offer
- * without reading the column, and read it again on every render. The bar puts
- * all of it in one place that never moves, with the key for each, under the
- * picture it is about.
+ * Laid out in the space the page leaves and never moving, so the walk through a
+ * queue is one place. The verdict is not here: it sits at the top right of the
+ * render, in [`decision.tsx`](./decision.tsx), and has a button and no key,
+ * because a key that promotes a baseline is a key pressed by accident.
  *
  * While the concern form is open, J and K stand down wherever the focus is:
  * a reviewer who clicks the picture to look again has left the form but not the
  * draft. The buttons still move, because a click is not an accident.
- *
- * Deciding has a button and no key. A key that promotes a baseline is a key
- * pressed by accident; moving between renders and opening a form cost nothing to
- * undo, and those are the ones a single letter reaches.
  */
 
 import type { ReactElement } from 'react';
 import type { ConcernState } from '../concern-types.js';
-import type { Decision, SubjectView } from '../review-types.js';
 import { useKeys, useKeysOn } from './keys.js';
-import { causeOf } from './lead.js';
-import { count, number } from './text.js';
+import { number } from './text.js';
 
 /**
  * Where a render sits in the queue the rail draws.
@@ -45,20 +36,14 @@ interface Shortcut {
 }
 
 export function ActionBar({
-  subject,
   place,
-  busy,
   writing = false,
-  onDecide,
   onSuspect,
   onGo,
 }: {
-  readonly subject: SubjectView;
   readonly place: Place | undefined;
-  readonly busy: boolean;
   /** Whether the concern form is open on this render. */
   readonly writing?: boolean | undefined;
-  readonly onDecide: (decision: Decision) => void;
   /** Open the concern form, starting in this state. */
   readonly onSuspect: (state: ConcernState) => void;
   readonly onGo?: ((subject: string) => void) | undefined;
@@ -86,26 +71,8 @@ export function ActionBar({
   const k = key('K', walking);
   const j = key('J', walking);
 
-  const cause = causeOf(subject);
-
   return (
     <section className="va-actionbar" aria-label="What you can do with this render">
-      <p className="va-scope">
-        <span className="va-scope-label">Selected</span>
-        <b title={subject.subject}>{subject.subject}</b>
-        {/* Shrinks before the place in the queue does: a long component name
-            costs its own tail, never the 2 of 5 beside it. */}
-        <span className="va-scope-cause" title={cause}>
-          {cause ?? 'no component named'}
-          {subject.regions.length === 0 ? '' : ` · ${count(subject.regions.length, 'region')}`}
-        </span>
-        {place === undefined ? null : (
-          <span className="va-num">
-            {place.at === undefined ? 'not in the queue' : `${number(place.at + 1)} of ${number(place.of)}`}
-          </span>
-        )}
-      </p>
-
       <div className="va-actionbar-acts">
         <button
           type="button"
@@ -123,26 +90,16 @@ export function ActionBar({
         >
           Investigate {i.hint}
         </button>
-        <span className="va-actionbar-gap" />
-        <button
-          type="button"
-          className="va-approve"
-          disabled={busy || !subject.approvable}
-          onClick={() => onDecide('approved')}
-          title={
-            subject.approvable
-              ? 'Make this build’s candidate the baseline'
-              : 'This run kept no candidate image, so there is nothing to promote. Approving would mean rendering one now, which is recording rather than promoting.'
-          }
-        >
-          Approve
-        </button>
-        <button type="button" className="va-reject" disabled={busy} onClick={() => onDecide('rejected')}>
-          Reject
-        </button>
+      </div>
+
+      <div className="va-actionbar-acts">
+        {place === undefined ? null : (
+          <span className="va-num">
+            {place.at === undefined ? 'not in the queue' : `${number(place.at + 1)} of ${number(place.of)}`}
+          </span>
+        )}
         {onGo === undefined ? null : (
           <>
-            <span className="va-actionbar-gap" />
             <button
               type="button"
               aria-keyshortcuts={k.shortcut}

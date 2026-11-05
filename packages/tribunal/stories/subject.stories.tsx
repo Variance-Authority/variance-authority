@@ -129,23 +129,16 @@ function press(root: HTMLElement, label: string): void {
 const reading = (node: Element): boolean =>
   node.classList.contains('va-waiting') || (node.textContent?.trim().endsWith('…') ?? false);
 
-const bar = (props: Partial<Parameters<typeof ActionBar>[0]> & { readonly subject: SubjectView }): Story => ({
+const bar = ({
+  subject,
+  ...props
+}: Partial<Parameters<typeof ActionBar>[0]> & { readonly subject: SubjectView }): Story => ({
   parameters: { width: 960 },
-  render: () => (
-    <ActionBar
-      place={placeOf(CHANGED, props.subject)}
-      busy={false}
-      onDecide={none}
-      onSuspect={none}
-      onGo={none}
-      {...props}
-    />
-  ),
+  render: () => <ActionBar place={placeOf(CHANGED, subject)} onSuspect={none} onGo={none} {...props} />,
 });
 
 export const ActionBarPending = bar({ subject: rebranded });
 export const ActionBarFirstInQueue = bar({ subject: composed });
-export const ActionBarDeciding = bar({ subject: rebranded, busy: true });
 export const ActionBarWritingConcern = bar({ subject: rebranded, writing: true });
 export const ActionBarNotInQueue = bar({ subject: loading });
 export const ActionBarWithoutWayAlong = bar({ subject: rebranded, place: undefined, onGo: undefined });
@@ -394,3 +387,16 @@ export const PanelRejected = panel(secondary);
 export const PanelConcernRaised = panel(rebranded);
 export const PanelUnchanged = panel(loading);
 export const PanelNew = panel(first, BASE);
+export const PanelNoImageKept = panel({
+  ...composed,
+  has: { ...composed.has, after: false },
+  approvable: false,
+});
+
+export const PanelNoDocument = panel({ ...composed, approvable: false });
+
+/** A note has no length limit, and the picture and the buttons stay on the page under it. */
+export const PanelLongNote = panel({
+  ...composed,
+  decision: { decision: 'rejected', by: 'marina', at: '2026-01-01T00:00:00.000Z', note: 'The footer moved. '.repeat(200) },
+});
