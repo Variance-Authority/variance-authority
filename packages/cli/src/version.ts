@@ -29,7 +29,7 @@ import type { BaselinesConfig } from './config-baselines.js';
  * number is the contract, and the contract is the thing a deployment can be
  * older than.
  */
-export const NEEDS_API = 7;
+export const NEEDS_API = 8;
 
 const require = createRequire(import.meta.url);
 

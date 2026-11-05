@@ -9,9 +9,9 @@
  *
  * The session is a signed cookie holding a login and an expiry, and nothing else.
  * The token GitHub issued is used for the two reads below and discarded, so a
- * deployment holds no credential that works anywhere else. `SameSite=Lax` is what
- * keeps another site's form from deciding as the person signed in: the cookie does
- * not travel on a cross-site POST.
+ * deployment holds no credential that works anywhere else. `SameSite=Lax` keeps the
+ * cookie off a cross-site POST, a second guard behind the service's own refusal of
+ * another origin's write.
  */
 
 import { bytes } from './issuer.js';

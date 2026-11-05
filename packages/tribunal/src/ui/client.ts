@@ -246,7 +246,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       ),
 
     async raise(input): Promise<Concern> {
-      const body = await call<{ readonly concern: Concern }>('/review/concerns', {
+      const body = await call<{ readonly concern: Concern }>('/review/concerns/raise', {
         method: 'POST',
         body: JSON.stringify(input),
       });

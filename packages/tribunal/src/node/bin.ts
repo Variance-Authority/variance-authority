@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { serveTribunal, type TribunalService } from './serve.js';
-import { declaration, declaredPolicy } from '../policy.js';
+import { LOOPBACK, declaration, declaredPolicy } from '../policy.js';
 import { createTribunal } from '../worker.js';
 import type { Policy } from '../worker-auth.js';
 
@@ -61,9 +61,6 @@ const DEFAULT_PORT = 7789;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_DATABASE = 'variance-tribunal.db';
 const DEFAULT_STORAGE = 'variance-tribunal-objects';
-
-/** Addresses that can only be reached from the machine the process is on. */
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
 export interface TribunalConfig {
   readonly port: number;
@@ -186,7 +183,11 @@ function declaredIn(
 
 /** Who this service recognizes: the same reading a Worker does, over the same names. */
 export function policyFor(config: TribunalConfig, log?: (line: string) => void): Policy {
-  return declaredPolicy(config.declared, { loopback: config.loopback, ...(log === undefined ? {} : { log }) });
+  return declaredPolicy(config.declared, {
+    loopback: config.loopback,
+    ...(config.origin === undefined ? {} : { origin: config.origin }),
+    ...(log === undefined ? {} : { log }),
+  });
 }
 
 export interface RunningTribunal extends TribunalService {

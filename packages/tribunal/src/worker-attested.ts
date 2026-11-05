@@ -15,10 +15,10 @@ import { BadRequest, count, json, optional, requireMethod, required } from './wo
  * {@link attested}, and a route that writes never belongs in this file: the
  * share token reads, and never decides.
  *
- * A route that both reads and writes on one path — concerns, listed with `GET`
- * and raised with `POST` — does not move here, because every path here refuses
- * any method but `GET`. Its own `GET` branch calls {@link attested} instead of
- * `requires(granted, 'review')`, and its write stays a reviewer's.
+ * Concerns do not move here, because their writes sit beside their read and every
+ * path here refuses any method but `GET`. Their own `GET` branch calls
+ * {@link attested} instead of `requires(granted, 'review')`, and their writes stay
+ * a reviewer's.
  */
 
 /** The changelog of approved baselines, grouped by the change each one settled; `?limit=` takes fewer than {@link CHANGELOG_LIMIT}. */

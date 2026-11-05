@@ -49,7 +49,9 @@ The run asks before it makes anything, so a second run changes nothing and says
 
 What the config already declares is the deployer's. A deployment that declares
 `REVIEW_CREDENTIALS=access` gets no App: who passes Cloudflare Access, or the SSO
-behind it, is theirs, and so are `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. One that
+behind it, is theirs, and so are `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Hand them
+[the steps](https://variance-authority.dev/reference/packages/tribunal#your-companys-sso), which include the
+bypass that keeps a workflow's push working. One that
 declares `INGEST_CREDENTIALS=token` gets `INGEST_TOKEN` in the Worker and the
 same value in the repository's `VARIANCE_INGEST_TOKEN` secret, through stdin, and
 never printed. Neither copy can be read back. A repository with no copy while the

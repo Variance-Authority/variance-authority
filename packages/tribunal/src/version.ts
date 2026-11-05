@@ -37,8 +37,9 @@ import { SCHEMA_VERSION } from './schema.js';
  * its token. 4 concerns. 5 `GET /review/decisions`, and the share token reads what
  * review settled. 6 a baseline keeps its nodes' snapshot. 7 `GET /auth/me`, a run under
  * a GitHub Actions identity, and a decision under the name the credential carries.
+ * 8 a concern is raised at `POST /review/concerns/raise`.
  */
-export const TRIBUNAL_API = 7;
+export const TRIBUNAL_API = 8;
 
 export const VERSION_PATH = '/version';
 
