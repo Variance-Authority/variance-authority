@@ -7,8 +7,6 @@ the least time so far, so the shards finish close together. Each shard
 computes the split from the record the run handed it and the files it collects,
 without talking to the others, so shards that read one record at one commit run
 every file in exactly one shard, and a shard run again takes the files it took.
-A Playwright setup or teardown project is the exception: Playwright runs it in
-every shard that keeps a test depending on it.
 
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
 on four shards:
@@ -322,12 +320,14 @@ lists every flag and the JSON.
 ## Every shard computes the same split
 
 No shard tells another what to take. Each one computes the whole split from
-three inputs and keeps its own part:
+three inputs and keeps its own part. A Playwright setup or teardown project is
+the exception: Playwright runs it in every shard that keeps a test depending on
+it.
 
 - **The files**: what the runner collected, after the change's selection. Shards
   that check out the same commit collect the same files.
-- **The times**: the record `carry hand` read. Shards of one build read the same one.
-  Each shard's record names the record it read, and combining the shards'
+- **The times**: the record `carry hand` read. Shards of one build read the same
+  one. Each shard's record names the record it read, and combining the shards'
   records fails the build when two of them name different ones, since a file
   may then have run in no shard. A JVM shard names the record it read
   `unknown`: Surefire or Gradle hands the agent the classes `variance select`
