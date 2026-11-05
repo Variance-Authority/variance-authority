@@ -27,6 +27,9 @@ reference already holds. A package README follows the `context-docs` skill's
 *Package README* role; when it grows long, material moves to `docs/` and the
 README routes to it.
 
+A documentation system is an intake, joined by a reference the text carries,
+never by similarity. A source that was not read is absent, not empty.
+
 ## 1. One page, one job
 
 Pick the job before anything else. It decides the shape:
@@ -81,6 +84,10 @@ The job sets it:
 Either way, the first payoff comes before any edge case, any rule about
 precedence and any list of exceptions. The first screen is readable without a
 single word this project made up.
+
+A README opens for a person deciding whether to use the package, never in the
+voice of a spec, and a precondition sits beside the install step it gates,
+because a reader finds it there when it fails.
 
 ## 4. Where a fact goes
 

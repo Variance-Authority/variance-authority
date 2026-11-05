@@ -77,10 +77,10 @@
  * It holds until a case's work outlives the case. A test that is synchronous to
  * the runner and asynchronous underneath returns before its work does; two
  * cases open at once is the same fault seen from the other end. The variable
- * cannot hold two, so a second `enter` while one is open is an error naming
- * both, and a continuation that arrives after its case closed is charged to the
- * ambient bucket, which every case in the file is given — over-inclusive, which
- * is the direction [`selecting.md`](https://variance-authority.dev/docs/selecting) permits, and
+ * cannot hold two, so a second `enter` while one is open warns, naming both, and
+ * the file is recorded whole; a continuation that arrives after its case closed
+ * is charged to the ambient bucket, which every case in the file is given —
+ * over-inclusive, which is the direction [`selecting.md`](https://variance-authority.dev/docs/selecting) permits, and
  * silent.
  *
  * `continuations` is the mode that stops it being silent. The variable becomes
