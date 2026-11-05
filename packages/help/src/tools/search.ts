@@ -288,14 +288,13 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
-    // A miss of the text is not a miss of the code: when this repository's own
-    // names answer the words, the line above them says only that the text was
-    // not written, so a reader who stops at the first line does not stop at *nothing*.
     // It names what the substring read, and no more: a local that is no function
     // is in no index, a closure's doc is its holder's, and the doc a file opens
     // with is read only for the words, so a file may still write the phrase.
-    // Inside an area the text may be written outside it, so the way to widen stays.
     const read = `No export, top-level declaration or member ${area === undefined ? 'in this repository' : 'in reach of that start point'}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
+    // A miss of the text is not a miss of the code: with names to offer, the line
+    // says only that the text was not written. Inside an area the text may be
+    // written outside it, so the way to widen stays.
     const nowhere =
       own.length > 0
         ? area === undefined
