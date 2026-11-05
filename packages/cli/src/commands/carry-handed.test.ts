@@ -108,7 +108,7 @@ describe('a run stands on the record one job read', () => {
     await git(plan, 'pull', '--quiet');
     await forgetLineAnswers(join(home, 'plan-cache'));
 
-    expect(await handBase(plan, handed, { env: LOCAL })).toMatchObject({ commits: [second] });
+    expect(await handBase(plan, `${handed}-again`, { env: LOCAL })).toMatchObject({ commits: [second] });
   });
 
   it('stands on the line\'s answer that it has no record, however long ago and whatever the line published since', async () => {
@@ -227,11 +227,13 @@ describe('a job refuses to read the line on its own', () => {
     expect(await refusal(receiveBase(shard, join(home, 'absent')))).toContain('carry hand');
   });
 
-  it('to clear a directory no hand wrote', async () => {
+  it('to write into a directory that holds anything, an earlier hand included', async () => {
     const { origin } = await gitPublished(home);
     const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
 
     expect(await refusal(handBase(plan, plan, { env: LOCAL }))).toContain(plan);
+    expect(await refusal(handBase(plan, handed, { env: LOCAL }))).toContain(handed);
 
     expect(existsSync(join(plan, '.git'))).toBe(true);
   });

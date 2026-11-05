@@ -3291,7 +3291,7 @@ re-run: GitHub re-runs for 30 days, and `retention-days` defaults to the
 repository's setting. A re-run of a failed job takes the artifact the first
 attempt uploaded, so it selects what that attempt selected.
 
-`hand` replaces `<dir>`, and refuses a directory with files no `hand` wrote.
+`hand` refuses a `<dir>` that holds files.
 `receive` stops the job when `<dir>` holds no manifest, or holds a record that
 does not read, rather than ask the share on its own. A suite the share had no
 record of, or that `hand` held no credential to ask about, comes through as that
@@ -3301,7 +3301,8 @@ missing after `receive` is the same answer, never a new read of the share. Under
 made at, empty when the suites' differ or none was read. When suites read
 different commits, `hand` says so in a notice. The mark is for CI's
 fresh machines: a laptop that receives stands on that record until `carry hand`
-or `share --suite` asks again. It lies in the cache `receive` wrote, so a step
+or `share --suite` asks again, and a cache kept from run to run keeps the mark,
+so every job there receives first. It lies in the cache `receive` wrote, so a step
 that sets `VARIANCE_AUTHORITY_CACHE` differently reads the share on its own.
 
 `carry` also prints `report`, `images` and `review`, which are paths to upload

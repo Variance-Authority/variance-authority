@@ -107,7 +107,7 @@ fetched here, and a reader that asks `suiteBase` says so.**
 1. **The suite job hands its record to the publish job as a workflow
    artifact, not through the Actions cache.** ADR-0077 keeps the Actions cache
    as the job-to-job carrier. Here the record goes from `suite` to `publish`
-   with `upload-artifact`, kept for GitHub's 30-day re-run window. An artifact belongs to one
+   with `upload-artifact`, one day's retention. An artifact belongs to one
    workflow run, so the publish job publishes exactly what this run's suite
    job made, and nothing a pull request's run saved is in reach of the job
    that holds `contents: write`.

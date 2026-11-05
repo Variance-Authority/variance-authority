@@ -37,7 +37,7 @@ import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, writeMi
 const HANDED_MANIFEST = 'handed.json';
 
 export interface BaseHanded {
-  /** The suites a read was handed for, the line's answer that it gave none among them. */
+  /** The suites handed, a record or whatever stopped the read. */
   readonly suites: readonly string[];
   /** The commits the handed records were made at. */
   readonly commits: readonly string[];
@@ -51,8 +51,8 @@ export interface BaseReceived {
 
 /**
  * Read the line for every suite the share carries, write what it answered to
- * `dir`, replacing what an earlier hand wrote there, and lay it here too, so
- * this job stands on the record it hands. The line is always asked: a checkout
+ * `dir`, which holds nothing yet, and lay it here too, so this job stands on the
+ * record it hands. The line is always asked: a checkout
  * that kept its cache holds the last run's read, which no later run stands on
  * unless the line gives no answer, and then that kept record is what is handed.
  */
@@ -61,10 +61,7 @@ export async function handBase(root: string, dir: string, ask: MainlineAsk = {})
     if (error.code === 'ENOENT') return [];
     throw error;
   });
-  if (there.length > 0 && !there.includes(HANDED_MANIFEST)) {
-    throw new OperatorError(`variance carry hand replaces ${dir}, and no hand wrote what it holds: name an empty directory`);
-  }
-  await rm(dir, { recursive: true, force: true });
+  if (there.length > 0) throw new OperatorError(`variance carry hand writes to an empty directory, and ${dir} holds files`);
   await mkdir(dir, { recursive: true });
   const suites: string[] = [];
   const commits = new Set<string>();
@@ -149,7 +146,7 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
   return { suites, lines };
 }
 
-/** What a workflow reads of a hand: the commit a pull request's head is merged with, and the suites handed. */
+/** What a workflow reads of a hand: the commit a pull request's head is merged with. */
 export function handedOutputs(handed: BaseHanded): readonly string[] {
   return [`commit=${handed.commits.length === 1 ? handed.commits[0] : ''}`];
 }
@@ -176,7 +173,7 @@ export async function moveBase(
       ...handed.lines,
       handed.suites.length === 0 ? 'no suite asked the line, so nothing is handed.' : `handed ${handed.suites.join(', ')} in ${dir}.`,
       ...(parsed.format === 'github' && handed.commits.length > 1
-        ? [`::notice::The mainline's records were made at ${handed.commits.join(', ')}, so a pull request's head stays merged with the base tip.`]
+        ? [`::notice::The mainline's records were made at ${handed.commits.join(', ')}, so \`commit\` is empty.`]
         : []),
     ];
   } else {

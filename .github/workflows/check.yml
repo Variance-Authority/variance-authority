@@ -945,7 +945,7 @@ jobs:
           name: variance-records
           path: ${{ steps.records.outputs.dir }}
           include-hidden-files: true
-          retention-days: 30
+          retention-days: 1
 
   publish:
     # The record a push to `main` made, published to `refs/variance/mainline/main`
