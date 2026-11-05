@@ -3285,8 +3285,9 @@ reads a record the run never saw. `variance carry hand <dir>` asks the share
 once, for every suite whose `carry` is `"share"`, and writes what it read to
 `<dir>`, which the host moves to the run's other jobs as an artifact.
 `variance carry receive <dir>` lays it down before anything in that job reads a
-record, and every reader there answers with it, however far behind the merge
-base, without asking the share. Keep the artifact as long as a run can be
+record, in place of any record the checkout holds, and every reader there answers
+with it, however far behind the merge base, without asking the share or the
+primary checkout of a worktree. Keep the artifact as long as a run can be
 re-run: GitHub re-runs for 30 days, and `retention-days` defaults to the
 repository's setting. A re-run of a failed job takes the artifact the first
 attempt uploaded, so it selects what that attempt selected.

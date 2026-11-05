@@ -139,13 +139,18 @@ function fetchCaches(root: string, cacheRoot: string | undefined, suite: string)
   const here = repositoryRoot(root);
   const own = cacheRootFor(here);
   // A read handed here is this job's, whatever newer record a worktree's primary checkout fetched.
-  if (handedHere(mainlineReadRoot(own, suite))) return [own];
+  if (mainlineHanded(root, suite)) return [own];
   const primary = primaryCacheRoot(here);
   return primary === own ? [own] : [own, primary];
 }
 
-/** Whether `readRoot` holds another job's read: a handed miss leaves the mark alone, which names no record. */
-function handedHere(readRoot: string): boolean {
+/**
+ * Whether this checkout holds another job's read of `suite`, so no layer under
+ * it answers: a handed miss leaves the mark alone, which names no record.
+ */
+export function mainlineHanded(root: string, suite: string | undefined, cacheRoot?: string): boolean {
+  if (suite === undefined) return false;
+  const readRoot = mainlineReadRoot(cacheRoot ?? cacheRootFor(repositoryRoot(root)), suite);
   try {
     return (JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as { handed?: unknown }).handed === true;
   } catch {

@@ -1,14 +1,15 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { cacheRootFor, declaredSuites, lastFetchedMainline, mainlineReadRoot, readFetchedMainline } from '@variance-authority/sense/test-selection';
+import { dirname, join } from 'node:path';
+import { cacheRootFor, declaredSuites, lastFetchedMainline, mainlineReadRoot, readableTestCoverage, readFetchedMainline, seedTestCoverage, testCoverageFile, withIndexLock } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { handBase, handedOutputs, moveBase, receiveBase } from './carry-handed.js';
 import { mainlineBase, mainlineMissed, readMissedMainline, type MainlineMissed } from './mainline-base.js';
 import { forgetLineAnswers, git, gitPublished, publishedAt } from './mainline-fixture.js';
+import { suiteBase } from './suite-base.js';
 
 /**
  * One job of a run reads the line, and every other job, a re-run of a failed
@@ -55,6 +56,15 @@ async function moved(ci: string): Promise<string> {
   const commit = await git(ci, 'rev-parse', 'HEAD');
   await publishedAt(home, ci, commit);
   return commit;
+}
+
+/** A record of `dir`'s own, as a run landed there would leave it. */
+async function ownRecordIn(dir: string): Promise<void> {
+  const fetched = await mainlineBase(dir, declaredSuites(dir)?.find((one) => one.name === 'unit'), { env: LOCAL, fetch: 'always' });
+  if (fetched === undefined || 'miss' in fetched) throw new Error('the line gave no record to copy');
+  const own = testCoverageFile(dir, { suite: 'unit' });
+  await mkdir(dirname(own), { recursive: true });
+  await cp(fetched.coverage, own);
 }
 
 const refusal = async (doing: Promise<unknown>): Promise<string> => {
@@ -227,6 +237,43 @@ describe('a run stands on the record one job read', () => {
 
     // A runner seam names no cache, so the miss has to stop the walk as a record does.
     expect(lastFetchedMainline(worktree, 'unit')).toBeUndefined();
+  });
+
+  it('reaches past no layer of a primary checkout for a handed miss', async () => {
+    const { origin } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await writeFile(join(plan, 'variance.config.json'), JSON.stringify({
+      suites: { unit: { kind: 'unit', carry: 'share' } },
+      share: { kind: 'http', endpoint: 'https://share.invalid', mainlines: ['main'], token: { env: 'SHARE_TOKEN_NOT_SET' } },
+    }));
+    await handBase(plan, handed, { env: LOCAL });
+
+    const primary = await job(origin, 'primary');
+    const worktree = join(home, 'worktree');
+    await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', undefined);
+    await receiveBase(worktree, handed);
+    await ownRecordIn(primary);
+
+    expect(await suiteBase(worktree, { suite: 'unit', env: LOCAL })).toMatchObject({ from: 'none' });
+    expect(await readableTestCoverage(worktree, { suite: 'unit' })).toBe(testCoverageFile(worktree, { suite: 'unit' }));
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    expect(await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, undefined))).toEqual({ held: true, value: undefined });
+    expect(existsSync(own)).toBe(false);
+  });
+
+  it('stands on the handed record though a run on this runner left one of its own', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+    await moved(ci);
+
+    const shard = await job(origin, 'shard');
+    await ownRecordIn(shard);
+    await receiveBase(shard, handed);
+
+    expect(await suiteBase(shard, { suite: 'unit', env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
   });
 
   it('hands nothing for a suite the share does not carry, and the manifest still arrives', async () => {
