@@ -428,14 +428,15 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     }
 
     fn visit_ts_import_type(&mut self, it: &TSImportType<'a>) {
-        let index = self.loads.import_type(it);
-        self.typed_at.insert(it.span.start, index);
-        let mut qualifier = it.qualifier.as_ref();
-        while let Some(TSImportTypeQualifier::QualifiedName(name)) = qualifier {
-            qualifier = Some(&name.left);
-        }
-        if let Some(TSImportTypeQualifier::Identifier(name)) = qualifier {
-            self.add(Held::whole(Via::Typed(index)), &name.name, it.span.start);
+        if let Some(index) = self.loads.import_type(it) {
+            self.typed_at.insert(it.span.start, index);
+            let mut qualifier = it.qualifier.as_ref();
+            while let Some(TSImportTypeQualifier::QualifiedName(name)) = qualifier {
+                qualifier = Some(&name.left);
+            }
+            if let Some(TSImportTypeQualifier::Identifier(name)) = qualifier {
+                self.add(Held::whole(Via::Typed(index)), &name.name, it.span.start);
+            }
         }
         walk::walk_ts_import_type(self, it);
     }

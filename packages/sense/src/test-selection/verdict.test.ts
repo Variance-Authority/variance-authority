@@ -57,6 +57,28 @@ describe.runIf(nativeAvailable())('a module verdict', () => {
     expect(verdictOf(after, before)).toMatchObject({ kind: 'bodies', imported: ['./wrap'] });
   });
 
+  describe('a specifier no text holds', () => {
+    // The first holds a backslash and the second a lone surrogate: two modules
+    // that Oxc's `display()` prints alike, as `\ud800`.
+    const written = String.raw`'\\ud800'`;
+    const surrogate = String.raw`'\uD800'`;
+
+    it.each([
+      ['an import that binds nothing', (source: string) => `import ${source};\n`],
+      ['an import that binds a name', (source: string) => `import { a } from ${source};\nexport const f = () => a;\n`],
+      ['a re-export', (source: string) => `export { a } from ${source};\n`],
+      ['a star re-export', (source: string) => `export * from ${source};\n`],
+    ])('reads %s as load, because no text says the module is the same one', (_, line) => {
+      expect(verdictOf(line(written), line(surrogate))?.kind).toBe('load');
+      expect(verdictOf(line(surrogate), line(written))?.kind).toBe('load');
+    });
+
+    it('reads a text with no change as nothing', () => {
+      const text = `import ${surrogate};\n`;
+      expect(verdictOf(text, `${text}// a comment\n`)?.kind).toBe('none');
+    });
+  });
+
   it('reads a name added to an import as nothing the module does while it loads', () => {
     const before = "import { clamp } from './limits';\nexport const f = () => clamp(1);\n";
     const after = "import { clamp, STEP } from './limits';\nexport const f = () => clamp(STEP);\n";

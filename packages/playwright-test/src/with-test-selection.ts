@@ -110,6 +110,7 @@ export function withTestSelection<Config extends object = PlaywrightSelectionCon
   const compile = config['@playwright/test'] as { readonly babelPlugins?: readonly unknown[] } | undefined;
   const build = config['build'] as { readonly external?: readonly string[] } | undefined;
   const drop = selectingFiles(config, recording, selection);
+  if (recording.cadence === false) uncutSpecs();
   return {
     ...config,
     ...(drop === undefined
@@ -188,18 +189,12 @@ function listed<Value>(value: Value | readonly Value[] | undefined): readonly Va
 
 /**
  * Give Playwright the cadence cut, by the one route its version reads: what
- * goes in the configuration, or nothing and the environment.
- *
- * Playwright stopped reading `babelPlugins` at 1.63, and what its transform
- * keeps is a plugin and a path scope in two environment variables, which its
- * workers inherit. That pair reaches no ES module spec on the oldest Playwright
- * this package takes, and both routes at once make Babel refuse two parser
- * overrides, so the version picks, once: a worker's argv names no configuration
- * to resolve it from, so a worker reads the main process's choice from what it
- * inherited. The scope is the whole disk because the plugin decides for itself
- * what it cuts.
+ * goes in the configuration, or nothing and the environment, whose pair its
+ * workers inherit. Both at once make Babel refuse two parser overrides, and the
+ * pair reaches no ES module spec on the oldest Playwright this package takes.
  */
 function cutSpecs(compile: { readonly babelPlugins?: readonly unknown[] } | undefined): object {
+  // A worker's argv names no configuration, so it reads the main process's choice.
   const inherited = process.env['TEST_WORKER_INDEX'] !== undefined;
   const transformed = inherited
     ? process.env['PW_TEST_SOURCE_TRANSFORM'] === CADENCE_PLUGIN
@@ -207,9 +202,31 @@ function cutSpecs(compile: { readonly babelPlugins?: readonly unknown[] } | unde
   if (!transformed) {
     return { '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] } };
   }
+  // The variable holds one plugin, so a value of the project's own is refused rather than lost.
+  const own = process.env['PW_TEST_SOURCE_TRANSFORM'];
+  if (own !== undefined && own !== CADENCE_PLUGIN) {
+    throw new Error(
+      `variance-authority: refusing PW_TEST_SOURCE_TRANSFORM=${own}: Playwright takes one source transform and the cadence cut needs it; ` +
+        'unset it, or pass cadence: false to keep it and record no spec lines',
+    );
+  }
   process.env['PW_TEST_SOURCE_TRANSFORM'] = CADENCE_PLUGIN;
+  // The whole disk, because the plugin decides for itself what it cuts.
   process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = parse(process.cwd()).root;
   return {};
+}
+
+/**
+ * Take back the pair `cutSpecs` set, when a later configuration in the same
+ * process turns cadence off: the environment outlives the configuration that
+ * wrote it. A value of the project's own stays, and so does what a worker
+ * inherited, which is the main process's choice and what `cutSpecs` reads there.
+ */
+function uncutSpecs(): void {
+  if (process.env['TEST_WORKER_INDEX'] !== undefined) return;
+  if (process.env['PW_TEST_SOURCE_TRANSFORM'] !== CADENCE_PLUGIN) return;
+  delete process.env['PW_TEST_SOURCE_TRANSFORM'];
+  delete process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'];
 }
 
 /**

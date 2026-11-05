@@ -275,9 +275,10 @@ impl Walker {
     fn arguments(&mut self, span: Span, arguments: &[Argument<'_>], via: Option<String>, own: u32, titled: bool) {
         let title = if titled {
             match arguments.first() {
-                Some(Argument::StringLiteral(it)) => Some(it.value.display().to_string()),
+                Some(Argument::StringLiteral(it)) => it.value.as_str().map(str::to_owned),
                 Some(Argument::TemplateLiteral(it)) => {
-                    Some(it.quasis.iter().map(|quasi| quasi.value.cooked.map_or_else(String::new, |cooked| cooked.display().to_string())).collect::<Vec<_>>().join("*"))
+                    let parts = it.quasis.iter().map(|quasi| quasi.value.cooked.map_or(Some(""), |cooked| cooked.as_str()));
+                    parts.collect::<Option<Vec<_>>>().map(|parts| parts.join("*"))
                 }
                 _ => None,
             }

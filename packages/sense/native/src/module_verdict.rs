@@ -184,7 +184,7 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     if !old.directives.content_eq(&now.directives) {
         return Some(Verdict::Load);
     }
-    let (was, is) = (view_of(&old), view_of(&now));
+    let (Some(was), Some(is)) = (view_of(&old), view_of(&now)) else { return Some(Verdict::Load) };
     if was.sequence != is.sequence || was.order_over(&is) != is.order_over(&was) {
         return Some(Verdict::Load);
     }
@@ -229,17 +229,20 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     Some(Verdict::Values { names, exports, gone, imported, moved })
 }
 
-fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
+/// What the module does when it loads, and nothing when a specifier holds no
+/// text: a lone surrogate names no module anything here can compare, and
+/// `display()` spells it like a string that names another, so the texts differ
+/// and no view says the difference is harmless.
+fn view_of<'s, 'a>(program: &'s Program<'a>) -> Option<View<'s, 'a>> {
     let mut view = View { sequence: Vec::new(), bindings: BTreeMap::new(), order: Vec::new(), imports: BTreeSet::new() };
     for statement in &program.body {
         match statement {
-            // `display()` can spell two specifiers alike only when one holds a
-            // lone surrogate, and no file is named by that.
             Statement::ImportDeclaration(it) => {
+                let source = it.source.value.as_str()?;
                 if it.specifiers.as_ref().is_none_or(|specifiers| specifiers.is_empty()) {
-                    view.step(Step::Import(it.source.value.display().to_string()));
+                    view.step(Step::Import(source.to_string()));
                 } else if !it.import_kind.is_type() {
-                    view.imports.insert(it.source.value.display().to_string());
+                    view.imports.insert(source.to_string());
                 }
                 for specifier in it.specifiers.iter().flatten() {
                     let (local, imported) = match specifier {
@@ -247,14 +250,14 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
                         ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, "default".to_string()),
                         ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, "*".to_string()),
                     };
-                    view.bind(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value.display())));
+                    view.bind(local.name.to_string(), Bound::Import(format!("{source} {imported}")));
                 }
             }
             // FIXME: a re-export that binds names is a use by whoever imports
             // them, as an import that binds names is; adding or removing one of
             // an undeclared module charges every test that loaded this file.
-            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.display().to_string())),
-            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.display().to_string())),
+            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.as_str()?.to_string())),
+            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.as_str()?.to_string())),
             // An export list without a source runs nothing.
             Statement::ExportNamedDeclaration(_) => {}
             Statement::ExportDeclaration(it) => declaration(&mut view, &it.declaration),
@@ -290,7 +293,7 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
             },
         }
     }
-    view
+    Some(view)
 }
 
 fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {

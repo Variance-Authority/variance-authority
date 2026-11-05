@@ -169,6 +169,61 @@ describe('a configuration whose specs are cut statement by statement', () => {
     expect(withTestSelection(config, { cadence: false }).build).toBe(config.build);
     expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
   });
+
+  it('takes the transform back when a later configuration turns cadence off', async () => {
+    await on('1.64.1');
+    withTestSelection({});
+    withTestSelection({}, { cadence: false });
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBeUndefined();
+  });
+
+  it('gives the transform back to a later configuration that turns cadence on', async () => {
+    await on('1.64.1');
+    withTestSelection({}, { cadence: false });
+    withTestSelection({});
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
+  });
+
+  it('leaves what a worker inherited, which the next configuration there reads', async () => {
+    await on('1.64.1');
+    withTestSelection({});
+    vi.stubEnv('TEST_WORKER_INDEX', '0');
+    withTestSelection({}, { cadence: false });
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
+    expect(withTestSelection({})).not.toHaveProperty('@playwright/test');
+  });
+
+  it("leaves a transform of the project's own when cadence is off", async () => {
+    await on('1.64.1');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', '/repo/own.cjs');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM_SCOPE', '/repo');
+    withTestSelection({}, { cadence: false });
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBe('/repo/own.cjs');
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/repo');
+  });
+
+  it("refuses a transform of the project's own, which the one variable cannot hold beside the cut", async () => {
+    await on('1.64.1');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', '/repo/own.cjs');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM_SCOPE', '/repo');
+
+    expect(() => withTestSelection({})).toThrow(/PW_TEST_SOURCE_TRANSFORM.*\/repo\/own\.cjs.*cadence: false/u);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBe('/repo/own.cjs');
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/repo');
+  });
+
+  it("takes no issue with a transform of the project's own on a Playwright that reads `babelPlugins`", async () => {
+    await on('1.62.1');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', '/repo/own.cjs');
+
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBe('/repo/own.cjs');
+  });
 });
 
 describe('a configuration evaluated for a shard', () => {

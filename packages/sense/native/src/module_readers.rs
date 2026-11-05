@@ -91,7 +91,8 @@ pub struct Reading {
     sources: BTreeSet<String>,
     /// Every specifier an import with no braces or binding names, `import './x'`, loaded for its effect.
     effects: BTreeSet<String>,
-    /// A `require`, an `import()` or an `import x = require()`: a binding no name reaches.
+    /// A `require`, an `import()`, an `import x = require()` or a specifier no
+    /// text holds: a binding no name reaches.
     pub untraced: bool,
 }
 
@@ -109,7 +110,8 @@ pub struct Readers {
 
 /// Every name the module exports, to what it is bound: a local name, or the
 /// source and name a re-export takes. `export *` has no names and is keyed by
-/// its source.
+/// its source. A source here is only ever compared, so it keeps `Debug`'s
+/// spelling, which `display()`'s is not: two strings never share it.
 pub fn interface_of(program: &Program, lines: &Lines) -> BTreeMap<String, String> {
     let reading = reading_of(program, lines);
     let mut interface = BTreeMap::new();
@@ -121,13 +123,13 @@ pub fn interface_of(program: &Program, lines: &Lines) -> BTreeMap<String, String
     for statement in &program.body {
         match statement {
             Statement::ExportAllDeclaration(it) => {
-                let from = it.source.value.display();
+                let from = format!("{:?}", it.source.value);
                 let key = it.exported.as_ref().map_or_else(|| format!("* {from}"), |name| name.name().to_string());
                 interface.insert(key, format!("from {from} *"));
             }
             Statement::ExportFromDeclaration(it) => {
                 for specifier in &it.specifiers {
-                    let bound = format!("from {} {}", it.source.value.display(), specifier.local.name());
+                    let bound = format!("from {:?} {}", it.source.value, specifier.local.name());
                     interface.insert(specifier.exported.name().to_string(), bound);
                 }
             }

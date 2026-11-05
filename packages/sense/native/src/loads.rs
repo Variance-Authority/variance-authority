@@ -81,23 +81,29 @@ impl<'l> Loads<'l> {
     }
 
     /// The index in `required` of the request this declaration makes, and none
-    /// when it aliases a namespace rather than requiring a module.
+    /// when it aliases a namespace rather than requiring a module, or requires
+    /// one no text holds.
     pub(crate) fn import_equals(&mut self, it: &TSImportEqualsDeclaration) -> Option<u32> {
         let TSModuleReference::ExternalModuleReference(reference) = &it.module_reference else { return None };
-        self.required.push(self.request(reference.expression.value.display(), Kind::Imports, reference.span.start));
+        let Some(value) = reference.expression.value.as_str() else {
+            self.unread_required += 1;
+            return None;
+        };
+        self.required.push(self.request(value, Kind::Imports, reference.span.start));
         Some(self.required.len() as u32 - 1)
     }
 
     /// The index in `typed` of the request an `import()` type makes. A factory's
     /// own target named in a type is still a request, unlike a `require` of it:
-    /// the type loads nothing, so it cancels no replacement.
-    pub(crate) fn import_type(&mut self, it: &TSImportType) -> u32 {
-        self.typed.push(self.request(it.source.value.display(), Kind::Type, it.span.start));
-        self.typed.len() as u32 - 1
+    /// the type loads nothing, so it cancels no replacement, and one no text
+    /// holds is no request, with nothing left unread.
+    pub(crate) fn import_type(&mut self, it: &TSImportType) -> Option<u32> {
+        self.typed.push(self.request(it.source.value.as_str()?, Kind::Type, it.span.start));
+        Some(self.typed.len() as u32 - 1)
     }
 
-    fn request(&self, value: impl std::fmt::Display, kind: Kind, at: u32) -> Request {
-        Request { value: value.to_string(), kind, bindings: Vec::new(), line: self.lines.at(at), republishes: false }
+    fn request(&self, value: &str, kind: Kind, at: u32) -> Request {
+        Request { value: value.to_owned(), kind, bindings: Vec::new(), line: self.lines.at(at), republishes: false }
     }
 }
 
