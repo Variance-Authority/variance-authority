@@ -195,7 +195,7 @@ describe('the whole job keeps a person’s decision', () => {
     expect(printedJob().jobs.variance.concurrency).not.toHaveProperty('cancel-in-progress');
   });
 
-  // One pull request's runs in one line, so a comparison reads the accept before it.
+  // One pull request's runs one at a time, so two never write the comment or the store at once.
   it('keys the group on the pull request', () => {
     expect(printedJob().jobs.variance.concurrency?.['group']).toBe('variance-${{ github.ref }}');
   });

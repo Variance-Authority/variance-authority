@@ -384,7 +384,7 @@ jobs:
     if: github.event_name != 'merge_group' # a skipped job reports success
     concurrency:
       group: variance-${{ github.ref }} # one comment, written by one run at a time
-      queue: max # every run waits its turn, and none replaces a label's
+      queue: max # every run waits, and none replaces a label's
     runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
     steps:
       - uses: actions/checkout@v4
@@ -430,10 +430,13 @@ cover the red.
 
 `queue: max` is what keeps the label's run. By default GitHub holds one waiting
 run per `concurrency` group and cancels it for the next event, so a second label
-or a push would drop the accept and leave the label on. With it, a pull request's
-runs wait in turn, and each one compares against what the run before it accepted.
-A burst of pushes or labels therefore runs each in turn, where the default would
-skip to the last.
+or a push would drop the accept and leave the label on. With it every run waits,
+so a burst of pushes or labels runs them all, where the default would skip to the
+last. GitHub starts them in the order they began waiting, which need not be the
+order of their events, and it does not guarantee even that. A push can then
+compare before an accept that came first: the accept is saved, the label is off
+and the check stays red. Re-run the failed job, and it compares against the accept.
+
 Leave `cancel-in-progress` out: GitHub refuses `true` beside `queue: max`, and
 `true` would stop a running accept. A group holds 100 waiting runs and cancels any
 past that. If one of those was the label's, take the label off and add it again.
@@ -445,8 +448,17 @@ waits for the required check, `variance` here, on its own commit, and only
 `merge_group` starts a workflow there. The job answers by skipping, which reports
 success. It does not compare, because the pull request's accept is in that pull
 request's cache scope, which the queue's run cannot read: every change a person
-accepted would go red. The push to `main` then records what landed. Without a
-queue the event never fires.
+accepted would go red. Without a queue the event never fires.
+
+So nothing compares the queue's commit. Two accepted pull requests that change a
+picture only together land unchecked, and the push to `main` records the result.
+A pull request that repairs it goes red against that store, and a person accepts
+it. With baselines in [git](#git) the accept is in the pull request's commits, so
+the queue's commit carries it, and a job without this skip can compare there.
+
+Keep the queue's *Only merge non-failing pull requests* setting on. With it off, a
+pull request that failed required checks can join a group as long as the last one
+in the group passed, and `variance` passes for every group.
 
 A subject with no baseline reports `new` and the check stays green, so a pull
 request is green until the first push to `main` records a store.
