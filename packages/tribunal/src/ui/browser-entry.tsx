@@ -51,8 +51,7 @@ const enter = (me: Introduced): void => {
   } else {
     createRoot(mount).render(
       <StrictMode>
-        {me.capability === 'view' && signIn !== undefined ? <a href={signIn}>Sign in to decide</a> : null}
-        <ReviewApp client={client} reviewer={me.name} />
+        <ReviewApp client={client} reviewer={me.name} signIn={me.capability === 'view' ? signIn : undefined} />
       </StrictMode>,
     );
   }

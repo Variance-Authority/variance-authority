@@ -61,7 +61,7 @@ import { BuildsPage } from './builds.js';
 import { BuildPage } from './docket.js';
 import { ChangelogPage } from './history.js';
 import { useRoute } from './navigation.js';
-import { Reading } from './reading.js';
+import { Reading, SignIn } from './reading.js';
 import type { Route } from './route.js';
 import { Nowhere } from './shell.js';
 
@@ -84,6 +84,8 @@ export interface ReviewAppProps {
    * lets read: the surface shows the evidence and offers no move that writes.
    */
   readonly reviewer?: string | undefined;
+  /** Where a reader signs in, for a deployment that has a sign-in. Drawn in the top bar. */
+  readonly signIn?: string | undefined;
   /** How many builds to list. The server's own default applies when absent. */
   readonly limit?: number;
   /**
@@ -110,6 +112,7 @@ export interface ReviewAppProps {
 export function ReviewApp({
   client,
   reviewer,
+  signIn,
   limit,
   route,
   onNavigate,
@@ -120,7 +123,13 @@ export function ReviewApp({
   // it would tell the reader their link worked.
   if (here === undefined) return <Nowhere go={go} />;
 
-  if (here.page === 'builds') return <BuildsPage client={client} limit={limit} go={go} />;
+  if (here.page === 'builds') {
+    return (
+      <SignIn.Provider value={signIn}>
+        <BuildsPage client={client} limit={limit} go={go} />
+      </SignIn.Provider>
+    );
+  }
 
   if (here.page === 'changelog') {
     return (
@@ -131,8 +140,10 @@ export function ReviewApp({
   }
 
   return (
-    <Reading.Provider value={reviewer === undefined}>
-      <BuildPage client={client} reviewer={reviewer ?? ''} route={here} go={go} />
-    </Reading.Provider>
+    <SignIn.Provider value={signIn}>
+      <Reading.Provider value={reviewer === undefined}>
+        <BuildPage client={client} reviewer={reviewer ?? ''} route={here} go={go} />
+      </Reading.Provider>
+    </SignIn.Provider>
   );
 }

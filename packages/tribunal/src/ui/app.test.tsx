@@ -150,6 +150,16 @@ describe('ReviewApp', () => {
     expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
   });
 
+  it('offers sign-in in the top bar, where the page keeps its way around', async () => {
+    await act(async () => {
+      root.render(<ReviewApp client={clientThat(() => Promise.resolve([]))} signIn="/auth/github/login?return=%2F" />);
+    });
+
+    const link = host.querySelector<HTMLAnchorElement>('.va-topbar a[href^="/auth/github/login"]');
+    expect(link?.textContent).toBe('Sign in to decide');
+    expect(link?.className).toBe('va-mode');
+  });
+
   it('says the list is empty only when the service said so', async () => {
     await mount(clientThat(() => Promise.resolve([])));
 

@@ -9,6 +9,9 @@ import { createContext, useContext } from 'react';
  */
 export const Reading = createContext(false);
 
+/** Where somebody who may only read goes to become somebody who decides, when there is such a place. */
+export const SignIn = createContext<string | undefined>(undefined);
+
 export function useReading(): boolean {
   return useContext(Reading);
 }
