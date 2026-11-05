@@ -1,4 +1,5 @@
 import type { Browser, BrowserContext, BrowserContextOptions } from 'playwright';
+import { messageOf } from '@variance-authority/raster';
 import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
 import { operatorError } from './operator.js';
 
@@ -118,7 +119,7 @@ async function launchBrowser(engine: BrowserEngine, launch: Launch): Promise<Bro
   try {
     return await ENGINE_TYPES[engine].launch({ headless: launch.headless, args: [...launch.args] });
   } catch (error) {
-    throw operatorError(`the browser did not start: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    throw operatorError(`the browser did not start: ${messageOf(error)}`, { cause: error });
   }
 }
 
