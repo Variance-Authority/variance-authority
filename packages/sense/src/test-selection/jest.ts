@@ -351,16 +351,15 @@ export function withTestSelection(
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const selection = askedSelection(options.selection, () => coverageFile, { root, from: rootDir, ...suite });
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
-  const filtering = selection === undefined ? {} : selectingFilter(config, {
-    root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
-  });
 
   return {
     ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    ...filtering,
-    ...placingSequencer(config, { root, rootDir, times, selecting: filtering.filter !== undefined }),
+    ...(selection === undefined ? {} : selectingFilter(config, {
+      root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
+    })),
+    ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,
       ...(selection === undefined ? {} : { selected: true }),

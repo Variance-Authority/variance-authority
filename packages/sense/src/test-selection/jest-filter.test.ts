@@ -36,7 +36,7 @@ describe('the Jest filter that drops what a selection may skip', () => {
       say: (line) => lines.push(line),
     });
 
-    expect(configured).toEqual({ filter: SELECTION_FILTER });
+    expect(configured).toEqual({ filter: SELECTION_FILTER, passWithNoTests: true });
     await expect(filter([at('a.test.ts'), at('b.test.ts'), at('c.test.ts'), at('new.test.ts')]))
       .resolves.toEqual({ filtered: [at('b.test.ts'), at('new.test.ts')] });
     expect(lines).toEqual(['variance-authority: selected 2 of 4', '  read from the record at 0123abcd']);
@@ -164,7 +164,7 @@ module.exports.setup = async () => { ready = true; };
     const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
 
     for (const flag of ['--watch=false', '--watchAll=false', '--skipFilter=false']) {
-      expect(selectingFilter({}, { ...options, argv: ['node', 'jest', flag] })).toEqual({ filter: SELECTION_FILTER });
+      expect(selectingFilter({}, { ...options, argv: ['node', 'jest', flag] })).toEqual({ filter: SELECTION_FILTER, passWithNoTests: true });
     }
     expect(lines).toEqual([]);
   });

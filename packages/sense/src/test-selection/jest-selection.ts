@@ -58,12 +58,15 @@ export interface SelectingFilterOptions {
 /**
  * The `filter` a configuration takes to drop what the selection skips, or
  * nothing when the run should not select: in watch mode, under a filter named
- * on the command line, and when the configuration already selects.
+ * on the command line, and when the configuration already selects. Beside it,
+ * `passWithNoTests`, whatever the configuration says: a selection that keeps no
+ * file passes, and Jest freezes its global configuration before the filter
+ * knows, so a selected run that finds no file passes too.
  */
 export function selectingFilter(
   config: { readonly [key: string]: unknown },
   options: SelectingFilterOptions,
-): { filter?: string } {
+): { filter?: string; passWithNoTests?: true } {
   const { argv = process.argv, say = (line: string) => process.stderr.write(`${line}\n`) } = options;
   if (config.filter === SELECTION_FILTER) return {};
   // `--watch=false` is the flag written off, as Jest reads it.
@@ -103,7 +106,7 @@ export function selectingFilter(
     return { filtered };
   };
   (globalThis as { [HANDED]?: { filter: typeof filter } })[HANDED] = { filter };
-  return { filter: SELECTION_FILTER };
+  return { filter: SELECTION_FILTER, passWithNoTests: true };
 }
 
 /** The oldest Jest that reads the paths a filter answers. */
