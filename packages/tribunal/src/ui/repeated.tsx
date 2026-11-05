@@ -1,5 +1,5 @@
 /**
- * One line in a subject's Decision card: an earlier build kept this same image.
+ * One line under a subject's verdict: an earlier build kept this same image.
  *
  * The decision made there leads, because it is what a reviewer acts on here. A
  * rejected image that is back is a known defect, and approving it accepts that
