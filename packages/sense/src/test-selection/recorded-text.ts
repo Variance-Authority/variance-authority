@@ -67,14 +67,14 @@ import type { NativeTextColumns } from '../native-commit-text.js';
 
 /**
  * How much text a reader holds, in the bytes this process spends on it. It
- * bounds that text and nothing else: holding 8 MB adds about 180 MB to the peak
- * of a read of fifteen thousand files, and the open process's memory is git's.
+ * bounds that text and nothing else: holding it raises the peak of a large read
+ * by far more than it holds, and the open process's memory is git's.
  *
  * Holding a text saves an inflate and a pipe, under half a millisecond for
  * 210 KB. Holding a git-LFS pointer's content saves its processes, about 60 ms.
  * The four hundred paths one selection asked a hundred thousand times over are
  * about 4 MB of source, so 8 MB holds them. A wider selection outgrows it and
- * reads some again, a pipe each. 128 MB adds about 690 MB to that peak, for
+ * reads some again, a pipe each. A larger bound raises that peak further, for
  * text that saves no process.
  */
 export const HELD_BYTES = 8 * 1024 * 1024;
