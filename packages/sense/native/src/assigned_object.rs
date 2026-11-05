@@ -1,11 +1,12 @@
-//! The object literal a module hands out whole: `export = { … }` or
-//! `module.exports = { … }`, written as a statement of its own at the top level.
+//! The value a module hands out whole: `export = value` or
+//! `module.exports = value`, written as a statement of its own at the top level.
 //!
-//! CommonJS is read on a best-effort basis, and this is the one shape read: the
-//! object is what every importer gets, so each static key it spells is a name
-//! the module exports, bound to what its value names when the value is an
-//! identifier. Naming a declaration there passes it on, as `export { name }`
-//! does; any other value is an expression of the module.
+//! CommonJS is read on a best-effort basis. An object literal is what every
+//! importer gets, so each static key it spells is a name the module exports,
+//! bound to what its value names when the value is an identifier. Naming a
+//! declaration there passes it on, as `export { name }` does; any other value is
+//! an expression of the module. A named function or class is read by
+//! `top_level`, as the declaration it is.
 
 use oxc_ast::ast::*;
 use oxc_span::Span;

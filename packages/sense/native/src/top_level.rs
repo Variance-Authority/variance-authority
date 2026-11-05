@@ -27,7 +27,8 @@ pub(crate) struct TopLevel<'a> {
     pub(crate) signature: Option<Span>,
     /// Written with TypeScript's `declare`: the name is bound somewhere else.
     pub(crate) declare: bool,
-    /// Bound by an `export` or `export default` statement.
+    /// Bound by an `export` or `export default` statement, or handed out whole
+    /// as the module by `export =` or `module.exports =`.
     pub(crate) exported: bool,
     /// The `default` an `export default` statement gives, which no code spells.
     pub(crate) default: bool,
@@ -45,9 +46,34 @@ pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLeve
             _ => {
                 if let Some(declared) = statement.as_declaration() {
                     declaration(declared, span, false, &mut visit);
+                } else if let Some((id, kind, signature)) = crate::assigned_object::handed_out(statement).and_then(named_value) {
+                    visit(TopLevel {
+                        name: id.name.as_str(),
+                        kind,
+                        statement: span,
+                        signature: Some(signature),
+                        declare: false,
+                        exported: true,
+                        default: false,
+                        destructured: false,
+                    });
                 }
             }
         }
+    }
+}
+
+/// The function or class a module hands out whole, by the one name the
+/// statement spells for it. An anonymous value spells none, and any other value
+/// declares nothing.
+pub(crate) fn named_value<'p, 'a>(value: &'p Expression<'a>) -> Option<(&'p oxc_ast::ast::BindingIdentifier<'a>, &'static str, Span)> {
+    match value.get_inner_expression() {
+        Expression::FunctionExpression(function) => {
+            let end = function.body.as_ref().map_or(function.span.end, |body| body.span.start);
+            Some((function.id.as_ref()?, "function", Span::new(function.span.start, end)))
+        }
+        Expression::ClassExpression(class) => Some((class.id.as_ref()?, "class", Span::new(class.span.start, class.body.span.start))),
+        _ => None,
     }
 }
 
@@ -181,3 +207,7 @@ pub(crate) fn declarator_end(declarator: &VariableDeclarator<'_>) -> u32 {
             .map_or(declarator.id.span().end, |annotation| annotation.span.end),
     }
 }
+
+#[cfg(test)]
+#[path = "top_level_tests.rs"]
+mod tests;

@@ -20,6 +20,19 @@ fn read(value: &str, name: &str, line: u32, through: bool) -> (String, String, u
 }
 
 #[test]
+fn a_named_value_handed_out_whole_is_the_default_export_bound_to_its_name() {
+    let exported = |file: &str, source: &str| -> Vec<(Option<String>, Option<String>, u32)> {
+        let read = read_module(file, source, &Allocator::default(), false);
+        read.exports.into_iter().map(|export| (export.exported, export.local, export.line)).collect()
+    };
+    let default = |local: &str, line: u32| (Some("default".to_owned()), Some(local.to_owned()), line);
+    assert_eq!(exported("a.cts", "\nexport = function babel() {};\n"), [default("babel", 2)]);
+    assert_eq!(exported("a.cts", "export = class Reader {};\n"), [default("Reader", 1)]);
+    assert_eq!(exported("a.cjs", "module.exports = function babel() {};\n"), [default("babel", 1)]);
+    assert!(exported("a.cts", "export = function () {};\n").is_empty());
+}
+
+#[test]
 fn an_object_handed_out_whole_exports_each_key_it_spells() {
     let exported = |file: &str, source: &str| -> Vec<(Option<String>, Option<String>, u32)> {
         let read = read_module(file, source, &Allocator::default(), false);

@@ -26,7 +26,7 @@ pub(crate) const ALIGNMENT: usize = 8;
 pub(crate) const FORMAT: &str = "variance-authority-source-index";
 /// `VERSION` in `source-index-format.ts`: a layer the reader refuses is a layer
 /// thrown away, which `native-read.test.ts` catches.
-pub(crate) const VERSION: u8 = 40;
+pub(crate) const VERSION: u8 = 41;
 
 pub struct Column {
     name: Cow<'static, str>,
