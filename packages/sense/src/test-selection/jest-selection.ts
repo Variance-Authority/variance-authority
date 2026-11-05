@@ -62,12 +62,13 @@ export interface SelectingFilterOptions {
  * `passWithNoTests`, whatever the configuration says, so a selection that keeps
  * no file passes; {@link refuseUnfound} fails the run that found none. Without
  * the sequencer that calls it, under `--testSequencer` on the command line, the
- * flag stays off and Jest fails both.
+ * flag is the configuration's alone and Jest fails both, a `--shard` included:
+ * this answer outranks `placingSequencer`'s.
  */
 export function selectingFilter(
   config: { readonly [key: string]: unknown },
   options: SelectingFilterOptions,
-): { filter?: string; passWithNoTests?: true } {
+): { filter?: string; passWithNoTests?: boolean } {
   const { argv = process.argv, say = (line: string) => process.stderr.write(`${line}\n`) } = options;
   if (config.filter === SELECTION_FILTER) return {};
   // `--watch=false` is the flag written off, as Jest reads it.
@@ -112,7 +113,7 @@ export function selectingFilter(
     return { filtered };
   };
   (globalThis as { [HANDED]?: Handed })[HANDED] = { filter, unfound: () => seen === 0 && !passes };
-  return { filter: SELECTION_FILTER, ...(replaced ? {} : { passWithNoTests: true }) };
+  return { filter: SELECTION_FILTER, passWithNoTests: !replaced || config.passWithNoTests === true };
 }
 
 /** What Jest's frozen global configuration says about a run with no file to run. */

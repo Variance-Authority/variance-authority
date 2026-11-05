@@ -147,8 +147,8 @@ count is 0 and the project did not set `passWithNoTests` itself: Jest's exit 1
 stands on a run that found no file. A project that found none beside one that found
 some is not that failure, because Jest's own check is on the whole run. `--listTests`,
 `--onlyChanged` and `--lastCommit` keep their own exit. A `--testSequencer` on the
-command line replaces the seam's sequencer, so the seam takes no flag there and
-Jest fails both. A run with no selection takes no flag, so Jest's own exit stands
+command line replaces the seam's sequencer, so the flag stays the project's there,
+a `--shard` included, and Jest fails both. A run with no selection takes no flag, so Jest's own exit stands
 there. Playwright reads
 `passWithNoTests` from the command line only, so its reporter turns a failed
 run whose one error is "No tests found" into a passed one when the selection

@@ -357,10 +357,10 @@ export function withTestSelection(
     ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
+    ...placingSequencer(config, { root, rootDir, times }),
     ...(selection === undefined ? {} : selectingFilter(config, {
       root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
     })),
-    ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,
       ...(selection === undefined ? {} : { selected: true }),

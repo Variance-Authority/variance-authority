@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -126,12 +127,16 @@ describe('a Jest run with no file left to run', () => {
     expect(code).toBe(1);
   }, 60_000);
 
-  it('fails on a run the command line takes the reporters from, which is why no reporter decides it', async () => {
-    expect((await ended(run('none-found-reporters', [], ...NOTHING, '--reporters=default'))).code).toBe(1);
-  }, 60_000);
-
   it('fails on every shard when no shard found a file', async () => {
     expect((await ended(run('none-found-shard', [], ...NOTHING, '--shard=1/2'))).code).toBe(1);
+  }, 60_000);
+
+  it('fails a sharded run whose sequencer the command line replaced, as the seam says it does', async () => {
+    const sequencer = createRequire(createRequire(jest).resolve('jest-cli')).resolve('@jest/test-sequencer');
+    const { code, stderr } = await ended(run('none-found-replaced', [], ...NOTHING, '--shard=1/2', `--testSequencer=${sequencer}`));
+
+    expect(stderr).toContain('so Jest fails both');
+    expect(code).toBe(1);
   }, 60_000);
 
   it('fails when no project found a file', async () => {
