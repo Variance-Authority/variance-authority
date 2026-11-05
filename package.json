@@ -67,6 +67,7 @@
     "ajv": "^8.17.1",
     "ci-info": "^4.4.0",
     "esbuild": "^0.25.0",
+    "fflate": "^0.8.3",
     "jsdom": "^30.0.1",
     "mdast-util-to-string": "^4.0.0",
     "oxc-parser": "^0.144.0",

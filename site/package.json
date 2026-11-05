@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "mdast-util-to-string": "^4.0.0",
     "mermaid": "^11.17.2",
     "minisearch": "^7.2.0",

@@ -23,6 +23,11 @@ describe("llms.txt", () => {
     return index.slice(from, index.indexOf("\n## ", from + 1));
   }
 
+  it("names the route an agent's installer reads the skills from", async () => {
+    expect(await start()).toContain(`npx skills add ${SITE}`);
+    expect(await start()).toContain(`${SITE}/.well-known/agent-skills/index.json`);
+  });
+
   it("opens with where to start, before the catalogue", async () => {
     const index = await text;
     expect(index.indexOf("## Start here")).toBeLessThan(index.indexOf("## Documentation"));
