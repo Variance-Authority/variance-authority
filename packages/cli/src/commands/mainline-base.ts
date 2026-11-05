@@ -161,17 +161,16 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
   // With no mainline named nothing says it is another's, and it stands, though only a named one, or one handed on, is reused unasked.
   // Both caches when the caller named none, as a runner seam reads them.
-  // A record handed here is this job's, whatever newer one a worktree's primary checkout fetched.
-  const pointer = selection.readFetchedMainline(readRoot);
-  const held = selection.lastFetchedMainline(root, suite, pointer?.handed === true ? cacheRoot : here.cacheRoot, named?.name);
+  const held = selection.lastFetchedMainline(root, suite, here.cacheRoot, named?.name);
   if (here.fetch !== 'always') {
     if (held?.handed === true) return measured(place, root, held, { reused: 'handed' }, named?.base);
     const noted = readMissedMainline(readRoot);
     if (noted?.handed === true) return { suite, ...missedAs(noted), asked: noted.at, handed: true };
     // A handed record no reader here can stand on is this run's gap: asking the line would read what the run did not.
-    if (pointer?.handed === true) {
-      const miss: MainlineMiss = { kind: 'unreadable', detail: `the record this run handed on, ${pointer.mainline}'s at ${pointer.commit}, is gone, does not read, or is not the mainline this reader selects` };
-      return { suite, mainline: pointer.mainline, miss };
+    const lost = selection.readFetchedMainline(readRoot);
+    if (lost?.handed === true) {
+      const miss: MainlineMiss = { kind: 'unreadable', detail: `the record this run handed on, ${lost.mainline}'s at ${lost.commit}, is gone, does not read, or is not the mainline this reader selects` };
+      return { suite, mainline: lost.mainline, miss };
     }
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {

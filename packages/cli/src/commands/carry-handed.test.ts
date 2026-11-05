@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cacheRootFor, declaredSuites, mainlineReadRoot, readFetchedMainline } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, declaredSuites, lastFetchedMainline, mainlineReadRoot, readFetchedMainline } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
@@ -204,6 +204,8 @@ describe('a run stands on the record one job read', () => {
     expect(await mainlineBase(primary, unit, { env: LOCAL, fetch: 'always' })).toMatchObject({ commit: second });
 
     expect(await read(worktree)).toMatchObject({ commit: first, earlier: { reused: 'handed' } });
+    // A runner seam names no cache, so it is the walk of both that has to stop.
+    expect(lastFetchedMainline(worktree, 'unit')).toMatchObject({ commit: first });
   });
 
   it('hands nothing for a suite the share does not carry, and the manifest still arrives', async () => {
@@ -268,12 +270,12 @@ describe('a job refuses to read the line on its own', () => {
 
 describe('what a workflow reads of it', () => {
   it('names the commit the records were made at, which a pull request merges its head with', () => {
-    expect(handedOutputs({ suites: ['unit', 'web'], commits: ['abc'], lines: [] })).toEqual(['commit=abc', 'handed=unit web']);
+    expect(handedOutputs({ suites: ['unit', 'web'], commits: ['abc'], lines: [] })).toEqual(['commit=abc']);
   });
 
   it('names none when the suites\' records were made at different commits, or none was read', () => {
-    expect(handedOutputs({ suites: ['unit', 'web'], commits: ['abc', 'def'], lines: [] })[0]).toBe('commit=');
-    expect(handedOutputs({ suites: [], commits: [], lines: [] })).toEqual(['commit=', 'handed=']);
+    expect(handedOutputs({ suites: ['unit', 'web'], commits: ['abc', 'def'], lines: [] })).toEqual(['commit=']);
+    expect(handedOutputs({ suites: [], commits: [], lines: [] })).toEqual(['commit=']);
   });
 
   it('prints outputs to the output stream and what it read to the error stream under github', async () => {
@@ -284,7 +286,7 @@ describe('what a workflow reads of it', () => {
 
     await moveBase({ command: 'carry', direction: 'hand', dir: handed, format: 'github' }, plan, { out: (text) => out.push(text), err: (text) => err.push(text) });
 
-    expect(out.join('')).toBe(`commit=${first}\nhanded=unit\n`);
+    expect(out.join('')).toBe(`commit=${first}\n`);
     expect(err.join('')).toContain(first.slice(0, 12));
   });
 });

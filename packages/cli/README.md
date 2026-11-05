@@ -3298,9 +3298,8 @@ record of, or that `hand` held no credential to ask about, comes through as that
 answer, so the job runs what a suite with no record runs. A record that goes
 missing after `receive` is the same answer, never a new read of the share. Under
 `--format github`, `hand` prints `commit=<sha>`, the commit the records were
-made at, empty when the suites' differ or none was read, and
-`handed=<suite> <suite>`; `receive` prints `received=<suite> <suite>`. When
-suites read different commits, `hand` says so in a notice. The mark is for CI's
+made at, empty when the suites' differ or none was read. When suites read
+different commits, `hand` says so in a notice. The mark is for CI's
 fresh machines: a laptop that receives stands on that record until `carry hand`
 or `share --suite` asks again. It lies in the cache `receive` wrote, so a step
 that sets `VARIANCE_AUTHORITY_CACHE` differently reads the share on its own.

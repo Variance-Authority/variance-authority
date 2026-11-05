@@ -1183,7 +1183,10 @@ test enters runs every test.
 Merge the head with the record's commit instead, and the diff is the pull
 request alone. With `--format github`, `share --suite <name>` prints that
 commit as a step output, `commit=<sha>`, and `commit=` when the mainline has
-no record of the suite; the `record of "<name>":` line goes to stderr:
+no record of the suite; the `record of "<name>":` line goes to stderr. In a
+sharded build, take it from [`carry hand`](sharding.md#run-a-failed-shard-again)
+instead, which prints the same output: a shard that asks here reads past what it
+received.
 
 ```yaml
     steps:

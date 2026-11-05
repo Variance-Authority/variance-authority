@@ -12,8 +12,7 @@
  * A manifest always lands in the directory, so a host that moved nothing is
  * told apart from a job that read nothing: `receive` stops on the first rather
  * than ask the line on its own. A suite the manifest lists holds the record, or
- * the line's answer that it gave none. One it leaves out asked no line, and a
- * job that asks finds the same.
+ * whatever stopped the read. One it leaves out is not given to the share.
  */
 
 // compass: variance-authority.retention
@@ -35,7 +34,7 @@ import { printMoved } from './carry-pushed.js';
 import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, writeMissedMainline, type MainlineAsk } from './mainline-base.js';
 
 /** What `hand` writes first, naming the suites it holds a read of. */
-export const HANDED_MANIFEST = 'handed.json';
+const HANDED_MANIFEST = 'handed.json';
 
 export interface BaseHanded {
   /** The suites a read was handed for, the line's answer that it gave none among them. */
@@ -152,7 +151,7 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
 
 /** What a workflow reads of a hand: the commit a pull request's head is merged with, and the suites handed. */
 export function handedOutputs(handed: BaseHanded): readonly string[] {
-  return [`commit=${handed.commits.length === 1 ? handed.commits[0] : ''}`, `handed=${handed.suites.join(' ')}`];
+  return [`commit=${handed.commits.length === 1 ? handed.commits[0] : ''}`];
 }
 
 /**
@@ -182,7 +181,7 @@ export async function moveBase(
     ];
   } else {
     const received = await receiveBase(root, dir);
-    outputs = [`received=${received.suites.join(' ')}`];
+    outputs = [];
     lines = received.lines;
   }
   return printMoved(parsed.format, outputs, lines, streams);

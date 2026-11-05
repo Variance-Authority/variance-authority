@@ -339,9 +339,9 @@ jobs:
       # What the line answers, read once and written where the jobs below are
       # handed it: the record, or the line's answer that it gave none. A miss is
       # the run's answer as much as a record is; a job that asked again could
-      # read a record published since. Only a suite the line was not asked
-      # about, because this environment names no mainline or lacks the share's
-      # credential, is left out, and a job asking finds the same.
+      # read a record published since. Whatever stopped the read is handed too,
+      # a missing credential included; only a suite not given to the share is
+      # left out.
       #
       # The read also names the commit the records were made at, which a pull
       # request's head is merged with below: one commit, or none when the suites'
