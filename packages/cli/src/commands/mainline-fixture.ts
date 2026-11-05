@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { publishLine } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
@@ -176,6 +176,28 @@ export async function gitPublished(
     if (!written.includes(suiteEntry('unit'))) throw new Error(`the record was to reach mainline main, and the share answered ${JSON.stringify(done)}`);
   }
   return { ci, origin, first, record };
+}
+
+/** The record CI made at `commit` published to the mainline: that commit's job finishing, whenever it does. */
+export async function publishedAt(home: string, ci: string, commit: string): Promise<void> {
+  const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+  await git(ci, 'checkout', '--quiet', commit);
+  await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
+  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), commit);
+  const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
+  await git(ci, 'checkout', '--quiet', 'main');
+  if (reader === undefined) vi.unstubAllEnvs();
+  else vi.stubEnv('VARIANCE_AUTHORITY_CACHE', reader);
+  // The latest keeps a newer commit's record when that job finished first.
+  expect(done).toMatchObject({ published: { atCommit: { kept: [commit] } } });
+}
+
+/** Take back the git cell's held answers under `cache`, as a minute passing would. */
+export async function forgetLineAnswers(cache: string): Promise<void> {
+  const held = (await readdir(cache, { recursive: true })).filter((path) => basename(path) === 'variance-fetched');
+  for (const dir of held) await rm(join(cache, dir), { recursive: true, force: true });
+  expect(held).not.toEqual([]);
 }
 
 /** A clone of `origin` at another path, as a fresh CI checkout or a laptop has it, on `branch` when one is named. */

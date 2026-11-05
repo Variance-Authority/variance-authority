@@ -189,7 +189,7 @@ finish green: a failed one, and one the run never reached.
 request restores, red or green. On the next push `variance carry take` lays
 it over the mainline's record.
 [What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
-has the steps.
+has the steps, and how the jobs of one run stand on one record.
 
 The carried record decides what runs, never what your change is compared
 with. `take` prints the path of the mainline's cases: the record it set aside,

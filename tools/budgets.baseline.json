@@ -235,7 +235,7 @@
     23
   ],
   "docs/sharding.md lead": [
-    18
+    17
   ],
   "docs/source-index.md lead": [
     17
@@ -4017,9 +4017,6 @@
   "tools/surfaces.check.ts docblock": [
     18,
     11
-  ],
-  "tools/take-base.mjs overview": [
-    16
   ],
   "tools/tribunal-ui.mjs overview": [
     16

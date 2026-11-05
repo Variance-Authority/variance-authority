@@ -91,7 +91,11 @@ fetched here, and a reader that asks `suiteBase` says so.**
   repaint: it takes the same order, fetches nothing, and keeps the record fetched
   last. A remote that does not answer leaves the record fetched earlier as
   the base, and the reader names when it was fetched and why it was not fetched
-  now. `variance share --suite <name>` always asks.
+  now. `variance share --suite <name>` always asks. `variance carry receive`
+  lays the read one job of a run made, in place of the checkout's own record, and
+  the jobs that received it stand on it, record or miss, wherever the merge base
+  and the clock are, with no layer under it answering, until something asks with
+  `fetch: 'always'`.
 - **A miss stands for ten minutes** (`MISS_STANDS_MS`). The line's answer that
   it gave no record, unreachable, holding none, or holding one that does not
   read (`missed.json`), names no commit to place it by, so a clock does.

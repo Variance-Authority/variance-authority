@@ -61,6 +61,11 @@ describe('the Codex run', () => {
     expect(invocation('https://github.com/o/r/pull/1', '/tmp/r/out.md').at(-1)).toBe('review https://github.com/o/r/pull/1');
   });
 
+  it('asks for sol', () => {
+    const args = invocation('u', 'o');
+    expect(args[args.indexOf('-m') + 1]).toBe('gpt-6.1-sol');
+  });
+
   it('ignores the configuration, rules, plugins and apps of whoever started it', () => {
     const args = invocation('u', 'o');
     expect(args).toEqual(expect.arrayContaining(['--ignore-user-config', '--ignore-rules', '--ephemeral']));

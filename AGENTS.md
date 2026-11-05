@@ -345,7 +345,8 @@ the body after `idea: build` restarts the review.
 A defect found by reading code carries `candidate` until a test that
 fails on today's code reproduces it. An issue code may start on carries
 `idea: build`, put there by the idea loop and by nothing else; an agent never
-files `needs-decision`. Work that belongs to a larger task is its sub-issue, and a
+files `needs-decision`. An issue filed and left needs nothing more from its
+session: the [queue](.agents/references/refine.md#the-idea-loop) lists it for review. Work that belongs to a larger task is its sub-issue, and a
 roadmap is an issue labelled `epic` whose sub-issues are its items.
 
 The pull request that finishes a task says `Closes #<n>` in its body; one that

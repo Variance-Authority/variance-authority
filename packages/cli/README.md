@@ -169,7 +169,7 @@ variance doctor  [--config <path>] [--baselines]
 variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]
+variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -2469,7 +2469,10 @@ are counted. With nothing recorded the answer is `1 shard` and says so, unless
 count could not weigh. A pull request's build can start its
 matrix from it; the push to your mainline runs without `--since`, so its shards'
 records fold into the one the next build is placed by, as
-[sharding](https://variance-authority.dev/docs/sharding#start-only-what-the-change-needs) shows:
+[sharding](https://variance-authority.dev/docs/sharding#start-only-what-the-change-needs) shows.
+The plan reads the record once and hands it to the shards, so they place by one
+record however far your mainline moves, and a shard re-run days later takes
+the files it took:
 
 ```yaml
 # a pull_request workflow
@@ -2480,10 +2483,17 @@ plan:
     - id: count
       run: |
         set -o pipefail
+        npx variance carry hand "$RUNNER_TEMP/base"
         npx variance index
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
         shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
         echo "shards=$shards" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: variance-base
+        path: ${{ runner.temp }}/base
+        retention-days: 30
+        if-no-files-found: error
 test:
   needs: plan
   if: needs.plan.outputs.shards != '[]'
@@ -2491,6 +2501,11 @@ test:
     matrix:
       shard: ${{ fromJSON(needs.plan.outputs.shards) }}
   steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: variance-base
+        path: ${{ runner.temp }}/base
+    - run: npx variance carry receive "$RUNNER_TEMP/base"
     - run: npx variance index
     - run: VARIANCE_AUTHORITY_SINCE= npx vitest run --shard ${{ matrix.shard }}
 ```
@@ -3262,6 +3277,36 @@ variance: no run here could be laid over it. Both read `.variance/pushed` unless
 name another directory: `variance carry take <dir>`. Under `--format github`,
 `take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
 prints `kept=<suite> <suite>`; the lines saying why go to stderr.
+
+Jobs of one run read one record, and a re-run of one of them reads it too. The
+share moves while a run goes on: two jobs that each ask it can read two records
+and select two sets of tests, and a shard re-run after your mainline published
+reads a record the run never saw. `variance carry hand <dir>` asks the share
+once, for every suite whose `carry` is `"share"`, and writes what it read to
+`<dir>`, which the host moves to the run's other jobs as an artifact.
+`variance carry receive <dir>` lays it down before anything in that job reads a
+record, in place of any record the checkout holds, and every reader there answers
+with it, however far behind the merge base, without asking the share or the
+primary checkout of a worktree. Keep the artifact as long as a run can be
+re-run: GitHub re-runs for 30 days, and `retention-days` defaults to the
+repository's setting. A re-run of a failed job takes the artifact the first
+attempt uploaded, so it selects what that attempt selected.
+
+`hand` refuses a `<dir>` that holds files.
+`receive` stops the job when `<dir>` holds no manifest, or holds a record that
+does not read, rather than ask the share on its own, and the checkout's record
+stays. Once the read stands, `hand` and `receive` both remove that record. A
+suite the run read and this checkout does not carry is passed over. A suite the share had no
+record of, or that `hand` held no credential to ask about, comes through as that
+answer, so the job runs what a suite with no record runs. A record that goes
+missing after `receive` is the same answer, never a new read of the share. Under
+`--format github`, `hand` prints `commit=<sha>`, the commit the records were
+made at, empty when the suites' differ or none was read. When suites read
+different commits, `hand` says so in a notice. The mark is for CI's
+fresh machines: a laptop that receives stands on that record until `carry hand`
+or `share --suite` asks again, and a cache kept from run to run keeps the mark,
+so every job there receives first. It lies in the cache `receive` wrote, so a step
+that sets `VARIANCE_AUTHORITY_CACHE` differently reads the share on its own.
 
 `carry` also prints `report`, `images` and `review`, which are paths to upload
 and the directory to pass `variance review --out`. They have no key, because
