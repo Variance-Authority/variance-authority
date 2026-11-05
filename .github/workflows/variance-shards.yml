@@ -131,6 +131,11 @@ jobs:
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      # Node 24, for the reason written at the same step in `variance.yml`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - shell: bash
         run: corepack enable && yarn install --immutable
 

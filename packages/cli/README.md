@@ -3279,7 +3279,8 @@ pipelines:
       - step:
           name: variance
           script:
-            - corepack enable && yarn install --immutable
+            # The image's Node carries no Corepack, and `--force` replaces its Yarn 1.
+            - npm install --global --force corepack && corepack enable && yarn install --immutable
             - yarn build
             # The gate. Nothing parses this output; the exit code is the verdict,
             # and `set -e` is what turns 1 into a failed step.

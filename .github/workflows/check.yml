@@ -75,7 +75,7 @@ jobs:
           fetch-depth: 0
           filter: tree:0
 
-      # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
+      # 24, and only 24.
       #
       # This was a `['22', '24']` matrix, added because a pin at 22 had hidden a
       # bug the image found: a remote call built its `AbortSignal` from whatever
@@ -91,7 +91,8 @@ jobs:
       # So the floor is now a claim and not a check: `sense` and its dependents
       # say `>=22.15` because that is where `zlib.zstdCompressSync` arrived, and
       # nothing here proves a 22.15 install works. Stating that is the point of
-      # this comment. What is tested is 24, and 24 is what the image ships.
+      # this comment. What is tested is 24, which this step also holds in the
+      # container jobs, where the image's own Node is 26.
       - uses: actions/setup-node@v7
         with:
           node-version: 24

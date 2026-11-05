@@ -44,6 +44,9 @@ COPY . .
 # error — and then compared its results to the macOS numbers as if the only
 # difference were the platform. A resolution difference reported as a platform
 # difference is the one wrong answer this spec can produce.
-RUN corepack enable && yarn install --immutable
+#
+# Corepack is installed because the image's Node 26 carries none, and `--force`
+# is for the Yarn 1 the image installs globally, whose `yarn` Corepack replaces.
+RUN npm install --global --force corepack && corepack enable && yarn install --immutable
 
 CMD ["bash", "-lc", "yarn build && yarn test"]

@@ -274,6 +274,12 @@ jobs:
           VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
         run: node .github/scripts/variance-accept.mjs
 
+      # Node 24 from `setup-node`, because the image's own Node, 26, carries no
+      # Corepack. The container jobs in `check.yml` set theirs the same way.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - shell: bash
         run: corepack enable && yarn install --immutable
 
@@ -547,6 +553,11 @@ jobs:
           VARIANCE_REVIEW: cache
         run: node .github/scripts/variance-accept.mjs
 
+      # Node 24, for the reason written at the same step in `variance`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - shell: bash
         run: corepack enable && yarn install --immutable
 
@@ -727,6 +738,11 @@ jobs:
           VARIANCE_REVIEW: git
           VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
         run: node .github/scripts/variance-accept.mjs
+
+      # Node 24, for the reason written at the same step in `variance`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
