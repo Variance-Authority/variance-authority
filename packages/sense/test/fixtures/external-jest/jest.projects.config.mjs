@@ -11,6 +11,13 @@ if (coverageFile === undefined || cacheDirectory === undefined) {
   throw new Error('VARIANCE_AUTHORITY_COVERAGE and VARIANCE_AUTHORITY_JEST_CACHE are required');
 }
 
+// A selection handed in by the test that runs this fixture: the files to skip,
+// as JSON. Absent, nothing is handed in and every file runs.
+const skip = process.env['FIXTURE_SKIP'];
+const selection = skip === undefined
+  ? {}
+  : { selection: async () => ({ whole: new Set(JSON.parse(skip)), skip: new Set(JSON.parse(skip)), notes: [] }) };
+
 const transform = { '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }] };
 
 export default withTestSelection(
@@ -36,5 +43,5 @@ export default withTestSelection(
       },
     ],
   },
-  { coverageFile, preconditions: ['jest.projects.config.mjs'] },
+  { coverageFile, preconditions: ['jest.projects.config.mjs'], ...selection },
 );

@@ -137,9 +137,12 @@ record holds. The seam prints `selected none of M, so none of them runs`, and
 the run passes. Vitest 2 decides "no test files" before the sequencer drops anything, so it passes on its
 own; Vitest 3 and 4 decide after, so the Vitest seam sets `passWithNoTests` on
 that run's config when the selection dropped files and left the run, or its
-shard, none. A run that drops nothing keeps the project's setting. The Jest seam
-does not set it yet, and Jest exits 1 there unless the project set
-`passWithNoTests`. Playwright reads `passWithNoTests` from the command line
+shard, none. A Vitest run that drops nothing keeps the project's setting. Jest
+freezes its global configuration before `filter` runs, so the Jest seam sets
+`passWithNoTests` when it writes the configuration, on any run whose filter it
+installed, and a selected run that found no file exits 0 too. A value the
+project set is kept, and a run with no selection takes no flag, so Jest's own
+exit stands there. Playwright reads `passWithNoTests` from the command line
 only, so its reporter turns a failed run whose one error is "No tests found"
 into a passed one when the selection kept no file.
 
@@ -245,7 +248,7 @@ These are the owner's to decide; each has a recommendation.
    sixth ask and changes the chart.
 5. **Exit code on an empty selection.** The runner's own no-tests exit with the
    count printed, or 0 by the seam's choice, which overrides that option.
-   Answered: 0. A pull request that reaches no test is not a failed run, and a
+   Answered: 0, except that Jest keeps a `passWithNoTests` the project set. A pull request that reaches no test is not a failed run, and a
    project cannot set `passWithNoTests` for selected runs alone. Vitest's own
    `--changed` makes the same choice.
 6. **Runners in the first cut.** Jest and Vitest (recommended: they have a drop

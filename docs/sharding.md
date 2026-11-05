@@ -90,8 +90,8 @@ holds no record of it. A record that is not there never fails a build:
 - **A shard with no file passes.** With fewer files than shards, some shard
   takes none, and it passes under every runner. For Jest and Vitest,
   `withTestSelection` sets `passWithNoTests` when the command line has
-  `--shard` and your configuration does not set it, so an unsharded run that
-  finds no file still fails.
+  `--shard` and your configuration does not set it, so a run with no shard and
+  no selection that finds no file still fails.
 - **A shard that cannot read the record fails.** A share that does not answer,
   or a record that is there and does not read, stops the shard before any test
   runs, and the error names what failed. Another shard may have read it, and

@@ -71,6 +71,8 @@ export interface PlacingOptions {
   readonly rootDir: string;
   /** The suite's recorded times, read once, and only by a run under `--shard`. */
   readonly times: () => Promise<SuiteTimes>;
+  /** Whether the seam installed the selection's filter on this run. */
+  readonly selecting?: boolean;
   readonly say?: (line: string) => void;
   /** The command line the configuration is evaluated under; `process.argv` unless handed. */
   readonly argv?: readonly string[];
@@ -78,12 +80,12 @@ export interface PlacingOptions {
 
 /**
  * The `testSequencer` a configuration takes to place a `--shard` by the rule
- * every runner's is placed by, and `passWithNoTests` when the command line asks
- * for `--shard` and the configuration does not set it. A suite of fewer files
- * than shards leaves a shard none, and Jest fails a run that found none; by the
- * time the sequencer knows, the global configuration is frozen, so the setting
- * is made here, before Jest reads it. An unsharded run that finds nothing still
- * fails.
+ * every runner's is placed by, and `passWithNoTests` when the run is sharded or
+ * selects and the configuration does not set it. A shard or a selection can
+ * leave a run no file, and Jest fails a run that found none. Jest freezes its
+ * global configuration before the filter or the sequencer knows, so the setting
+ * is made here, before anything is found, and a run that neither shards nor
+ * selects and finds nothing still fails.
  */
 export function placingSequencer(
   config: { readonly [key: string]: unknown },
@@ -114,6 +116,6 @@ export function placingSequencer(
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;
-  const sharded = shardArgument(options.argv ?? process.argv) !== undefined;
-  return { testSequencer: PLACING_SEQUENCER, ...(sharded && config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
+  const narrowed = options.selecting === true || shardArgument(options.argv ?? process.argv) !== undefined;
+  return { testSequencer: PLACING_SEQUENCER, ...(narrowed && config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
 }

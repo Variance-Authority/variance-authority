@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CUT_VARIABLE } from './case-cut.js';
 import filter from './jest-filter.cjs';
 import { SELECTION_FILTER, selectingFilter } from './jest-selection.js';
@@ -189,6 +189,42 @@ module.exports.setup = async () => { ready = true; };
     expect(once.filter).toBe(SELECTION_FILTER);
     expect(twice.filter).toBe(SELECTION_FILTER);
     expect(withTestSelection({ rootDir }, { coverageFile: 'coverage.bin' }).filter).toBeUndefined();
+  });
+});
+
+describe('passWithNoTests on a configuration wrapped for selection', () => {
+  const handed = { coverageFile: 'coverage.bin', selection: async () => selection([]) };
+  const started = process.argv;
+
+  afterEach(() => {
+    process.argv = started;
+  });
+
+  it('is set when the filter is, so a selection that keeps no file passes', () => {
+    process.argv = ['node', 'jest'];
+
+    expect(withTestSelection({ rootDir }, handed).passWithNoTests).toBe(true);
+    expect(withTestSelection({ rootDir, projects: [{ displayName: 'unit' }] }, handed).passWithNoTests).toBe(true);
+  });
+
+  it('stays unset on a run with no selection', () => {
+    process.argv = ['node', 'jest'];
+
+    expect(withTestSelection({ rootDir }, { coverageFile: 'coverage.bin' }).passWithNoTests).toBeUndefined();
+  });
+
+  it.each(['--watch', '--watchAll', '--filter=./mine.cjs', '--skipFilter'])('stays unset under %s, where nothing is selected', (flag) => {
+    process.argv = ['node', 'jest', flag];
+    const say = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    expect(withTestSelection({ rootDir }, handed).passWithNoTests).toBeUndefined();
+    say.mockRestore();
+  });
+
+  it.each([true, false])('stays %s when the configuration sets it', (set) => {
+    process.argv = ['node', 'jest'];
+
+    expect(withTestSelection({ rootDir, passWithNoTests: set }, handed).passWithNoTests).toBe(set);
   });
 });
 

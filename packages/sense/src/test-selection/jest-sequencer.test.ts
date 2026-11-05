@@ -55,13 +55,20 @@ describe('the Jest sequencer under --shard', () => {
       .toEqual({ testSequencer: PLACING_SEQUENCER });
   });
 
-  it('lets a shard left no file pass, in either spelling of --shard, and an unsharded run that finds none fail', () => {
+  it('lets a shard left no file pass, in either spelling of --shard, and an unsharded, unselected run that finds none fail', () => {
     const asked = (argv: string[]) => placingSequencer({}, { root, rootDir, times, say: () => {}, argv }).passWithNoTests;
 
     expect(asked(['jest', '--shard', '2/3'])).toBe(true);
     expect(asked(['jest', '--shard=2/3'])).toBe(true);
     expect(asked(['jest'])).toBeUndefined();
     expect(asked(['jest', '--', 'shard.test.ts'])).toBeUndefined();
+  });
+
+  it('lets a selected run left no file pass, unless the project says otherwise', () => {
+    const asked = (config: object) => placingSequencer(config, { root, rootDir, times, selecting: true, say: () => {}, argv: ['jest'] }).passWithNoTests;
+
+    expect(asked({})).toBe(true);
+    expect(asked({ passWithNoTests: false })).toBeUndefined();
   });
 
   it('chains the project\'s own sequencer for everything but the shard', async () => {
