@@ -36,10 +36,14 @@ async function open(
   earlier: BuildDetail,
   concerns?: ReviewClient['concerns'],
 ): Promise<string> {
+  return read(clientThat(now, earlier, concerns), now);
+}
+
+async function read(client: ReviewClient, now: BuildDetail): Promise<string> {
   await act(async () => {
     root.render(
       <BuildPage
-        client={clientThat(now, earlier, concerns)}
+        client={client}
         reviewer="marina"
         route={{ page: 'build', build: now.build }}
         go={() => undefined}
@@ -163,5 +167,36 @@ describe('the opening line counts only what there is something to count', () => 
 
     expect(text).toContain('Against build 5: 1 subject is new to this run.');
     expect(text).not.toContain('moved for the first time');
+  });
+
+  it('joins the readings it has into one sentence', async () => {
+    const fresh = subject({
+      subject: 'story:new',
+      verdict: 'new',
+      regions: [],
+      has: { before: false, after: true, diff: false },
+    });
+    const text = await open(build('6', [subject(), fresh]), build('5', [subject()]));
+
+    expect(text).toContain(
+      'Against build 5: 1 subject carries a difference it already had and 1 subject is new to this run.',
+    );
+  });
+
+  it('says the previous run could not be read, and why, rather than comparing with nothing', async () => {
+    const now = build('6', [subject()]);
+    const earlier = build('5', [subject()]);
+    const client: ReviewClient = {
+      ...clientThat(now, earlier),
+      build: async (id) => {
+        if (id === earlier.build) throw new Error('the store did not answer');
+        return now;
+      },
+    };
+    const text = await read(client, now);
+
+    expect(text).toContain('The previous run could not be read');
+    expect(text).toContain('the store did not answer');
+    expect(text).not.toContain('Against build 5');
   });
 });
