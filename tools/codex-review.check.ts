@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -32,10 +32,12 @@ const review = (body: string, codexHome?: string) => {
       ...process.env,
       CODEX_HOME: codexHome && login,
       GH_TOKEN: 'of-the-caller',
-      // `HOME` moves the login and nothing else: git keeps the job's global
-      // config, which is what trusts a checkout another user owns, as in the
-      // merge queue's container.
-      GIT_CONFIG_GLOBAL: join(homedir(), '.gitconfig'),
+      // `HOME` moves the login and git's global config with it, the trust of a
+      // checkout another user owns, as in the merge queue's container. The
+      // command scope survives the move and needs no guess at where that was.
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '*',
       HOME: root,
       PATH: `${bin}:${process.env.PATH}`,
     },
@@ -94,11 +96,7 @@ describe('the command', () => {
     expect(run.stdout.trim()).toBe('{}');
   });
 
-  it('reads the worktrees of a checkout another user owns, on the trust of the caller\'s git config', () => {
-    const caller = mkdtempSync(join(tmpdir(), 'codex-review-check-'));
-    left.push(caller);
-    writeFileSync(join(caller, '.gitconfig'), `[safe]\n\tdirectory = ${checkout}\n`);
-    vi.stubEnv('HOME', caller);
+  it('reads the worktrees of a checkout another user owns', () => {
     vi.stubEnv('GIT_TEST_ASSUME_DIFFERENT_OWNER', '1');
     // A hosted runner's system config trusts every directory, which would hide the loss.
     vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
