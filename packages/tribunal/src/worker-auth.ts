@@ -23,7 +23,8 @@ export type Principal =
 
 /**
  * Who this deployment recognizes. {@link declaredPolicy} builds one from what a
- * deployer declared, and a host with its own idea of a person writes its own.
+ * deployer declared, and a host with its own idea of a person writes its own, which
+ * asks {@link crossSite} before it reads a credential that rides along by itself.
  */
 export interface Policy {
   /** `null` is a request this deployment does not recognize. */
@@ -32,6 +33,22 @@ export interface Policy {
   serve?(request: Request): Promise<Response | null>;
   /** Where a person goes to become a reviewer. Absent, nothing here signs anybody in. */
   readonly signIn?: string;
+}
+
+/**
+ * Whether a browser carried this write here from another origin. A person's
+ * credential rides along by itself, Access's cookie to any site by default, and
+ * nothing here answers CORS, so no page of ours sends one. `Sec-Fetch-Site` is the
+ * browser's own reading; the `Origin` fallback is for one that does not send it. A
+ * caller that sends neither is no browser, and has no credential riding along.
+ */
+export function crossSite(request: Request): boolean {
+  if (request.method === 'GET' || request.method === 'HEAD') return false;
+  const site = request.headers.get('sec-fetch-site');
+  if (site !== null) return site !== 'same-origin' && site !== 'none';
+  const origin = request.headers.get('origin');
+  if (origin === null) return false;
+  return !URL.canParse(origin) || new URL(origin).host !== new URL(request.url).host;
 }
 
 /**

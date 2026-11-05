@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { createTribunalRoutes } from './next.js';
+import { declaredPolicy } from './policy.js';
 import { createTribunal, type Tribunal } from './worker.js';
 import { bearerPolicy, createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
@@ -109,5 +111,43 @@ describe('who may read and who may decide', () => {
       name: 'marina',
       signIn: '/auth/github/login',
     });
+  });
+});
+
+describe('a decision forged from another site', () => {
+  const DECISION = '/review/builds/ci-1/subjects/story:a/decision';
+  const reviewing = (): Tribunal =>
+    createTribunal({
+      db,
+      bucket,
+      project: 'p',
+      policy: declaredPolicy({ REVIEW_CREDENTIALS: 'loopback', REVIEWER: 'me' }, { loopback: true }),
+    });
+  // What a plain form sends: no preflight, and a body the route parses all the same.
+  const forged = (path: string, headers: Record<string, string>) =>
+    new Request(`http://127.0.0.1:8787${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain', ...headers },
+      body: JSON.stringify({ verdict: 'approve' }),
+    });
+
+  it('is refused at the route', async () => {
+    const response = await reviewing().fetch(forged(DECISION, { origin: 'https://attacker.example' }));
+
+    expect(response.status).toBe(401);
+  });
+
+  it('is refused under a mount', async () => {
+    const routes = createTribunalRoutes(reviewing(), { basePath: '/api' });
+
+    const response = await routes.POST(forged(`/api${DECISION}`, { 'sec-fetch-site': 'cross-site' }));
+
+    expect(response.status).toBe(401);
+  });
+
+  it('reaches the route from the page itself', async () => {
+    const response = await reviewing().fetch(forged(DECISION, { 'sec-fetch-site': 'same-origin' }));
+
+    expect(response.status).not.toBe(401);
   });
 });

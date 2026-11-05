@@ -23,6 +23,10 @@ tag, so a token minted for a neighbouring application in the same team is
 refused. A settable header is never trusted, because an origin reachable beside
 its gate turns that header into a request header like any other.
 
+A credential that rides along by itself proves nothing about who sent the write:
+a write a browser carried here from another origin gets nothing, whatever cookie
+came with it.
+
 ## Depends on
 
 Nothing in this block. It reads the request and the deployment's configuration.

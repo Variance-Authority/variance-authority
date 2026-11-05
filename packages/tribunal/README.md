@@ -268,7 +268,7 @@ mechanism declared:
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 | `INGEST_CREDENTIALS` | var | what may write a run: `github-actions`, `token`, or both, separated by a comma |
-| `REVIEW_CREDENTIALS` | var | who may decide: `github`, `access`, or both, separated by a comma. `loopback` is the Node service's alone |
+| `REVIEW_CREDENTIALS` | var | who may decide: `github`, `access`, or both, separated by a comma. Behind [your company's SSO](#your-companys-sso) it is `access` alone, because a second way in undoes the list of approvers. `loopback` is the Node service's alone |
 | `VIEW` | var, optional | `public` opens reading to anybody, who cannot decide. It takes no other value |
 | `GITHUB_ACTIONS_REPOSITORIES` | var, `github-actions` | whose workflows may push: `owner/name` separated by commas, any case, or `owner/*` |
 | `GITHUB_ACTIONS_AUDIENCE` | var, `github-actions` | the audience a workflow's token must name |
@@ -339,27 +339,41 @@ admin of that provider and an admin of the Cloudflare account, once:
    policy is your list of approvers. Give the same application the paths
    `review/builds/*` and `review/concerns/*`, under the mount if the API has one:
    step 4 opens their parents, and these are where a decision is recorded and a
-   concern is moved. In its cookie settings, set `SameSite` to `Lax`.
+   concern is moved. In its cookie settings, set `SameSite` to `Lax`, so a browser
+   holds the cookie back from another site's write before the service has to refuse
+   it, and leave the cookie's path attribute off, because the page reads step 4's
+   paths with that cookie.
 4. Add a second application on the same hostname, with a Bypass policy for everyone,
-   on the paths `version`, `baseline`, `cache`, `v1`, `share`, `review/builds`,
-   `review/have`, `review/changelog`, `review/decisions` and `review/concerns`, under
-   the mount if the API has one. A workflow or a developer's CLI cannot sign in, and
-   these are the paths they call. The service guards them instead of Access: it asks
+   on the paths `auth/me`, `version`, `baseline`, `cache`, `v1`, `share`,
+   `review/builds`, `review/have`, `review/changelog`, `review/decisions` and
+   `review/concerns`, under the mount if the API has one. A workflow, a developer's
+   CLI and the provisioner cannot sign in, and these are the paths they call. The service guards them instead of Access: it asks
    every request for its credential, a reviewer's browser still carries its Access
    cookie there, and Access logs nothing that bypasses it.
 5. Set `ACCESS_TEAM_DOMAIN` to the team domain and `ACCESS_AUD` to the first
    application's audience tag, set `REVIEW_CREDENTIALS` to `access`, replacing
    `github`, and delete `GITHUB_CLIENT_ID` and `GITHUB_REPOSITORY` from `vars`.
+6. Check that Access holds the paths from step 3, with a POST that has no cookie:
+
+   ```bash
+   curl -si -X POST https://your-hostname/review/builds/any/subjects/any/decision
+   ```
+
+   Access answers with a redirect to sign in. An answer with
+   `www-authenticate: Bearer` came from the service, so the request went past Access
+   and step 4 won. The service still asks for a credential, but removing a reviewer
+   then waits for their session to run out, so shorten the session.
 
 Leave `VIEW` unset. Access keeps the page behind a sign-in, but with `VIEW=public`
 the paths in step 4 answer anybody. An open project that wants public reading
 declares `github` and `VIEW=public`.
 
 To remove a reviewer, take them out of the policy and revoke their session in Zero
-Trust, which ends their decisions. The paths in step 4 check only that their token
-is signed and unexpired, so until the application's session duration runs out,
-that token still reads the evidence there and can raise a concern. A shorter session
-closes that sooner.
+Trust, which ends their decisions within about half a minute. The paths in step 4
+check only that their token is signed and unexpired, so until the session runs out,
+that token still reads the evidence there and can raise a concern. How long that is
+comes from the application's session duration, or from the policy's if it sets one.
+A shorter session closes that sooner.
 
 ## The HTTP API
 
@@ -369,8 +383,8 @@ not exist. A machine sends `Authorization: Bearer <token>`: the ingest token, th
 share token, or the token a workflow's runner signed. A bearer is read as a machine
 and nothing else, so a wrong one is refused even with `VIEW=public`. A person sends
 no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. A
-write a browser sent from another site is not recognized, whatever cookie it
-carries. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
+write a browser sent from another origin, a sibling subdomain included, is not
+recognized, whatever cookie it carries. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
 
 | method and path | capability | what it does |
 |---|---|---|
@@ -731,7 +745,7 @@ export default {
 | `db` | required | the D1 binding |
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
-| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
+| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs), and asks `crossSite(request)` before it reads a credential that rides along by itself |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied by the packaged Worker's `scheduled` handler and by `POST /review/sweep` |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -823,7 +837,7 @@ export default async function VariancePage(): Promise<React.ReactElement> {
 // `sessionName` your session lookup
 import type { D1Like, R2Like } from '@variance-authority/tribunal';
 import { createTribunalRoutes } from '@variance-authority/tribunal/next';
-import { createTribunal, declaredPolicy, type Policy } from '@variance-authority/tribunal/worker';
+import { createTribunal, crossSite, declaredPolicy, type Policy } from '@variance-authority/tribunal/worker';
 
 declare const env: {
   readonly DB: D1Like;
@@ -836,7 +850,7 @@ declare function sessionName(request: Request): Promise<string | null>;
 const machines = declaredPolicy(env);
 const policy: Policy = {
   async principal(request) {
-    const name = await sessionName(request);
+    const name = crossSite(request) ? null : await sessionName(request);
     return name === null ? machines.principal(request) : { capability: 'review', name };
   },
 };

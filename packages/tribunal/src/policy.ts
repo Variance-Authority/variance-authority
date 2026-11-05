@@ -1,6 +1,6 @@
 import { createGithubSignIn, cookieOf, SIGN_IN_PATH } from './github-signin.js';
 import { createIssuer, unverifiedIssuer } from './issuer.js';
-import { equalTokens, type Policy, type Principal } from './worker-auth.js';
+import { crossSite, equalTokens, type Policy, type Principal } from './worker-auth.js';
 
 /**
  * Who this deployment recognizes, read from what the deployer declared.
@@ -181,22 +181,6 @@ export function declaredPolicy(values: Values, options: PolicyOptions = {}): Pol
     },
     ...(github === null ? {} : { serve: (request: Request) => github.serve(request), signIn: SIGN_IN_PATH }),
   };
-}
-
-/**
- * Whether a browser carried this write here from somewhere else. A person's
- * credential rides along by itself, Access's cookie to any site by default, and
- * nothing here answers CORS, so no page of ours sends one. `Sec-Fetch-Site` is the
- * browser's own reading; the `Origin` fallback is for one that does not send it. A
- * caller that sends neither is no browser, and has no credential riding along.
- */
-function crossSite(request: Request): boolean {
-  if (request.method === 'GET' || request.method === 'HEAD') return false;
-  const site = request.headers.get('sec-fetch-site');
-  if (site !== null) return site !== 'same-origin' && site !== 'none';
-  const origin = request.headers.get('origin');
-  if (origin === null) return false;
-  return !URL.canParse(origin) || new URL(origin).host !== new URL(request.url).host;
 }
 
 function githubActions(values: Values, options: PolicyOptions) {

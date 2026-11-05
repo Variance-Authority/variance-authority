@@ -484,5 +484,6 @@ async function route(
 /** Re-exported so an entry can recognise a store failure, and read the contract the router answers with. */
 export { RasterStoreError };
 export { declaredPolicy, type PolicyOptions } from './policy.js';
+export { crossSite } from './worker-auth.js';
 export type { Introduced, Policy, Principal } from './worker-auth.js';
 export { TRIBUNAL_API, VERSION_PATH, serviceVersion, type ServiceVersion } from './version.js';
