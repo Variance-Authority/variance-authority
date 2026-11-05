@@ -10,6 +10,7 @@
  */
 export const CONCERN_STYLES = `
 .va-concerns .va-card { display: grid; gap: 0.7rem; }
+.va-concerns .va-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; }
 .va-suspicious { border-color: var(--va-warn); color: var(--va-warn-ink); }
 .va-concern { border-left: 2px solid var(--va-line-firm); display: grid; gap: 0.35rem; padding-left: 0.7rem; }
 .va-concern-open { border-left-color: var(--va-warn); }

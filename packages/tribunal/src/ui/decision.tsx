@@ -1,11 +1,12 @@
 // compass: variance-authority.review
 /**
- * The verdict on one render, at the top right of its page.
+ * The decision on one render, at the top right of its page.
  *
- * A verdict is taken on something seen, so with no image kept neither button is
- * live and the reason stands beside them. {@link verdictOf} is the one reading of
- * what each button may do: the rows and the batch on a change page take it from
- * here, so the two pages cannot disagree about the same render.
+ * A decision is taken on something seen, so with no image kept neither button is
+ * live and the reason stands beside them. {@link decidableOf} is the one reading
+ * of what each button may do: the rows on a change page take it from here, so the
+ * two pages cannot disagree about a render, and the batch settles only what it
+ * can approve.
  */
 
 import { useId, type ReactElement } from 'react';
@@ -13,13 +14,13 @@ import type { Decision, SubjectView } from '../review-types.js';
 import { when } from './text.js';
 
 /** What a render lets a reviewer do, and the sentence for what it does not. */
-export interface Verdict {
+export interface Decidable {
   readonly approve: boolean;
   readonly reject: boolean;
   readonly why: string | undefined;
 }
 
-export function verdictOf(subject: Pick<SubjectView, 'has' | 'approvable'>): Verdict {
+export function decidableOf(subject: Pick<SubjectView, 'has' | 'approvable'>): Decidable {
   if (!subject.has.after) {
     return {
       approve: false,
@@ -46,10 +47,10 @@ export function DecisionControls({
   readonly busy: boolean;
   readonly onDecide: (decision: Decision) => void;
 }): ReactElement {
-  const verdict = verdictOf(subject);
+  const decidable = decidableOf(subject);
   const decided = subject.decision;
   const id = useId();
-  const described = verdict.why === undefined ? undefined : id;
+  const described = decidable.why === undefined ? undefined : id;
 
   return (
     <div className="va-subject-decision">
@@ -59,17 +60,17 @@ export function DecisionControls({
           {decided.note === undefined ? null : <> — {decided.note}</>}
         </p>
       )}
-      {verdict.why === undefined ? null : (
+      {decidable.why === undefined ? null : (
         <p className="va-note" id={id}>
-          {verdict.why}
+          {decidable.why}
         </p>
       )}
       <button
         type="button"
         className="va-approve"
-        disabled={busy || !verdict.approve}
+        disabled={busy || !decidable.approve}
         aria-describedby={described}
-        title={verdict.approve ? 'Make this build’s candidate the baseline' : undefined}
+        title={decidable.approve ? 'Make this build’s candidate the baseline' : undefined}
         onClick={() => onDecide('approved')}
       >
         Approve
@@ -77,7 +78,7 @@ export function DecisionControls({
       <button
         type="button"
         className="va-reject"
-        disabled={busy || !verdict.reject}
+        disabled={busy || !decidable.reject}
         aria-describedby={described}
         onClick={() => onDecide('rejected')}
       >

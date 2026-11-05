@@ -52,7 +52,7 @@ import type { MovedBaseline, ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
 import { HeldStill, controlsFor } from './control.js';
 import type { Crossing } from './crossing.js';
-import { verdictOf } from './decision.js';
+import { decidableOf } from './decision.js';
 import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
 import { handedTo } from './handed.js';
@@ -107,7 +107,7 @@ export function ChangePanel({
   const causes = causesOf(build, origin);
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
-    ({ subject }) => subject.decision === null && verdictOf(subject).approve,
+    ({ subject }) => subject.decision === null && decidableOf(subject).approve,
   );
 
   return (
@@ -264,7 +264,7 @@ function Where({
   readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const { subject, pixels } = appearance;
-  const verdict = verdictOf(subject);
+  const decidable = decidableOf(subject);
   // Minus the names the mark beside it already carries. `alongside` is every
   // component the regions put in this render, causes and pushed together, and
   // printing `also CardFooter` next to `alongside CardFooter` spends the row's
@@ -329,17 +329,17 @@ function Where({
           <button
             type="button"
             className="va-approve"
-            disabled={busy || !verdict.approve}
+            disabled={busy || !decidable.approve}
             onClick={() => void decide('approved')}
-            title={verdict.approve ? 'Promote this render’s candidate, and no others' : verdict.why}
+            title={decidable.approve ? 'Promote this render’s candidate, and no others' : decidable.why}
           >
             ✓
           </button>
           <button
             type="button"
-            disabled={busy || !verdict.reject}
+            disabled={busy || !decidable.reject}
             onClick={() => void decide('rejected')}
-            title={verdict.reject ? undefined : verdict.why}
+            title={decidable.reject ? undefined : decidable.why}
           >
             ✕
           </button>
@@ -394,7 +394,7 @@ function Batch({
 
   const left = new Map<string, number>();
   for (const { subject } of origin.appearances) {
-    const { why } = verdictOf(subject);
+    const { why } = decidableOf(subject);
     if (subject.decision === null && why !== undefined) left.set(why, (left.get(why) ?? 0) + 1);
   }
 
