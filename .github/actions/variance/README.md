@@ -26,7 +26,9 @@ steps:
 `v1` is the major of the action's inputs and outputs, and every release that
 keeps them compatible moves it. The action calls the CLI from your
 `node_modules`, whatever version your lockfile holds, and downloads nothing
-during the run.
+during the run. These steps are the action alone:
+[the whole job](https://variance-authority.dev/docs/placement#the-whole-job)
+adds Node, the browser and the accept.
 
 Every input is described in [`action.yml`](action.yml). The
 [CLI reference](https://variance-authority.dev/reference/packages/cli#run-it-in-ci) covers

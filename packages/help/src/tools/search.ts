@@ -8,7 +8,8 @@ import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, Searched, SearchQuestion } from './search-matches.js';
-import { declaredLine, unreadLine } from './declared.js';
+import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
+import { unreadStop } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
@@ -180,6 +181,12 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   return spoken(searched(index, searchQuestionOf(input), tree, root, importing), root);
 }
 
+/** A list under its head, cut at what `found` shows and saying so; nothing when it holds none. */
+function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => string): readonly string[] {
+  if (found.total === 0) return [];
+  return ['', head, '', ...found.shown.map(line), ...(found.total > found.shown.length ? [`\n${found.total - found.shown.length} more not shown.`] : [])];
+}
+
 /** What a search says of what it found. */
 function spoken({ answer, area }: Searched, root: string | undefined): string {
   const { query } = answer;
@@ -249,36 +256,37 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const where = area === undefined ? [] : [areaLine(area), ''];
 
   // Below the exports, since none of these is a name its file hands out.
+  const place = area === undefined ? 'somewhere in the repository' : 'in that area';
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
   const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
-  const declaredSection =
-    declared.total === 0
-      ? unread
-      : [
-          '',
-          `${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being exported:`,
-          '',
-          ...declared.shown.map(declaredLine),
-          ...(declared.total > declared.shown.length ? [`\n${declared.total - declared.shown.length} more not shown.`] : []),
-          ...unread,
-        ];
+  const inside = answer.held ?? { total: 0, shown: [] };
+  const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine);
+  const aliases = answer.aliases ?? { total: 0, shown: [] };
+  const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
+  const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
+  const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
 
-  if (found.total === 0 && rest.total === 0 && declared.total === 0 && (third?.total ?? 0) === 0) {
-    // A miss of the text is not a miss of the code: when this repository's own
-    // names answer the words, the line above them says only that the text was
-    // not written, so a reader who stops at the first line does not stop at *nothing*.
-    // It names what the substring read, names and their docs: the doc a file
-    // opens with is read only for the words, so a file may still write the phrase.
-    // Inside an area the text may be written outside it, so the way to widen stays.
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
+    // It names what the substring read, and no more: a local that is no function
+    // is in no index, a closure's doc is its holder's, and the doc a file opens
+    // with is read only for the words, so a file may still write the phrase.
+    const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
+    const read = answer.declared === undefined
+      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
+    // A miss of the text is not a miss of the code: with names to offer, the line
+    // says only that the text was not written. Inside an area the text may be
+    // written outside it, so the way to widen stays.
     const nowhere =
       own.length > 0
         ? area === undefined
-          ? `No name in this repository, nor the doc of one, writes \`${query}\`. The nearest follow.`
-          : `No name in reach of that start point, nor the doc of one, writes \`${query}\` — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
+          ? `${read}. The nearest follow.`
+          : `${read} — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
         : area === undefined
-        ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
-        : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+        ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
+        : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
+    const stop = unreadStop(answer.membersUnread ?? []);
+    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -339,7 +347,8 @@ export const search: Tool<Help> = {
     'that import them, each labelled with those places and packages as docs_uses counts them, and carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
-    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
+    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
+    'functions inside a function under what holds them, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
@@ -418,6 +427,6 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
   const { answer, publishing = [] } = searchedOnce(help, input, invocation);
-  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.loose, answer.described];
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
   return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
 }

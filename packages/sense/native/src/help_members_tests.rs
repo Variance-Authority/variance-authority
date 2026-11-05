@@ -5,12 +5,14 @@ use oxc_parser::Parser;
 use oxc_span::SourceType;
 
 use super::member_declarations_in;
+use crate::harvest::Harvest;
 use crate::read::Lines;
 
 fn on(text: &str, name: &str) -> Vec<(u32, String)> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
-    member_declarations_in(&parsed.program, &Lines::new(text))
+    let lines = Lines::new(text);
+    member_declarations_in(&parsed.program, &lines, &Harvest::new(&parsed.program, text, &lines, false))
         .into_iter()
         .filter(|declared| declared.name == name)
         .map(|declared| (declared.line, declared.on))
@@ -49,8 +51,25 @@ fn records_every_member_by_name() {
     let allocator = Allocator::default();
     let text = "interface A {\n  x: 1;\n  y(): void;\n}\nclass B {\n  ['computed' + 1] = 2;\n  z = 3;\n}\n";
     let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
-    let names: Vec<String> = member_declarations_in(&parsed.program, &Lines::new(text)).into_iter().map(|declared| declared.name).collect();
+    let lines = Lines::new(text);
+    let names: Vec<String> = member_declarations_in(&parsed.program, &lines, &Harvest::new(&parsed.program, text, &lines, false)).into_iter().map(|declared| declared.name).collect();
     assert_eq!(names, ["x", "y", "z"]);
+}
+
+/// The comment a member's first token follows, modifiers and decorators
+/// included, is its doc, as a top-level declaration's is.
+#[test]
+fn keeps_the_doc_above_a_member() {
+    let allocator = Allocator::default();
+    let text = "interface A {\n  /** Who. */\n  readonly by: string;\n  bare: 1;\n}\nclass B {\n  /** Go. */\n  private go(): void {}\n  constructor(/** Held. */ private held: string) {}\n}\n";
+    let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
+    let lines = Lines::new(text);
+    let docs: Vec<(String, Option<&str>)> = member_declarations_in(&parsed.program, &lines, &Harvest::new(&parsed.program, text, &lines, false))
+        .into_iter()
+        .map(|declared| (declared.name, declared.doc.map(|doc| &text[doc.start as usize..doc.end as usize])))
+        .collect();
+    let want = |name: &str, doc: Option<&'static str>| (name.to_owned(), doc);
+    assert_eq!(docs, [want("by", Some("* Who. ")), want("bare", None), want("go", Some("* Go. ")), want("constructor", None), want("held", Some("* Held. "))]);
 }
 
 /// Two layers the way the scan writes them: the newer one rewrites `a.ts`, its

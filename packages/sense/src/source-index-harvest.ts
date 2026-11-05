@@ -10,6 +10,15 @@ import type { SourceSymbol, SourceSymbolReach, TextSpan } from './harvest.js';
 /** The reaches `symbols.reach` stores, from 1; 0 is none. `REACHES` in `native/src/harvest.rs`. */
 const REACHES: readonly SourceSymbolReach[] = ['file', 'module', 'underscore', 'all'];
 
+/** The span two columns hold at `at`: absent when both are, and `reject`ed when one is or it runs backwards. */
+export function spanAt(starts: Uint32Array, ends: Uint32Array, at: number, reject: () => never): TextSpan | undefined {
+  const start = starts[at];
+  const end = ends[at];
+  if (start === NONE && end === NONE) return undefined;
+  if (start === undefined || end === undefined || start === NONE || end === NONE || end < start) reject();
+  return { start, end };
+}
+
 export interface HarvestReader {
   symbols(row: number): readonly SourceSymbol[];
   exportSignature(row: number): TextSpan | undefined;
@@ -47,15 +56,7 @@ export function openHarvest(
   sameLength(exportCount, [exportSignatureStart, exportSignatureEnd, exportDocStart, exportDocEnd], reject);
   sameLength(parseCount, [moduleDocStart, moduleDocEnd], reject);
 
-  const span = (starts: Uint32Array, ends: Uint32Array, row: number): TextSpan | undefined => {
-    const start = starts[row];
-    const end = ends[row];
-    if (start === NONE && end === NONE) return undefined;
-    if (start === undefined || end === undefined || start === NONE || end === NONE || end < start) {
-      throw opened.reject();
-    }
-    return { start, end };
-  };
+  const span = (starts: Uint32Array, ends: Uint32Array, row: number): TextSpan | undefined => spanAt(starts, ends, row, reject);
 
   return {
     symbols: (row) => rangeOf(parseSymbols, row, reject).map((at) => {
