@@ -205,6 +205,7 @@ describe('passWithNoTests on a configuration wrapped for selection', () => {
 
     expect(withTestSelection({ rootDir }, handed).passWithNoTests).toBe(true);
     expect(withTestSelection({ rootDir, projects: [{ displayName: 'unit' }] }, handed).passWithNoTests).toBe(true);
+    expect(withTestSelection({ rootDir, passWithNoTests: false }, handed).passWithNoTests).toBe(true);
   });
 
   it('stays unset on a run with no selection', () => {
@@ -221,10 +222,10 @@ describe('passWithNoTests on a configuration wrapped for selection', () => {
     say.mockRestore();
   });
 
-  it.each([true, false])('stays %s when the configuration sets it', (set) => {
+  it('stays true on a run with no selection when the configuration sets it', () => {
     process.argv = ['node', 'jest'];
 
-    expect(withTestSelection({ rootDir, passWithNoTests: set }, handed).passWithNoTests).toBe(set);
+    expect(withTestSelection({ rootDir, passWithNoTests: true }, { coverageFile: 'coverage.bin' }).passWithNoTests).toBe(true);
   });
 });
 

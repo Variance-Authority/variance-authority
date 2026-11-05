@@ -80,12 +80,12 @@ export interface PlacingOptions {
 
 /**
  * The `testSequencer` a configuration takes to place a `--shard` by the rule
- * every runner's is placed by, and `passWithNoTests` when the run is sharded or
- * selects and the configuration does not set it. A shard or a selection can
- * leave a run no file, and Jest fails a run that found none. Jest freezes its
- * global configuration before the filter or the sequencer knows, so the setting
- * is made here, before anything is found, and a run that neither shards nor
- * selects and finds nothing still fails.
+ * every runner's is placed by, and `passWithNoTests` when the run selects,
+ * whatever the configuration says, or is sharded and the configuration does not
+ * set it. A shard or a selection can leave a run no file, and Jest fails a run
+ * that found none. Jest freezes its global configuration before the filter or
+ * the sequencer knows, so the setting is made here, before anything is found,
+ * and a run that neither shards nor selects and finds nothing still fails.
  */
 export function placingSequencer(
   config: { readonly [key: string]: unknown },
@@ -116,6 +116,7 @@ export function placingSequencer(
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;
-  const narrowed = options.selecting === true || shardArgument(options.argv ?? process.argv) !== undefined;
-  return { testSequencer: PLACING_SEQUENCER, ...(narrowed && config.passWithNoTests === undefined ? { passWithNoTests: true } : {}) };
+  const sharded = shardArgument(options.argv ?? process.argv) !== undefined;
+  const passes = options.selecting === true || (sharded && config.passWithNoTests === undefined);
+  return { testSequencer: PLACING_SEQUENCER, ...(passes ? { passWithNoTests: true } : {}) };
 }

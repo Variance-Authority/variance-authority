@@ -129,7 +129,7 @@ export interface JestTestSelectionOptions {
    * it found. A `filter` drops what it may skip after the project's own, and
    * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
    * the one `variance select` reads, and with that unset every file runs. A
-   * run that selects takes `passWithNoTests` unless the configuration sets it,
+   * run that selects takes `passWithNoTests`, whatever the configuration says,
    * so a selection that keeps no file exits 0.
    */
   readonly selection?: () => Promise<SuiteSelection>;

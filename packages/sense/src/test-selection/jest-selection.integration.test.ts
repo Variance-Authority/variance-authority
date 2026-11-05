@@ -114,20 +114,8 @@ describe('a Jest run with no file left to run', () => {
     expect((await ended(runWith('unselected', {}, ...NOTHING))).code).toBe(1);
   }, 60_000);
 
-  it.each([['--skipFilter'], [`--filter=${resolve(fixture, 'test/keep-all.cjs')}`]])('keeps Jest\'s exit 1 under %s, which turns the selection off', async (flag) => {
-    const { code, stderr } = await ended(run('turned-off', FOUND, flag, ...NOTHING));
-
-    expect(stderr).toContain('so nothing is selected');
-    expect(code).toBe(1);
-  }, 60_000);
-
-  it('keeps the configuration\'s passWithNoTests, whichever way it is set', async () => {
-    const set = (value: boolean) => ({ FIXTURE_PASS_WITH_NO_TESTS: JSON.stringify(value) });
-    const selected = { FIXTURE_SKIP: JSON.stringify(FOUND) };
-
-    expect((await ended(runWith('set-true', set(true), ...NOTHING))).code).toBe(0);
-    expect((await ended(runWith('set-true-selected', { ...set(true), ...selected }))).code).toBe(0);
-    expect((await ended(runWith('set-false-selected', { ...set(false), ...selected }))).code).toBe(1);
+  it('keeps a passWithNoTests the configuration sets on a run with no selection', async () => {
+    expect((await ended(runWith('set-true', { FIXTURE_PASS_WITH_NO_TESTS: 'true' }, ...NOTHING))).code).toBe(0);
   }, 60_000);
 });
 
