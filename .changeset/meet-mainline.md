@@ -1,10 +1,7 @@
 ---
 '@variance-authority/isolator': patch
 '@variance-authority/package': patch
-'@variance-authority/playwright': patch
-'@variance-authority/playwright-test': patch
 '@variance-authority/png-sharp': patch
-'@variance-authority/presentation': patch
 '@variance-authority/sense': patch
 ---
 
@@ -15,8 +12,3 @@ Runtime dependencies move to what npm publishes now: `oxc-parser` 0.157,
 surrogate as it treats a spread or a computed key: the module's exports are not
 known, because no importer can spell that name. An import or an export whose
 specifier holds one is counted on the read as a specifier it cannot read.
-
-`@variance-authority/playwright-test`, `@variance-authority/presentation` and
-`@variance-authority/playwright` take Playwright 1.55 and newer, where they took
-1.49: nothing older is in real use, and `cases/playwright-oldest-case` runs the
-floor.

@@ -3,10 +3,10 @@
 The repository runs its own suite on the newest Playwright, and every other case
 does too. `@variance-authority/playwright-test` takes 1.55 and newer, and below
 1.63 it reaches a spec by another route: the cadence cut goes in through the
-configuration's `babelPlugins`, because the environment pair the newer releases
-read reaches no ES module spec there. This case installs the oldest Playwright
-for itself and runs its real CLI, so that route runs on something other than a
-unit test's stand-in.
+configuration's `babelPlugins`. The environment pair the newer releases read
+reaches no ES module spec on the release this case installs. This case installs
+the oldest Playwright for itself and runs its real CLI, so that route runs on
+something other than a unit test's stand-in.
 
 ## The files
 

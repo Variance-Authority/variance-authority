@@ -37,7 +37,7 @@ const browser = ((): string | undefined => {
 
 if (browser === undefined) {
   unbuilt(
-    '\ncases/playwright-oldest-case: skipped.' +
+    '\ncases/playwright-oldest-case, the record test: skipped.' +
       '\n  no browser — npx playwright install chromium\n',
   );
 }
