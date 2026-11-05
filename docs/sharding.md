@@ -161,7 +161,9 @@ jobs:
 A shard run again now selects what it selected the first time. Selection takes
 the commit, the shard's number and the record, and none of them changes on a
 re-run: the re-run downloads the artifact the first attempt uploaded, and
-`carry receive` lays it down however far your mainline has moved.
+`carry receive` lays it down however far your mainline has moved. Give `plan` the
+share's token: what it could not read is the answer every shard gets, and they
+run what a suite with no record runs.
 
 The artifact has to outlast the run. GitHub re-runs a job for 30 days, so
 `retention-days: 30` keeps it for all of them. A shard whose artifact is gone

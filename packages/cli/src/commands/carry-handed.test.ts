@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { handBase, handedOutputs, moveBase, receiveBase } from './carry-handed.js';
-import { mainlineBase, readMissedMainline } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, readMissedMainline, type MainlineMissed } from './mainline-base.js';
 import { forgetLineAnswers, git, gitPublished, publishedAt } from './mainline-fixture.js';
 
 /**
@@ -128,6 +128,84 @@ describe('a run stands on the record one job read', () => {
     expect(asked).toMatchObject({ commit: first });
   });
 
+  it('stands on the plan job having no credential, though a shard has one and the line holds a record', async () => {
+    const { origin, first } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await writeFile(join(plan, 'variance.config.json'), JSON.stringify({
+      suites: { unit: { kind: 'unit', carry: 'share' } },
+      share: { kind: 'http', endpoint: 'https://share.invalid', mainlines: ['main'], token: { env: 'SHARE_TOKEN_NOT_SET' } },
+    }));
+
+    expect(await handBase(plan, handed, { env: LOCAL })).toMatchObject({ suites: ['unit'], commits: [] });
+
+    const shard = await job(origin, 'shard');
+    await receiveBase(shard, handed);
+
+    expect(await read(shard)).toMatchObject({ miss: { kind: 'unconfigured' } });
+    const asked = await mainlineBase(shard, declaredSuites(shard)?.find((one) => one.name === 'unit'), { env: LOCAL, fetch: 'always' });
+    expect(asked).toMatchObject({ commit: first });
+  });
+
+  it('says a handed miss is the run\'s answer, which no clock ends', async () => {
+    const { origin } = await gitPublished(home, { publish: false });
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+
+    const shard = await job(origin, 'shard');
+    await receiveBase(shard, handed);
+
+    const missed = await read(shard) as MainlineMissed;
+    expect(mainlineMissed(missed)).toContain('as this run read it');
+    expect(mainlineMissed(missed)).not.toContain('minutes');
+  });
+
+  it('asks no line once the handed record is gone, and says so', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+    const shard = await job(origin, 'shard');
+    await receiveBase(shard, handed);
+    await moved(ci);
+    await rm(join(mainlineReadRoot(cacheRootFor(shard), 'unit'), first), { recursive: true });
+
+    const answer = await read(shard);
+
+    expect(answer).toMatchObject({ miss: { kind: 'unreadable' } });
+    expect((answer as MainlineMissed).miss).toMatchObject({ detail: expect.stringContaining(first) });
+  });
+
+  it('asks no line for a reader that selects another mainline than the run read', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+    const shard = await job(origin, 'shard');
+    await writeFile(join(shard, 'variance.config.json'), JSON.stringify({
+      suites: { unit: { kind: 'unit', carry: 'share' } },
+      share: { kind: 'git', mainlines: ['release'] },
+    }));
+    await receiveBase(shard, handed);
+    await moved(ci);
+
+    expect(await read(shard)).toMatchObject({ miss: { kind: 'unreadable', detail: expect.stringContaining(first) } });
+  });
+
+  it('stands on the handed record in a worktree whose primary checkout fetched a newer one', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+    const second = await moved(ci);
+
+    const primary = await job(origin, 'primary');
+    const worktree = join(home, 'worktree');
+    await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', undefined);
+    await receiveBase(worktree, handed);
+    const unit = declaredSuites(primary)?.find((one) => one.name === 'unit');
+    expect(await mainlineBase(primary, unit, { env: LOCAL, fetch: 'always' })).toMatchObject({ commit: second });
+
+    expect(await read(worktree)).toMatchObject({ commit: first, earlier: { reused: 'handed' } });
+  });
+
   it('hands nothing for a suite the share does not carry, and the manifest still arrives', async () => {
     const { origin } = await gitPublished(home);
     const plan = await job(origin, 'plan');
@@ -145,6 +223,15 @@ describe('a job refuses to read the line on its own', () => {
     const shard = await job(origin, 'shard');
 
     expect(await refusal(receiveBase(shard, join(home, 'absent')))).toContain('carry hand');
+  });
+
+  it('to clear a directory no hand wrote', async () => {
+    const { origin } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+
+    expect(await refusal(handBase(plan, plan, { env: LOCAL }))).toContain(plan);
+
+    expect(existsSync(join(plan, '.git'))).toBe(true);
   });
 
   it('when the manifest names a suite the directory holds nothing for', async () => {

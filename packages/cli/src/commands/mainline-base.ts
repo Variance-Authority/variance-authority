@@ -79,11 +79,14 @@ export interface MainlineMissed {
   readonly shareAsked?: false;
   /** When the line gave this answer, as an ISO time, when it was earlier within {@link MISS_STANDS_MS} and not now. */
   readonly asked?: string;
+  /** The answer another job of this run read and handed on, which no clock ends: {@link MissedMainline.handed}. */
+  readonly handed?: true;
 }
 
 /** The line's answer that it gave no record: which mainline, when, and why. */
 export interface MissedMainline {
-  readonly mainline: string;
+  /** Absent only from a handed answer, when the job that read it could name none. */
+  readonly mainline?: string;
   /** When the line was asked, as an ISO time. */
   readonly at: string;
   readonly miss: MainlineMiss;
@@ -158,19 +161,27 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
   // With no mainline named nothing says it is another's, and it stands, though only a named one, or one handed on, is reused unasked.
   // Both caches when the caller named none, as a runner seam reads them.
-  const held = selection.lastFetchedMainline(root, suite, here.cacheRoot, named?.name);
+  // A record handed here is this job's, whatever newer one a worktree's primary checkout fetched.
+  const pointer = selection.readFetchedMainline(readRoot);
+  const held = selection.lastFetchedMainline(root, suite, pointer?.handed === true ? cacheRoot : here.cacheRoot, named?.name);
   if (here.fetch !== 'always') {
     if (held?.handed === true) return measured(place, root, held, { reused: 'handed' }, named?.base);
+    const noted = readMissedMainline(readRoot);
+    if (noted?.handed === true) return { suite, ...missedAs(noted), asked: noted.at, handed: true };
+    // A handed record no reader here can stand on is this run's gap: asking the line would read what the run did not.
+    if (pointer?.handed === true) {
+      const miss: MainlineMiss = { kind: 'unreadable', detail: `the record this run handed on, ${pointer.mainline}'s at ${pointer.commit}, is gone, does not read, or is not the mainline this reader selects` };
+      return { suite, mainline: pointer.mainline, miss };
+    }
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
       const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base);
       if (reused !== undefined) return earlier(held, { reused }, distance);
     }
-    const noted = readMissedMainline(readRoot);
-    if (noted !== undefined && (noted.handed === true || (noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS))) {
+    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
       if (held !== undefined) return measured(place, root, held, { unanswered: noted.miss, asked: noted.at }, named?.base);
-      return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
+      return { suite, ...missedAs(noted), asked: noted.at };
     }
   }
 
@@ -257,6 +268,11 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   };
 }
 
+/** What a kept answer says to a reader. */
+function missedAs(noted: MissedMainline): Pick<MainlineMissed, 'mainline' | 'miss' | 'holds'> {
+  return { ...(noted.mainline === undefined ? {} : { mainline: noted.mainline }), miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }) };
+}
+
 /** The record fetched earlier, as a base, measured against this checkout now. */
 async function measured(
   place: Parameters<typeof distanceFrom>[0],
@@ -301,9 +317,15 @@ export function readMissedMainline(readRoot: string): MissedMainline | undefined
   }
   const miss = value.miss as { kind?: unknown; detail?: unknown } | undefined;
   const reads = typeof miss?.kind === 'string' && (miss.detail === undefined || typeof miss.detail === 'string');
-  if (typeof value.mainline !== 'string' || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at)) || !reads) return undefined;
+  if ((value.mainline !== undefined && typeof value.mainline !== 'string') || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at)) || !reads) return undefined;
   const holds = Array.isArray(value.holds) && value.holds.every((name) => typeof name === 'string') ? value.holds : undefined;
-  return { mainline: value.mainline, at: value.at, miss: value.miss as MainlineMiss, ...(holds === undefined ? {} : { holds }), ...(value.handed === true ? { handed: true } : {}) };
+  return {
+    ...(value.mainline === undefined ? {} : { mainline: value.mainline }),
+    at: value.at,
+    miss: value.miss as MainlineMiss,
+    ...(holds === undefined ? {} : { holds }),
+    ...(value.handed === true ? { handed: true } : {}),
+  };
 }
 
 /** Keep the line's answer that it gave no record under `readRoot`, where {@link readMissedMainline} reads it. */
@@ -415,7 +437,8 @@ export function mainlineMissed(missed: MainlineMissed): string {
   if (missed.shareAsked === false) return `record of "${missed.suite}": the share was not asked; ${said}`;
   const opening = missed.miss.kind === 'absent' ? 'the share has none either' : "the mainline's was not read";
   const line = missed.mainline === undefined ? 'no mainline' : `mainline ${missed.mainline}`;
-  return `record of "${missed.suite}": ${opening}; ${line}: ${said}${answeredAt(missed.asked)}`;
+  const when = missed.handed === true ? `; that was the line's answer at ${missed.asked ?? 'the start of this run'}, as this run read it` : answeredAt(missed.asked);
+  return `record of "${missed.suite}": ${opening}; ${line}: ${said}${when}`;
 }
 
 /** When the line's answer was given, for one given earlier within {@link MISS_STANDS_MS}. */

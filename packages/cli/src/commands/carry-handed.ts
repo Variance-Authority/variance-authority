@@ -18,7 +18,7 @@
 
 // compass: variance-authority.retention
 
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   cacheRootFor,
@@ -52,11 +52,19 @@ export interface BaseReceived {
 
 /**
  * Read the line for every suite the share carries, write what it answered to
- * `dir`, replacing what was there, and lay it here too, so this job stands on
- * the record it hands. The line is always asked: a checkout that kept its cache
- * holds the last run's read, which no later run stands on.
+ * `dir`, replacing what an earlier hand wrote there, and lay it here too, so
+ * this job stands on the record it hands. The line is always asked: a checkout
+ * that kept its cache holds the last run's read, which no later run stands on
+ * unless the line gives no answer, and then that kept record is what is handed.
  */
 export async function handBase(root: string, dir: string, ask: MainlineAsk = {}): Promise<BaseHanded> {
+  const there = await readdir(dir).catch((error: NodeJS.ErrnoException): string[] => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  if (there.length > 0 && !there.includes(HANDED_MANIFEST)) {
+    throw new OperatorError(`variance carry hand replaces ${dir}, and no hand wrote what it holds: name an empty directory`);
+  }
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   const suites: string[] = [];
@@ -69,9 +77,9 @@ export async function handBase(root: string, dir: string, ask: MainlineAsk = {})
     const to = join(dir, declared.name);
     if ('miss' in base) {
       lines.push(mainlineMissed(base));
-      if (base.mainline === undefined || base.miss.kind === 'unconfigured') continue;
+      // Handed whatever stopped the read: a shard with a credential this job lacked would read what no other job did.
       await writeMissedMainline(to, {
-        mainline: base.mainline,
+        ...(base.mainline === undefined ? {} : { mainline: base.mainline }),
         at: new Date().toISOString(),
         miss: base.miss,
         ...(base.holds === undefined ? {} : { holds: base.holds }),
@@ -135,7 +143,7 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
       lines.push(`${suite} stands on the record ${pointer.mainline} published at ${pointer.commit}, as this run read it.`);
     } else if (missed !== undefined) {
       await writeMissedMainline(readRoot, { ...missed, handed: true });
-      lines.push(`${suite} stands on mainline ${missed.mainline}'s answer of ${missed.miss.kind}, as this run read it.`);
+      lines.push(`${suite} stands on ${missed.mainline === undefined ? 'no mainline' : `mainline ${missed.mainline}`}'s answer of ${missed.miss.kind}, as this run read it.`);
     }
   }
   if (suites.length === 0) lines.push('this run asked no line, so there is no read to stand on.');
