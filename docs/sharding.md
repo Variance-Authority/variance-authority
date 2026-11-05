@@ -6,8 +6,9 @@ how many there are. Each file goes in turn, longest first, to the shard with
 the least time so far, so the shards finish close together. Each shard
 computes the split from the record the run handed it and the files it collects,
 without talking to the others, so shards that read one record at one commit run
-every file in exactly one shard, and a shard run again takes the files it took. A Playwright setup or teardown project is the
-exception: Playwright runs it in every shard that keeps a test depending on it.
+every file in exactly one shard, and a shard run again takes the files it took.
+A Playwright setup or teardown project is the exception: Playwright runs it in
+every shard that keeps a test depending on it.
 
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
 on four shards:
