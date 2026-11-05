@@ -20,7 +20,7 @@ import { byPublishedPath, plural } from './format.js';
  * Substring, case-insensitive, over the name and over what was written about
  * it; and several words, over the words a name is written in, each word
  * matching one that starts with it or shares its stem. A match there is a fact
- * about the text, so it is reported first and whole, ordered first by where it
+ * about the text, so it is reported first, ordered first by where it
  * was found — the whole name, as written and then in another case, part of the
  * name, the doc's opening paragraph, the rest of the doc — and then by who
  * imports it: a name that is the word is what was asked for, a name holding it

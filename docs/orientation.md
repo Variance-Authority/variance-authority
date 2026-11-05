@@ -76,13 +76,14 @@ find out which, not all the way to `rg`.
 
 ## What Variance searches
 
-`variance ask search` is symbol search. Its corpus is the names the source
-declares and the documentation written above them, so a question about
-`createStore` never returns the files that only import or mention it. It adds
-one step an IDE does not take by default: the module graph keeps the candidates
-connected to a path you already have. A few words of what the code does reach it
-too: when no name holds them as written, the names holding any of them, matched
-by stem and ranked by how many they hold, come back before any installed package
+`variance ask search` is symbol search. It reads the names the source declares,
+the documentation written above them, each file's name and opening doc, and the
+names and descriptions of installed packages, so a question about `createStore`
+does not list every file that imports or mentions it. It adds one step an IDE
+does not take by default: the module graph keeps the candidates connected to a
+path you already have. A few words of what the code does reach it too: when no
+name holds them as written, the names and files holding any of them, matched by
+stem and ranked by how many they hold, come back before any installed package
 that says the same words.
 
 ```bash
