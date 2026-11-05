@@ -37,16 +37,13 @@
  */
 
 import { existsSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandQuestion, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
-import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
+import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
-import { checkoutRead } from './checkout-read.js';
-import { mainlineMissed, mainlineRead, primaryRead, type MainlineMissed } from './mainline-base.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -56,8 +53,9 @@ import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
-import { suiteBase } from './suite-base.js';
-import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
+import { recordHeld } from './mainline-selected.js';
+import { recordedOrMainline } from './suite-base.js';
+import { namedSuite, oneRecord, ownRecord } from './suite-record.js';
 import { headOf } from './suite-share.js';
 import {
   formatSelection,
@@ -65,7 +63,6 @@ import {
   type SelectFormat,
   type SelectGround,
   type SelectInput,
-  type SelectSource,
 } from './select.js';
 
 /** What `variance select` was asked for, once the flags are off the command line. */
@@ -131,7 +128,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // file.
   if (
     request.execution !== undefined &&
-    !((await exists(request.execution)) && selection.isTestCoverageFile(request.execution))
+    !((await recordHeld(request.execution)) && selection.isTestCoverageFile(request.execution))
   ) {
     return await journeyReading({ ...request, execution: request.execution });
   }
@@ -194,7 +191,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
   const top = await topLevel(request.root);
   const here = top ?? request.root;
-  const own = at === (await landingRecord(request.root, request.suite));
+  const own = at === (await ownRecord(request.root, request.suite));
   const whose = own ? '' : " It is another checkout's record, read here because this checkout holds none of its own.";
   const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, async () => `${whose}${await fetchable(request.root, request.suite)}`);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
@@ -273,7 +270,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.
-  const declared = (await recordedSuite(here, request.suite, 'landing')).declared;
+  const { declared } = await namedSuite(here, request.suite);
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);
@@ -402,59 +399,4 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
       `whole change, so what changed before ${at} is not read for ${count === 1 ? 'it' : 'them'}. Leave out ` +
       '`--diff` to read the working tree against where each test last ran',
   ];
-}
-
-/**
- * The record of the suite this checkout measures from, in the order `suiteBase` gives every base
- * reader: this checkout's own, else the mainline's (ADR-0084), else, in a worktree, the primary
- * checkout's as the offline fallback.
- *
- * A suite the root config does not give to a share has no mainline record, and reads the nearest
- * layer that holds one. For a suite given to a share the first note after the verdict says whose
- * record it read, because they select differently and a skip list alone does not say which.
- */
-export async function recordedOrMainline(
-  request: SuiteRequest,
-): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource; readonly missed?: MainlineMissed }> {
-  const recorded = await recordedSuite(request.root, request.suite);
-  const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
-  if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
-  const base = await suiteBase(request.root, { suite });
-  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
-  if (base.from === 'mainline') {
-    const read = base.mainline;
-    const distance = read.distance === undefined ? {} : { distance: read.distance };
-    return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
-  }
-  const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
-  if (base.from === 'primary') {
-    const missed = base.missed === undefined ? {} : { missed: base.missed };
-    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) }, ...missed };
-  }
-  if (base.missed === undefined) return { at: base.file, held: false };
-  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) }, missed: base.missed };
-}
-
-/**
- * Whether the journal is on disk, distinguishing *missing* from *unreadable*.
- *
- * Anything other than ENOENT is handed on: a directory in its place, a
- * permission the operator lost, a mount that went away. Reporting those as "no
- * recording here" would be the one failure this whole subsystem is written to
- * refuse — a run that ignored a snapshot looking exactly like a run that never
- * had one.
- */
-async function exists(file: string): Promise<boolean> {
-  try {
-    await stat(file);
-    return true;
-  } catch (error) {
-    if (isMissing(error)) return false;
-    throw new OperatorError(
-      `the recorded execution journal at ${file} could not be reached: ` +
-        `${error instanceof Error ? error.message : String(error)}. A selection that treated ` +
-        'this as "nothing recorded" would skip nothing and look exactly like a clean answer.',
-      { cause: error },
-    );
-  }
 }

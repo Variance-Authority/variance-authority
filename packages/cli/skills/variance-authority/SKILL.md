@@ -56,8 +56,8 @@ whole suite again over a record that exists:
   commit the record was made at, names it when it imports the file. Otherwise
   the gap is a test that loads the file, which no run fills.
 - **A base the answer cannot compare against** — `undiffed`. The base names a
-  commit this clone lacks or cannot diff from, or names none. This gap is the
-  one no run fills: fetch that commit, for example by deepening a shallow
+  commit this clone lacks or cannot diff from, or names none, or `--since` names
+  a ref that reads as no diff. This gap is the one no run fills: fetch that commit, for example by deepening a shallow
   clone, or ask without the base.
 
 `reach` and `discover` follow imports. A suite that drives the code from another

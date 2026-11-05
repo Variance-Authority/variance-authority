@@ -31,6 +31,29 @@ export function unnamedCommit(base: { readonly name: string; readonly unnamed?: 
   );
 }
 
+/** The sentence refusing what `name` recorded at `at`, a commit this clone lacks, with what to fetch. */
+function missingCommit(name: string, at: string): string {
+  return (
+    `${name} was recorded at ${at}, which this clone does not have, so it is not compared. ` +
+    `Fetch it with \`git fetch origin ${at}\`, or check out every commit: ` +
+    '`fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.'
+  );
+}
+
+/** The sentence refusing what `name` recorded at `at`, a commit this clone has, when git read no diff from it. */
+export function unreadDiff(name: string, at: string): string {
+  return `${name} was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`;
+}
+
+/** Refuse what `name` recorded at `at` when the clone at `repository` lacks that commit, with what to fetch. */
+export async function requireCommit(at: string, repository: string, name: string): Promise<void> {
+  try {
+    await promisify(execFile)('git', ['cat-file', '-e', `${at}^{commit}`], { cwd: repository });
+  } catch {
+    throw new OperatorError(missingCommit(name, at), { kind: 'undiffed' });
+  }
+}
+
 /**
  * The diff by file from `at`, the commit the base `base` names was recorded at,
  * to the tree at `root`, with that commit and the checkout it was diffed in.
@@ -49,17 +72,9 @@ export async function diffFromBase(
   if (!OBJECT_NAME.test(at)) return refuse(`was recorded at \`${at}\`, which is not a commit's object name, so it is not compared.`);
   const repository = await topLevel(root);
   if (repository === undefined) return refuse(`was recorded at ${at}, and \`${root}\` is not in a git checkout to diff from it.`);
-  try {
-    await promisify(execFile)('git', ['cat-file', '-e', `${at}^{commit}`], { cwd: repository });
-  } catch {
-    return refuse(
-      `was recorded at ${at}, which this clone does not have, so it is not compared. ` +
-        `Fetch it with \`git fetch origin ${at}\`, or check out every commit: ` +
-        '`fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.',
-    );
-  }
+  await requireCommit(at, repository, base.name);
   const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
-  if (diff === undefined) return refuse(`was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`);
+  if (diff === undefined) throw new OperatorError(unreadDiff(base.name, at), { kind: 'undiffed' });
   return { commit: at, diff: hunksByFile(diff), repository };
 }
 
@@ -67,17 +82,19 @@ export async function diffFromBase(
  * Where `since` and `HEAD` part, and the files the base's branch changed
  * between the base's commit and there, named the way the run names files.
  * Refused with git's answer when git cannot say: without it, the base
- * branch's own motion would be read as this change's.
+ * branch's own motion would be read as this change's. A caller that already
+ * asked hands in `parted`, and git is not asked again.
  */
 export async function movedOnBase(
   at: string,
   since: string,
   root: string,
+  parted?: string,
 ): Promise<{ readonly mergeBase: string; readonly files: readonly string[] }> {
   const run = promisify(execFile);
   try {
     const top = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
-    const mergeBase = (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
+    const mergeBase = parted ?? (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
     if (at === mergeBase) return { mergeBase, files: [] };
     return { mergeBase, files: await filesBetween(at, mergeBase, root, top) };
   } catch (error) {

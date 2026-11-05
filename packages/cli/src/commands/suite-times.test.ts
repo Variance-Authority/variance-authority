@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
+import { realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { cloneOf, published } from './mainline-fixture.js';
 import { suiteTimes } from './suite-times.js';
 
 describe('the times a sharded run places its files by', () => {
@@ -34,6 +36,17 @@ describe('the times a sharded run places its files by', () => {
       read: `sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`,
       times: new Map([['a.test.ts', 1200]]),
     });
+  });
+
+  it("reads them from the mainline's record in a checkout that ran nothing, as a selection does", async () => {
+    const home = await realpath(mkdtempSync(join(tmpdir(), 'va-times-mainline-')));
+    const { first, origin } = await published(home);
+    const clone = await cloneOf(home, origin);
+
+    const times = await suiteTimes({ root: clone, suite: 'unit' });
+
+    expect(times).toMatchObject({ commit: first });
+    expect(times).not.toHaveProperty('unread');
   });
 
   it('says where it looked when nothing is recorded', async () => {

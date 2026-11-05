@@ -404,6 +404,8 @@ export interface CoveringRegion {
  */
 export interface CoveringChange {
   readonly file: string;
+  /** The commit the record was made at, when that commit held no file by this name: the missing row is then no statement about the run. */
+  readonly absentAt?: string;
   /** Whether the index holds a module row for this file at all. */
   readonly recorded: boolean;
   readonly regions: readonly CoveringRegion[];

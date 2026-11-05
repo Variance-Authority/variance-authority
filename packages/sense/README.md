@@ -2004,6 +2004,12 @@ tree. A recording made outside a checkout has no commit, and an index that
 records no commit has nothing to diff against, so a caller with one runs
 the suite it would have run anyway.
 
+`readableTestCoverage(root, options)` finds the record to read, nearest layer
+first, and says which layer held it. A record fetched for another mainline is no
+layer: a reader that knows the selected mainline passes it as `selected`, here
+and to `lastFetchedMainline` and `prepareRecord`. A caller with none to pass, such
+as a runner seam, takes what was fetched.
+
 ### Read where the loads drift from the walk
 
 The record holds what each test file loaded; the import graph holds what its

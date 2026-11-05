@@ -154,8 +154,10 @@ the command prints their ids and stops, and you pass one of them to `--test`.
 case, or only some of its cases, entered, each module no case entered under the
 import that made the file load it.
 
-`distill` reads the record `covering` reads; `--suite <name>` picks one declared
-suite's, and `--execution <path>` names another record, or a case index another
+`distill` reads the nearest record this machine holds and fetches nothing: this
+checkout's own, else the mainline's as last fetched here, else, in a worktree,
+the primary checkout's.
+`--suite <name>` picks one declared suite's, and `--execution <path>` names another record, or a case index another
 tool exported as JSON. Add `--format json` for the analyzer result instead of
 the text.
 

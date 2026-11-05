@@ -8,11 +8,14 @@
  * so a test missing from it and a test selected for nothing both fail.
  */
 
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { expect } from 'vitest';
 import { caseSectionsAt } from '../case-record.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
 import { caseOf, commit, flagged, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
 import type { Ran, Stood } from './carry-ran.js';
+import { renamedSubject, type Since } from './carry-since.js';
 
 export const A = 'test/a.test.ts';
 export const B = 'test/b.test.ts';
@@ -393,5 +396,43 @@ export async function ranOverThenCommittedElsewhere(ask: Ran, forget: (walk: Wal
 
     await forget(walk);
     check(walk, 'the second effect, no text kept', read(await ask(walk, second)), { [B]: { ...b, held: 'no text' } });
+  });
+}
+
+/**
+ * A full recording, a commit inside the first effect and a run of both tests,
+ * so the record already holds the change, asked what the change since the first
+ * commit reached: the record is how the change reads, never what it is. A
+ * commit it does not hold, inside the second effect, joins the answer, and the
+ * first effect stays in it.
+ */
+export async function changeRecordedThenAsked(ask: Since): Promise<void> {
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B]);
+    const base = walk.head;
+
+    await commit(walk, touching(walk.text, 'first'), 'an edit inside the first effect');
+    await runTests(walk, [A, B]);
+    check(walk, 'a change the record holds, the tree clean', await ask(walk, base), [A]);
+
+    await commit(walk, touching(walk.text, 'second'), 'an edit inside the second effect');
+    check(walk, 'a change the record holds part of', await ask(walk, base), [A, B]);
+  });
+}
+
+/**
+ * A full recording, the subject renamed on the mainline with its text kept,
+ * and an edit inside the first effect under the new name: the record ran the
+ * old name, and a path is the file, so nothing the record holds answers for the
+ * new one.
+ */
+export async function renamedThenEdited(ask: Since): Promise<void> {
+  const moved = 'src/moved-subject.ts';
+  await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
+    await runTests(walk, [A, B]);
+    const mainline = await renamedSubject(walk, moved);
+    await writeFile(join(walk.root, moved), touching(walk.text, 'first'));
+
+    check(walk, 'an edit under the name the mainline gave it', await ask(walk, mainline), []);
   });
 }

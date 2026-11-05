@@ -110,7 +110,7 @@ Only an install that cannot be compared runs everything.
 Three doubts stop the command instead of widening it, because an answer would
 look like a clean one:
 
-- a record that exists but cannot be reached: `A selection that treated this as "nothing recorded" would skip nothing and look exactly like a clean answer.`;
+- a record that exists but cannot be reached: `A reader that treated this as "nothing recorded" would pass over a record it holds and look exactly like a clean answer.`;
 - a record that names no commit, with no `--since` to name one: `a selection measured from a guess would skip test files for lines nobody changed.`;
 - a file of runs kept beside the journal that cannot be read, when no `--diff` is handed in: `a selection that guessed would skip tests that should run.`
 

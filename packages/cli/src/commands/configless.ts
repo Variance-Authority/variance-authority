@@ -137,15 +137,18 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+      const [{ answerGaps, answerSays, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
         import('./covering-suites.js'),
         import('./evidence-gap.js'),
       ]);
       try {
         const answer = await coveringAnswer(parsed);
         streams.out(formatCoveringAnswer(answer, parsed.format, Date.now()));
-        // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
-        if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
+        // Under `refs` stdout is a list a runner takes, so whose record it read, and the run that closes a gap, go to the person, on stderr.
+        if (parsed.format === 'refs') {
+          for (const says of answerSays(answer)) streams.err(`${says}\n`);
+          for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
+        }
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.

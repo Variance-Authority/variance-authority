@@ -7,7 +7,8 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { reachOf, regionRecord } from '@variance-authority/sense/test-selection';
-import { covering } from './covering.js';
+import type { Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 import { indexOutput } from './index-command.js';
 
 function parse(argv: readonly string[]) {
@@ -59,7 +60,7 @@ describe('asking about a region only a mock evaluated', () => {
   it('reads it unwalked on the whole file, a line and a change alike', async () => {
     const { root, execution } = await checkout();
     await indexOutput({ cwd: root });
-    const asked = (...flags: string[]) => covering(parse([...flags, '--root', root, '--execution', execution]));
+    const asked = (...flags: string[]) => coveringAnswer(parse([...flags, '--root', root, '--execution', execution])) as Promise<Covering>;
     const [line, whole] = [await asked('--file', 'src/total.ts', '--line', '3'), await asked('--file', 'src/total.ts')];
     const range = whole.ranges?.find((one) => one.startLine === 3);
 

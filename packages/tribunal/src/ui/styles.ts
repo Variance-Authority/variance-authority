@@ -194,7 +194,6 @@ export const REVIEW_STYLES = `
 
 .va-stage { background: var(--va-bg); flex: 1; min-width: 0; }
 .va-subject { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
-.va-subject-head { align-items: center; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.35rem; }
 .va-verdict { border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 0.15rem 0.55rem; text-transform: uppercase; }
 .va-verdict.va-changed { background: var(--va-warn-bg); color: var(--va-warn-ink); }
 .va-verdict.va-new { background: var(--va-info-bg); color: var(--va-info-ink); }
@@ -216,6 +215,7 @@ export const REVIEW_STYLES = `
 .va-glance-none b { color: var(--va-ink-2); font-size: 1.05rem; }
 .va-glance-off { background: var(--va-warn-bg); border-radius: 4px; color: var(--va-warn-ink); margin-top: 0.15rem; padding: 0.05rem 0.35rem; width: fit-content; }
 .va-said { color: var(--va-ink-3); font-size: 0.78rem; margin: 0.1rem 0 0; max-width: 74ch; }
+.va-gaps { color: var(--va-ink-2); display: grid; font-size: 0.82rem; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }
 .va-intent { color: var(--va-ink-2); font-size: 0.88rem; }
 .va-subtitle { color: var(--va-ink-3); font-size: 0.88rem; margin-top: 0.2rem; }
 

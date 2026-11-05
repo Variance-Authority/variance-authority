@@ -34,11 +34,11 @@ record when it could; the other two read the primary checkout's.
 **The base of every reader, local or CI, is the record main's CI published to
 `refs/variance/mainline/main`, as of the last fetch on this machine. The
 primary checkout's record is read only when no mainline record was ever
-fetched here, and the reader says so.**
+fetched here, and a reader that asks `suiteBase` says so.**
 
 - **One order, one owner.** `suiteBase` answers: this checkout's own layer,
   else main's record, else the primary checkout's as the offline fallback.
-  `test:since` and `select` ask it. `review` and `coverage` do not choose
+  `test:since`, `select` and `covering` ask it. `review` and `coverage` do not choose
   between layers: `review` asks the mainline only for a commit, and `coverage`
   compares against the mainline by definition.
 - **The CLI fetches; the seams never do.** A fetch writes the record under
@@ -50,6 +50,19 @@ fetched here, and the reader says so.**
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
+- **A record fetched for one mainline is no record for another.** Only the CLI
+  can work out which mainline is selected. `covering`, `select`, `coverage`,
+  `review`, `run`, `distill` and `journeys` work it out and hand it to
+  `lastFetchedMainline`, which passes over a pointer for any other, and a
+  landing hands it to `prepareRecord` for the base it lays. `covering` and
+  `select` ask the share first and print the record they read. `coverage` and
+  `review` ask it only for the base they compare with, and name that base. What
+  they read otherwise, and what `run`, `distill` and `journeys` read, is fetched
+  by nothing and names no source. Everything that reads through sense has none
+  to hand in, so it takes what was fetched:
+  `variance ask` and the tools of `@variance-authority/mcp`, through
+  `recordedCases`, `recordedDurations`, `recordedPaths` and the journey readers;
+  `variance index`'s journey walk; and a runner seam.
 - **A fetched record stands until a nearer one can exist.** The best base is
   the record at `HEAD`'s merge base with the mainline. The line holds its
   newest record, and a share in git also keeps each mainline publish at its
@@ -59,9 +72,14 @@ fetched here, and the reader says so.**
   at the merge base first. On a green main every commit's job publishes its
   record, so until the merge base's has, the reader reads the newest kept behind
   it that holds the suite's record, whichever jobs published there, which
-  charges the change with no commit of main's it lacks. The commits between that
-  record and the merge base count as changed with the checkout's own, because
-  that record cannot say what they made a test load. The newest of the line
+  charges the change with no commit of main's it lacks. For a selection, the
+  commits between that record and the merge base count as changed with the
+  checkout's own, because that record cannot say what they made a test load: a
+  selection widens to stay safe. `covering --since` answers what the change
+  changed, so it reads the diff from the record's commit and keeps the hunks that
+  meet the diff from the merge base in the working tree. A path that commit held
+  no file by is not held, whatever git calls a rename, and the answer says so
+  rather than reading another name for it. The newest of the line
   answers only when nothing at or behind is kept, and a directory or an HTTP
   store keeps the newest only. In a git share the record stands without asking
   only when it is at the merge base, since nothing is nearer. Anywhere else the
@@ -69,7 +87,9 @@ fetched here, and the reader says so.**
   directory or an HTTP store has nothing nearer to offer, so its newest stands
   once asked at this merge base, and past the merge base. Every reader of a
   checkout, and every CI job handed the read root, has one merge base and reads
-  one record. A remote that does not answer leaves the record fetched earlier as
+  one record, except a `covering --text` question, which an editor asks on every
+  repaint: it takes the same order, fetches nothing, and keeps the record fetched
+  last. A remote that does not answer leaves the record fetched earlier as
   the base, and the reader names when it was fetched and why it was not fetched
   now. `variance share --suite <name>` always asks.
 - **A miss stands for ten minutes** (`MISS_STANDS_MS`). The line's answer that
@@ -145,6 +165,6 @@ fetched here, and the reader says so.**
   merge base, and with nothing kept behind it the walk reads the whole
   first-parent history. Neither is measured.
 - The publish job runs `vitest list` as well as the build.
-- A developer who never runs `variance share --suite <name>`, `test:since` or
-  `select` has never fetched, and their seams lay the primary checkout's
+- A developer who never runs `variance share --suite <name>`, `test:since`,
+  `select` or `covering` has never fetched, and their seams lay the primary checkout's
   record. They are told so each time.

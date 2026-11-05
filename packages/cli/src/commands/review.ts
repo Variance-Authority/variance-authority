@@ -35,7 +35,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { landingRecord, recordedSuite } from './suite-record.js';
+import { ownRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
@@ -254,7 +254,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const recorded = await recordedSuite(root, request.suite);
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
-  const own = await landingRecord(root, request.suite);
+  const own = await ownRecord(root, request.suite);
   // A runs record that cannot be read says neither where the change starts nor
   // which test files the runs wrote. A named base answers the first; the second
   // stays open, so no case is said to have moved, and the answer says why.
@@ -359,7 +359,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const beyond = await installDiff(point, [...changed.keys()], root);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
-    ? await motionAgainst(from, against, ref, root)
+    ? await motionAgainst(from, against, { since: ref, mergeBase: point.base }, root)
     : wrote === undefined || unread !== undefined
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);

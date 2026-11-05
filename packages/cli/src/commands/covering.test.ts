@@ -4,12 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { parseCoveringArgs } from '../covering-args.js';
+import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { covering, formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 import { indexOutput } from './index-command.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
@@ -77,6 +78,9 @@ async function unreadRecordFile(): Promise<string> {
   await writeFile(file, recordOfCases({ index: encodeExecutionIndex(INDEX) }));
   return file;
 }
+
+/** A `--since` question, which reaches a record with its change read. */
+const changeAnswer = (question: ParsedCovering) => coveringAnswer(question) as Promise<Covering>;
 
 function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
@@ -277,7 +281,7 @@ describe('asking which cases a change covered', () => {
     await edit(root, 'src/total.ts', 12);
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--execution', execution]));
 
     expect(answer.changed?.map((file) => file.file)).toEqual(['src/total.ts']);
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length]))
@@ -292,7 +296,7 @@ describe('asking which cases a change covered', () => {
     await edit(root, 'src/total.ts', 31);
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--execution', execution]));
 
     expect(formatCovering(answer, 'text', Date.now())).toContain('30-34 function round — 1 case, and it is the only witness');
   });
@@ -302,7 +306,7 @@ describe('asking which cases a change covered', () => {
     await edit(root, 'total.test.ts', 1);
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--execution', execution]));
 
     expect(answer.changed?.[0]?.cases.map((test) => test.id)).toEqual(['near']);
     expect(formatCovering(answer, 'text', Date.now())).toContain('a test file — 1 named case declared here');
@@ -311,13 +315,8 @@ describe('asking which cases a change covered', () => {
   it('refuses a ref with no change behind it rather than reporting a clean one', async () => {
     const { execution } = await checkout();
 
-    await expect(covering(parse(['--since', 'main', '--execution', execution])))
+    await expect(changeAnswer(parse(['--since', 'main', '--execution', execution])))
       .rejects.toThrow(/nothing has changed since/);
-  });
-
-  it('refuses a diff and a place together', () => {
-    expect(() => parse(['--since', 'main', '--file', 'src/total.ts'])).toThrow(OperatorError);
-    expect(() => parse(['--since', 'main', '--line', '3'])).toThrow(/alternatives/);
   });
 });
 
@@ -492,7 +491,7 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
     await writeFile(join(root, 'src/total.ts'), text.join('\n'));
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--root', root, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--root', root, '--execution', execution]));
 
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length, region.passengers?.map((test) => test.id)]))
       .toEqual([['line3', 0, ['near']]]);

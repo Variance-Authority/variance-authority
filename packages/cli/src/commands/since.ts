@@ -302,6 +302,7 @@ export async function indexPosition(
     // The position, and nothing else decoded to reach it: a snapshot of a
     // repository holds hundreds of thousands of regions and this asks it for
     // forty characters.
+    // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
     const commit = await selection.recordedCommit(await suiteRecord(repository, suite));
     if (commit === undefined) return undefined;
     const changed = (await changedFiles(run, repository, commit)).length;
