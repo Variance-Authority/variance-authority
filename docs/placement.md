@@ -354,6 +354,9 @@ Git ignores the root, on purpose here, since the cache holds it:
 .variance/
 ```
 
+Git keeps tracking a root you already committed, and every checkout then restores
+those files, so run `git rm -r --cached .variance` once.
+
 And the repository has the label:
 
 ```bash
@@ -403,9 +406,14 @@ jobs:
         with:
           config: variance.config.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          report-page: true # the report the comment links to, images included
           accept: ${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}
           to-accept: 'check the report, then add the **variance: accept** label to this pull request'
 ```
+
+`report-page` uploads the report as an artifact of the run, so a reviewer opens it
+from the comment before adding the label. The images are pixels of your product,
+and they stay for your artifact retention period.
 
 `accept` reads the event, not the label. A label stays on a pull request until
 somebody takes it off, so a job that asked whether the label is present would
