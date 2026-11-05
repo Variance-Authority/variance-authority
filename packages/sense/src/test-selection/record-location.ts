@@ -24,7 +24,7 @@ import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import type { IndexLock } from './index-lock.js';
-import { layFetchedMainline, lastFetchedMainline, type LastFetched, type SelectedMainline } from './mainline-layer.js';
+import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
 import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
 
@@ -36,8 +36,8 @@ export interface RecordLocationOptions {
   readonly suite?: string | undefined;
   /** The cache directory, when the caller already knows it. */
   readonly cacheRoot?: string | undefined;
-  /** The mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by. */
-  readonly selected?: SelectedMainline | undefined;
+  /** The name of the mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by. */
+  readonly selected?: string | undefined;
 }
 
 /**
@@ -176,7 +176,7 @@ export async function seedTestCoverage(
   root: string,
   instrumentation: string | undefined,
   cacheRoot?: string,
-  selected?: SelectedMainline,
+  selected?: string,
 ): Promise<Seeded | undefined> {
   const { file } = lock;
   const layers = repositoryLayers(root, cacheRoot);

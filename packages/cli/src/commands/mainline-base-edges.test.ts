@@ -105,7 +105,7 @@ describe('a line that gave no record a moment ago', () => {
     // Reachable again, and not asked: the note answers until the window closes.
     await reach(origin);
 
-    expect(await base(NOW + MISS_STANDS_MS - 1)).toEqual({ suite: 'unit', mainline: 'main', miss: missed.miss, asked: at(NOW), selected: { mainline: 'main' } });
+    expect(await base(NOW + MISS_STANDS_MS - 1)).toEqual({ suite: 'unit', mainline: 'main', miss: missed.miss, asked: at(NOW) });
     expect(await base(NOW + MISS_STANDS_MS)).toMatchObject({ commit: first, fetched: at(NOW + MISS_STANDS_MS) });
     expect(existsSync(join(readRoot, 'missed.json'))).toBe(false);
   });

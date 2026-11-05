@@ -56,9 +56,9 @@ describe('whose record answers a worktree', () => {
     expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
 
     // A reader that worked the selection out judges by it; one that found none, or never asked, takes what was fetched.
-    expect(nearestRecord(worktree, { ...asked, selected: { mainline: 'main' } })).toEqual({ file: mainline, origin: 'mainline' });
-    expect(nearestRecord(worktree, { ...asked, selected: { mainline: 'release' } })).toEqual({ file: below, origin: 'primary' });
-    expect(nearestRecord(worktree, { ...asked, selected: {} })).toEqual({ file: mainline, origin: 'mainline' });
+    expect(nearestRecord(worktree, { ...asked, selected: 'main' })).toEqual({ file: mainline, origin: 'mainline' });
+    expect(nearestRecord(worktree, { ...asked, selected: 'release' })).toEqual({ file: below, origin: 'primary' });
+    expect(nearestRecord(worktree, { ...asked, selected: undefined })).toEqual({ file: mainline, origin: 'mainline' });
 
     await hold(own);
     expect(nearestRecord(worktree, asked)).toEqual({ file: own, origin: 'own' });

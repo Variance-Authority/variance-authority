@@ -51,10 +51,14 @@ fetched here, and the reader says so.**
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
 - **A record fetched for one mainline is no record for another.** Only the CLI
-  can work out which mainline is selected. A reader that works it out hands it to
+  can work out which mainline is selected. `covering`, `select`, `coverage`,
+  `review`, `run`, `distill` and `journeys` work it out and hand it to
   `lastFetchedMainline`, which passes over a pointer for any other, and a
-  landing hands it to `prepareRecord` for the base it lays. A seam or a tool
-  with no command line has none to hand in, so it takes what was fetched.
+  landing hands it to `prepareRecord` for the base it lays. Everything that
+  reads through sense has none to hand in, so it takes what was fetched:
+  `variance ask` and the tools of `@variance-authority/mcp`, through
+  `recordedCases`, `recordedDurations`, `recordedPaths` and the journey readers;
+  `variance index`'s journey walk; and a runner seam.
 - **A fetched record stands until a nearer one can exist.** The best base is
   the record at `HEAD`'s merge base with the mainline. The line holds its
   newest record, and a share in git also keeps each mainline publish at its

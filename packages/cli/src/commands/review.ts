@@ -359,7 +359,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const beyond = await installDiff(point, [...changed.keys()], root);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
-    ? await motionAgainst(from, against, ref, root)
+    ? await motionAgainst(from, against, { since: ref, mergeBase: point.base }, root)
     : wrote === undefined || unread !== undefined
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);

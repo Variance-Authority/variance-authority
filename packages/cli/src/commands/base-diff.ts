@@ -82,17 +82,19 @@ export async function diffFromBase(
  * Where `since` and `HEAD` part, and the files the base's branch changed
  * between the base's commit and there, named the way the run names files.
  * Refused with git's answer when git cannot say: without it, the base
- * branch's own motion would be read as this change's.
+ * branch's own motion would be read as this change's. A caller that already
+ * asked hands in `parted`, and git is not asked again.
  */
 export async function movedOnBase(
   at: string,
   since: string,
   root: string,
+  parted?: string,
 ): Promise<{ readonly mergeBase: string; readonly files: readonly string[] }> {
   const run = promisify(execFile);
   try {
     const top = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
-    const mergeBase = (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
+    const mergeBase = parted ?? (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
     if (at === mergeBase) return { mergeBase, files: [] };
     return { mergeBase, files: await filesBetween(at, mergeBase, root, top) };
   } catch (error) {

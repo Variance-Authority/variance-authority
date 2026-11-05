@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, rename, rm } from 'node:fs/promises';
-import type { CommitRuns, SelectedMainline, TestCoverageView } from '@variance-authority/sense/test-selection';
+import type { CommitRuns, TestCoverageView } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -82,7 +82,7 @@ async function landCombined(
   shards: readonly string[],
   at: string,
   combinedAt: string,
-  selected: SelectedMainline | undefined,
+  selected: string | undefined,
 ): Promise<LandedJourneys> {
   let combined;
   try {

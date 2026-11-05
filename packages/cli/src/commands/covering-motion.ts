@@ -13,7 +13,7 @@
 
 import { anyStopped, caseMotion, caseSectionsAt, decodeExecutionIndex, lastCaseRunOf, recordedCommit, whatLanded, type CaseMotion, type CommitRuns, type ExecutionIndex, type ExecutionTest, type LastCaseRun, type MovedRegion } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import type { ParsedCovering } from '../covering-args.js';
+import type { CoveringQuestion } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
 import { carriedOver, diffFromBase, movedOnBase, unnamedCommit } from './base-diff.js';
@@ -127,14 +127,14 @@ export async function runsWrote(from: string, runs: Pick<CommitRuns, 'commit' | 
 
 /** The motion a request asks for: against `--against`, or under `--cases last` against the run before. */
 export async function motionFor(
-  request: ParsedCovering,
+  request: CoveringQuestion,
   from: string,
   scope: CoveringScope | undefined,
   full: ExecutionIndex | undefined,
   runs: RunsRead = runsOnce(from, request.root),
 ): Promise<CoveringMotion | undefined> {
   if (request.since !== undefined && request.against !== undefined) {
-    return motionAgainst(from, request.against, request.since, request.root, runs);
+    return motionAgainst(from, request.against, { since: request.since, mergeBase: request.listed.base }, request.root, runs);
   }
   if (scope?.cases !== 'last' || full === undefined) return undefined;
   return motionOfLast(full, from, scope.tests, request.root, request.file, undefined, runs);
@@ -262,7 +262,7 @@ export async function motionOfRuns(
 export async function motionAgainst(
   from: string,
   against: string,
-  since: string,
+  parted: { readonly since: string; readonly mergeBase: string },
   root: string,
   runs: RunsRead = runsOnce(from, root),
 ): Promise<CoveringMotion> {
@@ -278,7 +278,7 @@ export async function motionAgainst(
   }
   const now = await readExecutionIndex(from);
   const { commit, diff, repository } = await diffFromBase(await baseCommit(against), root, { name: `The base \`${against}\`` });
-  const parting = await movedOnBase(commit, since, root);
+  const parting = await movedOnBase(commit, parted.since, root, parted.mergeBase);
   const base: MotionBase = { from: against, kind: 'record', at: commit, mergeBase: parting.mergeBase, leftOut: parting.files };
   const exclude = new Set(parting.files);
   return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), repository), exclude, diff }) };

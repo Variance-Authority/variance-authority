@@ -1,6 +1,6 @@
 // compass: variance-authority.reach
 
-import type { DeclaredSuite, Precision, SelectedMainline, Unmeasured } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
 import { onlySuite, selectedMainline, selectedRecord } from './mainline-selected.js';
@@ -62,18 +62,25 @@ export async function ownRecord(root: string, suite?: string): Promise<string> {
 /**
  * Where a command that writes the record lands it, and the mainline selected,
  * which judges the base a first landing lays: {@link ownRecord}, or `into`. A
- * target `into` names outside the cache lays no base and reads no config, so a
- * config that does not read refuses nothing here; a target inside it is refused
- * where the base is laid.
+ * target `into` names outside the cache lays no base and asks no suite or
+ * selection; one inside it is that suite's record, judged as the suite's is.
  */
 export async function landingRecord(
   root: string,
   suite?: string,
   into?: string,
-): Promise<{ readonly file: string; readonly selected: SelectedMainline | undefined }> {
-  if (into !== undefined) return { file: into, selected: await selectedMainline(root, suite).catch(() => undefined) };
-  const file = await ownRecord(root, suite);
-  return { file, selected: await selectedMainline(root, suite) };
+): Promise<{ readonly file: string; readonly selected: string | undefined }> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  if (into !== undefined) {
+    const inside = selection.cachedRecord(into, root);
+    if (inside === undefined) return { file: into, selected: undefined };
+    const whose = asOperator(() => selection.declaredSuites(root))
+      ?.find((one) => selection.cachedRecord(selection.testCoverageFile(root, { suite: one.name }), root) === inside);
+    return { file: into, selected: await selectedMainline(root, whose) };
+  }
+  const { name, declared } = await namedSuite(root, suite);
+  const file = asOperator(() => selection.testCoverageFile(root, { suite: name }));
+  return { file, selected: await selectedMainline(root, declared) };
 }
 
 /**
@@ -109,7 +116,7 @@ export async function selectingRecord(
 export async function recordedSuite(root: string, suite?: string): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
   const { name, declared } = await namedSuite(root, suite);
   try {
-    const file = await selectedRecord(root, name);
+    const file = await selectedRecord(root, name, declared);
     return declared === undefined ? { file } : { file, declared };
   } catch (error) {
     if (error instanceof OperatorError) throw error;

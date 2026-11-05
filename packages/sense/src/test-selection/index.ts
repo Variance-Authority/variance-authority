@@ -114,12 +114,13 @@ export {
   mainlineReadRoot,
   readFetchedMainline,
   writeFetchedMainline,
-  type FetchedMainline, type LastFetched, type SelectedMainline,
+  type FetchedMainline, type LastFetched,
 } from './mainline-layer.js';
 export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.js';
 export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 export { prepareRecord } from './replaced-record.js';
 export {
+  cachedRecord,
   type PassedOver,
   readableTestCoverage,
   recordFileFor,

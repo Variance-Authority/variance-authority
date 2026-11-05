@@ -27,6 +27,7 @@
 import { INSTRUMENTATION_ID, instrumentModeOf } from '@variance-authority/sense/instrument';
 import type { ExecutionBlock } from '@variance-authority/sense/test-selection';
 import { selectedMainline } from './mainline-selected.js';
+import { namedSuite } from './suite-record.js';
 
 /** A record cut under probes this build does not place. */
 export interface ProbesGap {
@@ -57,7 +58,8 @@ export async function probesGap(record: string, root: string, suite?: string): P
   if (under === undefined || instrumentModeOf(under) !== undefined) return undefined;
   let fetched: ReturnType<typeof selection.lastFetchedMainline>;
   try {
-    fetched = selection.lastFetchedMainline(root, suite, undefined, await selectedMainline(root, suite));
+    const { name, declared } = await namedSuite(root, suite);
+    fetched = selection.lastFetchedMainline(root, name, undefined, await selectedMainline(root, declared));
   } catch {
     fetched = undefined;
   }

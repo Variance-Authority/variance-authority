@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,7 @@ import { recordedPaths } from '@variance-authority/sense';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import {
   cacheRootFor,
+  declaredSuites,
   type FetchedMainline,
   lastFetchedMainline,
   mainlineReadRoot,
@@ -18,6 +19,7 @@ import {
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.fixture.js';
+import { readerMainline } from '../share-lines.js';
 import { landSuite } from './journeys-command.js';
 import { landJourneys } from './land.js';
 import { cloneOf, git, published, ranWhole } from './mainline-fixture.js';
@@ -27,6 +29,15 @@ import { recordedSuite } from './suite-record.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
 vi.mock('ci-info', () => ({ isCI: false }));
+// Spied, not replaced: whether a read worked a selection out, and how often it read the declaration, is what is under test.
+vi.mock('../share-lines.js', async (original) => {
+  const actual = await original<typeof import('../share-lines.js')>();
+  return { ...actual, readerMainline: vi.fn(actual.readerMainline) };
+});
+vi.mock('@variance-authority/sense/test-selection', async (original) => {
+  const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
+  return { ...actual, declaredSuites: vi.fn(actual.declaredSuites) };
+});
 
 /**
  * A pointer left by a fetch for `release`, in a clone whose mainline is `main`
@@ -50,16 +61,25 @@ afterEach(async () => {
 });
 
 /** The clone, with `release`'s record fetched into its cache, and this checkout's own path still empty. */
-async function fetchedForRelease() {
+async function fetchedForRelease(declares?: Readonly<Record<string, unknown>>) {
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   const { dir, origin, first } = await published(home, { publish: false });
   const recorded = testCoverageFile(dir, { suite: 'unit' });
   await ranWhole(recorded, first);
   const clone = await cloneOf(home, origin);
+  // Before anything reads it: a process reads the root config once.
+  if (declares !== undefined) await alsoDeclares(clone, declares);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
   const kept = await fetchedInto(clone, recorded, { mainline: 'release', commit: first, fetched: new Date().toISOString() });
   process.chdir(clone);
   return { clone, first, kept, recorded, own: testCoverageFile(clone, { suite: 'unit' }) };
+}
+
+/** `checkout`'s root config, with `suites` beside the ones it declares. */
+async function alsoDeclares(checkout: string, suites: Readonly<Record<string, unknown>>): Promise<void> {
+  const config = join(checkout, 'variance.config.json');
+  const held = JSON.parse(await readFile(config, 'utf8')) as { suites: Record<string, unknown> };
+  await writeFile(config, JSON.stringify({ ...held, suites: { ...held.suites, ...suites } }));
 }
 
 /** Keep `recorded` in `checkout`'s cache, as a fetch of `pointer` would, and say where. */
@@ -118,9 +138,12 @@ describe('a first run', () => {
     expect((await readOwnLayer(own))?.pinned).toBeUndefined();
   });
 
-  it('lands `--into` a file outside the cache whatever the root config says, which it never reads', async () => {
-    const { clone, first } = await fetchedForRelease();
-    await writeFile(join(clone, 'variance.config.json'), 'not json');
+  it('lands `--into` a file outside the cache whatever suites the root config declares, which it never reads', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    const { origin, first } = await published(home, { publish: false });
+    const clone = await cloneOf(home, origin);
+    await writeFile(join(clone, 'variance.config.json'), JSON.stringify({ suites: 'not suites' }));
+    process.chdir(clone);
     const into = join(home, 'elsewhere.bin');
 
     await landJourneys(clone, [await shardAt(first)], into);
@@ -128,10 +151,34 @@ describe('a first run', () => {
     expect(existsSync(into)).toBe(true);
   });
 
+  it('lays nothing of it through a landing `into` one of several suites\' records, whichever none named', async () => {
+    const { clone, first, own } = await fetchedForRelease({ stories: { kind: 'visual' } });
+
+    await landJourneys(clone, [await shardAt(first)], own);
+
+    expect((await readOwnLayer(own))?.pinned).toBeUndefined();
+  });
+
+  it('refuses a landing `into` this checkout\'s own record when the selection fails, rather than lay what was fetched', async () => {
+    const { clone, first, own } = await fetchedForRelease();
+    vi.mocked(readerMainline).mockRejectedValueOnce(new Error('the selection failed'));
+
+    await expect(landJourneys(clone, [await shardAt(first)], own)).rejects.toThrow('the selection failed');
+  });
+
+  it('asks no selection of a landing `into` a file outside the cache', async () => {
+    const { clone, first } = await fetchedForRelease();
+    vi.mocked(readerMainline).mockClear();
+
+    await landJourneys(clone, [await shardAt(first)], join(home, 'elsewhere.bin'));
+
+    expect(vi.mocked(readerMainline)).not.toHaveBeenCalled();
+  });
+
   it('lays nothing of it for a caller that hands in the selection', async () => {
     const { clone, own } = await fetchedForRelease();
 
-    await withIndexLock(own, (lock) => prepareRecord(lock, clone, 'fixture', { selected: { mainline: 'main' } }));
+    await withIndexLock(own, (lock) => prepareRecord(lock, clone, 'fixture', { selected: 'main' }));
 
     expect(existsSync(own)).toBe(false);
   });
@@ -171,6 +218,27 @@ describe('a read that fetches nothing', () => {
     expect(file).toBe(own);
   });
 
+  it('reads the declaration once to judge by it', async () => {
+    const { clone } = await fetchedForRelease();
+    vi.mocked(declaredSuites).mockClear();
+
+    await recordedSuite(clone, 'unit');
+
+    expect(vi.mocked(declaredSuites)).toHaveBeenCalledTimes(1);
+  });
+
+  it('works no selection out for a suite this checkout holds a record of, which nothing fetched can answer', async () => {
+    const { clone, recorded, own } = await fetchedForRelease();
+    await mkdir(dirname(own), { recursive: true });
+    await copyFile(recorded, own);
+    vi.mocked(readerMainline).mockClear();
+
+    const { file } = await recordedSuite(clone, 'unit');
+
+    expect(file).toBe(own);
+    expect(vi.mocked(readerMainline)).not.toHaveBeenCalled();
+  });
+
   it('is not answered by it through `variance coverage`', async () => {
     const { clone } = await fetchedForRelease();
 
@@ -187,6 +255,15 @@ describe('a read that fetches nothing', () => {
     expect(answer.out + answer.err).not.toContain('test/total.test.ts');
   });
 
+  it('is not read for `--hops` under `--execution`, which names no suite and is refused one', async () => {
+    const { recorded } = await fetchedForRelease();
+
+    const hops = await ask(['covering', '--execution', recorded, '--file', 'src/total.ts', '--line', '1', '--hops']);
+
+    expect(hops.err).toContain('ask with `--suite <name>` instead');
+    expect((await ask(['covering', '--execution', recorded, '--suite', 'unit', '--file', 'src/total.ts'])).err).toContain('both name the record');
+  });
+
   it('is not offered as the record that would close a probes gap', async () => {
     const { clone, kept } = await fetchedForRelease();
     await writeTestCoverage(kept, { version: 3, instrumentation: PROBES, tests: [], modules: [] });
@@ -199,7 +276,7 @@ describe('a read that fetches nothing', () => {
     expect(gap).not.toHaveProperty('current');
   });
 
-  it('is read by a process with no command line, which has no selection to judge it by, whatever a reader here worked out', async () => {
+  it('is read by what `variance ask` runs, which reads through sense and has no selection, whatever a reader here worked out', async () => {
     const { clone } = await fetchedForRelease();
     const unjudged = recordedPaths(clone);
     expect(unjudged.length).toBeGreaterThan(0);

@@ -16,6 +16,7 @@ import { covering, formatCovering, type Covering } from './covering.js';
 import { coveringAnswer } from './covering-suites.js';
 import { motionOfLast, motionOfRuns, motionText, runsWrote } from './covering-motion.js';
 import { indexOutput } from './index-command.js';
+import { gitStarted } from './mainline-fixture.js';
 
 const DISCOUNTS = { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts', stopped: false };
 const CHECKS_OUT = { id: 'flow.test.tsx > checks out', file: 'flow.test.tsx', name: 'checks out', stopped: false };
@@ -311,6 +312,17 @@ describe('what a change moved against the base', () => {
     expect(answer.motion?.moved?.counts).toEqual({ lost: 1, hidden: 0, thinned: 0, gained: 0 });
     expect(formatCovering(answer, 'text', Date.now())).toContain(`Against ${against} at ${first.slice(0, 12)}: 1 lost`);
     expect(JSON.parse(formatCovering(answer, 'json', Date.now())).motion.moved.regions[0].name).toBe('round');
+  });
+
+  it('asks git once where the change parted from `--since`, for the change listed and the base compared', async () => {
+    const { root, first } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
+
+    const started = await gitStarted(root, () => changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution])));
+
+    expect(started.filter(([command, ref]) => command === 'merge-base' && ref === 'main')).toHaveLength(1);
   });
 
   it('names the moved regions\' cases by the numbers of the refs table, and each case once', async () => {
