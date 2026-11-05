@@ -184,6 +184,22 @@ describe('a run stands on the record one job read', () => {
     expect((answer as MainlineMissed).miss).toMatchObject({ detail: expect.stringContaining(first) });
   });
 
+  it('asks no line when the answer of a handed miss is lost', async () => {
+    const { ci, origin } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await writeFile(join(plan, 'variance.config.json'), JSON.stringify({
+      suites: { unit: { kind: 'unit', carry: 'share' } },
+      share: { kind: 'http', endpoint: 'https://share.invalid', mainlines: ['main'], token: { env: 'SHARE_TOKEN_NOT_SET' } },
+    }));
+    await handBase(plan, handed, { env: LOCAL });
+    const shard = await job(origin, 'shard');
+    await receiveBase(shard, handed);
+    await moved(ci);
+    await rm(join(mainlineReadRoot(cacheRootFor(shard), 'unit'), 'missed.json'));
+
+    expect(await read(shard)).toMatchObject({ miss: { kind: 'unreadable' } });
+  });
+
   it('asks no line for a reader that selects another mainline than the run read', async () => {
     const { ci, origin, first } = await gitPublished(home);
     const plan = await job(origin, 'plan');
@@ -323,7 +339,11 @@ describe('a job refuses to read the line on its own', () => {
 
     const shard = await job(origin, 'shard');
 
+    await ownRecordIn(shard);
+    const own = testCoverageFile(shard, { suite: 'unit' });
+
     expect(await refusal(receiveBase(shard, handed))).toContain('unit');
+    expect(existsSync(own)).toBe(true);
   });
 
   it('when the handed record is not there', async () => {

@@ -3410,6 +3410,7 @@
         "lineGrain": "function",
         "lostText": "function",
         "machineOwners": "function",
+        "mainlineHanded": "function",
         "mainlineReadRoot": "function",
         "marksLoadTime": "function",
         "mib": "function",

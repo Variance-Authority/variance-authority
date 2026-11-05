@@ -172,6 +172,9 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
       const miss: MainlineMiss = { kind: 'unreadable', detail: `the record this run handed on, ${lost.mainline}'s at ${lost.commit}, is gone, does not read, or is not the mainline this reader selects` };
       return { suite, mainline: lost.mainline, miss };
     }
+    if (selection.mainlineHanded(root, suite, cacheRoot)) {
+      return { suite, miss: { kind: 'unreadable', detail: "the line's answer this run handed on is gone" } };
+    }
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);

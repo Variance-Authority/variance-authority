@@ -114,8 +114,8 @@ async function handedSuites(dir: string): Promise<readonly string[]> {
  * Lay the read in `dir` under this checkout's cache, as if this job had made
  * it: every reader here answers with it and asks the line no more, whether it
  * is a record or the line's answer that it gave none. A record of this checkout's
- * own goes, since a reader would take it first. A record a reader would
- * pass over refuses here, because passing over it is asking the line.
+ * own goes once the read stands, since a reader would take it first. A record a
+ * reader would pass over refuses here, because passing over it is asking the line.
  */
 export async function receiveBase(root: string, dir: string): Promise<BaseReceived> {
   const suites = await handedSuites(dir);
@@ -130,8 +130,6 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
     }
     const readRoot = mainlineReadRoot(cacheRoot, suite);
     await rm(readRoot, { recursive: true, force: true });
-    // A record a run left on this runner comes before any read, so it would stand instead of this one.
-    await rm(dirname(testCoverageFile(root, { suite })), { recursive: true, force: true });
     await cp(from, readRoot, { recursive: true });
     if (pointer !== undefined) {
       await writeFetchedMainline(cacheRoot, suite, { ...pointer, handed: true });
@@ -148,6 +146,9 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
       lines.push(`${suite} stands on ${missed.mainline === undefined ? 'no mainline' : `mainline ${missed.mainline}`}'s answer of ${missed.miss.kind}, as this run read it.`);
     }
   }
+  // A record a run left on this runner comes before any read, so it would stand
+  // instead of this one. It goes last: a read that refused takes nothing with it.
+  for (const suite of suites) await rm(dirname(testCoverageFile(root, { suite })), { recursive: true, force: true });
   if (suites.length === 0) lines.push('this run asked no line, so there is no read to stand on.');
   return { suites, lines };
 }
