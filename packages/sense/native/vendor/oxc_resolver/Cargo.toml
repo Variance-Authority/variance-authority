@@ -13,9 +13,7 @@
 # Vendored from crates.io oxc_resolver 11.24.3 by `packages/sense/native/Cargo.toml`'s
 # `[patch.crates-io]`; the only change is in `src/tsconfig.rs` and
 # `src/cache/cache_impl.rs` (a shared `paths` map), and the upstream tests,
-# which need fixtures the published crate does not ship, are left out. It keeps
-# `compact_str` 0.9, `pnp` 0.12.10 and `simd-json` 0.17.0 where upstream asks for
-# 0.10, 0.12.12 and 0.18.0.
+# which need fixtures the published crate does not ship, are left out.
 edition = "2024"
 rust-version = "1.95.0"
 name = "oxc_resolver"
@@ -57,7 +55,7 @@ name = "oxc_resolver"
 path = "src/lib.rs"
 
 [dependencies.compact_str]
-version = "0.9"
+version = "0.10"
 
 [dependencies.dashmap]
 version = "6.2.1"
@@ -90,7 +88,7 @@ version = "1"
 version = "2"
 
 [dependencies.pnp]
-version = "0.12.10"
+version = "0.12.12"
 optional = true
 
 [dependencies.rustc-hash]
@@ -121,7 +119,7 @@ features = ["fs"]
 version = "1"
 
 [target.'cfg(target_endian = "little")'.dependencies.simd-json]
-version = "0.17.0"
+version = "0.18.0"
 features = ["runtime-detection"]
 default-features = false
 
