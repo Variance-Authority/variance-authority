@@ -72,6 +72,12 @@ export function boundSymbol(named: readonly SourceSymbol[], line: number): Sourc
   return named.find((symbol) => symbol.line === line) ?? named[0];
 }
 
+function symbolsByName(symbols: readonly SourceSymbol[]): Map<string, SourceSymbol[]> {
+  const named = new Map<string, SourceSymbol[]>();
+  for (const symbol of symbols) named.set(symbol.name, [...(named.get(symbol.name) ?? []), symbol]);
+  return named;
+}
+
 function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): Declaration {
   return declaration(at, symbol.line, symbol.kind, text, symbol.signature, symbol.doc);
 }
@@ -174,7 +180,7 @@ export async function indexedNames(
       reached.set(file, found);
       return found;
     }
-    const local = Map.groupBy(source.parsed.symbols ?? [], (symbol) => symbol.name);
+    const local = symbolsByName(source.parsed.symbols ?? []);
 
     for (const published of source.parsed.exports ?? []) {
       const specifier = published.from;

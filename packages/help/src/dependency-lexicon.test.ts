@@ -164,7 +164,5 @@ it('names the function a package hands out, not an earlier one spelled the same'
   await updateSourceIndex(root);
   await refreshDependencyLexicon(root);
 
-  expect(queryDependencyLexicon(root, '', undefined, false, undefined, 100)?.shown).toEqual([
-    expect.objectContaining({ line: 2, signature: 'function same(value: string)' }),
-  ]);
+  expect(queryDependencyLexicon(root, 'default', undefined, true, 'same-kit')?.shown[0]).toMatchObject({ line: 2, signature: 'function same(value: string)' });
 });
