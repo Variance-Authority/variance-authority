@@ -340,7 +340,8 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find names whose name or documentation contains a string, case-insensitive, or whose words ' +
+    'Find candidate names, not every match; `git grep -i <word>` prints every tracked line that writes a word. ' +
+    'A name matches when its name or documentation contains a string, case-insensitive, or when its words ' +
     'start with or share the stem of every word you typed. Published names come first, a name holding ' +
     'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
     'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +

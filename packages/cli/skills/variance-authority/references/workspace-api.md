@@ -444,6 +444,13 @@ file as it is now.
 
 ### `search`
 
+**A list contains candidates, not every match.** Each list is capped and prints
+how many rows it did not show. Once any name matches, looser matches and members
+and functions inside a function that only contain your words are left out without
+a count. `git grep -i <word>` prints every tracked line that writes the word, and
+`discover --declares <regex> --limit <n>` lists every top-level name past a cap,
+exported or not, by its name alone.
+
 **A published line is `<specifier> · <name> [kind] …`, and the two halves go to
 different arguments.** `symbol` takes the **name**, the word after the `·`. The
 specifier before it is the import line you will write, and it goes to
@@ -608,5 +615,6 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search`, `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
-  list with no such line is the whole list.
+- `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
+  list with no such line is the whole list. `search` caps and counts the same way, but a list with no
+  such line can still leave out matches, as [`search`](#search) says.
