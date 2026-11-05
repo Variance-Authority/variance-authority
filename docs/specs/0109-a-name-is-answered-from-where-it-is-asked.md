@@ -104,10 +104,12 @@ confirmed by the resolver, never read from where a candidate sits:
 
 Every member manifest offers doors, a `private` one too: private means unpublished,
 and a workspace imports its private packages, so the offerings that skip them are
-not the reader here. A `./*` entry is filled with the candidate's path. `resolveTo`
-from the asked file then says whether each offered specifier lands on the
-candidate's file, so conditions and patterns keep one reader and nothing here
-parses `exports` a second time.
+not the reader here. A pattern entry offers the specifier its target maps back from the candidate's
+file: `"./*": "./src/*.ts"` offers `pkg/config` for `src/config.ts`. `resolveTo`
+from the asked file then says where each offered specifier lands, so conditions
+and patterns keep one reader. It opens the door when it lands on the candidate's
+file, or on an entry that exports the candidate, followed through re-exports as the
+published declarations already are.
 
 A package whose `exports` does not open the file offers no door, so the candidate
 keeps its block with no import line and says so: a folder away is not importable.
@@ -305,7 +307,8 @@ wrong imports, and this spec does not make one.
 1. The fixture: two packages over one kit, a wrapper in each, one of them over an
    aliased import, a same-named declaration that does not use the name it imports,
    a forbidden neighbour, a package whose `exports` closes the file, a `private`
-   package with an entry, a `./*` entry, a declaration
+   package with an entry, a `./*` entry whose target adds a folder and an extension, an entry that re-exports
+   the candidate, a declaration
    with an allowed and a restricted door, a deprecated primitive, a file the wrapper
    is built on, and a file nothing imports yet. A test per key, per door rule and per
    declaration, failing on today's order, and one asking from two paths.
