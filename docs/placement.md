@@ -313,7 +313,7 @@ With `tick-to-accept` on, the comment also carries a box, and ticking it does wh
 the label does, without leaving the comment. Only a reviewer with write access
 counts, and the accepting run's log names them. The box belongs to the head it was
 written for, so a push brings a new one. The
-[action's README](../.github/actions/variance/README.md#accepting-with-a-tick)
+[action's README](https://github.com/Variance-Authority/action#accepting-with-a-tick)
 has the workflow it needs.
 
 Merging is the second accept. Every push to `main` accepts what `main` renders,

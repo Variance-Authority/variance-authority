@@ -2,24 +2,12 @@
 //
 // A tick in the docket accepts, in the name of whoever ticked it.
 //
-// A tick reaches the repository as `issue_comment`, which runs on the default
-// branch: outside the pull request's cache scope, and on no check of its head.
-// So the job it starts accepts nothing. It decides whether the tick counts, and
-// hands over: `answer` replaces the box with a record of who ticked it, then
-// reruns the job that wrote the box. That job is the pull request's own run,
-// replayed with no inputs, so the record is the one thing that reaches it, and
-// `read` finds it there and tells the action to accept.
-//
-// **Why a comment can carry this.** Only somebody with write access can edit a
-// comment a bot wrote, and GitHub keeps who did in the comment's edit history.
-// The permission is still asked by API, because a comment's author type is all
-// the rest of the event proves. A record counts only in a comment a bot wrote,
-// only for the head it names, and only for the run and attempt that rerun was
-// asked of, so re-running a job by hand accepts nothing.
-//
-// **A rerun is refused while its run goes**, so `answer` waits for the run to
-// finish, and checks the head and the box again when it has: both may have moved
-// in that wait. The job's `timeout-minutes` bounds it.
+// A tick arrives as `issue_comment`, on the default branch: outside the pull
+// request's cache scope, and on no check of its head. So the job it starts
+// accepts nothing. `answer` decides whether the tick counts, replaces the box
+// with a record of who ticked it, and reruns the job that wrote the box. A rerun
+// replays its event with no inputs, so the record is the one thing that reaches
+// it, and `read` finds it there and tells the action to accept.
 //
 // A tick that does not count is logged and writes nothing. No SDK and no
 // dependency, for the reason `post-comment.mjs` gives.
@@ -79,7 +67,13 @@ async function github(path, options = {}) {
 
 const event = () => JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 
-/** Why this event is not a person ticking the box of a bot's comment, if it is not. */
+/**
+ * Why this event is not a person ticking the box of a bot's comment, if it is not.
+ *
+ * Only somebody with write access can edit a bot's comment, and GitHub keeps who
+ * did in its edit history, but `answer` still asks the API: the author's type is
+ * all this event proves.
+ */
 function notATick({ action, changes, comment, issue, sender }) {
   if (action !== 'edited' || !issue?.pull_request) return 'not an edit on a pull request';
   if (comment?.user?.type !== 'Bot') return 'not a comment a bot wrote';
@@ -110,6 +104,8 @@ async function answer() {
   const { permission } = await github(`collaborators/${by}/permission`);
   if (!WRITERS.has(permission)) return note(`@${by} has ${permission} access, not write; nothing accepted.`);
 
+  // A rerun is refused while its run goes, and the head and the box may both
+  // move in this wait. The job's `timeout-minutes` bounds it.
   const { run_id: run } = await github(`actions/jobs/${job}`);
   let state = await github(`actions/runs/${run}`);
   while (state.status !== 'completed') {
@@ -134,7 +130,11 @@ async function answer() {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `variance: ${said}\n`);
 }
 
-/** Who ticked for the attempt before this one, in the comment carrying `marker`. */
+/**
+ * Who ticked for the attempt before this one, in the comment carrying `marker`.
+ *
+ * Only that attempt's record counts, so re-running a job by hand accepts nothing.
+ */
 async function tickedBy(number, head, marker) {
   const run = process.env.GITHUB_RUN_ID;
   const attempt = String(Number(process.env.GITHUB_RUN_ATTEMPT) - 1);
