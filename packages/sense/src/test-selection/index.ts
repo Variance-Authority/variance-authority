@@ -111,7 +111,7 @@ export {
   FETCHED_MAINLINE,
   lastFetchedMainline,
   layFetchedMainline,
-  mainlineReadRoot,
+  mainlineHanded, mainlineReadRoot,
   readFetchedMainline,
   writeFetchedMainline,
   type FetchedMainline, type LastFetched,

@@ -24,7 +24,7 @@ import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import type { IndexLock } from './index-lock.js';
-import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
+import { layFetchedMainline, lastFetchedMainline, mainlineHanded, type LastFetched } from './mainline-layer.js';
 import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
 
@@ -198,7 +198,7 @@ export async function seedTestCoverage(
   }
   const passed = mainline === undefined ? undefined : ([mainline] as const);
   const nothing = (): Seeded | undefined => (passed === undefined ? undefined : { from: 'nothing', passed });
-  if (layers.top === layers.base) return nothing();
+  if (layers.top === layers.base || mainlineHanded(root, shared, cacheRoot)) return nothing();
   let snapshot: TestCoverageView | undefined;
   let primary: PassedOver | undefined;
   // The cases come in the record, and the run folds into whatever it finds
@@ -448,7 +448,7 @@ export function nearestRecord(
   const suite = cachedSuite(inside);
   const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot, options.selected);
   if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
-  for (const file of under) if (present(file)) return { file, origin: 'primary' };
+  if (!mainlineHanded(root, suite, options.cacheRoot)) for (const file of under) if (present(file)) return { file, origin: 'primary' };
   return { file: own!, origin: 'own' };
 }
 

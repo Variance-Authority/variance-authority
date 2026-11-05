@@ -46,6 +46,8 @@ export interface FetchedMainline {
   readonly fetched: string;
   /** `HEAD`'s merge base with the mainline when the line was asked; absent when the clone named none. */
   readonly base?: string;
+  /** Another job of this run read it and handed it on: the run's answer, which no reader in it asks the line past. */
+  readonly handed?: true;
 }
 
 /** The mainline's record of one suite, as the last fetch on this machine kept it. */
@@ -84,8 +86,8 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
-    const { mainline, commit, fetched, base } = value;
-    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}) };
+    const { mainline, commit, fetched, base, handed } = value;
+    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}), ...(handed === true ? { handed } : {}) };
   } catch {
     return undefined;
   }
@@ -96,7 +98,8 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * when the suite is not given to the share or nothing has been fetched.
  *
  * Two caches are asked, this checkout's and a worktree's primary's, or
- * `cacheRoot` alone, the newest winning. A pointer whose record is not on disk
+ * `cacheRoot` alone, the newest winning, unless this checkout's read was handed
+ * on, and then it alone is asked. A pointer whose record is not on disk
  * or does not read in this build is passed over, and so is one for another
  * mainline than `selected`. `null` is a selection that could not be read, so
  * none answers; a caller with none to hand in takes the newest. Synchronous, as
@@ -109,7 +112,7 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const name = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   let newest: LastFetched | undefined;
-  for (const cache of fetchCaches(root, cacheRoot)) {
+  for (const cache of fetchCaches(root, cacheRoot, name)) {
     const readRoot = mainlineReadRoot(cache, name);
     const pointer = readFetchedMainline(readRoot);
     // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
@@ -131,12 +134,28 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   return newest;
 }
 
-function fetchCaches(root: string, cacheRoot: string | undefined): readonly string[] {
+function fetchCaches(root: string, cacheRoot: string | undefined, suite: string): readonly string[] {
   if (cacheRoot !== undefined) return [cacheRoot];
   const here = repositoryRoot(root);
   const own = cacheRootFor(here);
+  // A read handed here is this job's, whatever newer record a worktree's primary checkout fetched.
+  if (mainlineHanded(root, suite)) return [own];
   const primary = primaryCacheRoot(here);
   return primary === own ? [own] : [own, primary];
+}
+
+/**
+ * Whether this checkout holds another job's read of `suite`, so no layer under
+ * it answers: a handed miss leaves the mark alone, which names no record.
+ */
+export function mainlineHanded(root: string, suite: string | undefined, cacheRoot?: string): boolean {
+  if (suite === undefined) return false;
+  const readRoot = mainlineReadRoot(cacheRoot ?? cacheRootFor(repositoryRoot(root)), suite);
+  try {
+    return (JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as { handed?: unknown }).handed === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

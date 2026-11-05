@@ -47,6 +47,7 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
+import { moveBase } from './carry-handed.js';
 import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
@@ -60,6 +61,9 @@ export type CarryDirection = 'restore' | 'save';
 
 /** What moves the pushed records into and out of the checkout. */
 export type CarryMove = 'take' | 'keep';
+
+/** What moves one read of the line to a run's other jobs. */
+export type CarryHand = 'hand' | 'receive';
 
 /**
  * Where a host run keeps `review`'s files, for the steps after it to upload
@@ -423,6 +427,9 @@ export async function runCarry(
   const root = repositoryRoot(process.cwd());
   if (parsed.direction === 'take' || parsed.direction === 'keep') {
     return movePushed(parsed, root, streams);
+  }
+  if (parsed.direction === 'hand' || parsed.direction === 'receive') {
+    return moveBase(parsed, root, streams);
   }
   const direction = parsed.direction;
   const config = parsed.config === undefined ? undefined : await loadConfig(parsed.config);

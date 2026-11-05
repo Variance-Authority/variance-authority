@@ -22,8 +22,10 @@ with repository links repointed at the Markdown of the page they name.
 `/llms.txt` indexes the complete publication catalogue. The question home, theory
 and reference indexes, and section navigation select from that catalogue, so
 a reader can find the same material through a direct question or a complete
-index. Each page names the index in its head as `rel="describedby"`; an article
-also names its own Markdown as `rel="alternate"`, and every response — page, `robots.txt`, Markdown
+index. A page's title, description, canonical and Open Graph tags are in its head
+for every user agent that names itself. Each page names the index in its head as
+`rel="describedby"`; an article also names its own Markdown as `rel="alternate"`,
+and every response — page, `robots.txt`, Markdown
 — names the index again in a `Link:` header, so a reader that fetches a URL
 without rendering it is told where the source starts.
 
