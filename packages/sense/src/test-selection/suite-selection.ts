@@ -74,6 +74,9 @@ export function kept<File = string>(
  * `discovered` is every test file the runner found, named as `skip` names
  * them. The count is of those, so a file the record never saw counts as
  * selected, which is what it is: it runs.
+ *
+ * A selection that keeps none of the files says none runs. That is all it can
+ * say: Jest asks once per project, so what the runner does next is not known here.
  */
 export function selectedLines(selection: SuiteSelection, discovered: readonly string[]): readonly string[] {
   const all = new Set(discovered);
@@ -84,7 +87,7 @@ export function selectedLines(selection: SuiteSelection, discovered: readonly st
     selection.declined !== undefined
       ? `declined: ${selection.declined}`
       : runs.length === 0
-        ? `selected none of ${all.size}`
+        ? `selected none of ${all.size}, so none of them runs`
         : `selected ${runs.length} of ${all.size}`;
   const part = cut === 0 ? '' : `, skipping ${count(cut, 'case')} in ${inPart} of them`;
   return [`variance-authority: ${headline}${part}`, ...selection.notes.map((note) => `  ${note}`)];

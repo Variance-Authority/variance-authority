@@ -47,7 +47,11 @@ Point it at any checkout with `--root`.
 Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it, and a name a
 reused generation does not hold is looked for again in one made from the checkout
-now, so a function you just wrote is answered rather than reported missing.
+now, so a function you just wrote is answered rather than reported missing. So
+is a `symbol` or `uses` whose files, the ones that declare the name, the entry
+that publishes it and each row `uses` lists, or a server's `docs_search` whose
+printed files or the entry and barrels publishing them, changed after the generation, so a renamed export or a moved
+declaration is not answered from its old lines.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
 compared with it. It performs no Git status or refresh, and refuses if there is
@@ -69,7 +73,7 @@ nothing on this page is a step in that workflow.
 
 ## Requirements
 
-Node 22 or newer. The package is ESM-only (`"type": "module"`), so a CommonJS
+Node 22.15 or newer. The package is ESM-only (`"type": "module"`), so a CommonJS
 project loads it through `import()`. There are no peer dependencies and no
 configuration file. It works on a checkout that is not a git repository, is not
 a workspace, and has no `package.json` at all — with no manifest there is
@@ -99,10 +103,11 @@ answer over MCP says `limit` and `docs_symbol`.
 
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — and the same
-tools are on `variance serve`, beside the ones about a run. A workspace that
-runs the visual suite needs nothing from this package over either transport.
-This package is for the workspace that does not run one.
+is installed — `npx variance ask search --query viewport` — and, with a
+`variance.config.json`, the same tools are on `variance serve`, beside the ones
+about a run. A workspace that runs the visual suite needs nothing from this
+package over either transport. This package is for the workspace that does not
+run one.
 
 ### What you get
 
@@ -199,7 +204,9 @@ that the next question refreshes it. Run the binary or server with
 no freshness work. On `variance ask`, `--changed-file` belongs to the producer
 side: it supplies an authoritative newline-delimited file of scan-root-relative
 changed paths and cannot be combined with `--just-answer`. An empty file states
-that nothing changed.
+that nothing changed. A listed file gives its names at the lines it holds now. A file left off is unchanged for that request, and the
+next question without a list looks. With no generation to refresh, the read is
+whole and the list is not used.
 
 ### Say where you are standing
 
@@ -378,9 +385,13 @@ npx variance-authority-help .
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`,
 `docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
-words as the verbs above. `variance serve` serves the same tools under the same names,
-so a workspace with the CLI declares one server and asks it about both the run
-and the source.
+words as the verbs above. `docs_orient` with no files needs the code map `variance
+index` makes, so install the CLI beside this package: [connect your
+agent](https://variance-authority.dev/agents/workspace-api#connect-your-agent)
+prints the whole sequence and how to confirm the tools are listed. With a
+`variance.config.json`, `variance serve` serves the same tools under the same
+names, so a workspace with the CLI and a config declares one server and asks it
+about both the run and the source.
 
 ## Write the answers to files
 
@@ -468,7 +479,7 @@ whether to publish what this reading learned for the next one, on unless you say
 otherwise; `saveIndex`, whether that publication also writes the scan's records
 back to the source index, on unless you say otherwise, and off for a caller that
 has just published that index itself; `changed`, the authoritative scan-root-relative file list an editor,
-watcher or orchestrator already has, which skips Git status discovery; `taints`,
+watcher or orchestrator already has, which skips Git status discovery, and is not used when no generation is there to refresh; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
@@ -508,11 +519,12 @@ it.
 
 `refreshWorkspace` takes a previous reading and refreshes its volatile half:
 symbol usage, exported names, unreadable files and the source graph all come
-from a new Sense scan. Signatures, comments and README mentions are retained.
-A manifest change or an added or removed exported name rebuilds that retained
-documentation immediately, so a symbol introduced by the current edit is
-available on the same reading. Call `readWorkspace` again when edits to existing
-documentation must be visible immediately.
+from a new Sense scan. Signatures, comments and README mentions are retained
+until what they were cut from changes. A manifest change, an added or removed
+exported name, an `export … from` that changed, or a published declaration that
+moved or was rewritten rebuilds that retained documentation immediately, so a
+reading never gives a published name's old line or text. A row nothing publishes
+moves without a rebuild.
 
 `readWorkspaceForAnswer` reads the published generation while it is less than
 one hour old and refreshes it after that. `justAnswer` disables that expiry;
@@ -523,11 +535,14 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy and asks a refused call again of a generation made
-now, or serves only the recorded generation when `justAnswer` is true. A host
+the same one-hour policy and asks a refused call, or a `docs_symbol`,
+`docs_uses` or `docs_search` whose files changed, again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A host
 of its own asks `caughtUp` whether a refusal is worth asking again, and is
 handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `snapshotLine` dates an answer. A name nothing declares
+its refusal ends with; `refusalFooter` is that line with the reason a look gave
+for the refusal itself; `snapshotLine` dates an answer. `outlived` says whether
+the files a found answer names changed after its generation, which sends that
+answer to `caughtUp` too. A name nothing declares
 is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
 message is the answer: what was read, and where else the name may be written.
 `foundNothingAnswer` is that answer, under the lines `foundNothingFooter`

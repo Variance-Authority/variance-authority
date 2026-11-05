@@ -216,6 +216,7 @@ export {
   declaredTermsOf,
   encodeSearch,
   exportedDigest,
+  forwardsDigest,
   importersOf,
   memberDeclarationsOf,
   membersOn,

@@ -133,8 +133,8 @@ with no `since` beside it, a snapshot it cannot read — the seam fails the run
 with the same message.
 
 A selection that skips everything is an answer: the change reached no test the
-record holds. The seam prints `selected none of M`, and the run passes. Vitest 2
-decides "no test files" before the sequencer drops anything, so it passes on its
+record holds. The seam prints `selected none of M, so none of them runs`, and
+the run passes. Vitest 2 decides "no test files" before the sequencer drops anything, so it passes on its
 own; Vitest 3 and 4 decide after, so the Vitest seam sets `passWithNoTests` on
 that run's config when the selection dropped files and left the run, or its
 shard, none. A run that drops nothing keeps the project's setting. The Jest seam
@@ -186,8 +186,8 @@ selects nothing again.
 under `--shard` and under `projects`, with a project sequencer still consulted.
 
 **4. Declined, refused and empty are reported.** Each seam prints `selected N of
-M`, `declined: <which>` or `selected none of M`, and fails by name where
-`select` refuses.
+M`, `declined: <which>` or `selected none of M, so none of them runs`, and fails
+by name where `select` refuses.
 
 **5. This repository uses it.** tools/test-since.mjs and the
 `tools/since-*.mjs` helpers are deleted, and what they did is carried as

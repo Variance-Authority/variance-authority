@@ -37,8 +37,13 @@ the first argument is positional.
   published generation for up to one hour. On either binary and either
   server, a question that generation refuses is asked again of one made from
   the checkout now, with the dependency lexicon built when it is missing or
-  behind, so a refusal is about the checkout as it is; one that could not be
-  read again says the checkout was not compared, and why, and one whose
+  behind, so a refusal is about the checkout as it is. So is a `symbol` or `uses`
+  whose files, the ones that declare the name or pass it on, the entry that publishes it and each
+  row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
+  after that generation, so it does not answer from old lines. One that could not be
+  read again or saved, or whose file was saved during the read that answers it, says the checkout
+  was not compared, and why, gives a file written since by its recorded names and
+  none of its text, and one whose
   lexicon could not be built says the installed packages were not compared. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
@@ -84,8 +89,8 @@ Run `variance-authority-help <verb> --root <dir>` on the other checkout. When
 the binary is not installed, ask the package runner for the package
 `@variance-authority/help`, never for the command `variance-authority-help`:
 that is not a package name, and the registry reports it missing. Inside a
-package script, `variance-authority-help` is the program name; an MCP `command`
-must resolve the installed binary ([MCP](mcp.md#writing-the-client-config)).
+package script, `variance-authority-help` is the program name; an MCP entry
+launches it through `npx` ([MCP](mcp.md#writing-the-client-config)).
 
 The target needs no manifest at its root, no `workspaces` field and no build. A
 repository that publishes nothing answers entirely from the exported half: every

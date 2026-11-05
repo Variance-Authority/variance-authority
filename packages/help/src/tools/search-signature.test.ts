@@ -62,8 +62,8 @@ describe.each<[string, () => Promise<SearchIndex>]>([
   ['read off the disk', async () => searchIndexOf(readHelp(root))],
   ['read through the source index', async () => searchIndexOf(await readWorkspace(root))],
   ['refreshed by the scanner', async () => {
-    await publishWorkspaceFromIndex(root);
-    await publishWorkspaceFromIndex(root);
+    await publishWorkspaceFromIndex(root, { readStartedAt: new Date().toISOString() });
+    await publishWorkspaceFromIndex(root, { readStartedAt: new Date().toISOString() });
     return readSearchSnapshot(root);
   }],
 ])('the words a signature holds, %s', (_, read) => {

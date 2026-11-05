@@ -175,5 +175,5 @@ by the bytes they came from, so a stale entry, another branch's cache or no
 cache at all costs a slower answer and never a different one. The recording has
 its own refresh rules, in [test selection](references/test-selection.md). Runs
 prune the render cache themselves. To force a cold read, delete the directory.
-A git worktree writes its own layer beneath the primary checkout's and reads
-both, so deleting one checkout's cache leaves the others' in place.
+A git worktree writes its own layer in its own cache and reads the primary
+checkout's too, so deleting one checkout's cache leaves the others' in place.

@@ -9,7 +9,7 @@
 import { readdir, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, vi } from 'vitest';
-import { declaredSuites, seedTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { declaredSuites, seedTestCoverage, testCoverageFile, withIndexLock, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { collectedBoth, git as gitIn, gitPublished, probedModule, PUSH, ranWhole, totalCoverage, totalModule } from './mainline-fixture.js';
 import { mainlineBase } from './mainline-base.js';
@@ -34,7 +34,7 @@ export async function laidWorktree(home: string): Promise<{ ci: string; first: s
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
   const own = testCoverageFile(worktree, { suite: 'unit' });
-  expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
+  expect(await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'))).toMatchObject({ value: { from: 'mainline' } });
   return { ci, first, worktree, own };
 }
 

@@ -96,12 +96,12 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
 
 Set and empty, the variable reads each test from the commit the snapshot names.
 Set to a ref, it also names the base for a snapshot that names no commit.
-`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in
-[Take one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time),
-and a value that is not a range fails the run. Before the first file starts,
-stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
-`declined:` and the reason the selection could not be read, in which case
-every file runs. A test file the snapshot has never seen runs. A run the
+`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in [Take
+one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time), and
+a value that is not a range fails the run. Before the first file starts, stderr
+shows one line: `selected 12 of 340`, `selected none of 340, so none of them
+runs`, or `declined:` and the reason the selection could not be read, in which
+case every file runs. A test file the snapshot has never seen runs. A run the
 selection leaves nothing to run — `selected none`, or a shard that took none of
 the files kept — passes: the seam sets `passWithNoTests` for that run. A run
 that drops nothing keeps your setting.
@@ -308,12 +308,14 @@ a run records is operational state rather than source.
 ```
 
 `<cache>` is [your cache](https://variance-authority.dev/docs/cache).
-`<digest>` is taken from the checkout's absolute path, so two checkouts never
-share bytes. `testCoverageFile(root)` returns that path, and
-`sourceIndexPath(root)` the source index beside it. A git worktree gets
-`.work/<its own digest>/` beneath the primary checkout's directory. Its coverage
-reads both layers and writes only its own, so a worktree cut this morning
-inherits what the repository already recorded. Its source index is its own too,
+`<digest>` is taken from the checkout's absolute path, so two checkouts write no
+file in common but `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
+[one checkout of a repository index at a time](https://variance-authority.dev/docs/source-index)
+and the file that names its holder. `testCoverageFile(root)` returns that path,
+and `sourceIndexPath(root)` the source index beside it. A git worktree gets
+`.work/<its own digest>/` in its own cache, which is inside the worktree at the
+default location. Its coverage reads both layers and writes only its own, so a
+worktree cut this morning inherits what the repository already recorded. Its source index is its own too,
 and the first update in it starts from a copy of the primary checkout's and reads
 only the files that differ between the two. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
@@ -2050,7 +2052,7 @@ import {
   combineRecords,
   landedCoverage,
   openTestCoverage,
-  seedTestCoverage,
+  prepareRecord,
   testCoverageFile,
   withIndexLock,
   writeCoverageBytes,
@@ -2060,8 +2062,8 @@ const combined = 'artifacts/coverage.bin';
 const { commit, tests } = combineRecords(['shard-1/coverage.bin', 'shard-2/coverage.bin'], combined);
 
 const file = testCoverageFile(process.cwd());
-await seedTestCoverage(file, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
-const landed = await withIndexLock(file, async () => {
+const landed = await withIndexLock(file, async (lock) => {
+  await prepareRecord(lock, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
   let previous: Uint8Array | undefined;
   try {
     previous = await readFile(file);
@@ -2091,6 +2093,14 @@ replace it. `writeCoverageBytes` stages the bytes beside `file` and renames them
 over it, so a reader sees the previous record or this one. `withIndexLock` on
 `file` is the lock every seam takes to write the record, so no run writes it
 while you land.
+
+`prepareRecord` makes the record at `file` one the fold can land on, under the
+lock you land in, so another run cannot land between the old record going and
+the base arriving. A record
+in the checkout's cache under other probes than the ones you pass is another
+build's and rebuilt by the next run, so it goes, with the files beside it, and
+one printed line names the file and both sets of probes. It then calls
+`seedTestCoverage`, which `{ alone: true }` skips for a shard recording no base.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the

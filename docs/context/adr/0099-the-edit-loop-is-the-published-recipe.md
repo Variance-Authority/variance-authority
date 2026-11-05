@@ -105,3 +105,29 @@ the line `docs/test-an-edit.md` publishes; the list is ours, a reader of this
 repository's own history, and the page does not carry it. On the measurement
 machine, reading it alone takes 0.56 s with its cache warm and 1.5 s on the
 first run after the reader changes, Node's start included.
+
+## Amended 2026-11-04 — the loop lints first, and an empty run says it ran nothing
+
+[ADR-0096](0096-the-edit-loop-answers-for-one-edit.md)'s consequence that lint
+keeps its place in the waves is replaced. A lint failure arrived at
+`verify:near`, edits after the one that made it, and `oxlint` costs little: over
+this repository's 3,500 files it answers in 0.08 s alone, and in the loop the
+median of seven interleaved runs moves from 1.07 s to 1.21 s on the measurement
+machine, under a load average of 11–24
+([#963](https://github.com/Variance-Authority/variance-authority/issues/963)).
+It is the first step of the script line, the command `yarn lint` runs and
+`verify:near` starts with, and a check holds the three equal. A red lint ends
+the run before the compiler. The linter is a project's own choice, so like the
+needs list it is ours and the line `docs/test-an-edit.md` publishes stays the
+compiler and the runner.
+
+An empty run ended on the runner's `No test files found, exiting with code 0`,
+and `selected none of 1072` above it did not say the two were one answer. The
+exit code stays 0 and nothing wraps the run: the seam's headline says it,
+`selected none of 1072, so none of them runs`. The line says only what the seam
+knows, because the runner's next words are the runner's: Jest asks once per
+project, so a project that keeps nothing can sit beside one that runs, and a
+lone Jest project exits 1. Under Vitest the line stands above the runner's
+rather than after it, because the seam says it when the selection is made. The
+exit 0 of such a run means lint and the compiler passed and no test ran, and the
+verdict's words are what tell it from a run whose tests passed.

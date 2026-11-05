@@ -119,8 +119,8 @@ export {
 } from './mainline-layer.js';
 export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.js';
 export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
+export { prepareRecord } from './replaced-record.js';
 export {
-  noteSeeded,
   type PassedOver,
   readableTestCoverage,
   recordFileFor,
@@ -184,7 +184,7 @@ export { timeBeforeCases } from './file-cost.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
-export { withIndexLock } from './index-lock.js';
+export { busyIndex, withIndexLock, type IndexLock } from './index-lock.js';
 export { casesRan, landCases, lastCaseRunOf, textsOf, type CaseLanding, type LaidRun, type LandedShard, type LastCaseRun, type ModuleTexts } from './case-landing.js';
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';

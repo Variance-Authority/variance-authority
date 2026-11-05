@@ -413,11 +413,11 @@ review loop.
 - **`variance-authority`** covers reports, watchers and connections, choosing
   which tests to run, and what a workspace publishes, and opens a reference
   file for each only when the question needs it.
-- **`variance-testing`** is the order to ask in while you write, fix or debug a
-  test: which tests stand on a line, what an edit needs to run, where a failing
-  or flaky test went, what a change or a file's tests left untested, and how
-  much of a test can go. It links the
-  `variance-authority` references for its flags, so link both.
+- **`variance-testing`** is the order to ask in while you change code or write,
+  fix or debug a test: which test to turn red first, which tests stand on a
+  line, what an edit needs to run, where a failing or flaky test went, what a
+  change or a file's tests left untested, and how much of a test can go. It
+  links the `variance-authority` references for its flags, so link both.
 
 Installing the package puts them on disk; your agent reads a skill only from
 its own skills directory, in the project or your home directory. Claude Code
@@ -433,9 +433,10 @@ An agent opens a skill only when its description matches the task, and it reads
 `AGENTS.md` every session. The lines that send it to `variance ask` before it
 searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
 
-`variance doctor` lists which skills your agent can find, reports whether each
-is a link or a copy that has fallen behind, and prints the link for any it
-cannot find. It never writes the link for you.
+With a `variance.config.json`, `variance doctor` lists which skills your agent
+can find, reports whether each is a link or a copy that has fallen behind, and
+prints the link for any it cannot find. It never writes the link for you. With no
+config it exits 2.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

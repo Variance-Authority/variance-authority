@@ -12,7 +12,9 @@ that takes a `cacheRoot` option read that one answer, so a recording written by
 `yarn test` is the recording `variance select` reads.
 
 Nothing in it is a baseline. Delete any part of it and the next run is slower,
-not wrong.
+and the next `variance review` may compare fewer cases and name the test files
+it left out. Neither is wrong. [After an upgrade](#after-an-upgrade) says what
+a new release does to a recording.
 
 ## Where it is
 
@@ -92,6 +94,8 @@ over it, so a repository that names its cache keeps one answer for everyone.
                                  on, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
+    .work/index-turn             the lock that gives the repository's checkouts one index at a time
+    .work/index-turn.holder      the process that holds that lock and the checkout it indexes
   renders/                       the images a run took, reused while they match
   suite/<project>/<commit>.bin   every run's suite index, by the commit it names
   share/<digest>.git             a git share's own repository, one per remote URL
@@ -117,12 +121,14 @@ The [execution record](execution-record.md) page describes `coverage.bin`, the
 
 A git worktree writes its own layer under `.work/<worktree>/` and reads the
 primary checkout's layer when its own has nothing. So a worktree you created
-this morning starts from what the repository already recorded. It never writes
-the primary checkout's files.
+this morning starts from what the repository already recorded. Of the primary
+checkout's files it writes two, `.work/index-turn` and
+`.work/index-turn.holder`, which give it [its turn to index](source-index.md).
 
 With the default location or a relative `cacheRoot`, each checkout resolves
-the path against its own root: the worktree writes inside the worktree, and
-still reads the primary checkout's layer from inside the primary checkout. With
+the path against its own root: the worktree writes its layer inside the
+worktree, and reads the primary checkout's layer and writes those two files
+inside the primary checkout. With
 `VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`, both layers are in one
 directory.
 
@@ -163,6 +169,54 @@ decide which tests the next push runs. Review still compares with the main
 branch's. [A pull request's next push](selecting.md#a-pull-requests-next-push)
 says how.
 
+## After an upgrade
+
+[Probes](../packages/sense) are what variance places in your code to see which
+regions a test ran. Their recipe has a name, such as
+`sense:instrument/presence-v6`, and every recording carries the name it was made
+under. A run can only add to a recording made under its own recipe, and a change
+of [`mode`](selecting.md#record-as-finely-as-you-select) changes the recipe too.
+So what happens to a recording depends on what the release changed:
+
+| What changed | The next run that adds coverage to the recording |
+|---|---|
+| neither the recipe nor the file's layout | adds to it and prints nothing |
+| the recipe | replaces it, with `coverage.runs.json` beside it, and prints one line to stderr |
+| the file's layout, so this build cannot read the recording, or the recipe's name in it | fails after its tests with an error naming the file, and leaves the file as it was. You [start cold](#start-cold) |
+
+```
+variance-authority replaced the record at <cache>/test-selection/<repository>/coverage.bin: it was written under the probes `sense:instrument/presence-v5` and this run records under `sense:instrument/presence-v6`, so this run cannot be laid over it.
+```
+
+Each recording answers for itself. A declared suite's and a worktree's go the
+same way, each when a run next writes it, so a suite you have not run keeps its
+old recording, and a worktree's replacement leaves the primary checkout's alone.
+
+**A replacement costs one pass over the suite and the earlier cases.** A run of
+the whole suite pays the pass alone. A selected run is still narrowed by the old
+recording, which `variance select` reads as it holds it and says so, and the new
+recording then holds only the tests that ran. A test file the recording has
+never seen always runs, so your next selected run in that cache takes the rest,
+and selection is back to normal after it.
+
+The earlier cases go with the old recording, on your workstation as in CI.
+`variance review` after that run names no case added or removed in a file that
+already existed, and lists the test files it did not compare. The run at your
+next commit has cases to compare again.
+
+You pay neither when the run can start from a record already under the new
+recipe, which brings its cases: for a suite given to the share, a mainline record
+this machine fetched, and in a worktree, the primary checkout's once a run there
+has replaced it. A record still under the old recipe is no start. The run skips
+it, says so in one line, and pays both.
+
+**A recording at a path of your own is never replaced.** `coverageFile` in a
+[runner's options](../packages/sense/README.md#options-on-the-vitest-seam) and
+`variance journeys --into` keep the recording in a file you named, outside the
+cache. A run under another recipe fails after its tests, with an error naming
+the file and both recipes, and leaves the file byte for byte. Give the run a new
+path, or delete the file.
+
 ## Start cold
 
 Delete the directory for your checkout and run `yarn test` again:
@@ -182,7 +236,8 @@ To reset only the source index and keep the recording, delete
 
 ## What is removed, and when
 
-A recording is removed only with its checkout. It is one file each run
+A recording is removed only with its checkout, or
+[replaced after an upgrade](#after-an-upgrade). It is one file each run
 rewrites, so it stays the same size however long you keep it, and without it
 the next selected run declines and runs the whole suite. Everything else in
 `test-selection/<repository>/` stays as long as that directory does.

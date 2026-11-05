@@ -28,7 +28,7 @@
     "test:chromium": "vitest run --config vitest.chromium.config.mts",
     "test:coverage": "vitest run --config tools/coverage.config.mts",
     "test:shared": "vitest run --config tools/shared-modules.config.mts",
-    "test:loop": "tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run \"$@\" && node tools/needs.mjs",
+    "test:loop": "oxlint && tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run \"$@\" && node tools/needs.mjs",
     "test:since": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} yarn test",
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",

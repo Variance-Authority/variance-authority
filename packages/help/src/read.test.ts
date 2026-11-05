@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
 import { taintTable } from '@variance-authority/sense/taint';
+import { workspaceReadStarted } from './snapshot.js';
 import {
   readWorkspace,
   readWorkspaceForAnswer,
@@ -217,6 +218,23 @@ describe('reading a workspace through the source index', () => {
     }
   });
 
+  it('reads the whole tree, past a list, when no generation is there for it to refresh', async () => {
+    const { root, temporary } = await copyWorkspace('help-listed-no-generation-');
+    try {
+      const at = join(root, '.index');
+      await readWorkspace(root, { index: at });
+      await rm(workspaceSnapshotPath(at));
+      const values = join(root, 'packages/alpha/src/values.ts');
+      await writeFile(values, `${await readFile(values, 'utf8')}export const writtenLater = 1;\n`);
+
+      const read = await readWorkspaceForAnswer(root, { index: at, changed: ['packages/beta/src/other.ts'] });
+
+      expect(read.exported.map((name) => name.name)).toContain('writtenLater');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('republishes the recorded generation when the caller says nothing changed', async () => {
     const { root, temporary } = await copyWorkspace('help-unchanged-snapshot-');
     try {
@@ -241,13 +259,10 @@ describe('reading a workspace through the source index', () => {
     }
   });
 
-  it('refreshes usage without rebuilding stable documentation', async () => {
+  it('refreshes usage and keeps the documentation of a name nothing rewrote', async () => {
     const { root, temporary } = await copyWorkspace('help-refresh-');
     try {
-      const where = join(root, 'packages/alpha/src/values.ts');
       const first = await readWorkspace(root, { index: join(root, '.index') });
-      const source = await readFile(where, 'utf8');
-      await writeFile(where, source.replace('Measures the thing', 'Fresh words about the thing'));
       await writeFile(
         join(root, 'packages/beta/src/other.ts'),
         "import { measure } from 'alpha';\nmeasure(2);\n",
@@ -255,12 +270,52 @@ describe('reading a workspace through the source index', () => {
 
       const refreshed = await refreshWorkspace(root, first, {
         index: join(root, '.index'),
-        changed: ['packages/alpha/src/values.ts', 'packages/beta/src/other.ts'],
+        changed: ['packages/beta/src/other.ts'],
       });
       const measure = entryNamed(refreshed, 'measure');
       expect(measure?.doc).toContain('Measures the thing');
-      expect(measure?.doc).not.toContain('Fresh words');
       expect(measure?.uses).toBe((entryNamed(first, 'measure')?.uses ?? 0) + 1);
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('takes the comment a refreshed file rewrote, rather than dating the last one as read', async () => {
+    const { root, temporary } = await copyWorkspace('help-refresh-');
+    try {
+      const where = join(root, 'packages/alpha/src/values.ts');
+      const first = await readWorkspace(root, { index: join(root, '.index') });
+      const source = await readFile(where, 'utf8');
+      await writeFile(where, source.replace('Measures the thing', 'Fresh words about the thing'));
+
+      const refreshed = await refreshWorkspace(root, first, { index: join(root, '.index'), changed: ['packages/alpha/src/values.ts'] });
+
+      expect(entryNamed(refreshed, 'measure')?.doc).toContain('Fresh words');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the time the whole read began, since a refresh of a list read nothing else', async () => {
+    const { root, temporary } = await copyWorkspace('help-refresh-clock-');
+    try {
+      const index = join(root, '.index');
+      const first = await readWorkspace(root, { index });
+      const values = join(root, 'packages/alpha/src/values.ts');
+      const source = await readFile(values, 'utf8');
+      const changed = ['packages/alpha/src/values.ts'];
+
+      const same = await refreshWorkspace(root, first, { index, changed });
+      expect(workspaceReadStarted(same)).toBe(workspaceReadStarted(first));
+      expect(workspaceReadStarted(await readWorkspaceSnapshot(root, { index }))).toBe(workspaceReadStarted(first));
+
+      // A surface the documentation has to follow takes the other way out.
+      await writeFile(values, `${source}\n/** New on this turn. */\nexport const introduced = true;\n`);
+      const barrel = join(root, 'packages/alpha/src/index.ts');
+      await writeFile(barrel, `${await readFile(barrel, 'utf8')}\nexport { introduced } from './values.js';\n`);
+      const rebuilt = await refreshWorkspace(root, same, { index, changed: [...changed, 'packages/alpha/src/index.ts'] });
+      expect(entryNamed(rebuilt, 'introduced')).toBeDefined();
+      expect(workspaceReadStarted(rebuilt)).toBe(workspaceReadStarted(first));
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

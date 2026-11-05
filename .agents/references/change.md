@@ -6,20 +6,45 @@ where each kind of writing goes.
 ## Look around
 
 **Which tests stand on it?** Before an edit, `yarn variance covering --file
-<path>` names the tests that entered the code, and the change starts there:
+<path> --function <name>` names the tests that entered the code; `--line
+<a>-<b>` asks the same of what is not a function. Add `--hops` when the order of
+the candidates is useful: it ranks test files by import distance, and costs a
+scan of the tree. Every change that alters behaviour starts there, before any
+other writing.
 
-1. Amend the test that pins the behaviour being changed, or add one beside it,
-   so that it states the behaviour the change is for.
+`covering` finds candidates. Choose the case whose assertion states the required
+behaviour, which may be a more distant integration test: proximity orders the
+list, it does not decide.
+
+Behaviour the change does not touch and nothing covers is pinned as it is first:
+one test per edge case, green on the old code, so a test that turns red shows
+what the change broke. An assertion on the behaviour being changed is amended or
+replaced, never pinned: when `calculateFee(100)` returns 5 and should return 10,
+no green test asserts 5, because the fix would turn it red. Then:
+
+1. Amend or replace the case you chose, or add one beside it, so that it states
+   the behaviour the change is for.
 2. Run it and watch it fail on the code as it is. A test that passes before the
-   change pins nothing the change does.
-3. Change the code until it passes, and the tests `covering` named still pass.
+   change pins nothing the change does. Which failure counts:
+   - Existing behaviour fails at the assertion that states it.
+   - An API that does not exist yet fails at import, compile, collection or the
+     first call, and the failure names what is missing. Write no stub to get an
+     assertion failure.
+   - A failure from anything else, such as a typo or a broken fixture, is not
+     the red state: fix the test and run it again.
+3. Change the code until it passes, and the other tests `covering` named still
+   pass.
 
-A behaviour nothing covers is pinned as it is before it is changed: one test per
-edge case, green on the old code, so the change shows up as the tests it turns
-red, and the test the change is for is still written to fail first. `covering`
-answers from the last recording, so for a file it has never seen, put the edit
-in the tree and read `yarn variance select --suite <slice>`: it selects from the
-diff, and says nothing about a file that has not changed.
+`covering` answers from the last recording, so code it has never seen starts
+from a failing test too: ask about the code that will call it and write the test
+there, or in a new test file beside it. Once the edit is in the tree, `yarn
+variance select --suite <slice>` selects from the diff, and says nothing about a
+file that has not changed. A `refactor` or `perf` change alters no assertion:
+name the green tests `covering` found and the invariants the change preserves,
+and those tests stay green on both sides. A file of types alone never runs, so
+`covering` has no answer for it: `yarn variance ask uses` names what stands on
+it, and the invariant is the build's emitted `.js` and `.d.ts`, compared before
+and after.
 
 **Does existing code already answer it?** Before writing, ask `yarn variance
 ask search` for what the code is to do. After, `yarn test:loop` ends by naming,

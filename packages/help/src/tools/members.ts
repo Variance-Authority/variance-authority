@@ -25,8 +25,9 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Use } from '@variance-authority/package/help';
+import type { Help, Use } from '@variance-authority/package/help';
 import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
+import { askedOnce } from './asked-once.js';
 import { ownerOf } from './by-path.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 
@@ -79,7 +80,7 @@ export function memberName(name: string): { readonly member: string; readonly on
  * why, when no checkout is named or the index does not read. A name written
  * `Container.member` keeps the declarations on the container by that name.
  */
-export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
+export const membersOf = askedOnce((_help: Help, root: string | undefined, name: string, wanted: string | undefined): Members => {
   const asked = memberName(name);
   const { member, on } = asked;
   if (root === undefined) return { ...asked, declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
@@ -99,7 +100,7 @@ export function membersOf(root: string | undefined, name: string, wanted: string
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
   return { ...asked, declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
-}
+});
 
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
 export const TYPED =

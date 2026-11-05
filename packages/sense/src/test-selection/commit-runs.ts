@@ -181,6 +181,15 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
 };
 
 /**
+ * The probes `current` lays coverage under. Nothing for a run that instrumented
+ * no module and has no incomplete test to say must run: it lands its cases alone
+ * (`landUncovered`), over a record under any probes.
+ */
+export function laidProbes(current: Pick<TestCoverage, 'instrumentation' | 'modules' | 'tests'>): string | undefined {
+  return current.modules.length === 0 && current.tests.every((test) => test.complete) ? undefined : current.instrumentation;
+}
+
+/**
  * Lay `current` over the snapshot, add it to the runs at its commit, and keep
  * the text of every module it recorded over an edit (`kept-texts.ts`). `cases`,
  * the run's own case index, is written with the coverage in the same write. The
@@ -194,13 +203,12 @@ export async function landRun(
   cacheRoot?: string,
   cases?: FreshCases,
 ): Promise<void> {
+  if (laidProbes(current) === undefined) return landUncovered(coverageFile, root, cases);
   if (current.modules.length === 0) {
     // A complete row over no module would say its file reaches nothing. An
     // incomplete one says its file must run, which is true without a module:
-    // probes fired where nothing could place them. A run with no such file lands
-    // its cases alone (`landUncovered`).
+    // probes fired where nothing could place them.
     const selecting = current.tests.filter((test) => !test.complete);
-    if (selecting.length === 0) return landUncovered(coverageFile, root, cases);
     if (selecting.length < current.tests.length) {
       return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases);
     }
