@@ -257,6 +257,25 @@ describe('the cleared comment', () => {
     expect(text).toMatch(/--cleared > "\$RUNNER_TEMP\/variance-cleared\.md"/);
     expect(text).toContain('--cleared-file "$RUNNER_TEMP/variance-cleared.md"');
   });
+
+  it('leaves the render standing on a CLI older than the action, which v1 moves ahead of', async () => {
+    const text = await readFile(ACTION, 'utf8');
+    const block = text.slice(text.indexOf('# What that previous docket becomes'), text.indexOf('# The body, written'));
+    const temp = await mkdtemp(join(tmpdir(), 'variance-action-cleared-'));
+    try {
+      const out = execFileSync('/bin/bash', ['-c', `set -euo pipefail\n${block}\necho rendered`], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env: { ...process.env, RUNNER_TEMP: temp, VARIANCE_COMMAND: 'false', VARIANCE_CONFIG: 'variance.config.json' },
+      });
+
+      expect(out).toContain('::warning::');
+      expect(out).toContain('rendered\n');
+      await expect(readFile(join(temp, 'variance-cleared.md'), 'utf8')).rejects.toThrow('ENOENT');
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('the projects the workflow observes', () => {

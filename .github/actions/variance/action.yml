@@ -482,9 +482,14 @@ runs:
         marker=$($VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --marker)
         echo "marker=$marker" >> "$GITHUB_OUTPUT"
 
-        # What that previous docket becomes, for the same reason.
+        # What that previous docket becomes, for the same reason. `v1` moves
+        # ahead of the CLI a lockfile holds, and only a clean run with a docket
+        # to clear needs this, so a CLI without it costs that run and no other.
         # shellcheck disable=SC2086
-        $VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --cleared > "$RUNNER_TEMP/variance-cleared.md"
+        if ! $VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --cleared > "$RUNNER_TEMP/variance-cleared.md"; then
+          rm -f "$RUNNER_TEMP/variance-cleared.md"
+          echo "::warning::this CLI could not write the cleared comment, so a previous docket cannot be cleared; update the variance package"
+        fi
 
         # The body, written even when it is empty — the poster distinguishes
         # "nothing needs review" from "the render never ran", and only the first
