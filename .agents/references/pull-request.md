@@ -6,10 +6,10 @@ the change reached and reports how coverage moved against the mainline's record.
 
 ## Look around
 
-**What landed since you branched?** `git fetch`, then rebase onto
-`origin/main`. CI compares the PR against `main`'s record, so a fix that landed
+**What landed since you branched?** `git fetch`, then, before the first push,
+rebase onto `origin/main`; a pushed branch [merges it](outer-loop.md). CI compares the PR against `main`'s record, so a fix that landed
 after your branch point changes what CI will say about yours. A PR opened on a
-stale base gets comments describing code that no longer exists. If the rebase
+stale base gets comments describing code that no longer exists. If either
 brought anything in, [pre-verify](pre-verify.md) again: the green you had was on
 the old base.
 
@@ -58,6 +58,11 @@ The release PR that changesets opens is not written by hand and has no kind.
 fails the same way CI does when a published package changed and no changeset
 came with it. See [change](change.md).
 
+**A change to a command, an export or a file format updates every layer that
+describes it in the same PR**: `docs/`, package READMEs, `.compass/`. Search the
+old names across them before pre-verify; writing the prose is how the feature is
+reviewed against its claim.
+
 ## Reviewing it before it is pushed
 
 The body follows
@@ -68,6 +73,11 @@ checks carry the evidence; a row points at the one that pins its block, it does
 not restate it. A test that does not assert the stated symptom does not pin it,
 and what a commit message says about itself is a claim, not evidence.
 `gh pr create --body-file` skips the template, so apply it yourself.
+
+A reviewer first writes how the thing should work, from the problem and the
+constraints, before opening a source file, then reports each gap as a defect, a
+trade-off or a better idea. Code read first anchors the review, which ends up
+judging the code against itself.
 
 The body ends with the coverage handover, for CodeRabbit, which reviews the
 body before CI has run anything:
@@ -154,7 +164,9 @@ records, not proof that a review or a wave ran.
 Never push to `main`. The branch was cut from `origin/main` at setup, not from
 local `main`, which may hold somebody's unpushed work. Push the branch and open
 the PR. CodeRabbit reviews it as finished work, and every push after that spends
-another of its reviews.
+another of its reviews: it allows ten an hour across the repository, so batch
+pushes and open fewer PRs. A PR is based on `main`, never on another PR's branch:
+grow the branch instead of stacking.
 
 Opening the PR is not the end of the task. The [outer loop](outer-loop.md)
 starts here.

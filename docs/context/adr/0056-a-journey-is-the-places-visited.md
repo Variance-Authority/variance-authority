@@ -47,6 +47,11 @@ StrictMode running effects twice, a cold Suspense cache, sibling prewarming, an
 eager-state bailout, hydration for whichever subject was first. Only
 `useSyncExternalStore` is honestly outside React.
 
+Under page reuse a module-scope memo outlives its subject, so a last-call slot
+makes a journey depend on the previous caller, and selection changes who that
+is. `useMemo` is absorbed: its cache lives in the fiber, and the story switch
+remounts it.
+
 ## Decision
 
 **A journey is the set of regions an execution entered. Everything else is read

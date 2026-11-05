@@ -61,6 +61,17 @@ A cycle you had to start by fixing something ends the same way, after
 the push. A cycle that stops blocked does not wait for the checks: it takes the
 label off and says why, and the next cycle watches them.
 
+Before any step here and before reporting a PR's status, run `gh pr view <n>
+--json state,mergedAt` right then: a state read earlier goes stale. If
+`mergedAt` is set, stop, confirm `main` holds the commits with `git merge-base
+--is-ancestor`, and put follow-up on a fresh branch.
+
+A pushed PR that needs `origin/main` merges it and is never rebased: a rebase
+needs a force push, which moves the head a reviewer read out of the branch. A
+draft is never `agent:done`, because a draft is not handed over. `site` is not a
+gate and no agent adds the label that accepts its report, but what the site says
+is still reviewed: the public pages are the project's face.
+
 ## 6. Validate
 
 ### Look around
@@ -87,7 +98,7 @@ report, compared with the unit suite's base record when one was restored, and
 "What this change might do", which names the cases that stood on the changed
 lines. Read them as evidence about your change. A comment describing code you
 did not touch, a base older than your branch point, or tests you expected and it
-does not name, is a finding. Rebase and let CI post again; if the comment is
+does not name, is a finding. Merge `origin/main` and let CI post again; if the comment is
 still wrong, it is a defect in the report, and it gets its own change.
 
 ## 7. Correct

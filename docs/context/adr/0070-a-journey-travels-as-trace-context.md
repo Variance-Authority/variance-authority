@@ -116,6 +116,9 @@ per execution through every hop, with no member to add: the trace id.
 **Where the application runs Sentry or OpenTelemetry, the journey is the trace
 id, and both sides are told it by the application's own SDK instance.**
 
+On the wire a journey id is a bare per-execution id, never the subject name:
+browsers mangle or drop non-ASCII and semicolons in cookies differently.
+
 1. **The case starts the trace.** A module exporting `sentry(Sentry)` or
    `openTelemetry(api)`, named as `trace` to `withJourneyCoverage`, runs every
    case inside a trace whose id is its journey (32 hex characters, which is why

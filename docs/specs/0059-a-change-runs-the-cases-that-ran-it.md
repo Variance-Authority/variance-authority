@@ -332,6 +332,7 @@ its `describe` shares, never entered the changed region and is skipped. The
 case record cannot see such a dependency, and the file grain is the answer for
 a file whose cases depend on their order.
 
-**Cases that overlap in time.** Concurrent cases are attributed through async
-context. A continuation that outlives its case is the case the record refuses to
-guess about, and interleaving tests stay unsupported.
+**Cases that overlap in time.** Under the `continuations` mode concurrent cases
+are attributed through async context, and a continuation that outlives its case
+stays with the case that started it and is printed. Under the flat mode two cases
+open at once warn, and the file is recorded whole.
