@@ -29,7 +29,8 @@ import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import { entryCarriesEyes, suiteEntry, suiteEntryOf } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun } from '../share-lines.js';
-import { mainlineBase, mainlineMissed, mainlineRead, rootShare } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
+import { rootShare } from './mainline-selected.js';
 import { describePublish, eyesWritten, unkept, type Here, type RunPublish } from './share.js';
 
 /** What `share --suite` was asked to do. */
@@ -137,7 +138,7 @@ export async function suiteShare(
   }
   const declared = declaredIn(selection.declaredSuites(root), options.suite);
   // Asked by name, the remote is asked now, whatever was fetched a moment ago.
-  const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), refetch: true });
+  const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), fetch: 'always' });
   const said =
     read === undefined
       ? `record of "${options.suite}": not given to the share; its "carry" in the root config is not "share".`

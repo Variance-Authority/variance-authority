@@ -3,8 +3,10 @@
 `variance distill` reads no report, and from the root `variance.config.json`
 only the declared suites, to find the record `--suite` names; a checkout that
 has never configured this tool gets the same answer. Its input is one record:
-the one `covering` reads, the declared suite's `--suite` names, or the file
-`--execution` names. `--test` takes a case id or a whole title,
+the nearest one this machine holds, the declared suite's `--suite` names, or the
+file `--execution` names. It fetches nothing: the nearest is this checkout's own,
+else the mainline's as last fetched here, else, in a worktree, the primary
+checkout's. `--test` takes a case id or a whole title,
 and `--file` the test file's path, relative to `--root` or absolute; give either
 or both. `--file` names that file alone: a recorded path that contains it or
 ends in it is another file, and a path outside `--root` is refused. More than

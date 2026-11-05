@@ -10,7 +10,7 @@ import type { Config } from '../config.js';
 import { loadConfig } from '../config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import { lineCellOf, mainlinesOf } from '../share-lines.js';
-import { rootShare } from './mainline-base.js';
+import { rootShare } from './mainline-selected.js';
 import { describeMiss, type Here } from './share.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;

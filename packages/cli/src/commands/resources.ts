@@ -220,6 +220,7 @@ export async function recordAgainst(
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
   const { relations, at, checkout = root, unmeasured, ignore, precision } = options;
   const selection = await import('@variance-authority/sense/test-selection');
+  // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
   const asked = {
@@ -293,6 +294,7 @@ export async function recordedJourneys(
   at?: string,
 ): Promise<JourneyReading> {
   const selection = await import('@variance-authority/sense/test-selection');
+  // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
   const file = at ?? (await suiteRecord(root));
 
   let coverage;

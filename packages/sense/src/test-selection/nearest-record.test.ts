@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { mainlineReadRoot, writeFetchedMainline, writeTestCoverage } from './index.js';
-import { nearestRecord } from './record-location.js';
+import { cachedSuite, nearestRecord } from './record-location.js';
 
 const temporary: string[] = [];
 const held = { version: 3, instrumentation: instrumentationId('presence'), tests: [], modules: [] } as const;
@@ -55,7 +55,19 @@ describe('whose record answers a worktree', () => {
     await writeFetchedMainline(asked.cacheRoot, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
     expect(nearestRecord(worktree, asked)).toEqual({ file: mainline, origin: 'mainline' });
 
+    // A reader that worked the selection out judges by it; one that found none, or never asked, takes what was fetched.
+    expect(nearestRecord(worktree, { ...asked, selected: 'main' })).toEqual({ file: mainline, origin: 'mainline' });
+    expect(nearestRecord(worktree, { ...asked, selected: 'release' })).toEqual({ file: below, origin: 'primary' });
+    expect(nearestRecord(worktree, { ...asked, selected: undefined })).toEqual({ file: mainline, origin: 'mainline' });
+
     await hold(own);
     expect(nearestRecord(worktree, asked)).toEqual({ file: own, origin: 'own' });
+  });
+});
+
+describe('the suite of a cached record', () => {
+  it('is the one its path names, and none for the repository one record', () => {
+    expect(cachedSuite('suites/unit/coverage.bin')).toBe('unit');
+    expect(cachedSuite('coverage.bin')).toBeUndefined();
   });
 });

@@ -3,6 +3,7 @@
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
+import { selectedMainline, selectedRecord } from './mainline-selected.js';
 
 /**
  * The one record a command scoped to one runner reads: `--suite`'s, or the only
@@ -21,7 +22,7 @@ import { messageOf } from '../config-values.js';
  * fetches. The case index is read beside this path, so from the same
  * layer as the record it was written with. The runs log is not: it says where
  * this checkout's change starts and which files this checkout ran, so it is
- * read from {@link landingRecord}'s layer and is absent until this checkout has
+ * read from {@link ownRecord}'s layer and is absent until this checkout has
  * run.
  */
 export async function suiteRecord(root: string, suite?: string): Promise<string> {
@@ -51,12 +52,35 @@ export async function refiningRecord(root: string, suite?: string): Promise<stri
   return suiteRecord(root, suite);
 }
 
+/** This checkout's own layer, the one layer it may write, whatever {@link suiteRecord} would read. */
+export async function ownRecord(root: string, suite?: string): Promise<string> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const { name } = await namedSuite(root, suite);
+  return asOperator(() => selection.testCoverageFile(root, { suite: name }));
+}
+
 /**
- * Where a command that writes the record lands it: this checkout's own layer,
- * which is the one layer it may write, whatever {@link suiteRecord} would read.
+ * Where a command that writes the record lands it, and the mainline selected,
+ * which judges the base a first landing lays: {@link ownRecord}, or `into`. A
+ * target `into` names outside the cache lays no base and asks no suite or
+ * selection; one inside it is that suite's record, judged as the suite's is.
  */
-export async function landingRecord(root: string, suite?: string): Promise<string> {
-  return (await recordedSuite(root, suite, 'landing')).file;
+export async function landingRecord(
+  root: string,
+  suite?: string,
+  into?: string,
+): Promise<{ readonly file: string; readonly selected: string | null | undefined }> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  if (into !== undefined) {
+    const inside = selection.cachedRecord(into, root);
+    if (inside === undefined) return { file: into, selected: undefined };
+    const suite = selection.cachedSuite(inside);
+    const whose = asOperator(() => selection.declaredSuites(root))?.find((one) => one.name === suite);
+    return { file: into, selected: await selectedMainline(root, whose) };
+  }
+  const { name, declared } = await namedSuite(root, suite);
+  const file = asOperator(() => selection.testCoverageFile(root, { suite: name }));
+  return { file, selected: await selectedMainline(root, declared) };
 }
 
 /**
@@ -89,30 +113,39 @@ export async function selectingRecord(
  * reader that falls back to the record a share holds asks the declaration
  * whether the share holds one.
  */
-export async function recordedSuite(
-  root: string,
-  suite?: string,
-  purpose: 'reading' | 'landing' = 'reading',
-): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
-  const selection = await import('@variance-authority/sense/test-selection');
+export async function recordedSuite(root: string, suite?: string): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
+  const { name, declared } = await namedSuite(root, suite);
   try {
-    const declared = selection.declaredSuites(root);
-    const only = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
-    if (only === undefined && declared !== undefined) {
-      throw new OperatorError(
-        `the root variance.config.json declares the suites ${declared.map((one) => `"${one.name}"`).join(', ')}, ` +
-          'and each records on its own; pass `--suite <name>` to say which record to read',
-      );
-    }
-    const file = purpose === 'landing'
-      ? selection.testCoverageFile(root, { suite: only })
-      : await selection.readableTestCoverage(root, { suite: only });
-    const named = declared?.find((one) => one.name === only);
-    return named === undefined ? { file } : { file, declared: named };
+    const file = await selectedRecord(root, name, declared);
+    return declared === undefined ? { file } : { file, declared };
   } catch (error) {
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(messageOf(error), { cause: error });
   }
+}
+
+/** The one suite a root config declares, which a reader that names none reads. */
+export function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
+  return declared?.length === 1 ? declared[0]!.name : undefined;
+}
+
+/**
+ * The suite a command scoped to one runner reads, and its declaration when it
+ * has one: `--suite`, or the only one declared, and refused where several are
+ * and none is named.
+ */
+export async function namedSuite(root: string, suite?: string): Promise<{ readonly name: string | undefined; readonly declared?: DeclaredSuite }> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const declared = asOperator(() => selection.declaredSuites(root));
+  const name = suite ?? onlySuite(declared);
+  if (name === undefined && declared !== undefined) {
+    throw new OperatorError(
+      `the root variance.config.json declares the suites ${declared.map((one) => `"${one.name}"`).join(', ')}, ` +
+        'and each records on its own; pass `--suite <name>` to say which record to read',
+    );
+  }
+  const named = declared?.find((one) => one.name === name);
+  return named === undefined ? { name } : { name, declared: named };
 }
 
 /** Run a read whose refusal is the operator's: whatever it throws is said as an {@link OperatorError}. */

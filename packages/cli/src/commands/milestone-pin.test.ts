@@ -147,6 +147,23 @@ describe('the milestone under a checkout', { timeout: 15_000 }, () => {
     expect(whatLanded(runs!.landings).files).toEqual(['test/total.test.ts']);
   });
 
+  it('stays where it is for a read that fetches nothing, which an editor can kill mid-way, and moves for the next read that may', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    await landRun(own, ranAlone(first, 'test/other.test.ts'), worktree);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    const before = await readFile(own);
+
+    const base = await suiteBase(worktree, { env: LOCAL, fetch: 'never' });
+
+    expect(base).toMatchObject({ from: 'own', layer: { pinned: { commit: first } } });
+    expect(base).not.toHaveProperty('repin');
+    expect(await readFile(own)).toEqual(before);
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
+  });
+
   it('answers a test file standing at the new milestone over the text the publishing run ran it over, when that run landed', async () => {
     const { ci, first, worktree, own } = await laidWorktree(home);
     await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);

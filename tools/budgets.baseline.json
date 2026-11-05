@@ -787,9 +787,6 @@
   "packages/cli/src/commands/suite-base.ts docblock": [
     14
   ],
-  "packages/cli/src/commands/suite-base.ts overview": [
-    27
-  ],
   "packages/cli/src/commands/suite-record.ts docblock": [
     16
   ],
@@ -2982,9 +2979,6 @@
   ],
   "packages/sense/src/test-selection/mainline-layer.ts docblock": [
     13
-  ],
-  "packages/sense/src/test-selection/mainline-layer.ts overview": [
-    18
   ],
   "packages/sense/src/test-selection/name-grammar.ts docblock": [
     15

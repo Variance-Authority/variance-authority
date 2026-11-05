@@ -189,17 +189,17 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(edited.text).toContain('The recorded lines of src/pay.ts are placed in its text as it is now.\n');
   });
 
-  it('refuses a change it cannot read from the ref when the record names no commit to read it from, rather than saying nothing changed', async () => {
+  it('refuses a change it cannot read from the ref once, before any suite reads a record, rather than saying nothing changed', async () => {
     const { at } = await checkout({ recordedAt: null });
-    const refusal = '`--since no-such-ref` could not be read as a diff. Check the ref exists and that this is a git checkout; ' +
-      'an empty answer here would read as `your change touches nothing`.';
+    const refusal = '`--since no-such-ref` could not be read as a diff. Check the ref exists and that this is a git checkout ' +
+      '(a shallow CI clone needs every commit: `fetch-depth: 0` with `filter: tree:0`); an empty answer here would read as `your change touches nothing`.';
     // `git` reads the change from the working directory, as it does for a person asking in their checkout.
     process.chdir(at);
     try {
-      const { text, json } = await ask(at, '--since', 'no-such-ref');
-
-      expect(json).toEqual({ suite: 'unit', kind: 'unit', reason: refusal });
-      expect(text).toBe(`unit (unit): ${refusal}\n`);
+      let said = '';
+      const sink = (text: string) => void (said += text);
+      await expect(main(['covering', '--root', at, '--since', 'no-such-ref'], { out: sink, err: sink })).resolves.toBe(2);
+      expect(said).toContain(refusal);
     } finally {
       process.chdir(cwd);
     }
