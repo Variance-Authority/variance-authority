@@ -20,7 +20,7 @@ import { count, number } from './text.js';
  * every render it moved in, one decision covers all of them* — printed on every
  * build of every project, in the position a reader gives their second glance to.
  * It is true and it is the same sentence every time, which makes it the most
- * expensive line on the page. The heading already counts the changes; the tally,
+ * expensive line on the page. The heading already counts the renders; the tally,
  * the commits and the diff below are about this build.
  */
 export function Opening({

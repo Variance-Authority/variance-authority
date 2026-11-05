@@ -11,7 +11,7 @@ import { senseOfSubject } from './sense.js';
  */
 export function gapsOf(subject: SubjectView): readonly string[] {
   const gaps: string[] = [];
-  if (subject.verdict === 'changed' && senseOfSubject(subject).unmeasured === 'no-hashes') {
+  if (senseOfSubject(subject).unmeasured === 'no-hashes') {
     gaps.push('Which components moved: the baseline has no component hashes to compare.');
   }
   if (subject.findings === undefined) gaps.push('Defects: this render was not inspected.');

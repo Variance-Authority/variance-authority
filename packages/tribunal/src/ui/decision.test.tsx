@@ -270,6 +270,12 @@ describe('the column carries what has something to say', () => {
     expect(host.querySelector('.va-gaps')?.textContent).toContain('no component hashes');
   });
 
+  it.each(['unchanged', 'ignored'] as const)('names the missing hashes on a render read as %s', async (verdict) => {
+    await show(subject({ verdict, changedPixels: 0, regions: [], findings: [] }));
+
+    expect(host.querySelector('.va-gaps')?.textContent).toContain('no component hashes');
+  });
+
   it('adds no line for a new render, whose verdict already says it has no baseline', async () => {
     await show(
       subject({ verdict: 'new', changedPixels: 0, regions: [], findings: [], has: { before: false, after: true, diff: false } }),
