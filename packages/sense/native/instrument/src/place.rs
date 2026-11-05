@@ -85,7 +85,7 @@ pub fn place(
     let allocator = Allocator::new();
     let parsed = [dialect("transformed.js"), dialect(file)].into_iter().flatten().find_map(|source_type| {
         let parsed = Parser::new(&allocator, transformed, source_type).parse();
-        (!parsed.panicked && parsed.diagnostics.is_empty()).then_some(parsed)
+        (!parsed.fatal_error && parsed.diagnostics.is_empty()).then_some(parsed)
     })?;
     let program = &parsed.program;
 

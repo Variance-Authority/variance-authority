@@ -2,7 +2,7 @@
 //
 // **This file is the zero-configuration claim, and it is checkable because it is
 // written in JSX.** Nothing here is configured to produce a location: no
-// `jsxImportSource`, no plugin, no `jsxDev` flag — Vitest's own esbuild
+// `jsxImportSource`, no plugin, no `jsxDev` flag — Vitest's own oxc
 // transform, on a `.tsx` file, exactly as any project's would be. What the
 // assertions read is an `Error` React captured inside its own `jsxDEV`, which is
 // present because React is the development build and for no other reason.

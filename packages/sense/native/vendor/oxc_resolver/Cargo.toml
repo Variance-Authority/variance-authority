@@ -17,7 +17,7 @@
 edition = "2024"
 rust-version = "1.95.0"
 name = "oxc_resolver"
-version = "11.24.2"
+version = "11.24.3"
 authors = ["Boshen <boshenc@gmail.com>"]
 build = false
 autolib = false

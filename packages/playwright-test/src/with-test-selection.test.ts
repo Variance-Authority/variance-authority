@@ -6,9 +6,27 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { relative, resolve } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SELECTION_SETUP, SkippedFiles, fileSelection } from './file-selection.js';
 import { SELECTION_REPORTER, selectingFiles, withTestSelection } from './with-test-selection.js';
+
+/** A package at `at` that installed Playwright `version`. */
+async function installing(at: string, version: string): Promise<void> {
+  const installed = resolve(at, 'node_modules/@playwright/test');
+  await mkdir(installed, { recursive: true });
+  await writeFile(resolve(installed, 'package.json'), JSON.stringify({ name: '@playwright/test', version }));
+  await writeFile(resolve(at, 'package.json'), '{}');
+}
+
+// The wrapper writes these on a Playwright that reads no `babelPlugins`.
+beforeEach(() => {
+  vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', undefined);
+  vi.stubEnv('PW_TEST_SOURCE_TRANSFORM_SCOPE', undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('a configuration that records what it ran', () => {
   it('gives the workers and the fold the same values', () => {
@@ -65,15 +83,51 @@ describe('a configuration that records what it ran', () => {
 describe('a configuration whose specs are cut statement by statement', () => {
   // Beside the wrapper, which is where Playwright `require`s it from.
   const PLUGIN = expect.stringMatching(/^\/.*\/cadence-babel\.cjs$/u);
+  const projects: string[] = [];
 
-  it('compiles every spec with the cadence plugin by default', () => {
-    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await Promise.all(projects.splice(0).map((path) => rm(path, { recursive: true, force: true })));
   });
 
-  it('keeps the plugins the configuration already had, ahead of the cut', () => {
+  /** Run from a project that installed Playwright `version`. */
+  async function on(version: string): Promise<void> {
+    const project = await mkdtemp(resolve(tmpdir(), 'variance-playwright-project-'));
+    projects.push(project);
+    await installing(project, version);
+    vi.spyOn(process, 'cwd').mockReturnValue(project);
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test']);
+  }
+
+  it('compiles every spec with the cadence plugin by default', async () => {
+    await on('1.62.1');
+
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+  });
+
+  it('keeps the plugins the configuration already had, ahead of the cut', async () => {
+    await on('1.62.1');
     const wrapped = withTestSelection({ '@playwright/test': { babelPlugins: [['/repo/own.cjs', { on: true }]], other: 1 } });
 
     expect(wrapped['@playwright/test']).toEqual({ babelPlugins: [['/repo/own.cjs', { on: true }], [PLUGIN]], other: 1 });
+  });
+
+  it('hands the plugin to the transform a Playwright that no longer reads `babelPlugins` keeps', async () => {
+    await on('1.63.0');
+    const wrapped = withTestSelection({});
+
+    expect(wrapped).not.toHaveProperty('@playwright/test');
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/');
+  });
+
+  it('leaves the plugins of a configuration on such a Playwright as they were', async () => {
+    await on('2.0.0');
+    const compile = { babelPlugins: [['/repo/own.cjs']] };
+
+    expect(withTestSelection({ '@playwright/test': compile })['@playwright/test']).toBe(compile);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
   });
 
   it('leaves the cut it requires untranspiled, beside what the configuration already left', () => {
@@ -88,13 +142,15 @@ describe('a configuration whose specs are cut statement by statement', () => {
     });
   });
 
-  it('compiles the specs as they were when cadence is off', () => {
+  it('compiles the specs as they were when cadence is off', async () => {
+    await on('1.64.1');
     const config = { '@playwright/test': { babelPlugins: [['/repo/own.cjs']] }, build: { external: ['**/*bundle.js'] } };
 
     expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('@playwright/test');
     expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('build');
     expect(withTestSelection(config, { cadence: false })['@playwright/test']).toBe(config['@playwright/test']);
     expect(withTestSelection(config, { cadence: false }).build).toBe(config.build);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
   });
 });
 
@@ -105,14 +161,6 @@ describe('a configuration evaluated for a shard', () => {
     vi.restoreAllMocks();
     await Promise.all(projects.splice(0).map((path) => rm(path, { recursive: true, force: true })));
   });
-
-  /** A package at `at` that installed Playwright `version`. */
-  async function installing(at: string, version: string): Promise<void> {
-    const installed = resolve(at, 'node_modules/@playwright/test');
-    await mkdir(installed, { recursive: true });
-    await writeFile(resolve(installed, 'package.json'), JSON.stringify({ name: '@playwright/test', version }));
-    await writeFile(resolve(at, 'package.json'), '{}');
-  }
 
   /**
    * Evaluate the wrapper as `playwright test <argv>` would, from a project that

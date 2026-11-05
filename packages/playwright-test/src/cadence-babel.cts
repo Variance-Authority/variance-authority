@@ -2,9 +2,9 @@
  * The Babel plugin that cuts a Playwright spec, so each case records which of
  * its statements first reached each region of the application.
  *
- * Playwright compiles every spec through Babel, and `babelPlugins` under
- * `'@playwright/test'` in the configuration is the one place it lets a project
- * add to that, which is where `withTestSelection` puts this. The cut is the one
+ * Playwright compiles every spec through Babel and offers no public way to add
+ * to that, so `withTestSelection` puts this in by the private route the
+ * installed Playwright reads (`cutSpecs`). The cut is the one
  * every runner's seam makes ([`cadence`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/instrument/cadence.ts)),
  * awaited: the page is outside the test's realm, so each statement of an async
  * body waits while the `context` fixture drains what the statement before it

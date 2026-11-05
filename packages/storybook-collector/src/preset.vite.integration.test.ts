@@ -18,7 +18,7 @@ const require = createRequire(import.meta.url);
 
 /** The addon, by the path Storybook loads a preset from. */
 const ADDON = resolve(import.meta.dirname, 'preset.ts');
-const STORYBOOK = resolve(dirname(require.resolve('storybook/package.json')), 'bin/index.cjs');
+const STORYBOOK = resolve(dirname(require.resolve('storybook/package.json')), 'dist/bin/dispatcher.js');
 
 const temporary: string[] = [];
 

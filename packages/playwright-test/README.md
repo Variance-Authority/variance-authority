@@ -677,8 +677,11 @@ region, the line of the spec whose statement first reached it: the
 [lines Sense records](https://variance-authority.dev/reference/packages/sense#record-which-test-line-reached-a-region)
 under every other runner, read by the same answers.
 
-`withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
-compiles every spec with. The plugin puts an awaited call in front of each
+`withTestSelection` adds a Babel plugin to the compile every spec goes through:
+under `babelPlugins` below Playwright 1.63, and through the
+`PW_TEST_SOURCE_TRANSFORM` and `PW_TEST_SOURCE_TRANSFORM_SCOPE` environment
+variables from 1.63, which it sets for the run and which replace any value of
+your own. The plugin puts an awaited call in front of each
 statement of an async test or hook body, and the call drains every frame of
 every page the test opened before the statement runs. What a drain finds is
 charged to the statement before it, and what the teardown drain finds to the

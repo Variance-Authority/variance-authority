@@ -33,7 +33,7 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     };
     for statement in &program.body {
         let Statement::ImportDeclaration(import) = statement else { continue };
-        let source = import.source.value.to_string();
+        let source = import.source.value.display().to_string();
         walker.reading.sources.insert(source.clone());
         // `import { type A } from` keeps its braces, emptied; only `import './x'` has none.
         if import.specifiers.is_none() {
@@ -126,7 +126,7 @@ impl Walker<'_> {
         match statement {
             Statement::ImportDeclaration(_) => {}
             Statement::ExportFromDeclaration(it) => {
-                let source = it.source.value.to_string();
+                let source = it.source.value.display().to_string();
                 self.reading.sources.insert(source.clone());
                 for specifier in &it.specifiers {
                     let taken = specifier.local.name().to_string();
@@ -135,7 +135,7 @@ impl Walker<'_> {
                 }
             }
             Statement::ExportAllDeclaration(it) => {
-                let source = it.source.value.to_string();
+                let source = it.source.value.display().to_string();
                 self.reading.sources.insert(source.clone());
                 let given = it.exported.as_ref().map(|name| name.name().to_string());
                 self.reading.reexports.push(Reexport { taken: "*".to_string(), given, source });

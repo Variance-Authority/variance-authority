@@ -222,7 +222,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.
@@ -247,7 +247,7 @@ jobs:
       # --skip-smudge` in a step after it, or a commit stores whole images.
       # Leave `lfs` off here. The run fetches the image of each subject whose
       # document changed, and only that image.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.VARIANCE_REVIEW == 'git' && github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ env.VARIANCE_REVIEW == 'git' && github.head_ref || '' }}
@@ -419,7 +419,7 @@ jobs:
       # against; and the store names a machine's partition by its digest,
       # `v1:<hex>`, whose colon this action refuses.
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-files
           path: |
@@ -516,7 +516,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
@@ -524,7 +524,7 @@ jobs:
       # run code from the pull request, so the token is not left on disk. The
       # site's row takes the merge commit's parents too: the first is the base,
       # and the change is read against it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: ${{ matrix.project == 'site' && 2 || 1 }}
@@ -644,7 +644,7 @@ jobs:
         run: cat "$RUNNER_TEMP/site.log"
 
       - if: always() && steps.reach.outputs.observe != 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.project }}-files
           path: |
@@ -689,7 +689,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
@@ -699,7 +699,7 @@ jobs:
       # holds. The token is `VARIANCE_PUSH_TOKEN` when it is set, so the
       # commit-back starts the run that checks it; `GITHUB_TOKEN` otherwise,
       # whose push lands and starts nothing.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.head_ref || '' }}
@@ -790,7 +790,7 @@ jobs:
           exit-zero-on-changes: ${{ steps.accept.outputs['exit-zero-on-changes'] }}
 
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lfs-files
           path: |

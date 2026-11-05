@@ -65,6 +65,11 @@ impl Walker {
     }
 }
 
+/// The name a key gives what it holds, when text can spell it.
+fn pending(key: &PropertyKey<'_>) -> Option<String> {
+    key.static_name()?.into_cow_str().map(|name| name.into_owned())
+}
+
 fn is_function(expression: &Expression<'_>) -> bool {
     matches!(expression.get_inner_expression(), Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_))
 }
@@ -99,20 +104,20 @@ impl<'a> Visit<'a> for Walker {
     }
 
     fn visit_method_definition(&mut self, it: &MethodDefinition<'a>) {
-        self.pending = it.key.static_name().map(|name| name.into_owned());
+        self.pending = pending(&it.key);
         walk::walk_method_definition(self, it);
         self.pending = None;
     }
 
     fn visit_property_definition(&mut self, it: &PropertyDefinition<'a>) {
-        self.pending = it.value.as_ref().filter(|value| is_function(value)).and_then(|_| it.key.static_name().map(|name| name.into_owned()));
+        self.pending = it.value.as_ref().filter(|value| is_function(value)).and_then(|_| pending(&it.key));
         walk::walk_property_definition(self, it);
         self.pending = None;
     }
 
     fn visit_object_property(&mut self, it: &ObjectProperty<'a>) {
         self.visit_property_key(&it.key);
-        self.pending = is_function(&it.value).then(|| it.key.static_name().map(|name| name.into_owned())).flatten();
+        self.pending = is_function(&it.value).then(|| pending(&it.key)).flatten();
         self.visit_expression(&it.value);
         self.pending = None;
     }

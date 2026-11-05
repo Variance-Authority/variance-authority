@@ -126,7 +126,7 @@ empty one skips every test.
 **Fetch every commit, and no trees.** On GitHub Actions:
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     fetch-depth: 0
     filter: tree:0

@@ -397,8 +397,8 @@ script is the only thing you mount:
 mkdir -p box && cp node_modules/@variance-authority/playwright/scripts/host.mjs box/
 docker run --rm --ipc=host --user pwuser -v "$PWD/box:/work" -w /work \
   -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-  mcr.microsoft.com/playwright:v1.62.1-noble \
-  sh -c 'npm i playwright@1.62.1 >/dev/null && node host.mjs --out .'
+  mcr.microsoft.com/playwright:v1.64.1-noble \
+  sh -c 'npm i playwright@1.64.1 >/dev/null && node host.mjs --out .'
 ```
 
 Use `--ipc=host`: on a container's 64 MB `/dev/shm` Chromium crashes rather than

@@ -115,13 +115,13 @@ jobs:
     # the merge refuses them naming both files (ADR-0011). A matrix that varied
     # the image would produce reports that cannot be added up.
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
       # Every commit, so the mainline's costs are read at a distance this clone
       # can count from its merge base. No trees: the count walks commits only.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
@@ -191,7 +191,7 @@ jobs:
         run: echo "path=${REPORT%.json}.suite-part.json" >> "$GITHUB_OUTPUT"
 
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.shard.name }}
           path: |
@@ -232,14 +232,14 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - shell: bash
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: variance-shard-*
           path: shards

@@ -11,7 +11,7 @@ if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is 
 export default withTestSelection(
   defineConfig({
     root,
-    esbuild: { jsx: 'automatic' },
+    oxc: { jsx: { runtime: 'automatic' } },
     test: { include: ['test/*.dom.tsx'], setupFiles: ['@variance-authority/react/story'] },
   }),
   {

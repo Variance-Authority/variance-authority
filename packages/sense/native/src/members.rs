@@ -212,7 +212,7 @@ impl Walker<'_, '_> {
             Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
             Expression::StaticMemberExpression(it) => self.held(&it.object).and_then(|held| self.member_of(held, &it.property.name)),
             Expression::ComputedMemberExpression(it) => match &it.expression {
-                Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, &name.value)),
+                Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, name.value.as_str()?)),
                 _ => None,
             },
             _ => None,
@@ -372,7 +372,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
         // A key the walk cannot spell reads the module whole: the object is not followed.
         if let Expression::StringLiteral(name) = &it.expression {
             if let Some(held) = self.held(&it.object) {
-                self.add(held, &name.value, name.span.start);
+                self.add(held, name.value.as_str().unwrap_or(WHOLE), name.span.start);
             } else {
                 self.promise_read(&it.object);
             }

@@ -64,7 +64,7 @@ pub(super) fn internal_digest(internal: &[&str]) -> String {
     sorted.dedup();
     let mut hash = Sha256::new();
     for name in sorted { hash.update(name.as_bytes()); hash.update([0]); }
-    format!("{:x}", hash.finalize())
+    crate::journeys::hex(&hash.finalize())
 }
 
 /// A sites file read in place.

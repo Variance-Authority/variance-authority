@@ -80,9 +80,9 @@ pub enum Verdict {
 /// One step of the module's evaluation, compared by the parser's own equality.
 enum Step<'s, 'a> {
     /// An import that binds nothing: `import './x'`, `import {} from './x'`.
-    Import(&'s str),
+    Import(String),
     /// A re-export loads its source.
-    From(&'s str),
+    From(String),
     Declaration(&'s Declaration<'a>),
     Statement(&'s Statement<'a>),
     Declarator(VariableDeclarationKind, &'s VariableDeclarator<'a>),
@@ -142,7 +142,7 @@ struct View<'s, 'a> {
     /// Each non-hoisted binding and each step, as written: `None` is a step.
     order: Vec<Option<String>>,
     /// The sources an import binds names from.
-    imports: BTreeSet<&'s str>,
+    imports: BTreeSet<String>,
 }
 
 impl<'s, 'a> View<'s, 'a> {
@@ -233,11 +233,13 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
     let mut view = View { sequence: Vec::new(), bindings: BTreeMap::new(), order: Vec::new(), imports: BTreeSet::new() };
     for statement in &program.body {
         match statement {
+            // `display()` can spell two specifiers alike only when one holds a
+            // lone surrogate, and no file is named by that.
             Statement::ImportDeclaration(it) => {
                 if it.specifiers.as_ref().is_none_or(|specifiers| specifiers.is_empty()) {
-                    view.step(Step::Import(it.source.value.as_str()));
+                    view.step(Step::Import(it.source.value.display().to_string()));
                 } else if !it.import_kind.is_type() {
-                    view.imports.insert(it.source.value.as_str());
+                    view.imports.insert(it.source.value.display().to_string());
                 }
                 for specifier in it.specifiers.iter().flatten() {
                     let (local, imported) = match specifier {
@@ -245,14 +247,14 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
                         ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, "default".to_string()),
                         ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, "*".to_string()),
                     };
-                    view.bind(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value)));
+                    view.bind(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value.display())));
                 }
             }
             // FIXME: a re-export that binds names is a use by whoever imports
             // them, as an import that binds names is; adding or removing one of
             // an undeclared module charges every test that loaded this file.
-            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
-            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
+            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.display().to_string())),
+            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.display().to_string())),
             // An export list without a source runs nothing.
             Statement::ExportNamedDeclaration(_) => {}
             Statement::ExportDeclaration(it) => declaration(&mut view, &it.declaration),

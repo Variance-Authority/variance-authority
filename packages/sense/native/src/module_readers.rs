@@ -121,13 +121,13 @@ pub fn interface_of(program: &Program, lines: &Lines) -> BTreeMap<String, String
     for statement in &program.body {
         match statement {
             Statement::ExportAllDeclaration(it) => {
-                let from = &it.source.value;
+                let from = it.source.value.display();
                 let key = it.exported.as_ref().map_or_else(|| format!("* {from}"), |name| name.name().to_string());
                 interface.insert(key, format!("from {from} *"));
             }
             Statement::ExportFromDeclaration(it) => {
                 for specifier in &it.specifiers {
-                    let bound = format!("from {} {}", it.source.value, specifier.local.name());
+                    let bound = format!("from {} {}", it.source.value.display(), specifier.local.name());
                     interface.insert(specifier.exported.name().to_string(), bound);
                 }
             }

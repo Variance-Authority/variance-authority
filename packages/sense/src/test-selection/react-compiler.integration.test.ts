@@ -64,7 +64,7 @@ describe('React Compiler ahead of the probes', () => {
       configFile: false,
       logLevel: 'silent',
       plugins: [testSelectionProbes({ root }), reactCompiler()],
-      esbuild: { jsx: 'transform', jsxFactory: 'h' },
+      oxc: { jsx: { runtime: 'classic', pragma: 'h' } },
       build: {
         write: false,
         minify: false,
@@ -91,7 +91,7 @@ describe('React Compiler ahead of the probes', () => {
     ]);
     const badge = code!.slice(code!.indexOf('function Badge('));
     // The compiler wrote its cache: the probes went in after it.
-    expect(badge).toMatch(/const \$ = (?:\w+\.)?c\(\d+\);/);
+    expect(badge).toMatch(/const \$ = (?:\(0, )?(?:\w+\.)?c\)?\(\d+\);/);
     // Every region has a probe, each on the path that runs it: the branch's
     // inside the compiled branch, the callback's inside the callback it moved
     // into a cache check, and the branch the author left implicit in an
@@ -102,8 +102,8 @@ describe('React Compiler ahead of the probes', () => {
     expect(then).toMatch(/^if \(count > 9\) \{\s+__va\(1\), __va\(2\), __va\(3\);/);
     expect(then).not.toContain('__va(4)');
     expect(badge).toMatch(/=> \(__va\(3\), console\.log\(label\)\)/);
-    expect(badge).toMatch(/return t2;\s+\} else \{\s+__va\(4\);\s+\}/);
-    expect(badge.slice(badge.indexOf('} else {'))).toMatch(/__va\(5\);\s+const text = open \?/);
+    expect(badge).toMatch(/return t2;\s+\} else (?:\{\s+)?__va\(4\);/);
+    expect(badge.slice(badge.indexOf('__va(4)'))).toMatch(/__va\(5\);\s+const text = open \?/);
     // The compiler maps the component's closing brace to the end of its last
     // statement, in the region after the branch, and that brace is the
     // component's own code: so that region also fires where the component

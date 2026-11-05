@@ -46,7 +46,7 @@ impl Walker<'_, '_> {
     pub(super) fn indexed<'t>(&self, it: &'t TSIndexedAccessType) -> Option<(Held, &'t str, u32)> {
         let TSType::TSLiteralType(literal) = &it.index_type else { return None };
         let TSLiteral::StringLiteral(name) = &literal.literal else { return None };
-        Some((self.typed(&it.object_type)?, name.value.as_str(), name.span.start))
+        Some((self.typed(&it.object_type)?, name.value.as_str()?, name.span.start))
     }
 }
 

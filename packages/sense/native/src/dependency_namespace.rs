@@ -88,7 +88,7 @@ pub(crate) fn exported_import(program: &Program) -> Vec<String> {
     let Some((local, scopes)) = assigned(program) else { return Vec::new() };
     scopes.into_iter().flatten().filter_map(|statement| match statement {
         Statement::TSImportEqualsDeclaration(it) if it.id.name == local.as_str() => match &it.module_reference {
-            TSModuleReference::ExternalModuleReference(reference) => Some(reference.expression.value.to_string()),
+            TSModuleReference::ExternalModuleReference(reference) => Some(reference.expression.value.display().to_string()),
             _ => None,
         },
         _ => None,

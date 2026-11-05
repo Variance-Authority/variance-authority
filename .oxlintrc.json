@@ -4,5 +4,8 @@
   "categories": {
     "correctness": "error"
   },
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_", "destructuredArrayIgnorePattern": "^_", "ignoreRestSiblings": true }]
+  },
   "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/.yarn/**"]
 }

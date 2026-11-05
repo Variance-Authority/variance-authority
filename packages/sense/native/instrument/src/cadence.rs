@@ -62,7 +62,7 @@ pub fn cadence(source: &str, file: &str, awaited: bool) -> Option<Cadence> {
     let allocator = Allocator::new();
     let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(&allocator, source, source_type).parse();
-    if parsed.panicked || !parsed.diagnostics.is_empty() {
+    if parsed.fatal_error || !parsed.diagnostics.is_empty() {
         return None;
     }
     let (registrars, hooks) = registrars(&parsed.program);

@@ -390,7 +390,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
-    let clean = !parsed.panicked && parsed.diagnostics.is_empty();
+    let clean = !parsed.fatal_error && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
     let member_declarations = member_declarations_in(&parsed.program, &lines, &harvest);
     let read = Read {

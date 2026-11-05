@@ -26,8 +26,8 @@ import { routeCollector, type Collector, type Plan } from './index.js';
  *
  * So the fixtures are the assertion, and the two `vite.config.mjs` files below
  * should be read as the specification. Between them they contain one setting,
- * `jsx: 'automatic'`, which is how a React project says it is a React project;
- * one of them contains nothing at all. Neither names a plugin, a `jsxDev`, a
+ * `runtime: 'classic'`, which is how a project stays on the transform it has;
+ * the other contains nothing at all. Neither names a plugin, a `jsxDev`, a
  * `jsxImportSource` or anything else belonging to Variance.
  *
  * What supplies the location instead is that React's development build captures
@@ -39,10 +39,10 @@ import { routeCollector, type Collector, type Plan } from './index.js';
  *
  * They exercise different halves of React, and two major versions of it.
  *
- * The empty config leaves Vite on the classic transform, so every element goes
- * through `createElement` — the path a JSX transform never touches, and the one
- * a class component's `render` uses. The automatic config reaches `jsxDEV`. A
- * mechanism reading only the second would work for most projects and silently
+ * The classic config sends every element through `createElement` — the path a
+ * JSX transform never touches, and the one a class component's `render` uses.
+ * The empty config leaves Vite on the automatic runtime, which reaches `jsxDEV`.
+ * A mechanism reading only the second would work for most projects and silently
  * return nothing for the first.
  *
  * **React 18 arrives at the same answer down a different road, and it is the
@@ -269,35 +269,41 @@ let classic: Fixture | undefined;
 let automatic: Fixture | undefined;
 let automatic18: Fixture | undefined;
 let classic18: Fixture | undefined;
+let unmarked18: Fixture | undefined;
 
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
 
+  // The one line, and the reason it is not a concession: `runtime: 'classic'`
+  // keeps a project on `createElement`, the transform it was written against.
+  // It says nothing about debugging, and nothing about this project.
+  classic = await build("export default { oxc: { jsx: { runtime: 'classic' } } };\n", ["import React from 'react';"], 19);
+
   // Nothing. Not a reduced config, not a config with the interesting parts
-  // removed — the file a reviewer should open first.
-  classic = await build('export default {};\n', ["import React from 'react';"], 19);
+  // removed — the file a reviewer should open first. Vite's own default selects
+  // React's current element factory, and pairs it with the development runtime
+  // in serve mode by itself.
+  automatic = await build('export default {};\n', [], 19);
 
-  // The one line, and the reason it is not a concession: `jsx: 'automatic'`
-  // selects React's current element factory, which is what `@vitejs/plugin-react`
-  // sets on an adopter's behalf and what every React toolchain since 2020 has
-  // defaulted to. It says nothing about debugging, and nothing about this
-  // project. Vite pairs it with the development runtime in serve mode by itself.
-  automatic = await build("export default { esbuild: { jsx: 'automatic' } };\n", [], 19);
-
-  // The same one line, against the React the majority of installed applications
+  // The same nothing, against the React the majority of installed applications
   // are still on. Nothing else differs, and nothing in this repository selects a
   // path by version number: `_debugSource` is read first because a location the
   // compiler already computed beats one that has to be resolved, and React 19
   // simply has none.
-  automatic18 = await build(
-    `export default {\n  esbuild: { jsx: 'automatic' },\n${REACT_18}};\n`,
-    [],
+  automatic18 = await build(`export default {\n${REACT_18}};\n`, [], 18);
+
+  // The classic line against React 18. Serving development, Vite writes
+  // `__source` into `createElement` calls too, so `_debugSource` is filled here
+  // by the same road.
+  classic18 = await build(
+    `export default {\n  oxc: { jsx: { runtime: 'classic' } },\n${REACT_18}};\n`,
+    ["import React from 'react';"],
     18,
   );
 
   // The corner with no answer in it, built so the claim above stays exact.
-  classic18 = await build(
-    `export default {\n${REACT_18}};\n`,
+  unmarked18 = await build(
+    `export default {\n  oxc: { jsx: { runtime: 'classic', development: false } },\n${REACT_18}};\n`,
     ["import React from 'react';"],
     18,
   );
@@ -351,9 +357,10 @@ async function sourceOf(fixture: Fixture, title: string): Promise<SourceLocation
 }
 
 chromium_.each([
-  ['React 19, an empty config, where JSX compiles to createElement', () => classic!],
-  ['React 19, the automatic runtime, configured only as React', () => automatic!],
-  ['React 18, the automatic runtime, configured only as React', () => automatic18!],
+  ['React 19, the classic transform, where JSX compiles to createElement', () => classic!],
+  ['React 19, an empty config, on the automatic runtime', () => automatic!],
+  ['React 18, configured only as React 18, on the automatic runtime', () => automatic18!],
+  ['React 18, the classic transform, which writes `__source` when serving development', () => classic18!],
 ] as const)('%s', (_label, fixtureOf) => {
   it('reports the line and column an element is written on', async () => {
     // The claim, byte-exact. Nothing in this build was arranged to produce it:
@@ -466,20 +473,19 @@ chromium_('a frame changes no hash', () => {
  * The one combination that has no location in it, asserted so the claim above
  * cannot quietly grow.
  *
- * React 18 with the classic transform: `createElement` is called with a props
- * object the compiler wrote no `__source` into — esbuild emits that argument for
- * the automatic runtime and not for this one — and React 18 captures no error of
- * its own to make up the difference. Nothing is lost by this that was ever
- * present; there is simply nothing to read.
+ * React 18 with classic output and no development emission: `createElement` is
+ * called with a props object the compiler wrote no `__source` into, and React 18
+ * captures no error of its own to make up the difference. Nothing is lost by this
+ * that was ever present; there is simply nothing to read.
  *
- * It is a narrow corner. Reaching it means being on React 18 *and* declining the
- * transform React has defaulted to since 2020, and it is the case the
- * `jsx-source` plugin was written for. Naming it here is cheaper than letting a
- * reader infer from two passing versions that every combination of them passes.
+ * It is a narrow corner. Reaching it means being on React 18, declining the
+ * transform React has defaulted to since 2020, *and* turning off what Vite turns
+ * on when serving development. Naming it here is cheaper than letting a reader
+ * infer from two passing versions that every combination of them passes.
  */
-chromium_('React 18 with the classic transform reports no location, and says so by absence', () => {
+chromium_('React 18 with no `__source` in classic output reports no location, and says so by absence', () => {
   it('captures the elements but attributes none of them', async () => {
-    const { nodes, snapshot, callSites } = classic18!;
+    const { nodes, snapshot, callSites } = unmarked18!;
     expect(nodes.length).toBeGreaterThan(2);
 
     // Asked properly, not just inspected. Nothing is recorded and nothing is
@@ -491,7 +497,7 @@ chromium_('React 18 with the classic transform reports no location, and says so 
   it('still names the components that wrote them', () => {
     // The fallback is not nothing. Owners come off the fiber whatever the
     // transform did, so a report keeps `Badge` and loses only its line.
-    const badge = classic18!.nodes.find((node) => node.attributes['title'] === 'badge');
+    const badge = unmarked18!.nodes.find((node) => node.attributes['title'] === 'badge');
     expect(badge?.provenance?.owners.map((owner) => owner.name)).toContain('Badge');
   });
 });

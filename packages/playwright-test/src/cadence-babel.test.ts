@@ -3,15 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { originalPositionFor, parseSourceMap } from '@variance-authority/core/attribute';
 import { describe, expect, it } from 'vitest';
 
-/** Playwright's compile, the one every spec goes through with the configured `babelPlugins`. */
+/** Playwright's compile, the one every spec goes through with the plugin it is handed. */
 const { babelTransform } = createRequire(import.meta.url)('playwright/lib/transform/babelBundle') as {
   babelTransform: (
     code: string,
     filename: string,
     isModule: boolean,
-    prologue: [string, object?][],
-    epilogue: [string, object?][],
-    jsxImportSource?: string,
+    plugins: [string, object?][],
   ) => { code: string; map?: object | null };
 };
 
@@ -27,7 +25,7 @@ const SPEC = [
   '',
 ].join('\n');
 
-const compiled = (code: string, file: string) => babelTransform(code, file, false, [[PLUGIN, {}]], [], undefined);
+const compiled = (code: string, file: string) => babelTransform(code, file, false, [[PLUGIN, {}]]);
 
 describe('a Playwright spec compiled with the cadence plugin', () => {
   it('awaits a cut before each statement of a test body, naming the spec', () => {

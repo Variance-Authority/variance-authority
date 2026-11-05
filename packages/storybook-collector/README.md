@@ -504,7 +504,8 @@ same story shown again at another size.
   `jsx-source` only when the report must distinguish the exact element instance.
   Against a development Storybook nothing normally needs installing; missing
   lines there mean React is not its development build, the dev server emits no
-  source maps, or React 18 is still compiled to classic `createElement` calls.
+  source maps, or React 18 is compiled to classic `createElement` calls with no
+  `__source`.
 - **Images change without a document change:** leave `network` enabled so asset
   response bodies participate in the environment key. Disable it only when the
   URL already identifies the bytes.

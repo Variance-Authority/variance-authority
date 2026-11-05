@@ -1,6 +1,6 @@
 function tag(_label: string) {
-  return function (value: unknown, _context: unknown) {
-    return value;
+  return function (_target: unknown, _key: unknown, descriptor: PropertyDescriptor) {
+    return descriptor;
   };
 }
 

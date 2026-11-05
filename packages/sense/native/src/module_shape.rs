@@ -37,7 +37,7 @@ pub fn parse<'a>(allocator: &'a Allocator, file: &str, text: &'a str, bodies: bo
     let source_type = crate::read::dialect(file).unwrap_or_default();
     let options = ParseOptions { preserve_parens: false, ..ParseOptions::default() };
     let parsed = Parser::new(allocator, text, source_type).with_options(options).parse();
-    if parsed.panicked || !parsed.diagnostics.is_empty() {
+    if parsed.fatal_error || !parsed.diagnostics.is_empty() {
         return None;
     }
     let mut program = parsed.program;

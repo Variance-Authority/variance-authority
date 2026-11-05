@@ -69,7 +69,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history: `changelog-git` names the commit each changeset arrived
           # in, and a shallow checkout does not have them. With its trees: the
@@ -77,7 +77,7 @@ jobs:
           # a clone without them would fetch each one in its own request.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -118,9 +118,9 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -209,9 +209,9 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -241,7 +241,7 @@ jobs:
       # its glibc floor fails the platform that built it.
       - run: node packages/sense/scripts/verify-native-pack.mjs packages/sense/npm/${{ matrix.platform }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: scan-${{ matrix.platform }}
           # Every binary the platform built, because how many there are is the
@@ -262,9 +262,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -273,7 +273,7 @@ jobs:
       - run: yarn install --immutable
 
       # Only used when the IDE's bundled runtime carries no compiler.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -288,7 +288,7 @@ jobs:
       # The same refusal `prepack` makes at publish, made where the plugins were built.
       - run: node packages/editors/scripts/verify-pack.mjs
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: editors
           path: |
@@ -317,7 +317,7 @@ jobs:
       # seconds and cannot leave the runner, and npm mints provenance from it.
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -366,7 +366,7 @@ jobs:
           git clone --depth 1 "$remote" "$into"
           git -C "$into" push --dry-run origin HEAD:main
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -382,13 +382,13 @@ jobs:
       # binary the download below overwrites.
       - run: yarn build:js
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: scan-*
           path: native-artifacts
 
       # Into the package that carries them; its `prepack` refuses to publish without them.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: editors
           path: packages/editors

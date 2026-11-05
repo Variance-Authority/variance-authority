@@ -198,8 +198,8 @@ exact call site in every common development configuration.
 | Subject build | Call-site source | Build change |
 |---|---|---|
 | **React 19 development**, automatic or classic JSX | `_debugStack` | none |
-| **React 18 development**, automatic JSX | `_debugSource` | none |
-| **React 18 development**, classic `createElement` output | none | switch to automatic development JSX and add [`@variance-authority/jsx-source`](https://variance-authority.dev/reference/packages/jsx-source), when exact lines are required |
+| **React 18 development**, automatic JSX, or classic output carrying `__source` | `_debugSource` | none |
+| **React 18 development**, classic `createElement` output with no `__source` | none | switch to automatic development JSX and add [`@variance-authority/jsx-source`](https://variance-authority.dev/reference/packages/jsx-source), when exact lines are required |
 | **production React artifact** | none | automatic development JSX plus [`@variance-authority/jsx-source`](https://variance-authority.dev/reference/packages/jsx-source), when exact lines are required |
 
 React 19 constructs an `Error` inside its own element factory and keeps it on

@@ -25,7 +25,7 @@
 
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, parse, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
 import {
@@ -36,7 +36,7 @@ import {
   type SuiteSelection,
 } from '@variance-authority/sense/test-selection';
 import { SELECTION_SETUP, SkippedFiles, selectFiles } from './file-selection.js';
-import { installedPlaywright, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
+import { installedPlaywright, playwrightFrom, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
@@ -88,7 +88,8 @@ export interface TestSelection extends ExecutionRecording {
  * reporter that folds what the workers staged, and, given a since commit, run
  * only the files the selection keeps (`selectingFiles`). Everything the
  * configuration had stays: its reporters in their order, Playwright's default
- * named when it had none, and its `babelPlugins` ahead of the cadence cut.
+ * named when it had none, and its `babelPlugins` ahead of the cadence cut
+ * (`cutSpecs`).
  *
  * The application still needs `testSelectionProbes()` from
  * `@variance-authority/sense/journal`. A shard nothing would place by whole
@@ -117,7 +118,7 @@ export function withTestSelection<Config extends object = PlaywrightSelectionCon
     ...(recording.cadence === false
       ? {}
       : {
-          '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] },
+          ...cutSpecs(compile),
           build: { ...build, external: [...(build?.external ?? []), SENSE_DIST] },
         }),
     use: { ...config.use, varianceExecution: recording },
@@ -183,6 +184,26 @@ export function selectingFiles(
 /** A configuration value that is one or a list of them, as a list. */
 function listed<Value>(value: Value | readonly Value[] | undefined): readonly Value[] {
   return value === undefined ? [] : Array.isArray(value) ? value : [value as Value];
+}
+
+/**
+ * Give Playwright the cadence cut, by the one route its version reads: what
+ * goes in the configuration, or nothing and the environment.
+ *
+ * Playwright stopped reading `babelPlugins` at 1.63, and what its transform
+ * keeps is a plugin and a path scope in two environment variables, which its
+ * workers inherit. That pair reaches no ES module spec on the oldest Playwright
+ * this package takes, and both routes at once make Babel refuse two parser
+ * overrides, so the version picks. The scope is the whole disk because the
+ * plugin decides for itself what it cuts.
+ */
+function cutSpecs(compile: { readonly babelPlugins?: readonly unknown[] } | undefined): object {
+  if (!playwrightFrom(63, installedPlaywright(configDirectory(process.argv)))) {
+    return { '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] } };
+  }
+  process.env['PW_TEST_SOURCE_TRANSFORM'] = CADENCE_PLUGIN;
+  process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = parse(process.cwd()).root;
+  return {};
 }
 
 /**

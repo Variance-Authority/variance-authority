@@ -130,8 +130,8 @@ const shared = defineConfig({
     // comes before every one that registers a hook, so its `afterAll` runs last.
     setupFiles: ['tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts', 'tools/process-per-file.ts', 'tools/temporary-per-test.ts'],
   },
-  esbuild: {
-    jsx: 'automatic',
+  oxc: {
+    jsx: { runtime: 'automatic' },
     // Vite's own list is `m?ts` and leaves `.cts` out, which makes a CommonJS
     // TypeScript source the one kind of module in this repository that cannot
     // be unit tested — it reaches the runner untransformed and fails to parse.

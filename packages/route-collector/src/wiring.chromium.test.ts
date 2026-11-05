@@ -127,7 +127,7 @@ beforeAll(async () => {
   writeFileSync(
     join(root, 'vite.config.mjs'),
     'export default {\n' +
-      "  esbuild: { jsx: 'automatic' },\n" +
+      "  oxc: { jsx: { runtime: 'automatic' } },\n" +
       "  resolve: { dedupe: ['react', 'react-dom'] },\n" +
       "  optimizeDeps: { include: ['react', 'react/jsx-dev-runtime', 'react-dom/client'] },\n" +
       '};\n',
