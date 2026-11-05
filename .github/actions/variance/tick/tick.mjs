@@ -69,7 +69,18 @@ function notATick({ action, changes, comment, issue, sender }) {
 
 async function currentHead(number, head) {
   const pull = await request('GET', `pulls/${number}`);
-  return pull.head.sha === head;
+  return pull.state === 'open' && pull.head.sha === head;
+}
+
+/** The run once it has stopped, since a rerun is refused while it goes. The job's `timeout-minutes` bounds this. */
+async function finished(run) {
+  let state = await request('GET', `actions/runs/${run}`);
+  while (state.status !== 'completed') {
+    note(`waiting for run ${run} to finish.`);
+    await sleep(POLL_SECONDS * 1000);
+    state = await request('GET', `actions/runs/${run}`);
+  }
+  return state;
 }
 
 async function answer() {
@@ -80,39 +91,40 @@ async function answer() {
   const by = payload.sender.login;
   const number = payload.issue.number;
   const { head, job } = boxIn(payload.comment.body);
-  const stale = `the box belongs to ${head.slice(0, 7)}, and the pull request has moved on; nothing accepted.`;
+  const stale = `the box belongs to ${head.slice(0, 7)}, and the pull request has moved on or closed; nothing accepted.`;
 
   if (!(await currentHead(number, head))) return note(stale);
   const { permission } = await request('GET', `collaborators/${by}/permission`);
   if (!WRITERS.has(permission)) return note(`@${by} has ${permission} access, not write; nothing accepted.`);
 
-  // A rerun is refused while its run goes, and the head and the box may both
-  // move in this wait. The job's `timeout-minutes` bounds it.
   const { run_id: run, name } = await request('GET', `actions/jobs/${job}`);
-  let state = await request('GET', `actions/runs/${run}`);
-  while (state.status !== 'completed') {
-    note(`waiting for run ${run} to finish.`);
-    await sleep(POLL_SECONDS * 1000);
-    state = await request('GET', `actions/runs/${run}`);
+  for (;;) {
+    const state = await finished(run);
+    if (!(await currentHead(number, head))) return note(stale);
+    const comment = await request('GET', `issues/comments/${payload.comment.id}`);
+    const still = boxIn(comment.body);
+    if (!still?.ticked || still.head !== head || still.job !== job) return note('the box is no longer ticked; nothing accepted.');
+
+    // A job has a new id in each attempt, and a second box in this run may have
+    // started one since this box was written.
+    const { jobs } = await request('GET', `actions/runs/${run}/jobs?per_page=${PER_PAGE}`);
+    const latest = jobs.find((candidate) => candidate.name === name);
+    if (!latest) throw new Error(`run ${run} has no job ${name} to rerun`);
+
+    await request('PATCH', `issues/comments/${comment.id}`, {
+      body: comment.body.replace(BOX, record(by, head, run, state.run_attempt)),
+    });
+    try {
+      await request('POST', `actions/jobs/${latest.id}/rerun`);
+      console.log(`::notice::variance: accepted by @${by} on ${head.slice(0, 7)}; run ${run} is running again.`);
+      return undefined;
+    } catch (error) {
+      // The record names an attempt that will not follow it, and says something
+      // that did not happen. A run going again is another box's rerun, won first.
+      await request('PATCH', `issues/comments/${comment.id}`, { body: comment.body });
+      if ((await request('GET', `actions/runs/${run}`)).status === 'completed') throw error;
+    }
   }
-
-  if (!(await currentHead(number, head))) return note(stale);
-  const comment = await request('GET', `issues/comments/${payload.comment.id}`);
-  const still = boxIn(comment.body);
-  if (!still?.ticked || still.head !== head || still.job !== job) return note('the box is no longer ticked; nothing accepted.');
-
-  // A job has a new id in each attempt, and a second box in this run may have
-  // started one since this box was written.
-  const { jobs } = await request('GET', `actions/runs/${run}/jobs?per_page=${PER_PAGE}`);
-  const latest = jobs.find((candidate) => candidate.name === name);
-  if (!latest) throw new Error(`run ${run} has no job ${name} to rerun`);
-
-  await request('PATCH', `issues/comments/${comment.id}`, {
-    body: comment.body.replace(BOX, record(by, head, run, state.run_attempt)),
-  });
-  await request('POST', `actions/jobs/${latest.id}/rerun`);
-
-  console.log(`::notice::variance: accepted by @${by} on ${head.slice(0, 7)}; run ${run} is running again.`);
 }
 
 /**

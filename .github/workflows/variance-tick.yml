@@ -27,11 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     # Most of this is the wait for the run a tick reruns to finish.
     timeout-minutes: 60
-    # One at a time, because a rerun is refused while another goes. GitHub keeps
-    # one waiting run per group, so a third edit here can drop the second: that
-    # box stays ticked with nothing logged, and ticking it again counts.
+    # Per comment, not per pull request: GitHub keeps one waiting run per group,
+    # and only this event knows who ticked, so a dropped one loses the name.
     concurrency:
-      group: variance-tick-${{ github.event.issue.number }}
+      group: variance-tick-${{ github.event.comment.id }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4

@@ -35,6 +35,8 @@ interface Repo {
   comment: { id: number; body: string; user: { type: string } };
   permission: string;
   head: string;
+  /** The pull request's state, `closed` once merged. */
+  state: string;
   /** What the run answers, in order; the last one repeats. */
   statuses: string[];
   attempt: number;
@@ -42,6 +44,8 @@ interface Repo {
   latestJob: number;
   /** A head the pull request moves to while the run is being waited for. */
   pushed?: string;
+  /** Reruns refused before one is taken, as GitHub refuses one while another goes. */
+  refusals?: number;
   /** A pull request whose every page of comments is full. */
   endless?: boolean;
   calls: string[];
@@ -61,6 +65,7 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
     comment: { id: 9, body: docket('x'), user: { type: 'Bot' } },
     permission: 'write',
     head: HEAD,
+    state: 'open',
     statuses: ['completed'],
     attempt: 1,
     latestJob: JOB,
@@ -81,7 +86,7 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
         response.writeHead(status, { 'content-type': 'application/json' });
         response.end(payload === undefined ? undefined : JSON.stringify(payload));
       };
-      if (path === '/repos/o/r/pulls/7') return reply(200, { head: { sha: repo.head } });
+      if (path === '/repos/o/r/pulls/7') return reply(200, { state: repo.state, head: { sha: repo.head } });
       if (path.startsWith('/repos/o/r/collaborators/')) return reply(200, { permission: repo.permission });
       if (path === `/repos/o/r/actions/jobs/${JOB}` && request.method === 'GET') return reply(200, { run_id: RUN, name: 'gate (tribunal)' });
       if (path === `/repos/o/r/actions/runs/${RUN}/jobs`) {
@@ -92,7 +97,13 @@ async function github(overrides: Partial<Repo> = {}): Promise<Repo> {
         const status = repo.statuses.length > 1 ? repo.statuses.shift() : repo.statuses[0];
         return reply(200, { status, run_attempt: repo.attempt });
       }
-      if (path === `/repos/o/r/actions/jobs/${repo.latestJob}/rerun`) return reply(201, {});
+      if (path === `/repos/o/r/actions/jobs/${repo.latestJob}/rerun`) {
+        if (repo.refusals) {
+          repo.refusals -= 1;
+          return reply(403, { message: 'This workflow is already running' });
+        }
+        return reply(201, {});
+      }
       if (path === '/repos/o/r/issues/7/comments' && repo.endless) {
         return reply(200, Array.from({ length: 100 }, (_, id) => ({ id, body: 'a reviewer said something', user: { type: 'User' } })));
       }
@@ -277,6 +288,39 @@ describe('a tick', () => {
 
     expect(out).toContain(OLD.slice(0, 7));
     expect(repo.calls).not.toContain(rerun);
+  });
+});
+
+describe('a tick on a pull request already closed', () => {
+  it('accepts nothing, though the head has not moved', async () => {
+    const repo = await github({ state: 'closed' });
+
+    await tick(repo, ['answer'], edited(repo, docket(' ')));
+
+    expect(repo.calls).not.toContain(rerun);
+    expect(repo.comment.body).not.toContain('Accepted by');
+  });
+});
+
+describe('a tick that loses the race for the rerun', () => {
+  it('waits for the rerun that beat it, and writes the attempt it really follows', async () => {
+    // Two rows' dockets ticked at once: both find the run finished, and one rerun wins.
+    const repo = await github({ statuses: ['completed', 'in_progress', 'completed'], refusals: 1 });
+
+    await tick(repo, ['answer'], edited(repo, docket(' ')));
+
+    expect(repo.calls.filter((call) => call === rerun)).toHaveLength(2);
+    expect(repo.comment.body).toContain('variance-accepted by=ana');
+  });
+
+  it('puts the box back when the rerun is refused for good, so the comment claims nothing', async () => {
+    const repo = await github({ refusals: 1 });
+
+    const { code } = await tick(repo, ['answer'], edited(repo, docket(' ')));
+
+    expect(code).toBe(2);
+    expect(repo.comment.body).toContain(box('x'));
+    expect(repo.comment.body).not.toContain('Accepted by');
   });
 });
 

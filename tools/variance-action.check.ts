@@ -131,7 +131,7 @@ describe('the workflow that answers a tick', () => {
   it('runs one tick of a pull request at a time, because a rerun is refused while another goes', async () => {
     const workflow = await tick();
 
-    expect(workflow).toContain('group: variance-tick-${{ github.event.issue.number }}');
+    expect(workflow).toContain('group: variance-tick-${{ github.event.comment.id }}');
     expect(workflow).toContain('cancel-in-progress: false');
   });
 });

@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
-      group: variance-tick-${{ github.event.issue.number }}
+      group: variance-tick-${{ github.event.comment.id }}
       cancel-in-progress: false
     steps:
       - uses: Variance-Authority/action/tick@v1
