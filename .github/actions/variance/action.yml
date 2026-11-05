@@ -208,6 +208,17 @@ inputs:
     required: false
     default: ''
 
+  tick-to-accept:
+    description: >-
+      `true` puts a box under `to-accept`, on a `pull_request` run. A reviewer
+      with write access ticks it, a workflow on `issue_comment` running
+      `variance/tick` names them in the comment and reruns this job, and that
+      run accepts as `accept: true` would, with `ticked by @them` for its
+      intent. Accepting here saves to the runner's cache, so a git or LFS store
+      leaves this off.
+    required: false
+    default: 'false'
+
   exit-zero-on-changes:
     description: >-
       `true` for a check that reports rather than blocks: changes that need
@@ -296,13 +307,37 @@ runs:
         echo "exit-code=2" >> "$GITHUB_OUTPUT"
         exit "$code"
 
+    # What a tick left for this attempt, and the box the next one needs. The
+    # rerun that carries a tick replays the event with no inputs, so this is the
+    # only way it can learn it was asked to accept.
+    - id: tick
+      if: ${{ inputs.tick-to-accept == 'true' && github.event_name == 'pull_request' }}
+      name: read what a tick left
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+        VARIANCE_TICK_JOB: ${{ job.check_run_id }}
+      run: |
+        set -euo pipefail
+
+        # The host-to-container swap the poster's step explains.
+        here="${{ github.action_path }}"
+        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
+        here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
+        # shellcheck disable=SC2086
+        marker=$($VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --marker)
+        node "$here/tick/tick.mjs" read --marker "$marker"
+
     # `--exit-zero-on-changes` because this run is not asking: the person has
     # already decided. It suppresses 1 and never 2, so a run whose browser did
     # not launch still fails here rather than accepting an empty report. The
     # gate below then compares against what was promoted, which is how a subject
     # that does not render the same way twice is found.
     - id: promote
-      if: ${{ inputs.accept == 'true' }}
+      if: ${{ inputs.accept == 'true' || steps.tick.outputs.accept == 'true' }}
       name: promote what this run proposes
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -311,7 +346,7 @@ runs:
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_PROFILE: ${{ inputs.profile }}
         VARIANCE_SUBJECTS: ${{ inputs.subjects }}
-        VARIANCE_INTENT: ${{ inputs.intent }}
+        VARIANCE_INTENT: ${{ steps.tick.outputs.intent || inputs.intent }}
       run: |
         set -euo pipefail
 
@@ -335,7 +370,7 @@ runs:
         VARIANCE_PROFILE: ${{ inputs.profile }}
         VARIANCE_SUBJECTS: ${{ inputs.subjects }}
         VARIANCE_SHARD: ${{ inputs.shard }}
-        VARIANCE_INTENT: ${{ inputs.intent }}
+        VARIANCE_INTENT: ${{ steps.tick.outputs.intent || inputs.intent }}
       run: |
         set -uo pipefail
 
@@ -467,6 +502,7 @@ runs:
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_RUN_URL: ${{ steps.upload.outputs.artifact-url || inputs.run-url }}
         VARIANCE_TO_ACCEPT: ${{ inputs.to-accept }}
+        VARIANCE_TICK_BOX: ${{ steps.tick.outputs.box }}
         VARIANCE_IMAGE_ROOT: ${{ steps.images.outputs.root }}
       run: |
         set -euo pipefail
@@ -482,6 +518,9 @@ runs:
         marker=$($VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --marker)
         echo "marker=$marker" >> "$GITHUB_OUTPUT"
 
+        to_accept="$VARIANCE_TO_ACCEPT"
+        if [ -n "$VARIANCE_TICK_BOX" ]; then to_accept+=$'\n\n'"$VARIANCE_TICK_BOX"; fi
+
         # The body, written even when it is empty — the poster distinguishes
         # "nothing needs review" from "the render never ran", and only the first
         # may clear a previous docket. An empty --run-url, --to-accept or
@@ -492,7 +531,7 @@ runs:
           --config "$VARIANCE_CONFIG" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
           --run-url "$VARIANCE_RUN_URL" \
-          --to-accept "$VARIANCE_TO_ACCEPT" \
+          --to-accept "$to_accept" \
           --image-root "$VARIANCE_IMAGE_ROOT"
 
     - name: post the docket
@@ -637,7 +676,7 @@ runs:
     # subject's baseline. `!cancelled()`, so a report, an image or a comment
     # step that failed after the gate cannot drop the accept either.
     - id: keep
-      if: ${{ !cancelled() && inputs.accept == 'true' && steps.promote.outcome == 'success' }}
+      if: ${{ !cancelled() && (inputs.accept == 'true' || steps.tick.outputs.accept == 'true') && steps.promote.outcome == 'success' }}
       name: what the host keeps
       shell: bash
       working-directory: ${{ inputs.working-directory }}

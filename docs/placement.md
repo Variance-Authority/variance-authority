@@ -309,6 +309,13 @@ subject its baseline. The pull request's later runs read
 that scope first, so they compare against what you accepted there even after
 `main` moves.
 
+With `tick-to-accept` on, the comment also carries a box, and ticking it does what
+the label does, without leaving the comment. Only a reviewer with write access
+counts, and the accepting run's log names them. The box belongs to the head it was
+written for, so a push brings a new one. The
+[action's README](../.github/actions/variance/README.md#accepting-with-a-tick)
+has the workflow it needs.
+
 Merging is the second accept. Every push to `main` accepts what `main` renders,
 whether the pull request's check was green, red, unfinished, or never run because
 the project is new: you judge a change on its pull request, and what you merge is
@@ -317,8 +324,8 @@ second comparison fails is red and still records what `main` renders. Every
 pull request that holds no accept of its own compares against the newest store
 saved on `main`, including one that was already open when that push landed.
 
-Nothing lands in git history, and approval is a label rather than a review of a
-diff. A push after an accept does not dismiss a reviewer's approval of the pull
+Nothing lands in git history, and approval is a label or a tick rather than a
+review of a diff. A push after an accept does not dismiss a reviewer's approval of the pull
 request, and it does not need to: a push that changes a pixel turns the check red again. The
 store lasts as long as GitHub keeps the cache entry. GitHub removes an entry
 nothing has restored for seven days, and after that every subject reports `new`

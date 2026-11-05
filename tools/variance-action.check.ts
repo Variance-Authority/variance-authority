@@ -41,13 +41,31 @@ describe('the variance action', () => {
   it('keeps the store an accepting run promoted, whatever the comparison after it found', async () => {
     const keep = await conditionOf('what the host keeps');
 
-    expect(keep).toContain("inputs.accept == 'true'");
+    expect(keep).toContain("(inputs.accept == 'true' || steps.tick.outputs.accept == 'true')");
     expect(keep).toContain("steps.promote.outcome == 'success'");
     expect(keep).not.toContain('exit-code');
   });
 
   it('promotes as the step the keep step reads', async () => {
-    expect(await conditionOf('id: promote')).toBe("${{ inputs.accept == 'true' }}");
+    expect(await conditionOf('id: promote')).toBe("${{ inputs.accept == 'true' || steps.tick.outputs.accept == 'true' }}");
+  });
+
+  it('reads a tick only where it was asked to, on the pull request the tick belongs to', async () => {
+    expect(await conditionOf('id: tick')).toBe("${{ inputs.tick-to-accept == 'true' && github.event_name == 'pull_request' }}");
+  });
+
+  it('reads the tick before it promotes, and names the person in what it records', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action.indexOf('- id: tick')).toBeLessThan(action.indexOf('- id: promote'));
+    expect(action.match(/VARIANCE_INTENT: \$\{\{ steps\.tick\.outputs\.intent \|\| inputs\.intent \}\}/g)).toHaveLength(2);
+  });
+
+  it('puts the box under the words that ask for it', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain('VARIANCE_TICK_BOX: ${{ steps.tick.outputs.box }}');
+    expect(action).toContain('--to-accept "$to_accept"');
   });
 
   it('keeps the accept even when a step after the gate failed', async () => {
@@ -70,6 +88,32 @@ describe('the variance action', () => {
 });
 
 /** The `run:` block of the step whose `name:` is `step`, unindented. */
+describe('the workflow that answers a tick', () => {
+  const tick = () => readFile(join(ROOT, '.github/workflows/variance-tick.yml'), 'utf8');
+
+  it('starts on an edited comment and may rerun a job', async () => {
+    const workflow = await tick();
+
+    expect(workflow).toMatch(/issue_comment:\s+types: \[edited\]/);
+    expect(workflow).toContain('actions: write');
+    expect(workflow).toContain('pull-requests: write');
+  });
+
+  it('never checks out the code of the pull request it answers', async () => {
+    const workflow = await tick();
+
+    expect(workflow).not.toMatch(/^\s+ref:/m);
+    expect(workflow).toContain('sparse-checkout: .github/actions/variance');
+  });
+
+  it('waits for no other tick, and cancels none', async () => {
+    const workflow = await tick();
+
+    expect(workflow).toContain('group: variance-tick-${{ github.event.issue.number }}');
+    expect(workflow).toContain('cancel-in-progress: false');
+  });
+});
+
 async function runBlock(step: string): Promise<string> {
   const lines = (await readFile(ACTION, 'utf8')).split('\n');
   const named = lines.findIndex((line) => line.trim() === `- name: ${step}`);

@@ -1,0 +1,178 @@
+#!/usr/bin/env node
+//
+// A tick in the docket accepts, in the name of whoever ticked it.
+//
+// A tick reaches the repository as `issue_comment`, which runs on the default
+// branch: outside the pull request's cache scope, and on no check of its head.
+// So the job it starts accepts nothing. It decides whether the tick counts, and
+// hands over: `answer` replaces the box with a record of who ticked it, then
+// reruns the job that wrote the box. That job is the pull request's own run,
+// replayed with no inputs, so the record is the one thing that reaches it, and
+// `read` finds it there and tells the action to accept.
+//
+// **Why a comment can carry this.** Only somebody with write access can edit a
+// comment a bot wrote, and GitHub keeps who did in the comment's edit history.
+// The permission is still asked by API, because a comment's author type is all
+// the rest of the event proves. A record counts only in a comment a bot wrote,
+// only for the head it names, and only for the run and attempt that rerun was
+// asked of, so re-running a job by hand accepts nothing.
+//
+// **A rerun is refused while its run goes**, so `answer` waits for the run to
+// finish, and checks the head and the box again when it has: both may have moved
+// in that wait. The job's `timeout-minutes` bounds it.
+//
+// A tick that does not count is logged and writes nothing. No SDK and no
+// dependency, for the reason `post-comment.mjs` gives.
+//
+// Usage:
+//   node tick.mjs answer
+//   node tick.mjs read --marker <string>
+
+import { appendFileSync, readFileSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+const API_VERSION = '2022-11-28';
+const PER_PAGE = 100;
+
+/** Pages of comments `read` looks through, as in `post-comment.mjs`. */
+const MAX_PAGES = 50;
+
+/** Seconds between two looks at a run still going. */
+const POLL_SECONDS = Number(process.env.VARIANCE_TICK_POLL_SECONDS ?? 15);
+
+const WRITERS = new Set(['admin', 'write']);
+const BOX = /^- \[( |x|X)\] .*<!-- variance-tick head=([0-9a-f]{40}) job=(\d+) -->[ \t\r]*$/m;
+const RECORD = /<!-- variance-accepted by=([A-Za-z0-9-]+) head=([0-9a-f]{40}) run=(\d+) attempt=(\d+) -->/;
+
+const box = (head, job) => `- [ ] Accept this change <!-- variance-tick head=${head} job=${job} -->`;
+const record = (by, head, run, attempt) =>
+  `Accepted by ${by} on \`${head.slice(0, 7)}\`; the check is running again. <!-- variance-accepted by=${by} head=${head} run=${run} attempt=${attempt} -->`;
+
+const note = (message) => console.log(`variance: ${message}`);
+const warn = (message) => console.log(`::warning::variance: ${message}`);
+
+function fail(message) {
+  console.log(`::error::variance: ${message}`);
+  process.exit(2);
+}
+
+/** The box in `body`, or nothing: whether it is ticked, and what it is bound to. */
+function boxIn(body) {
+  const found = BOX.exec(body ?? '');
+  return found ? { ticked: found[1] !== ' ', head: found[2], job: found[3] } : undefined;
+}
+
+async function github(path, options = {}) {
+  const api = process.env.GITHUB_API_URL ?? 'https://api.github.com';
+  const response = await fetch(`${api}/repos/${process.env.GITHUB_REPOSITORY}/${path}`, {
+    ...options,
+    headers: {
+      accept: 'application/vnd.github+json',
+      authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      'x-github-api-version': API_VERSION,
+    },
+  });
+  if (!response.ok) throw new Error(`${options.method ?? 'GET'} ${path} answered ${response.status}`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : undefined;
+}
+
+const event = () => JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+
+/** Why this event is not a person ticking the box of a bot's comment, if it is not. */
+function notATick({ action, changes, comment, issue, sender }) {
+  if (action !== 'edited' || !issue?.pull_request) return 'not an edit on a pull request';
+  if (comment?.user?.type !== 'Bot') return 'not a comment a bot wrote';
+  if (sender?.type === 'Bot') return 'edited by a bot';
+  const before = boxIn(changes?.body?.from);
+  const after = boxIn(comment.body);
+  if (!before || !after || before.head !== after.head || before.job !== after.job) return 'no box changed';
+  if (before.ticked || !after.ticked) return 'the box did not go from unticked to ticked';
+  return undefined;
+}
+
+async function currentHead(number, head) {
+  const pull = await github(`pulls/${number}`);
+  return pull.head.sha === head;
+}
+
+async function answer() {
+  const payload = event();
+  const reason = notATick(payload);
+  if (reason) return note(`nothing to accept: ${reason}.`);
+
+  const by = payload.sender.login;
+  const number = payload.issue.number;
+  const { head, job } = boxIn(payload.comment.body);
+  const stale = `the box belongs to ${head.slice(0, 7)}, and the pull request has moved on; nothing accepted.`;
+
+  if (!(await currentHead(number, head))) return note(stale);
+  const { permission } = await github(`collaborators/${by}/permission`);
+  if (!WRITERS.has(permission)) return note(`@${by} has ${permission} access, not write; nothing accepted.`);
+
+  const { run_id: run } = await github(`actions/jobs/${job}`);
+  let state = await github(`actions/runs/${run}`);
+  while (state.status !== 'completed') {
+    note(`waiting for run ${run} to finish.`);
+    await sleep(POLL_SECONDS * 1000);
+    state = await github(`actions/runs/${run}`);
+  }
+
+  if (!(await currentHead(number, head))) return note(stale);
+  const comment = await github(`issues/comments/${payload.comment.id}`);
+  const still = boxIn(comment.body);
+  if (!still?.ticked || still.head !== head || still.job !== job) return note('the box is no longer ticked; nothing accepted.');
+
+  await github(`issues/comments/${comment.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ body: comment.body.replace(BOX, record(by, head, run, state.run_attempt)) }),
+  });
+  await github(`actions/jobs/${job}/rerun`, { method: 'POST' });
+
+  const said = `accepted by @${by} on ${head.slice(0, 7)}; run ${run} is running again.`;
+  console.log(`::notice::variance: ${said}`);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `variance: ${said}\n`);
+}
+
+/** Who ticked for the attempt before this one, in the comment carrying `marker`. */
+async function tickedBy(number, head, marker) {
+  const run = process.env.GITHUB_RUN_ID;
+  const attempt = String(Number(process.env.GITHUB_RUN_ATTEMPT) - 1);
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const comments = await github(`issues/${number}/comments?per_page=${PER_PAGE}&page=${page}`);
+    for (const comment of comments) {
+      if (comment.user?.type !== 'Bot' || !comment.body?.includes(marker)) continue;
+      const found = RECORD.exec(comment.body);
+      if (found && found[2] === head && found[3] === run && found[4] === attempt) return found[1];
+    }
+    if (comments.length < PER_PAGE) return undefined;
+  }
+  return undefined;
+}
+
+async function read() {
+  const flag = process.argv.indexOf('--marker');
+  const marker = flag < 0 ? undefined : process.argv[flag + 1];
+  if (!marker) fail('tick.mjs read needs --marker.');
+
+  const { pull_request: pull } = event();
+  const job = process.env.VARIANCE_TICK_JOB;
+  const output = (line) => appendFileSync(process.env.GITHUB_OUTPUT, `${line}\n`);
+  if (job) output(`box=${box(pull.head.sha, job)}`);
+  if (Number(process.env.GITHUB_RUN_ATTEMPT) < 2) return;
+
+  try {
+    const by = await tickedBy(pull.number, pull.head.sha, marker);
+    if (!by) return;
+    output('accept=true');
+    output(`intent=ticked by @${by}`);
+    console.log(`::notice::variance: accepting: ticked by @${by}`);
+  } catch (error) {
+    warn(`could not read the docket, so this run only compares: ${error.message}`);
+  }
+}
+
+const command = process.argv[2];
+if (command === 'answer') await answer().catch((error) => fail(`the tick was not answered: ${error.message}`));
+else if (command === 'read') await read();
+else fail(`tick.mjs takes answer or read, not ${command}.`);
