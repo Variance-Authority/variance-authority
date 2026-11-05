@@ -12,6 +12,14 @@ import type { Pictures } from './comment-images.js';
  */
 
 /**
+ * The heading's start. The project is in it because the marker is invisible: two
+ * gates put two comments on one pull request, and a reviewer tells them apart here.
+ */
+export function docketTitle(project: string): string {
+  return `## Visual variance in project ${code(project)}`;
+}
+
+/**
  * What a reviewer reads before deciding whether to open anything: the count, the
  * leading cause, and where to go.
  *
@@ -36,16 +44,17 @@ export function leadBlocks(
     docket.unstable.length === 0 ? '' : `${docket.unstable.length} subject(s) unstable`;
   const besides = [unstable, fresh].filter((part) => part !== '');
 
+  const title = docketTitle(options.project);
   const heading =
     needing > 0
-      ? `## Visual variance — ${[`${needing} subject(s) need review`, ...besides].join(', ')}`
+      ? `${title} — ${[`${needing} subject(s) need review`, ...besides].join(', ')}`
       : besides.length > 0
-        ? `## Visual variance — ${besides.join(', ')}${unstable === '' ? ', nothing to review' : ''}`
+        ? `${title} — ${besides.join(', ')}${unstable === '' ? ', nothing to review' : ''}`
         : // Reachable, and the only way to reach it is the case worth naming: a run
           // whose observations are all `unchanged` and whose report never stated
           // what it skipped. `exitFor` calls that review, and a heading claiming
           // zero findings over it would be the tool inventing the reassurance.
-          '## Visual variance — this run cannot claim a clean result';
+          `${title} — this run cannot claim a clean result`;
 
   const [first] = docket.causes;
   const picture =

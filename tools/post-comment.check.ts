@@ -36,7 +36,12 @@ interface Pull {
   comments: Comment[];
   calls: string[];
   url: string;
+  /** Answers every write 403, as GitHub answers a fork's read-only token. */
+  readOnly?: boolean;
 }
+
+/** A comment as GitHub answers with it: the address beside what was stored. */
+const addressed = (comment: Comment) => ({ ...comment, html_url: `https://github.test/o/r/pull/7#issuecomment-${comment.id}` });
 
 const made: string[] = [];
 const servers: Server[] = [];
@@ -65,18 +70,19 @@ async function github(comments: Comment[] = []): Promise<Pull> {
       if (request.method === 'GET' && url.pathname === '/repos/o/r/issues/7/comments') {
         const page = Number(url.searchParams.get('page') ?? '1');
         const size = Number(url.searchParams.get('per_page') ?? '30');
-        return reply(200, pull.comments.slice((page - 1) * size, page * size));
+        return reply(200, pull.comments.slice((page - 1) * size, page * size).map(addressed));
       }
+      if (pull.readOnly === true) return reply(403, { message: 'Resource not accessible by integration' });
       if (request.method === 'POST' && url.pathname === '/repos/o/r/issues/7/comments') {
         const created = { id: next++, body: (JSON.parse(text) as { body: string }).body };
         pull.comments.push(created);
-        return reply(201, created);
+        return reply(201, addressed(created));
       }
       const patched = /^\/repos\/o\/r\/issues\/comments\/(\d+)$/.exec(url.pathname);
       const target = pull.comments.find((comment) => comment.id === Number(patched?.[1]));
       if (request.method === 'PATCH' && target !== undefined) {
         target.body = (JSON.parse(text) as { body: string }).body;
-        return reply(200, target);
+        return reply(200, addressed(target));
       }
       return reply(404, { message: 'Not Found' });
     });
@@ -87,14 +93,24 @@ async function github(comments: Comment[] = []): Promise<Pull> {
   return pull;
 }
 
-async function poster(pull: Pull, body: string, args: readonly string[]): Promise<{ code: number | null; out: string }> {
+async function clearedFile(text: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'va-post-comment-cleared-'));
+  made.push(dir);
+  const file = join(dir, 'cleared.md');
+  await writeFile(file, text, 'utf8');
+  return file;
+}
+
+async function poster(pull: Pull, body: string, args: readonly string[]): Promise<{ code: number | null; out: string; output: string }> {
   const dir = await mkdtemp(join(tmpdir(), 'va-post-comment-'));
   made.push(dir);
   const file = join(dir, 'comment.md');
   await writeFile(file, body, 'utf8');
+  const outputs = join(dir, 'outputs');
+  await writeFile(outputs, '', 'utf8');
   const child = spawn('node', [POSTER, '--body-file', file, '--pr', '7', ...args], {
     cwd: ROOT,
-    env: { PATH: process.env['PATH'], GITHUB_API_URL: pull.url, GITHUB_REPOSITORY: 'o/r', GITHUB_TOKEN: 'token' },
+    env: { PATH: process.env['PATH'], GITHUB_API_URL: pull.url, GITHUB_OUTPUT: outputs, GITHUB_REPOSITORY: 'o/r', GITHUB_TOKEN: 'token' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -105,10 +121,10 @@ async function poster(pull: Pull, body: string, args: readonly string[]): Promis
     out += chunk.toString('utf8');
   });
   const code = await new Promise<number | null>((done) => child.on('close', done));
-  return { code, out };
+  return { code, out, output: await readFile(outputs, 'utf8') };
 }
 
-const docket = (marker: string, text: string) => `${marker}\n\n## Visual variance — ${text}\n`;
+const docket = (marker: string, text: string) => `${marker}\n\n## Visual variance in project \`case\` — ${text}\n`;
 
 describe('post-comment', () => {
   it("keeps one comment for each project, and a rerun rewrites only its own project's", async () => {
@@ -144,7 +160,7 @@ describe('post-comment', () => {
   it("clears an adopted comment under the project's own marker when the run is clean", async () => {
     const pull = await github([{ id: 1, body: docket(OLD, 'from before the upgrade') }]);
 
-    await poster(pull, '', ['--marker', STORYBOOK, '--adopt-unkeyed', 'true']);
+    await poster(pull, '', ['--marker', STORYBOOK, '--adopt-unkeyed', 'true', '--cleared-file', await clearedFile(`${STORYBOOK}\ncleared`)]);
 
     expect(pull.comments).toHaveLength(1);
     expect(pull.comments[0]?.body.startsWith(`${STORYBOOK}\n`)).toBe(true);
@@ -189,6 +205,45 @@ describe('post-comment', () => {
     expect(pull.comments[0]).toEqual({ id: 1, body: docket(OLD, 'from before the upgrade') });
     expect(pull.comments.at(-1)).toEqual({ id: 999, body: docket(STORYBOOK, 'rerun') });
     expect(pull.calls.filter((call) => call.startsWith('GET'))).toHaveLength(2);
+  });
+
+  it('hands the check the address of the comment it wrote, new or updated', async () => {
+    const pull = await github([{ id: 1, body: docket(TRIBUNAL, 'the last run') }]);
+
+    const updated = await poster(pull, docket(TRIBUNAL, 'rerun'), ['--marker', TRIBUNAL, '--adopt-unkeyed', 'false']);
+    const created = await poster(pull, docket(STORYBOOK, 'first'), ['--marker', STORYBOOK, '--adopt-unkeyed', 'false']);
+
+    expect(updated.output).toBe('comment-url=https://github.test/o/r/pull/7#issuecomment-1\n');
+    expect(created.output).toBe('comment-url=https://github.test/o/r/pull/7#issuecomment-100\n');
+  });
+
+  it('hands over no address when GitHub refused the comment, because there is none to go to', async () => {
+    const pull = await github();
+    pull.readOnly = true;
+
+    const { code, output } = await poster(pull, docket(TRIBUNAL, 'a fork'), ['--marker', TRIBUNAL, '--adopt-unkeyed', 'false']);
+
+    expect(code).toBe(0);
+    expect(output).toBe('');
+  });
+
+  it('writes the cleared comment it is given, and links nothing: a clean run has no error to carry it', async () => {
+    const pull = await github([{ id: 1, body: docket(TRIBUNAL, 'the last run') }]);
+
+    const { output } = await poster(pull, '', ['--marker', TRIBUNAL, '--adopt-unkeyed', 'false', '--cleared-file', await clearedFile('the rendered text')]);
+
+    expect(pull.comments[0]?.body).toBe('the rendered text');
+    expect(output).toBe('');
+  });
+
+  it('refuses to clear a docket with no cleared comment, and leaves it standing', async () => {
+    const pull = await github([{ id: 1, body: docket(TRIBUNAL, 'the last run') }]);
+
+    const { code, out } = await poster(pull, '', ['--marker', TRIBUNAL, '--adopt-unkeyed', 'false']);
+
+    expect(code).toBe(2);
+    expect(out).toContain('--cleared-file');
+    expect(pull.comments[0]?.body).toBe(docket(TRIBUNAL, 'the last run'));
   });
 
   it('refuses to guess whether to adopt', async () => {

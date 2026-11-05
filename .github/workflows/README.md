@@ -262,9 +262,15 @@ Each file ends by turning that integer into a line in the job log:
 
 ```
 nothing needs review.
-::error::variance found changes that need review; the docket is in the pull request comment.
+::error::variance found changes that need review; the docket is in the pull request comment at https://github.com/owner/repo/pull/7#issuecomment-1
 ::error::variance could not run (exit 2); see the variance run step.
 ```
+
+The address comes from the step that posted the comment, so a run whose comment
+GitHub refused, such as a fork's, names the report instead. The comment's heading
+names the config's `project`: the `tribunal` and `site` checks each post one, and
+each is a run in this repository, accepted by its label. The check called
+`tribunal` observes that package's Storybook, and no review service holds it.
 
 What differs is what reaching `1` *means*:
 
