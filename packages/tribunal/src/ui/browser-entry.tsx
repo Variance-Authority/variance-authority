@@ -39,13 +39,10 @@ const { endpoint = '' } = JSON.parse(configuration.textContent ?? '{}') as { rea
 const client = createReviewClient({ endpoint });
 
 const enter = (me: Introduced): void => {
-  const signIn =
-    me.signIn === undefined
-      ? undefined
-      : `${endpoint}${me.signIn}?return=${encodeURIComponent(location.pathname + location.search)}`;
+  const signIn = me.signIn === undefined ? undefined : `${endpoint}${me.signIn}`;
 
   if (me.capability === undefined && signIn !== undefined) {
-    location.assign(signIn);
+    location.assign(`${signIn}?return=${encodeURIComponent(location.pathname + location.search)}`);
   } else if (me.capability === undefined) {
     mount.textContent = 'This deployment does not recognize you.';
   } else {

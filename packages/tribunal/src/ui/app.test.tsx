@@ -7,6 +7,7 @@ import type { Flakiness } from '@variance-authority/history';
 import type { BuildSummary, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { ReviewApp, SubjectHistory } from './review.js';
+import type { Route } from './route.js';
 
 /**
  * The three states `ReviewApp` itself decides between, and the one that matters.
@@ -152,12 +153,26 @@ describe('ReviewApp', () => {
 
   it('offers sign-in in the top bar, where the page keeps its way around', async () => {
     await act(async () => {
-      root.render(<ReviewApp client={clientThat(() => Promise.resolve([]))} signIn="/auth/github/login?return=%2F" />);
+      root.render(<ReviewApp client={clientThat(() => Promise.resolve([]))} signIn="/auth/github/login" />);
     });
 
     const link = host.querySelector<HTMLAnchorElement>('.va-topbar a[href^="/auth/github/login"]');
     expect(link?.textContent).toBe('Sign in to decide');
     expect(link?.className).toBe('va-mode');
+  });
+
+  it('returns a reader from sign-in to the page they have reached, not the one they opened', async () => {
+    const client = clientThat(() => Promise.resolve([]));
+    const render = (route: Route) =>
+      act(async () => {
+        root.render(<ReviewApp client={client} signIn="/auth/github/login" route={route} onNavigate={() => undefined} />);
+      });
+    await render({ page: 'builds' });
+    await render({ page: 'build', build: 'ci-7' });
+
+    expect(host.querySelector('.va-topbar a[href^="/auth/github/login"]')?.getAttribute('href')).toBe(
+      '/auth/github/login?return=%2Fbuilds%2Fci-7',
+    );
   });
 
   it('says the list is empty only when the service said so', async () => {
