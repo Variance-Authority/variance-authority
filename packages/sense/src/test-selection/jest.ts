@@ -128,7 +128,10 @@ export interface JestTestSelectionOptions {
    * The selection this run is handed, read once when Jest first filters what
    * it found. A `filter` drops what it may skip after the project's own, and
    * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
-   * the one `variance select` reads, and with that unset every file runs.
+   * the one `variance select` reads, and with that unset every file runs. A
+   * selection that keeps no file exits 0; a run no project found a file for
+   * fails, as Jest fails it, unless the configuration or the command line lets
+   * it pass.
    */
   readonly selection?: () => Promise<SuiteSelection>;
 }
@@ -354,10 +357,10 @@ export function withTestSelection(
     ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
+    ...placingSequencer(config, { root, rootDir, times }),
     ...(selection === undefined ? {} : selectingFilter(config, {
       root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
     })),
-    ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,
       ...(selection === undefined ? {} : { selected: true }),

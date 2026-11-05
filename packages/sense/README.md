@@ -802,8 +802,14 @@ project named by path rather than spelled inline is refused, because its
 transform cannot be wrapped from here.
 
 With `VARIANCE_AUTHORITY_SINCE` set, a Jest run skips files as
-[a Vitest run does](#let-the-runner-skip-them), except that a run left nothing to
-run exits `1` unless your configuration sets `passWithNoTests`. The files are removed in
+[a Vitest run does](#let-the-runner-skip-them). A run that found test files and
+selected none of them passes. A run where no project found a test file has nothing
+to select from, so it fails as Jest fails, and a `testMatch` that matches nothing
+stays red. One project with no file beside another that found some is not that
+failure, as it is not without the selection. `passWithNoTests` in your configuration
+or on the command line passes that run, as it always did. `--testSequencer` on the
+command line replaces the sequencer that tells the two apart, so Jest fails both,
+and stderr says so. The files are removed in
 Jest's `filter`, which runs before `--shard` and `--listTests`, so every shard
 and the listing see the same list. A `filter` your configuration names runs
 first, and the selection removes files from what it kept. `--filter` on the

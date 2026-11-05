@@ -2869,9 +2869,6 @@
   "packages/sense/src/test-selection/jest-reporter.ts block": [
     9
   ],
-  "packages/sense/src/test-selection/jest-selection.ts overview": [
-    17
-  ],
   "packages/sense/src/test-selection/jest-setup.cts docblock": [
     18,
     11

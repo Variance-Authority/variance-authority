@@ -14,6 +14,11 @@ const skip = process.env['FIXTURE_SKIP'];
 // The cases to skip in the files that run, as JSON of file to names. Absent,
 // every file that runs, runs whole.
 const cases = process.env['FIXTURE_CASES'];
+// What the configuration says about a run with no tests, as JSON. Absent, it
+// says nothing.
+const passes = process.env['FIXTURE_PASS_WITH_NO_TESTS'];
+// The pattern a run with a broken `testMatch` takes. Absent, it finds the cases.
+const testMatch = process.env['FIXTURE_TEST_MATCH'] ?? '<rootDir>/test/*.case.ts';
 const selection = skip === undefined
   ? {}
   : { selection: async () => ({
@@ -29,7 +34,8 @@ export default withTestSelection(
     cacheDirectory,
     testEnvironment: '<rootDir>/test/environment.ts',
     testTimeout: 4321,
-    testMatch: ['<rootDir>/test/*.case.ts'],
+    ...(passes === undefined ? {} : { passWithNoTests: JSON.parse(passes) }),
+    testMatch: [testMatch],
     transform: {
       '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
     },

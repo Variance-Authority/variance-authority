@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,7 @@ const fixture = resolve(repository, 'packages/sense/test/fixtures/external-jest'
 const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const jest = resolve(repository, 'node_modules/jest/bin/jest.js');
 const FOUND = ['alpha', 'beta', 'delta', 'each', 'gamma'].map((name) => at(`test/${name}.case.ts`));
+const UNFOUND = 'variance-authority: Jest left no test file to select from';
 
 let directory: string;
 beforeAll(async () => {
@@ -58,6 +60,17 @@ async function runConfig(config: string, name: string, fixtureEnv: Record<string
   return { stdout, stderr, ran };
 }
 
+/** One run of the two-project fixture, handed `skip`, with `empty`'s `testMatch` matching nothing. */
+async function runProjects(name: string, skip: readonly string[], empty: readonly string[]) {
+  return runConfig('jest.projects.config.mjs', name, { FIXTURE_SKIP: JSON.stringify(skip), FIXTURE_EMPTY_PROJECTS: JSON.stringify(empty) });
+}
+
+/** How a run ended: the exit code, what it printed to stderr, and what it ran. */
+const ended = (running: Promise<{ readonly stderr: string; readonly ran: readonly string[] }>) => running.then(
+  ({ stderr, ran }) => ({ code: 0, stderr, ran }),
+  ({ code, stderr }: { readonly code: number; readonly stderr: string }) => ({ code, stderr, ran: [] as readonly string[] }),
+);
+
 describe('a Jest run handed a selection', () => {
   it('runs what the selection kept, and counts it against what Jest found', async () => {
     const { stderr, ran } = await run('kept', [at('test/alpha.case.ts'), at('test/gamma.case.ts')]);
@@ -79,6 +92,99 @@ describe('a Jest run handed a selection', () => {
 
     expect(stdout).not.toContain('alpha.case.ts');
     expect(stdout).toContain('beta.case.ts');
+  }, 60_000);
+});
+
+describe('a Jest run with no file left to run', () => {
+  const NOTHING = ['--testPathPatterns', 'no-such-case'];
+
+  it('exits 0 when the selection dropped every file it found, and prints that none runs', async () => {
+    const { code, stderr } = await ended(run('none', FOUND));
+
+    expect(stderr).toContain('variance-authority: selected none of 5, so none of them runs');
+    expect(code).toBe(0);
+  }, 60_000);
+
+  it('exits 0 when the selection dropped every file of every project', async () => {
+    const skip = ['alpha', 'beta'].map((name) => at(`test/${name}.case.ts`));
+    const { code, stderr } = await ended(runConfig('jest.projects.config.mjs', 'none-projects', { FIXTURE_SKIP: JSON.stringify(skip) }));
+
+    expect(stderr).toContain('variance-authority: selected none of 1, so none of them runs');
+    expect(code).toBe(0);
+  }, 60_000);
+
+  it('fails as Jest fails when a selected run found no file, because nothing was there to select from', async () => {
+    const { code, stderr } = await ended(run('none-found', [], ...NOTHING));
+
+    expect(stderr).toContain(UNFOUND);
+    expect(code).toBe(1);
+  }, 60_000);
+
+  it('fails when a testMatch that matches nothing leaves the selection no file', async () => {
+    const { code, stderr } = await ended(runWith('broken-match', { FIXTURE_SKIP: '[]', FIXTURE_TEST_MATCH: '<rootDir>/test/*.no-such-case.ts' }));
+
+    expect(stderr).toContain(UNFOUND);
+    expect(code).toBe(1);
+  }, 60_000);
+
+  it('fails on every shard when no shard found a file', async () => {
+    expect((await ended(run('none-found-shard', [], ...NOTHING, '--shard=1/2'))).code).toBe(1);
+  }, 60_000);
+
+  it('fails a sharded run whose sequencer the command line replaced, as the seam says it does', async () => {
+    const sequencer = createRequire(createRequire(jest).resolve('jest-cli')).resolve('@jest/test-sequencer');
+    const { code, stderr } = await ended(run('none-found-replaced', [], ...NOTHING, '--shard=1/2', `--testSequencer=${sequencer}`));
+
+    expect(stderr).toContain('so Jest fails both');
+    expect(code).toBe(1);
+  }, 60_000);
+
+  it('fails when no project found a file', async () => {
+    const { code, stderr } = await ended(runProjects('none-found-projects', [], ['alpha', 'beta']));
+
+    expect(stderr).toContain(UNFOUND);
+    expect(code).toBe(1);
+  }, 60_000);
+
+  it('exits 0 when one project found no file and the selection dropped every file of the other', async () => {
+    const { code, stderr } = await ended(runProjects('one-found-none-kept', [at('test/alpha.case.ts')], ['beta']));
+
+    expect(stderr).not.toContain(UNFOUND);
+    expect(code).toBe(0);
+  }, 60_000);
+
+  it('runs a project that found files beside one that found none, as Jest does', async () => {
+    const { code, ran } = await ended(runProjects('one-found-one-kept', [], ['beta']));
+
+    expect(ran).toEqual([at('test/alpha.case.ts')]);
+    expect(code).toBe(0);
+  }, 60_000);
+
+  it('passes a selected run that found no file when the configuration says such a run passes', async () => {
+    expect((await ended(runWith('none-found-set', { FIXTURE_SKIP: '[]', FIXTURE_PASS_WITH_NO_TESTS: 'true' }, ...NOTHING))).code).toBe(0);
+  }, 60_000);
+
+  it('passes a selected run that found no file under --passWithNoTests', async () => {
+    expect((await ended(run('none-found-flag', [], ...NOTHING, '--passWithNoTests'))).code).toBe(0);
+  }, 60_000);
+
+  it('lists no file and exits 0 under --listTests, as Jest does', async () => {
+    expect((await ended(run('none-found-listed', [], ...NOTHING, '--listTests'))).code).toBe(0);
+  }, 60_000);
+
+  it('leaves the exit to Jest under --skipFilter, where nothing is selected', async () => {
+    const { code, stderr } = await ended(run('none-found-unfiltered', [], ...NOTHING, '--skipFilter'));
+
+    expect(stderr).not.toContain(UNFOUND);
+    expect(code).toBe(1);
+  }, 60_000);
+
+  it('keeps Jest\'s exit 1 when no selection was handed in', async () => {
+    expect((await ended(runWith('unselected', {}, ...NOTHING))).code).toBe(1);
+  }, 60_000);
+
+  it('keeps a passWithNoTests the configuration sets on a run with no selection', async () => {
+    expect((await ended(runWith('set-true', { FIXTURE_PASS_WITH_NO_TESTS: 'true' }, ...NOTHING))).code).toBe(0);
   }, 60_000);
 });
 
