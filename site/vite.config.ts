@@ -2,7 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { cdnAdapter } from "@vinext/cloudflare/cache/cdn-adapter";
-import { agentSkills, discoveryFiles, skillDirectory } from "./app/content/agent-skills";
+import { agentSkills, DISCOVERY_PATH, discoveryFiles, skillDirectory } from "./app/content/agent-skills";
 
 /**
  * `VARIANCE_AUTHORITY_PROBES` builds the site a recorded run photographs: every
@@ -62,7 +62,7 @@ function publishedSkills(): Plugin {
     generateBundle() {
       const skills = agentSkills(skillDirectory(`${import.meta.dirname}/../packages/cli/skills`));
       for (const [path, source] of discoveryFiles(skills)) {
-        this.emitFile({ type: "asset", fileName: `.well-known/agent-skills/${path}`, source });
+        this.emitFile({ type: "asset", fileName: `${DISCOVERY_PATH.slice(1)}/${path}`, source });
       }
     },
   };

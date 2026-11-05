@@ -3,6 +3,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { strFromU8, strToU8, zipSync } from "fflate";
 
+/** Where the discovery files are published on a site. */
+export const DISCOVERY_PATH = "/.well-known/agent-skills";
+
 export interface AgentSkill {
   readonly name: string;
   readonly description: string;
@@ -68,7 +71,7 @@ export function agentSkills(files: ReadonlyMap<string, Uint8Array>): readonly Ag
 
 /**
  * The Agent Skills discovery index and the archives beside it, keyed by their
- * path under `/.well-known/agent-skills/`: what `npx skills add` reads from a
+ * path under `DISCOVERY_PATH`: what `npx skills add` reads from a
  * site's address. Each `url` is relative to the index, so it holds wherever the
  * site is served from.
  */
