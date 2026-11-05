@@ -192,11 +192,25 @@ describe('a write forged from another site', () => {
         asked.push(request);
         return null;
       },
+      serve: (request) => {
+        asked.push(request);
+        return Promise.resolve(null);
+      },
     };
 
     await serving(watching).fetch(forged(DECISION, { 'sec-fetch-site': 'cross-site' }));
 
     expect(asked).toEqual([]);
+  });
+
+  it('still hands a policy its own routes on a read, which a sign-in needs', async () => {
+    const signingIn: Policy = {
+      principal: () => null,
+      serve: () => Promise.resolve(new Response('signed in')),
+    };
+    const arrival = new Request(`${ORIGIN}/auth/callback`, { headers: { 'sec-fetch-site': 'cross-site' } });
+
+    expect(await (await serving(signingIn).fetch(arrival)).text()).toBe('signed in');
   });
 
   it('takes a bearer from another origin, which no form can send', async () => {
