@@ -32,6 +32,12 @@ const review = (body: string, codexHome?: string) => {
       ...process.env,
       CODEX_HOME: codexHome && login,
       GH_TOKEN: 'of-the-caller',
+      // `HOME` moves the login and git's global config with it, the trust of a
+      // checkout another user owns, as in the merge queue's container. The
+      // command scope survives the move and needs no guess at where that was.
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'safe.directory',
+      GIT_CONFIG_VALUE_0: '*',
       HOME: root,
       PATH: `${bin}:${process.env.PATH}`,
     },
