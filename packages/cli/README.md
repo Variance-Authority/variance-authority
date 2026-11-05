@@ -2449,9 +2449,10 @@ which no shard can finish before; the answer names it, and its slowest case when
 the run kept its cases. `--workers` is how many files one shard's runner runs at
 once.
 
-`--since <ref>` leaves out the files that change lets the run skip, as the seam
+`--since <ref>` leaves out the files the change lets the run skip, as the seam
 does under `VARIANCE_AUTHORITY_SINCE`, so a change that reaches no test answers
-`0 shards`. Pass `--collected <file>` with it, the runner's list of the suite's
+`0 shards`. The change is measured from the commit the record names, so any ref
+turns it on. Pass `--collected <file>` with it, the runner's list of the suite's
 test files, as `share --collected` reads it: the record holds only the files it
 has seen, and a file on the list it has not is priced at the median of the timed
 ones. Without the list, only recorded files are counted, the answer says so in

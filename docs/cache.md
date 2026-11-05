@@ -154,7 +154,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          filter: tree:0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -193,7 +192,7 @@ things in the workflow decide that line:
 - **The full history is fetched.** The recording names the commit it was made at,
   and the run reads what changed since that commit. A shallow checkout does not
   have it: every test file runs, then the run exits `1` with a message that names
-  the commit. `filter: tree:0` keeps the full history small.
+  the commit.
 - **The restore comes after the install.** `npm ci` deletes `node_modules`, and
   this directory is inside it.
 - **A pull request builds the source index.** Selection reads the
@@ -215,8 +214,9 @@ Four things in your repository change what you write:
 
 - **Jest with nothing to run.** A change no test ran, such as a README edit,
   prints `selected none of 2, so none of them runs`, and a lone Jest project
-  then exits `1`. Set
-  `passWithNoTests: true` in the object you wrap. Vitest exits `0` here.
+  then exits `1`. Set `passWithNoTests: true` in the object you wrap. It applies
+  to your main branch's run too, where a suite that finds no test then passes.
+  Vitest exits `0` here.
 - **A Jest preset.** The wrap gives a configuration with no `transform` of its
   own Jest's default, so `ts-jest` and any other preset's transformer never runs.
   Copy the preset's `transform` into the object you wrap, as
@@ -225,16 +225,15 @@ Four things in your repository change what you write:
   [`suites`](../packages/sense/README.md#where-the-snapshot-lives-and-when-it-is-rebuilt), a wrap that names none
   stops before the run starts, so name one:
   `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
-  inside this directory, and the workflow does not change. With declared suites,
+  inside this directory, and the workflow does not change. For a suite that
+  declares `"carry": "actions-cache"`,
   [`variance carry`](../packages/cli/README.md#what-the-next-job-reads) can name
   the path and the key instead of this workflow.
 - **One configuration per package.** With no suites declared, every wrapped
   configuration in the checkout writes to one recording at the repository root.
   Each run adds its own test files to it, and the path above covers them all.
   Run them in one job: a cache key is saved once, so a second job's save under
-  the same key keeps nothing. In a matrix over packages, add the matrix value to
-  `key` and `restore-keys`, so each job restores what it saved. Shards of one
-  suite read one record, as [sharding](sharding.md) describes.
+  the same key keeps nothing.
 
 A pull request saves nothing here because `variance review` compares your
 change with the cases the last run replaced, which the suite keeps in this

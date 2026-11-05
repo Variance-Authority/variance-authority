@@ -802,7 +802,8 @@ project named by path rather than spelled inline is refused, because its
 transform cannot be wrapped from here.
 
 With `VARIANCE_AUTHORITY_SINCE` set, a Jest run skips files as
-[a Vitest run does](#let-the-runner-skip-them). The files are removed in
+[a Vitest run does](#let-the-runner-skip-them), except that a run left nothing to
+run exits `1` unless your configuration sets `passWithNoTests`. The files are removed in
 Jest's `filter`, which runs before `--shard` and `--listTests`, so every shard
 and the listing see the same list. A `filter` your configuration names runs
 first, and the selection removes files from what it kept. `--filter` on the
