@@ -166,9 +166,8 @@ request. It asks the API whether the person has write access, replaces the box
 with their name, and reruns the check. The rerun finds that name, accepts as the
 label's run does, and says who in its log. A rerun replays the commit its run
 started on and renders it again, so what it accepts is that render. A tick from
-anyone without
-write access, on a head the pull request has left, or that takes the mark off
-accepts nothing and says why in the tick's log. A push brings a new box for the
+anyone without write access, on a head the pull request has left, or that takes
+the mark off accepts nothing and says why in the tick's log. A push brings a new box for the
 new head, and the rewritten comment drops the name: the accepting run's log, the
 comment's edit history and, where a history is kept, the approval row hold it. The box is on the `cache` rows, since
 what it accepts into is the runner's cache.

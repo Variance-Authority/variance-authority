@@ -204,6 +204,9 @@ itself, which identifies a category of visual difference so it can be matched
 across subjects. It promotes a subject wherever that shape accounts for the
 whole change, and refuses by name any subject where something else changed too.
 
+`--by <name>` writes who accepted on each approval row, as `by`, where a history
+is kept. It is for a caller that knows; the action passes the person who ticked.
+
 `serve` and `ask` share their questions with `@variance-authority/mcp` and
 `@variance-authority/help`, so an agent can ask what changed, in which
 component and which file, and what that file's package publishes, without
