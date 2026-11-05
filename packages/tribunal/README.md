@@ -243,8 +243,8 @@ When your Cloudflare login is missing, the command runs `wrangler login`. When t
 login sees several accounts, it lists them and stops until `account_id` picks one.
 When R2 is off on the account, it prints the dashboard address where you enable
 it; run the command again afterwards. A deployment that declares `access` gets no
-App, and its two values are yours, from the Access application you put in front of
-it. `SHARE_TOKEN` is optional and set by hand: `wrangler secret put SHARE_TOKEN`,
+App, and its two values come from [your company's SSO](#your-companys-sso).
+`SHARE_TOKEN` is optional and set by hand: `wrangler secret put SHARE_TOKEN`,
 16 characters or more and not the ingest token.
 
 `wrangler d1 migrations apply` is what puts the schema into your database, and
@@ -300,9 +300,10 @@ no secret is stored anywhere. The job needs `id-token: write`, and a `token` of
 `{ "github-actions": { "audience": "…" } }` in the suite's configuration asks for
 it on use.
 
-**With `access`, Cloudflare Access names the person.** The service verifies the
-JWT against the team's published keys and writes the decision under its email. A
-service token has no email, so it decides nothing.
+**With `access`, your company's SSO names the person**, through
+[Cloudflare Access](#your-companys-sso). The service verifies the JWT against the
+team's published keys and writes the decision under its email. A service token has
+no email, so it decides nothing.
 
 A bad environment answers **500 with a sentence**, not a deployment-wide platform
 error: construction happens inside `fetch`, so *github is declared and needs
@@ -316,6 +317,36 @@ tenant needs a second deployment.
 `worker-entry` serves the review page as well as the API. With `github` declared,
 a person who is not recognized goes to the sign-in. With `VIEW=public` they read
 the same page with nothing to decide with, and a link to sign in.
+
+### Your company's SSO
+
+Cloudflare Access can sign people in through the provider your company already
+runs, so tribunal needs no sign-in of its own for them: Okta, Microsoft Entra ID,
+Google Workspace, or anything that speaks SAML or OIDC. Setting it up takes an
+admin of that provider and an admin of the Cloudflare account, once:
+
+1. Serve the deployment from a hostname in your Cloudflare zone, as a route with
+   `custom_domain: true` and with `workers_dev` set to `false`: Access guards a hostname, and a `workers.dev` address left open
+   walks around it. `GITHUB_ACTIONS_AUDIENCE`, and the suite's `endpoint` and
+   `audience`, name the new hostname.
+2. In Cloudflare Zero Trust, add your company's provider as a login method. Its
+   admin registers Cloudflare on their side.
+3. Add a self-hosted Access application on the deployment's hostname, with a policy
+   naming the people or groups who review. Everybody it lets in can decide, so this
+   policy is your list of approvers.
+4. Add a second application on the same hostname, with a Bypass policy for everyone,
+   on the paths `version`, `baseline`, `cache`, `v1`, `share` and `review`, under the
+   mount if the API has one. A workflow or a developer's CLI cannot sign in, and
+   these are the paths they call. The service guards them instead of Access: it asks
+   every request for its credential, a reviewer's browser still carries its Access
+   cookie there, and Access logs nothing that bypasses it.
+5. Set `ACCESS_TEAM_DOMAIN` to the team domain and `ACCESS_AUD` to the first
+   application's audience tag, set `REVIEW_CREDENTIALS` to `access`, replacing
+   `github`, and delete `GITHUB_CLIENT_ID` and `GITHUB_REPOSITORY` from `vars`.
+
+Leave `VIEW` unset. Access keeps the page behind a sign-in, but with `VIEW=public`
+the paths in step 4 answer anybody. An open project that wants public reading
+declares `github` and `VIEW=public`.
 
 ## The HTTP API
 
