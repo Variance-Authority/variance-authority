@@ -19,7 +19,7 @@ const fixture = resolve(repository, 'packages/sense/test/fixtures/external-jest'
 const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const jest = resolve(repository, 'node_modules/jest/bin/jest.js');
 const FOUND = ['alpha', 'beta', 'delta', 'each', 'gamma'].map((name) => at(`test/${name}.case.ts`));
-const UNFOUND = 'variance-authority: Jest found no test file';
+const UNFOUND = 'variance-authority: Jest left no test file to select from';
 
 let directory: string;
 beforeAll(async () => {

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CUT_VARIABLE } from './case-cut.js';
 import filter from './jest-filter.cjs';
-import { SELECTION_FILTER, selectingFilter } from './jest-selection.js';
+import { refuseUnfound, SELECTION_FILTER, selectingFilter } from './jest-selection.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { withTestSelection } from './jest.js';
 
@@ -80,6 +80,18 @@ describe('the Jest filter that drops what a selection may skip', () => {
       if (before === undefined) delete process.env[CUT_VARIABLE];
       else process.env[CUT_VARIABLE] = before;
     }
+  });
+
+  it('fails a run the project\'s own filter left no file, as Jest does, and names the filter', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-own-filter-'));
+    temporary.push(directory);
+    await writeFile(resolve(directory, 'own.cjs'), 'module.exports = async () => ({ filtered: [] });');
+    await installed(directory, '30.0.0');
+    selectingFilter({ filter: '<rootDir>/own.cjs' }, { root: directory, rootDir: directory, selection: async () => selection([]), argv: [], say: () => {} });
+
+    await filter([resolve(directory, 'a.test.ts')]);
+
+    expect(() => refuseUnfound([], {})).toThrow('check testMatch, the working directory, the project configuration and its filter');
   });
 
   it('runs the project\'s own filter first, in either shape Jest has asked a filter to return', async () => {

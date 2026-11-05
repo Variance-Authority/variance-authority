@@ -141,9 +141,10 @@ shard, none. A Vitest run that drops nothing keeps the project's setting. Jest
 freezes its global configuration before `filter` runs, so the Jest seam sets
 `passWithNoTests` when it writes the configuration, on any run whose filter it
 installed. That flag cannot tell an empty selection from a run with nothing to
-select from, so the filter counts what Jest found across every project, and the
-seam's sequencer, whose `sort` Jest calls once after every filter, throws when the
-count is 0 and the project did not set `passWithNoTests` itself: Jest's exit 1
+select from, so the filter counts what Jest and the project's own filter left it
+across every project, and the seam's sequencer, whose `sort` Jest calls once after
+every filter, throws when the count is 0 and neither the project nor the command
+line set `passWithNoTests`: Jest's exit 1
 stands on a run that found no file. A project that found none beside one that found
 some is not that failure, because Jest's own check is on the whole run. `--listTests`,
 `--onlyChanged` and `--lastCommit` keep their own exit. A `--testSequencer` on the

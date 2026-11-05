@@ -30,7 +30,7 @@ afterEach(async () => {
 });
 
 describe('the Jest sequencer when a selected run has no file to run', () => {
-  const UNFOUND = 'variance-authority: Jest found no test file';
+  const UNFOUND = 'variance-authority: Jest left no test file to select from';
   const selecting = (config: { readonly [key: string]: unknown } = {}, argv: readonly string[] = ['jest']) => {
     const skip = new Set(['a.test.ts']);
     const configured = selectingFilter(config, { root, rootDir, selection: async () => ({ whole: skip, skip, notes: [] }), argv, say: () => {} });

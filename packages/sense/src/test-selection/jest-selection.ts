@@ -131,7 +131,7 @@ export interface RunWithNoFile {
  * run because no project found one: a `testMatch`, a working directory or a
  * project that points at nothing. `passWithNoTests` is set before the filter
  * runs, when neither run can be told from the other, so the filter counts what
- * it was handed and the sequencer's `sort`, the one call after every filter and
+ * Jest and the project's own filter left it, and the sequencer's `sort`, the one call after every filter and
  * before Jest decides the run has no tests, asks here. The count is the whole
  * run's: a project that found nothing beside one that did is no failure under
  * Jest either. A reporter would come after Jest printed that it exits 0, and
@@ -142,8 +142,8 @@ export function refuseUnfound(tests: readonly unknown[], run: RunWithNoFile): vo
   if (tests.length > 0 || handed?.unfound() !== true) return;
   if (run.listTests === true || run.collectTests === true || run.onlyChanged === true || run.lastCommit === true) return;
   throw new Error(
-    'variance-authority: Jest found no test file, so there is nothing to select from and the run fails: ' +
-      'check testMatch, the working directory and the project configuration',
+    'variance-authority: Jest left no test file to select from, so the run fails: ' +
+      'check testMatch, the working directory, the project configuration and its filter',
   );
 }
 
