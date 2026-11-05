@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DISCOVERY_PATH } from '../site/app/content/agent-skills';
 import { documentHeadings } from '../site/app/content/markdown-text';
 import { packageDocument } from '../site/app/content/package-docs';
 import { routedDocument } from '../site/app/content/routed-docs';
@@ -48,8 +47,8 @@ const LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
  *
  * A page is what the site generates: an entry of its catalogue, an index over
  * it, a package's README, or one of those as Markdown at `index.md`. A route
- * handler such as `llms.txt` answers at its directory, and the build writes the
- * skills index. Anything else is a file the site serves from `site/public/`.
+ * handler such as `llms.txt` answers at its directory. Anything else is a file
+ * the site serves from `site/public/`.
  */
 function siteMiss(url: string): string | null {
   const [address = '', anchor] = url.slice(SITE.length).split('#');
@@ -61,7 +60,6 @@ function siteMiss(url: string): string | null {
     navigationItem(page) !== undefined ||
     DOCUMENTATION_INDEXES.some((index) => index.href === page) ||
     (/^\/reference\/packages\/[^/]+$/.test(page) && packageDocument(page.split('/')[3]!) !== undefined) ||
-    path === `${DISCOVERY_PATH}/index.json` ||
     existsSync(join(ROOT, 'site/app', path, 'route.ts'));
 
   if (!published) return existsSync(join(ROOT, 'site/public', path)) && anchor === undefined ? null : 'no such page';
@@ -102,7 +100,6 @@ describe('a site URL names a page the site publishes', () => {
     expect(siteMiss(`${SITE}/reference/packages/nothing`)).toBe('no such page');
     expect(siteMiss(`${SITE}/mark.svg`)).toBeNull();
     expect(siteMiss(`${SITE}/llms.txt`)).toBeNull();
-    expect(siteMiss(`${SITE}${DISCOVERY_PATH}/index.json`)).toBeNull();
   });
 
   it('reads the headings the page renders', () => {

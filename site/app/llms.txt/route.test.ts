@@ -26,6 +26,7 @@ describe("llms.txt", () => {
   it("names the route an agent's installer reads the skills from", async () => {
     expect(await start()).toContain(`npx skills add ${SITE}`);
     expect(await start()).toContain(`${SITE}/.well-known/agent-skills/index.json`);
+    expect(await start()).toContain("Install the two together");
   });
 
   it("opens with where to start, before the catalogue", async () => {

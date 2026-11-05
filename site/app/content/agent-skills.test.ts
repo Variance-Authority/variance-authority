@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { strFromU8, strToU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { agentSkills, discoveryFiles, skillDirectory } from "./agent-skills";
+import { discoveryFiles, skillArchives, skillDirectory } from "./agent-skills";
 
 const SKILLS = join(import.meta.dirname, "../../../packages/cli/skills");
 
@@ -17,8 +17,8 @@ interface Entry {
 
 const skill = (frontmatter: string): Uint8Array => strToU8(`---\nname: one\n${frontmatter}\n---\n\n# One\n`);
 
-/** A skill is a directory holding a `SKILL.md`, and the description is published as written. */
-describe("agentSkills", () => {
+/** A skill is a directory holding a `SKILL.md`, named as its frontmatter names it. */
+describe("skillArchives", () => {
   it("takes a directory holding a SKILL.md for a skill, and nothing else", () => {
     const files = new Map([
       ["README.md", strToU8("Not a skill.")],
@@ -26,7 +26,7 @@ describe("agentSkills", () => {
       ["one/SKILL.md", skill("description: Does one thing.")],
       ["one/references/more.md", strToU8("More.")],
     ]);
-    expect(agentSkills(files).map(({ name, description }) => ({ name, description }))).toEqual([
+    expect(skillArchives(files).map(({ name, description }) => ({ name, description }))).toEqual([
       { name: "one", description: "Does one thing." },
     ]);
   });
@@ -34,15 +34,17 @@ describe("agentSkills", () => {
   it("writes the same archive for the same files, whatever order they were read in", () => {
     const one: [string, Uint8Array] = ["one/SKILL.md", skill("description: Does one thing.")];
     const more: [string, Uint8Array] = ["one/references/more.md", strToU8("More.")];
-    expect(agentSkills(new Map([more, one]))[0]?.digest).toBe(agentSkills(new Map([one, more]))[0]?.digest);
+    expect(skillArchives(new Map([more, one]))[0]?.digest).toBe(skillArchives(new Map([one, more]))[0]?.digest);
   });
 
-  it.each([
-    ["quoted", 'description: "Does one thing."'],
-    ["folded", "description: >\n  Does one thing."],
-    ["continued on the next line", "description: Does one\n  thing."],
-  ])("refuses a description %s, which it would publish wrong", (_form, frontmatter) => {
-    expect(() => agentSkills(new Map([["one/SKILL.md", skill(frontmatter)]]))).toThrow("no plain description");
+  it("reads the description as YAML, however it is written", () => {
+    const [folded] = skillArchives(new Map([["one/SKILL.md", skill("description: >\n  Does one\n  thing.")]]));
+    expect(folded?.description.trim()).toBe("Does one thing.");
+  });
+
+  it("refuses a skill named unlike its directory, or with no description", () => {
+    expect(() => skillArchives(new Map([["two/SKILL.md", skill("description: Does one thing.")]]))).toThrow("not named");
+    expect(() => skillArchives(new Map([["one/SKILL.md", skill("license: MIT")]]))).toThrow("no description");
   });
 });
 
@@ -52,7 +54,7 @@ describe("agentSkills", () => {
  * what an installer finds here is what the CLI ships.
  */
 describe("discoveryFiles", () => {
-  const files = discoveryFiles(agentSkills(skillDirectory(SKILLS)));
+  const files = discoveryFiles(skillArchives(skillDirectory(SKILLS)));
   const index = JSON.parse(strFromU8(files.get("index.json") ?? new Uint8Array())) as {
     $schema: string;
     skills: readonly Entry[];

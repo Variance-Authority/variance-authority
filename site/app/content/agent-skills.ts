@@ -2,9 +2,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { strFromU8, strToU8, zipSync } from "fflate";
-
-/** Where the discovery files are published on a site. */
-export const DISCOVERY_PATH = "/.well-known/agent-skills";
+import { parse } from "yaml";
 
 export interface AgentSkill {
   readonly name: string;
@@ -26,16 +24,17 @@ function skillFiles(files: ReadonlyMap<string, Uint8Array>, name: string): Reado
 
 /** In code-unit order of the paths and at a fixed date, so a deploy that changed no skill changes no digest. */
 function archiveOf(files: ReadonlyMap<string, Uint8Array>): Uint8Array {
-  const entries = [...files].sort(([a], [b]) => (a < b ? -1 : 1));
+  const entries = [...files.keys()].sort().map((path) => [path, files.get(path) ?? new Uint8Array()]);
   return zipSync(Object.fromEntries(entries), { mtime: ARCHIVE_DATE });
 }
 
-/** A plain one-line value, read inside the frontmatter: a folded, quoted or continued one would publish wrong. */
+/** The description a skill's frontmatter gives. An installer refuses a skill named unlike its directory. */
 function frontmatterDescription(name: string, skill: Uint8Array | undefined): string {
-  const frontmatter = strFromU8(skill ?? new Uint8Array()).match(/^---\n([\s\S]*?)\n---/)?.[1];
-  const description = frontmatter?.match(/^description: ([^\s>|"'].*)$(?!\n[ \t])/m)?.[1];
-  if (description === undefined) throw new Error(`The skill ${name} has no plain description in its SKILL.md.`);
-  return description;
+  const block = strFromU8(skill ?? new Uint8Array()).match(/^---\n([\s\S]*?)\n---/)?.[1];
+  const frontmatter = (block === undefined ? undefined : parse(block)) as Record<string, unknown> | undefined;
+  if (frontmatter?.name !== name) throw new Error(`The skill ${name} is not named so in its SKILL.md.`);
+  if (typeof frontmatter.description !== "string") throw new Error(`The skill ${name} has no description.`);
+  return frontmatter.description;
 }
 
 /** Every file under a directory, keyed by its path there. */
@@ -54,7 +53,7 @@ export function skillDirectory(directory: string): ReadonlyMap<string, Uint8Arra
  * under the skill directory: one archive per skill, because a skill is a
  * directory holding its `SKILL.md` and the references beside it.
  */
-export function agentSkills(files: ReadonlyMap<string, Uint8Array>): readonly AgentSkill[] {
+export function skillArchives(files: ReadonlyMap<string, Uint8Array>): readonly AgentSkill[] {
   const names = [...files.keys()].flatMap((path) => path.match(/^([^/]+)\/SKILL\.md$/)?.[1] ?? []);
   return names.sort().map((name) => {
     const own = skillFiles(files, name);
@@ -71,7 +70,7 @@ export function agentSkills(files: ReadonlyMap<string, Uint8Array>): readonly Ag
 
 /**
  * The Agent Skills discovery index and the archives beside it, keyed by their
- * path under `DISCOVERY_PATH`: what `npx skills add` reads from a
+ * path under `/.well-known/agent-skills/`: what `npx skills add` reads from a
  * site's address. Each `url` is relative to the index, so it holds wherever the
  * site is served from.
  */

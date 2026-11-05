@@ -2,7 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { cdnAdapter } from "@vinext/cloudflare/cache/cdn-adapter";
-import { agentSkills, DISCOVERY_PATH, discoveryFiles, skillDirectory } from "./app/content/agent-skills";
+import { discoveryFiles, skillArchives, skillDirectory } from "./app/content/agent-skills";
 
 /**
  * `VARIANCE_AUTHORITY_PROBES` builds the site a recorded run photographs: every
@@ -50,8 +50,8 @@ function unminified(mode: string): Plugin[] {
 
 /**
  * The Agent Skills discovery files, written among the client's assets. An
- * installer drops a skill whose digest does not match, and assets change in one
- * step with a deploy, so an index never meets an archive from another. The list
+ * installer refuses an archive whose digest does not match, and assets change in
+ * one step with a deploy, so an index never meets an archive from another. The list
  * is `packages/cli/skills/`, so a skill added there is published with no edit
  * here. `vite dev` writes no bundle, so it serves none of them.
  */
@@ -60,9 +60,9 @@ function publishedSkills(): Plugin {
     name: "site:agent-skills",
     applyToEnvironment: (environment) => environment.name === "client",
     generateBundle() {
-      const skills = agentSkills(skillDirectory(`${import.meta.dirname}/../packages/cli/skills`));
+      const skills = skillArchives(skillDirectory(`${import.meta.dirname}/../packages/cli/skills`));
       for (const [path, source] of discoveryFiles(skills)) {
-        this.emitFile({ type: "asset", fileName: `${DISCOVERY_PATH.slice(1)}/${path}`, source });
+        this.emitFile({ type: "asset", fileName: `.well-known/agent-skills/${path}`, source });
       }
     },
   };
