@@ -37,7 +37,7 @@ npm install --save-dev @variance-authority/playwright
 npx playwright install chromium
 ```
 
-The package depends on `playwright ^1.49.0` and installs it for you, so you
+The package depends on `playwright ^1.55.0` and installs it for you, so you
 supply only the browser binaries. Node 22 or newer. The engine and container
 figures further down were taken on Playwright 1.62.1.
 

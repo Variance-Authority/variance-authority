@@ -64,7 +64,7 @@
     "@variance-authority/wire": "workspace:^"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.49 <2"
+    "@playwright/test": ">=1.55 <2"
   },
   "devDependencies": {
     "@variance-authority/png-sharp": "workspace:*",

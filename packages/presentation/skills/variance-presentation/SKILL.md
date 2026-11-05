@@ -25,7 +25,7 @@ npm install --save-dev @variance-authority/presentation @playwright/test
 npx playwright install chromium
 ```
 
-- Node `>=22`. `@playwright/test` `>=1.49 <2` is an optional peer, required for
+- Node `>=22`. `@playwright/test` `>=1.55 <2` is an optional peer, required for
   every entry point under `@variance-authority/presentation/playwright` and for
   nothing else.
 - Two entry points: `@variance-authority/presentation` (pure: analyze, focus,

@@ -32,7 +32,7 @@ The examples below drive the waiting half with
 
 | Peer | Range |
 | --- | --- |
-| `@playwright/test` | `>=1.49 <2` |
+| `@playwright/test` | `>=1.55 <2` |
 
 Two packages, installed in different places:
 

@@ -52,7 +52,7 @@
     "@variance-authority/report": "workspace:^"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.49 <2"
+    "@playwright/test": ">=1.55 <2"
   },
   "peerDependenciesMeta": {
     "@playwright/test": {

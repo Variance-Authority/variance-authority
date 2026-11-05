@@ -1281,7 +1281,7 @@ npm install --save-dev @variance-authority/playwright-test @playwright/test
   root names in `data-variance-reads`.
 - [`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test)
   records with the `varianceExecution` fixture option, or `tests` on
-  `createVariance`. It requires `@playwright/test >=1.49 <2`. Every observation
+  `createVariance`. It requires `@playwright/test >=1.55 <2`. Every observation
   in one spec file joins that file, because the runner's unit of execution is
   the file.
 
