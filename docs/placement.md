@@ -280,7 +280,7 @@ arrangements, and each puts the approval somewhere else:
 
 | baselines live in | config | a change is accepted by | the record of it is |
 |---|---|---|---|
-| the CI cache | `directory`, root ignored by git | a label on the pull request, and every push to `main` | the label in the pull request's timeline, and the push |
+| the CI cache | `directory`, root ignored by git | a label on the pull request, and a push to `main` | the label in the pull request's timeline, and the push |
 | git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, reviewed with the code | the commit and the pull-request review |
 | a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
 
@@ -317,7 +317,7 @@ written for, so a push brings a new one. The
 [action's README](https://github.com/Variance-Authority/action#accepting-with-a-tick)
 has the workflow it needs.
 
-Merging is the second accept. Every push to `main` accepts what `main` renders,
+Merging is the second accept. A push to `main` accepts what `main` renders,
 whether the pull request's check was green, red, unfinished, or never run because
 the project is new: you judge a change on its pull request, and what you merge is
 what `main` draws. The push saves as the label's run does, so a push whose
@@ -373,6 +373,7 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  merge_group: # a merge queue's own commit
 
 permissions:
   contents: read # the checkout: a declared block sets the rest to none
@@ -380,14 +381,16 @@ permissions:
 
 jobs:
   variance:
+    if: github.event_name != 'merge_group' # a skipped job reports success
     concurrency:
       group: variance-${{ github.ref }} # one comment, written by one run at a time
+      queue: max # every run waits, and none replaces a label's
     runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
     steps:
       - uses: actions/checkout@v7
 
       - name: take the label off
-        if: github.event.label.name == 'variance: accept'
+        if: "github.event.label.name == 'variance: accept'"
         continue-on-error: true # a fork's token is read-only
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -402,12 +405,28 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build-storybook
 
+      - name: ask whether this run is still the head
+        id: head
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          THIS_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -n "$PULL_REQUEST" ]; then
+            head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST" --jq .head.sha)
+          else
+            head=$(gh api "repos/$GITHUB_REPOSITORY/commits/heads/$GITHUB_REF_NAME" --jq .sha)
+          fi
+          if [ "$head" != "$THIS_HEAD" ]; then echo 'superseded=true' >> "$GITHUB_OUTPUT"; fi
+
       - uses: Variance-Authority/action@v1
+        if: "steps.head.outputs.superseded != 'true' || github.event.label.name == 'variance: accept'"
         with:
           config: variance.config.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-page: true # the report the comment links to, images included
-          accept: ${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}
+          comment: "${{ steps.head.outputs.superseded != 'true' }}" # the comment is the head's
+          accept: "${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}"
           to-accept: 'check the report, then add the **variance: accept** label to this pull request'
 ```
 
@@ -425,9 +444,60 @@ Any other label compares again and accepts nothing, so a red check stays red. Th
 job does not skip on that label, because a skipped job reports success and would
 cover the red.
 
-GitHub keeps one queued run per `concurrency` group, so any later event can
-displace a label's queued run. The label then stays on with nothing accepted:
-take it off and add it again.
+`queue: max` is what keeps the label's run. By default GitHub holds one waiting
+run per `concurrency` group and cancels it for the next event, so a second label
+or a push would drop the accept and leave the label on. With it every run waits,
+so a burst of pushes or labels runs them all, where the default would skip to the
+last. GitHub starts them in the order they began waiting, which need not be the
+order of their events, and it does not guarantee even that. A push can then
+compare before an accept that came first: the accept is saved, the label is off
+and the check stays red. Re-run the failed job, and it compares against the accept.
+
+Any run can also start after a newer one. An older push would save its commit's
+store over the newer one, and an older comparison would replace the head's report
+in the comment. The `head` step stops both. Once a run holds the group it asks
+GitHub for the head of its branch or pull request, and a run that is no longer the
+head skips the action and stays green, because the newer commit has a run of its
+own. A run that is still the head cannot be overtaken: any newer run waits behind
+it and writes after it. If GitHub does not answer, the step fails, the run saves
+nothing, and re-running the job asks again.
+
+The label's run is the exception, because the accept exists nowhere else. It
+accepts what its commit renders and leaves the comment to the head. The next
+comparison reads that accept, and a head that compared first stays red until you
+re-run its job.
+
+A label accepts the head the pull request is at when you add it, and nothing ties
+that to the report you read. A push lands, its run waits, and the comment still
+shows the commit before it. So before adding the label, check that the `variance`
+check on the pull request's latest commit has finished, and open the report from
+that run. A [tick](https://github.com/Variance-Authority/action#accepting-with-a-tick)
+is tied: its box names the head it was written for, and a push makes it accept
+nothing.
+
+Leave `cancel-in-progress` out: GitHub refuses `true` beside `queue: max`, and
+`true` would stop a running accept. A group holds 100 waiting runs and cancels any
+past that. If one of those was the label's, take the label off and add it again.
+If it was the head of `main`, the next push records what `main` renders.
+On GitHub Enterprise Server, check that your version's workflow syntax lists
+`queue` before you rely on it.
+
+A [merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
+waits for the required check, `variance` here, on its own commit, and only
+`merge_group` starts a workflow there. The job answers by skipping, which reports
+success. It does not compare, because the pull request's accept is in that pull
+request's cache scope, which the queue's run cannot read: every change a person
+accepted would go red. Without a queue the event never fires.
+
+So nothing compares the queue's commit. Two accepted pull requests that change a
+picture only together land unchecked, and the push to `main` records the result.
+A pull request that repairs it goes red against that store, and a person accepts
+it. With baselines in [git](#git) the accept is in the pull request's commits, so
+the queue's commit carries it, and a job without this skip can compare there.
+
+Keep the queue's *Only merge non-failing pull requests* setting on. With it off, a
+pull request that failed required checks can join a group as long as the last one
+in the group passed, and `variance` passes for every group.
 
 A subject with no baseline reports `new` and the check stays green, so a pull
 request is green until the first push to `main` records a store.

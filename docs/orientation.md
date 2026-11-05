@@ -76,14 +76,15 @@ find out which, not all the way to `rg`.
 
 ## What Variance searches
 
-`variance ask search` is symbol search. Its corpus is exported names and the
-documentation written above them, so a question about `createStore` never
-returns the files that only import or mention it. It adds one step an IDE does
-not take by default: the module graph keeps the candidates connected to a path
-you already have. A few words of what the code does reach it too: when no name
-holds them as written, the names holding any of them, matched by stem and
-ranked by how many they hold, come back before any installed package that says
-the same words.
+`variance ask search` is symbol search. It reads the names the source declares,
+the documentation written above them, each file's name and opening doc, and the
+names and descriptions of installed packages, so a question about `createStore`
+does not list every file that imports or mentions it. It adds one step an IDE
+does not take by default: the module graph keeps the candidates connected to a
+path you already have. A few words of what the code does reach it too: when no
+name holds them as written, the names and files holding any of them, matched by
+stem and ranked by how many they hold, come back before any installed package
+that says the same words.
 
 ```bash
 variance ask search --query createStore --from src/checkout/ --just-answer
@@ -105,7 +106,7 @@ xychart-beta horizontal
 ```
 
 The two text searches return every file that contains the string. Symbol search
-returns the exported names that match it, and `--from` keeps the ones reachable
+returns candidate names, not every match, and `--from` keeps the ones reachable
 from one entry file. The chart is one warm reading of a large frontend monorepo;
 [the workspace guide](agent-workspace-api.md#search-finds-the-name-the-graph-finds-the-area)
 has what each answer cost in time and what producing the index costs.
@@ -129,7 +130,7 @@ tree is the answer. Both are exact and need no Variance index.
 | An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
-| Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
+| Words for a source name | `variance ask search --query <words>` | Candidate names, not every match |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation, the members of an interface, type alias or class, and consumers; for a name only a member declares, each container and its `file:line`, pointing to `uses` |
 | A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, inside the declaring package and from other packages apart, ordered near the path, each with the lines that use it, the lines of the declaring file that use it, then the interface or class members by that name, the lines that use each through a value whose type they write, the classes that implement each, and the declaration to ask its language's find-references and go-to-implementation about for the rest |

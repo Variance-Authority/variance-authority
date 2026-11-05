@@ -253,9 +253,11 @@ that request; the next question without a list looks. With no generation to
 refresh, the read is whole and the list is not used.
 
 `--format json` prints `search` as data: the query, the area, and the
-`published`, `exported` and `loose` sections, each with its `total` and the
-rows `shown`. The generation is the `generatedAt` field rather than a footer
-line. Every other question answers in text and refuses the flag by name.
+`published`, `exported` and `loose` sections, each with its `total` and the rows
+`shown`. Those rows are candidates, not every match: for every tracked line that
+writes a word, run `git grep -i <word>`. The generation is the `generatedAt`
+field rather than a footer line. Every other question answers in text and
+refuses the flag by name.
 
 ### Ask: the agent answers, without an agent protocol
 
