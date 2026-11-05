@@ -5,6 +5,7 @@
  */
 
 import { instrument, type InstrumentOptions } from '../instrument/index.js';
+import { lineOfStart, lineStarts } from './source-lines.js';
 
 /**
  * Whether `carried`, the text a map carries for the file, if it carries one,
@@ -30,12 +31,11 @@ export function carriesTheFile(
 
 /** Whether `carried` is `text`, line for line, at every line `regions`, offsets into `text`, touch. */
 function sameUnder(text: string, carried: string, regions: readonly { readonly start: number; readonly end: number }[]): boolean {
-  const written = carried.split('\n');
-  let start = 0;
-  for (const [index, line] of text.split('\n').entries()) {
-    const end = start + line.length;
-    if (line !== written[index] && regions.some((region) => region.start <= end && region.end >= start)) return false;
-    start = end + 1;
-  }
-  return true;
+  const [lines, written, starts] = [text.split('\n'), carried.split('\n'), lineStarts(text)];
+  return regions.every((region) => {
+    for (let line = lineOfStart(starts, region.start); line <= lineOfStart(starts, region.end); line += 1) {
+      if (lines[line] !== written[line]) return false;
+    }
+    return true;
+  });
 }

@@ -182,7 +182,7 @@ crossing uses a transport before its coverage joins its test file.
 - A build-time compiler that reads syntax, such as a CSS-in-JS extractor or
   React Compiler, fails or compiles differently on probed text, so no
   transform of the project's reads a probe outside the four cases above. A map
-  that names the wrong code is never used, but for the over-charge below:
+  that names the wrong code is never used:
   Vite's dev server composes a plugin that rewrote a file and returned no map
   as identity, and a build composes it to a map with no mapping, so each
   plugin's `transform` and `load` is watched and such a plugin is refused by
