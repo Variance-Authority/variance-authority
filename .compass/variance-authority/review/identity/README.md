@@ -24,8 +24,9 @@ refused. A settable header is never trusted, because an origin reachable beside
 its gate turns that header into a request header like any other.
 
 A credential that rides along by itself proves nothing about who sent the write:
-a write a browser carried here from another origin gets nothing, whatever cookie
-came with it.
+a write a browser carried here from another origin gets nothing from the policy,
+whatever cookie came with it. `SameSite=Lax` on a cookie is a second guard behind
+that refusal.
 
 ## Depends on
 

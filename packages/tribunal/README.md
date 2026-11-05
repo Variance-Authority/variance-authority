@@ -279,7 +279,7 @@ mechanism declared:
 | `GITHUB_CLIENT_SECRET` | secret, `github` | the GitHub App's client secret. 16 characters or more |
 | `GITHUB_SESSION_SECRET` | secret, `github` | signs the session cookie. 16 characters or more. Replacing it signs everybody out |
 | `ACCESS_TEAM_DOMAIN` | var, `access` | e.g. `your-team.cloudflareaccess.com`, where the signing keys are published |
-| `ACCESS_AUD` | var, `access` | the Access application's audience tag |
+| `ACCESS_AUD` | var, `access` | the audience tag of the Access application that names the reviewers |
 | `INGEST_TOKEN` | secret, `token` | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `SHARE_TOKEN` | secret, optional | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more |
 
@@ -353,7 +353,8 @@ admin of that provider and an admin of the Cloudflare account, once:
 5. Set `ACCESS_TEAM_DOMAIN` to the team domain and `ACCESS_AUD` to the first
    application's audience tag, set `REVIEW_CREDENTIALS` to `access`, replacing
    `github`, and delete `GITHUB_CLIENT_ID` and `GITHUB_REPOSITORY` from `vars`.
-6. Check that Access holds the paths from step 3, with a POST that has no cookie:
+6. Check that Access holds the paths from step 3, with a POST that has no cookie,
+   with the mount in the address if the API has one:
 
    ```bash
    curl -si -X POST https://your-hostname/review/builds/any/subjects/any/decision
@@ -369,7 +370,7 @@ the paths in step 4 answer anybody. An open project that wants public reading
 declares `github` and `VIEW=public`.
 
 To remove a reviewer, take them out of the policy and revoke their session in Zero
-Trust, which ends their decisions within about half a minute. The paths in step 4
+Trust, which ends their decisions. The paths in step 4
 check only that their token is signed and unexpired, so until the session runs out,
 that token still reads the evidence there and can raise a concern. How long that is
 comes from the application's session duration, or from the policy's if it sets one.
