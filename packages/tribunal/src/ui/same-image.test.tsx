@@ -132,7 +132,7 @@ describe('the subject page lays its component’s stories side by side', () => {
     );
 
     expect(host.querySelectorAll('.va-siblings .va-sibling')).toHaveLength(2);
-    expect(host.querySelector('.va-siblings')?.textContent).toContain('1 story kept no candidate');
+    expect(host.querySelector('.va-siblings')?.textContent).toContain('1 story kept no image');
   });
 
   it('draws the first 24 stories of a large component and counts the rest', async () => {

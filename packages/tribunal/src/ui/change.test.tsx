@@ -457,6 +457,17 @@ describe('what a press of the button settles that is not this change', () => {
     }),
   ]);
 
+  it('offers no verdict on a row whose image the run did not keep', () => {
+    const regions = [{ x: 0, y: 0, width: 8, height: 8, pixels: 100, component: 'Button', cause: true }];
+    const moved = [{ component: 'Button', bands: ['token'], cause: true }] as const;
+    const has = { before: true, after: false, diff: false };
+    const page = card(build([subject({ regions, moved, has, approvable: false })]));
+
+    expect(page).toMatch(/<button[^>]*disabled=""[^>]*>✓/);
+    expect(page).toMatch(/<button[^>]*disabled=""[^>]*>✕/);
+    expect(page).toContain('cannot be decided here');
+  });
+
   it('says how many renders carry another change, and links it', () => {
     const page = card(detail, NO_CROSSING, new Set(['CardFooter']));
 
@@ -480,7 +491,7 @@ describe('what a press of the button settles that is not this change', () => {
   it('says what a band claim is made of rather than asserting it', () => {
     const page = card(detail, NO_CROSSING, new Set());
 
-    expect(page).toContain('Each band is a digest comparison');
+    expect(page).toContain('Each band compares component hashes');
     expect(page).toContain('the role, name and state of every node in it');
     expect(page).toContain('keeps the digests and not the values');
   });

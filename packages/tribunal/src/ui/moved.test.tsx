@@ -282,20 +282,13 @@ describe('the render’s own card', () => {
     expect(html).toContain('va-moved-passenger');
   });
 
-  it('distinguishes a baseline with no hashes from a subject that held still', () => {
-    expect(draw(<MovedHere subject={subject()} />)).toContain('carrying no component hashes');
-    expect(draw(<MovedHere subject={subject({ moved: [] })} />)).toContain('every component hash matched');
-  });
-
-  it('says a new render had no baseline, rather than one carrying no hashes', () => {
-    // No hashes were compared because nothing was: a render seen for the first
-    // time has no baseline at all, and the hashes are not what is missing.
-    const html = draw(
-      <MovedHere subject={subject({ verdict: 'new', has: { before: false, after: true, diff: false } })} />,
-    );
-
-    expect(html).toContain('no baseline');
-    expect(html).not.toContain('compared against a baseline');
+  it('draws nothing when there is no move to name', () => {
+    // Which of the three it was is said once, by the cause cell or `gapsOf`.
+    expect(draw(<MovedHere subject={subject()} />)).toBe('');
+    expect(draw(<MovedHere subject={subject({ moved: [] })} />)).toBe('');
+    expect(
+      draw(<MovedHere subject={subject({ verdict: 'new', has: { before: false, after: true, diff: false } })} />),
+    ).toBe('');
   });
 
   it('says which names a region carried while their hashes held', () => {

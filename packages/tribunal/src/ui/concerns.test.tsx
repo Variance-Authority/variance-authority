@@ -174,13 +174,28 @@ async function mount(client: ReviewClient): Promise<void> {
   });
 }
 
+/** What the bar's *Looks suspicious* does: asks the card for its form. */
+async function suspect(client: ReviewClient): Promise<void> {
+  await act(async () => {
+    root.render(
+      <Concerns
+        client={client}
+        reviewer="marina"
+        build="ci-1001"
+        subject={SUBJECT}
+        asked={{ state: 'open', seq: 1 }}
+      />,
+    );
+  });
+}
+
 describe('Concerns', () => {
   it('raises what the reviewer wrote, on the region and evidence they chose', async () => {
     const client = concernClient(async () => []);
     await mount(client);
-    expect(host.textContent).toContain('Nobody has flagged this render');
+    expect(host.textContent).toBe('');
 
-    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    await suspect(client);
     type(host.querySelector<HTMLInputElement>('input[name="title"]')!, 'Total moved below the fold');
     type(host.querySelector<HTMLTextAreaElement>('textarea[name="note"]')!, 'Under the banner now');
     await act(async () => {
@@ -212,7 +227,7 @@ describe('Concerns', () => {
   it('refuses to save a concern with no title, on the page rather than at the server', async () => {
     const client = concernClient(async () => []);
     await mount(client);
-    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    await suspect(client);
     await act(async () => host.querySelector<HTMLFormElement>('form.va-concern-form')!.requestSubmit());
 
     expect(client.raised).toEqual([]);
@@ -222,7 +237,7 @@ describe('Concerns', () => {
   it('moves a concern and draws the state it landed in', async () => {
     const client = concernClient(async () => []);
     await mount(client);
-    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    await suspect(client);
     type(host.querySelector<HTMLInputElement>('input[name="title"]')!, 'Spacing');
     await act(async () => host.querySelector<HTMLFormElement>('form.va-concern-form')!.requestSubmit());
 
@@ -238,7 +253,7 @@ describe('Concerns', () => {
       raise: () => Promise.reject(new Error('POST /review/concerns answered 503')),
     };
     await mount(client);
-    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    await suspect(client);
     type(host.querySelector<HTMLInputElement>('input[name="title"]')!, 'Spacing');
     await act(async () => host.querySelector<HTMLFormElement>('form.va-concern-form')!.requestSubmit());
 
@@ -310,13 +325,12 @@ describe('Concerns, across subjects', () => {
       act(async () => root.render(<Concerns client={client} reviewer="marina" build="ci-1001" subject={subject} />));
 
     await show(SUBJECT);
-    await act(async () => host.querySelector<HTMLButtonElement>('.va-suspicious')!.click());
+    await suspect(client);
     type(host.querySelector<HTMLInputElement>('input[name="title"]')!, 'Spacing');
     await act(async () => host.querySelector<HTMLFormElement>('form.va-concern-form')!.requestSubmit());
     await show(other);
     await act(async () => land({ ...RAISED, title: 'Spacing' }));
 
     expect(host.textContent).not.toContain('Spacing');
-    expect(host.textContent).toContain('Nobody has flagged this render');
   });
 });

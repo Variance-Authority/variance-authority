@@ -34,6 +34,14 @@ describe('REVIEW_STYLES', () => {
     expect(SCHEME).not.toBe('');
   });
 
+  it('fills one control on a render, the approval', () => {
+    // A primary that is not alone is not primary: *Next* and *Looks suspicious*
+    // once out-shouted it from the same bar.
+    expect(REVIEW_STYLES).toContain('.va-subject-decision .va-approve');
+    expect(REVIEW_STYLES).not.toContain('.va-next');
+    expect(REVIEW_STYLES).not.toContain('.va-suspicious');
+  });
+
   it('declares each selector once, so no rule silently reshapes another', () => {
     // A stylesheet is append-only in practice and the last rule wins, so a name
     // reused for a second purpose does not conflict — it quietly redresses

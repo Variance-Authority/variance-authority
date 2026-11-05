@@ -90,17 +90,11 @@ describe('one defect is one row, however many elements carry it', () => {
   });
 });
 
-describe('inspected and clean is not the same as never looked at', () => {
-  it('says a render nothing inspected has no list rather than an empty one', () => {
-    const markup = renderToStaticMarkup(<Findings subject={subject(undefined)} />);
-
-    expect(markup).toContain('was not inspected');
-  });
-
-  it('says so when a render was inspected and had nothing to report', () => {
-    const markup = renderToStaticMarkup(<Findings subject={subject([])} />);
-
-    expect(markup).toContain('nothing to report');
+describe('a render with no defect to list', () => {
+  it('draws nothing, for inspected and clean and for never inspected alike', () => {
+    // Which of the two it was is the column's to say: see `gapsOf`.
+    expect(renderToStaticMarkup(<Findings subject={subject(undefined)} />)).toBe('');
+    expect(renderToStaticMarkup(<Findings subject={subject([])} />)).toBe('');
   });
 });
 

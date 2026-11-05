@@ -1,9 +1,9 @@
 /**
  * The notes the review page writes beside a change: concerns, findings, the
- * declaration audit, the docket rail, what moved, why, and where it came from.
+ * declaration audit, the overview's rail, what moved, why, and where it came from.
  *
  * Each sits in the box the page puts it in — the subject page's aside, the
- * docket's rail, the run page's card, the change page's column — because that
+ * overview's rail, the run page's card, the change page's column — because that
  * box's width is where its sentences wrap and its background is what its tags
  * are drawn against. Every value is the recorded build's; a state the recording
  * never reached is the recorded object with the fewest fields moved to reach it.
@@ -70,7 +70,7 @@ const aside =
     </aside>
   );
 
-/** The docket's rail, 21rem wide. */
+/** The overview's rail, 21rem wide. */
 const rail: Decorator = (Story) => (
   <nav className="va-rail">
     <Story />
@@ -105,6 +105,8 @@ type Story = StoryObj;
 
 type Render = () => ReactElement;
 const side = (heading: string, render: Render): Story => ({ render, parameters: ASIDE, decorators: [aside(heading)] });
+/** In the column with no heading of its own: `Concerns` draws its own card. */
+const beside = (render: Render): Story => ({ render, parameters: ASIDE });
 const inRail = (render: Render): Story => ({ render, parameters: RAIL, decorators: [rail] });
 const inCard = (heading: string, render: Render): Story => ({ render, parameters: STAGE, decorators: [card(heading)] });
 const column = (render: Render): Story => ({ render, parameters: STAGE, decorators: [decide] });
@@ -112,9 +114,7 @@ const bare = (render: Render): Story => ({ render, parameters: STAGE });
 
 /* --- concerns ------------------------------------------------------------ */
 
-export const ConcernsRaised = side('Concerns', () => <Concerns client={client} reviewer="marina" build={CHANGED} subject={rebranded} />);
-
-export const ConcernsUnflagged = side('Concerns', () => <Concerns client={client} reviewer="marina" build={CHANGED} subject={composed} />);
+export const ConcernsRaised = beside(() => <Concerns client={client} reviewer="marina" build={CHANGED} subject={rebranded} />);
 
 // The bar asked for the form after the card mounted, as Investigate does.
 function AskedLater(): ReactElement {
@@ -123,7 +123,7 @@ function AskedLater(): ReactElement {
   return <Concerns client={client} reviewer="marina" build={CHANGED} subject={rebranded} asked={asked} />;
 }
 
-export const ConcernsWritingBesideTrail = side('Concerns', () => <AskedLater />);
+export const ConcernsWritingBesideTrail = beside(() => <AskedLater />);
 
 export const ConcernTrailOpen = side('Concerns', () => <ConcernTrail concern={concern} build={CHANGED} busy={false} onMove={go} />);
 
@@ -169,7 +169,6 @@ export const ConcernFormWholeRender = side('Concerns', () => (
 
 /* --- findings ------------------------------------------------------------ */
 
-const { findings: _inspected, ...uninspected } = composed;
 
 function finding(region: SubjectView['regions'][number], over: Partial<FindingRecord>): FindingRecord {
   return {
@@ -199,8 +198,6 @@ const carried = {
 // Inspected by a run that kept no baseline findings, so neither one is dated.
 const undated = { ...composed, findings: carried.findings.slice(1).map(({ standing: _standing, ...each }) => each) };
 
-export const FindingsNotInspected = side('Findings', () => <Findings subject={uninspected} />);
-export const FindingsClean = side('Findings', () => <Findings subject={composed} />);
 export const FindingsArrived = side('Findings', () => <Findings subject={arrived} />);
 export const FindingsArrivedAndCarried = side('Findings', () => <Findings subject={carried} />);
 export const FindingsUndated = side('Findings', () => <Findings subject={undated} />);
@@ -268,7 +265,7 @@ export const DeclarationsNoLedger = inCard('Declarations', () => <DeclarationsPa
 export const DeclarationsIgnores = inCard('Declarations', () => <DeclarationsPanel declarations={ignored} />);
 export const DeclarationsSensitivities = inCard('Declarations', () => <DeclarationsPanel declarations={relaxed} />);
 
-/* --- the docket rail ----------------------------------------------------- */
+/* --- the overview's rail -------------------------------------------------- */
 
 function Rail({ build, order, selected }: { build: BuildDetail; order: Order; selected?: string }): ReactElement {
   return <OriginsPanel build={build} crossing={useCrossing(client, build)} order={order} selected={selected} go={go} />;
@@ -336,17 +333,12 @@ export const WhatMovedMissed = column(() => (
 
 export const MovedHereMeasured = side('What moved', () => <MovedHere subject={primary} anchor="Button" far={distanceFrom(changed, 'Button')} />);
 
-export const MovedHereNotMeasured = side('What moved', () => <MovedHere subject={loading} />);
-
-// Both revisions were read and every component hash matched.
-export const MovedHereHashesMatched = side('What moved', () => <MovedHere subject={{ ...composed, moved: [] }} />);
-
 // Only the two button stories are on this page, so the three cards are found elsewhere.
 const elsewhere = movedElsewhere('Button', changed.subjects, new Set([primary.subject, secondary.subject])).map(
   (each, index) => (index === 0 ? { ...each, filedUnder: 'Card' } : index === 1 ? { ...each, drawn: false } : each),
 );
 
-export const MovedElsewhereFiled = side('Decision', () => <MovedElsewhere component="Button" found={elsewhere} build={CHANGED} go={go} />);
+export const MovedElsewhereFiled = bare(() => <MovedElsewhere component="Button" found={elsewhere} build={CHANGED} go={go} />);
 
 /* --- why ----------------------------------------------------------------- */
 
@@ -391,20 +383,20 @@ const keptIn = (decision: DecisionRecord | null, count = 1): SubjectView => ({
 });
 
 // The image was kept by the build before, undecided there.
-export const RepeatedUndecided = side('Decision', () => <Repeated subject={keptIn(null)} ran={changed.at} go={go} />);
+export const RepeatedUndecided = bare(() => <Repeated subject={keptIn(null)} ran={changed.at} go={go} />);
 
 // Kept and approved there, after this build ran; and kept by one build further back.
-export const RepeatedApproved = side('Decision', () => <Repeated subject={keptIn(approved, 2)} ran={changed.at} go={go} />);
+export const RepeatedApproved = bare(() => <Repeated subject={keptIn(approved, 2)} ran={changed.at} go={go} />);
 
 // Kept and approved there before this build ran, which still differs from its baseline.
-export const RepeatedApprovedBefore = side('Decision', () => <Repeated subject={keptIn({ ...approved, at: base.at })} ran={changed.at} go={go} />);
+export const RepeatedApprovedBefore = bare(() => <Repeated subject={keptIn({ ...approved, at: base.at })} ran={changed.at} go={go} />);
 
-export const RepeatedRejected = side('Decision', () => <Repeated subject={keptIn(rejected)} ran={changed.at} go={go} />);
+export const RepeatedRejected = bare(() => <Repeated subject={keptIn(rejected)} ran={changed.at} go={go} />);
 
 // Refused: the baseline the page read was replaced, by a digest nothing recorded, while the reviewer looked.
 const moved = { read: primary.baselineVersion ?? null, current: 'v1:7c1e04d2a9b35f60e8d1c4a7b2f9e013' };
 
-export const BaselineMovedOnSubject = side('Decision', () => <BaselineMovedNotice moved={{ ...moved, read: null }} reload="Reload this subject" busy={false} onReload={go} />);
+export const BaselineMovedOnSubject = bare(() => <BaselineMovedNotice moved={{ ...moved, read: null }} reload="Reload this subject" busy={false} onReload={go} />);
 
 export const BaselineMovedInBatch = column(() => (
   <BaselineMovedNotice

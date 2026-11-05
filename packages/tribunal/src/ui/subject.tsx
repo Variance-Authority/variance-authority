@@ -15,28 +15,29 @@ import { ActionBar, type Place } from './action-bar.js';
 import { BaselineMovedNotice, movedOf } from './baseline-moved.js';
 import type { MovedBaseline, ReviewClient } from './client.js';
 import { Concerns, type Asked } from './concerns.js';
+import { DecisionControls } from './decision.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
+import { gapsOf } from './gaps.js';
 import { glanceOf, type Blamed, type Glance } from './glance.js';
 import { SubjectHistory } from './history.js';
 import { MovedHere } from './moved.js';
 import { Repeated } from './repeated.js';
 import type { Route } from './route.js';
+import { senseOfSubject } from './sense.js';
 import { messageOf } from './shell.js';
-import { count, number, when } from './text.js';
+import { count, number } from './text.js';
 import { Viewer } from './viewer.js';
 
 export type { Place } from './action-bar.js';
 
 /**
- * One subject: the render on the left, everything that is not the render on the
- * right, and what can be done about it underneath both.
+ * One subject: its name, state and verdict across the top, the render on the
+ * left, what else is known on the right, and the way along underneath.
  *
- * The split is not decoration. A reviewer decides from the defect list, the
- * record and the sentence explaining the verdict, and on a full-page capture all
- * three sat nine thousand pixels below the thing they are about. They are a
- * column now, and it does not move when the picture does. The moves are a bar
- * that does not move either — see [`action-bar.tsx`](./action-bar.tsx).
+ * The head and the bar sit outside the scrolling panes, so on a full-page capture
+ * the verdict stays where it was. The column holds only cards with something to
+ * say; what nobody measured gets one line in it, from {@link gapsOf}.
  */
 export function SubjectPanel({
   client,
@@ -140,17 +141,41 @@ export function SubjectPanel({
     }
   };
 
+  const gaps = gapsOf(subject);
+
   return (
     <section className="va-subject">
+      <header className="va-subject-head">
+        <h3>{subject.subject}</h3>
+        <span className={`va-verdict va-${subject.verdict}`}>{subject.verdict}</span>
+        <DecisionControls subject={subject} busy={busy} onDecide={(decision) => void decide(decision)} />
+      </header>
+
+      <div className="va-subject-says">
+        <Repeated subject={subject} ran={ran} go={go} />
+        {failed === null ? null : <p className="va-failure">{failed}</p>}
+        {moved === null ? null : (
+          <BaselineMovedNotice
+            moved={moved}
+            reload="Reload this subject"
+            busy={busy}
+            onReload={() => void reload()}
+          />
+        )}
+      </div>
+
       <div className="va-subject-panes">
       <div className="va-stage va-scroll" ref={page}>
         <div className="va-page">
-          <header className="va-subject-head">
-            <h3>{subject.subject}</h3>
-            <span className={`va-verdict va-${subject.verdict}`}>{subject.verdict}</span>
-          </header>
           <Glanced subject={subject} />
-          <p className="va-said">{subject.because}</p>
+          {subject.changedPixels > 0 ? (
+            <details className="va-said-fold">
+              <summary>The run’s own words</summary>
+              <p className="va-said">{subject.because}</p>
+            </details>
+          ) : (
+            <p className="va-said">{subject.because}</p>
+          )}
           {siblings}
 
           <Viewer client={client} build={build} subject={subject} sourced={sourced} />
@@ -158,70 +183,50 @@ export function SubjectPanel({
       </div>
 
       <aside className="va-aside va-scroll">
-        <section className="va-card">
-          <h2>Decision</h2>
-          <Repeated subject={subject} ran={ran} go={go} />
-          {subject.decision === null ? null : (
-            <p className="va-decision">
-              {subject.decision.decision} by {subject.decision.by} · {when(subject.decision.at)}
-              {subject.decision.note === undefined ? null : <> — {subject.decision.note}</>}
-            </p>
-          )}
-          {subject.decision === null && failed === null ? <p className="va-note">Undecided.</p> : null}
-          {failed === null ? null : <p className="va-failure">{failed}</p>}
-          {moved === null ? null : (
-            <BaselineMovedNotice
-              moved={moved}
-              reload="Reload this subject"
-              busy={busy}
-              onReload={() => void reload()}
-            />
-          )}
-          {subject.approvable ? null : (
-            <p className="va-note">No candidate was uploaded for this subject, so it cannot be approved here.</p>
-          )}
-        </section>
+        <Concerns
+          client={client}
+          reviewer={reviewer}
+          build={build}
+          subject={subject}
+          asked={asked}
+          onWriting={setWriting}
+          onChanged={onConcerned}
+          read={decisions}
+        />
+
+        {senseOfSubject(subject).moved.length === 0 ? null : (
+          <section className="va-card">
+            <h2>What moved</h2>
+            <MovedHere subject={subject} anchor={anchor} far={far} />
+          </section>
+        )}
+
+        {subject.findings === undefined || subject.findings.length === 0 ? null : (
+          <section className="va-card">
+            <h2>Findings</h2>
+            <Findings subject={subject} />
+          </section>
+        )}
+
+        {gaps.length === 0 ? null : (
+          <section className="va-card">
+            <h2>Not measured</h2>
+            <ul className="va-gaps">
+              {gaps.map((gap) => (
+                <li key={gap}>{gap}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="va-card">
-          <h2>Concerns</h2>
-          <Concerns
-            client={client}
-            reviewer={reviewer}
-            build={build}
-            subject={subject}
-            asked={asked}
-            onWriting={setWriting}
-            onChanged={onConcerned}
-            read={decisions}
-          />
-        </section>
-
-        <section className="va-card">
-          <h2>What moved</h2>
-          <MovedHere subject={subject} anchor={anchor} far={far} />
-        </section>
-
-        <section className="va-card">
-          <h2>Findings</h2>
-          <Findings subject={subject} />
-        </section>
-
-        <section className="va-card">
-          <h2>The record</h2>
+          <h2>History</h2>
           <SubjectHistory client={client} subject={subject} />
         </section>
       </aside>
       </div>
 
-      <ActionBar
-        subject={subject}
-        place={place}
-        busy={busy}
-        writing={writing}
-        onDecide={(decision) => void decide(decision)}
-        onSuspect={suspect}
-        onGo={onGo}
-      />
+      <ActionBar place={place} writing={writing} onSuspect={suspect} onGo={onGo} />
     </section>
   );
 }
@@ -238,9 +243,8 @@ export function SubjectPanel({
  *
  * Three cells instead, each a number over its unit. Nothing to read in order,
  * because these are three answers to one question and a reviewer takes them at a
- * glance or not at all. The sentence stays underneath and stays quiet: it is the
- * run's own words, it carries the collection's complaints, and demoting it is
- * not the same as dropping it.
+ * glance or not at all. The sentence stays one click away: it repeats these
+ * numbers, but it is the run's own words and carries the collection's complaints.
  *
  * `null` for a subject with nothing to measure. An unchanged render would get
  * three cells reading `—`, which is a page insisting it has something to say.
@@ -294,8 +298,8 @@ function Cause({ at }: { readonly at: Glance }): ReactElement | null {
   if (at.blamed.length === 0) {
     return (
       <p className="va-glance-cell va-glance-none">
-        <b>nothing owned it</b>
-        <span>every digest matched</span>
+        <b>No component moved</b>
+        <span>every component matched</span>
       </p>
     );
   }

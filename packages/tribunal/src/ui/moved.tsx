@@ -245,35 +245,10 @@ export function MovedHere({
   /** The change this render is filed under, which `far` measures from. */
   readonly anchor?: string | undefined;
   readonly far?: Ruler | undefined;
-}): ReactElement {
+}): ReactElement | null {
   const sense = senseOfSubject(subject);
 
-  if (sense.unmeasured === 'no-baseline') {
-    return (
-      <p className="va-note">
-        This render has no baseline yet, so nothing was compared and nothing says which components
-        moved.
-      </p>
-    );
-  }
-
-  if (sense.unmeasured === 'no-hashes') {
-    return (
-      <p className="va-note">
-        This render was compared against a baseline carrying no component hashes, so nothing says
-        which components moved — only where the pixels differ.
-      </p>
-    );
-  }
-
-  if (sense.moved.length === 0) {
-    return (
-      <p className="va-note">
-        Both revisions were read and every component hash matched. Whatever differs here is beneath
-        the semantic tier, or belongs to a part of the page the walk assigned no component to.
-      </p>
-    );
-  }
+  if (sense.moved.length === 0) return null;
 
   return (
     <>
@@ -291,7 +266,7 @@ export function MovedHere({
       )}
       {sense.pushed.length === 0 ? null : (
         <p className="va-note">
-          A region names {sense.pushed.join(', ')}, whose own hashes held still: pushed by
+          A region names {sense.pushed.join(', ')}, whose own hashes did not change: pushed by
           something else, not edited.
         </p>
       )}

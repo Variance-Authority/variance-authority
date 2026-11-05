@@ -4,6 +4,7 @@ import type { ReviewClient } from './client.js';
 import { hasDifference, useDifference } from './difference.js';
 import { Raster, share, union } from './plate.js';
 import { RegionOverlay, RegionTable } from './regions.js';
+import { needsReview } from './settled.js';
 import { count, magnitude, number } from './text.js';
 
 /**
@@ -61,6 +62,22 @@ const LABELS: Readonly<Record<ViewerMode, string>> = {
 
 /** Long enough to read either state, short enough that the eye holds both. */
 const BLINK_MS = 700;
+
+/** The note a verdict with no image to judge points at. */
+export const NO_CANDIDATE = 'va-no-candidate';
+
+/** The one place a missing image is said, and what it stops. */
+function NoCandidate({ subject }: { readonly subject: SubjectView }): ReactElement | null {
+  if (subject.has.after) return null;
+  const open = subject.decision === null && needsReview(subject.verdict);
+
+  return (
+    <p className="va-note" id={NO_CANDIDATE}>
+      This run kept {subject.has.before ? 'no new image' : 'no images'} for this subject.
+      {open ? ' Nothing can be approved or rejected until another run keeps one.' : ''}
+    </p>
+  );
+}
 
 export function Viewer({
   client,
@@ -140,9 +157,7 @@ export function Viewer({
   // Every hook is above this line, and has to be: without a `key` forcing a
   // remount, moving from a subject with images to one without would otherwise
   // change how many hooks this component calls.
-  if (available.length === 0) {
-    return <p className="va-note">This run kept no images for this subject.</p>;
-  }
+  if (available.length === 0) return <NoCandidate subject={subject} />;
 
   const size = subject.size;
   const url = (kind: 'before' | 'after'): string =>
@@ -211,6 +226,7 @@ export function Viewer({
       className="va-viewer"
       aria-busy={difference?.state === 'loading' ? true : undefined}
     >
+      <NoCandidate subject={subject} />
       <div className="va-viewer-bar">
         <div className="va-viewer-controls">
           <p className="va-modes">
@@ -284,7 +300,7 @@ export function Viewer({
           </figure>
           <figure>
             <figcaption>this build</figcaption>
-            <Raster src={url('after')} alt={`${subject.subject} candidate`} size={size} />
+            <Raster src={url('after')} alt={`${subject.subject} in this build`} size={size} />
           </figure>
         </div>
       ) : (
@@ -319,7 +335,7 @@ export function Viewer({
                 ) : null}
                 <Raster
                   src={url('after')}
-                  alt={`${subject.subject} candidate`}
+                  alt={`${subject.subject} in this build`}
                   size={size}
                   style={{ ...share(size, box), ...over(mode, { seam, blend, flip }) }}
                 />
@@ -355,20 +371,7 @@ export function Viewer({
         />
       ) : null}
 
-      <p className="va-pixels">
-        {magnitude(subject)}
-        {subject.truncated === undefined ? null : (
-          <>
-            {' '}
-            · {count(subject.truncated.regions, 'further region')} ({number(
-              subject.truncated.pixels,
-            )}px) were not recorded
-          </>
-        )}
-        {subject.missingFonts === undefined || subject.missingFonts.length === 0 ? null : (
-          <> · fonts missing at render: {subject.missingFonts.join(', ')}</>
-        )}
-      </p>
+      <Caveats subject={subject} />
 
       <RegionTable
         subject={subject}
@@ -379,6 +382,21 @@ export function Viewer({
       />
     </div>
   );
+}
+
+/** What the numbers leave out; the count itself is the glance's when there is one. */
+function Caveats({ subject }: { readonly subject: SubjectView }): ReactElement | null {
+  const said = [
+    subject.changedPixels > 0 ? undefined : magnitude(subject),
+    subject.truncated === undefined
+      ? undefined
+      : `${count(subject.truncated.regions, 'further region')} (${number(subject.truncated.pixels)}px) were not recorded`,
+    subject.missingFonts === undefined || subject.missingFonts.length === 0
+      ? undefined
+      : `fonts missing at render: ${subject.missingFonts.join(', ')}`,
+  ].filter((each) => each !== undefined && each !== '');
+
+  return said.length === 0 ? null : <p className="va-pixels">{said.join(' · ')}</p>;
 }
 
 /**

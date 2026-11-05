@@ -125,7 +125,7 @@ describe('the opening line counts only what there is something to count', () => 
 
     expect(text).toContain('1 subject carries a difference it already had');
     expect(text).not.toContain('moved for the first time');
-    expect(text).not.toContain('held still in both');
+    expect(text).not.toContain('stayed the same in both');
   });
 
   it('says what it means rather than printing three zeroes', async () => {
@@ -139,23 +139,68 @@ describe('the opening line counts only what there is something to count', () => 
     });
     const text = await open(build('6', [subject()]), build('5', [moved]));
 
-    expect(text).toContain('nothing here is a difference it also carried');
+    expect(text).toContain('no render carries a difference it already had');
+    expect(text).not.toContain('reads some other way');
     expect(text).not.toMatch(/\b0 /);
   });
 
-  it('heads a build with no change filed by that, never by saying nothing changed', async () => {
+  it('heads a build with no change filed by what awaits review, the count the header gives', async () => {
     // No change is filed for a first run, whose every render is new, nor for a
-    // render that moved with no component named as its cause. *Nothing in this
-    // build changed* was the heading over both.
+    // render that moved with no component named as its cause. Neither is a build
+    // with nothing to do, and both once sat under a heading saying it was.
     const fresh = subject({ subject: 'story:new', verdict: 'new', regions: [], has: { before: false, after: true, diff: false } });
     const unclaimed = subject({ subject: 'story:unclaimed', regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, cause: true }] });
 
     for (const subjects of [[fresh], [unclaimed]]) {
       const text = await open(build('6', subjects), build('5', []));
 
-      expect(text).toContain('No change to work through');
+      expect(text).toContain('1 render to review');
+      expect(text).not.toContain('No change to work through');
       expect(text).not.toContain('Nothing in this build changed');
+      expect(text).not.toContain('0 changes');
+      expect(text).not.toContain('0 renders');
     }
+  });
+
+  it('offers the way to the render when no change leads to it', async () => {
+    const unclaimed = subject({
+      subject: 'story:unclaimed',
+      regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, cause: true }],
+    });
+    await open(build('6', [unclaimed]), build('5', []));
+
+    expect(host.querySelector('.va-opening-links a[href$="story%3Aunclaimed"]')?.textContent).toContain(
+      'Review the first render',
+    );
+  });
+
+  it('counts a render no component claimed beside the changes that were claimed', async () => {
+    const unclaimed = subject({
+      subject: 'story:unclaimed',
+      regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 100, cause: true }],
+    });
+    const text = await open(build('6', [subject(), unclaimed]), build('5', []));
+
+    expect(text).toContain('1 change · 2 renders');
+    expect(text).toContain('1 render changed with no component named as the cause.');
+    expect(text).not.toMatch(/lattice|crossing in full/);
+  });
+
+  it('says there is nothing to review only when nothing awaits review', async () => {
+    const still = subject({ verdict: 'unchanged', changedPixels: 0, regions: [] });
+    const text = await open({ ...build('6', [still]), pending: 0 }, build('5', []));
+
+    expect(text).toContain('Nothing to review');
+  });
+
+  it('calls a change everyone has decided decided, not something to work through', async () => {
+    const decided = subject({
+      decision: { decision: 'approved', by: 'marina', at: '2026-06-01T12:00:00.000Z' },
+    });
+    const text = await open({ ...build('6', [decided]), pending: 0 }, build('5', []));
+
+    expect(text).toContain('1 change, all decided');
+    expect(text).not.toContain('to work through');
   });
 
   it('counts a subject the earlier run did not have as new, not as one that moved', async () => {

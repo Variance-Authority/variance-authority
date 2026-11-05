@@ -129,23 +129,16 @@ function press(root: HTMLElement, label: string): void {
 const reading = (node: Element): boolean =>
   node.classList.contains('va-waiting') || (node.textContent?.trim().endsWith('…') ?? false);
 
-const bar = (props: Partial<Parameters<typeof ActionBar>[0]> & { readonly subject: SubjectView }): Story => ({
+const bar = ({
+  subject,
+  ...props
+}: Partial<Parameters<typeof ActionBar>[0]> & { readonly subject: SubjectView }): Story => ({
   parameters: { width: 960 },
-  render: () => (
-    <ActionBar
-      place={placeOf(CHANGED, props.subject)}
-      busy={false}
-      onDecide={none}
-      onSuspect={none}
-      onGo={none}
-      {...props}
-    />
-  ),
+  render: () => <ActionBar place={placeOf(CHANGED, subject)} onSuspect={none} onGo={none} {...props} />,
 });
 
 export const ActionBarPending = bar({ subject: rebranded });
 export const ActionBarFirstInQueue = bar({ subject: composed });
-export const ActionBarDeciding = bar({ subject: rebranded, busy: true });
 export const ActionBarWritingConcern = bar({ subject: rebranded, writing: true });
 export const ActionBarNotInQueue = bar({ subject: loading });
 export const ActionBarWithoutWayAlong = bar({ subject: rebranded, place: undefined, onGo: undefined });
@@ -156,8 +149,7 @@ const rail = (build: string, selected: string | null): Story => ({
     <nav className="va-rail">
       <SubjectRail
         subjects={reviewable(build)}
-        causes={buildOf(build).causes.length}
-        variations={buildOf(build).variations.length}
+        changes={originsOf(buildOf(build)).origins.length}
         selected={selected}
         onSelect={none}
       />
@@ -166,7 +158,7 @@ const rail = (build: string, selected: string | null): Story => ({
 });
 
 export const RailChanged = rail(CHANGED, composed.subject);
-export const RailOnDocket = rail(CHANGED, null);
+export const RailOnOverview = rail(CHANGED, null);
 export const RailFirstRun = rail(BASE, first.subject);
 
 const inMode =
@@ -222,7 +214,7 @@ function Plated({ subject, focus }: { readonly subject: SubjectView; readonly fo
     >
       <Raster
         src={client.imageUrl(CHANGED, subject.subject, 'after')}
-        alt={`${subject.subject} candidate`}
+        alt={`${subject.subject} in this build`}
         size={subject.size}
         style={share(subject.size, box)}
       />
@@ -394,3 +386,8 @@ export const PanelRejected = panel(secondary);
 export const PanelConcernRaised = panel(rebranded);
 export const PanelUnchanged = panel(loading);
 export const PanelNew = panel(first, BASE);
+export const PanelNoImageKept = panel({
+  ...composed,
+  has: { ...composed.has, after: false },
+  approvable: false,
+});

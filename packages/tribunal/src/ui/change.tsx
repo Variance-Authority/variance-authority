@@ -331,13 +331,17 @@ function Where({
             onClick={() => void decide('approved')}
             title={
               subject.approvable
-                ? 'Promote this render’s candidate, and no others'
-                : 'This run kept no candidate image for this subject, so there is nothing to promote.'
+                ? 'Make this render’s image the baseline, and no others'
+                : 'This run kept no new image for this subject, so there is nothing to judge.'
             }
           >
             ✓
           </button>
-          <button type="button" disabled={busy} onClick={() => void decide('rejected')}>
+          <button
+            type="button"
+            disabled={busy || !subject.has.after}
+            onClick={() => void decide('rejected')}
+          >
             ✕
           </button>
         </span>
@@ -427,7 +431,7 @@ function Batch({
         className="va-approve"
         disabled={busy || open.length === 0}
         onClick={() => void decide('approved')}
-        title={`Promote the candidate in every render ${origin.component} moved`}
+        title={`Make this build’s image the baseline in every render ${origin.component} moved`}
       >
         Approve this change{open.length === 0 ? '' : ` (${number(open.length)})`}
       </button>
@@ -441,7 +445,7 @@ function Batch({
       {settled === 0 ? null : <span className="va-note">{number(settled)} already decided</span>}
       {blocked === 0 ? null : (
         <span className="va-note">
-          {count(blocked, 'render')} kept no candidate and cannot be approved here
+          {count(blocked, 'render')} kept no new image and cannot be decided here
         </span>
       )}
       {failed === undefined ? null : typeof failed === 'string' ? (
