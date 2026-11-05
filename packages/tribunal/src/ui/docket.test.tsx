@@ -162,6 +162,13 @@ describe('the opening line counts only what there is something to count', () => 
     }
   });
 
+  it('opens on the count the header gives, whatever the changes number', async () => {
+    const renders = [subject(), subject({ subject: 'story:two' }), subject({ subject: 'story:three' })];
+    const text = await open({ ...build('6', renders), pending: 3 }, build('5', []));
+
+    expect(text).toContain('3 renders to review, from 1 change');
+  });
+
   it('offers the way to the render when no change leads to it', async () => {
     const unclaimed = subject({
       subject: 'story:unclaimed',

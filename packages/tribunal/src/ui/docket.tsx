@@ -411,7 +411,8 @@ function headline(build: BuildDetail, origins: readonly Origin[]): string {
   const open = origins.filter((origin) =>
     origin.appearances.some((each) => each.subject.decision === null),
   ).length;
-  return open > 0 ? `${count(open, 'change')} to work through` : `${count(build.pending, 'render')} to review`;
+  const renders = `${count(build.pending, 'render')} to review`;
+  return open > 0 ? `${renders}, from ${count(open, 'change')}` : renders;
 }
 
 /**

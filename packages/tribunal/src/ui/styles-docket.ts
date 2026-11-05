@@ -267,7 +267,7 @@ export const DOCKET_STYLES = `
    section, above the docket rather than beside it, because it is true of every
    change on the page and nothing on it is decided. */
 .va-impact { border-top: 1px solid var(--va-line); display: grid; gap: 1rem; margin-top: 1.4rem; padding-top: 1.1rem; }
-.va-impact-commit { align-items: baseline; display: flex; flex-wrap: wrap; font-size: 0.9rem; }
+.va-impact-commit { align-items: baseline; column-gap: 0.3em; display: flex; flex-wrap: wrap; font-size: 0.9rem; }
 .va-impact-files ul { display: grid; gap: 0.1rem; margin-top: 0.35rem; }
 .va-impact-files li { font-size: 0.82rem; }
 .va-impact-depth h2 { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
