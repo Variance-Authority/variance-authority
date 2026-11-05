@@ -12661,7 +12661,6 @@ __metadata:
     ajv: "npm:^8.17.1"
     ci-info: "npm:^4.4.0"
     esbuild: "npm:^0.25.0"
-    fflate: "npm:^0.8.3"
     jsdom: "npm:^30.0.1"
     mdast-util-to-string: "npm:^4.0.0"
     oxc-parser: "npm:^0.144.0"

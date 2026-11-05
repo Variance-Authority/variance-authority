@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { strFromU8, strToU8, unzipSync } from "fflate";
+import { crc32, inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { discoveryFiles, skillArchives, skillDirectory } from "./agent-skills";
 
@@ -15,16 +15,37 @@ interface Entry {
   readonly digest: string;
 }
 
-const skill = (frontmatter: string): Uint8Array => strToU8(`---\nname: one\n${frontmatter}\n---\n\n# One\n`);
+const skill = (frontmatter: string): Uint8Array => Buffer.from(`---\nname: one\n${frontmatter}\n---\n\n# One\n`);
+
+/** The files of a zip, read as an installer reads one: from its directory, each checked against its CRC. */
+function unpacked(archive: Uint8Array): ReadonlyMap<string, Uint8Array> {
+  const zip = Buffer.from(archive);
+  const end = zip.length - 22;
+  expect(zip.readUInt32LE(end)).toBe(0x06054b50);
+  const files = new Map<string, Uint8Array>();
+  let at = zip.readUInt32LE(end + 16);
+  for (let left = zip.readUInt16LE(end + 10); left > 0; left -= 1) {
+    expect(zip.readUInt32LE(at)).toBe(0x02014b50);
+    const nameLength = zip.readUInt16LE(at + 28);
+    const local = zip.readUInt32LE(at + 42);
+    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const source = inflateRawSync(zip.subarray(start, start + zip.readUInt32LE(at + 20)));
+    expect(crc32(source)).toBe(zip.readUInt32LE(at + 16));
+    expect(source.length).toBe(zip.readUInt32LE(at + 24));
+    files.set(zip.toString("utf8", at + 46, at + 46 + nameLength), new Uint8Array(source));
+    at += 46 + nameLength;
+  }
+  return files;
+}
 
 /** A skill is a directory holding a `SKILL.md`, named as its frontmatter names it. */
 describe("skillArchives", () => {
   it("takes a directory holding a SKILL.md for a skill, and nothing else", () => {
     const files = new Map([
-      ["README.md", strToU8("Not a skill.")],
-      ["notes/draft.md", strToU8("Not a skill either.")],
+      ["README.md", Buffer.from("Not a skill.")],
+      ["notes/draft.md", Buffer.from("Not a skill either.")],
       ["one/SKILL.md", skill("description: Does one thing.")],
-      ["one/references/more.md", strToU8("More.")],
+      ["one/references/more.md", Buffer.from("More.")],
     ]);
     expect(skillArchives(files).map(({ name, description }) => ({ name, description }))).toEqual([
       { name: "one", description: "Does one thing." },
@@ -33,13 +54,14 @@ describe("skillArchives", () => {
 
   it("writes the same archive for the same files, whatever order they were read in", () => {
     const one: [string, Uint8Array] = ["one/SKILL.md", skill("description: Does one thing.")];
-    const more: [string, Uint8Array] = ["one/references/more.md", strToU8("More.")];
+    const more: [string, Uint8Array] = ["one/references/more.md", Buffer.from("More.")];
     expect(skillArchives(new Map([more, one]))[0]?.digest).toBe(skillArchives(new Map([one, more]))[0]?.digest);
   });
 
-  it("reads the description as YAML, however it is written", () => {
-    const [folded] = skillArchives(new Map([["one/SKILL.md", skill("description: >\n  Does one\n  thing.")]]));
-    expect(folded?.description.trim()).toBe("Does one thing.");
+  it("refuses a description it would misread, rather than publish it", () => {
+    for (const description of ["description: >\n  Does one\n  thing.", 'description: "Does one thing."', "description: Does\n  one thing."]) {
+      expect(() => skillArchives(new Map([["one/SKILL.md", skill(description)]]))).toThrow("no description");
+    }
   });
 
   it("refuses a skill named unlike its directory, or with no description", () => {
@@ -55,7 +77,7 @@ describe("skillArchives", () => {
  */
 describe("discoveryFiles", () => {
   const files = discoveryFiles(skillArchives(skillDirectory(SKILLS)));
-  const index = JSON.parse(strFromU8(files.get("index.json") ?? new Uint8Array())) as {
+  const index = JSON.parse(Buffer.from(files.get("index.json") ?? new Uint8Array()).toString()) as {
     $schema: string;
     skills: readonly Entry[];
   };
@@ -92,9 +114,9 @@ describe("discoveryFiles", () => {
 
   it("archives every file of a skill, with SKILL.md at the root", () => {
     for (const entry of index.skills) {
-      const unpacked = new Map(Object.entries(unzipSync(archive(entry))));
-      expect(unpacked.has("SKILL.md")).toBe(true);
-      expect(unpacked).toEqual(skillDirectory(join(SKILLS, entry.name)));
+      const files = unpacked(archive(entry));
+      expect(files.has("SKILL.md")).toBe(true);
+      expect(files).toEqual(skillDirectory(join(SKILLS, entry.name)));
     }
   });
 });

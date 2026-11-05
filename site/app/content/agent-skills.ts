@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { strFromU8, strToU8, zipSync } from "fflate";
-import { parse } from "yaml";
+import { crc32, deflateRawSync } from "node:zlib";
 
 export interface AgentSkill {
   readonly name: string;
@@ -13,8 +12,9 @@ export interface AgentSkill {
   readonly digest: string;
 }
 
-/** The date a zip holds is local time, so this one writes the same bytes in every zone. */
-const ARCHIVE_DATE = new Date(1980, 0, 1, 12);
+/** Noon on 1 January 1980 in a zip's own encoding, so an entry's date never moves a digest. */
+const ARCHIVE_TIME = 0x6000;
+const ARCHIVE_DATE = 0x0021;
 
 function skillFiles(files: ReadonlyMap<string, Uint8Array>, name: string): ReadonlyMap<string, Uint8Array> {
   const directory = `${name}/`;
@@ -22,19 +22,68 @@ function skillFiles(files: ReadonlyMap<string, Uint8Array>, name: string): Reado
   return new Map(own.map(([path, source]) => [path.slice(directory.length), source]));
 }
 
-/** In code-unit order of the paths and at a fixed date, so a deploy that changed no skill changes no digest. */
-function archiveOf(files: ReadonlyMap<string, Uint8Array>): Uint8Array {
-  const entries = [...files.keys()].sort().map((path) => [path, files.get(path) ?? new Uint8Array()]);
-  return zipSync(Object.fromEntries(entries), { mtime: ARCHIVE_DATE });
+function uint32(value: number): Buffer {
+  const bytes = Buffer.alloc(4);
+  bytes.writeUInt32LE(value);
+  return bytes;
 }
 
-/** The description a skill's frontmatter gives. An installer refuses a skill named unlike its directory. */
+function uint16s(...values: readonly number[]): Buffer {
+  const bytes = Buffer.alloc(values.length * 2);
+  values.forEach((value, at) => bytes.writeUInt16LE(value, at * 2));
+  return bytes;
+}
+
+/**
+ * A zip of deflated entries, in code-unit order of the paths, so a deploy that
+ * changed no skill changes no digest. `node:zlib` holds all a zip needs but the
+ * headers, and those are what this writes.
+ */
+function archiveOf(files: ReadonlyMap<string, Uint8Array>): Uint8Array {
+  const entries: Buffer[] = [];
+  const directory: Buffer[] = [];
+  let offset = 0;
+  for (const path of [...files.keys()].sort()) {
+    const source = files.get(path) ?? new Uint8Array();
+    const name = Buffer.from(path);
+    const data = deflateRawSync(source);
+    const header = Buffer.concat([
+      uint16s(20, 0x0800, 8, ARCHIVE_TIME, ARCHIVE_DATE),
+      uint32(crc32(source)),
+      uint32(data.length),
+      uint32(source.length),
+      uint16s(name.length, 0),
+    ]);
+    const entry = Buffer.concat([uint32(0x04034b50), header, name, data]);
+    directory.push(uint32(0x02014b50), uint16s(20), header, uint16s(0, 0, 0), uint32(0), uint32(offset), name);
+    entries.push(entry);
+    offset += entry.length;
+  }
+  const listing = Buffer.concat(directory);
+  return Buffer.concat([
+    ...entries,
+    listing,
+    uint32(0x06054b50),
+    uint16s(0, 0, files.size, files.size),
+    uint32(listing.length),
+    uint32(offset),
+    uint16s(0),
+  ]);
+}
+
+/**
+ * The description a skill's frontmatter gives, on one plain line: the form every
+ * shipped skill uses, so no YAML reader is needed, and any other form is refused
+ * rather than misread. An installer refuses a skill named unlike its directory.
+ */
 function frontmatterDescription(name: string, skill: Uint8Array | undefined): string {
-  const block = strFromU8(skill ?? new Uint8Array()).match(/^---\n([\s\S]*?)\n---/)?.[1];
-  const frontmatter = (block === undefined ? undefined : parse(block)) as Record<string, unknown> | undefined;
-  if (frontmatter?.name !== name) throw new Error(`The skill ${name} is not named so in its SKILL.md.`);
-  if (typeof frontmatter.description !== "string") throw new Error(`The skill ${name} has no description.`);
-  return frontmatter.description;
+  const frontmatter = Buffer.from(skill ?? new Uint8Array()).toString().match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
+  if (!new RegExp(`^name: ${name}$`, "m").test(frontmatter)) {
+    throw new Error(`The skill ${name} is not named so in its SKILL.md.`);
+  }
+  const description = frontmatter.match(/^description: ([^\s>|'"].*)$(?!\n[ \t])/m)?.[1];
+  if (description === undefined) throw new Error(`The skill ${name} has no description on one plain line.`);
+  return description;
 }
 
 /** Every file under a directory, keyed by its path there. */
@@ -86,7 +135,7 @@ export function discoveryFiles(skills: readonly AgentSkill[]): ReadonlyMap<strin
     })),
   };
   return new Map([
-    ["index.json", strToU8(`${JSON.stringify(index, null, 2)}\n`)],
+    ["index.json", Buffer.from(`${JSON.stringify(index, null, 2)}\n`)],
     ...skills.map(({ archiveName, archive }): [string, Uint8Array] => [archiveName, archive]),
   ]);
 }
