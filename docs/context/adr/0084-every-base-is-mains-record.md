@@ -34,7 +34,7 @@ record when it could; the other two read the primary checkout's.
 **The base of every reader, local or CI, is the record main's CI published to
 `refs/variance/mainline/main`, as of the last fetch on this machine. The
 primary checkout's record is read only when no mainline record was ever
-fetched here, and the reader says so.**
+fetched here, and a reader that asks `suiteBase` says so.**
 
 - **One order, one owner.** `suiteBase` answers: this checkout's own layer,
   else main's record, else the primary checkout's as the offline fallback.
@@ -54,8 +54,12 @@ fetched here, and the reader says so.**
   can work out which mainline is selected. `covering`, `select`, `coverage`,
   `review`, `run`, `distill` and `journeys` work it out and hand it to
   `lastFetchedMainline`, which passes over a pointer for any other, and a
-  landing hands it to `prepareRecord` for the base it lays. Everything that
-  reads through sense has none to hand in, so it takes what was fetched:
+  landing hands it to `prepareRecord` for the base it lays. `covering` and
+  `select` ask the share first and print the record they read. `coverage` and
+  `review` ask it only for the base they compare with, and name that base. What
+  they read otherwise, and what `run`, `distill` and `journeys` read, is fetched
+  by nothing and names no source. Everything that reads through sense has none
+  to hand in, so it takes what was fetched:
   `variance ask` and the tools of `@variance-authority/mcp`, through
   `recordedCases`, `recordedDurations`, `recordedPaths` and the journey readers;
   `variance index`'s journey walk; and a runner seam.
