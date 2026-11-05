@@ -98,8 +98,8 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * when the suite is not given to the share or nothing has been fetched.
  *
  * Two caches are asked, this checkout's and a worktree's primary's, or
- * `cacheRoot` alone, the newest winning, unless this checkout's was handed on,
- * and then it alone is asked. A pointer whose record is not on disk
+ * `cacheRoot` alone, the newest winning, unless this checkout's read was handed
+ * on, and then it alone is asked. A pointer whose record is not on disk
  * or does not read in this build is passed over, and so is one for another
  * mainline than `selected`. `null` is a selection that could not be read, so
  * none answers; a caller with none to hand in takes the newest. Synchronous, as
@@ -138,10 +138,19 @@ function fetchCaches(root: string, cacheRoot: string | undefined, suite: string)
   if (cacheRoot !== undefined) return [cacheRoot];
   const here = repositoryRoot(root);
   const own = cacheRootFor(here);
-  // A record handed here is this job's, whatever newer one a worktree's primary checkout fetched.
-  if (readFetchedMainline(mainlineReadRoot(own, suite))?.handed === true) return [own];
+  // A read handed here is this job's, whatever newer record a worktree's primary checkout fetched.
+  if (handedHere(mainlineReadRoot(own, suite))) return [own];
   const primary = primaryCacheRoot(here);
   return primary === own ? [own] : [own, primary];
+}
+
+/** Whether `readRoot` holds another job's read: a handed miss leaves the mark alone, which names no record. */
+function handedHere(readRoot: string): boolean {
+  try {
+    return (JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as { handed?: unknown }).handed === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

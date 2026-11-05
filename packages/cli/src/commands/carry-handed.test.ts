@@ -208,6 +208,27 @@ describe('a run stands on the record one job read', () => {
     expect(lastFetchedMainline(worktree, 'unit')).toMatchObject({ commit: first });
   });
 
+  it('stands on a handed miss in a worktree whose primary checkout holds a record', async () => {
+    const { origin } = await gitPublished(home);
+    const plan = await job(origin, 'plan');
+    await writeFile(join(plan, 'variance.config.json'), JSON.stringify({
+      suites: { unit: { kind: 'unit', carry: 'share' } },
+      share: { kind: 'http', endpoint: 'https://share.invalid', mainlines: ['main'], token: { env: 'SHARE_TOKEN_NOT_SET' } },
+    }));
+    expect(await handBase(plan, handed, { env: LOCAL })).toMatchObject({ commits: [] });
+
+    const primary = await job(origin, 'primary');
+    const worktree = join(home, 'worktree');
+    await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', undefined);
+    await receiveBase(worktree, handed);
+    const unit = declaredSuites(primary)?.find((one) => one.name === 'unit');
+    expect(await mainlineBase(primary, unit, { env: LOCAL, fetch: 'always' })).toHaveProperty('commit');
+
+    // A runner seam names no cache, so the miss has to stop the walk as a record does.
+    expect(lastFetchedMainline(worktree, 'unit')).toBeUndefined();
+  });
+
   it('hands nothing for a suite the share does not carry, and the manifest still arrives', async () => {
     const { origin } = await gitPublished(home);
     const plan = await job(origin, 'plan');

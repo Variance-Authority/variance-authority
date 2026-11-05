@@ -139,6 +139,8 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
       lines.push(`${suite} stands on the record ${pointer.mainline} published at ${pointer.commit}, as this run read it.`);
     } else if (missed !== undefined) {
       await writeMissedMainline(readRoot, { ...missed, handed: true });
+      // The mark a worktree's walk stops at, which no reader takes for a pointer: it names no record.
+      await writeFile(join(readRoot, FETCHED_MAINLINE), `${JSON.stringify({ handed: true })}\n`);
       lines.push(`${suite} stands on ${missed.mainline === undefined ? 'no mainline' : `mainline ${missed.mainline}`}'s answer of ${missed.miss.kind}, as this run read it.`);
     }
   }
