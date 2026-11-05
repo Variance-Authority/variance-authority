@@ -149,6 +149,28 @@ the loop decides, and a tie goes to the smaller change. A closed issue is
 reopened when new evidence arrives, and the review starts over; the owner may
 reopen one at any time.
 
+**A verdict is a comment.** Whoever runs the review posts the verdict on the
+issue, with its reason, ending in `<!-- idea-verdict: <name> -->`, where the name
+is `incomplete`, `build`, `yes-but` or `no-because`. Whoever picks an issue up
+for review posts `none` instead when it changes nothing the product does, so has
+no idea to review. Only a comment from the owner, a member or a collaborator
+counts, as the repository is public, and `build` still needs its label: the
+label is what CI reads.
+
+**A session that files an issue and does not build it owes the loop nothing
+more.** `node tools/idea.mjs queue` lists what the loop still owes: every open
+issue without `idea: build`, since the loop exits only on the label or a close,
+and every labelled issue CI would refuse. A `none` says the issue was never in
+the loop, and keeps it off the list until it is edited or reopened. An epic is a list, not a change, and an outsider's
+issue is a report, so neither is listed. Issues holding a brief come first, since
+they wait only for the review; the rest follow "What comes first", by score within
+each rank. An `incomplete` nothing has changed since goes last, because another
+review would say the same. A scheduled task on the owner's machine takes the top
+of that list: it writes the brief an issue lacks, runs the review, posts the
+verdict and follows it through. A `build` on an issue already labelled takes the
+label off and puts it back, since CI reads when it went on. For the three reviews
+above it counts the verdicts since the last reopen, leaving out `incomplete`.
+
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a
 model, on a reason the idea review could have seen — is an escape. Add it to
@@ -161,7 +183,8 @@ v1 is something a stranger adopts from npm and the public pages, on their own
 project; #942 lists its gaps. Rank that first, then `structural`, then
 `architecture`, then the rest. A wrong key, such as a name where a declaration
 belongs, outranks any missing feature, because every feature built on the wrong
-model inherits it.
+model inherits it. The idea loop's queue puts briefs ahead of this
+order, as [the loop](#the-idea-loop) says.
 
 The project is one problem at depth: keep fine-grained evidence of what code
 did, at hundreds of thousands of files and tests, so a question is asked of the
