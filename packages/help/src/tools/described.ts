@@ -1,9 +1,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
-import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
-import { textSince } from './as-read.js';
+import { saidAt } from './as-read.js';
 import { declaredMatch } from './declared.js';
 import type { Said } from './held-sentence.js';
 import type { DeclaredRead, FileMatch } from './search-matches.js';
@@ -390,12 +389,8 @@ export function describedDeclarations(
  * at `since`, was written after it.
  */
 export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined, said: Said): FileMatch {
-  let summary: string | undefined;
-  if (root !== undefined && file.docStart != null && file.docEnd != null) {
-    const text = textSince(root, file.at, since);
-    const doc = text === undefined ? undefined : docOf(text, { start: file.docStart, end: file.docEnd });
-    summary = doc === undefined ? undefined : said(doc);
-  }
+  const span = file.docStart == null || file.docEnd == null ? undefined : { start: file.docStart, end: file.docEnd };
+  const summary = saidAt(root, file.at, span, since, said);
   return { source: 'file', at: file.at, ...(file.by === '' ? {} : { package: file.by }), ...(summary === undefined ? {} : { summary }) };
 }
 

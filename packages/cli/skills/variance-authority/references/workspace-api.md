@@ -467,9 +467,10 @@ module, its module in Rust, and any module that spells it in Python; `uses` says
 the same in one line. CommonJS is read on a best-effort basis: the static keys
 of an object literal that `export =` or `module.exports =` assigns at the top
 level are the file's exports when every key is spelled, and a read off a
-default import of it is marked "through `default`". A script or CommonJS file,
-a module that hands itself out with `export =` and a `macro_rules!` are said to
-have no recorded reach: their readers cannot tell how the file hands the name
+default import of it is marked "through `default`". A named function or class
+handed out once that way is declared, and is the module's default export bound
+to that name. A script or CommonJS file, a module that hands out any other value
+with `export =` and a `macro_rules!` are said to have no recorded reach: their readers cannot tell how the file hands the name
 out.
 A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.

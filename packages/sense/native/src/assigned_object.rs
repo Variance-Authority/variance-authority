@@ -38,10 +38,17 @@ pub(crate) fn handed_out<'p, 'a>(statement: &'p Statement<'a>) -> Option<&'p Exp
 
 /// The one statement of `body` that hands out the module. A module handed out
 /// twice is reassigned, and which value stands is the run's to say: ADR-0097.
-pub(crate) fn handed_out_once<'p, 'a>(body: &'p [Statement<'a>]) -> Option<&'p Statement<'a>> {
+fn handed_out_once<'p, 'a>(body: &'p [Statement<'a>]) -> Option<&'p Statement<'a>> {
     let mut handing = body.iter().filter(|statement| handed_out(statement).is_some());
     let once = handing.next()?;
     handing.next().is_none().then_some(once)
+}
+
+/// The statement of `body` that hands out the module, with the named function
+/// or class it hands out, when it hands out one.
+pub(crate) fn handed_out_named<'p, 'a>(body: &'p [Statement<'a>]) -> Option<(&'p Statement<'a>, (&'p BindingIdentifier<'a>, &'static str, Span))> {
+    let once = handed_out_once(body)?;
+    Some((once, crate::top_level::named_value(handed_out(once)?)?))
 }
 
 /// The object `statement` hands out as the module, if it hands out an object literal.

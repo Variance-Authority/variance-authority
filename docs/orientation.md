@@ -82,9 +82,9 @@ names and descriptions of installed packages, so a question about `createStore`
 does not list every file that imports or mentions it. It adds one step an IDE
 does not take by default: the module graph keeps the candidates connected to a
 path you already have. A few words of what the code does reach it too: when no
-name holds them as written, the names and files holding any of them, matched by
-stem and ranked by how many they hold, come back before any installed package
-that says the same words.
+name holds them as written, the names and files holding most of them, matched by
+stem and with rarer words counting for more, come back before any installed
+package that says the same words.
 
 ```bash
 variance ask search --query createStore --from src/checkout/ --just-answer

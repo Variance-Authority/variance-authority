@@ -27,7 +27,7 @@ import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { textAsRead, textSince } from './as-read.js';
+import { saidAt, textAsRead } from './as-read.js';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
@@ -367,8 +367,7 @@ export const declaredMatch = (one: DeclaredName): DeclaredRead => ({
 /** A declaration a row prints: what `said` makes of its doc, read from the checkout; nothing when the file is gone or was written after the read at `since`. */
 export function declaredTold(root: string | undefined, said: Said, since: number | undefined): (one: DeclaredRead) => DeclaredMatch {
   return ({ doc: span, ...match }) => {
-    const text = root === undefined || span === undefined ? undefined : textSince(root, match.at, since);
-    const doc = text === undefined ? undefined : docOf(text, span);
-    return doc === undefined ? match : { ...match, summary: said(doc) };
+    const summary = saidAt(root, match.at, span, since, said);
+    return summary === undefined ? match : { ...match, summary };
   };
 }

@@ -38,7 +38,7 @@ pub(crate) struct TopLevel<'a> {
 
 /// Every name `program`'s own statements bind, in source order.
 pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLevel<'a>)) {
-    let once = crate::assigned_object::handed_out_once(&program.body);
+    let named = crate::assigned_object::handed_out_named(&program.body);
     for statement in &program.body {
         let span = statement.span();
         match statement {
@@ -47,7 +47,7 @@ pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLeve
             _ => {
                 if let Some(declared) = statement.as_declaration() {
                     declaration(declared, span, false, &mut visit);
-                } else if let Some((id, kind, signature)) = once.filter(|one| std::ptr::eq(*one, statement)).and_then(crate::assigned_object::handed_out).and_then(named_value) {
+                } else if let Some((_, (id, kind, signature))) = named.filter(|(one, _)| std::ptr::eq(*one, statement)) {
                     visit(TopLevel {
                         name: id.name.as_str(),
                         kind,

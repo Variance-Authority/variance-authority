@@ -598,8 +598,9 @@ across the name and its doc, follow under their own heading, each with the
 words it holds. Most is a weight: the words a row holds, each counted by how few
 names in the repository hold it, come to at least half of what the whole query
 comes to, and a word nothing holds counts for the most. So a row sharing one
-common word is left out, and a query whose rarest word the repository never
-writes is told as a none. A start point narrows the rows and not the weight: a
+common word is left out, and a query of two words, one of which the repository
+never writes, is told as a none; two common words still outweigh a third word
+nothing holds, because a word's weight varies little across a large repository. A start point narrows the rows and not the weight: a
 row carrying the query everywhere carries it there. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
 the words each holds, each counted by how few of the names and files found
