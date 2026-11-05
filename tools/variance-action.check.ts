@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 
 /**
  * An accept is kept because a person made it, not because a comparison agreed.
@@ -20,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 const ROOT = resolve(import.meta.dirname, '..');
 const ACTION = join(ROOT, '.github/actions/variance/action.yml');
 const WORKFLOW = join(ROOT, '.github/workflows/variance.yml');
+const SHARDS = join(ROOT, '.github/workflows/variance-shards.yml');
 
 /** The `if:` of the step whose `name:` or `id:` is `step`. */
 async function conditionOf(step: string): Promise<string> {
@@ -70,9 +72,9 @@ describe('the variance action', () => {
 });
 
 /** The `run:` block of the step whose `name:` is `step`, unindented. */
-async function runBlock(step: string): Promise<string> {
-  const lines = (await readFile(ACTION, 'utf8')).split('\n');
-  const named = lines.findIndex((line) => line.trim() === `- name: ${step}`);
+async function runBlock(step: string, file = ACTION): Promise<string> {
+  const lines = (await readFile(file, 'utf8')).split('\n');
+  const named = lines.findIndex((line) => line.trim().replace(/^- /u, '') === `name: ${step}`);
   if (named < 0) throw new Error(`the action has no step ${step}`);
   const run = lines.findIndex((line, at) => at > named && line.trim() === 'run: |');
   const indent = lines[run]!.length - lines[run]!.trimStart().length;
@@ -85,6 +87,8 @@ async function runBlock(step: string): Promise<string> {
   return body.map((line) => line.slice(inner)).join('\n');
 }
 
+const DOCKET_URL = 'https://github.test/o/r/pull/7#issuecomment-1';
+
 /** A report in which every subject was observed, and one changed. */
 const CHANGED = { observations: [{ verdict: 'changed' }], notObserved: [] };
 
@@ -95,7 +99,19 @@ const CHANGED = { observations: [{ verdict: 'changed' }], notObserved: [] };
 async function verdict(
   code: string,
   exitZeroOnChanges: string,
-  { kept = 'false', report = CHANGED as unknown, path }: { readonly kept?: string; readonly report?: unknown; readonly path?: string } = {},
+  {
+    kept = 'false',
+    report = CHANGED as unknown,
+    path,
+    docketUrl = DOCKET_URL,
+    reportUrl = '',
+  }: {
+    readonly kept?: string;
+    readonly report?: unknown;
+    readonly path?: string;
+    readonly docketUrl?: string;
+    readonly reportUrl?: string;
+  } = {},
 ): Promise<{ readonly status: number; readonly out: string }> {
   const at = await mkdtemp(join(tmpdir(), 'variance-action-verdict-'));
   try {
@@ -107,7 +123,8 @@ async function verdict(
         CODE: code,
         KEPT: kept,
         REPORT: path ?? written,
-        WHERE: 'the docket is in the pull request comment',
+        DOCKET_URL: docketUrl,
+        REPORT_URL: reportUrl,
         EXIT_ZERO_ON_CHANGES: exitZeroOnChanges,
       },
       encoding: 'utf8',
@@ -130,6 +147,31 @@ describe('the verdict', () => {
     expect(out).toContain('::error::variance found changes that need review');
   });
 
+  it('leads the reader to the comment, in the words the outer loop reads', async () => {
+    const { out } = await verdict('1', 'false');
+
+    expect(out).toContain(`::error::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
+  });
+
+  it('names the same comment on a check that reports rather than blocks', async () => {
+    expect((await verdict('1', 'true')).out).toContain(`::warning::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
+  });
+
+  it('points at the report when no comment was written, rather than at a comment nobody can find', async () => {
+    const uploaded = await verdict('1', 'false', { docketUrl: '', reportUrl: 'https://github.test/artifacts/1' });
+    const neither = await verdict('1', 'false', { docketUrl: '' });
+
+    expect(uploaded.out).toContain(`::error::${NEEDS_REVIEW}; the report is at https://github.test/artifacts/1\n`);
+    expect(neither.out).toContain(`::error::${NEEDS_REVIEW}; the report is in the variance run step above\n`);
+  });
+
+  it('reads the address from the step that posted the comment', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toMatch(/- id: post\n\s+name: post the docket/);
+    expect(action).toContain('DOCKET_URL: ${{ steps.post.outputs.comment-url }}');
+  });
+
   it('reports changes and passes the check when the job reports rather than blocks', async () => {
     const { status, out } = await verdict('1', 'true');
 
@@ -142,6 +184,7 @@ describe('the verdict', () => {
 
     expect(status).toBe(1);
     expect(out).toContain('::error::variance kept what this run accepted');
+    expect(out).toContain(`; the docket is in the pull request comment at ${DOCKET_URL}\n`);
   });
 
   it('still fails a run that could not observe every subject when the job reports rather than blocks', async () => {
@@ -158,6 +201,7 @@ describe('the verdict', () => {
 
       expect(status).toBe(1);
       expect(out).toContain('::error::variance could not observe every subject');
+      expect(out).toContain(`; the docket is in the pull request comment at ${DOCKET_URL}\n`);
     }
   });
 
@@ -182,7 +226,65 @@ async function projectRows(): Promise<ReadonlyArray<Record<string, string>>> {
   return JSON.parse(listed[1]) as ReadonlyArray<Record<string, string>>;
 }
 
+describe('the verdict over the shards', () => {
+  const merged = async (docketUrl: string): Promise<string> => {
+    try {
+      execFileSync('/bin/bash', ['-c', await runBlock('verdict', SHARDS)], {
+        env: { ...process.env, CODE: '1', DOCKET_URL: docketUrl },
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+      throw new Error('a run that needs review passed');
+    } catch (error) {
+      return (error as { stdout: string }).stdout;
+    }
+  };
+
+  it('leads the reader to the comment', async () => {
+    expect(await merged(DOCKET_URL)).toContain(`::error::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
+    expect(await readFile(SHARDS, 'utf8')).toContain('DOCKET_URL: ${{ steps.post.outputs.comment-url }}');
+  });
+
+  it('names no comment when none was written', async () => {
+    expect(await merged('')).toContain(`::error::${NEEDS_REVIEW}; the report is in the variance report step above\n`);
+  });
+});
+
+describe('the cleared comment', () => {
+  it.each([['the action', ACTION], ['the shards', SHARDS]])('reaches the poster from the renderer in %s', async (_, file) => {
+    const text = await readFile(file, 'utf8');
+
+    expect(text).toMatch(/--cleared > "\$RUNNER_TEMP\/variance-cleared\.md"/);
+    expect(text).toContain('--cleared-file "$RUNNER_TEMP/variance-cleared.md"');
+  });
+
+  it('leaves the render standing on a CLI older than the action, which v1 moves ahead of', async () => {
+    const text = await readFile(ACTION, 'utf8');
+    const block = text.slice(text.indexOf('# What that previous docket becomes'), text.indexOf('# The body, written'));
+    const temp = await mkdtemp(join(tmpdir(), 'variance-action-cleared-'));
+    try {
+      const out = execFileSync('/bin/bash', ['-c', `set -euo pipefail\n${block}\necho rendered`], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env: { ...process.env, RUNNER_TEMP: temp, VARIANCE_COMMAND: 'false', VARIANCE_CONFIG: 'variance.config.json' },
+      });
+
+      expect(out).toContain('::warning::');
+      expect(out).toContain('rendered\n');
+      await expect(readFile(join(temp, 'variance-cleared.md'), 'utf8')).rejects.toThrow('ENOENT');
+    } finally {
+      await rm(temp, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('the projects the workflow observes', () => {
+  it('says the label is the review, because a project may share its name with a review service', async () => {
+    const accept = (await readFile(WORKFLOW, 'utf8')).split('\n').find((line) => line.includes('matrix.label') && line.includes('to-accept:'));
+
+    expect(accept).toContain('The label is the whole review: no review service holds this run.');
+  });
+
   it('reports the site rather than block on it, and blocks on the review surface', async () => {
     const rows = await projectRows();
 

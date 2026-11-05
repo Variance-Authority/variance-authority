@@ -46,7 +46,7 @@ import { suiteIgnore } from './commands/select-before.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
-import { commentMarker, renderComment } from './commands/comment.js';
+import { clearedComment, commentMarker, renderComment } from './commands/comment.js';
 import { baselineFinding, doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
@@ -419,6 +419,10 @@ export async function dispatch(
       // clean run, whose previous docket has to be located and cleared.
       if (parsed.marker) {
         streams.out(`${commentMarker(config.project)}\n`);
+        return EXIT_CLEAN;
+      }
+      if (parsed.cleared) {
+        streams.out(`${clearedComment(config.project)}\n`);
         return EXIT_CLEAN;
       }
       const report = await reportsFor(parsed.reports, config);

@@ -55,6 +55,7 @@ export const BOOLEAN = new Set([
   '--all',
   '--baselines',
   '--marker',
+  '--cleared',
   '--flakes',
   '--publish',
   '--in-package',

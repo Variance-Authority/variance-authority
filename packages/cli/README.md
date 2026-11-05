@@ -170,7 +170,7 @@ variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save | take [<dir>] | keep [<dir>] [--config <path>] [--format text|github]
-variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
 | command | what it does |
@@ -2676,7 +2676,9 @@ when given one and to stdout otherwise, and it posts nothing itself. `--marker`
 prints the HTML comment the poster searches for to find and rewrite its own
 previous docket; it is printed by a separate flag because it is needed in
 exactly the case where there is no body to read it out of. It names the config's
-`project`, so two configs gating one pull request keep a comment each. Exit `0`
+`project`, so two configs gating one pull request keep a comment each.
+`--cleared` prints what a poster writes over its previous docket once a later run
+finds nothing to review, and is apart from the render for the same reason. Exit `0`
 means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
 which already decided it.
 
@@ -3290,6 +3292,8 @@ variance comment --config variance.config.json --marker
 
 That prints the invisible marker the rendered body embeds, and nothing else. It
 names the config's `project`, so each config's poster finds its own comment.
+`--cleared` prints the text to replace that comment with when the render comes
+back empty.
 Finding a previous comment by it and updating that comment — rather than adding
 one per run — is the whole of the "one comment, updated in place" rule; on
 Bitbucket that is a `GET` of

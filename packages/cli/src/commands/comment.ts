@@ -15,7 +15,7 @@ import {
   withoutCauseBlocks,
 } from './comment-blocks.js';
 import { picturesOf } from './comment-images.js';
-import { leadBlocks } from './comment-lead.js';
+import { docketTitle, leadBlocks } from './comment-lead.js';
 import { unstableBlocks } from './comment-unstable.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 
@@ -126,6 +126,24 @@ import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
  */
 export function commentMarker(project: string): string {
   return `<!-- variance-authority: pr-docket v2 project=${projectSegment(project)} -->`;
+}
+
+/**
+ * What replaces a docket once a later run finds nothing to review.
+ *
+ * Replaced rather than deleted: one comment per marker stays, and deleting it
+ * would leave the check's history with a gap nobody can account for. Printed
+ * apart from the render, which stays empty on a clean run, because that empty
+ * body is how a poster knows to write nothing on a pull request it never touched.
+ */
+export function clearedComment(project: string): string {
+  return [
+    commentMarker(project),
+    '',
+    `${docketTitle(project)} — nothing to review`,
+    '',
+    'A later run found nothing to review.',
+  ].join('\n');
 }
 
 /**

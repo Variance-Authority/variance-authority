@@ -242,7 +242,7 @@ describe('what a consumer sees, held against the flow', () => {
     checks: { variance: { conclusion: 'failure' }, tests: { conclusion: 'success' } },
     annotations: { variance: [{ message: `${NEEDS_REVIEW}; see the comment` }], tests: [] },
     comments: [
-      { body: `${DOCKET_MARKER}\n## Visual variance — 1 subject(s) need review\n\`panel--settings\` \`src/Panel.jsx\`` },
+      { body: `${DOCKET_MARKER}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\`panel--settings\` \`src/Panel.jsx\`` },
       { body: `${cache.unit.might}\n${might}` },
       { body: `${cache.unit.evidence}\n${row('src/Panel.test.jsx')}` },
     ],

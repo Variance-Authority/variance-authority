@@ -482,6 +482,15 @@ runs:
         marker=$($VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --marker)
         echo "marker=$marker" >> "$GITHUB_OUTPUT"
 
+        # What that previous docket becomes, for the same reason. `v1` moves
+        # ahead of the CLI a lockfile holds, and only a clean run with a docket
+        # to clear needs this, so a CLI without it costs that run and no other.
+        # shellcheck disable=SC2086
+        if ! $VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --cleared > "$RUNNER_TEMP/variance-cleared.md"; then
+          rm -f "$RUNNER_TEMP/variance-cleared.md"
+          echo "::warning::this CLI could not write the cleared comment, so a previous docket cannot be cleared; update the variance package"
+        fi
+
         # The body, written even when it is empty — the poster distinguishes
         # "nothing needs review" from "the render never ran", and only the first
         # may clear a previous docket. An empty --run-url, --to-accept or
@@ -495,7 +504,8 @@ runs:
           --to-accept "$VARIANCE_TO_ACCEPT" \
           --image-root "$VARIANCE_IMAGE_ROOT"
 
-    - name: post the docket
+    - id: post
+      name: post the docket
       if: ${{ inputs.comment == 'true' && steps.run.outputs.exit-code != '2' }}
       shell: bash
       env:
@@ -515,6 +525,7 @@ runs:
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
         node "$here/post-comment.mjs" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
+          --cleared-file "$RUNNER_TEMP/variance-cleared.md" \
           --marker "$VARIANCE_MARKER" \
           --adopt-unkeyed "$VARIANCE_ADOPT_UNKEYED"
 
@@ -670,13 +681,22 @@ runs:
         KEPT: ${{ steps.saved.outcome == 'success' }}
         EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
         REPORT: ${{ steps.carry.outputs.report }}
-        # Where the reader goes next. A push has no pull request, so pointing at
-        # a comment there sends them looking for something that was never written.
-        WHERE: >-
-          ${{ inputs.comment == 'true' && 'the docket is in the pull request comment' ||
-          steps.upload.outputs.artifact-url && format('the report is at {0}', steps.upload.outputs.artifact-url) ||
-          'the report is in the variance run step above' }}
+        DOCKET_URL: ${{ steps.post.outputs.comment-url }}
+        REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
       run: |
+        # Where the reader goes next. The poster hands over an address only for
+        # a comment GitHub took: a push has no pull request and a fork's token
+        # cannot write, and pointing at a comment there sends them looking for
+        # something that was never written. No line ends in a period after this:
+        # beside an address it would read as part of the link.
+        if [ -n "${DOCKET_URL:-}" ]; then
+          WHERE="the docket is in the pull request comment at $DOCKET_URL"
+        elif [ -n "${REPORT_URL:-}" ]; then
+          WHERE="the report is at $REPORT_URL"
+        else
+          WHERE="the report is in the variance run step above"
+        fi
+
         case "${CODE:-}" in
           0)
             echo "nothing needs review."
@@ -685,7 +705,7 @@ runs:
             if [ "$KEPT" = true ]; then
               # The run accepted, and kept it: what failed, failed against
               # this commit's own accept.
-              echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE."
+              echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE"
             elif [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
               # A change is the reviewer's to look at whenever they get to it;
               # a subject the run could not observe is a hole in what it says,
@@ -702,19 +722,19 @@ runs:
                   report.observations.some(({ diagnostics }) => (diagnostics ?? []).some((d) => d.severity === "error"));
                 process.exit(hole ? 1 : 0);
               ' "${REPORT:-}" 2>/dev/null; then
-                echo "::warning::variance found changes that need review; $WHERE."
+                echo "::warning::variance found changes that need review; $WHERE"
                 exit 0
               fi
-              echo "::error::variance could not observe every subject: a subject failed, an observation errored, or the report does not say what it skipped; $WHERE."
+              echo "::error::variance could not observe every subject: a subject failed, an observation errored, or the report does not say what it skipped; $WHERE"
             else
-              echo "::error::variance found changes that need review; $WHERE."
+              echo "::error::variance found changes that need review; $WHERE"
             fi
             exit 1
             ;;
           2)
             # Not a finding about the change: no verdict was reached and no
             # subject was observed.
-            echo "::error::variance could not run (exit 2); see the doctor or the variance run step above."
+            echo "::error::variance could not run (exit 2); see the doctor or the variance run step above"
             exit 2
             ;;
           '')

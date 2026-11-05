@@ -72,7 +72,7 @@ describe('an unstable subject in the pull-request comment', () => {
   it('is not a cause to review, because nothing the pull request did moved it', () => {
     const body = renderComment({ project: 'storybook-case', report: reportOf([ticking]), toAccept: TO_ACCEPT });
 
-    expect(body).toContain('## Visual variance — 1 subject(s) unstable');
+    expect(body).toContain('## Visual variance in project `storybook-case` — 1 subject(s) unstable');
     expect(body).not.toContain('need review');
     expect(body).not.toContain('Cause: **`Clock`**');
     expect(body).not.toContain('### Causes');
@@ -99,7 +99,7 @@ describe('an unstable subject in the pull-request comment', () => {
       toAccept: TO_ACCEPT,
     });
 
-    expect(body).toContain('## Visual variance — 1 subject(s) need review, 1 subject(s) unstable');
+    expect(body).toContain('## Visual variance in project `storybook-case` — 1 subject(s) need review, 1 subject(s) unstable');
     expect(body).toContain('Cause: **`Button`**');
     expect(body).toContain(`To accept: ${TO_ACCEPT}`);
   });
