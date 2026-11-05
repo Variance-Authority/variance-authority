@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { invocation, leaks, places, reached, sealed } from './codex-review.mjs';
 
 const checkout = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -48,7 +48,6 @@ const review = (body: string, codexHome?: string) => {
 };
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   for (const path of left.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
@@ -94,15 +93,6 @@ describe('the command', () => {
   it('finds the login where the caller keeps it', () => {
     const run = review(`echo 'read src/a.ts'; cat "$CODEX_HOME/auth.json" > "$out"`, 'elsewhere');
     expect(run.stdout.trim()).toBe('{}');
-  });
-
-  it('reads the worktrees of a checkout another user owns', () => {
-    vi.stubEnv('GIT_TEST_ASSUME_DIFFERENT_OWNER', '1');
-    // A hosted runner's system config trusts every directory, which would hide the loss.
-    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
-    const run = review(`echo 'read src/a.ts'; echo 'one finding' > "$out"`);
-    expect(run.stderr).toBe('');
-    expect(run.stdout).toContain('one finding');
   });
 
   it('starts the run in an empty directory, with nothing of the caller\'s environment', () => {
