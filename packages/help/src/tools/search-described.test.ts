@@ -121,24 +121,22 @@ describe('which names the described section holds, and in what order', () => {
 
   it('is absent when every word is a stopword, since there was nothing to describe', async () => {
     const said = await ask('of the');
-    expect(said).not.toMatch(/holds? words of/);
+    expect(said).not.toMatch(/holds? most of/);
     expect(said).not.toContain('[holds:');
   });
 
-  it('holds a name holding one of the words, after the name holding more of them', async () => {
+  it('holds the name holding most of the words, and not the name holding one of them', async () => {
     // Three stems: `evictionPolicyFor` holds two, `cacheEntries` one.
     const said = await ask('cache eviction policy');
     expect(said).toMatch(/evictionPolicyFor .*\[holds: eviction, policy\]/);
-    expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
-    expect(said.indexOf('evictionPolicyFor')).toBeLessThan(said.indexOf('cacheEntries'));
+    expect(said).not.toContain('cacheEntries');
   });
 
-  it('answers with the name holding one word of three, and does not call the answer empty', async () => {
+  it('answers a plain none when each name holds one word of three', async () => {
     // No name holds two of `cache`, `chart` and `palette`; `cacheEntries` holds one.
     const said = await ask('cache chart palette');
-    expect(said).toMatch(/cacheEntries .*\[holds: cache\]/);
-    expect(said).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `cache chart palette`. The nearest follow.');
-    expect(said).not.toContain('`packages` lists every entrypoint');
+    expect(said).not.toContain('[holds:');
+    expect(said).toContain('nor a function inside a function, writes `cache chart palette`. `packages` lists every entrypoint');
   });
 
   it('says no name or a name\'s doc writes the words, not that no doc does, when only a file\'s opening doc writes them', async () => {
@@ -152,12 +150,17 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).not.toContain('No name or doc');
   });
 
-  it('answers a file and a declaration no export binds by one word of three, as it answers an exported name', async () => {
-    // Both are read from the source index, not the search index: `src/cache.ts`
-    // by its own name, `pickFor` by its doc.
-    const said = await ask('cache chart palette');
-    expect(said).toMatch(/src\/cache\.ts \[file\].*\[holds: cache\]/);
+  it('answers a file and a declaration no export binds by the rare word of two, as it answers an exported name', async () => {
+    // Both are read from the source index, not the search index, and neither
+    // holds `state`, which most of what was reached holds.
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      'src/states.ts': Array.from({ length: 12 }, (_, at) => `export const stateAt${at} = ${at};\n`).join(''),
+      'src/palette.ts': 'export const tint = 1;\n\n/** Picks the palette for a key. */\nfunction pickFor(key: string): string {\n  return key;\n}\n',
+    });
+    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state palette' }, treeOf([], root), root);
+    expect(said).toMatch(/src\/palette\.ts \[file\].*\[holds: palette\]/);
     expect(said).toMatch(/pickFor .*\[holds: palette\]/);
+    expect(said).not.toContain('stateAt0');
   });
 
   describe('a name every word reaches loosely, though it holds one stem of three', () => {
@@ -185,52 +188,50 @@ describe('which names the described section holds, and in what order', () => {
       expect(said).toMatch(LOOSE_SECTION);
       expect(said.search(/^cacheEntriesMagazine /mu)).toBeGreaterThan(said.search(LOOSE_SECTION));
       expect(said).not.toMatch(/cacheEntriesMagazine .*\[holds:/u);
-      expect(said).toMatch(/cacheAt0 .*\[holds: cache\]/u);
+      expect(said).not.toMatch(/cacheAt0 /u);
     });
   });
 
-  it('leaves the loose section what it reaches that the described section does not, past any number of names both reach', async () => {
-    // Every `cacheEntriesAt<n>` holds `cache`, half the stems, and is reached
-    // loosely too; `kacheEntries` is reached loosely alone, each word one
-    // character off.
+  it('leaves the loose section every name it reaches that holds too little of the question', async () => {
+    // Every `cacheEntriesAt<n>` holds `cache`, a common word beside one nothing
+    // holds, and is reached loosely too; `kacheEntries` is reached loosely alone,
+    // each word one character off.
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/caches.ts': Array.from({ length: 32 }, (_, at) => `export const cacheEntriesAt${at} = ${at};\n`).join(''),
       'src/kache.ts': 'export const kacheEntries = 1;\n',
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee' }, treeOf([], root), root);
-    expect(said).toMatch(/^1 more name matches loosely/mu);
-    expect(said).toMatch(/^kacheEntries /mu);
+    expect(said).toMatch(/^33 more names match loosely/mu);
+    expect(said).not.toContain('[holds:');
   });
 
-  it('keeps a name holding two stems of three where it was, rather than moving it below the names holding one', async () => {
-    // `entriee` is one character off: `cacheMagazineEntries` holds `cache` and
-    // `magazine` as typed, and every word loosely.
+  it('tells a name holding two stems of three loosely when the word it misses outweighs them, and no name holding one', async () => {
+    // `entriee` is one character off and nothing holds it: `cacheMagazineEntries`
+    // holds `cache` and `magazine` as typed, and every word loosely.
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/caches.ts': Array.from({ length: 3 }, (_, at) => `export const cacheAt${at} = ${at};\n`).join(''),
       'src/magazine.ts': 'export const cacheMagazineEntries = 1;\n',
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee magazine' }, treeOf([], root), root);
-    expect(said).toMatch(/cacheMagazineEntries .*\[holds: cache, magazine\]/u);
-    expect(said.indexOf('cacheMagazineEntries')).toBeLessThan(said.indexOf('cacheAt0'));
-    expect(said).not.toMatch(/(?:name matches|names match) loosely/u);
+    expect(said).toMatch(/^1 more name matches loosely/mu);
+    expect(said).toMatch(/^cacheMagazineEntries /mu);
+    expect(said).not.toContain('cacheAt0');
   });
 
   it('shows a name holding the one word nothing shown holds, past more names holding another word than the section shows', async () => {
-    // Every `chartAt<n>` holds `chart` in its name, and forty swatches say
-    // `palette` in their docs, so `chart` is rare enough among what was reached
-    // that, held in a name, it outweighs `mermaid` held in `diagram`'s doc
-    // alone: all sixteen sort before it.
+    // Sixteen names hold `chart` and sixteen docs hold `mermaid`, each with
+    // `palette`, so every row carries more than half the question. A word in a
+    // name outweighs a word in a doc: all sixteen `chartPaletteAt<n>` sort first.
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-      'src/charts.ts': Array.from({ length: 16 }, (_, at) => `export const chartAt${at} = ${at};\n`).join(''),
-      'src/swatches.ts': Array.from({ length: 40 }, (_, at) => `/** One palette. */\nexport const swatch${at} = ${at};\n`).join(''),
-      'src/diagram.ts': '/** Draws a mermaid diagram. */\nexport const diagram = 1;\n',
+      'src/named.ts': Array.from({ length: 16 }, (_, at) => `export const chartPaletteAt${at} = ${at};\n`).join(''),
+      'src/said.ts': Array.from({ length: 16 }, (_, at) => `/** Draws a mermaid palette. */\nexport const diagram${at} = ${at};\n`).join(''),
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'mermaid chart palette' }, treeOf([], root), root);
-    expect(said).toMatch(/^diagram .*\[holds: mermaid\]/mu);
-    expect(said.search(/^diagram /mu)).toBeGreaterThan(said.search(/^chartAt0 /mu));
+    expect(said).toMatch(/^diagram\d+ .*\[holds: mermaid, palette\]/mu);
+    expect(said.search(/^diagram\d+ /mu)).toBeGreaterThan(said.search(/^chartPaletteAt0 /mu));
     expect(said).toMatch(/more not shown/u);
-    // Two `chartAt<n>` that sort before it are not shown, so the heading says why.
-    expect(said).toContain("then the phrase its doc writes; a row holding each word is shown however it sorts.");
+    // Rows that sort before it are not shown, so the heading says why.
+    expect(said).toContain("then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.");
   });
 
   it('reads the phrase of every name level with the last row shown, so the one writing it is shown first', async () => {

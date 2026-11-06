@@ -467,9 +467,10 @@ module, its module in Rust, and any module that spells it in Python; `uses` says
 the same in one line. CommonJS is read on a best-effort basis: the static keys
 of an object literal that `export =` or `module.exports =` assigns at the top
 level are the file's exports when every key is spelled, and a read off a
-default import of it is marked "through `default`". A script or CommonJS file,
-a module that hands itself out with `export =` and a `macro_rules!` are said to
-have no recorded reach: their readers cannot tell how the file hands the name
+default import of it is marked "through `default`". A named function or class
+handed out once that way is declared, and is the module's default export bound
+to that name. A script or CommonJS file, a module that hands out any other value
+with `export =` and a `macro_rules!` are said to have no recorded reach: their readers cannot tell how the file hands the name
 out.
 A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
@@ -483,13 +484,13 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding any of your words
-by stem, in any order, in the name or its doc, whether published, exported,
+follow an empty answer — names and files holding most of your words
+by stem, the rarer words counting for more, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
 ones holding the most of your words first, then the ones holding more of them
 in the name, then the ones whose doc writes your phrase, every word any of
 them holds held by a row shown; then names your words
-reach loosely, exported or not, which takes a name holding fewer than half your
+reach loosely, exported or not, which takes a name holding less than most of your
 words when it reaches it by every one — are
 suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word

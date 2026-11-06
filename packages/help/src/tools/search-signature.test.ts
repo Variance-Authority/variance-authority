@@ -76,12 +76,12 @@ describe.each<[string, () => Promise<SearchIndex>]>([
   const describedFirst = (query: string): readonly string[] => shownFor(query).map((one) => ('name' in one ? one.name : one.at));
   const wordsOf = (query: string, name: string) => shownFor(query).find((one) => 'name' in one && one.name === name)?.words;
 
-  it('put a published row holding them after one whose doc holds them, and before one holding only its name', () => {
-    expect(describedFirst('match baseline candidate').filter((name) => name.startsWith('match') && name !== 'matchShape')).toEqual(['matchNodes', 'matchTrees', 'matchAll']);
+  it('put a published row holding them after one whose doc holds them, and leave out one holding only a common word in its name', () => {
+    expect(describedFirst('match baseline candidate').filter((name) => name.startsWith('match') && name !== 'matchShape')).toEqual(['matchNodes', 'matchTrees']);
   });
 
-  it('put an exported row holding them, its generic parameter types included, after one whose doc holds them, and before one holding only its name', () => {
-    expect(describedFirst('coverage finished file').filter((name) => name.startsWith('coverage') && name !== 'coverageShape')).toEqual(['coverageRow', 'coverageTest', 'coverageAll']);
+  it('put an exported row holding them, its generic parameter types included, after one whose doc holds them, and leave out one holding only a common word in its name', () => {
+    expect(describedFirst('coverage finished file').filter((name) => name.startsWith('coverage') && name !== 'coverageShape')).toEqual(['coverageRow', 'coverageTest']);
   });
 
   // A parameter's doc comment is what its author wrote about it, read as written.
@@ -91,8 +91,8 @@ describe.each<[string, () => Promise<SearchIndex>]>([
 
   // A type alias has no head before a body: what it writes after `=` is its body.
   it('are none of a type alias, whose text is its body', () => {
-    expect(wordsOf('match baseline candidate', 'matchShape')).toEqual(['match']);
-    expect(wordsOf('coverage finished file', 'coverageShape')).toEqual(['coverage']);
+    expect(wordsOf('match shape baseline', 'matchShape')).toEqual(['match', 'shape']);
+    expect(wordsOf('coverage shape finished', 'coverageShape')).toEqual(['coverage', 'shape']);
   });
 });
 

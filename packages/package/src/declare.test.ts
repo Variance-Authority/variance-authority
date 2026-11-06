@@ -24,6 +24,25 @@ function kinds(source: string): Map<string, string> {
   return new Map([...read(source)].map(([name, declaration]) => [name, declaration.kind]));
 }
 
+describe('a doc above the first statement', () => {
+  it('is the file\'s banner when a blank line parts it from that statement', () => {
+    expect(read('/** The banner. */\n\nexport const MAC = 1;\n').get('MAC')?.doc).toBeUndefined();
+    expect(read('import a from "a";\n\n/** The banner. */\n\nexport const MAC = a;\n').get('MAC')?.doc).toBeUndefined();
+  });
+
+  it('is the file\'s banner under a directive, which no doc documents', () => {
+    expect(read('\'use strict\';\n\n/** The banner. */\n\nexport const MAC = 1;\n').get('MAC')?.doc).toBeUndefined();
+  });
+
+  it('leaves the doc under a banner to the statement it stands on', () => {
+    expect(read('/** The banner. */\n\n/** The constant. */\nexport const MAC = 1;\n').get('MAC')?.doc).toBe('The constant.');
+  });
+
+  it('stays with a later statement, parted or not', () => {
+    expect(read('export const a = 1;\n\n/** A section. */\n\nexport const MAC = 1;\n').get('MAC')?.doc).toBe('A section.');
+  });
+});
+
 describe('what a file declares', () => {
   const parses: Parses = new Map();
   const file = join(ALPHA, 'values.ts');

@@ -8,7 +8,7 @@
   [search-answer.ts][answer].
 - **The loose section may only add.** Written in [README][loose]; pinned by
   [`src/tools/search-loose.test.ts`](src/tools/search-loose.test.ts).
-- **A row holding each word is shown however it sorts.** Written in
+- **A row for each word the rows hold is shown however it sorts.** Written in
   [described.ts][described]; pinned by
   [`src/tools/search-described.test.ts`](src/tools/search-described.test.ts).
 - **The cap never picks the section.** Pinned by

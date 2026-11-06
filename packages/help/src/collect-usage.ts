@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
+  boundDeclaration,
   gatheringUsage,
   kindOf,
   landing,
@@ -59,13 +60,11 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
         if (published.from !== undefined) forwards.push(`${at}\0${published.exported ?? ''}\0${published.from}\0${published.imported ?? ''}`);
         if (published.exported !== undefined) {
           // The TypeScript reader spans an export's doc on the export; the
-          // others span it on the declaration the export binds, by its name.
-          // One name may be declared twice, `const Kind` and `type Kind`: an
-          // export takes the declaration on its own line, else the first.
+          // others span it on the declaration the export binds.
           const named = published.from === undefined
             ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local)
             : [];
-          const bound = named.find((symbol) => symbol.line === published.line) ?? named[0];
+          const bound = boundDeclaration(named, published.line);
           const span = published.doc ?? bound?.doc;
           if (span !== undefined || bound?.signature !== undefined) text ??= readFileSync(join(root, at), 'utf8');
           const doc = text === undefined ? undefined : docOf(text, span);

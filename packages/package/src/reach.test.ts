@@ -93,6 +93,18 @@ describe('two files that re-export each other', () => {
   });
 });
 
+describe('a name declared twice', () => {
+  const kindsOf = (source: string) => [...(reachIn({ 'index.ts': source }, 'index.ts').get('Kind')?.keys() ?? [])];
+
+  it('is the declaration its export statement writes, not a private one spelled the same', () => {
+    expect(kindsOf('export declare const Kind: 1;\ntype Kind = string;\n')).toEqual(['const']);
+  });
+
+  it('is the declaration on the line of `export { Kind }`', () => {
+    expect(kindsOf('declare const Kind: 1; export { Kind };\ntype Kind = string;\n')).toEqual(['const']);
+  });
+});
+
 describe('what it refuses rather than guesses', () => {
   it('a name a file exports and nothing in it declares', () => {
     expect(() => reachIn({ 'one.ts': 'export { missing };\n' }, 'one.ts')).toThrow(

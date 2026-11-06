@@ -27,7 +27,8 @@ pub(crate) struct TopLevel<'a> {
     pub(crate) signature: Option<Span>,
     /// Written with TypeScript's `declare`: the name is bound somewhere else.
     pub(crate) declare: bool,
-    /// Bound by an `export` or `export default` statement.
+    /// Bound by an `export` or `export default` statement, or handed out whole
+    /// as the module by `export =` or `module.exports =`.
     pub(crate) exported: bool,
     /// The `default` an `export default` statement gives, which no code spells.
     pub(crate) default: bool,
@@ -37,6 +38,7 @@ pub(crate) struct TopLevel<'a> {
 
 /// Every name `program`'s own statements bind, in source order.
 pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLevel<'a>)) {
+    let named = crate::assigned_object::handed_out_named(&program.body);
     for statement in &program.body {
         let span = statement.span();
         match statement {
@@ -45,6 +47,17 @@ pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLeve
             _ => {
                 if let Some(declared) = statement.as_declaration() {
                     declaration(declared, span, false, &mut visit);
+                } else if let Some((_, (id, kind, signature))) = named.filter(|(one, _)| std::ptr::eq(*one, statement)) {
+                    visit(TopLevel {
+                        name: id.name.as_str(),
+                        kind,
+                        statement: span,
+                        signature: Some(signature),
+                        declare: false,
+                        exported: true,
+                        default: false,
+                        destructured: false,
+                    });
                 }
             }
         }
@@ -181,3 +194,7 @@ pub(crate) fn declarator_end(declarator: &VariableDeclarator<'_>) -> u32 {
             .map_or(declarator.id.span().end, |annotation| annotation.span.end),
     }
 }
+
+#[cfg(test)]
+#[path = "top_level_tests.rs"]
+mod tests;

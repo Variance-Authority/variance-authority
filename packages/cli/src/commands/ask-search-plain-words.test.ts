@@ -68,9 +68,9 @@ describe('search asked in plain words', () => {
     const { code, out, err } = await run(['ask', 'search', '--query', 'process the program again']);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4 \[holds: again, process, program\]$/m);
-    expect(out).toMatch(/^rerun \[function\] — .* · packages\/kit\/src\/lib\.rs:7 \[holds: again, process, program\]$/m);
-    expect(out).toMatch(/^_reopen \[function\] — .* · packages\/kit\/kit\/restart\.py:4 \[holds: again, process, program\]$/m);
+    expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4 — Start the program again in a process of its own\. \[holds: again, process, program\]$/m);
+    expect(out).toMatch(/^rerun \[function\] — .* · packages\/kit\/src\/lib\.rs:7 — Start the program again, in a process of its own\. \[holds: again, process, program\]$/m);
+    expect(out).toMatch(/^_reopen \[function\] — .* · packages\/kit\/kit\/restart\.py:4 — Start the program again in a process of its own\. \[holds: again, process, program\]$/m);
   });
 
   it('finds a declaration no file exports by words its name holds apart', async () => {

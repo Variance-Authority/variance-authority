@@ -2,7 +2,7 @@ import { declaredLooseOf, declaredTermsOf } from '@variance-authority/sense';
 import { tokensOf } from '../search-index.js';
 import { declaredMatch } from './declared.js';
 import { editsAllowed, matchingTerms, type Dictionary } from './loose.js';
-import type { DeclaredMatch } from './search-matches.js';
+import type { DeclaredMatch, DeclaredRead } from './search-matches.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -35,7 +35,7 @@ export function looseDeclarations(
   fuzzy: number,
   files: Iterable<string> | undefined,
   already: ReadonlySet<string>,
-): readonly DeclaredMatch[] | undefined {
+): readonly DeclaredRead[] | undefined {
   const words = tokensOf(query);
   if (root === undefined || words.length === 0) return undefined;
   const wanted = files === undefined ? undefined : [...files];
