@@ -3,7 +3,8 @@ name: check
 # This repository's own gate.
 #
 # These jobs run the suite and the repository's own rules, one job per harness.
-# The suite and the cases run in the pinned Playwright image, so the chromium
+# The suite and the cases run in the CI image, the pinned Playwright image with
+# this repository's tools, built from `docker/ci.Dockerfile`, so the chromium
 # slice is recorded, selected and compared like the other two. Until they existed, nothing ran `yarn build`, `yarn check` or `yarn test`
 # anywhere but a laptop, so `tools/boundaries.check.ts` and the
 # `tools/docs-*.check.ts` rules were enforcing themselves only against whoever
@@ -471,8 +472,9 @@ jobs:
         run: node tools/plan-suites.mjs
 
   suite:
-    # One slice, or one shard of one, per job, in the pinned Playwright image
-    # `cases` and `variance.yml` run in. The image carries the browser, so the
+    # One slice, or one shard of one, per job, in the CI image `cases` and
+    # `variance.yml` run in: the pinned Playwright image with this repository's
+    # tools, built from `docker/ci.Dockerfile`. The image carries the browser, so the
     # chromium slice runs here like the other two and its record is shared like
     # theirs: a pull request selects its chromium files and compares their
     # execution with `main`'s. The image decides the raster, and `cases` running
@@ -495,18 +497,11 @@ jobs:
         include: ${{ fromJSON(needs.base.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # Chromium's renderers need more shared memory than a container's default.
       options: --ipc=host
 
     steps:
-      # The image has neither git nor a compiler; `cases` says why each is
-      # needed before the checkout. git-lfs is for the store's test that commits
-      # a baseline through the filter, which skips where git-lfs is absent.
-      - name: version control and compiler
-        shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
-
       # Every commit, because the reading diffs each test from the commit it
       # last ran at, which can be any number of commits back. No trees, for the
       # reason written at the checkout in `rules`.
@@ -1077,8 +1072,8 @@ jobs:
     # every chromium leg of `suite` and `queue` build the subjects through
     # `./.github/actions/case-subjects`.
     #
-    # The pinned Playwright image is the one `variance.yml` observes in, for the
-    # same reason: the browser and its fonts are part of what these cases assert.
+    # The CI image is the one `variance.yml` observes in, for the same reason:
+    # the browser and its fonts are part of what these cases assert.
     # Whether the numbers written on a Mac survive this image is what this job
     # asks. It reports separately from the required `check`: a red result here
     # is a finding about the image, not a reason to weaken a case.
@@ -1095,23 +1090,12 @@ jobs:
     needs: rules
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # See `variance.yml`: Chromium's renderers need more shared memory than a
       # container's default.
       options: --ipc=host
 
     steps:
-      # The image carries browsers and Node but neither this checkout's tool nor
-      # a compiler. The checkout tool comes first: without it `actions/checkout`
-      # unpacks an archive with no `.git`, and the cases, which name every file
-      # relative to the repository root, would name them relative to their own
-      # directory instead. The compiler is for the native scanner, which is built
-      # on this machine: without it every case that reads source fails to load by
-      # name. The hosted runners carry all of it, so the other jobs need no step.
-      - name: version control and compiler
-        shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
-
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
@@ -1194,7 +1178,7 @@ jobs:
     if: github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
     outputs:
       legs: ${{ steps.count.outputs.legs }}
@@ -1202,10 +1186,6 @@ jobs:
       toolchain: ${{ steps.build.outputs.toolchain }}
 
     steps:
-      - name: version control and compiler
-        shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates jq
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -1285,7 +1265,7 @@ jobs:
     # job, which selects from it. The group's commit is `main` with the pull
     # requests laid on it, so the selection is what they changed together
     # since the record was published. A slice whose record is not read runs
-    # whole and says why. In the Playwright image, for the reason written at
+    # whole and says why. In the CI image, for the reason written at
     # `suite`: the near wave includes chromium files.
     #
     # Sharded as `plan` counts: the near wave of the three slices in one job took
@@ -1304,15 +1284,10 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
 
     steps:
-      # For the reason written at the same step in `cases`.
-      - name: version control and compiler
-        shell: bash
-        run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
-
       # Every commit, for the reason written at the checkout in `suite`.
       - uses: actions/checkout@v7
         with:

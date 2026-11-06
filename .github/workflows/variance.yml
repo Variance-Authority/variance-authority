@@ -82,9 +82,11 @@ name: variance
 # it would go red on somebody else's schedule — every baseline moved by an
 # infrastructure update nobody in the repository approved.
 #
-# The image below is the one `docker/linux-verify.Dockerfile` uses, so the
-# baselines this workflow writes are comparable with the ones produced there. Pin
-# it by digest for a guarantee that survives a tag being moved.
+# The image below is `docker/ci.Dockerfile`'s: the Playwright image
+# `docker/linux-verify.Dockerfile` uses, with build tools on top, so the
+# baselines this workflow writes are comparable with the ones produced there. Its
+# tag is the file's blob id, and `ci-image.yml` never publishes a tag twice, so
+# the tag does not move.
 #
 # ## Why `pull_request` and not `pull_request_target`
 #
@@ -222,7 +224,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.
@@ -242,9 +244,9 @@ jobs:
       # A fork's pull request gets no secrets, so there the label cannot commit:
       # the contributor commits the baselines themselves.
       #
-      # For `lfs`, install git-lfs in a step before this one, since the
-      # Playwright image has none, and run `git lfs install --local
-      # --skip-smudge` in a step after it, or a commit stores whole images.
+      # For `lfs`, git-lfs has to be on the machine, as the CI image carries it,
+      # and `git lfs install --local --skip-smudge` has to run in a step after
+      # this one, or a commit stores whole images.
       # Leave `lfs` off here. The run fetches the image of each subject whose
       # document changed, and only that image.
       - uses: actions/checkout@v7
@@ -253,7 +255,7 @@ jobs:
           ref: ${{ env.VARIANCE_REVIEW == 'git' && github.head_ref || '' }}
           token: ${{ env.VARIANCE_REVIEW == 'git' && secrets.VARIANCE_PUSH_TOKEN || github.token }}
 
-      # The Playwright image runs as a user that does not own the checkout, and
+      # The CI image runs as a user that does not own the checkout, and
       # git refuses a directory it does not trust. Everything after this asks
       # git something: the build names the native scanner's tree by it, and a
       # tree it cannot name restores another commit's scanner.
@@ -522,7 +524,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
 
     steps:
@@ -535,7 +537,7 @@ jobs:
           persist-credentials: false
           fetch-depth: ${{ matrix.project == 'site' && 2 || 1 }}
 
-      # The Playwright image runs as a user that does not own the checkout, and
+      # The CI image runs as a user that does not own the checkout, and
       # git refuses a directory it does not trust. Everything after this asks
       # git something: the build names the native scanner's tree by it, and a
       # tree it cannot name restores another commit's scanner.
@@ -684,10 +686,10 @@ jobs:
   # images it renders without a pull request of its own. A subject `main`
   # could not observe stays red.
   #
-  # It also asserts what a checkout without git-lfs does, because that is the
-  # failure an adopter meets first: once baselines are committed, a checkout
-  # that skipped the LFS fetch holds pointers where images should be, and
-  # `doctor --baselines` must exit 2 on them before git-lfs is installed.
+  # It also asserts what a checkout that skipped the LFS fetch does, because
+  # that is the failure an adopter meets first: once baselines are committed,
+  # such a checkout holds pointers where images should be, and
+  # `doctor --baselines` must exit 2 on them before git-lfs fetches them.
   lfs:
     if: >-
       github.event.action != 'closed' &&
@@ -704,16 +706,17 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
 
     steps:
       # The pull request's own branch, which the accept commits to; `main` on a
-      # push. `lfs: false` is the default, spelled out: the image has no
-      # git-lfs yet, and the step after the build asserts what that checkout
-      # holds. The token is `VARIANCE_PUSH_TOKEN` when it is set, so the
-      # commit-back starts the run that checks it; `GITHUB_TOKEN` otherwise,
-      # whose push lands and starts nothing.
+      # push. `lfs: false` is the default, spelled out: the image carries git-lfs
+      # with its filter off, so the checkout holds pointers, and the step after
+      # the build asserts what that checkout holds. The token is
+      # `VARIANCE_PUSH_TOKEN` when it is set, so the commit-back starts the run
+      # that checks it; `GITHUB_TOKEN` otherwise, whose push lands and starts
+      # nothing.
       - uses: actions/checkout@v7
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
@@ -721,7 +724,7 @@ jobs:
           token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
           lfs: false
 
-      # The Playwright image runs as a user that does not own the checkout, and
+      # The CI image runs as a user that does not own the checkout, and
       # git refuses a directory it does not trust. Everything after this asks
       # git something: the build names the native scanner's tree by it, and a
       # tree it cannot name restores another commit's scanner.
@@ -754,12 +757,12 @@ jobs:
       - uses: ./.github/actions/build
 
       # Exit 2 when a baseline is committed and exit 0 when none is: a checkout
-      # without git-lfs holds pointers, and doctor names them before anything
+      # that skipped the LFS fetch holds pointers, and doctor names them before anything
       # compares. Either other answer fails the job, a 0 over pointers most of
       # all, since that is a gate that passes until somebody edits a component.
       # A refusing `ls-files` fails the step rather than reading as "nothing
       # committed", which would expect the wrong code.
-      - name: refuse the pointers a checkout without git-lfs holds
+      - name: refuse the pointers a checkout that skipped the LFS fetch holds
         shell: bash
         run: |
           set -uo pipefail
@@ -773,7 +776,7 @@ jobs:
             code=$?
           fi
           if [ "$code" != "$expected" ]; then
-            echo "::error::doctor --baselines exited $code on a checkout without git-lfs; $expected was expected"
+            echo "::error::doctor --baselines exited $code on a checkout that skipped the LFS fetch; $expected was expected"
             exit 1
           fi
 
@@ -784,7 +787,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apt-get update -qq && apt-get install -y -qq --no-install-recommends git-lfs
           git lfs install --local
           git lfs pull
           git lfs fsck
