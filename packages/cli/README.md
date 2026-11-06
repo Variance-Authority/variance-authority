@@ -2488,7 +2488,7 @@ plan:
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
         shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
         echo "shards=$shards" >> "$GITHUB_OUTPUT"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: variance-base
         path: ${{ runner.temp }}/base
@@ -2501,7 +2501,7 @@ test:
     matrix:
       shard: ${{ fromJSON(needs.plan.outputs.shards) }}
   steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: variance-base
         path: ${{ runner.temp }}/base
