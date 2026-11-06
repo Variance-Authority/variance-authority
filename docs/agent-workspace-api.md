@@ -242,7 +242,12 @@ a member, with the member's `file:line`, and points to `uses`. A dotted name,
 `Tree.has`, asks for the member `has` of `Tree` alone. `ask search` finds a
 member by its name, by `Tree.has` or by the doc above it, and a function inside
 a function by its name; a row that only holds the words stays out of a search
-something else answered. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+something else answered. It also reads the test cases the last run recorded, by
+their full names, so a rule written only as a test is found by the words of its
+title, however the test was registered. A title holds a word as a name does: a
+word of it is that word, starts with it, or shares its stem. The list is each
+suite's last run: a case added since is missing and one removed since is still
+listed, until a run of that suite writes its record. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, `ask symbol` ends with a sentence that names those languages, whether or
 not it found a member, and `ask search` says it when nothing answered, and each
 sends you to their language server's workspace symbols. The graph does not record that one

@@ -19,9 +19,7 @@
 import { native, nativeRefusal } from './native.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
-import { keepsCases } from './test-selection/case-record.js';
-import { nearestTestCoverage } from './test-selection/record-location.js';
-import { declaredSuites } from './test-selection/suites.js';
+import { eachSuiteCases } from './suite-cases.js';
 
 export type {
   NativeCasesEntered as CasesEntered,
@@ -118,16 +116,5 @@ export type RecordedCases =
  * rather than print it as a suite that ran nothing.
  */
 export function recordedCases(root: string, files: readonly string[], titles: number): readonly RecordedCases[] {
-  const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
-  return suites.map((suite) => {
-    const named = suite === undefined ? {} : { suite };
-    const recording = nearestTestCoverage(root, { suite });
-    if (!keepsCases(recording)) return { ...named, recording, unread: 'no run kept its cases there' };
-    const cases = entry('casesEntered');
-    try {
-      return { ...named, recording, files: cases(recording, [...files], titles, sourceIndexPath(root)) };
-    } catch (error) {
-      return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
-    }
-  });
+  return eachSuiteCases(root, (recording) => ({ files: entry('casesEntered')(recording, [...files], titles, sourceIndexPath(root)) }));
 }

@@ -11,7 +11,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::LazyLock;
 
 use napi::bindgen_prelude::Buffer;
@@ -122,6 +122,25 @@ static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}\p{
 /// file does not hold answers the loose pass by the same rule.
 pub(crate) fn name_terms(name: &str) -> HashSet<String> {
     terms_of(&SPLIT, name)
+}
+
+/// Names cut into terms: the distinct terms, sorted by their UTF-8 bytes as the
+/// search file's dictionary is, and per name the terms it holds, by position.
+#[napi(object)]
+pub struct NameTerms {
+    pub terms: Vec<String>,
+    pub held: Vec<Vec<u32>>,
+}
+
+/// `names` cut by the rule an exported name is, so text that writes names is
+/// asked by the words a name is.
+#[napi(js_name = "nameTerms")]
+pub fn name_terms_of(names: Vec<String>) -> NameTerms {
+    let cut: Vec<HashSet<String>> = names.iter().map(|name| name_terms(name)).collect();
+    let terms: Vec<String> = cut.iter().flatten().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+    let at: HashMap<&str, u32> = terms.iter().zip(0u32..).map(|(term, id)| (term.as_str(), id)).collect();
+    let held = cut.iter().map(|one| one.iter().filter_map(|term| at.get(term.as_str()).copied()).collect()).collect();
+    NameTerms { terms, held }
 }
 
 /// `wordsOf`: the words one token is written in, split where the case or a

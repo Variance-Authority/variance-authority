@@ -175,6 +175,7 @@ export interface NativeHelp {
   declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: string, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
   declaredTermsOf?(index: string, files: string[] | null): string[] | null;
+  nameTerms?(names: string[]): NameTerms;
   declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
 }
 
@@ -407,6 +408,17 @@ export function declaredDescribedOf(
   index: string = sourceIndexPath(root),
 ): DeclaredNames | undefined {
   return entry('declaredDescribedOf')(root, index, query, [...stems], files === undefined ? null : [...files]) ?? undefined;
+}
+
+/** Names cut into terms: the distinct terms, sorted by their UTF-8 bytes, and per name the positions of those it holds. */
+export interface NameTerms {
+  readonly terms: readonly string[];
+  readonly held: readonly (readonly number[])[];
+}
+
+/** `names` cut by the rule the search file cuts an exported name, for text that writes names to be asked by a name's words. */
+export function nameTermsOf(names: readonly string[]): NameTerms {
+  return entry('nameTerms')([...names]);
 }
 
 /**

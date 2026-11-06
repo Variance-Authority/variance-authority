@@ -170,6 +170,8 @@ export interface SearchAnswer {
   readonly held?: Matches<HeldMatch>;
   /** The imports that bind the name as written to another. Absent when the source index could not be read. */
   readonly aliases?: Matches<AliasMatch>;
+  /** Recorded test cases whose names hold every word of the question. Absent when no checkout was named. */
+  readonly tests?: RecordedTests;
   /** The languages of this workspace whose members were not read, by name, when nothing answered; absent otherwise and when there are none. */
   readonly membersUnread?: readonly string[];
   /**
@@ -188,6 +190,26 @@ export interface SearchAnswer {
   readonly thirdParty?: LexiconMatches;
   /** Why the imports within a package were not read for the counts shown; absent when they were, or nothing was counted. */
   readonly importsUnread?: string;
+}
+
+/** A test case the last run recorded, by the name its runner gave it. */
+export interface TestMatch {
+  readonly source: 'test';
+  readonly name: string;
+  /** The test file that holds it. */
+  readonly at: string;
+}
+
+/** The recorded cases a question names, and what was left unread. */
+export type RecordedTests = Matches<TestMatch> & {
+  /** What was left unread and why: a suite, or, with none named, every case there is. */
+  readonly unread: readonly CasesUnread[];
+};
+
+/** A record search could not read cases from. */
+export interface CasesUnread {
+  readonly suite?: string;
+  readonly why: string;
 }
 
 /** The answer, and the resolved area the text renders its header from. */

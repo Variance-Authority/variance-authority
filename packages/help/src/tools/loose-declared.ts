@@ -56,7 +56,7 @@ export function looseDeclarations(
 export const declaredKey = (one: Pick<DeclaredMatch, 'at' | 'line' | 'name'>): string => `${one.at}:${one.line}:${one.name}`;
 
 /** Terms already sorted by their UTF-8 bytes, read as a dictionary. */
-function dictionaryOf(terms: readonly string[]): Dictionary {
+export function dictionaryOf(terms: readonly string[]): Dictionary {
   const bytes = terms.map((term) => Buffer.from(term, 'utf8'));
   return {
     termCount: terms.length,

@@ -206,7 +206,8 @@ beside the source index, and the import requests each source file writes in
 to the second file. The catalogue is written again only when a manifest, an
 installed package or a specifier no source file imported before changes, and
 then it keeps the declaration readings whose files are unchanged. `ask search`
-uses this catalogue alongside local names; `--from` and `--to` constrain which
+uses this catalogue alongside local names and the test cases the last run
+recorded; `--from` and `--to` constrain which
 workspace's available packages it shows. `orient --files` keeps the dependency
 graph concise. Ask for a name when its third-party API detail matters.
 [Use the packages your project already installed](tech-stack.md) covers the
