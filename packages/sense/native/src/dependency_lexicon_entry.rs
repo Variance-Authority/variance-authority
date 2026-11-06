@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::{fs, path::{Path, PathBuf}};
 use oxc_allocator::Allocator;
 use sha2::{Digest, Sha256};
+use crate::harvest::SourceSymbol;
 use crate::read::read_module_and_tree;
 use crate::resolve::Resolvers;
 use super::purposes::purpose;
@@ -113,10 +114,12 @@ impl Reader<'_> {
             }
             let local = export.local.as_deref().unwrap_or(public);
             let mut matched: Vec<_> = parsed.symbols.iter().filter(|symbol| symbol.name == local).collect();
-            // A name is a spelling: a default binds the declaration on its own
-            // line, and `export { Kind }` every one spelled so.
-            if public == "default" && matched.iter().any(|symbol| symbol.line == export.line) {
-                matched.retain(|symbol| symbol.line == export.line);
+            // A name is a spelling: a statement that declares what it exports
+            // binds that declaration, and `export { Kind }` every one spelled so.
+            let written = |symbol: &&SourceSymbol| symbol.signature.zip(export.signature)
+                .is_some_and(|(own, statement)| statement.start <= own.start && own.end <= statement.end);
+            if matched.iter().any(written) {
+                matched.retain(written);
             }
             if !matched.is_empty() {
                 for symbol in matched {
