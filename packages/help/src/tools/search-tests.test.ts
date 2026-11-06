@@ -16,6 +16,5 @@ describe('a root config that cannot name its suites', () => {
     const answer = recordedTests(suiteCaseNames(root), 'route', undefined, 5);
 
     expect(answer).toMatchObject({ total: 0, shown: [], unread: [{ why: expect.stringContaining('variance.config.json') }] });
-    expect(answer).not.toHaveProperty('read');
   });
 });

@@ -148,18 +148,11 @@ function fileLine(match: FileMatch): string {
 /** One recorded case: the name it ran under and the test file that holds it. */
 const testLine = (match: TestMatch): string => `${match.name} [test] — ${match.at}`;
 
-/** What was left unread of the recorded cases, a clause to each record. */
-const casesLeft = (tests: RecordedTests | undefined): readonly string[] =>
-  (tests?.unread ?? []).map(({ suite, why }) => `no recorded case${suite === undefined ? '' : ` of \`${suite}\``} was read: ${why}`);
-
-/** What the empty answer says of the recorded cases: a clause among what was read, and what was left out of it. */
-function casesRead(tests: RecordedTests | undefined): { readonly among: string; readonly left: string } {
-  return { among: tests?.read === undefined ? '' : ', nor a recorded test case', left: casesLeft(tests).map((clause) => `; ${clause}`).join('') };
+/** What was left unread of the recorded cases, a line to each record, whatever else the answer holds. */
+function casesUnder(tests: RecordedTests | undefined): readonly string[] {
+  const left = (tests?.unread ?? []).map(({ suite, why }) => `No recorded case${suite === undefined ? '' : ` of \`${suite}\``} was read: ${why}.`);
+  return left.length === 0 ? [] : ['', ...left];
 }
-
-/** What the listed cases leave out, said under them. */
-const casesUnder = (tests: RecordedTests | undefined): readonly string[] =>
-  (tests?.total ?? 0) === 0 ? [] : casesLeft(tests).map((clause) => `\n${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`);
 
 const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
   match.source === 'published' ? publishedLine(match) : match.source === 'exported' ? exportedLine(match) : declaredLine(match);
@@ -289,10 +282,9 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
     // is in no index, a closure's doc is its holder's, and the doc a file opens
     // with is read only for the words, so a file may still write the phrase.
     const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
-    const cases = casesRead(answer.tests);
     const read = answer.declared === undefined
-      ? `No export ${reach}, nor the doc of one${cases.among}, writes \`${query}\`; no source index was read, so a name no file exports is not known${cases.left}`
-      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function${cases.among}, writes \`${query}\`${cases.left}`;
+      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
     // A miss of the text is not a miss of the code: with names to offer, the line
     // says only that the text was not written. Inside an area the text may be
     // written outside it, so the way to widen stays.

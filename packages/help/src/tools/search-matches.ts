@@ -200,10 +200,8 @@ export interface TestMatch {
   readonly at: string;
 }
 
-/** The recorded cases a question names, and what was read to say so. */
+/** The recorded cases a question names, and what was left unread. */
 export type RecordedTests = Matches<TestMatch> & {
-  /** How many cases were compared, counting a case once for each suite that ran it; absent when none was, which a record of no cases is not. */
-  readonly read?: number;
   /** What was left unread and why: a suite, or, with none named, every case there is. */
   readonly unread: readonly CasesUnread[];
 };

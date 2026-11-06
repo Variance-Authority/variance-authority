@@ -25,7 +25,7 @@ export type RecordedCaseNames = SuiteCases<{ readonly cases: readonly RecordedCa
 
 /** Every case each suite's nearest record holds, one answer to a suite. */
 export function recordedCaseNames(root: string): readonly RecordedCaseNames[] {
-  return eachSuiteCases(root, () => (recording) => ({
+  return eachSuiteCases(root, (recording) => ({
     cases: decodeExecutionTests(readFileSync(recording)).map(({ file, name }) => ({ file, name })),
   }));
 }

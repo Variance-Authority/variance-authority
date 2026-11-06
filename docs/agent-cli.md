@@ -90,6 +90,9 @@ it. `--from` keeps the names the code at your path already depends on. To
 change it, you need the declaration's `file:line` and the code that depends on
 it. `--to` keeps the names in that code.
 
+It also lists the recorded test cases whose names hold your words, so a test is
+found by its title. Those come from each suite's last run, not from the source.
+
 It answers in two sections: the names a manifest publishes, then the names
 the source exports without publishing. Several words also match a name
 written in them, each word by its start or its stem, so `instrumenting

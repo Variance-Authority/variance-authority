@@ -2983,6 +2983,7 @@
         "memoryRecordCache": "function",
         "mockTaint": "function",
         "moduleCallsTaint": "function",
+        "nameTermsOf": "function",
         "nearOfNative": "function",
         "openParseCache": "function",
         "openRecordCache": "function",

@@ -18,14 +18,12 @@ export type SuiteCases<Answer> = {
 } & (Answer | { readonly unread: string });
 
 /**
- * The reader `open` makes, over the nearest record of each suite the root config
- * declares, or the one record of a repository that declares none. A record that
- * kept no cases, and one the reader could not read, each answer with why; a
- * reader that cannot be made is refused, since no suite is to blame for it.
+ * `read` over the nearest record of each suite the root config declares, or the
+ * one record of a repository that declares none. A record that kept no cases,
+ * and one `read` could not read, each answer with why.
  */
-export function eachSuiteCases<Answer extends object>(root: string, open: () => (recording: string) => Answer): readonly SuiteCases<Answer>[] {
+export function eachSuiteCases<Answer extends object>(root: string, read: (recording: string) => Answer): readonly SuiteCases<Answer>[] {
   const suites = declaredSuites(root)?.map((declared) => declared.name) ?? [undefined];
-  const read = open();
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
     const recording = nearestTestCoverage(root, { suite });

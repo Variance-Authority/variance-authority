@@ -99,6 +99,12 @@ describe('variance ask search about the name a test ran under', () => {
     expect(await searched('--query', 'hatter')).not.toContain('a chatter box [test]');
   });
 
+  it('reads a name a title writes by the words the name is written in', async () => {
+    await record([[ALONE, 'writeTestCoverage refuses a stale base']]);
+
+    expect(await searched('--query', 'test coverage')).toContain('writeTestCoverage refuses a stale base [test]');
+  });
+
   it('puts a case that writes the phrase first, then by file and name', async () => {
     await record([[ALONE, 'zig before zag'], ['packages/kit/src/other.test.ts', 'zag before zig'], [ALONE, 'zag then zig'], [ALONE, 'a zig zag']]);
 
@@ -143,7 +149,6 @@ describe('variance ask search about the name a test ran under', () => {
     expect(JSON.parse(out).tests).toEqual({
       total: 1,
       shown: [{ source: 'test', name: 'alone > twice over', at: ALONE }],
-      read: 1,
       unread: [],
     });
   });
@@ -155,29 +160,26 @@ describe('an empty answer about a recorded case', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
   });
 
-  it('counts the recorded cases among what was read', async () => {
-    await record([[ALONE, 'reads']]);
-
-    expect(await searched('--query', 'qzxvk')).toContain('nor a recorded test case, writes `qzxvk`');
-  });
-
   it('says no recorded case was read when no run kept one', async () => {
-    const answer = await searched('--query', 'qzxvk');
-
-    expect(answer).toContain('no recorded case was read');
-    expect(answer).not.toContain('nor a recorded test case');
+    expect(await searched('--query', 'qzxvk')).toContain('No recorded case was read: no run kept its cases there.');
   });
 
-  it('counts no recorded case among what was read when the question left no word to compare', async () => {
-    await record([[ALONE, 'reads']]);
-
-    expect(await searched('--query', 'q')).not.toContain('nor a recorded test case');
-  });
-
-  it('answers in json without a count when no record was read', async () => {
+  it('answers in json why no record was read', async () => {
     const { out } = await run(['ask', 'search', '--query', 'qzxvk', '--format', 'json']);
 
     expect(JSON.parse(out).tests).toEqual({ total: 0, shown: [], unread: [{ why: 'no run kept its cases there' }] });
+  });
+});
+
+describe('an answer of names, with no record to read', () => {
+  it('says no recorded case was read under the names', async () => {
+    checkout(FILES);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const answer = await searched('--query', 'route');
+
+    expect(answer).toContain('packages/kit/src/route.ts');
+    expect(answer).toContain('No recorded case was read: no run kept its cases there.');
   });
 });
 
@@ -200,7 +202,7 @@ describe('a search where the root config declares suites', () => {
   it('names the suite whose cases were not read', async () => {
     await record([[ALONE, 'reads']], 'unit');
 
-    expect(await searched('--query', 'qzxvk')).toContain('no recorded case of `chromium` was read: no run kept its cases there');
+    expect(await searched('--query', 'qzxvk')).toContain('No recorded case of `chromium` was read: no run kept its cases there.');
   });
 
   it('says so under the cases it did list', async () => {

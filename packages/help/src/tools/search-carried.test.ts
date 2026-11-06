@@ -108,9 +108,9 @@ describe('the opening over a question no name writes', () => {
   it('says the nearest follow only when a row passes the cut', async () => {
     const files = { ...FILES, 'src/rare.ts': '/** Plays a xylophone. */\nexport const played = 1;\n' };
     const held = await ask(files, 'xylophone file');
-    expect(held).toContain('writes `xylophone file`; no recorded case was read: no run kept its cases there. The nearest follow.');
+    expect(held).toContain('writes `xylophone file`. The nearest follow.');
     const none = await ask(files, 'quantum banana file');
-    expect(none).toContain('writes `quantum banana file`; no recorded case was read: no run kept its cases there. `packages` lists every entrypoint');
+    expect(none).toContain('writes `quantum banana file`. `packages` lists every entrypoint');
   });
 });
 

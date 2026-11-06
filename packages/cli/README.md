@@ -266,7 +266,7 @@ variance ask                          # the questions, and what each answers
 variance ask summary
 variance ask changes --component Toggle
 variance ask describe --subject story:card
-variance ask search --query viewport    # the code, not the run: no report and no config needed
+variance ask search --query viewport    # the code, and the cases the last run recorded: no report and no config needed
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
 variance ask slowest-tests --over 3s --from src   # the cases under src that ran at least 3 s, closest to their limit first
 variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token

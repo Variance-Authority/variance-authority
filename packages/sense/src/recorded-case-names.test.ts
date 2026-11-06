@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordedCaseNames } from './recorded-case-names.js';
-import { eachSuiteCases } from './suite-cases.js';
 import { index, ran } from './test-selection/__fixtures__/case-indexes.js';
 import { layerCaseIndex } from './test-selection/case-layer.js';
 import { withCaseSections } from './test-selection/case-record.js';
@@ -35,17 +34,6 @@ function record(cases: Uint8Array | undefined, suite?: string): string {
   writeFileSync(at, cases === undefined ? bytes : withCaseSections(bytes, { index: Buffer.from(cases) }));
   return at;
 }
-
-describe('a reader that cannot be made', () => {
-  it('is refused, not told to each suite as its own failure', () => {
-    record(index(['a.test.ts > reads'], {}));
-    const open = (): never => {
-      throw new Error('no scanner');
-    };
-
-    expect(() => eachSuiteCases(root, open)).toThrow('no scanner');
-  });
-});
 
 describe('the case names a record holds', () => {
   it('reads each case as its file and the name the runner gave it', () => {

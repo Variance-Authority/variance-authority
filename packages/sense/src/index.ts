@@ -215,6 +215,7 @@ export {
   declaredLooseOf,
   declaredOf,
   declaredTermsOf,
+  nameTermsOf,
   encodeSearch,
   exportedDigest,
   forwardsDigest,
