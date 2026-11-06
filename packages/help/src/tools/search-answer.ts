@@ -16,7 +16,7 @@ import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
 import { docsSaying } from './phrase.js';
-import { recordedTests } from './search-tests.js';
+import { recordedTests, suiteCaseNames } from './search-tests.js';
 
 /** Published matches shown before the answer says it stopped. */
 export const CAP = 40;
@@ -256,7 +256,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const read = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP, told);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
-  const tests = root === undefined ? undefined : recordedTests(root, question.query, area?.files, ELSEWHERE_CAP);
+  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, ELSEWHERE_CAP);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.
   const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
@@ -328,7 +328,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
   const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length).map(told)];
-  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
+  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 || (tests?.total ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
   const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
   if (carried === undefined || heldRows === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: carried.length, shown: heldRows } }, area };

@@ -1,6 +1,6 @@
 /**
- * One reading of each suite's case record: the walk every question asked of a
- * recording's cases shares, and the one place a suite that holds none says why.
+ * One reading of each suite's case record, shared by the questions that ask it
+ * of a record's cases alone: where a suite that holds none says why.
  */
 
 // compass: variance-authority.reach
@@ -18,12 +18,14 @@ export type SuiteCases<Answer> = {
 } & (Answer | { readonly unread: string });
 
 /**
- * `read` over the nearest record of each suite the root config declares, or the
- * one record of a repository that declares none. A record that kept no cases,
- * and one `read` could not open, each answer with why.
+ * The reader `open` makes, over the nearest record of each suite the root config
+ * declares, or the one record of a repository that declares none. A record that
+ * kept no cases, and one the reader could not read, each answer with why; a
+ * reader that cannot be made is refused, since no suite is to blame for it.
  */
-export function eachSuiteCases<Answer extends object>(root: string, read: (recording: string) => Answer): readonly SuiteCases<Answer>[] {
+export function eachSuiteCases<Answer extends object>(root: string, open: () => (recording: string) => Answer): readonly SuiteCases<Answer>[] {
   const suites = declaredSuites(root)?.map((declared) => declared.name) ?? [undefined];
+  const read = open();
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
     const recording = nearestTestCoverage(root, { suite });

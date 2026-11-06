@@ -148,13 +148,18 @@ function fileLine(match: FileMatch): string {
 /** One recorded case: the name it ran under and the test file that holds it. */
 const testLine = (match: TestMatch): string => `${match.name} [test] — ${match.at}`;
 
+/** What was left unread of the recorded cases, a clause to each record. */
+const casesLeft = (tests: RecordedTests | undefined): readonly string[] =>
+  (tests?.unread ?? []).map(({ suite, why }) => `no recorded case${suite === undefined ? '' : ` of \`${suite}\``} was read: ${why}`);
+
 /** What the empty answer says of the recorded cases: a clause among what was read, and what was left out of it. */
 function casesRead(tests: RecordedTests | undefined): { readonly among: string; readonly left: string } {
-  if (tests === undefined) return { among: '', left: '' };
-  if (tests.read === 0) return { among: '', left: '; no recorded case was read' };
-  const left = tests.unread.length === 0 ? '' : `; no recorded case of ${tests.unread.map((suite) => `\`${suite}\``).join(', ')} was read`;
-  return { among: ', nor a recorded test case', left };
+  return { among: tests?.read === undefined ? '' : ', nor a recorded test case', left: casesLeft(tests).map((clause) => `; ${clause}`).join('') };
 }
+
+/** What the listed cases leave out, said under them. */
+const casesUnder = (tests: RecordedTests | undefined): readonly string[] =>
+  (tests?.total ?? 0) === 0 ? [] : casesLeft(tests).map((clause) => `\n${clause.charAt(0).toUpperCase()}${clause.slice(1)}.`);
 
 const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
   match.source === 'published' ? publishedLine(match) : match.source === 'exported' ? exportedLine(match) : declaredLine(match);
@@ -277,7 +282,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
   const tests = answer.tests ?? { total: 0, shown: [] };
   const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine);
-  const declaredSection = [...namesSection, ...insideSection, ...testSection, ...aliasSection];
+  const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests), ...aliasSection];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
@@ -363,7 +368,7 @@ export const search: Tool<Help> = {
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
     'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
-    'functions inside a function under what holds them, the recorded test cases whose names hold every word, as the last run wrote them, so a case run since is not among them, and the imports that bind the name as a local one. Installed third-party ' +
+    'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
@@ -438,10 +443,12 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  * The files of the rows `run` prints, and the entries and barrels that make a
  * row published, which the count of that row walked already. `search.files` is
  * every match, a set another question crosses; a row past the cap is no part of
- * this answer, so the count printed above the rows stays the generation's.
+ * this answer, so the count printed above the rows stays the generation's. A
+ * recorded case is none of them: it rests on the last run, not the generation,
+ * so a test file gone since then says nothing about the generation's age.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
   const { answer, publishing = [] } = searchedOnce(help, input, invocation);
-  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.tests, answer.aliases, answer.loose, answer.described];
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
   return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
 }

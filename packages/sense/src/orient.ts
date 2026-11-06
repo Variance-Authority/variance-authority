@@ -116,5 +116,8 @@ export type RecordedCases =
  * rather than print it as a suite that ran nothing.
  */
 export function recordedCases(root: string, files: readonly string[], titles: number): readonly RecordedCases[] {
-  return eachSuiteCases(root, (recording) => ({ files: entry('casesEntered')(recording, [...files], titles, sourceIndexPath(root)) }));
+  return eachSuiteCases(root, () => {
+    const entered = entry('casesEntered');
+    return (recording) => ({ files: entered(recording, [...files], titles, sourceIndexPath(root)) });
+  });
 }

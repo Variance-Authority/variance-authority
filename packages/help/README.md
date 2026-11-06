@@ -267,19 +267,13 @@ repository's own fixture and the substring finds nothing, which is printed
 first, as a miss of the text you typed rather than of the code:
 
 ```
-No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `meesure`; no recorded case was read. The nearest follow.
+No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `meesure`; no recorded case was read: no run kept its cases there. The nearest follow.
 
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
 alpha · measure [function] imported in 1 place in 1 package — Measures the thing, and says how much of it there was.
 ```
-
-The sentence's last clause is about tests. Search also reads the case names the
-last run recorded, one row per case whose full name holds every word, printed as
-`<name> [test] — <file>`. They are what ran, not what the source spells, so a
-title is found however it was registered. A case added since that run is missing
-until a run records it, and a checkout with no recording says so here.
 
 It may only add. Nothing the two sections above answered is scored, reordered,
 promoted, demoted or removed by it, a name they already returned can never
@@ -288,6 +282,13 @@ a word that was written stays exactly as short as it was. It obeys `from` and
 `to` as they are: the looser reading runs over the files the area allows, so it
 can find a name you did not type and never a file you ruled out. A name its file
 declares and does not export is reached the same way, after every exported one.
+
+Search also reads the case names each suite's last run recorded, one row per case
+whose full name holds every word, as a word, the start of one or its stem, printed
+as `<name> [test] — <file>`. They are what ran, not what the source spells, so a
+title is found however it was registered. A case added since that run is missing
+and one removed since is still listed, until a run of that suite writes its
+record; a suite with no record is named under the answer, with the reason.
 
 Inside it the order is the order above — by the other packages that import the
 name by a published path, then within the page by the places and packages its

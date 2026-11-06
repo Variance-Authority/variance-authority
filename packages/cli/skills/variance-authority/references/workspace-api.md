@@ -228,9 +228,10 @@ a function inside a function by its name, under the function that holds it, and
 a member by its name, by `container.member`, or by the doc above it. They print
 below the other sections, and when something else answered, only a row that is
 the question exactly. It also lists the recorded test cases whose full names hold
-every word, as `<name> [test] — <file>`: what the last run wrote, so a test added
-since is missing until `yarn test:loop` or another run records it, and an empty
-answer says when no case was read.
+every word, as a stem or the start of a word, as `<name> [test] — <file>`: what
+each suite's last run wrote, so a test added since is missing and one removed
+since is still listed until a run of that suite records it, and the answer says
+which suite's cases were not read.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier

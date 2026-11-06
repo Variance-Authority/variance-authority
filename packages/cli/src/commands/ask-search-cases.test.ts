@@ -66,6 +66,16 @@ describe('variance ask search about the name a test ran under', () => {
     expect(answer).toContain('1 recorded test case holds every word, as the last run wrote it:');
   });
 
+  it('leaves out the unread language of an answer a case gave, in JSON as in text', async () => {
+    checkout({ ...FILES, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    await record([[ALONE, 'alone > qqzzq']]);
+
+    const { out } = await run(['ask', 'search', '--query', 'qqzzq', '--format', 'json']);
+
+    expect(JSON.parse(out)).not.toHaveProperty('membersUnread');
+  });
+
   it('holds every word in any order, and no case that lacks one', async () => {
     await record([[ALONE, 'alone > a subject nothing else touched'], [ALONE, 'alone > a subject']]);
 
@@ -73,6 +83,20 @@ describe('variance ask search about the name a test ran under', () => {
 
     expect(answer).toContain('alone > a subject nothing else touched [test]');
     expect(answer).not.toContain('alone > a subject [test]');
+  });
+
+  it('reads a word by its stem, so the question need not write the title', async () => {
+    await record([[ALONE, 'refuses stale records']]);
+
+    expect(await searched('--query', 'refused stale record')).toContain('refuses stale records [test]');
+    expect(await searched('--query', 'a stale record is refused')).toContain('refuses stale records [test]');
+  });
+
+  it('reads a word from its start, never from inside another', async () => {
+    await record([[ALONE, 'a chatter box']]);
+
+    expect(await searched('--query', 'chat')).toContain('a chatter box [test]');
+    expect(await searched('--query', 'hatter')).not.toContain('a chatter box [test]');
   });
 
   it('puts a case that writes the phrase first, then by file and name', async () => {
@@ -144,6 +168,17 @@ describe('an empty answer about a recorded case', () => {
     expect(answer).not.toContain('nor a recorded test case');
   });
 
+  it('counts no recorded case among what was read when the question left no word to compare', async () => {
+    await record([[ALONE, 'reads']]);
+
+    expect(await searched('--query', 'q')).not.toContain('nor a recorded test case');
+  });
+
+  it('answers in json without a count when no record was read', async () => {
+    const { out } = await run(['ask', 'search', '--query', 'qzxvk', '--format', 'json']);
+
+    expect(JSON.parse(out).tests).toEqual({ total: 0, shown: [], unread: [{ why: 'no run kept its cases there' }] });
+  });
 });
 
 describe('a search where the root config declares suites', () => {
@@ -165,6 +200,15 @@ describe('a search where the root config declares suites', () => {
   it('names the suite whose cases were not read', async () => {
     await record([[ALONE, 'reads']], 'unit');
 
-    expect(await searched('--query', 'qzxvk')).toContain('no recorded case of `chromium` was read');
+    expect(await searched('--query', 'qzxvk')).toContain('no recorded case of `chromium` was read: no run kept its cases there');
+  });
+
+  it('says so under the cases it did list', async () => {
+    await record([[ALONE, 'reads']], 'unit');
+
+    const answer = await searched('--query', 'reads');
+
+    expect(answer).toContain('reads [test]');
+    expect(answer).toContain('No recorded case of `chromium` was read: no run kept its cases there.');
   });
 });
