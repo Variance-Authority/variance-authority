@@ -25,7 +25,8 @@ modelled beyond that.**
    the static keys of the object literal `export = { … }` or
    `module.exports = { … }` assigns at the top level are the module's exports.
    An object with a spread or a computed key with no literal name exports
-   nothing. No reader
+   nothing. A named function or class handed out once the same way is declared,
+   and is the module's default export bound to that name. No reader
    follows `exports.x` assignments, `Object.assign`, or a reassigned or
    computed `module.exports`. A read off a default import is matched to a key
    only as "through `default`: may read it", never as a definite read: interop

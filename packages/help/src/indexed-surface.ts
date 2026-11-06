@@ -3,6 +3,7 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import type { Parsed, SourceSymbol, TextSpan } from '@variance-authority/sense';
 import {
+  boundDeclaration,
   requested,
   type Declaration,
   type DeclarationKind,
@@ -62,12 +63,10 @@ function declaration(
   };
 }
 
-function localDeclarations(at: string, source: IndexedSource, text: string): Map<string, Declaration> {
-  const local = new Map<string, Declaration>();
-  for (const symbol of source.parsed.symbols ?? []) {
-    if (!local.has(symbol.name)) local.set(symbol.name, declarationOfSymbol(at, symbol, text));
-  }
-  return local;
+function symbolsByName(symbols: readonly SourceSymbol[]): Map<string, SourceSymbol[]> {
+  const named = new Map<string, SourceSymbol[]>();
+  for (const symbol of symbols) named.set(symbol.name, [...(named.get(symbol.name) ?? []), symbol]);
+  return named;
 }
 
 function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): Declaration {
@@ -172,7 +171,7 @@ export async function indexedNames(
       reached.set(file, found);
       return found;
     }
-    const local = localDeclarations(file, source, text);
+    const local = symbolsByName(source.parsed.symbols ?? []);
 
     for (const published of source.parsed.exports ?? []) {
       const specifier = published.from;
@@ -212,9 +211,9 @@ export async function indexedNames(
         // the import it names, `logger` as `const logger: typeof OriginalLogger`.
         // Only a name bound here and declared nowhere here goes to its import.
         const bound = published.local ?? name;
-        const value = local.get(bound);
-        if (value !== undefined) {
-          add(found, name, { ...value, declared: name });
+        const symbol = boundDeclaration(local.get(bound) ?? [], published.line);
+        if (symbol !== undefined) {
+          add(found, name, { ...declarationOfSymbol(file, symbol, text), declared: name });
           continue;
         }
         const imported = source.parsed.requests.flatMap((request, index) =>

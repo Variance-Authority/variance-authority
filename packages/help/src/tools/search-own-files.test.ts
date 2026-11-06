@@ -53,7 +53,6 @@ describe('a file is described by its name and the doc it opens with', () => {
     );
     const lines = describedLines(said);
     expect(lines[0]).toMatch(/^src\/tools\/loose\.ts \[file\] — .*The loose pass's membership, read off the published dictionary\. \[holds: loose, reading\]$/);
-    expect(lines.some((line) => line.startsWith('looseNames'))).toBe(true);
   });
 
   it('reaches a file whose doc is written before its imports', async () => {
@@ -90,6 +89,7 @@ describe('the words a description is asked by', () => {
       {
         'src/symbol.ts': '/** `docs_symbol` — what a name is and where it is declared, in full. */\nexport const symbol = 1;\n',
         'src/name.ts': 'export function declaredName(): void {}\n',
+        'src/rest.ts': 'export const alpha = 1, bravo = 2, charlie = 3, delta = 4;\n',
       },
       'what a name is and where it is declared in the source',
     );

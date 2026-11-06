@@ -14,7 +14,9 @@
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Help } from '@variance-authority/package/help';
+import { docOf } from '../indexed-surface.js';
 import { workspaceReadStarted } from '../snapshot.js';
+import type { Said } from './held-sentence.js';
 
 /** Whether a file last written at `mtimeMs` was written after a read that began at `since`, as `movedSince` in sense compares one. */
 export function writtenSince(mtimeMs: number, since: number): boolean {
@@ -35,6 +37,13 @@ export function textSince(root: string, at: string, since: number | undefined): 
   } catch {
     return undefined;
   }
+}
+
+/** What `said` makes of the doc at `span` of `at`, by {@link textSince}; nothing when there is no text to read it from. */
+export function saidAt(root: string | undefined, at: string, span: { readonly start: number; readonly end: number } | undefined, since: number | undefined, said: Said): string | undefined {
+  const text = root === undefined || span === undefined ? undefined : textSince(root, at, since);
+  const doc = text === undefined ? undefined : docOf(text, span);
+  return doc === undefined ? undefined : said(doc);
 }
 
 /** {@link textSince} of the read `help` came from. */

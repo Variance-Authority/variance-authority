@@ -21,8 +21,9 @@ export interface PublishedMatch {
   readonly specifier: string;
   readonly kind: string;
   /**
-   * The first paragraph of its documentation, on one line; absent when nothing
-   * documents it. The whole comment is `symbol`'s answer, not this one's: forty
+   * The sentence of its documentation holding most of the question, or its
+   * first paragraph when none holds a word of it, on one line; absent when
+   * nothing documents it. The whole comment is `symbol`'s answer, not this one's: forty
    * of them would cost more than every other field here together.
    */
   readonly summary?: string;

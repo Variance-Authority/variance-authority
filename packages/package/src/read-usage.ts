@@ -3,7 +3,7 @@ import { extname, join, relative } from 'node:path';
 import { type Parses, everyBindingIn, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
 import { readImportTargets } from './manifest.js';
-import { type Bound, type Exported, ownBinding, type Recorded, type Usage, type UsageOptions, usageFrom } from './use.js';
+import { type Bound, boundDeclaration, type Exported, ownBinding, type Recorded, type Usage, type UsageOptions, usageFrom } from './use.js';
 
 /**
  * [`use.ts`](./use.ts) read off a checkout's disk: every module file walked,
@@ -135,12 +135,10 @@ export function readUsage(
     const publishes: Exported[] = [];
     // `export { x }` has no comment of its own: its doc is above what it binds,
     // and its kind is that declaration's.
-    // One name may be declared twice, `const Kind` and `type Kind`: an export
-    // takes the declaration on its own line, else the first.
     let declared: ReturnType<typeof everyBindingIn> | undefined;
     const bound = (local: string | null, line: number) => {
       const named = local === null ? undefined : (declared ??= everyBindingIn(source)).get(local);
-      return named?.find((one) => one.line === line) ?? named?.[0];
+      return boundDeclaration(named ?? [], line);
     };
     for (const statement of source.parsed.module.staticExports) {
       const line = lineAt(source.writing, statement.start);

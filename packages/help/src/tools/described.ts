@@ -1,12 +1,12 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
-import { opening } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
-import { docOf } from '../indexed-surface.js';
 import type { SearchIndex } from '../search-index.js';
-import { textSince } from './as-read.js';
+import { saidAt } from './as-read.js';
+import { holdersOf, representedBy } from './carried.js';
 import { declaredMatch } from './declared.js';
-import type { DeclaredMatch, FileMatch } from './search-matches.js';
+import type { Said } from './held-sentence.js';
+import type { DeclaredRead, FileMatch } from './search-matches.js';
 import { admittedBy, rowWithin, termsOfStems } from './loose.js';
 
 // compass: variance-authority.report.agent-surface
@@ -20,9 +20,9 @@ import { admittedBy, rowWithin, termsOfStems } from './loose.js';
  * word is in it. So the question is cut into stems by the rule the installed
  * packages were cut by — the sense addon owns it, stopwords included — and a name
  * answers when its own words, or the documentation of a row that publishes or
- * exports it, hold any of the question's distinct stems. One word of three is
- * still the nearest the repository has, and leaving it out would answer that the
- * repository has nothing; how much it holds decides where it sits, below. A
+ * exports it, hold any of the question's distinct stems. Only a row that
+ * {@link carriesMost} of the question is shown or counted, so a concept the
+ * repository lacks is told as a none; how much it holds decides where it sits. A
  * dictionary term stands for a stem when it reduces to it, so `files` stands for
  * `file` and `filter` does not. A name its file declares and does not export is in
  * no row, so the source index answers for it by the same rule, its name and its
@@ -115,7 +115,7 @@ export type RowOrder = (a: DescribedRow, b: DescribedRow) => number;
 
 /** One declaration no export binds that the description reached: in no row, and ranked after every name that is. */
 export interface DescribedDeclaration extends DescribedKey {
-  readonly match: DeclaredMatch;
+  readonly match: DeclaredRead;
 }
 
 /** One file the description reached by its own name and the doc it opens with. */
@@ -132,7 +132,15 @@ export type ReachedName = Omit<DescribedName, 'near'> & Counted & {
    * The rows it can be shown through: the one it is weighed through, then each
    * other row with a doc weighing as much, by {@link RowOrder}.
    */
-  readonly tied: readonly Pick<DescribedName, 'through' | 'words' | 'signed' | 'docLength'>[];
+  readonly tied: readonly RowPick[];
+  /** Every row it can still be shown through, the best first. */
+  readonly picks: readonly RowPick[];
+};
+
+/** One row a name could be shown through. */
+export type RowPick = Pick<DescribedName, 'through' | 'words' | 'named' | 'signed' | 'docLength'> & {
+  /** What the row weighs against the question. */
+  readonly weighs: number;
 };
 
 /** What one reached thing counts for in every word's rarity and the mean doc length: the same whichever row it is weighed through. */
@@ -143,7 +151,7 @@ interface Counted {
   readonly docLengths: readonly number[];
 }
 
-const countedOf = (one: Reached): Counted =>
+export const countedOf = (one: Reached): Counted =>
   'holds' in one ? one : { holds: one.words, docLengths: one.docLength === undefined ? [] : [one.docLength] };
 
 /** What a description reached, a name's phrase not yet counted. */
@@ -232,14 +240,11 @@ export function describedNames(
   const weight = weightOf([...candidates, ...others.map(countedOf)]);
   return candidates.map(({ name, rows, holds, docLengths }): ReachedName => {
     const own = wordsOf(named.get(name));
-    const picks = rows.map((row) => ({
-      through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)),
-    }));
-    const chosen = picks.reduce((best, one) => ((weight(best) - weight(one) || order(one.through, best.through)) < 0 ? one : best));
-    // A row with no doc writes no phrase, so it never comes before the row chosen.
-    const most = weight(chosen);
-    const alike = picks.filter((one) => one !== chosen && one.docLength !== undefined && weight(one) === most);
-    return { name, ...chosen, rows: rows.length, rank: index.rank(name), holds, docLengths, tied: [chosen, ...alike.sort((a, b) => order(a.through, b.through))] };
+    const picks = rows.map((row) => {
+      const pick = { through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)) };
+      return { ...pick, weighs: weight(pick) };
+    }).sort((a, b) => b.weighs - a.weighs || order(a.through, b.through));
+    return { name, ...representedBy(picks), rows: rows.length, rank: index.rank(name), holds, docLengths, picks };
   });
 }
 
@@ -385,17 +390,13 @@ export function describedDeclarations(
 }
 
 /**
- * A described file as a `search` section holds it, its doc's opening read from
+ * A described file as a `search` section holds it, what `said` makes of its doc read from
  * the checkout; none when the file is gone or, for a generation whose read began
  * at `since`, was written after it.
  */
-export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined): FileMatch {
-  let summary: string | undefined;
-  if (root !== undefined && file.docStart != null && file.docEnd != null) {
-    const text = textSince(root, file.at, since);
-    const doc = text === undefined ? undefined : docOf(text, { start: file.docStart, end: file.docEnd });
-    summary = doc === undefined ? undefined : opening(doc);
-  }
+export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined, said: Said): FileMatch {
+  const span = file.docStart == null || file.docEnd == null ? undefined : { start: file.docStart, end: file.docEnd };
+  const summary = saidAt(root, file.at, span, since, said);
   return { source: 'file', at: file.at, ...(file.by === '' ? {} : { package: file.by }), ...(summary === undefined ? {} : { summary }) };
 }
 
@@ -432,11 +433,10 @@ const FIELD_WEIGHTS = { name: 3, doc: 2, signature: 0.5 } as const;
  * both factors, and a word most rows hold adds little to either. An integer.
  */
 function weightOf(population: readonly Counted[]): Weight {
-  const holders = new Map<string, number>();
+  const holders = holdersOf(population);
   let docBytes = 0;
   let docs = 0;
   for (const one of population) {
-    for (const word of one.holds) holders.set(word, (holders.get(word) ?? 0) + 1);
     // Absent is not empty: a row without a doc says nothing of how long a doc is.
     for (const length of one.docLengths) {
       if (length === 0) continue;

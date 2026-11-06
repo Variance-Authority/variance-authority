@@ -327,6 +327,25 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             });
         }
     }
+    // A named function or class the module hands out whole is what an importer's
+    // default gets, as `export default function name` is.
+    if let Some((statement, (id, _, _))) = crate::assigned_object::handed_out_named(&parsed.program.body) {
+        let at = oxc_span::GetSpan::span(statement);
+        let local = id.name.to_string();
+        let tags = roles.of(at.start, Some(&local));
+        exports.push(Export {
+            exported: Some("default".to_owned()),
+            local: Some(local),
+            from: None,
+            imported: None,
+            type_only: false,
+            line: lines.at(at.start),
+            signature: Some(harvest.span(at)),
+            doc: harvest.doc(at.start),
+            assigned: false,
+            tags,
+        });
+    }
     // An object the module hands out whole exports each key, when it spells them all.
     for statement in &parsed.program.body {
         let Some(object) = crate::assigned_object::assigned(statement).filter(|it| crate::assigned_object::spelled(it)) else { continue };

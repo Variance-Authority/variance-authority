@@ -1,7 +1,7 @@
-import { opening } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
+import type { Said } from './held-sentence.js';
 import type { ExportedMatch } from './search-matches.js';
 
 // compass: variance-authority.report.agent-surface
@@ -52,6 +52,7 @@ export function exported(
   names: Iterable<number>,
   shown: ReadonlySet<number>,
   within: ReadonlySet<number> | undefined,
+  said: Said,
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
@@ -103,7 +104,7 @@ export function exported(
           at: row.at,
           line: row.line,
           files,
-          ...(doc === undefined ? {} : { summary: opening(doc) }),
+          ...(doc === undefined ? {} : { summary: said(doc) }),
         };
         return [match];
       }),

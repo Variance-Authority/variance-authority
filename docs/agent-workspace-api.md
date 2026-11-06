@@ -530,9 +530,10 @@ a best-effort basis: the static keys of an object literal that `export =` or
 `module.exports =` assigns at the top level are the file's exports, and naming
 a declaration there passes it on, which is no use of it. An object with a
 spread or a computed key with no literal name exports nothing, because its
-names cannot be spelled.
-A script or CommonJS file, a module that hands itself out with `export =` and
-a `macro_rules!` hand a name out in ways their readers cannot tell, so the
+names cannot be spelled. A named function or class handed out once that way is
+declared, and is the module's default export bound to that name.
+A script or CommonJS file, a module that hands out any other value with
+`export =` and a `macro_rules!` hand a name out in ways their readers cannot tell, so the
 answer says who can reach it is not recorded. `docs_uses`
 answers with the same kind, file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
@@ -629,8 +630,9 @@ So `page sink` finds the doc "installs the page's sink" and not "a page and its
 sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it. So do the names holding any of your
-words, matched by stem, the ones holding most of them first, each labelled with
+after that answer and never inside it. So do the names holding most of your
+words, matched by stem, a rare word counting for more than a common one, the
+ones holding the most first, each labelled with
 the words it holds; both come
 before any installed package.
 

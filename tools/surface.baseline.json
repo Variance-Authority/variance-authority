@@ -1686,6 +1686,7 @@
         "UseKind": "type",
         "WorkspaceManifests": "interface",
         "assembleHelp": "function",
+        "boundDeclaration": "function",
         "everyEntry": "function",
         "gatheringUsage": "function",
         "kindOf": "function",

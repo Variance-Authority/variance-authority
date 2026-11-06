@@ -48,6 +48,12 @@
     "packages": 8
   },
   {
+    "name": "Diagnostic",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 7
+  },
+  {
     "name": "Harness",
     "kind": "interface",
     "at": "packages/playwright/src/harness.ts",
@@ -60,9 +66,9 @@
     "packages": 7
   },
   {
-    "name": "Diagnostic",
-    "kind": "interface",
-    "at": "packages/core/src/format/capture.ts",
+    "name": "Band",
+    "kind": "type",
+    "at": "packages/core/src/compare/band.ts",
     "packages": 6
   },
   {
@@ -75,6 +81,12 @@
     "name": "acquireDocument",
     "kind": "function",
     "at": "packages/dom/src/document.ts",
+    "packages": 6
+  },
+  {
+    "name": "createDurableStore",
+    "kind": "function",
+    "at": "packages/store/src/durable.ts",
     "packages": 6
   },
   {
@@ -102,15 +114,39 @@
     "packages": 5
   },
   {
-    "name": "createDurableStore",
+    "name": "Relations",
+    "kind": "interface",
+    "at": "packages/core/src/relate/graph.ts",
+    "packages": 5
+  },
+  {
+    "name": "RunReport",
+    "kind": "interface",
+    "at": "packages/report/src/format.ts",
+    "packages": 5
+  },
+  {
+    "name": "createPlaywrightRenderer",
     "kind": "function",
-    "at": "packages/store/src/durable.ts",
+    "at": "packages/playwright/src/renderer.ts",
     "packages": 5
   },
   {
     "name": "CallSiteResolver",
     "kind": "interface",
     "at": "packages/core/src/attribute/call-site.ts",
+    "packages": 4
+  },
+  {
+    "name": "CanonicalValue",
+    "kind": "type",
+    "at": "packages/core/src/format/canonical.ts",
+    "packages": 4
+  },
+  {
+    "name": "EdgeKind",
+    "kind": "type",
+    "at": "packages/core/src/relate/graph.ts",
     "packages": 4
   },
   {
@@ -126,9 +162,9 @@
     "packages": 4
   },
   {
-    "name": "Relations",
+    "name": "Provenance",
     "kind": "interface",
-    "at": "packages/core/src/relate/graph.ts",
+    "at": "packages/core/src/format/provenance.ts",
     "packages": 4
   },
   {
@@ -141,12 +177,6 @@
     "name": "SourceLocation",
     "kind": "interface",
     "at": "packages/core/src/format/provenance.ts",
-    "packages": 4
-  },
-  {
-    "name": "createPlaywrightRenderer",
-    "kind": "function",
-    "at": "packages/playwright/src/renderer.ts",
     "packages": 4
   },
   {
@@ -166,6 +196,12 @@
     "kind": "function",
     "at": "packages/core/src/format/profile.ts",
     "packages": 4
+  },
+  {
+    "name": "Approval",
+    "kind": "interface",
+    "at": "packages/history/src/approval.ts",
+    "packages": 3
   },
   {
     "name": "Churn",
@@ -198,6 +234,12 @@
     "packages": 3
   },
   {
+    "name": "SourceRef",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/source.ts",
+    "packages": 3
+  },
+  {
     "name": "SuspenseSettlement",
     "kind": "interface",
     "at": "packages/react/src/arrival.ts",
@@ -216,9 +258,21 @@
     "packages": 3
   },
   {
+    "name": "writeRunReport",
+    "kind": "function",
+    "at": "packages/report/src/file.ts",
+    "packages": 3
+  },
+  {
     "name": "APPROVALS_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "AttributedRegion",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/region.ts",
     "packages": 2
   },
   {
@@ -234,6 +288,12 @@
     "packages": 2
   },
   {
+    "name": "Change",
+    "kind": "interface",
+    "at": "packages/report/src/cluster.ts",
+    "packages": 2
+  },
+  {
     "name": "Claim",
     "kind": "interface",
     "at": "packages/report/src/intent.ts",
@@ -246,15 +306,27 @@
     "packages": 2
   },
   {
-    "name": "EdgeKind",
-    "kind": "type",
-    "at": "packages/core/src/relate/graph.ts",
+    "name": "DiffPolicy",
+    "kind": "interface",
+    "at": "packages/raster/src/policy.ts",
+    "packages": 2
+  },
+  {
+    "name": "DiffRegion",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/mask.ts",
     "packages": 2
   },
   {
     "name": "FLAKINESS_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "HarnessOptions",
+    "kind": "interface",
+    "at": "packages/playwright/src/harness.ts",
     "packages": 2
   },
   {
@@ -318,6 +390,12 @@
     "packages": 2
   },
   {
+    "name": "Tool",
+    "kind": "interface",
+    "at": "packages/mcp/src/tools/tool.ts",
+    "packages": 2
+  },
+  {
     "name": "VALUE_JOURNEY_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
@@ -339,12 +417,6 @@
     "name": "serve",
     "kind": "function",
     "at": "packages/mcp/src/server.ts",
-    "packages": 2
-  },
-  {
-    "name": "stringArg",
-    "kind": "function",
-    "at": "packages/mcp/src/tools/tool.ts",
     "packages": 2
   },
   {
@@ -372,9 +444,9 @@
     "packages": 1
   },
   {
-    "name": "DiffRegion",
-    "kind": "interface",
-    "at": "packages/core/src/attribute/mask.ts",
+    "name": "DeclarationKind",
+    "kind": "type",
+    "at": "packages/package/src/declare.ts",
     "packages": 1
   },
   {
@@ -450,6 +522,12 @@
     "packages": 1
   },
   {
+    "name": "LineRange",
+    "kind": "interface",
+    "at": "packages/sense/src/test-selection/diff-lines.ts",
+    "packages": 1
+  },
+  {
     "name": "MatchedRule",
     "kind": "interface",
     "at": "packages/core/src/format/capture.ts",
@@ -483,6 +561,12 @@
     "name": "RenderServer",
     "kind": "interface",
     "at": "packages/remote/src/renderer.ts",
+    "packages": 1
+  },
+  {
+    "name": "Retention",
+    "kind": "type",
+    "at": "packages/raster/src/store.ts",
     "packages": 1
   },
   {
@@ -615,6 +699,12 @@
     "name": "resolveStyle",
     "kind": "function",
     "at": "packages/core/src/rules/normalize/cascade.ts",
+    "packages": 1
+  },
+  {
+    "name": "stringArg",
+    "kind": "function",
+    "at": "packages/mcp/src/tools/tool.ts",
     "packages": 1
   },
   {

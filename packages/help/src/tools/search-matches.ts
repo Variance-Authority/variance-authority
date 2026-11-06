@@ -46,8 +46,8 @@ export interface ExportedMatch {
   /** How many files export it, the one shown included. */
   readonly files: number;
   /**
-   * The first paragraph of the shown row's own documentation, on one line, as
-   * `PublishedMatch` says it; absent when that row has none.
+   * What the shown row's own documentation says of the question, on one line,
+   * as `PublishedMatch` says it; absent when that row has none.
    */
   readonly summary?: string;
 }
@@ -62,7 +62,14 @@ export interface DeclaredMatch {
   readonly package?: string;
   readonly at: string;
   readonly line: number;
+  /** The sentence of its doc that holds the question, or the doc's first paragraph, on one line; absent when it has no doc. */
+  readonly summary?: string;
 }
+
+/** A declaration as the source index read it: where its doc is, until a row prints it. */
+export type DeclaredRead = DeclaredMatch & {
+  readonly doc?: { readonly start: number; readonly end: number };
+};
 
 /** A member of a container, or a function another function's body declares. */
 export interface HeldMatch {
@@ -104,7 +111,7 @@ export interface FileMatch {
   readonly at: string;
   /** The package that holds it; absent at the repository root. */
   readonly package?: string;
-  /** The first paragraph of the doc the file opens with, on one line; absent when it opens with none. */
+  /** The sentence of the doc the file opens with that holds the question, or that doc's first paragraph, on one line; absent when it opens with none. */
   readonly summary?: string;
 }
 
