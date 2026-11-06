@@ -7,8 +7,9 @@ import {
 } from '@variance-authority/core/format';
 import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
 import type { Config } from '../config.js';
+import { RENDER_SETTINGS } from '../config-settings.js';
 import type { DoctorProbes } from './doctor-probes.js';
-import { cacheFinding, type CacheFinding } from './doctor-cache.js';
+import { cacheFinding, readCache, type CacheFinding, type CacheReading } from './doctor-cache.js';
 import { agentSkills, type SkillsFinding } from './doctor-skills.js';
 import { baselineFinding, type BaselineFinding } from './doctor-baselines.js';
 import { typescriptFinding, type TypescriptFinding } from './doctor-typescript.js';
@@ -64,6 +65,13 @@ export interface Diagnosis {
   readonly skills: SkillsFinding;
   readonly typescript: TypescriptFinding;
 }
+
+/**
+ * A diagnosis of a file that renders nothing: the half that needs no render
+ * setting. Its own shape rather than a {@link Diagnosis} with optional sections,
+ * so that every reader of a whole diagnosis keeps a whole one.
+ */
+export type RenderlessDiagnosis = Pick<Diagnosis, 'renderer' | 'cache' | 'skills' | 'typescript'>;
 
 /**
  * The render cache, named so that somebody knows where it is.
@@ -167,10 +175,8 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       profile: config.profile,
       baselines: await baselineFinding(config, probes, undefined),
       renders: await renders(probes, undefined),
-      cache: cacheFinding(await probes.cache()),
       history: history(config),
-      skills: agentSkills(process.cwd()),
-      typescript: await typescriptFinding(process.cwd()),
+      ...(await repositoryFindings(await probes.cache())),
     };
   }
 
@@ -200,16 +206,41 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       fonts,
       baselines: await baselineFinding(config, probes, rendererFinding.identity),
       renders: await renders(probes, rendererFinding.identity),
-      cache: cacheFinding(await probes.cache()),
       history: history(config),
-      skills: agentSkills(process.cwd()),
-      typescript: await typescriptFinding(process.cwd()),
+      ...(await repositoryFindings(await probes.cache())),
     };
   } finally {
     // Closed here rather than left to the process: doctor is often the last thing
     // a CI step runs, and a leaked Chromium keeps the step alive past its work.
     if (renderer !== null) await renderer.close();
   }
+}
+
+/**
+ * Doctor for a file that names no render settings, which is a valid file: there
+ * is nothing to open a renderer for, so none is opened and that is said.
+ */
+export async function renderlessDoctor(config: Pick<Config, 'cacheRoot'>): Promise<RenderlessDiagnosis> {
+  const named = `${RENDER_SETTINGS.slice(0, -1).join(', ')} and ${RENDER_SETTINGS.at(-1)}`;
+  return {
+    renderer: {
+      available: false,
+      checked: false,
+      because: `this config names none of ${named}, so no renderer was opened`,
+    },
+    ...(await repositoryFindings(await readCache(config))),
+  };
+}
+
+/** The half of doctor that reads the repository, which no render setting decides. */
+async function repositoryFindings(
+  cache: CacheReading,
+): Promise<Pick<Diagnosis, 'cache' | 'skills' | 'typescript'>> {
+  return {
+    cache: cacheFinding(cache),
+    skills: agentSkills(process.cwd()),
+    typescript: await typescriptFinding(process.cwd()),
+  };
 }
 
 /**

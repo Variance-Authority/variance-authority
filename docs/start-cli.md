@@ -196,6 +196,10 @@ on what your config selected, before the first expensive run:
   the process table could not answer. `variance prune` runs that prune now;
 - **history** — configured or none.
 
+A file that names none of `project`, `profile`, `viewport`, `retention` and
+`subjects` opens no renderer: doctor prints `renderer: not checked` and the
+cache, skills and typescript findings, and exits `0`.
+
 Doctor exits `2` for one finding: no renderer could be opened here. Read the
 launch error it prints — usually an uninstalled browser binary or a missing
 system library. A store painted elsewhere is a warning, not a refusal: a run
