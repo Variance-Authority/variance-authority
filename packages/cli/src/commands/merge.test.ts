@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { OperatorError, exitFor } from '../exit.js';
 import { mergeReports, type Shard } from './merge.js';
-import { shardFilterBecause, type CliRunReport } from './run-report.js';
+import { shardFilterBecause, shardOwnedBecause, type CliRunReport } from './run-report.js';
 
 /**
  * Merging is all string and set work, so every case here is a plain value — no
@@ -204,6 +204,84 @@ describe('a subject no shard claimed', () => {
     // them did exactly what it was told — and the suite is missing a component.
     expect(holed().every((entry) => exitFor(entry.report) === 0)).toBe(true);
     expect(exitFor(mergeReports(holed()))).toBe(1);
+  });
+});
+
+describe('a story its owner read at widths', () => {
+  // The other shard never visits the story, so it can only leave the planned
+  // id; the widths exist on the shard that read them.
+  const widened = (over: Partial<CliRunReport> = {}): readonly Shard[] => [
+    shard('shard-1.json', {
+      observations: [observation('story:a')],
+      notObserved: [{ subject: 'story:card', kind: 'excluded', because: shardOwnedBecause(2, 2, 'count') }],
+    }),
+    shard('shard-2.json', {
+      observations: [observation('story:card@375'), observation('story:card@800')],
+      notObserved: [{ subject: 'story:a', kind: 'excluded', because: shardFilterBecause('story:card*') }],
+      ...over,
+    }),
+  ];
+
+  it('is observed, so nothing is left to account for', () => {
+    const merged = mergeReports(widened());
+
+    expect(merged.notObserved).toEqual([]);
+    expect(merged.observations.map((entry) => entry.subject)).toEqual(['story:a', 'story:card@375', 'story:card@800']);
+    expect(exitFor(merged)).toBe(0);
+  });
+
+  it('still fails a width its owner could not read', () => {
+    const merged = mergeReports(
+      widened({
+        observations: [observation('story:card@375')],
+        notObserved: [
+          { subject: 'story:a', kind: 'excluded', because: shardFilterBecause('story:card*') },
+          { subject: 'story:card@800', kind: 'failed', because: 'the browser crashed' },
+        ],
+      }),
+    );
+
+    expect(merged.notObserved).toEqual([{ subject: 'story:card@800', kind: 'failed', because: 'the browser crashed' }]);
+  });
+
+  it('is not realized by a story whose id only begins with its own', () => {
+    const merged = mergeReports(widened({ observations: [observation('story:card-wide@375')] }));
+
+    expect(merged.notObserved).toEqual([
+      { subject: 'story:card', kind: 'failed', because: expect.stringContaining('no shard observed it') },
+    ]);
+  });
+
+  // Globs that split a story by width: the shard whose visit failed left the story,
+  // and the width it was given is still named, by the shard that left that width.
+  it('still fails a width every shard left, when the globs split by width', () => {
+    const merged = mergeReports([
+      shard('shard-1.json', {
+        observations: [],
+        notObserved: [{ subject: 'story:card', kind: 'excluded', because: shardFilterBecause('*@375') }],
+      }),
+      shard('shard-2.json', {
+        observations: [observation('story:card@800')],
+        notObserved: [{ subject: 'story:card@375', kind: 'excluded', because: shardFilterBecause('*@800') }],
+      }),
+    ]);
+
+    expect(merged.notObserved).toEqual([
+      { subject: 'story:card@375', kind: 'failed', because: expect.stringContaining('no shard observed it') },
+    ]);
+  });
+
+  // Widths answer for a story another shard left, not for one it tried: a visit
+  // that failed there read a width nobody can name, so the failure stands.
+  it('keeps the failure of a shard that tried to read it', () => {
+    const [left, owner] = widened();
+    const merged = mergeReports([
+      { ...left!, report: { ...left!.report, notObserved: [{ subject: 'story:card', kind: 'failed', because: 'it threw' }] } },
+      owner!,
+    ]);
+
+    expect(merged.notObserved).toEqual([{ subject: 'story:card', kind: 'failed', because: 'it threw' }]);
+    expect(exitFor(merged)).toBe(1);
   });
 });
 
