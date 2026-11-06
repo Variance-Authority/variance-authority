@@ -445,8 +445,9 @@ searches the code are in [finding code through the workspace index](agent-worksp
 
 With a `variance.config.json`, `variance doctor` lists which skills your agent
 can find, reports whether each is a link or a copy that has fallen behind, and
-prints the link for any it cannot find. It never writes the link for you. With no
-config it exits 2.
+prints the link for any it cannot find. It never writes the link for you. A file
+that names none of the five render settings is enough: doctor says `renderer:
+not checked` and answers the cache, the skills and TypeScript. With no config it exits 2.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection
