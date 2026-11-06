@@ -1,5 +1,32 @@
 # @variance-authority/sense
 
+## 0.26.0
+
+### Minor Changes
+
+- 73a2b55: `variance ask search` finds what `ask symbol` finds: a member by its name, by `container.member` or by the doc above it, a function inside a function by its name, and an import's `as` name. A member's doc span is now in the source index, so the index format moves to 40 and rebuilds once. A search that finds nothing says what it read: ``No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `x`.`` A script that matches the old `No name in this repository` sentence matches the new one instead. As JSON, the answer gains `held`, `aliases` and `membersUnread`.
+- 5f412f2: `ask search` lists the recorded test cases whose full names hold every word of the question, as a word, the start of one or its stem, each with its file, so a test is found by its title however it was registered. The list is what each suite's last run wrote, and the answer says which suite's cases were not read and why.
+
+### Patch Changes
+
+- 7040678: `variance carry hand <dir>` reads the share once for a run, and `variance carry receive <dir>` lays that read down in the run's other jobs. Every reader in a job that received answers with that record, however far behind the merge base, and neither the share nor a worktree's primary checkout is asked, so a shard re-run after your mainline moved selects what it selected the first time. `receive` removes the checkout's own record, which would otherwise stand in front of it. `receive` stops the job rather than ask the share when the directory holds no manifest or a record that does not read.
+
+  `readMissedMainline`, `writeMissedMainline` and `MissedMainline` are no longer exported: `carry hand` and `carry receive` move that answer themselves.
+- 7715023: A Vite 8 build no longer stops with "the map back to the file carries a text for it that is not the file on disk" where a plugin ahead of the probes answered `map: null`, as Storybook's globals step does. The text a map carries is compared with your file on the lines your regions sit on, so a step that changed only other lines builds, and one that changed a region's line stops it as before.
+
+  A map column past the end of its line stays on that line, so a line a step made
+  longer than the file charges no region on the line below when the module loads.
+- 439e41e: A named function or class handed out by `export =` or `module.exports =` is read as a declaration and the module's default export, so `ask symbol` and `ask uses` find it.
+- b598133: A Jest run through `withTestSelection` that found test files and selected none of them exits 0, as a Vitest run does, where it exited 1 and failed a pull request that needed no test. A selected run where no project found a test file still fails as Jest fails, so a `testMatch` that matches nothing stays red. A run with no selection, or under `--watch`, `--filter` or `--skipFilter`, keeps Jest's own exit, and `--watch-all` and `--skip-filter` now count as those flags do.
+- 4553d53: Runtime dependencies move to what npm publishes now: `oxc-parser` 0.157,
+  `magic-string` 1.4 and `sharp` 0.35.
+
+  `@variance-authority/sense` treats an exported object whose key holds a lone
+  surrogate as it treats a spread or a computed key: the module's exports are not
+  known, because no importer can spell that name. An import or an export whose
+  specifier holds one is counted on the read as a specifier it cannot read.
+- e9a86ac: A search row prints the sentence of its doc that holds the question, and a comment a blank line parts from a file's first statement is the file's banner, no longer read as that statement's doc.
+
 ## 0.25.0
 
 ### Minor Changes

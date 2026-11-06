@@ -1,5 +1,45 @@
 # @variance-authority/cli
 
+## 0.26.0
+
+### Minor Changes
+
+- 7040678: `variance carry hand <dir>` reads the share once for a run, and `variance carry receive <dir>` lays that read down in the run's other jobs. Every reader in a job that received answers with that record, however far behind the merge base, and neither the share nor a worktree's primary checkout is asked, so a shard re-run after your mainline moved selects what it selected the first time. `receive` removes the checkout's own record, which would otherwise stand in front of it. `receive` stops the job rather than ask the share when the directory holds no manifest or a record that does not read.
+
+  `readMissedMainline`, `writeMissedMainline` and `MissedMainline` are no longer exported: `carry hand` and `carry receive` move that answer themselves.
+- 7bf5390: The action's comment can carry a box. With `tick-to-accept: 'true'` and a workflow
+  on `issue_comment` running `Variance-Authority/action/tick@v1`, a reviewer with
+  write access ticks it and the check runs again and accepts, naming them in its log,
+  its intent and the approval row. A tick from anybody else, or on a head the pull
+  request has left, accepts nothing. Adding a label still works.
+
+  `variance accept --by <name>` writes who accepted on the approval row, for a caller
+  that knows.
+- 50e29db: `variance comment` names the config's `project` in its heading, so two gates on one pull request can be told apart: ``## Visual variance in project `storybook` — 2 subject(s) need review``. A script that matches the old start of the heading, `## Visual variance —`, matches `## Visual variance` instead. `variance comment --cleared` prints what a poster writes over a docket once a later run finds nothing to review, under the same heading. An older CLI still renders and posts under the moved `v1`; only clearing a previous docket needs this version.
+- ce9c20a: `ask grep` and `ask discover --text` with no start point now say how to name one, the file or folder you are working in, and no longer send you to `rg`. A start point that says the root, as `.`, `./` or its absolute path, is refused as the root, not as a path the tree lacks, and `refusalFor` now takes the tree's root as its second argument.
+- 73a2b55: `variance ask search` finds what `ask symbol` finds: a member by its name, by `container.member` or by the doc above it, a function inside a function by its name, and an import's `as` name. A member's doc span is now in the source index, so the index format moves to 40 and rebuilds once. A search that finds nothing says what it read: ``No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `x`.`` A script that matches the old `No name in this repository` sentence matches the new one instead. As JSON, the answer gains `held`, `aliases` and `membersUnread`.
+- 5f412f2: `ask search` lists the recorded test cases whose full names hold every word of the question, as a word, the start of one or its stem, each with its file, so a test is found by its title however it was registered. The list is what each suite's last run wrote, and the answer says which suite's cases were not read and why.
+- 6b21cfe: A tribunal says who it recognizes, and one command deploys one
+
+  `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS` declare who a deployment recognizes, and every deployment runs that one policy. Reviewers sign in with GitHub, those who can write to `GITHUB_REPOSITORY` decide, and a decision carries the login that signed in; a body naming somebody else is refused. Workflows in `GITHUB_ACTIONS_REPOSITORIES` push with the token the runner issues, which `baselines.token` asks for with `{ "github-actions": { "audience": … } }`, so CI stores no secret. `VIEW=public` opens reading to an anonymous visitor and nothing else. `access` remains for Cloudflare Access and any SSO behind it. `REVIEW_TOKEN` is gone, and a script no longer decides: move a deployment to `github` or `access` before upgrading. `createTribunal` takes a `policy` in place of its two tokens, and `createTribunalRoutes` and `serveTribunal` take no `authorize`, `tokens` or `reviewer`: the policy replaces them. `Capability`, `authorizeFor` and `REVIEW_TOKEN_VARIABLE` are gone with them.
+
+  `GITHUB_ACTIONS_BASELINE_REF` is required with `github-actions`: it names the one ref whose workflows move a baseline, and every other ref still pushes builds and reads the render cache, and writes neither a baseline nor the cache. The packaged Worker sweeps on a schedule; add `triggers.crons` to a `wrangler.jsonc` that predates it. The Node service takes `VARIANCE_TRIBUNAL_ORIGIN` behind a proxy.
+
+  `variance-authority-tribunal-provision` now takes a repository to a serving deployment: it writes `wrangler.jsonc` when there is none, registers the GitHub App from a manifest, so you confirm one page and install it, and deploys. A run refuses a repository the deployment does not already name, and `--rotate` is how a token goes to a repository that holds none. `--repository` and `--mount` place it, and `--skip-deploy` leaves publishing to a deployment with its own build. The review bundle and fonts are laid out in `dist/public`, so a Worker's `assets` directory points into the package, and the packaged Worker serves the review page. The `token` of a history or remote client may be a function, asked on each use. `./testing` adds `bearerPolicy`, `signer` and `Signer`.
+
+### Patch Changes
+
+- dfb146a: `ask search` tells you to leave a word under three letters out of a description, where it has no stem, and to keep it when it spells a name or a phrase.
+- 569920e: A merged run no longer fails a story that splits by width: an observation at a width now answers for the story another shard left to its owner. A width the owner could not read still fails.
+- 0360384: A deployment no longer takes a write a browser sent from another site on a reviewer's credential, which Access's cookie allowed by default, whichever policy it runs, a host's own included; a bearer still crosses origins. On `loopback` a caller who came by a name that is not this machine's, or the host of `VARIANCE_TRIBUNAL_ORIGIN`, decides nothing, which closes the same forgery through a name pointed at this machine. A concern is raised at `POST /review/concerns/raise`, so every reviewer write can sit behind Access while machines read `GET /review/concerns`; `POST /review/concerns` answers 405 and the service's API is 8. The tribunal README says how to put a company's SSO in front of a deployment through Cloudflare Access, and the deploy skill hands those steps to the person.
+- 8688023: `variance doctor` answers on a `variance.config.json` that names none of the five render settings, the kind the schema allows for a repository using only the configless commands. It prints `renderer: not checked` and the cache, skills and TypeScript findings, and exits `0`, where it used to refuse the file for a missing `profile`. A misspelled setting, a setting only the repository root may hold, or a file naming some of the five, is still refused, and `doctor --baselines` still needs a file that renders.
+- b598133: A Jest run through `withTestSelection` that found test files and selected none of them exits 0, as a Vitest run does, where it exited 1 and failed a pull request that needed no test. A selected run where no project found a test file still fails as Jest fails, so a `testMatch` that matches nothing stays red. A run with no selection, or under `--watch`, `--filter` or `--skipFilter`, keeps Jest's own exit, and `--watch-all` and `--skip-filter` now count as those flags do.
+- c25f8ca: A search that reaches rows by one common word no longer lists them: a row is shown when the words it holds weigh at least half of the question, the rarer words counting for more, and a question of two words, one of which the repository never writes, is told as a none. Two common words can still outweigh a third word nothing holds.
+- 6e54f50: The `search` tool description, the skill and both READMEs say that `search` lists
+  candidates, not every match, and that `git grep -i <word>` prints every tracked
+  line that writes a word. The skill no longer says that a `search` list with no
+  "more not shown" line is the whole list.
+
 ## 0.25.0
 
 ### Minor Changes

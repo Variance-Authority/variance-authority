@@ -1,5 +1,18 @@
 # @variance-authority/package
 
+## 0.26.0
+
+### Patch Changes
+
+- 4553d53: Runtime dependencies move to what npm publishes now: `oxc-parser` 0.157,
+  `magic-string` 1.4 and `sharp` 0.35.
+
+  `@variance-authority/sense` treats an exported object whose key holds a lone
+  surrogate as it treats a spread or a computed key: the module's exports are not
+  known, because no importer can spell that name. An import or an export whose
+  specifier holds one is counted on the read as a specifier it cannot read.
+- e9a86ac: A search row prints the sentence of its doc that holds the question, and a comment a blank line parts from a file's first statement is the file's banner, no longer read as that statement's doc.
+
 ## 0.25.0
 
 ### Minor Changes
