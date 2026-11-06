@@ -16,7 +16,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
-import { lineAt, linesOf } from '../../../packages/sense/src/test-selection/case-lines.js';
+import { lineAt, linesOf } from '../../../packages/sense/dist/test-selection/case-lines.js';
 import { unbuilt } from '../../unbuilt.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
