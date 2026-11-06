@@ -227,6 +227,13 @@ export interface TapOptions {
   /** Observe each retained commit synchronously. A failure never breaks the page. */
   readonly onCommit?: (commit: Commit) => void;
   /**
+   * Observe each composite that rendered, outermost first, while the commit is
+   * still the tree React just finished: `fiber.alternate` is what it rendered
+   * last time. Called past `nameLimit` too, ahead of `onCommit` for the same
+   * commit, and a failure never breaks the page.
+   */
+  readonly onRender?: (fiber: Fiber) => void;
+  /**
    * Whether a page that has already mounted React is a refusal.
    *
    * Default true, and it should stay true in a collector. Turn it off only when
@@ -311,7 +318,7 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
       if (((flags.own | flags.subtree) & mask) !== 0) flushing.add(fiberRoot);
     }
 
-    const named = fiberRoot?.current ? componentsThatRendered(fiberRoot.current, nameLimit) : null;
+    const named = fiberRoot?.current ? componentsThatRendered(fiberRoot.current, nameLimit, options.onRender) : null;
     const updaterEvidence = memoizedUpdatersOf(fiberRoot, updaterLimit);
     const commit: {
       at: number;
@@ -400,6 +407,7 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
 function componentsThatRendered(
   root: Fiber,
   limit: number,
+  rendered?: (fiber: Fiber) => void,
 ): { names: string[]; truncated: boolean } {
   const names: string[] = [];
   const stack: Fiber[] = [root];
@@ -413,6 +421,11 @@ function componentsThatRendered(
 
     const flags = flagsOf(fiber);
     if ((flags.own & PERFORMED_WORK) !== 0 && isOwnerFrame(fiber)) {
+      try {
+        rendered?.(fiber);
+      } catch {
+        /* An observer's bug costs its own reading, not the commit's. */
+      }
       if (names.length >= limit) {
         truncated = true;
       } else {

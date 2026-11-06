@@ -290,6 +290,27 @@ describe('what a case says on the way', () => {
       'vae once checkout upsell decided',
     ]);
   });
+
+  it('shows the values a template hands the channel as a region shows what it was handed', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const scope = {};
+    storyTap.listen(tap, scope);
+    const say = (scope as Record<symbol, (strings: readonly string[], ...values: unknown[]) => void>)[
+      Symbol.for('variance-authority.story.note')
+    ]!;
+    const chosen = function onPickRow(): void {};
+
+    say(['rendered Label — onPick ', ' → ', ', text ', ' → ', ''], chosen, chosen, 'a\nb', 10n);
+    say(['rendered Label — onPick ', ''], chosen);
+
+    // The same function is the same ref in both lines, and a string is cut and spelled as the tap spells it.
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual([
+      "rendered Label — onPick ref1 function onPickRow → ref1 function onPickRow, text 'a\\nb' → 10n",
+      'rendered Label — onPick ref1 function onPickRow',
+    ]);
+  });
 });
 
 const HANDED = `
