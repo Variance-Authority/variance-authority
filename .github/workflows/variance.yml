@@ -604,7 +604,11 @@ jobs:
           yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
-            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi
+            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
+              # The build writes the skills index, and no test reaches the build.
+              curl --fail --silent --output /dev/null http://localhost:8787/.well-known/agent-skills/index.json
+              exit 0
+            fi
             sleep 1
           done
           cat "$RUNNER_TEMP/site.log" >&2

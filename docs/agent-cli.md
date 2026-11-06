@@ -432,6 +432,13 @@ mkdir -p .agents/skills && for s in variance-authority variance-testing; do ln -
 mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -s ../../.agents/skills/$s .claude/skills/$s; done
 ```
 
+Without the package, or for an agent these directories do not reach, `npx skills
+add https://variance-authority.dev` installs both from the site's skills index,
+`/.well-known/agent-skills/index.json`.
+Those are the copies from the site's latest deploy: they can run ahead of the
+released CLI, and they do not follow the version you have installed.
+`variance-testing` links into `variance-authority`, so install the two together.
+
 An agent opens a skill only when its description matches the task, and it reads
 `AGENTS.md` every session. The lines that send it to `variance ask` before it
 searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
