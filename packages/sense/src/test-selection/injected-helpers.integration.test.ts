@@ -12,11 +12,10 @@ import { selectTestFiles } from './index.js';
  * A region the transform writes is not the author's, and is not recorded.
  *
  * `decorated.ts` holds one decorated method and then `later`. To run the
- * decorator, esbuild writes about forty lines of helpers and a constructor
- * above the author's first line. The probes go in before esbuild runs, so
- * they reach only what the author wrote: every region is on the file's own
- * lines, and an edit to a line of `later` reaches `later`'s caller and nothing
- * else.
+ * decorator, Oxc writes a helper import above the author's first line and a
+ * `_decorate` call below the class. The probes go in before Oxc runs, so they
+ * reach only what the author wrote: every region is on the file's own lines,
+ * and an edit to a line of `later` reaches `later`'s caller and nothing else.
  */
 
 const execute = promisify(execFile);
@@ -69,7 +68,7 @@ describe('a helper the transform injected', () => {
       ['later', 14, 27, [named('test/later.test.js')]],
     ]);
 
-    // Esbuild's `__runInitializers` would land on line 16, and line 24 between two of its helpers.
+    // Oxc's output moves both lines: a position read from it would name the line above each.
     await expect(selectTestFiles(coverageFile, edit(16, '  total += 1;', '  total += 100;'))).resolves.toEqual([
       named('test/later.test.js'),
     ]);

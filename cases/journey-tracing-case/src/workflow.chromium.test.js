@@ -21,6 +21,7 @@ import {
   selectTestFiles,
 } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { unbuilt } from '../../unbuilt.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 // Recorded names are relative to the checkout, and this case sits inside it.
@@ -38,7 +39,7 @@ const BROWSER_AVAILABLE = (() => {
 const live = BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/journey-tracing-case: skipped.' +
       '\n  no browser — npx playwright install chromium\n',
   );

@@ -374,10 +374,11 @@ describe('every package says what it is', () => {
  * harness the same day it was repaired for a different one.
  *
  * The version is read from the lockfile rather than from `package.json`, because
- * `^1.49.0` is the range and the resolution is what gets installed.
+ * `^1.55.0` is the range and the resolution is what gets installed.
  */
 describe('a pinned browser image matches the playwright it runs', () => {
-  const resolved = /^"playwright@npm:[^"]*":\n  version: (\S+)$/m.exec(
+  // A range, because the exact pin beside it is the oldest case's, which no image serves.
+  const resolved = /^"playwright@npm:[^"]*\^[^"]*":\n  version: (\S+)$/m.exec(
     readFileSync(join(ROOT, 'yarn.lock'), 'utf8'),
   )?.[1];
 
@@ -387,8 +388,9 @@ describe('a pinned browser image matches the playwright it runs', () => {
   })
     .trim()
     .split('\n')
-    // This file names the registry to find the pins, and is not one.
-    .filter((line) => !line.startsWith('tools/'));
+    // This file names the registry to find the pins, and is not one. A journal
+    // records the image a measurement ran on, and pins nothing.
+    .filter((line) => !line.startsWith('tools/') && !line.startsWith('docs/context/journal/'));
 
   it('reads a resolved playwright version out of the lockfile', () => {
     expect(resolved).toMatch(/^\d+\.\d+\.\d+$/);

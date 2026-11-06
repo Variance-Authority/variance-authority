@@ -18,6 +18,7 @@ import type {
   TribunalChangelog,
   TribunalChangelogQuery,
 } from '../review.js';
+import type { Introduced } from '../worker-auth.js';
 import type {
   Concern,
   ConcernQuery,
@@ -52,11 +53,11 @@ export interface ReviewClientOptions {
    */
   readonly endpoint: string;
   /**
-   * The review token, when the caller holds it directly.
+   * A bearer credential, when the caller holds one directly.
    *
-   * Omit it behind the Next.js adapter: there the server route holds the token
-   * and the browser never sees it, which is the entire reason that adapter exists.
-   * A review token shipped to a browser is a token in everybody's devtools.
+   * Omit it in a browser: a person is recognized by the session or the identity
+   * proxy the deployment declared, and a token shipped to a browser is a token in
+   * everybody's devtools.
    */
   readonly token?: string;
   readonly fetch?: typeof globalThis.fetch;
@@ -72,6 +73,8 @@ export interface ReviewClient {
    * and a list must not need an address to render.
    */
   readonly endpoint?: string;
+  /** Who this deployment takes the asker for, and where to sign in when it takes them for nobody. */
+  me(): Promise<Introduced>;
   builds(limit?: number): Promise<readonly BuildSummary[]>;
   build(id: string): Promise<BuildDetail>;
   /** Why the baselines are what they are, grouped by shape. */
@@ -184,6 +187,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
   return {
     endpoint: base,
+    me: () => call<Introduced>('/auth/me'),
 
     async builds(limit): Promise<readonly BuildSummary[]> {
       const body = await call<{ readonly builds: readonly BuildSummary[] }>(
@@ -242,7 +246,7 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
       ),
 
     async raise(input): Promise<Concern> {
-      const body = await call<{ readonly concern: Concern }>('/review/concerns', {
+      const body = await call<{ readonly concern: Concern }>('/review/concerns/raise', {
         method: 'POST',
         body: JSON.stringify(input),
       });

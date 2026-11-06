@@ -10,8 +10,6 @@ import {
   testCoverageFile,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { readFlags } from '../args.js';
-import { parseCarryArgs } from '../carry-args.js';
 import type { Config } from '../config.js';
 import { baseOf, carryPlan, carryText, githubOutput, hostRunOf, lineOf, type HostRun } from './carry.js';
 
@@ -145,6 +143,47 @@ describe('a recording', () => {
   });
 });
 
+describe('what a pull request\'s last push ran', () => {
+  const SHARED = [{ name: 'unit', kind: 'unit', carry: 'share' }] as const;
+
+  it('restores this pull request\'s own, newest first, and never another line\'s', () => {
+    const plan = carryPlan({ direction: 'restore', root, suites: SHARED, run: PULL, mainlines: MAIN });
+
+    expect(plan.pushed).toEqual({
+      artifact: 'pushed',
+      paths: [join(root, '.variance/pushed')],
+      key: `variance-pushed:pr-3:${SHA}`,
+      restoreKeys: ['variance-pushed:pr-3:'],
+    });
+    expect(githubOutput(plan)).toContain(`pushed-key=variance-pushed:pr-3:${SHA}\n`);
+  });
+
+  it('is saved by every push of a pull request, red or green, under its run', () => {
+    const plan = carryPlan({ direction: 'save', root, suites: UNIT, run: PULL, mainlines: MAIN });
+
+    expect(plan.pushed?.key).toBe(`variance-pushed:pr-3:${SHA}-8-2`);
+    expect(plan.pushed?.restoreKeys).toBeUndefined();
+  });
+
+  it('is not carried by a push, by a pull request that runs the base\'s code, or for no carried suite', () => {
+    expect(carryPlan({ direction: 'save', root, suites: UNIT, run: PUSH, mainlines: MAIN }).pushed).toBeUndefined();
+    expect(carryPlan({ direction: 'restore', root, suites: UNIT, run: { ...PULL, event: 'pull_request_target' }, mainlines: MAIN }).pushed).toBeUndefined();
+    expect(carryPlan({ direction: 'restore', root, suites: [{ name: 'unit', kind: 'unit' }], run: PULL, mainlines: MAIN }).pushed).toBeUndefined();
+  });
+
+  it('is not carried by a run whose ref names no pull request, nor saved by one that names no attempt', () => {
+    expect(carryPlan({ direction: 'restore', root, suites: SHARED, run: { ...PULL, ref: 'refs/heads/feat' }, mainlines: MAIN }).pushed).toBeUndefined();
+    const { attempt: _, ...unnumbered } = PULL;
+    expect(carryPlan({ direction: 'save', root, suites: SHARED, run: unnumbered, mainlines: MAIN }).pushed).toBeUndefined();
+  });
+
+  it('is told to a person with its key and the keys a restore falls back to', () => {
+    const text = carryText(carryPlan({ direction: 'restore', root, suites: SHARED, run: PULL, mainlines: MAIN }));
+
+    expect(text).toContain(`pushed: variance-pushed:pr-3:${SHA}\n  ${join(root, '.variance/pushed')}\n  then\n    variance-pushed:pr-3:\n`);
+  });
+});
+
 describe('baselines and a report', () => {
   it('restore by this commit and then the newest on the line, with the paths the config names', () => {
     const plan = carryPlan({
@@ -243,6 +282,7 @@ describe('the output the host reads', () => {
       'VARIANCE_CARRY_END',
       'baselines-root=/r/.variance/baselines',
       'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/.variance/baselines/**/*-*.webp',
       ':(glob)/r/.variance/baselines/**/*-*.png',
       ':(glob)/r/.variance/baselines/**/*-*.json',
       `:(glob)/r/.variance/baselines/**/${PARTITION}/*`,
@@ -341,6 +381,7 @@ describe('the output the host reads', () => {
 
     expect(githubOutput(collocated).split('\n')).toEqual(expect.arrayContaining([
       'baselines-pathspecs<<VARIANCE_CARRY_END',
+      ':(glob)/r/**/__baselines__/*/*-*.webp',
       ':(glob)/r/**/__baselines__/*/*-*.png',
       ':(glob)/r/**/__baselines__/*/*-*.json',
       `:(glob)/r/**/${PARTITION}/*`,
@@ -358,6 +399,7 @@ describe('the output the host reads', () => {
       mainlines: MAIN,
     });
     expect(split.baselinesPathspecs).toEqual([
+      ':(glob)/r/baselines/**/*-*.webp',
       ':(glob)/r/baselines/**/*-*.png',
       ':(glob)/r/records/**/*-*.json',
       `:(glob)/r/baselines/**/${PARTITION}/*`,
@@ -367,6 +409,30 @@ describe('the output the host reads', () => {
 });
 
 describe('what a commit-back stages, as git reads it', () => {
+  it('takes the WebP an accept keeps and the PNG kept before it, and nothing else beside them', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'variance-carry-stage-'));
+    const files = ['src/__baselines__/a.tsx/A-chromium.webp', 'src/__baselines__/a.tsx/B-chromium.png', 'src/__baselines__/a.tsx/C-chromium.gif'];
+    try {
+      execFileSync('git', ['init', '--quiet', repo]);
+      for (const file of files) {
+        await mkdir(dirname(join(repo, file)), { recursive: true });
+        await writeFile(join(repo, file), '');
+      }
+      const { baselinesPathspecs } = carryPlan({
+        direction: 'save',
+        root,
+        config: project({ baselines: { kind: 'directory', root: repo, path: '{dir}/__baselines__/{file}/{name}-{engine}' } } as Partial<Config>),
+        run: PULL,
+        mainlines: MAIN,
+      });
+      const listed = execFileSync('git', ['-C', repo, 'ls-files', '--others', '--', ...baselinesPathspecs!], { encoding: 'utf8' });
+
+      expect(listed.trim().split('\n').sort()).toEqual(['src/__baselines__/a.tsx/A-chromium.webp', 'src/__baselines__/a.tsx/B-chromium.png']);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('takes both spellings of an old partition, and no directory that only starts like one', async () => {
     const repo = await mkdtemp(join(tmpdir(), 'variance-carry-stage-'));
     const hex = 'd9e2d62e05a69046dc75e1a987837b31';
@@ -409,16 +475,5 @@ describe('the base a recording is restored from', () => {
     expect(await baseOf(root, { event: 'push' }, event)).toBe(one);
     await writeFile(event, JSON.stringify({ before: '0'.repeat(40) }));
     expect(await baseOf(root, { event: 'push' }, event)).toBe(one);
-  });
-});
-
-describe('the arguments', () => {
-  it('take the direction first, and refuse a third one', () => {
-    const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format']));
-
-    expect(parse('save', '--format', 'github')).toEqual({ command: 'carry', direction: 'save', format: 'github' });
-    expect(() => parse()).toThrow('`carry` needs a direction');
-    expect(() => parse('upload')).toThrow('`carry` restores or saves, not `upload`');
-    expect(() => parse('save', '--format', 'json')).toThrow('--format must be text or github');
   });
 });

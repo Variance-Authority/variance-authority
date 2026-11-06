@@ -6,6 +6,7 @@ import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError, type BaselineKey } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 import { parseBaselinePath } from './path-template.js';
+import { RED } from './image.fixture.js';
 
 /**
  * The path a committed baseline is reviewed by: what the subject is, read off
@@ -25,7 +26,7 @@ const MAC: RenderIdentity = {
 
 const WEBKIT: RenderIdentity = { ...MAC, renderer: 'playwright-webkit', engine: 'webkit@18.2' };
 
-function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
+function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = RED): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
 }
 
@@ -59,19 +60,19 @@ describe('the default path', () => {
   it('names the image after the subject`s title, name and engine', async () => {
     await createDurableStore(root).put(PRIMARY, rasterOf(MAC));
 
-    expect(await tree()).toEqual(['Components/Button/Primary-chromium.json', 'Components/Button/Primary-chromium.png']);
+    expect(await tree()).toEqual(['Components/Button/Primary-chromium.json', 'Components/Button/Primary-chromium.webp']);
   });
 
   it('reads the title off the id when the collector names none', async () => {
     await createDurableStore(root).put({ subject: 'checkout/cart/empty' }, rasterOf(MAC));
 
-    expect(await tree()).toEqual(['checkout/cart/empty-chromium.json', 'checkout/cart/empty-chromium.png']);
+    expect(await tree()).toEqual(['checkout/cart/empty-chromium.json', 'checkout/cart/empty-chromium.webp']);
   });
 
   it('keeps a label beside the name', async () => {
     await createDurableStore(root).put({ ...PRIMARY, label: 'hover' }, rasterOf(MAC));
 
-    expect(await tree()).toContain('Components/Button/Primary__hover-chromium.png');
+    expect(await tree()).toContain('Components/Button/Primary__hover-chromium.webp');
   });
 
   it('finds what it wrote, as this machine`s baseline', async () => {
@@ -92,16 +93,16 @@ describe('a template the operator writes', () => {
 
     expect(await tree()).toEqual([
       '__baselines__/Root.stories.tsx/Only-chromium.json',
-      '__baselines__/Root.stories.tsx/Only-chromium.png',
+      '__baselines__/Root.stories.tsx/Only-chromium.webp',
       'src/ui/__baselines__/Button.stories.tsx/Primary-chromium.json',
-      'src/ui/__baselines__/Button.stories.tsx/Primary-chromium.png',
+      'src/ui/__baselines__/Button.stories.tsx/Primary-chromium.webp',
     ]);
   });
 
   it('spells a whole id as one readable name', async () => {
     await createDurableStore(root, { path: '{id}' }).put({ subject: 'story:components-button--primary' }, rasterOf(MAC));
 
-    expect(await tree()).toEqual(['story-components-button--primary.json', 'story-components-button--primary.png']);
+    expect(await tree()).toEqual(['story-components-button--primary.json', 'story-components-button--primary.webp']);
   });
 
   it('refuses a {file} for a subject no file declares, naming the subject', async () => {
@@ -132,6 +133,7 @@ describe('a template the operator writes', () => {
     ['x{title}/{name}', /stands alone/],
     ['{title}/{engine}', /neither \{name\} nor \{id\}/],
     ['{name}.png', /extension/],
+    ['{name}.webp', /extension/],
     ['{name}/{title}', /ends in \{title\}/],
   ])('refuses %j', (template, why) => {
     expect(() => parseBaselinePath(template)).toThrow(why);
@@ -160,9 +162,9 @@ describe('a template the operator writes', () => {
 
     expect(await tree()).toEqual([
       'desktop/Components/Button/Primary-chromium.json',
-      'desktop/Components/Button/Primary-chromium.png',
+      'desktop/Components/Button/Primary-chromium.webp',
       'mobile/Components/Button/Primary-chromium.json',
-      'mobile/Components/Button/Primary-chromium.png',
+      'mobile/Components/Button/Primary-chromium.webp',
     ]);
   });
 
@@ -184,7 +186,7 @@ describe('two subjects on one path', () => {
     expect(refused).toBeInstanceOf(RasterStoreError);
     expect((refused as Error).message).toContain('"story:components-button--primary"');
     expect((refused as Error).message).toContain('"story:components-button--primary-2"');
-    expect(await tree()).toEqual(['Components/Button/Primary-chromium.json', 'Components/Button/Primary-chromium.png']);
+    expect(await tree()).toEqual(['Components/Button/Primary-chromium.json', 'Components/Button/Primary-chromium.webp']);
   });
 
   it('refuses them when the run declares them, before anything is read', () => {
@@ -261,7 +263,7 @@ describe('two subjects on one path', () => {
 
   it('still refuses another subject over a damaged pair whose record names the first', async () => {
     await createDurableStore(root).put(PRIMARY, rasterOf(MAC));
-    await rm(join(root, 'Components/Button/Primary-chromium.png'));
+    await rm(join(root, 'Components/Button/Primary-chromium.webp'));
 
     await expect(createDurableStore(root).put(twin, rasterOf(MAC))).rejects.toThrow(RasterStoreError);
   });
@@ -296,7 +298,7 @@ describe('the identity lives in the record', () => {
     await store.put(PRIMARY, rasterOf(MAC, 'v1:a'));
     await store.put(PRIMARY, rasterOf({ ...MAC, platform: 'linux/x64' }, 'v1:b'));
 
-    expect(await tree()).toEqual(['Components/Button/Primary-chromium.json', 'Components/Button/Primary-chromium.png']);
+    expect(await tree()).toEqual(['Components/Button/Primary-chromium.json', 'Components/Button/Primary-chromium.webp']);
     const found = await store.find(PRIMARY, MAC);
     expect(found?.comparable).toBe(false);
     expect(found?.storedUnder.platform).toBe('linux/x64');

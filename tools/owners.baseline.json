@@ -416,11 +416,6 @@
   },
   {
     "idiom": "atomic-write",
-    "at": "packages/sense/src/test-selection/jest-environment-entry.ts",
-    "count": 1
-  },
-  {
-    "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/jest-journey-artifact.ts",
     "count": 1
   },
@@ -626,6 +621,16 @@
   },
   {
     "idiom": "fresh-page",
+    "at": "cases/storybook-case/src/isolated.chromium.test.js",
+    "count": 4
+  },
+  {
+    "idiom": "timer",
+    "at": "cases/storybook-case/src/isolated.chromium.test.js",
+    "count": 1
+  },
+  {
+    "idiom": "fresh-page",
     "at": "cases/storybook-case/src/storybook.chromium.test.js",
     "count": 2
   },
@@ -663,6 +668,21 @@
     "idiom": "timer",
     "at": "packages/core/src/format/stabilize.test.ts",
     "count": 1
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/isolator/src/loader.chromium.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/isolator/src/loader.chromium.test.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/isolator/src/timers.test.ts",
+    "count": 2
   },
   {
     "idiom": "fresh-page",

@@ -94,7 +94,9 @@ export function formatCoveringChange(
     if (!file.recorded) {
       if (file.cases.length === 0) {
         lines.push(
-          '  no row — the recorded run never loaded this file, which is not the same as nobody covering it',
+          file.absentAt === undefined
+            ? '  no row — the recorded run never loaded this file, which is not the same as nobody covering it'
+            : `  no row — ${absentText(file.absentAt)}`,
         );
       }
       continue;
@@ -218,4 +220,10 @@ function carried(passengers: CoveringChange['regions'][number]['passengers']): s
 function describe(test: CoveringTest | ExecutionTest): string {
   // The id is the file and the name unless a project spelled it otherwise, so it is printed only then.
   return `${test.file} > ${test.name}${test.id === `${test.file} > ${test.name}` ? '' : ` [${test.id}]`}`;
+}
+
+/** Why a changed path has no row, when the commit the record was made at held no file by it, and what to ask instead. */
+export function absentText(commit: string): string {
+  return `${commit.slice(0, 12)}, the commit the record was made at, held no file by this name. ` +
+    'A file added or renamed since is new to the record: ask `variance covering --file` with the name that commit held, or record this commit';
 }

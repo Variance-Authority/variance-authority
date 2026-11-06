@@ -30,14 +30,16 @@ export type { SearchGeneration };
 
 // The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 4;
+const VERSION = 5;
 const NONE = 0xffffffff;
 
 /**
  * The tokenizer MiniSearch applies by default, which the loose pass was built
- * with, and the backtick, a symbol that delimits a code span and is never a word's.
+ * with, the backtick, a symbol that delimits a code span and is never a word's,
+ * and a math symbol (`Sm`), which a type writes between names: `Promise<Node>`,
+ * `A | B`, `=>`.
  */
-export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}`]+/u;
+export const SPACE_OR_PUNCTUATION = /[\n\r\p{Z}\p{P}\p{Sm}`]+/u;
 
 /** A query's terms: the tokens it was typed in, short ones dropped, the rest lowercased. */
 export function tokensOf(text: string): readonly string[] {
@@ -57,6 +59,7 @@ const SECTIONS = [
   'pub.docLowerOff', 'pub.docLower',
   'exp.name', 'exp.at', 'exp.by', 'exp.line', 'exp.kind', 'exp.doc', 'exp.docLowerOff', 'exp.docLower',
   'terms.off', 'terms.blob', 'terms.nameOff', 'terms.name', 'terms.pubOff', 'terms.pub', 'terms.expOff', 'terms.exp',
+  'terms.pubSigOff', 'terms.pubSig', 'terms.expSigOff', 'terms.expSig',
 ] as const;
 type SectionName = (typeof SECTIONS)[number];
 
@@ -65,12 +68,13 @@ type SectionName = (typeof SECTIONS)[number];
  * `everyEntry` yields them.
  */
 export function publishedRows(help: Help): PublishedRows {
-  const rows: PublishedRows = { name: [], spec: [], kind: [], doc: [], at: [], usedBy: [], uses: [], siteCounts: [], sites: [] };
+  const rows: PublishedRows = { name: [], spec: [], kind: [], doc: [], signature: [], at: [], usedBy: [], uses: [], siteCounts: [], sites: [] };
   for (const [owner, held, entry] of everyEntry(help)) {
     rows.name.push(entry.name);
     rows.spec.push(specifierOf(owner, held));
     rows.kind.push(entry.kind);
     rows.doc.push(entry.doc ?? null);
+    rows.signature.push(entry.signature ?? null);
     rows.at.push(entry.at);
     rows.usedBy.push(entry.usedBy.length);
     rows.uses.push(entry.uses);
@@ -170,6 +174,10 @@ export interface SearchIndex {
   termPublished(term: number): Uint32Array;
   /** The exported rows whose doc holds the term. */
   termExported(term: number): Uint32Array;
+  /** The published rows whose signature holds the term: what the declaration writes before its body. */
+  termPublishedSignature(term: number): Uint32Array;
+  /** The exported rows whose signature holds the term. */
+  termExportedSignature(term: number): Uint32Array;
 }
 
 /** Open one encoded index. Throws on anything that is not this format and version. */
@@ -230,6 +238,10 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const termPub = u32('terms.pub');
   const termExpOff = u32('terms.expOff');
   const termExp = u32('terms.exp');
+  const termPubSigOff = u32('terms.pubSigOff');
+  const termPubSig = u32('terms.pubSig');
+  const termExpSigOff = u32('terms.expSigOff');
+  const termExpSig = u32('terms.expSig');
 
   const name = (id: number): string => string(nameString[id] ?? NONE);
   const pubDoc = (row: number): string => {
@@ -321,6 +333,8 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     termNames: (term) => slice(termNameOff, termName, term),
     termPublished: (term) => slice(termPubOff, termPub, term),
     termExported: (term) => slice(termExpOff, termExp, term),
+    termPublishedSignature: (term) => slice(termPubSigOff, termPubSig, term),
+    termExportedSignature: (term) => slice(termExpSigOff, termExpSig, term),
   };
 }
 

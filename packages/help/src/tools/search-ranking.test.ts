@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -68,6 +68,8 @@ const KEPT = [
 let index: SearchIndex;
 let root: string;
 
+afterAll(() => vi.unstubAllEnvs());
+
 beforeAll(async () => {
   root = await inventedWorkspace([], [], {
     'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'] }),
@@ -131,7 +133,8 @@ describe('the names a question puts first', () => {
   });
 
   it('puts a name holding a word of the question before a doc holding them all and no name', () => {
-    const order = describedFirst('region placement');
+    // No doc writes the words in this order, so none answers as a phrase.
+    const order = describedFirst('placement region');
     expect(order.slice(0, 3)).toEqual(['region', 'Placed', 'written']);
     expect(order.indexOf('regionCount')).toBeGreaterThan(order.indexOf('written'));
   });

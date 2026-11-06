@@ -70,12 +70,12 @@ jobs:
       # common ancestor once a branch has merged its base in. A diff fetches
       # the trees and blobs it reads, so the history costs megabytes where
       # `fetch-depth: 0` alone costs the repository.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
 
-      # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
+      # 24, and only 24.
       #
       # This was a `['22', '24']` matrix, added because a pin at 22 had hidden a
       # bug the image found: a remote call built its `AbortSignal` from whatever
@@ -91,8 +91,9 @@ jobs:
       # So the floor is now a claim and not a check: `sense` and its dependents
       # say `>=22.15` because that is where `zlib.zstdCompressSync` arrived, and
       # nothing here proves a 22.15 install works. Stating that is the point of
-      # this comment. What is tested is 24, and 24 is what the image ships.
-      - uses: actions/setup-node@v4
+      # this comment. What is tested is 24, which this step also holds in the
+      # container jobs, where the image's own Node is 26.
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -199,7 +200,7 @@ jobs:
 
       - name: keep the failed walks
         if: ${{ !cancelled() && steps.carry-contract.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: carry-contract-walks
           path: ${{ runner.temp }}/carry-contract
@@ -267,10 +268,10 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -308,7 +309,6 @@ jobs:
       legs: ${{ steps.count.outputs.legs }}
       native-key: ${{ steps.scanner.outputs.native-key || steps.initial.outputs.native-key }}
       toolchain: ${{ steps.scanner.outputs.toolchain || steps.initial.outputs.toolchain }}
-      handed: ${{ steps.hand.outputs.artifact-id != '' }}
       carried: ${{ steps.carry.outputs.artifact-id != '' }}
       # The commit every job of a pull request's run merges its head with: the
       # one the mainline's records were made at, when the head merged with it,
@@ -319,14 +319,14 @@ jobs:
     steps:
       # Every commit, because the read says how far behind HEAD the record was
       # published. No trees, for the reason written at the checkout in `rules`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -337,22 +337,20 @@ jobs:
       - uses: ./.github/actions/build
         id: initial
 
-      # `mainlineBase` keeps what it reads under the cache's read root, one
-      # directory per suite, and that root is what the jobs below are handed:
-      # a pointer to the commit it read, or the line's answer that it gave no
-      # record. A miss is the run's answer as much as a record is; a job that
-      # asked again could read a record published since. Only a suite the line
-      # was not asked about, because this environment names no mainline or
-      # lacks the share's credential, leaves nothing, and a job asking finds
-      # the same.
+      # What the line answers, read once and written where the jobs below are
+      # handed it: the record, or the line's answer that it gave none. A miss is
+      # the run's answer as much as a record is; a job that asked again could
+      # read a record published since. Whatever stopped the read is handed too,
+      # a missing credential included; only a suite not given to the share is
+      # left out.
       #
       # The read also names the commit the records were made at, which a pull
       # request's head is merged with below: one commit, or none when the suites'
-      # records were made at different commits. `tools/read-mainline.mjs`.
+      # records were made at different commits.
       - name: read the mainline once
         id: read
         shell: bash
-        run: node tools/read-mainline.mjs
+        run: node packages/cli/dist/bin.js carry hand "$RUNNER_TEMP/base" --format github >> "$GITHUB_OUTPUT"
 
       # Tried here once for the run, and its answer handed on: a head that
       # conflicts with the record's commit stays merged with the base tip in
@@ -365,42 +363,15 @@ jobs:
           head: ${{ github.event.pull_request.head.sha }}
           on-conflict: stay
 
-      # The pointers handed on are asked at the merge base the other jobs will
-      # stand on: the merged checkout's, past the record's commit when the head
-      # already held it. Behind it, the read just made reads the same record
-      # without asking the line. Past it, the line can answer with a record
-      # nearer the merge base, which the jobs read while standing on the merge
-      # made with the first: a wider run, not a narrower one, and said here.
-      - name: read the mainline at the merge
-        id: reread
-        if: steps.merge.outputs.merged == 'true'
-        shell: bash
-        env:
-          MERGED_WITH: ${{ steps.read.outputs.commit }}
-        run: |
-          node tools/read-mainline.mjs
-          read=$(sed -n 's/^commit=//p' "$GITHUB_OUTPUT" | tail -n 1)
-          if [ "$read" != "$MERGED_WITH" ]; then
-            echo "::notice::The head is merged with $MERGED_WITH, and the mainline read at that merge answered ${read:-no single commit}: the run measures the commits between them as well."
-          fi
-
-      - name: freeze the read
-        shell: bash
-        env:
-          READ: ${{ steps.read.outputs.dir }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/base"
-          if [ -d "$READ" ]; then cp -R "$READ/." "$RUNNER_TEMP/base/"; fi
-
       - name: hand the read on
         id: hand
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
           include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 1
+          if-no-files-found: error
+          retention-days: 30
 
       # What this pull request's last push ran, as its `record` job left it in
       # the Actions cache. A second push then runs what changed since the first
@@ -414,42 +385,54 @@ jobs:
       # days is evicted, and the push after that reads `main`'s record, as a
       # first push does: a pull request lives hours or days, not months.
       #
+      # The keys are `variance carry`'s, as a user's workflow reads them.
       # Read after the mainline, which an own layer would answer in its place.
+      - name: what to carry
+        id: plan
+        shell: bash
+        run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
+
       - name: what the last push ran
-        if: github.event_name == 'pull_request'
-        uses: actions/cache/restore@v4
+        if: steps.plan.outputs.pushed-key != ''
+        uses: actions/cache/restore@v6
         with:
-          path: .variance-carry
-          key: variance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: variance-pr-${{ github.event.pull_request.number }}-
+          path: ${{ steps.plan.outputs.pushed-path }}
+          key: ${{ steps.plan.outputs.pushed-key }}
+          restore-keys: ${{ steps.plan.outputs.pushed-restore-keys }}
 
       # The record names the commits its tests last ran at, the merge commits
-      # of earlier pushes, which no ref holds: `tools/take-carried.mjs` reads
-      # a merge with the record's commit from the bundle the `record` job left
-      # beside the records, and fetches GitHub's own merge by name. A suite
-      # whose commits cannot be had is not handed on, and reads `main`'s
-      # record; checked once here, so every job reads the same. The bundle is
-      # a file, not a suite's directory, and travels with the records.
+      # of earlier pushes, which no ref holds. This workflow merges with the
+      # record's commit itself, so those merges are on no remote: the `record`
+      # job bundles them beside the records (`tools/bundle-carried.mjs`), and
+      # every job that takes them fetches the bundle before `carry take` fetches
+      # the rest by name. A suite whose commits cannot be had is not handed on, and
+      # reads `main`'s record; checked once here, so every job reads the same.
+      # The bundle is a file, not a suite's directory, and travels with them.
       - name: check what the last push ran
-        if: github.event_name == 'pull_request'
+        id: taken
+        if: steps.plan.outputs.pushed-key != ''
         shell: bash
+        env:
+          PUSHED: ${{ steps.plan.outputs.pushed-path }}
         run: |
-          taken=$(node tools/take-carried.mjs .variance-carry false)
-          for dir in .variance-carry/*/; do
+          node tools/bundle-carried.mjs fetch "$PUSHED"
+          node packages/cli/dist/bin.js carry take --format github >> "$GITHUB_OUTPUT"
+          taken=$(sed -n 's/^taken=//p' "$GITHUB_OUTPUT" | tail -n 1)
+          for dir in "$PUSHED"/*/; do
             [ -d "$dir" ] || continue
             case " $taken " in *" $(basename "$dir") "*) ;; *) rm -rf "$dir" ;; esac
           done
 
       - name: hand the last push on
         id: carry
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        if: steps.taken.outputs.taken != ''
+        uses: actions/upload-artifact@v7
         with:
           name: variance-carried
-          path: .variance-carry
+          path: ${{ steps.plan.outputs.pushed-path }}
           include-hidden-files: true
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 30
 
       - name: reconcile the merged install
         if: steps.merge.outputs.merged == 'true'
@@ -461,31 +444,26 @@ jobs:
         if: steps.merge.outputs.merged == 'true'
 
       - name: hand the native scanner on
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-native
           path: |
             packages/sense/npm/*/scan.node
             packages/sense/npm/*/scan.node.tree
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
       # Keep the same carried/mainline record the suite jobs will read. Prices
       # and collection are read after the merge, on the suite jobs' own tree.
       - name: keep the planning records
         shell: bash
-        env:
-          HANDED: ${{ steps.hand.outputs.artifact-id != '' }}
-        run: |
-          node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
-          node tools/keep-base.mjs
+        run: node tools/keep-base.mjs
 
       - name: plan suite jobs
         id: count
         shell: bash
         env:
           BASELINE_READ: ${{ runner.temp }}/base
-          BASELINE_HANDED: ${{ steps.hand.outputs.artifact-id != '' }}
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           SETUP: '100'
@@ -517,7 +495,7 @@ jobs:
         include: ${{ fromJSON(needs.base.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       # Chromium's renderers need more shared memory than a container's default.
       options: --ipc=host
 
@@ -532,13 +510,13 @@ jobs:
       # Every commit, because the reading diffs each test from the commit it
       # last ran at, which can be any number of commits back. No trees, for the
       # reason written at the checkout in `rules`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -571,28 +549,32 @@ jobs:
       - uses: ./.github/actions/ripgrep
         if: matrix.suite == 'unit'
 
-      # The mainline's records as `base` read them, downloaded only when it
-      # uploaded some. A download that fails then fails the job: going on
-      # would ask the line on its own, the read `base` is there to replace.
-      - uses: actions/download-artifact@v4
-        if: needs.base.outputs.handed == 'true'
+      # The subjects the cases' chromium files observe. Without them every case
+      # in those files fails on CI, and before it did they skipped: every
+      # shard went green, and `publish` refused the record, since a file whose
+      # cases all skipped never ran at this commit.
+      - uses: ./.github/actions/case-subjects
+        if: matrix.suite == 'chromium'
+
+      # The mainline's records as `base` read them. A download that fails
+      # fails the job: going on would ask the line on its own, the read `base`
+      # is there to replace.
+      - uses: actions/download-artifact@v8
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
 
-      # Lays each suite's read, a record or a miss, as read now. Told an
-      # artifact was uploaded and finding none, it stops the job.
+      # Lays each suite's read, a record or a miss, as read now. Finding
+      # none of what `base` wrote, it stops the job.
       - name: take the base
         shell: bash
-        env:
-          HANDED: ${{ needs.base.outputs.handed }}
-        run: node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+        run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
       # What this pull request's last push ran, as `base` checked it, laid as
       # this checkout's own layer. The step below then keeps it rather than lay
       # the mainline's, and the selection diffs each test from the commit it
       # last ran at. A suite `base` handed on and this job cannot take stops it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
         with:
           name: variance-carried
@@ -601,7 +583,13 @@ jobs:
       - name: take what the last push ran
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        run: node tools/take-carried.mjs "$RUNNER_TEMP/carried" true
+        run: |
+          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
+          left=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github | sed -n 's/^left=//p')
+          if [ -n "$left" ]; then
+            echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
+            exit 1
+          fi
 
       # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
@@ -661,7 +649,6 @@ jobs:
           SELECT: ${{ matrix.mode == 'selected' && steps.base.outputs.based == 'true' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
-          HANDED: ${{ needs.base.outputs.handed }}
         run: |
           if [ "$SELECT" = true ]; then
             echo "into=slice" >> "$GITHUB_OUTPUT"
@@ -670,7 +657,7 @@ jobs:
             VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
           elif [ -n "$SHARD" ]; then
             echo "into=shard" >> "$GITHUB_OUTPUT"
-            VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+            VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
             VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" yarn "test:$SUITE" --shard "$SHARD"
           else
             echo "into=slice" >> "$GITHUB_OUTPUT"
@@ -683,22 +670,22 @@ jobs:
       # reads why. A shard job that stopped before the test uploads nothing.
       - name: hand the shard on
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'shard' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
           path: ${{ runner.temp }}/shard-record
           include-hidden-files: true
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 30
 
       - name: hand the slice on
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'slice' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-slice-${{ matrix.suite }}
           path: ${{ steps.base.outputs.record }}
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 30
 
   record:
     # The suite's record of this change, made whole again from the jobs that
@@ -724,7 +711,7 @@ jobs:
       # so the token is not left in the clone beside the install scripts and
       # the build; the comment step hands its own token to the script that
       # posts.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
@@ -740,7 +727,7 @@ jobs:
           expect: ${{ needs.base.outputs.checkout }}
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -769,31 +756,28 @@ jobs:
         run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
 
       # Each artifact in a directory named after it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: variance-s*-*
           path: ${{ runner.temp }}/ran
 
-      # The mainline's records as `base` read them, for the reason and on the
-      # condition written at the same steps in `suite`.
-      - uses: actions/download-artifact@v4
-        if: needs.base.outputs.handed == 'true'
+      # The mainline's records as `base` read them, for the reason written at
+      # the same steps in `suite`.
+      - uses: actions/download-artifact@v8
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
 
       - name: take the base
         shell: bash
-        env:
-          HANDED: ${{ needs.base.outputs.handed }}
-        run: node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+        run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
       # What the last push ran, taken as the suite jobs took it, so the slices
       # fold over the record they ran from. The review still compares with
       # `main`: the cases the fold replaces are the last push's, so the
-      # mainline's cases are named to it, read before the own layer answers in
-      # their place.
-      - uses: actions/download-artifact@v4
+      # mainline's cases `take` names, the record it set aside or the share's,
+      # are passed to it.
+      - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
         with:
           name: variance-carried
@@ -804,21 +788,14 @@ jobs:
         if: needs.base.outputs.carried == 'true'
         shell: bash
         run: |
-          cases=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
-            process.stdout.write(base.from === 'mainline' ? base.mainline.cases ?? '' : '');
-          ")
-          taken=$(node tools/take-carried.mjs "$RUNNER_TEMP/carried" true)
-          case " $taken " in
-            *" unit "*)
-              if [ -n "$cases" ]; then
-                echo "against=$cases" >> "$GITHUB_OUTPUT"
-              else
-                echo "::notice::The mainline published no unit cases that read, so the review compares the cases with the last push's."
-              fi
-              ;;
-          esac
+          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
+          moved=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github)
+          left=$(printf '%s\n' "$moved" | sed -n 's/^left=//p')
+          if [ -n "$left" ]; then
+            echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
+            exit 1
+          fi
+          printf '%s\n' "$moved" | sed -n 's/^against-unit=/against=/p' >> "$GITHUB_OUTPUT"
 
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. The mainline's record is laid first, the one the suite
@@ -907,7 +884,7 @@ jobs:
 
       - name: keep the review
         if: ${{ !cancelled() && steps.review.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-review
           path: ${{ steps.carry.outputs.review }}
@@ -935,21 +912,27 @@ jobs:
       # A checkout merged with the record's commit is a commit no remote
       # holds, so it is bundled beside the records, with every commit it
       # needs that `main` does not have.
+      - name: what this push keeps
+        id: save
+        if: ${{ !cancelled() && steps.records.outputs.dir != '' }}
+        shell: bash
+        run: node packages/cli/dist/bin.js carry save --format github >> "$GITHUB_OUTPUT"
+
       - name: keep what this push ran
         id: stage
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
+        if: ${{ !cancelled() && steps.save.outputs.pushed-key != '' }}
         shell: bash
         env:
-          RECORDS: ${{ steps.records.outputs.dir }}
+          PUSHED: ${{ steps.save.outputs.pushed-path }}
         run: |
-          rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
-          node tools/bundle-carried.mjs .variance-carry refs/remotes/origin/main
+          node packages/cli/dist/bin.js carry keep "$PUSHED"
+          node tools/bundle-carried.mjs bundle "$PUSHED" refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
-          path: .variance-carry
-          key: variance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.save.outputs.pushed-path }}
+          key: ${{ steps.save.outputs.pushed-key }}
 
       # Only a push to `main` hands its records on, to the `publish` job, which
       # is the one job holding a token that can write to the repository. A red
@@ -958,7 +941,7 @@ jobs:
       - name: hand the records to publish
         id: hand
         if: ${{ !cancelled() && github.event_name == 'push' && steps.records.outputs.dir != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-records
           path: ${{ steps.records.outputs.dir }}
@@ -990,12 +973,12 @@ jobs:
       # the build would run beside it; the publish step hands it to git itself.
       # The trees come with the commits for the same reason: a clone that
       # fetches a tree when it reads one needs a credential to fetch it with.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1021,7 +1004,7 @@ jobs:
             process.stdout.write('dir=' + dirname(dirname(testCoverageFile(process.cwd(), { suite: process.env.SUITE }))) + '\\n');
           " >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: variance-records
           path: ${{ steps.records.outputs.dir }}
@@ -1090,9 +1073,9 @@ jobs:
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
     # real Rstest, and every file in it that needs a Chromium or a built subject
-    # announces a skip when it has neither. The `suite` job has the browser but
-    # builds no subject, so the cases that observe a built one skip there and
-    # run here.
+    # announces a skip when it has neither, and fails instead on CI. This job and
+    # every chromium leg of `suite` and `queue` build the subjects through
+    # `./.github/actions/case-subjects`.
     #
     # The pinned Playwright image is the one `variance.yml` observes in, for the
     # same reason: the browser and its fonts are part of what these cases assert.
@@ -1112,7 +1095,7 @@ jobs:
     needs: rules
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       # See `variance.yml`: Chromium's renderers need more shared memory than a
       # container's default.
       options: --ipc=host
@@ -1129,9 +1112,9 @@ jobs:
         shell: bash
         run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1158,25 +1141,45 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # The subjects the cases observe, built the way each case's README says.
-      # `storybook-static/` and the others are ignored, so nothing here can be
-      # stale against a committed copy.
-      - name: build the Storybooks
-        shell: bash
-        run: |
-          yarn workspace @variance-authority/case-storybook build-storybook
-          yarn workspace @variance-authority/case-storybook build-storybook:changed
-          yarn workspace @variance-authority/case-storybook build-storybook:a11y
-
-      - name: record the incumbent
-        shell: bash
-        run: yarn workspace @variance-authority/case-incumbent incumbent
+      # The subjects the cases observe, for the reason written in the action.
+      - uses: ./.github/actions/case-subjects
 
       # The cases' own unit tests, then the ones that launch a browser, each
       # under its slice's config (`vitest.config.mts` says why they are apart).
       - name: run the cases
         shell: bash
         run: yarn test:unit cases && yarn test:chromium cases
+
+  shared:
+    # The unit slice with each worker keeping its modules across files and the
+    # isolator giving every test the values they loaded with: `yarn test:shared`,
+    # the isolator README's Vitest config run over this repository. It reports
+    # separately from the required `check`: a red result is a finding about the
+    # isolator or a file that leaves state in the process, read against the same
+    # file under `suite`, and it waits for `rules` as `cases` does.
+    needs: rules
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # The unit slice holds `docs_grep`'s tests, as at the same step in `suite`.
+      - uses: ./.github/actions/ripgrep
+
+      - name: run the unit slice on shared modules
+        shell: bash
+        run: yarn test:shared
 
   # How many shards each slice's near wave is worth in this group, counted by
   # `variance shards` from the times the mainline record holds and what the
@@ -1191,26 +1194,25 @@ jobs:
     if: github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     outputs:
       legs: ${{ steps.count.outputs.legs }}
       native-key: ${{ steps.build.outputs.native-key }}
       toolchain: ${{ steps.build.outputs.toolchain }}
-      handed: ${{ steps.hand.outputs.artifact-id != '' }}
 
     steps:
       - name: version control and compiler
         shell: bash
         run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates jq
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1233,18 +1235,19 @@ jobs:
         id: read
         shell: bash
         run: |
+          node packages/cli/dist/bin.js carry hand "$RUNNER_TEMP/base"
           node tools/keep-base.mjs
-          echo "dir=$(node --input-type=module -e "const { cacheRootFor } = await import('@variance-authority/sense/test-selection'); process.stdout.write(cacheRootFor(process.cwd()) + '/share/read')")" >> "$GITHUB_OUTPUT"
+          echo "dir=$RUNNER_TEMP/base" >> "$GITHUB_OUTPUT"
 
       - name: hand the read on
         id: hand
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-base
           path: ${{ steps.read.outputs.dir }}
           include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 1
+          if-no-files-found: error
+          retention-days: 30
 
       # Each slice's files listed under its own config, so a test file the
       # group adds is counted. Workers are the slice's from `vitest.config.mts`,
@@ -1261,14 +1264,14 @@ jobs:
         run: node tools/plan-suites.mjs
 
       - name: hand the native scanner on
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-native
           path: |
             packages/sense/npm/*/scan.node
             packages/sense/npm/*/scan.node.tree
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
   queue:
     # A merge group's gate, and the only harness a group runs: lint and the
@@ -1301,7 +1304,7 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
@@ -1311,14 +1314,14 @@ jobs:
         run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       # Every commit, for the reason written at the checkout in `suite`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1340,6 +1343,10 @@ jobs:
       - uses: ./.github/actions/ripgrep
         if: matrix.part == 'unit'
 
+      # The chromium part only, for the reason written at the same step in `suite`.
+      - uses: ./.github/actions/case-subjects
+        if: matrix.part == 'chromium'
+
       - name: lint
         if: matrix.part == 'rules'
         shell: bash
@@ -1357,8 +1364,8 @@ jobs:
 
       # The mainline's records as `plan` read them and counted from, for the
       # reasons written at the same steps in `suite`.
-      - uses: actions/download-artifact@v4
-        if: matrix.part != 'rules' && needs.plan.outputs.handed == 'true'
+      - uses: actions/download-artifact@v8
+        if: matrix.part != 'rules'
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -1366,9 +1373,7 @@ jobs:
       - name: take the base
         if: matrix.part != 'rules'
         shell: bash
-        env:
-          HANDED: ${{ needs.plan.outputs.handed }}
-        run: node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+        run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
       # The slice's mainline record, laid as `suite` lays it.
       - name: keep the base record
@@ -1399,7 +1404,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: tools/idea.mjs
           sparse-checkout-cone-mode: false
@@ -1452,7 +1457,7 @@ jobs:
       - name: get timing reporter
         continue-on-error: true
         if: ${{ !cancelled() }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           sparse-checkout: |
             tools/ci-timing.mjs

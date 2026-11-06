@@ -3,7 +3,8 @@
 //! and its case parts as bytes. Nothing is turned into objects; a string is a
 //! slice of the record's own dictionary.
 //!
-//! The layouts read are the current one, the ones before `tests.phases` and
+//! The layouts read are the current one, the one before `modules.blob`, which
+//! reads as a record that named no text by its git blob, the ones before `tests.phases` and
 //! before the case parts, which read as a run whose runner reported no phases,
 //! and the one before `tests.duration`, which the JVM agent writes and which
 //! reads as a run whose runner reported no durations. Every shard of a combine was written by one build, so a record
@@ -34,6 +35,9 @@ pub(crate) struct Coverage {
     pub precondition_digest: Vec<u32>,
     pub module_path: Vec<u32>,
     pub module_source: Vec<u32>,
+    /// The git blob name of each module's text, `coverage.no_blob` where the
+    /// row has none; `None` for a layout before `modules.blob`.
+    pub module_blob: Option<Vec<u32>>,
     pub module_instrumented: Vec<u8>,
     pub module_blocks: Vec<u32>,
     pub block_ordinal: Vec<u32>,
@@ -97,7 +101,7 @@ fn readable(version: u8) -> Result<(), String> {
     if layout.readable(version) {
         return Ok(());
     }
-    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.format))
+    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.unkeyed, layout.format))
 }
 
 /// The test files a record's coverage holds, read off its header alone: the
@@ -122,7 +126,8 @@ pub(crate) struct Head {
 fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
     let decoded = &mut decoded;
     let timed = version != LAYOUT.coverage.untimed;
-    let phased = version == LAYOUT.coverage.format;
+    let keyed = version == LAYOUT.coverage.format;
+    let phased = keyed || version == LAYOUT.coverage.unkeyed;
     let one = |name: &str, values: Vec<u32>, empty: bool| -> Result<Option<u32>, String> {
         match values.as_slice() {
             [value] => Ok(Some(*value)),
@@ -144,6 +149,7 @@ fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
         precondition_digest: decoded.take_words("preconditions.digest")?,
         module_path: decoded.take_words("modules.path")?,
         module_source: decoded.take_words("modules.source")?,
+        module_blob: if keyed { Some(decoded.take_words(&LAYOUT.coverage.blob)?) } else { None },
         module_instrumented: decoded.take_bytes("modules.instrumented")?,
         module_blocks: decoded.take_words("modules.blocks")?,
         block_ordinal: decoded.take_words("blocks.ordinal")?,
@@ -256,6 +262,19 @@ impl Coverage {
         held
     }
 
+    /// The git blob name id of module `module`'s text, `coverage.no_blob` where none was recorded.
+    pub fn blob(&self, module: usize) -> u32 {
+        self.module_blob.as_ref().map_or(LAYOUT.coverage.no_blob, |blob| blob[module])
+    }
+
+    /// The git blob name of module `module`'s text as `rank` numbers its strings, or `no_blob`.
+    pub fn blob_in(&self, module: usize, rank: impl FnOnce(u32) -> u32) -> u32 {
+        match self.blob(module) {
+            blob if blob == LAYOUT.coverage.no_blob => blob,
+            blob => rank(blob),
+        }
+    }
+
     /// The preconditions of test `test`, as a range of precondition rows.
     pub fn preconditions(&self, test: usize) -> std::ops::Range<usize> {
         self.test_preconditions[test] as usize..self.test_preconditions[test + 1] as usize
@@ -283,6 +302,12 @@ impl Coverage {
         bounds("tests.preconditions", &self.test_preconditions, preconditions)?;
         rows("preconditions.digest", self.precondition_digest.len(), preconditions)?;
         rows("modules.source", self.module_source.len(), modules)?;
+        if let Some(blob) = &self.module_blob {
+            rows(&LAYOUT.coverage.blob, blob.len(), modules)?;
+            if blob.iter().any(|id| *id != LAYOUT.coverage.no_blob && *id as usize >= strings) {
+                return Err(format!("record section {} names a string past the dictionary", LAYOUT.coverage.blob));
+            }
+        }
         rows("modules.instrumented", self.module_instrumented.len(), modules)?;
         rows("modules.blocks", self.module_blocks.len(), modules + 1)?;
         bounds("modules.blocks", &self.module_blocks, blocks)?;

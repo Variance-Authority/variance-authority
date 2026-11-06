@@ -19,7 +19,7 @@
  * it replaced.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import {
   changedLines,
@@ -28,7 +28,6 @@ import {
   whatLanded,
   type CasePrecondition,
   type CommitRuns,
-  type ExecutionIndex,
   type FileReading,
   type LineRange,
   type Misuse,
@@ -36,22 +35,25 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { landingRecord, recordedSuite } from './suite-record.js';
+import { ownRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
-import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
+import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { readReviewDrift, type ReviewDrift } from './review-drift.js';
 import { reviewedCommit } from './review-head.js';
+import { baseIndex, casesMoved } from './review-base-cases.js';
 import { everySuiteRegions } from './review-suites.js';
+import { rowBlobs } from './record-rows-text.js';
 import { ranAsTree, recordedRegions, removedText } from './review-region.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { changedPackagesOf } from './review-changed-packages.js';
 import { diffPoint, diffSince } from './since.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
-import { sourceGraphFor } from './source-graph.js';
+import { indexUpToCheckout, sourceGraphFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
 /**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about
@@ -194,7 +196,8 @@ export interface Review {
   /**
    * Whether the record holds this change. `ran` when every changed module it
    * recorded ran as the tree holds it now, so it says what the change did;
-   * `before` when one ran as other text, so it names the cases that stood on
+   * `before` when one ran as other text, or as a text not known
+   * ({@link Review.notUpdated}), so it names the cases that stood on
    * the changed lines — the ones the change might move — and code written
    * since has no row yet.
    */
@@ -235,6 +238,10 @@ export interface Review {
   readonly probes?: string;
   /** Why no case is said to have moved, when the runs record could not be read and `--since` named the base. */
   readonly runsUnread?: string;
+  /** Why which text the record ran over is not known, when the source index could not be brought up to the checkout to name the tree's. */
+  readonly notUpdated?: string;
+  /** Where the run's loads drifted from the walk against the mainline's, or why that was not checked (spec 0105). */
+  readonly drift?: ReviewDrift;
 }
 
 /** The runs at this commit as a review reports them: where and when they ran, how many, and what their landings say together. */
@@ -247,7 +254,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const recorded = await recordedSuite(root, request.suite);
   // The runs are always this checkout's own: a base it did not record, the mainline's or the
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
-  const own = await landingRecord(root, request.suite);
+  const own = await ownRecord(root, request.suite);
   // A runs record that cannot be read says neither where the change starts nor
   // which test files the runs wrote. A named base answers the first; the second
   // stays open, so no case is said to have moved, and the answer says why.
@@ -278,9 +285,9 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       { kind: 'unrecorded' },
     );
   }
-  const point = await diffPoint(ref);
-  const forward = point === undefined ? undefined : await diffSince(ref, [], point.base);
-  const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { reverse: true });
+  const point = await diffPoint(ref, [], root);
+  const forward = point === undefined ? undefined : await diffSince(ref, [], point.base, { cwd: root });
+  const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { cwd: root, reverse: true });
   if (point === undefined || forward === undefined || backward === undefined) {
     const whose = mainline === undefined ? '' : `, where mainline ${mainline.mainline} published its record of "${mainline.suite}",`;
     throw new OperatorError(
@@ -296,9 +303,13 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // later cases, and comparing with them would report its changes as this one's.
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
-  const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
-  const { relations, sources } = await sourceGraphFor(root, ['.'], [], []);
-
+  const named = (file: string): string => relative(point.repository, resolve(realpathSync(root), file));
+  // Which text each changed file holds now is the index's name for it, so the index is brought up to the checkout first.
+  const notUpdated = await indexUpToCheckout(root);
+  // One it could not names the tree as the last update found it, so it names no text the record could have run as the tree.
+  const graph = await sourceGraphFor(root, ['.']);
+  const { relations, sources } = graph;
+  const names = notUpdated === undefined ? graph.names : new Map<string, string>();
   const changed = changedLines(forward);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {
     root,
@@ -312,7 +323,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const { index: changedCases } = await readExecutionFor(from, now);
   const suiteRegions = await recordedRegions(from, changedCases, now, relations, root, removed);
   const covered = request.coverage === true
-    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from, index: changedCases }, suiteRegions, now, relations, removed)
+    ? await everySuiteRegions(root, { ...(recorded.declared === undefined ? {} : { suite: recorded.declared.name }), record: from, index: changedCases }, suiteRegions, now, relations, removed, names)
     : suiteRegions;
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
@@ -345,10 +356,10 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     return reach.missing.length === seeds.length ? undefined : reach.files;
   });
   const suite = heldAsPrecondition(recorded.file, [...changed.keys()].map(named));
-  const beyond = await installDiff(point, [...changed.keys()]);
+  const beyond = await installDiff(point, [...changed.keys()], root);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = !moves ? undefined : against !== undefined
-    ? await motionAgainst(from, against, ref, root)
+    ? await motionAgainst(from, against, { since: ref, mergeBase: point.base }, root)
     : wrote === undefined || unread !== undefined
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
@@ -356,9 +367,15 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
   const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
   // A change with no recorded module ran nothing yet.
-  const record = measured.length > 0 && (await ranAsTree(recorded.file, root, measured, changedCases)).size === measured.length ? 'ran' : 'before';
-  const head = await reviewedCommit(point.repository);
+  const record = measured.length > 0 && ranAsTree(recorded.file, measured, changedCases, names).size === measured.length ? 'ran' : 'before';
+  const head = await reviewedCommit(point.repository, root);
   const gap = await probesGap(from, root, request.suite);
+  // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
+  const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
+    root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources, installed: beyond,
+    commit: head?.commit, rowBlobs: (files) => rowBlobs(recorded.file, files), blobOf: (file) => names.get(file),
+    mainline: shared ?? (await mainlineBase(root, recorded.declared)),
+  });
   return {
     ...(head === undefined ? {} : { head }),
     from: point.base,
@@ -377,12 +394,19 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     ...(motion === undefined ? {} : { motion }),
     ...(gap === undefined ? {} : { probes: probesNote(gap) }),
     ...(unread === undefined ? {} : { runsUnread: runsUnreadNote(unread, against !== undefined) }),
+    ...(notUpdated === undefined ? {} : { notUpdated: notUpdatedNote(notUpdated) }),
+    drift,
   };
 }
 
 /** `runs` as a review reports it: no `standing`, and its landings as what they say together. */
 function reviewRuns({ standing: _standing, landings, ...runs }: CommitRuns): ReviewRuns {
   return { ...runs, ...whatLanded(landings) };
+}
+
+/** What a source index that could not be brought up to the checkout leaves open beside the answer. */
+function notUpdatedNote(reason: string): string {
+  return `${reason.charAt(0).toUpperCase()}${reason.slice(1).replace(/\.$/u, '')}, so which text the record ran over is not known, and its rows are read as the cases that stood on the changed lines.`;
 }
 
 /** What an unreadable runs record leaves open beside an answer from a named base. */
@@ -434,49 +458,6 @@ function inTreeLines(
 function readingOf(read: FileReading): Pick<ReviewFile, 'verdict' | 'names' | 'unread'> {
   if (read.verdict === undefined) return { unread: read.unread };
   return read.names.length === 0 ? { verdict: read.verdict } : { verdict: read.verdict, names: read.names };
-}
-
-/**
- * The case index the change is compared with: the one `--against` names or
- * the mainline published, or the cases the latest run replaced. Absent when
- * none was named and the run replaced none.
- */
-async function baseIndex(
-  against: string | undefined,
-  from: string,
-  mainline: MainlineRecord | undefined,
-): Promise<ExecutionIndex | undefined> {
-  if (against === undefined) return replacedCases(from);
-  try {
-    return await readExecutionIndex(against);
-  } catch (error) {
-    const named = mainline === undefined
-      ? `\`--against ${against}\``
-      : `the cases mainline ${mainline.mainline} published with its record of "${mainline.suite}", kept at ${against},`;
-    throw new OperatorError(`${named} could not be read (${error instanceof Error ? error.message : String(error)}).`);
-  }
-}
-
-/**
- * Case names a test file declares now and did not before, and the reverse.
- *
- * Only for a file the base holds cases for, or a file the change created. A
- * file the base never ran is not a file whose every case is new.
- */
-function casesMoved(
-  file: string,
-  held: ExecutionIndex | undefined,
-  now: ExecutionIndex,
-  created: boolean,
-): ReviewFile['cases'] | undefined {
-  const after = new Set(now.tests.filter((test) => test.file === file).map((test) => test.name));
-  const before = new Set(held?.tests.filter((test) => test.file === file).map((test) => test.name) ?? []);
-  if (before.size === 0 && !created) return undefined;
-  if (before.size === 0 && after.size === 0) return undefined;
-  return {
-    added: [...after].filter((name) => !before.has(name)).sort(),
-    removed: [...before].filter((name) => !after.has(name)).sort(),
-  };
 }
 
 /** The changed files test files hold as a precondition, each with how many hold it, the most held first. */

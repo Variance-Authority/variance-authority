@@ -41,6 +41,8 @@ async function workspace(): Promise<string> {
     'packages/kit/package.json': JSON.stringify({ name: 'kit' }),
     'packages/kit/src/internal/clamp.ts': '/** The value, held under the ceiling. */\nexport const clamp = (value: number): number => value;\n',
     'packages/kit/src/internal/rate.ts': '/** What a rate holds. */\ninterface Rate {\n  percent: number;\n}\n/** The rate every bill starts from. */\nexport const Rate = 0.2;\n',
+    'packages/kit/src/internal/range.ts': 'export interface Range {\n  clamp(value: number): number;\n}\n',
+    'packages/kit/src/internal/sized.ts': [1, 2, 3, 4, 5, 6].map((n) => `export interface Sized${n} {\n  size: number;\n}\n`).join(''),
     'packages/kit/src/internal/limit.ts': "export { clamp as limit } from './clamp.js';\n",
     'packages/kit/src/internal/tax.ts': '/** The tax an amount owes. */\nfunction taxOf(amount: number): number {\n  return amount;\n}\nexport { taxOf as levy };\n',
     'tools/tax.mjs': '/** The tax an amount owes. */\nfunction taxOf(amount) {\n  return amount;\n}\nexport { taxOf as duty };\n',
@@ -81,6 +83,22 @@ it('answers an export by the declaration it binds when the file declares a type 
   expect(out).toContain('Rate [const]\n');
   expect(out).toContain('The rate every bill starts from.');
   expect(out).not.toContain('What a rate holds.');
+});
+
+it('answers a name imported by the path of its file with its members beside it, as its files name them', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'clamp' }, { root });
+  expect(out).toContain('clamp [const]\n');
+  expect(out).toContain('a member of `Range`, declared at packages/kit/src/internal/range.ts:2');
+  const files = symbol.files?.(readHelp(root), { name: 'clamp' }, { root });
+  expect([...(files?.files.keys() ?? [])]).toContain('packages/kit/src/internal/range.ts');
+});
+
+it('lists the first members of a name many containers declare, and counts the rest', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'size' }, { root });
+  expect(out.match(/a member of `Sized\d`/gu)).toHaveLength(5);
+  expect(out).toContain('1 more member declaration of `size` not shown.');
 });
 
 it('answers a name imported by the path of a file that passes it on with what it passes on', async () => {

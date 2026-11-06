@@ -6,14 +6,13 @@ import { CASE_DIRECTORY_VARIABLE, CONTINUATIONS_VARIABLE, STORY_DIRECTORY_VARIAB
 import SelectionReporter from './jest-reporter.js';
 
 const VARIABLES = [CASE_DIRECTORY_VARIABLE, CONTINUATIONS_VARIABLE, STORY_DIRECTORY_VARIABLE];
-const before = VARIABLES.map((name) => process.env[name]);
+// The reporter also publishes its own run to the workers it starts.
+const before = { ...process.env };
 const temporary: string[] = [];
 
 afterEach(async () => {
-  VARIABLES.forEach((name, at) => {
-    if (before[at] === undefined) delete process.env[name];
-    else process.env[name] = before[at];
-  });
+  for (const name of Object.keys(process.env)) if (!(name in before)) delete process.env[name];
+  Object.assign(process.env, before);
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 

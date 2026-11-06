@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 
 /** `variance restrictions` over the roles docs declare with `@testOnly` and `@production`, with no rule file written. */
@@ -12,12 +12,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-roles-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-roles-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const FIXTURE = '/**\n * Builds a fixture.\n * @testOnly\n */\nexport function makeFixture() {\n  return 1;\n}\n';

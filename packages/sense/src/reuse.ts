@@ -59,7 +59,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
-import { treeOf, type Tree } from './tree.js';
+import { isNamed, treeOf, type Tree } from './tree.js';
 import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 
 /**
@@ -123,7 +123,7 @@ export interface PersistentRecordCache extends RecordCache {
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
-const VERSION = 9;
+const VERSION = 10;
 
 /**
  * Files whose *contents* decide where other files resolve to.
@@ -142,6 +142,11 @@ const LAYOUT_FILES = [
   'bun.lockb',
   'deno.json',
 ];
+
+/** Whether a file's contents decide where other files' imports resolve: a manifest, a lockfile, a workspace or `tsconfig*.json`. */
+export function decidesResolution(path: string): boolean {
+  return isNamed(path, LAYOUT_FILES);
+}
 
 /**
  * The tree as two questions: how resolution is configured, and what each

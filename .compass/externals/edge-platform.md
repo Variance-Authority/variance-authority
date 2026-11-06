@@ -3,8 +3,8 @@
 ## What it is
 
 The operator's own Cloudflare account: Workers as the runtime, D1 as the row
-store, R2 as the image store, and Access as the identity provider that says
-which person is looking. The system is deployed into it and never hosted for
+store, R2 as the image store, and Access as one identity provider a deployer may declare
+to say which person is looking. The system is deployed into it and never hosted for
 anyone.
 
 ## Good at
@@ -30,8 +30,9 @@ machine may write evidence but may not decide it.
 ## How you talk to it
 
 Bindings, not URLs: a database binding, a bucket binding, an assets binding, and
-a signed identity assertion on the request. Two secrets that may never be the
-same value — one that may write a **candidate**, one that may promote it.
+a signed identity assertion on the request where Access is declared. Secrets for
+what the deployer declared, and no secret promotes a **candidate**: that takes a
+named person.
 
 ## Their chart
 

@@ -67,6 +67,7 @@ pub(crate) struct Parses<'a> {
     pub member_declaration_name: U32s<'a>,
     pub member_declaration_line: U32s<'a>,
     pub member_declaration_on: U32s<'a>,
+    pub member_declaration_doc: Ends<'a>,
     pub member_uses: U32s<'a>,
     pub member_use_name: U32s<'a>,
     pub member_use_line: U32s<'a>,
@@ -166,6 +167,7 @@ impl<'a> Parses<'a> {
             member_declarations: stored.offsets("parses.member-declarations", rows, member_declaration_name.len())?,
             member_declaration_line: u32s("member-declarations.line")?,
             member_declaration_on: u32s("member-declarations.on")?,
+            member_declaration_doc: ends("member-declarations.doc-start", "member-declarations.doc-end")?,
             member_declaration_name,
             member_uses: stored.offsets("parses.member-uses", rows, member_use_name.len())?,
             member_use_line: u32s("member-uses.line")?,
@@ -219,6 +221,12 @@ impl<'a> Parses<'a> {
     /// is of an export.
     pub fn doc_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
         span(self.symbol_doc[0], self.symbol_doc[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    }
+
+    /// What one declaration writes before its body, as a span in UTF-16
+    /// units of its file; absent when the reader spanned none.
+    pub fn signature_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
+        span(self.symbol_signature[0], self.symbol_signature[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
     }
 
     fn lengths(&self) -> Result<(), String> {
@@ -280,6 +288,8 @@ impl<'a> Parses<'a> {
         same_length(self.member_declaration_name.len(), &[
             ("member-declarations.line", self.member_declaration_line.len()),
             ("member-declarations.on", self.member_declaration_on.len()),
+            ("member-declarations.doc-start", self.member_declaration_doc[0].len()),
+            ("member-declarations.doc-end", self.member_declaration_doc[1].len()),
         ])?;
         same_length(self.member_use_name.len(), &[
             ("member-uses.line", self.member_use_line.len()),

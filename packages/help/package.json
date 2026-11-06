@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/help",
-  "version": "0.21.0",
+  "version": "0.25.0",
   "description": "Find the public name, signature, documentation, consumers and call sites of an exported workspace symbol, over MCP.",
   "keywords": [
     "variance-authority",
@@ -21,7 +21,7 @@
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.15"
   },
   "type": "module",
   "exports": {

@@ -25,9 +25,10 @@ const AMBIENT = '';
  * varint path already costs. NUL is the separator because it is the one byte a
  * file path and a test name cannot contain.
  */
-function packCase(file: string, name: string, id: string, project?: string): string {
+function packCase(file: string, name: string, id: string, project?: string, limit?: number): string {
   const packed = `${file}\u0000${name}\u0000${id}`;
-  return project === undefined || project === '' ? packed : withField(packed, PROJECT, project);
+  const named = project === undefined || project === '' ? packed : withField(packed, PROJECT, project);
+  return limit === undefined ? named : withField(named, LIMIT, String(limit));
 }
 
 /**
@@ -39,13 +40,48 @@ function packCase(file: string, name: string, id: string, project?: string): str
  */
 const SETTLED = 3;
 const JOURNEY = 4;
-// Field 5 is what the case said and read, set by `case-preconditions.cts`.
+
+/**
+ * A packed case coordinate carrying what the case heard, as its sixth field.
+ *
+ * The field is always JSON, `{"said": […], "read": […], "misused": […]}`, each
+ * facet a list of what `case-preconditions.cts` records: an empty facet is a
+ * case that said, or read, nothing under a recorder that was listening; a facet
+ * absent, or the field empty or missing, is one nobody listened to, which a
+ * reader may not take for a case that said or read nothing.
+ */
+const HEARD = 5;
+
+function packHeard(
+  packed: string,
+  heard: { readonly said: readonly unknown[]; readonly read?: readonly unknown[]; readonly misused?: readonly unknown[] },
+): string {
+  const { said, read, misused } = heard;
+  return withField(packed, HEARD, JSON.stringify({
+    said,
+    ...(read === undefined ? {} : { read }),
+    ...(misused === undefined ? {} : { misused }),
+  }));
+}
+
+/** A frame owner's sixth field, as the realm wrote it; absent where its writer never listened. */
+function heardField(packed: string): string | undefined {
+  const field = packed.split('\u0000')[HEARD];
+  return field === undefined || field === '' ? undefined : field;
+}
+
 /**
  * The project that ran the case — Vitest's, Jest's or Playwright's name for one
  * configured run of a test file. Absent when the run names none, so a case of a
  * single unnamed project packs as it always has.
  */
 const PROJECT = 6;
+
+/**
+ * The milliseconds the case ran under, as its runner set them. Absent when the
+ * harness could not read one, which is not a case without a limit.
+ */
+const LIMIT = 7;
 
 function withField(packed: string, at: number, value: string): string {
   const fields = packed.split('\u0000');
@@ -69,14 +105,16 @@ function settledCase(packed: string, stopped: boolean): string {
   return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; stopped?: boolean } {
+function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; limit?: number; stopped?: boolean } {
   const parts = packed.split('\u0000');
   const project = parts[PROJECT];
+  const limit = parts[LIMIT];
   const coordinate = {
     file: parts[0] ?? packed,
     name: parts[1] ?? AMBIENT,
     id: parts[2] ?? AMBIENT,
     ...(project === undefined || project === '' ? {} : { project }),
+    ...(limit === undefined || limit === '' ? {} : { limit: Number(limit) }),
   };
   if (parts[SETTLED] === STOPPED) return { ...coordinate, stopped: true };
   if (parts[SETTLED] === FINISHED) return { ...coordinate, stopped: false };
@@ -99,4 +137,4 @@ function journeyOf(packed: string): string {
   return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
-export = { packCase, settledCase, unpackCase, packJourney, journeyOf };
+export = { packCase, settledCase, unpackCase, packJourney, journeyOf, packHeard, heardField };

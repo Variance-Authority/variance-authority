@@ -61,7 +61,8 @@ import { BuildsPage } from './builds.js';
 import { BuildPage } from './docket.js';
 import { ChangelogPage } from './history.js';
 import { useRoute } from './navigation.js';
-import type { Route } from './route.js';
+import { Reading, SignIn } from './reading.js';
+import { hrefOf, type Route } from './route.js';
 import { Nowhere } from './shell.js';
 
 export { RegionOverlay, RegionTable, Viewer, modesFor, type ViewerMode } from './viewer.js';
@@ -78,8 +79,13 @@ export { Look, frameOf, sightings, type Frame, type Sighting } from './look.js';
 
 export interface ReviewAppProps {
   readonly client: ReviewClient;
-  /** Recorded on every decision. There are no accounts here; this is a name. */
-  readonly reviewer: string;
+  /**
+   * Who decides here, as the deployment recognized them. Absent is somebody it
+   * lets read: the surface shows the evidence and offers no move that writes.
+   */
+  readonly reviewer?: string | undefined;
+  /** Where a reader signs in, for a deployment that has a sign-in. They return to the page they have reached. */
+  readonly signIn?: string | undefined;
   /** How many builds to list. The server's own default applies when absent. */
   readonly limit?: number;
   /**
@@ -106,6 +112,7 @@ export interface ReviewAppProps {
 export function ReviewApp({
   client,
   reviewer,
+  signIn,
   limit,
   route,
   onNavigate,
@@ -116,7 +123,15 @@ export function ReviewApp({
   // it would tell the reader their link worked.
   if (here === undefined) return <Nowhere go={go} />;
 
-  if (here.page === 'builds') return <BuildsPage client={client} limit={limit} go={go} />;
+  const entry = signIn === undefined ? undefined : `${signIn}?return=${encodeURIComponent(hrefOf(here))}`;
+
+  if (here.page === 'builds') {
+    return (
+      <SignIn.Provider value={entry}>
+        <BuildsPage client={client} limit={limit} go={go} />
+      </SignIn.Provider>
+    );
+  }
 
   if (here.page === 'changelog') {
     return (
@@ -126,5 +141,11 @@ export function ReviewApp({
     );
   }
 
-  return <BuildPage client={client} reviewer={reviewer} route={here} go={go} />;
+  return (
+    <SignIn.Provider value={entry}>
+      <Reading.Provider value={reviewer === undefined}>
+        <BuildPage client={client} reviewer={reviewer ?? ''} route={here} go={go} />
+      </Reading.Provider>
+    </SignIn.Provider>
+  );
 }

@@ -1,4 +1,4 @@
-import type { FileSet, Spelling, Tool } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
@@ -8,14 +8,14 @@ import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { declarations, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
+import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
-import { type Members, membersOf, membersStop } from './members.js';
+import { type Members, containerOf, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
-import { type PublishedDeclaration, publishedDeclarations, usesOf } from './uses-of.js';
+import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 
 /**
@@ -46,7 +46,7 @@ export const symbol: Tool<Help> = {
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The name, matched exactly.' },
+      name: { type: 'string', description: 'The name, matched exactly; `Container.member` asks for that container\'s member.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         ...START_POINT_SCHEMA.from,
@@ -76,7 +76,7 @@ export const symbol: Tool<Help> = {
     // export of the same name is another thing, so it never stands for this one.
     const at = startPointArg(input, 'from');
     const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
-    const { blocks: declared, topLevel } = declaredBlocks(invocation?.root, name, wanted, spell, paths);
+    const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, paths);
 
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
@@ -93,26 +93,30 @@ export const symbol: Tool<Help> = {
     // A published namesake is another declaration, so it never hides this one.
     const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
     const others = exported.length > 0 ? [exportedOnly(help, name, exported, invocation?.root, spell)] : [];
+    // A member of an interface, a type literal or a class is the workspace's
+    // own declaration too, which no import names and the scan records. It
+    // stands beside what a file's top level declares, never under it.
+    const members = membersOf(help, invocation?.root, name, wanted);
+    const beside = memberBlocks(name, members, spell);
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
       const rest = exported.filter((held) => !imported.has(held.at));
-      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased].join('\n\n');
+      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased, ...beside].join('\n\n');
     }
     const kept = [
       ...(found.length === 0 ? others : []),
       ...(found.length === 0 ? [...declared, ...aliased] : []),
     ];
-    // A member of an interface, a type literal or a class is the workspace's
-    // own declaration too, which no import names and the scan records. It is
-    // answered only when nothing at a file's top level, an import that binds
-    // the name included, does; a function a body declares is beside it, not over it.
-    const top = others.length > 0 || topLevel || aliased.length > 0;
-    const members = found.length === 0 && !top ? membersOf(invocation?.root, name, wanted) : undefined;
-    const own = members === undefined || members.declared.length === 0 ? kept : [...memberBlocks(invocation?.root, name, members, spell), ...declared];
+    // A name declared only as a member names the files whose declarations were
+    // not read, since one may declare it at its top level; the declarations beside a member already did.
+    const read = kept.length === 0 && beside.length > 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
+    const alone = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
+    // A published declaration is answered below, and the members after it.
+    const own = found.length === 0 ? [...kept, ...beside, ...alone] : [];
     // Nothing in the workspace answered, so the name may be declared in a file
     // whose declarations were not read: the installed answers below say so.
-    const read = found.length === 0 && own.length === 0 ? declarations(invocation?.root, name) : undefined;
-    const unread = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
+    const asked = found.length === 0 && own.length === 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
+    const unread = asked === undefined || 'refused' in asked ? [] : unreadLine(asked.unread);
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
@@ -161,6 +165,7 @@ export const symbol: Tool<Help> = {
       ...others,
       ...declared,
       ...aliased,
+      ...beside,
     ].join('\n\n');
   },
 
@@ -168,62 +173,90 @@ export const symbol: Tool<Help> = {
   // same readings `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
-    const name = stringArg(input, 'name');
-    const from = input['package'];
-    const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-    const published = publishedDeclarations(help, invocation?.root, name, wanted);
-    const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
-    if (at.length === 0) {
-      for (const site of sitesByPath(help, name, wanted)) {
-        const declared = declaration(help, name, site);
-        if (declared !== undefined) at.push([declared.at, declared.line]);
-      }
-    }
-    {
-      const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
-      for (const [held] of declaringExports(name, exported, invocation?.root)) {
-        at.push([held.at, held.line]);
-        const origin = originOf(help, invocation?.root, held);
-        if (origin !== undefined) at.push([origin.at, origin.line]);
-      }
-    }
-    const declared = declaredAt(invocation?.root, name, wanted);
-    at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
-    at.push(...localNames(help, invocation?.root, name, wanted).files);
-    // A function a body declares stands beside a member, as `run` answers it.
-    const members = at.length === 0 ? membersOf(invocation?.root, name, wanted) : undefined;
-    at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
-    if (members !== undefined) at.push(...members.declared.map((one) => [one.at, one.line] as const));
-    if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
-    const files = new Map<string, number[]>();
-    for (const [file, line] of at) {
-      const lines = files.get(file) ?? [];
-      if (!lines.includes(line)) lines.push(line);
-      files.set(file, lines);
-    }
-    return { files };
+    const root = invocation?.root;
+    return declaredIn(help, input, invocation, (exported) => declaringExports(stringArg(input, 'name'), exported, root).map(([held]) => held));
   },
 };
 
 /**
- * A name the workspace declares only as a member: one block per declaration,
- * on the container that holds it, then the languages whose members were not
- * read, then the files whose declarations were not read, since one of them
- * may declare it at its top level.
+ * The files an answer about a name rests on, to be compared with the checkout:
+ * those {@link symbol}'s `files` gives, every export of the name, whose imports
+ * the answer counts, and for a published declaration each entry and each barrel
+ * between that entry and its file, through which the answer teaches its import.
+ * The barrels are what the answer's own walk of who imports the name found: it
+ * is made once per generation, by whichever of the two comes first, so a look
+ * adds stats and no reading.
  */
-function memberBlocks(root: string | undefined, name: string, members: Members, spell: Spelling): readonly string[] {
-  const read = declarations(root, name);
-  const stop = membersStop(name, members);
+export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
+  return [...declaredIn(help, input, invocation, (exported) => exported).files.keys(), ...publishingEntries(help, input, invocation)];
+}
+
+/** {@link restsOn} for `uses`, which says nothing of a name bound by `as`, and so rests on no such binding. */
+export function usesRestsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
+  return [...declaredIn(help, input, invocation, (exported) => exported, false).files.keys(), ...publishingEntries(help, input, invocation)];
+}
+
+/** The entry file of each door a name is published through, and each file between the entry and the declaration. */
+function publishingEntries(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): readonly string[] {
+  const from = input['package'];
+  const published = publishedDeclarations(help, invocation?.root, stringArg(input, 'name'), typeof from === 'string' && from !== '' ? from : undefined);
+  return publishingFiles(help, invocation?.root, published);
+}
+
+/** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */
+function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[], aliases = true): FileSet {
+  const name = stringArg(input, 'name');
+  const from = input['package'];
+  const wanted = typeof from === 'string' && from !== '' ? from : undefined;
+  const published = publishedDeclarations(help, invocation?.root, name, wanted);
+  const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
+  if (at.length === 0) {
+    for (const site of sitesByPath(help, name, wanted)) {
+      const declared = declaration(help, name, site);
+      if (declared !== undefined) at.push([declared.at, declared.line]);
+    }
+  }
+  const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
+  for (const held of exports(exported)) {
+    at.push([held.at, held.line]);
+    const origin = originOf(help, invocation?.root, held);
+    if (origin !== undefined) at.push([origin.at, origin.line]);
+  }
+  const declared = declaredAt(help, invocation?.root, name, wanted);
+  at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
+  if (aliases) at.push(...localNames(help, invocation?.root, name, wanted).files);
+  // A member stands beside every other declaration, as `run` answers it.
+  const members = membersOf(help, invocation?.root, name, wanted);
+  at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
+  at.push(...members.declared.map((one) => [one.at, one.line] as const));
+  if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
+  const files = new Map<string, number[]>();
+  for (const [file, line] of at) {
+    const lines = files.get(file) ?? [];
+    if (!lines.includes(line)) lines.push(line);
+    files.set(file, lines);
+  }
+  return { files };
+}
+
+/**
+ * The member declarations of a name: one block for each of the first
+ * `DECLARED_CAP`, on the container that holds it, a count of the rest, then
+ * the languages whose members were not read; none when no container declares it.
+ */
+function memberBlocks(name: string, members: Members, spell: Spelling): readonly string[] {
+  if (members.declared.length === 0) return [];
+  const stop = membersStop(members);
   return [
-    ...members.declared.map((site) =>
+    ...members.declared.slice(0, DECLARED_CAP).map((site) =>
       [
         name,
-        `a member of ${/^a (?:type literal|class)$/u.test(site.by) ? site.by : `\`${site.by}\``}, declared at ${site.at}:${site.line}`,
+        `a member of ${containerOf(site.by)}, declared at ${site.at}:${site.line}`,
         `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
+    ...notShown(members.declared.length, 'member declaration', name),
     ...(stop === undefined ? [] : [stop]),
-    ...('refused' in read ? [] : unreadLine(read.unread)),
   ];
 }
 
@@ -247,7 +280,7 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
   // A default export is headed by the name its declaration is keyed by, as every import of it is read.
   const named = entry.name === SLOT ? keyOf(help, root, { at: entry.at, name: entry.declared }).named : entry.name;
   const renamed = renamedSites(named, listed.sites);
-  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
+  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(help, root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
 }
 
 /**
@@ -300,7 +333,7 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
       ...(name === SLOT ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
       ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
       why,
-      ...(root === undefined || bound === undefined ? [] : textRows(root, bound)),
+      ...(root === undefined || bound === undefined ? [] : textRows(help, root, bound)),
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
       ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
@@ -358,7 +391,7 @@ function exportedOnly(help: Help, name: string, exported: readonly Named[], root
       return [
         ...rows,
         ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
-        ...memberRows(root, declared.at, declared.name, declared.line),
+        ...memberRows(help, root, declared.at, declared.name, declared.line),
       ].join('\n');
     })
     .join('\n\n');

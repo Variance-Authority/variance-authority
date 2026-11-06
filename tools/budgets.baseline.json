@@ -1,6 +1,6 @@
 {
   ".github/actions/variance/post-comment.mjs block": [
-    7
+    6
   ],
   ".github/actions/variance/post-comment.mjs overview": [
     35
@@ -65,10 +65,6 @@
   ],
   "cases/storybook-case/.storybook-a11y/main.js docblock": [
     17
-  ],
-  "cases/storybook-case/.storybook/main.js docblock": [
-    14,
-    13
   ],
   "cases/storybook-case/collector/index.mjs overview": [
     27
@@ -208,9 +204,6 @@
   "docs/performance.md lead": [
     29
   ],
-  "docs/placement.md lead": [
-    32
-  ],
   "docs/polyglot.md lead": [
     32
   ],
@@ -242,10 +235,7 @@
     23
   ],
   "docs/sharding.md lead": [
-    18
-  ],
-  "docs/sharing.md lead": [
-    26
+    17
   ],
   "docs/source-index.md lead": [
     17
@@ -569,7 +559,7 @@
     6
   ],
   "packages/cli/src/commands/index-command.ts overview": [
-    27
+    25
   ],
   "packages/cli/src/commands/index-follow-ups.ts overview": [
     21
@@ -601,9 +591,6 @@
   ],
   "packages/cli/src/commands/layers-command.ts overview": [
     16
-  ],
-  "packages/cli/src/commands/mainline-base.ts overview": [
-    32
   ],
   "packages/cli/src/commands/merge.ts block": [
     9
@@ -646,7 +633,7 @@
     9
   ],
   "packages/cli/src/commands/push.ts overview": [
-    54
+    53
   ],
   "packages/cli/src/commands/reach-command.ts block": [
     8
@@ -792,9 +779,6 @@
   ],
   "packages/cli/src/commands/suite-base.ts docblock": [
     14
-  ],
-  "packages/cli/src/commands/suite-base.ts overview": [
-    27
   ],
   "packages/cli/src/commands/suite-record.ts docblock": [
     16
@@ -1325,12 +1309,6 @@
   "packages/core/src/shard/placement.ts overview": [
     18
   ],
-  "packages/core/src/share/index.ts overview": [
-    21
-  ],
-  "packages/core/src/share/line.ts overview": [
-    16
-  ],
   "packages/distill/src/attribution.ts docblock": [
     12
   ],
@@ -1457,9 +1435,6 @@
   "packages/help/src/ask.ts docblock": [
     11
   ],
-  "packages/help/src/caught-up.ts docblock": [
-    23
-  ],
   "packages/help/src/dependency-scale.measure.ts overview": [
     22
   ],
@@ -1478,9 +1453,6 @@
   ],
   "packages/help/src/read.ts overview": [
     25
-  ],
-  "packages/help/src/refresh-native.ts docblock": [
-    17
   ],
   "packages/help/src/scan-scope.ts docblock": [
     13
@@ -1536,9 +1508,6 @@
   "packages/help/src/tools/search-answer.ts docblock": [
     12
   ],
-  "packages/help/src/tools/search.ts block": [
-    6
-  ],
   "packages/help/src/tools/search.ts overview": [
     76
   ],
@@ -1584,9 +1553,6 @@
   ],
   "packages/ioc/src/reset/index.ts docblock": [
     31
-  ],
-  "packages/ioc/src/reset/setup.ts docblock": [
-    24
   ],
   "packages/ioc/src/reset/state.ts docblock": [
     13
@@ -1993,9 +1959,6 @@
   "packages/png/src/change.ts docblock": [
     19
   ],
-  "packages/png/src/compare.ts docblock": [
-    14
-  ],
   "packages/png/src/difference.test.ts block": [
     7
   ],
@@ -2362,7 +2325,7 @@
     7
   ],
   "packages/route-collector/src/zero-config.chromium.test.ts block": [
-    11,
+    10,
     9,
     7,
     7
@@ -2722,9 +2685,6 @@
     11,
     11
   ],
-  "packages/sense/src/test-selection/case-preconditions.cts docblock": [
-    11
-  ],
   "packages/sense/src/test-selection/case-preconditions.cts overview": [
     26
   ],
@@ -2838,9 +2798,6 @@
     19,
     12
   ],
-  "packages/sense/src/test-selection/format-layout.ts docblock": [
-    32
-  ],
   "packages/sense/src/test-selection/format-view.ts docblock": [
     11
   ],
@@ -2908,18 +2865,12 @@
   "packages/sense/src/test-selection/jest-reporter.ts block": [
     9
   ],
-  "packages/sense/src/test-selection/jest-selection.ts overview": [
-    17
-  ],
   "packages/sense/src/test-selection/jest-setup.cts docblock": [
     18,
     11
   ],
   "packages/sense/src/test-selection/jest-setup.cts overview": [
     28
-  ],
-  "packages/sense/src/test-selection/jest-trace-environment.cts overview": [
-    20
   ],
   "packages/sense/src/test-selection/jest-transform.ts block": [
     6
@@ -2961,7 +2912,6 @@
   "packages/sense/src/test-selection/journal.ts block": [
     9,
     8,
-    7,
     7,
     6
   ],
@@ -3016,9 +2966,6 @@
   ],
   "packages/sense/src/test-selection/mainline-layer.ts docblock": [
     13
-  ],
-  "packages/sense/src/test-selection/mainline-layer.ts overview": [
-    18
   ],
   "packages/sense/src/test-selection/name-grammar.ts docblock": [
     15
@@ -3095,17 +3042,14 @@
   ],
   "packages/sense/src/test-selection/record-location.ts docblock": [
     40,
-    26,
+    25,
     11
-  ],
-  "packages/sense/src/test-selection/recorded-text.ts block": [
-    6
   ],
   "packages/sense/src/test-selection/recorded-text.ts docblock": [
     11
   ],
   "packages/sense/src/test-selection/recorded-text.ts overview": [
-    56
+    48
   ],
   "packages/sense/src/test-selection/region-landing.ts block": [
     13,
@@ -3266,7 +3210,6 @@
   ],
   "packages/sense/src/test-selection/worker-source.ts docblock": [
     31,
-    23,
     12
   ],
   "packages/sense/src/text-digests.ts block": [
@@ -3386,8 +3329,7 @@
     6
   ],
   "packages/store/src/lfs.ts docblock": [
-    17,
-    11
+    17
   ],
   "packages/store/src/lfs.ts overview": [
     31
@@ -3583,14 +3525,13 @@
     6
   ],
   "packages/tribunal/src/next.ts overview": [
-    33
+    18
   ],
   "packages/tribunal/src/node/bin.ts docblock": [
-    15,
     12
   ],
   "packages/tribunal/src/node/bin.ts overview": [
-    22
+    20
   ],
   "packages/tribunal/src/node/bucket.ts docblock": [
     11
@@ -3602,16 +3543,10 @@
     23
   ],
   "packages/tribunal/src/node/index.ts overview": [
-    30
+    23
   ],
   "packages/tribunal/src/node/serve.ts docblock": [
     11
-  ],
-  "packages/tribunal/src/node/serve.ts overview": [
-    22
-  ],
-  "packages/tribunal/src/node/ui-assets.ts overview": [
-    25
   ],
   "packages/tribunal/src/objects.test.ts block": [
     10
@@ -3754,7 +3689,7 @@
     19
   ],
   "packages/tribunal/src/ui/findings.tsx docblock": [
-    30,
+    29,
     13
   ],
   "packages/tribunal/src/ui/foreseen.ts overview": [
@@ -3872,9 +3807,6 @@
   "packages/tribunal/src/ui/viewer.tsx overview": [
     22
   ],
-  "packages/tribunal/src/version.ts docblock": [
-    22
-  ],
   "packages/tribunal/src/version.ts overview": [
     19
   ],
@@ -3882,7 +3814,7 @@
     11
   ],
   "packages/tribunal/src/worker-entry.ts overview": [
-    22
+    19
   ],
   "packages/tribunal/src/worker-input.ts docblock": [
     12
@@ -3891,7 +3823,7 @@
     31
   ],
   "packages/tribunal/src/worker.ts overview": [
-    44
+    38
   ],
   "packages/tribunal/stories/record.mjs overview": [
     18
@@ -4066,9 +3998,6 @@
     7,
     6
   ],
-  "tools/skips.check.ts docblock": [
-    12
-  ],
   "tools/skips.check.ts overview": [
     22
   ],
@@ -4089,15 +4018,6 @@
     18,
     11
   ],
-  "tools/take-base.mjs overview": [
-    16
-  ],
-  "tools/take-carried.mjs overview": [
-    23
-  ],
-  "tools/temporary-per-test.ts overview": [
-    22
-  ],
   "tools/tribunal-ui.mjs overview": [
     16
   ],
@@ -4114,9 +4034,6 @@
   "tools/workspaces.ts docblock": [
     12,
     11
-  ],
-  "tribunal-cloudflare/app/api/[[...path]]/route.ts overview": [
-    21
   ],
   "vitest.config.mts block": [
     25,

@@ -1,4 +1,5 @@
 import {
+  type Credential,
   declaredSecret,
   fail,
   kindOf,
@@ -70,7 +71,7 @@ export interface HttpShare extends SharedFields {
    * every caller turns that into a share miss: a share never fails a run, so a
    * missing share secret must not refuse the whole config.
    */
-  readonly token?: () => string;
+  readonly token?: Credential;
   /** The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it. */
   readonly method?: 'PUT' | 'POST';
 }

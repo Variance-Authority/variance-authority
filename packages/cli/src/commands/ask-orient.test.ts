@@ -5,8 +5,8 @@ import { basename, dirname, join } from 'node:path';
 import { encodeSegment } from '@variance-authority/core/segment';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /**
@@ -18,12 +18,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-orient-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-orient-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 /** Two packages, one importing two names from the other through its manifest. */
@@ -207,7 +207,7 @@ describe('variance ask orient', () => {
         '3 files asked about:',
         '  packages/checkout/src/total.ts  @t/checkout',
         '  packages/cart/src/price.ts      @t/cart',
-        '  src/gone.ts                     not in the source index',
+        '  src/gone.ts                     outside index',
         '',
         `Packages, from the source index at ${sourceIndexPath(root)} (4 files indexed).`,
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +

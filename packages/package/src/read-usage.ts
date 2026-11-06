@@ -159,7 +159,9 @@ export function readUsage(
             type: entry.isType,
             ...(own === undefined ? {} : { bound: own }),
             ...(binds === undefined ? {} : { declaration: binds.kind }),
+            ...(binds === undefined || binds.line === line ? {} : { boundLine: binds.line }),
             ...(doc === undefined ? {} : { doc }),
+            ...(binds?.signature === undefined || binds.signature === '' ? {} : { signature: binds.signature }),
           });
         }
 

@@ -1,9 +1,9 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, paragraph, run } from './ask-packages-fixture.js';
+import { checkout, paragraph, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` over a name several files declare. Each declaration is
@@ -14,12 +14,12 @@ import { checkout, paragraph, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-namesakes-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-namesakes-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 // `greet` is published from `greet.ts`, exported unpublished from `other.ts`, and kept to itself in `kept.ts`.
@@ -36,6 +36,52 @@ async function uses(...more: readonly string[]): Promise<string> {
   return out;
 }
 
+// `Reach` is published by `@acme/a`, and exported by a file of `@acme/h` that its entry does not open.
+const REACH = {
+  'packages/a/package.json': JSON.stringify({ name: '@acme/a', type: 'module', exports: { '.': './src/index.ts' } }),
+  'packages/a/src/index.ts': '/** How far a signal travels, in metres. */\nexport interface Reach { readonly metres: number; }\n',
+  'packages/h/package.json': JSON.stringify({ name: '@acme/h', type: 'module', exports: { '.': './src/index.ts' }, dependencies: { '@acme/a': '*' } }),
+  'packages/h/src/reach.ts': '/** How many hops a message may still take. */\nexport type Reach = number;\n',
+  'packages/h/src/index.ts':
+    "import type { Reach as Far } from '@acme/a';\nimport type { Reach } from './reach.js';\nexport const hops: Reach = 3;\nexport const far: Far = { metres: 1 };\n",
+};
+
+/** `variance ask uses --name Reach` straight after each of three `variance index` runs, its generation's stamp cut. */
+async function afterEachIndex(): Promise<readonly string[]> {
+  const answers: string[] = [];
+  for (let runs = 0; runs < 3; runs += 1) {
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const { code, out, err } = await run(['ask', 'uses', '--name', 'Reach']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    answers.push(out.replace(/^Snapshot .*$/m, ''));
+  }
+  return answers;
+}
+
+describe('variance ask uses after `variance index` ran again', () => {
+  it('names an exported namesake of a published name each time', async () => {
+    checkout(REACH);
+
+    const [first, second, third] = await afterEachIndex();
+    expect(first).toContain('`Reach` is exported, without being published, at packages/h/src/reach.ts:2 as well, which is another declaration.');
+    expect(first).toMatch(/^packages\/h\/src\/index\.ts:2 — @acme\/h \(type only\); used on line 3$/m);
+    expect(first).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
+
+  it('names a namesake published only inside `export * as ns` each time', async () => {
+    checkout({ ...REACH, 'packages/h/src/index.ts': "export * as ns from './reach.js';\n" });
+
+    const [first, second, third] = await afterEachIndex();
+    expect(first).toContain('packages/h/src/reach.ts:2');
+    expect(first).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+  });
+});
+
 describe('variance ask uses over a name several files declare', () => {
   it('names an exported namesake of a published name and how to ask for it alone', async () => {
     checkout(NAMESAKES);
@@ -46,6 +92,41 @@ describe('variance ask uses over a name several files declare', () => {
     expect(out).toContain('`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.');
     expect(out).toMatch(/^`greet` \[function\] is declared, not exported, at packages\/lib\/src\/kept\.ts:1/m);
     expect(out).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
+  });
+
+  it('names every other declaration by file and line under its headline, before any site', async () => {
+    checkout({
+      ...NAMESAKES,
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, ...rest] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, .*packages\/lib\/src\/greet\.ts:\d+\.$/);
+    expect(rest.slice(0, 4)).toEqual([
+      'It is declared 3 more times, each another thing, answered below:',
+      '  packages/second/src/index.ts:1, published by @acme/second',
+      '  packages/lib/src/other.ts:1, exported without being published',
+      '  packages/lib/src/kept.ts:1, not exported',
+    ]);
+  });
+
+  it('names a member by the name with the other declarations under its headline', async () => {
+    checkout({ 'packages/lib/src/shape.ts': 'export interface Shape {\n  greet(): void;\n}\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [, ...rest] = (await uses()).split('\n');
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/lib/src/shape.ts:2, a member of `Shape`']);
+  });
+
+  it('keeps the headline of a name one file declares', async () => {
+    checkout({});
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, next] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package\.$/);
+    expect(next).toMatch(/^Path order; /);
   });
 
   it('lists the imports of an exported namesake apart, as it lists a kept one', async () => {
@@ -106,8 +187,9 @@ describe('variance ask uses over a name several files declare', () => {
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const [headline] = (await uses()).split('\n');
+    const [headline, ...rest] = (await uses()).split('\n');
     expect(headline).toMatch(/^`greet` \[function\] is published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+, and nothing in this workspace imports it; /);
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/second/src/index.ts:1, published by @acme/second']);
   });
 
   it('answers a value and a type one file declares under one name as one declaration', async () => {
@@ -129,6 +211,7 @@ describe('variance ask uses over a name several files declare', () => {
 
     const out = await uses('--file', 'packages/lib/src/greet.ts');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
+    expect(out).not.toContain('It is declared');
     expect(out).not.toMatch(/other\.ts|unrelated\.ts|kept\.ts/);
   });
 

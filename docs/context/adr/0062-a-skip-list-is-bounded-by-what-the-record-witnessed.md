@@ -72,6 +72,13 @@ the tests that entered the module* — was built and measured: it dropped 3 of
 the answer, and `stale` and `unread` are reported by name. A widening a caller
 cannot see is a widening nobody will ever narrow again.
 
+**A cause the mainline's commits gave still selects.** A record behind the
+checkout's merge base M is charged with every commit the mainline merged since
+the record, and every test those commits reach runs. Those commits can add a
+load no record saw and no graph follows, so a test they reach has no standing
+record: dropping it can skip a test the checkout's own change breaks. The cost
+is the mainline's reach since the record, and it ends when M's record publishes.
+
 ## Consequences
 
 The valve is cheap where it matters and expensive only where it should be. Every

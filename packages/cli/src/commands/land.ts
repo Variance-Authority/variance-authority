@@ -43,19 +43,19 @@ import { landingRecord } from './suite-record.js';
  * laid with the others', its files finished as its last run ran them. Landed alone where no coverage stands, it writes a
  * record of cases and no coverage, which narrows no later selection.
  *
- * A target that exists and cannot be read, or one under other probes, is
- * refused rather than replaced, as the runner refuses it: one build reads what
- * it wrote under one set of probes, so either is another build's, and a
+ * A target that exists and cannot be read, or one `into` names under other
+ * probes, is refused rather than replaced: either is another build's, and a
  * sentence naming the file is worth more than the evidence a silent overwrite
- * would cost.
+ * would cost. The checkout's cached record under other probes is the tool's own,
+ * and `prepareRecord` replaces it, as it does for a runner.
  */
 export async function landJourneys(
   root: string,
   shards: readonly string[],
   into?: string,
+  suite?: string,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const at = into ?? (await landingRecord(root));
   if (into !== undefined && selection.writesBase(selection.repositoryLayers(root), into)) {
     throw new OperatorError(
       `${into} is the record the primary checkout's runs write, which this worktree's runs are laid over and never write. ` +
@@ -63,11 +63,12 @@ export async function landJourneys(
     );
   }
 
+  const { file: at, selected } = await landingRecord(root, suite, into);
   // The combine is staged beside the target, so the rename below never crosses
   // a file system, and the staged name ends in `.tmp` for prune to find.
   const combinedAt = `${at}.${process.pid}-${randomUUID()}-combined.tmp`;
   try {
-    return await landCombined(selection, root, shards, at, combinedAt);
+    return await landCombined(selection, root, shards, at, combinedAt, selected);
   } finally {
     await rm(combinedAt, { force: true });
   }
@@ -81,6 +82,7 @@ async function landCombined(
   shards: readonly string[],
   at: string,
   combinedAt: string,
+  selected: string | null | undefined,
 ): Promise<LandedJourneys> {
   let combined;
   try {
@@ -113,12 +115,6 @@ async function landCombined(
   const installed = ran === undefined ? undefined : selection.shardsInstall(ran);
   const ranOver = ran === undefined ? undefined : selection.shardsTexts(ran);
 
-  // A checkout's first landing starts from the base its first `yarn test`
-  // would: the mainline's record as last fetched here, else the primary
-  // checkout's. Without the copy the fold would land over nothing and stand for
-  // the whole suite. A no-op for `--into` and after the first landing.
-  selection.noteSeeded(await selection.seedTestCoverage(at, root, fold?.coverage.instrumentation));
-
   // The snapshot is read, merged and written, its cases laid into it, under
   // the lock every runner seam takes on it. The runs record beside the snapshot
   // answers for the same runs, and is written by `commitRunsAfter`, the rules every
@@ -140,7 +136,13 @@ async function landCombined(
   const stage = `${process.pid}-${randomUUID()}.tmp`;
   const staged = `${at}.${stage}`;
   const stagedRuns = `${runsAt}.${stage}`;
-  const locked = await selection.withIndexLock(at, async () => {
+  const locked = await selection.withIndexLock(at, async (lock) => {
+    // A checkout's first landing starts from the base its first `yarn test`
+    // would: the selected mainline's record as last fetched here, else the
+    // primary checkout's. Without the copy the fold would land over nothing and stand for
+    // the whole suite. A cached record under other probes is replaced first. A
+    // no-op for `--into`, and after the first landing.
+    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected });
     let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
       over = await readFile(at);
@@ -274,7 +276,7 @@ function unreadable(at: string, error: unknown): OperatorError {
 
 /**
  * The snapshot at `at` is another build's — one this build cannot lay over, or
- * one under other probes — and is left for the operator to delete.
+ * a handed-in one under other probes — and is left for the operator to delete.
  */
 function unlaid(at: string, error: unknown): OperatorError {
   return new OperatorError(

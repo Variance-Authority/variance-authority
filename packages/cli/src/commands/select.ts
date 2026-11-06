@@ -82,6 +82,7 @@ import { jsonOf } from './select-json.js';
 import { many } from './prose-counts.js';
 import { declinedNotes, ignoredNotes, recordingNotes, unreadNotes } from './select-notes.js';
 import type { SelectInstall } from './select-beyond.js';
+import type { RecordSource } from './suite-base.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
@@ -107,6 +108,12 @@ export type SelectGround =
        * Asked only for a leg that starts past 0 hops.
        */
       readonly unrunAtHead?: readonly string[];
+      /**
+       * Why the graph the distances were measured on is not the checkout's:
+       * the source index could not be brought up to it. Asked only for a leg,
+       * which then cuts nothing by hops.
+       */
+      readonly stale?: string;
     }
   | { readonly kind: 'no-journal' }
   | { readonly kind: 'no-coverage' }
@@ -119,26 +126,10 @@ export type SelectGround =
       readonly rests: readonly string[];
     };
 
-/**
- * Whose record was read, for a suite given to a share: this checkout's own, or
- * the one its mainline published. Absent for any other suite, which has only
- * the one record and nothing to tell apart.
- */
-export interface SelectSource {
-  /** Absent when neither had one. */
-  readonly from?: 'checkout' | 'mainline';
-  /** The mainline asked, when one was. */
-  readonly mainline?: string;
-  /** How far the mainline's record is behind this checkout's merge base with it; negative when ahead. */
-  readonly distance?: number;
-  /** Which record was read, said as the first note, after the verdict. */
-  readonly says: string;
-}
-
 export interface SelectInput {
   /** Where the journal is, or would have been. Named in every outcome. */
   readonly at: string;
-  readonly source?: SelectSource;
+  readonly source?: RecordSource;
   /** The commit the journal's line ranges are coordinates in, when it named one. */
   readonly commit?: string;
   /**
@@ -203,7 +194,7 @@ export interface TestSelection {
   /** Carried so the machine-readable form can name the journal it read. */
   readonly at: string;
   readonly commit?: string;
-  readonly source?: SelectSource;
+  readonly source?: RecordSource;
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];
@@ -219,8 +210,9 @@ export interface TestSelection {
   readonly ignored?: readonly string[];
   readonly stale: readonly string[];
   /**
-   * What the parser made of each changed file. Absent when no diff was read
-   * against the journal, which is not the same as a diff that changed nothing.
+   * What the reader made of each changed file, or why no reader was asked of
+   * it. Absent when no diff was read against the journal, which is not the
+   * same as a diff that changed nothing.
    */
   readonly readings?: readonly FileReading[];
   /** The hops `--at-distance` asked for; `to` is absent for an open leg. Absent when no leg was asked. */

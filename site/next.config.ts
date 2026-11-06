@@ -21,6 +21,14 @@ const RESPONSE_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * Every agent that sends a `User-Agent` gets a page's metadata in the head; the
+   * framework streams to a request with none before it reads this. A generated
+   * title otherwise streams after `</head>` to whoever this does not match, which
+   * protects a first byte this site has nothing to delay: the metadata is read
+   * from bundled Markdown, and the CDN serves the page.
+   */
+  htmlLimitedBots: /.*/,
   async headers() {
     return [
       { source: "/", headers: RESPONSE_HEADERS },

@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::Program;
+use oxc_ast::ast::{Program, Statement};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
@@ -380,6 +380,10 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", loads.unread_required));
     }
     requests.extend(loads.typed);
+    let unread = loads.unread_typed + parsed.program.body.iter().filter(|statement| unread_statement(statement)).count();
+    if unread > 0 {
+        reasons.push(format!("{unread} import(s) or export(s) with a specifier this cannot read"));
+    }
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
     if depends.pathless > 0 {
@@ -390,8 +394,9 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
-    let clean = !parsed.panicked && parsed.diagnostics.is_empty();
+    let clean = !parsed.fatal_error && parsed.diagnostics.is_empty();
     let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
+    let member_declarations = member_declarations_in(&parsed.program, &lines, &harvest);
     let read = Read {
         requests,
         exports,
@@ -402,7 +407,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         mocks: mocks_in(source, &parsed.program, scoping),
         members,
         binding_members,
-        member_declarations: member_declarations_in(&parsed.program, &lines),
+        member_declarations,
         member_uses: member_uses_in(&parsed.program, &lines),
         own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
@@ -411,6 +416,18 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
     };
     drop(built);
     (read, parsed.program)
+}
+
+/// Whether a statement names its module by a specifier no text holds, which
+/// the module record leaves out, so nothing else in a read says it is there.
+fn unread_statement(statement: &Statement) -> bool {
+    let source = match statement {
+        Statement::ImportDeclaration(it) => &it.source,
+        Statement::ExportFromDeclaration(it) => &it.source,
+        Statement::ExportAllDeclaration(it) => &it.source,
+        _ => return false,
+    };
+    source.value.as_str().is_none()
 }
 
 fn is_false(value: &bool) -> bool {

@@ -26,6 +26,8 @@ export interface PublishedRows {
   readonly spec: string[];
   readonly kind: string[];
   readonly doc: (string | null)[];
+  /** What each row's declaration writes before its body; null when its entry holds none. */
+  readonly signature: (string | null)[];
   readonly at: string[];
   readonly usedBy: number[];
   readonly uses: number[];
@@ -59,8 +61,12 @@ export interface HelpPublish {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
+  /** When the read behind the value began, before any of it was read. */
+  readonly readStartedAt: string;
   /** The digest of the index manifest the reading was made from. */
   readonly indexDigest: string;
+  /** What {@link forwardsDigest} states of the reading's `forwards`. */
+  readonly forwardsDigest: string;
   /** JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`. */
   readonly packages: string;
   readonly deep: string;
@@ -74,6 +80,8 @@ export interface HelpPublish {
 export interface HelpReading {
   /** The export list as a set, as `EncodedSearch.exported` states it. */
   readonly exportedDigest: string;
+  /** The rows of the export list that `files` write; the rest stays with the addon. */
+  exportedOf(files: string[]): NativeIndexedUsage['exported'];
   /** The uses, deep requests and unreadable files, handed over once; `exported` is empty. */
   usage(): NativeIndexedUsage;
   /** Write the graph, the value and its search; a graph already written under its digest is kept. */
@@ -157,6 +165,7 @@ export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
+  digestForwards?(forwards: string[]): string;
   importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
   outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
@@ -203,6 +212,11 @@ export function encodeSearch(published: PublishedRows, exported: readonly NamedE
 /** The digest `HelpReading.exportedDigest` states, of a list JavaScript holds. */
 export function exportedDigest(exported: readonly NamedExport[]): string {
   return entry('digestExported')([...exported]);
+}
+
+/** The `export … from` rows of a reading as a set, which the export list does not hold. */
+export function forwardsDigest(forwards: readonly string[]): string {
+  return entry('digestForwards')([...forwards]);
 }
 
 /**
@@ -291,7 +305,7 @@ export function aliasesOf(root: string, local: string, index: string = sourceInd
   return entry('aliasesOf')(root, index, local) ?? undefined;
 }
 
-/** One top-level declaration no export of its file binds. */
+/** One declaration no export of its file binds: at its top level, inside a function, or a member of a container. */
 export interface DeclaredName {
   readonly name: string;
   /** The declaration's kind as the parser harvested it: `function`, `const`, … */
@@ -314,7 +328,7 @@ export interface DeclaredName {
   readonly held?: readonly number[] | null;
   /** Asked by `declaredDescribedOf`: the positions, ascending, of those its name holds. */
   readonly named?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes adjacent. */
+  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes as a phrase, by `near`. */
   readonly near?: number | null;
   /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
   readonly docLength?: number | null;
@@ -322,6 +336,8 @@ export interface DeclaredName {
   readonly holder?: string | null;
   /** The line the function whose body declares it starts on: present only for a declaration inside a function. */
   readonly holderLine?: number | null;
+  /** The container it is a member of: present only for a member. */
+  readonly on?: string | null;
 }
 
 /** A file a description reached by its own name and the doc it opens with. */
@@ -336,7 +352,7 @@ export interface DescribedFile {
   readonly held: readonly number[];
   /** The positions, ascending, of those its name holds. */
   readonly named: readonly number[];
-  /** How many of the question's adjacent word pairs its module doc writes adjacent. */
+  /** How many of the question's adjacent word pairs its module doc writes as a phrase. */
   readonly near: number;
   /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
   readonly docLength?: number | null;
@@ -357,7 +373,9 @@ export interface DeclaredNames {
  * file binds — the names a file keeps to itself, which no export list holds —
  * named `query` exactly, or, given `containing`, whose name or doc comment
  * holds it in any case; only in `files`, repo-relative, when they are named. A name declared
- * twice in one file is answered once. `undefined` when no index was
+ * twice in one file is answered once. A function inside a function answers
+ * either question by its name, and a member answers `containing`, by its name,
+ * its doc or `container.member`: each says what holds it. `undefined` when no index was
  * published; throws when the index does not read.
  */
 export function declaredOf(
@@ -377,7 +395,7 @@ export function declaredOf(
  * `describedWordsNative` cuts `query` by, hold any of `stems`, in any
  * order; only in `files`, repo-relative, when they are named.
  * Each carries the positions of the stems it holds, how many its name holds,
- * and how many of the question's adjacent word pairs its doc writes adjacent.
+ * and how many of the question's adjacent word pairs its doc writes as a phrase.
  * Beside them, the files whose name and module doc hold any, the same way.
  * `undefined` when no index was published; throws when the index does not read.
  */

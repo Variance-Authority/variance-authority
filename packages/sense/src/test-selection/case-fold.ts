@@ -6,6 +6,7 @@ import type { ModuleId } from '../instrument/index.js';
 import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
+import { limitAcross } from './execution-set-columns.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
   isMissing,
@@ -23,11 +24,11 @@ import {
   unpackFrames,
   type CaseCoordinate,
 } from './cases.js';
-import { UNTIMED, type CaseDurations } from './case-durations.js';
+import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
 import { saidJoined, type Said } from './case-said.js';
-import preconditions from './case-preconditions.cjs';
+import caseOwner from './case-owner.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { Reading } from './readings.js';
@@ -60,6 +61,8 @@ export interface CaseFold {
 interface Coordinate extends CaseCoordinate {
   /** How the case settled across its frames, by `settledAcross`. */
   stopped?: boolean;
+  /** The limit it ran under, by `limitAcross`. */
+  limit?: number;
   /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
   readonly said: (Said | undefined)[];
   /** Every frame written under this coordinate, in replay order. */
@@ -81,6 +84,7 @@ export async function inspectCaseRun(
   directory: string,
   root: string,
   durations: CaseDurations = UNTIMED,
+  limits: CaseLimits = UNLIMITED,
 ): Promise<CaseRun> {
   let names: readonly string[];
   try {
@@ -121,11 +125,12 @@ export async function inspectCaseRun(
             const located = { ...coordinate, file: projectPath(root, coordinate.file) };
             const key = caseKey(located);
             const held = coordinates.get(key);
-            const said = preconditions.heardField(packed);
+            const said = caseOwner.heardField(packed);
             if (held === undefined) {
               scanning = {
                 ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
+                ...limitAcross(coordinate.limit, undefined),
                 said: [said],
                 frames: [frame],
               };
@@ -135,6 +140,7 @@ export async function inspectCaseRun(
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
+              Object.assign(held, limitAcross(held.limit, coordinate.limit));
               held.said.push(said);
             }
             frame += 1;
@@ -167,6 +173,7 @@ export async function inspectCaseRun(
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
+      ...limitAcross(coordinate.limit, limits(coordinate.file, coordinate.name)),
       ...(said === undefined ? {} : { said }),
     };
   });
@@ -232,7 +239,7 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const inspected = await inspectCaseRun(directory, root, run.durations);
+  const inspected = await inspectCaseRun(directory, root, run.durations, run.limits);
   if (inspected.tests.length === 0 && !finished) return undefined;
   const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
   return {
@@ -246,6 +253,8 @@ export async function freshCases(
 export interface CaseRunTests extends LaidRun {
   /** Each case's duration as the runner reported it; absent, no case is timed. */
   readonly durations?: CaseDurations;
+  /** Each case's limit, where the runner reports it only outside the case. */
+  readonly limits?: CaseLimits;
 }
 
 /**

@@ -27,7 +27,7 @@ function read(dimension: unknown, key: unknown, value: unknown): { asked: boolea
 describe('the recorder of what the code read', () => {
   it('lays a read in a case body on that case, once per name and value, at the site it was first read', () => {
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     running = keyOf('pays');
     const first = read('flags', 'checkout', true);
@@ -42,7 +42,7 @@ describe('the recorder of what the code read', () => {
 
   it('keeps every value one key was read with', () => {
     const running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     const on = read('flags', 'checkout', true);
     const off = read('flags', 'checkout', false);
@@ -54,7 +54,7 @@ describe('the recorder of what the code read', () => {
 
   it('lays a read while the file loads on every case of the file, at level 0', () => {
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     const loaded = read('copy', 'label', 'Pay');
     recorder.loaded();
     for (const name of ['pays', 'refunds']) {
@@ -65,7 +65,7 @@ describe('the recorder of what the code read', () => {
 
   it('keeps a case\'s own read of a value the file read as it loaded, at the case\'s site, as the native fold does', () => {
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     read('copy', 'label', 'Pay');
     recorder.loaded();
     running = keyOf('pays');
@@ -76,7 +76,7 @@ describe('the recorder of what the code read', () => {
 
   it('asks again for each case, so a read is laid on every case that made it', () => {
     let running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     read('flags', 'checkout', true);
     recorder.take(running);
@@ -86,7 +86,7 @@ describe('the recorder of what the code read', () => {
   });
 
   it('lays a read under a beforeEach that names no case on the case entered with its token', () => {
-    const recorder = preconditions.recorder(holder, () => undefined, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => undefined);
     recorder.loaded();
     const token = {};
     recorder.begin(token);
@@ -96,7 +96,7 @@ describe('the recorder of what the code read', () => {
   });
 
   it('lays a read under a beforeEach that names its case on that case', () => {
-    const recorder = preconditions.recorder(holder, () => undefined, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => undefined);
     recorder.loaded();
     const site = recorder.within({ kind: 'each', depth: 1, case: keyOf('pays') }, () => read('network', 'api', 'mocked').site);
     expect(recorder.take(keyOf('pays')).read).toEqual([['network:api', '"mocked"', site, preconditions.CASE_LEVEL]]);
@@ -104,7 +104,7 @@ describe('the recorder of what the code read', () => {
 
   it('keeps a value read under a beforeEach and again in the case body once, at the beforeEach\'s site', () => {
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     const token = {};
     recorder.begin(token);
@@ -118,7 +118,7 @@ describe('the recorder of what the code read', () => {
   it('records a read no case runs on nowhere, warns once for its site, and never throws', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     const sites = new Set<string>();
     for (let at = 0; at < 3; at += 1) sites.add(read('flags', 'checkout', true).site);
@@ -131,7 +131,7 @@ describe('the recorder of what the code read', () => {
 
   it('records a call it cannot name as a misuse apart from the reads: the argument that was wrong and the value it was given', () => {
     const running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     let site = '';
     for (const [dimension, key] of [[7, 'checkout'], ['flags:x', 'checkout'], ['', 'checkout'], ['flags', 7], ['flags', ''], [undefined, 'checkout']] as const) {
@@ -139,7 +139,7 @@ describe('the recorder of what the code read', () => {
     }
     const heard = recorder.take(running);
     expect(heard.read).toEqual([]);
-    expect(heard.misused!.map(([argument, value, at]) => [argument, value, at])).toEqual([
+    expect(heard.misused.map(([argument, value, at]) => [argument, value, at])).toEqual([
       ['dimension', '7', site],
       ['dimension', '"flags:x"', site],
       ['dimension', '""', site],
@@ -151,7 +151,7 @@ describe('the recorder of what the code read', () => {
 
   it('keeps a misuse once per argument and value, at its first site, and asks no site for it again', () => {
     const running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     const recorded = holder[BREADCRUMB]!;
     // The site is the frame that called `varianceBreadcrumb`: here, the line that called `breadcrumb`.
@@ -165,12 +165,12 @@ describe('the recorder of what the code read', () => {
 
   it('keeps an array or an object given as a misuse by its kind alone, and a value JSON cannot hold as nothing', () => {
     const running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     read({ flags: { checkout: true } }, 'checkout', true);
     read(['flags'], 'checkout', true);
     read('flags', Symbol('checkout'), true);
-    expect(recorder.take(running).misused!.map(([argument, value]) => [argument, value])).toEqual([
+    expect(recorder.take(running).misused.map(([argument, value]) => [argument, value])).toEqual([
       ['dimension', '{}'],
       ['dimension', '[]'],
       ['key', null],
@@ -179,7 +179,7 @@ describe('the recorder of what the code read', () => {
 
   it('lays a misuse made while the file loads on every case of the file, at level 0', () => {
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     const { site } = read('flags', 7, true);
     recorder.loaded();
     for (const name of ['pays', 'refunds']) {
@@ -191,7 +191,7 @@ describe('the recorder of what the code read', () => {
   it('warns once for a misuse where no case runs, saying what was wrong, and records it nowhere', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     let running: string | undefined;
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     for (let at = 0; at < 2; at += 1) read('flags', '', true);
     expect(warn).toHaveBeenCalledTimes(1);
@@ -202,16 +202,9 @@ describe('the recorder of what the code read', () => {
 
   it('keeps a value JSON cannot hold under the name it was read by, as unrecorded', () => {
     const running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running, undefined, undefined, true);
+    const recorder = preconditions.recorder(holder, () => running);
     recorder.loaded();
     read('flags', 'checkout', () => true);
-    expect(recorder.take(running).read!.map(([name, value]) => [name, value])).toEqual([['flags:checkout', null]]);
-  });
-
-  it('installs nothing to read with and carries no read facet where the runner does not listen to reads', () => {
-    const running = keyOf('pays');
-    const recorder = preconditions.recorder(holder, () => running);
-    expect(holder[BREADCRUMB]).toBeUndefined();
-    expect(recorder.take(running)).toEqual({ said: [] });
+    expect(recorder.take(running).read.map(([name, value]) => [name, value])).toEqual([['flags:checkout', null]]);
   });
 });

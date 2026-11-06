@@ -7,6 +7,7 @@ import type { Flakiness } from '@variance-authority/history';
 import type { BuildSummary, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { ReviewApp, SubjectHistory } from './review.js';
+import type { Route } from './route.js';
 
 /**
  * The three states `ReviewApp` itself decides between, and the one that matters.
@@ -150,6 +151,30 @@ describe('ReviewApp', () => {
     expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
   });
 
+  it('offers sign-in in the top bar, where the page keeps its way around', async () => {
+    await act(async () => {
+      root.render(<ReviewApp client={clientThat(() => Promise.resolve([]))} signIn="/auth/github/login" />);
+    });
+
+    const link = host.querySelector<HTMLAnchorElement>('.va-topbar a[href^="/auth/github/login"]');
+    expect(link?.textContent).toBe('Sign in to decide');
+    expect(link?.className).toBe('va-mode');
+  });
+
+  it('returns a reader from sign-in to the page they have reached, not the one they opened', async () => {
+    const client = clientThat(() => Promise.resolve([]));
+    const render = (route: Route) =>
+      act(async () => {
+        root.render(<ReviewApp client={client} signIn="/auth/github/login" route={route} onNavigate={() => undefined} />);
+      });
+    await render({ page: 'builds' });
+    await render({ page: 'build', build: 'ci-7' });
+
+    expect(host.querySelector('.va-topbar a[href^="/auth/github/login"]')?.getAttribute('href')).toBe(
+      '/auth/github/login?return=%2Fbuilds%2Fci-7',
+    );
+  });
+
   it('says the list is empty only when the service said so', async () => {
     await mount(clientThat(() => Promise.resolve([])));
 
@@ -169,8 +194,9 @@ describe('ReviewApp', () => {
     const text = host.textContent ?? '';
     expect(text).toContain('"endpoint": "https://review.example.com"');
     expect(text).toContain('VARIANCE_INGEST_TOKEN');
-    // And which token it is not: this is the moment somebody picks a secret for CI.
-    expect(text).toContain('review token');
+    // A deployment that trusts the runner takes the job's own token, and no secret.
+    expect(text).toContain('"github-actions"');
+    expect(text).not.toContain('review token');
   });
 
   it('lists what came back, and asks the service once', async () => {

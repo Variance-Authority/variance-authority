@@ -5,7 +5,7 @@ import { findEntry, httpLineCell, publishLine, readLine, type ShareLine } from '
 import { CHURN_PATH } from '@variance-authority/history';
 import { FoldedKey } from './worker-http.js';
 import { createTribunal, type Tribunal } from './worker.js';
-import { createMemoryR2, createSqliteD1, type MemoryR2 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1, type MemoryR2 } from './testing.js';
 
 /**
  * The share, driven by the client that will use it.
@@ -43,9 +43,7 @@ beforeEach(async () => {
     db: await createSqliteD1(),
     bucket,
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
-    shareToken: SHARE,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW, share: SHARE }),
   });
   requests = [];
   before = async () => undefined;
@@ -264,7 +262,7 @@ describe('who opens the share', () => {
       }),
     );
     expect(response.status).toBe(403);
-    expect(await response.text()).toContain('the review token');
+    expect(await response.text()).toContain('A person reads the review surface');
   });
 
   it('refuses a caller with no token, as it refuses one everywhere else', async () => {
@@ -289,14 +287,6 @@ describe('who opens the share', () => {
     // The two answers it shares with every token: the version, and a path nothing serves.
     expect((await get('/version')).status).toBe(200);
     expect((await get('/nothing/here')).status).toBe(404);
-  });
-
-  it('refuses to start with a share token that is short, or is another token', async () => {
-    const db = await createSqliteD1();
-    const base = { db, bucket, project: 'p', ingestToken: INGEST, reviewToken: REVIEW };
-    expect(() => createTribunal({ ...base, shareToken: 'short' })).toThrow(/shorter than 16/);
-    expect(() => createTribunal({ ...base, shareToken: INGEST })).toThrow(/same value as the ingest token/);
-    expect(() => createTribunal({ ...base, shareToken: REVIEW })).toThrow(/same value as the review token/);
   });
 
   it('leaves the share alone when builds are swept', async () => {

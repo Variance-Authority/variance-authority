@@ -3,11 +3,11 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEXICON_CAP, type SubjectComposition } from '@variance-authority/core/attribute';
 import { readSuiteIndex } from '@variance-authority/report/file';
 import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/suite-index';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import type { Config } from '../config.js';
 import { EXIT_OPERATOR } from '../exit.js';
 import { composeReports } from './compose.js';
@@ -138,11 +138,11 @@ describe('share --publish over every shard', () => {
 
   beforeEach(async () => {
     home = await mkdtemp(join(tmpdir(), 'variance-suite-part-'));
-    process.env['VARIANCE_AUTHORITY_CACHE'] = home;
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', home);
   });
 
   afterEach(() => {
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   const configOf = (root?: string): Config =>

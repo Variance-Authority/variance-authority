@@ -15,10 +15,12 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { type Help, type Use, undecided } from '@variance-authority/package/help';
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
+import { askedOnce } from './asked-once.js';
 import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { keyOf, SLOT } from './declaration-key.js';
+import { importLine } from './declared.js';
 import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
 
@@ -63,12 +65,12 @@ interface Original {
  * lines that declare both. `wanted` keeps the exports of that package. Nothing
  * when no import binds `local` to another name, or no source index is read.
  */
-export function localNames(
+export const localNames = askedOnce((
   help: Help,
   root: string | undefined,
   local: string,
   wanted: string | undefined,
-): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number])[] } {
+): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number])[] } => {
   if (root === undefined) return { blocks: [], files: [] };
   let aliases: readonly Alias[] | undefined;
   try {
@@ -96,11 +98,9 @@ export function localNames(
     const named = first.imported === SLOT ? (declared ?? first.imported) : first.imported;
     const original = originalOf(help, root, first, wanted, named);
     if (original === undefined) continue;
-    const imports = (alias: Alias): string =>
-      `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
     const also = group.slice(1);
     blocks.push([
-      `\`${local}\` is a local name: ${imports(first)}.`,
+      `\`${local}\` is a local name: ${importLine(first, named, local)}.`,
       ...(also.length === 0 ? [] : [`Also imported as \`${local}\` at ${also.slice(0, CAP).map((alias) => `${alias.at}:${alias.line}`).join(', ')}${more(also.length)}.`]),
       '',
       original.text,
@@ -109,7 +109,7 @@ export function localNames(
     files.push(...original.at);
   }
   return { blocks, files };
-}
+});
 
 /**
  * The export one import names: the published entry its specifier opens or
@@ -132,7 +132,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
     // The original's own sites are not read here, so the entry's are what may read it.
     const may = undecided(published.name, held, entry);
-    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
+    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(help, root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
@@ -143,7 +143,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
       return {
         text: [
           ...rows,
-          ...memberRows(root, declared.at, declared.name, declared.line),
+          ...memberRows(help, root, declared.at, declared.name, declared.line),
         ].join('\n'),
         at: [[held.at, held.line], ...(declared === held ? [] : [[declared.at, declared.line] as const])],
       };

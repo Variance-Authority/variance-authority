@@ -43,8 +43,8 @@ pub(crate) struct Folded {
 type Key = (String, String, String, Option<String>);
 
 /// Fold `shards`, whose cuts `case_shard::read_shard` gathered in `inventories`.
-/// `always_timed` writes the duration column where no case was timed, as a
-/// record's case index carries it.
+/// `always_timed` writes the duration and limit columns where no case has one,
+/// as a record's case index carries them.
 pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inventory>>, always_timed: bool) -> Result<Folded, String> {
     if shards.is_empty() {
         return Err("no case indexes were named".to_owned());
@@ -137,7 +137,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         landings.push(lands);
     }
     let rows: HashMap<&str, usize> = modules.iter().enumerate().map(|(at, module)| (module.file.as_str(), at)).collect();
-    let mut extras = CaseExtras { durations: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
+    let mut extras = CaseExtras { durations: vec![None; tests.len()], limits: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
     // The parts of one case each hold the lines of the regions they crossed, so
     // a case two shards hold at different lines is joined over its crossings
     // once the sets are read: `joining` names each holding by shard and case.
@@ -161,6 +161,10 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             if let Some(duration) = shard.durations[local] {
                 let held = &mut extras.durations[global];
                 *held = Some(held.map_or(duration, |known| known.max(duration)));
+            }
+            if let Some(limit) = shard.limits[local] {
+                let held = &mut extras.limits[global];
+                *held = Some(held.map_or(limit, |known| known.max(limit)));
             }
             if shard.lines[local].is_empty() {
                 continue;

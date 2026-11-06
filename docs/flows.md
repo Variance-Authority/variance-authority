@@ -185,18 +185,21 @@ other:
 
 A retention sweep, run when you call it, removes builds older than 30 days by
 default and keeps baselines, decisions and concerns. A deployment uses a
-database and object storage, plus two different secrets:
+database and object storage, and declares who it recognizes:
 
-- the ingest token lets CI post builds, baselines, and history rows;
-- the review token lets a person read the review pages and decide.
+- `INGEST_CREDENTIALS` says what may post builds, baselines, and history rows:
+  GitHub Actions' own identity, or an ingest token;
+- `REVIEW_CREDENTIALS` says who may read the review pages and decide: people
+  signed in with GitHub, or behind your identity provider.
 
-The two values must differ, and Tribunal refuses a deployment that gives one
-string both capabilities. Anything that can read an ordinary build log may be
-able to read the ingest token, and that capability must not be able to approve a
-regression. The review token stays server-side: your mounting adapter
-authenticates the person and attaches the capability to each request.
+Writing a run and deciding on one stay apart. Anything that can read an ordinary
+build log may be able to read the ingest token, and that capability must not be
+able to approve a regression. Every decision is recorded under the name of the
+person who made it.
 
-Point `npx variance push` at the deployment with the ingest token:
+Point `npx variance push` at the deployment with an ingest credential. Here that
+is a token; on GitHub Actions it can be the token the runner signs, which stores
+no secret:
 
 ```json
 {

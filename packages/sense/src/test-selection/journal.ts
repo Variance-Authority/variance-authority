@@ -58,7 +58,7 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
@@ -69,9 +69,8 @@ import {
 import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 import {
-  noteSeeded,
-  seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -121,7 +120,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
-export { preconditionText, SAID_NOTHING, saidAcross, type CasePrecondition, type Said } from './case-said.js';
+export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,
@@ -400,14 +399,6 @@ export async function recordExecution(
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
   };
 
-  // Read-modify-write, and more than one process does it. A Playwright suite
-  // runs its workers as separate processes over one index, so the exclusion is
-  // between processes or it is nothing: two unlocked workers would each merge
-  // against the index they read at the start and the later rename would drop the
-  // earlier worker's whole contribution — silently, and in the unsafe direction.
-  // A worktree layers onto the repository's months of recording rather than
-  // onto nothing. A no-op here and after the first run.
-  noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation, options.cacheRoot));
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are
@@ -423,7 +414,15 @@ export async function recordExecution(
           run: { tests, ...(commit === undefined ? {} : { commit }) },
           ...(eyes === undefined ? {} : { eyes }),
         };
-  const merged = await withIndexLock(coverageFile, async () => {
+  // Read-modify-write, and more than one process does it. A Playwright suite
+  // runs its workers as separate processes over one index, so the exclusion is
+  // between processes or it is nothing: two unlocked workers would each merge
+  // against the index they read at the start and the later rename would drop the
+  // earlier worker's whole contribution — silently, and in the unsafe direction.
+  const merged = await withIndexLock(coverageFile, async (lock) => {
+    // A worktree layers onto the repository's months of recording rather than
+    // onto nothing. A no-op here and after the first run.
+    await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
     await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });

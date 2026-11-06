@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
@@ -29,12 +29,12 @@ describe('a test that did not run at the journal commit', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-standing-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-standing-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('runs where a file it entered changed after it last ran', async () => {
@@ -257,6 +257,7 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.out).toBe('');
     expect(said.err).toContain(`cannot read what changed since ${gone}`);
     expect(said.err).toContain(`git could not diff ${gone.slice(0, 12)}, where 1 test(s) last ran, against`);
+    expect(said.err).toContain(`commit ${gone.slice(0, 12)} is not in this checkout's object store. Fetch it with \`git fetch origin ${gone}\`, or check out every commit: \`fetch-depth: 0\` with \`filter: tree:0\` on \`actions/checkout\``);
   });
 
   it('refuses a runs record that is not JSON, by the file it read', async () => {

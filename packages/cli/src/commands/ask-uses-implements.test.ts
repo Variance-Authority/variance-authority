@@ -1,9 +1,9 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` over a method of an interface that classes implement:
@@ -17,12 +17,12 @@ import { checkout, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-implements-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-implements-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const DEPS = {
@@ -61,7 +61,7 @@ describe('variance ask uses over an interface method', () => {
     expect(out).not.toContain('packages/kit/src/other.ts:5');
     expect(out).toContain(
       'An implementation of `Deps.readJourney` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: ' +
-        "TypeScript's go-to-implementation on packages/lib/src/deps.ts:2 names it.",
+        "TypeScript's language service's go-to-implementation on packages/lib/src/deps.ts:2 names it.",
     );
   });
 });

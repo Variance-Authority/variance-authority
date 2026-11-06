@@ -116,12 +116,9 @@ pub struct JourneysAnswer {
     pub not_prepared: Option<String>,
     pub cases: u32,
     pub commit: Option<String>,
-    /// Why the call graph was parsed from the working tree rather than from
-    /// the recorded commit.
-    pub tree: Option<String>,
     pub files: Vec<JourneysFile>,
 }
 
 pub(crate) fn refused(reason: &str) -> JourneysAnswer {
-    JourneysAnswer { not_prepared: Some(reason.to_owned()), cases: 0, commit: None, tree: None, files: Vec::new() }
+    JourneysAnswer { not_prepared: Some(reason.to_owned()), cases: 0, commit: None, files: Vec::new() }
 }

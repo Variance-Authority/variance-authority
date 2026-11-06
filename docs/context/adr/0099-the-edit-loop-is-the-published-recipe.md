@@ -60,6 +60,32 @@ lost by it: a new file is reached only through an import an edit added, and
 that edited importer charges every test that loaded it. Checked by adding a new
 module and its import, then reading the loop and `variance select` after it.
 
+## Amended 2026-10-31 — a reader updates an index older than its question
+
+The consequence above does not hold: no run writes the source index, so the
+graph a selection reads is the last `variance index`, whatever ran since. A
+file added after it had no hops, and the test that imports it was placed only
+in the open leg. An edit to the new file alone then selected nothing at `0-1`
+([#777](https://github.com/Variance-Authority/variance-authority/issues/777)).
+
+The line stays as published. A selection brings the source index up to the
+checkout before it reads the graph, as a reader of the checkout's names does:
+the update pays only for what moved, about 60 ms with nothing to read on this
+repository's 3,700 files. Updating only when the index lacks a changed file
+was tried first and left a test that moved its import between two indexed
+files measured on the old edge. When the update is refused, the hops are
+measured on a graph that is not the checkout's, so a leg cuts nothing by them:
+it runs every selected test file and its first note says why.
+
+`yarn test:loop` hands its arguments to the runner and reads its leg from
+`VARIANCE_AUTHORITY_AT_DISTANCE`, `0-1` when unset; the waves keep
+their fixed legs, since a gate stamped for a leg must have run it. A flag
+Vitest does not take fails before any test runs, where it used to reach
+`tools/needs.mjs` unread
+([#855](https://github.com/Variance-Authority/variance-authority/issues/855));
+the leg's notes under a seam name the variable, which is how the same run asks
+for another leg.
+
 ## Amended 2026-10-28 — a green run ends with what a new function needs
 
 After the tests pass, the loop prints the existing functions that need what
@@ -79,3 +105,30 @@ the line `docs/test-an-edit.md` publishes; the list is ours, a reader of this
 repository's own history, and the page does not carry it. On the measurement
 machine, reading it alone takes 0.56 s with its cache warm and 1.5 s on the
 first run after the reader changes, Node's start included.
+
+## Amended 2026-11-04 — the loop lints first, and an empty run says it ran nothing
+
+[ADR-0096](0096-the-edit-loop-answers-for-one-edit.md)'s consequence that lint
+keeps its place in the waves is replaced. A lint failure arrived at
+`verify:near`, edits after the one that made it, and `oxlint` costs little: over
+this repository's 3,500 files it answers in 0.08 s alone, and in the loop the
+median of seven interleaved runs moves from 1.07 s to 1.21 s on the measurement
+machine, under a load average of 11–24
+([#963](https://github.com/Variance-Authority/variance-authority/issues/963)).
+It is the first step of the script line, the command `yarn lint` runs and
+`verify:near` starts with, and a check holds the three equal. A red lint ends
+the run before the compiler. The linter is a project's own choice, so like the
+needs list it is ours and the line `docs/test-an-edit.md` publishes stays the
+compiler and the runner.
+
+An empty run ended on the runner's `No test files found, exiting with code 0`,
+and `selected none of 1072` above it did not say the two were one answer. The
+exit code stays 0 and nothing wraps the run: the seam's headline says it,
+`selected none of 1072, so none of them runs`. The line says only what the seam
+knows, because the runner's next words are the runner's: Jest asks once per
+project, so a project that keeps nothing can sit beside one that runs, a selected
+Jest run that found files and kept none exits 0, and one that found no file fails
+as Jest fails. Under Vitest the line stands above the
+runner's rather than after it, because the seam says it when the selection is
+made. The exit 0 of such a run means lint and the compiler passed and no test
+ran, and the verdict's words are what tell it from a run whose tests passed.

@@ -83,13 +83,15 @@ pub fn read_gaps(decoded: &journey_columns::Decoded, strings: &[String]) -> Resu
 pub struct CaseExtras {
     /// Each case's duration in whole milliseconds; empty where no case was timed.
     pub durations: Vec<Option<u32>>,
+    /// Each case's limit in milliseconds; empty where no case named one.
+    pub limits: Vec<Option<u32>>,
     /// Each case's lines as stored, empty for a case that recorded none; no
     /// rows where no case recorded any.
     pub lines: Vec<Vec<u8>>,
-    /// Whether `tests.duration` is written even where no case was timed. A
-    /// record's case index always carries it, so `combine` sets it; a journey
-    /// artifact carries it only where a case was timed, so `journeys stitch`
-    /// does not.
+    /// Whether `tests.duration` and `tests.limit` are written even where no
+    /// case has one. A record's case index always carries them, so `combine`
+    /// sets it; a journey artifact carries them only where a case has one, so
+    /// `journeys stitch` does not.
     pub always_timed: bool,
 }
 
@@ -101,8 +103,9 @@ pub fn encode(
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
     let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
+    let limited = extras.always_timed || extras.limits.iter().any(Option::is_some);
     let lined = extras.lines.iter().any(|lines| !lines.is_empty());
-    if (timed && extras.durations.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
+    if (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
@@ -215,6 +218,10 @@ pub fn encode(
     if timed {
         let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.duration.as_str(), words));
+    }
+    if limited {
+        let words = extras.limits.iter().map(|limit| limit.unwrap_or(LAYOUT.coverage.no_duration)).collect();
+        columns.push(Column::Words(cases.limit.as_str(), words));
     }
     for (section, laid) in case_said::SECTIONS.into_iter().zip(heard) {
         if let Some(laid) = laid {

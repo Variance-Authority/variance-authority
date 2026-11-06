@@ -56,8 +56,8 @@ whole suite again over a record that exists:
   commit the record was made at, names it when it imports the file. Otherwise
   the gap is a test that loads the file, which no run fills.
 - **A base the answer cannot compare against** — `undiffed`. The base names a
-  commit this clone lacks or cannot diff from, or names none. This gap is the
-  one no run fills: fetch that commit, for example by deepening a shallow
+  commit this clone lacks or cannot diff from, or names none, or `--since` names
+  a ref that reads as no diff. This gap is the one no run fills: fetch that commit, for example by deepening a shallow
   clone, or ask without the base.
 
 `reach` and `discover` follow imports. A suite that drives the code from another
@@ -133,6 +133,7 @@ when its condition holds, not before.
 | What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
 | Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
+| A Cloudflare tribunal needs setting up, a token, or its Access values; CI says the ingest token is not set | [deploy a tribunal](references/deploy-a-tribunal.md) | |
 
 ## Rules every answer shares
 
@@ -147,6 +148,9 @@ the characters you typed, with no synonyms and no model, so `auth` does not find
 a sign-in screen whose component is `CredentialGate`. Ask each likely spelling —
 `login`, `session`, `credential`, `token` — as its own short query, and use the
 vocabulary of the first hit for every question after it.
+
+**`search` lists candidates, not every match.** For every tracked line that
+writes a word, run `git grep -i <word>`.
 
 **Say where you are standing.** On a large repository a common word matches
 everywhere the product uses its own name. `--from <path>` narrows to what that
@@ -174,5 +178,5 @@ by the bytes they came from, so a stale entry, another branch's cache or no
 cache at all costs a slower answer and never a different one. The recording has
 its own refresh rules, in [test selection](references/test-selection.md). Runs
 prune the render cache themselves. To force a cold read, delete the directory.
-A git worktree writes its own layer beneath the primary checkout's and reads
-both, so deleting one checkout's cache leaves the others' in place.
+A git worktree writes its own layer in its own cache and reads the primary
+checkout's too, so deleting one checkout's cache leaves the others' in place.

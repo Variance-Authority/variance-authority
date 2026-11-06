@@ -17,7 +17,7 @@ import { regionKind } from './review-scope.js';
 import { hopsText, narrowedText, probesText, scopeText } from './covering-text.js';
 import { staleFile, staleLines } from './covering-stale.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, reachOf } from '@variance-authority/sense/test-selection';
+import { absentText, heldText, reachOf } from '@variance-authority/sense/test-selection';
 import { whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'said'>;
@@ -57,7 +57,7 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
       lines.push(file.file);
       if (file.cases.length > 0) lines.push(`  declares ${table.refs(file.cases)}`);
       if (!file.recorded) {
-        if (file.cases.length === 0) lines.push('  no row: the recorded run never loaded it');
+        if (file.cases.length === 0) lines.push(file.absentAt === undefined ? '  no row: the recorded run never loaded it' : `  no row: ${absentText(file.absentAt)}`);
         continue;
       }
       if (file.regions.length === 0) lines.push('  no recorded region changed');

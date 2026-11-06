@@ -26,7 +26,6 @@ import {
   coverageFanIn,
   declaredSuites,
   earnedCoverage,
-  readableTestCoverage,
   recordedCommit,
   sharedPreconditions,
   testCoverageFile,
@@ -43,13 +42,15 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
+import { selectedRecord } from './mainline-selected.js';
 import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import type { textOver } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
-import { relationsFor } from './source-graph.js';
+import { indexNames, indexUpToCheckout, relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -134,8 +135,12 @@ export interface CoverageEntry {
   readonly uses: CoverageSource;
 }
 
-/** Count the records the request names, and compare them with their bases. */
-export async function coverage(request: ParsedCoverage): Promise<Coverage> {
+/**
+ * Count the records the request names, and compare them with their bases,
+ * parting what each region ran over by text with `over`. A review passes none:
+ * it counts what ran, never over which text, which is `variance coverage`'s.
+ */
+export async function coverage(request: ParsedCoverage, over: typeof textOver | undefined): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
   if (request.suite !== undefined) asOperator(() => testCoverageFile(request.root, { suite: request.suite }));
@@ -147,8 +152,14 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     );
   }
 
+  // The split names the checkout's texts by the index, so it brings the index up to the checkout first;
+  // one it could not is read as it stands, and names no text the checkout holds.
+  const notUpdated = over === undefined ? undefined : await indexUpToCheckout(request.root);
   // Read first: `--from` narrows every record counted below to the files it reaches.
   const reading = await readSource(request.root, request.from, request.packages === true);
+  const names = 'missed' in reading
+    ? { missed: reading.missed }
+    : notUpdated === undefined ? indexNames(reading.records) : { missed: notUpdated };
   if ('missed' in reading && request.from !== undefined) {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
@@ -171,7 +182,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     // nearest that holds it, which in a checkout that has not run is the
     // mainline's as last fetched here, else, in a worktree, the primary
     // checkout's.
-    const record = await readableTestCoverage(request.root, { suite: one?.name });
+    const record = await selectedRecord(request.root, one?.name, one);
     const from = await recordOf(request.root, one?.name, record);
     if (from === undefined) {
       suites.push(named);
@@ -183,7 +194,11 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     const index = within(whole, scope);
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
-    now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
+    // Over which text each region ran: asked of the whole index, so `--from` and each package count the same answers.
+    now.push({
+      ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index,
+      ...(over === undefined ? {} : { textOf: await over(request.root, record, recorded, whole, names) }),
+    });
     const found = request.atDistance === undefined
       ? await baseOf(request, one)
       : { missed: 'no base: `--at-distance` measures import hops on the graph of the tree as it is now, and the base ran on another' };

@@ -23,15 +23,14 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
-import { environmentEntry } from './jest-environment-entry.js';
 import { randomUUID } from 'node:crypto';
-import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
-import { configuredPath, environmentPaths, projectRoot, setupPaths } from './jest-config-paths.js';
+import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
+import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
 import { selectingFilter } from './jest-selection.js';
@@ -129,7 +128,10 @@ export interface JestTestSelectionOptions {
    * The selection this run is handed, read once when Jest first filters what
    * it found. A `filter` drops what it may skip after the project's own, and
    * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
-   * the one `variance select` reads, and with that unset every file runs.
+   * the one `variance select` reads, and with that unset every file runs. A
+   * selection that keeps no file exits 0; a run no project found a file for
+   * fails, as Jest fails it, unless the configuration or the command line lets
+   * it pass.
    */
   readonly selection?: () => Promise<SuiteSelection>;
 }
@@ -165,7 +167,8 @@ export interface JestJourneyCoverageOptions {
    * It is required once per worker, outside every test file's sandbox, because
    * an SDK hooks `fetch` for the whole process: initialized again in each
    * file, the first file's hooks outlive it and the next file's requests carry
-   * the wrong trace. The project's `testEnvironment` still runs.
+   * the wrong trace. The project's `testEnvironment`, or the one a test file's
+   * `@jest-environment` docblock names, still runs, and so does its `runtime`.
    */
   readonly trace?: string;
 }
@@ -186,6 +189,8 @@ export interface JestConfig {
 /** What one transform entry hands the wrapping transformer. */
 export interface SelectionTransformerConfig {
   readonly root: string;
+  /** The runtime Jest constructs for each test file, readied before Jest loads the file's environment. */
+  readonly runtime?: string;
   /** The transformer this one wraps, as the configuration spelled it; absent runs plain JavaScript. */
   readonly transformer?: string | readonly [string, Record<string, unknown>];
   /** Absolute paths Jest evaluates before `setupFiles` can install the probe collector. */
@@ -283,8 +288,7 @@ export const SELECTION_TRANSFORM = here('./jest-transform.js');
 export const SELECTION_GLOBALS = here('./jest-globals.cjs');
 export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
-/** The host bridge a cached environment entry loads before the project environment. */
-export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
+export { SELECTION_RUNTIME };
 /** This package, which automock would stub under the collector its setup file installs. */
 const UNMOCKED = here('../').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -331,11 +335,9 @@ export function withTestSelection(
   // Under `loads` no region is probed for a line of a test to have reached first.
   const cadence = options.cadence !== false && probesRegions(mode);
   const projects = inline?.map((project) =>
-    traced(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), projectRoot(project, rootDir), undefined));
+    selecting(instrumented(project, root, projectRoot(project, rootDir), placing, declared, cadence), root, undefined));
   const preconditions = [
-    ...environmentPaths(config, rootDir),
     ...setupPaths(config, rootDir),
-    ...(inline ?? []).flatMap((project) => environmentPaths(project, projectRoot(project, rootDir))),
     ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, rootDir))),
     ...declared,
   ];
@@ -352,13 +354,13 @@ export function withTestSelection(
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? traced(instrumented(config, root, rootDir, placing, declared, cadence), rootDir, undefined) : config),
+    ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
+    ...placingSequencer(config, { root, rootDir, times }),
     ...(selection === undefined ? {} : selectingFilter(config, {
       root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
     })),
-    ...placingSequencer(config, { root, rootDir, times }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
       ...reporter,
       ...(selection === undefined ? {} : { selected: true }),
@@ -383,7 +385,7 @@ export function withJourneyCoverage(
     throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
   }
   const journeyProject = (project: JestConfig, at: string): JestConfig =>
-    traced(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), at, trace);
+    selecting(instrumented(project, root, at, { mode: options.mode, unprobed: undefined }, declared, false), root, trace);
   const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
@@ -398,33 +400,6 @@ export function withJourneyCoverage(
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
-  };
-}
-
-/**
- * Run a project's environment through the one that requires the trace once
- * per worker. The project's environment is resolved here as Jest resolves it —
- * `node` when unset, `jest-environment-<name>` before `<name>` — and passed on
- * as a file.
- */
-function traced(config: JestConfig, rootDir: string, trace: string | undefined): JestConfig {
-  const named = config.testEnvironment ?? 'node';
-  if (trace === undefined && ['node', 'jsdom', 'jest-environment-node', 'jest-environment-jsdom'].includes(named)) return config;
-  const [path] = configuredPath(named, rootDir);
-  const require = createRequire(resolve(rootDir, 'package.json'));
-  let environment = path;
-  if (environment === undefined) {
-    try {
-      environment = require.resolve(`jest-environment-${named}`);
-    } catch {
-      environment = require.resolve(named);
-    }
-  }
-  const options = (config['testEnvironmentOptions'] ?? {}) as Record<string, unknown>;
-  return {
-    ...config,
-    testEnvironment: environmentEntry(repositoryRoot(rootDir), environment, TRACE_ENVIRONMENT),
-    testEnvironmentOptions: { ...options, varianceAuthority: { environment, ...(trace === undefined ? {} : { trace }) } },
   };
 }
 
@@ -464,7 +439,7 @@ function instrumented(
     : Object.keys(config.transform).length === 0
       ? { [DEFAULT_PATTERN]: undefined }
       : config.transform;
-  const exclude = [...new Set([...environmentPaths(config, rootDir), ...declared])];
+  const exclude = [...new Set(declared)];
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
       pattern,
@@ -472,6 +447,7 @@ function instrumented(
         SELECTION_TRANSFORM,
         {
           root,
+          runtime: SELECTION_RUNTIME,
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
           ...(unprobed === undefined ? {} : { unprobed }),

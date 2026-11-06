@@ -44,12 +44,14 @@ import { OperatorError } from '../exit.js';
 import { answerGap, GapRefusal, type EvidenceGap } from './evidence-gap.js';
 import { refusalGap } from './refusal-gap.js';
 import { recordedExecutionFile } from './execution-input.js';
+import { recordedOrMainline, type FoundRecord, type RecordSource } from './suite-base.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { RecordOlder } from './covering-unloaded.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
+import { nothingChanged } from './covering-since.js';
 import { listedIn, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { heldText, placementFor, recordOf, type CoveringRange } from './covering-frame.js';
 import { ranOf, type CoveringRan } from './covering-ran.js';
@@ -58,7 +60,7 @@ import type { UnrunPart } from './covering-at.js';
 import { lineStatus, type AskedLines } from './covering-lines.js';
 import { ask, readIndex, type IndexReader } from './covering-ask.js';
 import { graphOnce, type Graph } from './gap-selection.js';
-import type { CoveringAt, ParsedCovering } from '../covering-args.js';
+import type { CoveringAt, CoveringQuestion, ParsedCovering } from '../covering-args.js';
 
 /**
  * How the answer is written. `text` reads; `refs` names every case once, for an
@@ -233,6 +235,8 @@ export interface Covering {
   readonly probes?: ProbesGap & { readonly cut?: CutGap; readonly note: string };
   /** The one question the answer leaves open, and the run that closes it (`evidence-gap.ts`). Absent when nothing is open. */
   readonly gap?: EvidenceGap;
+  /** Whose record answered. Absent for a suite not given to a share, which has only the one, and under `--execution`, which names its own. */
+  readonly source?: RecordSource;
 }
 
 /**
@@ -246,7 +250,7 @@ export interface Covering {
  * @param graph The checkout's file graph, read at most once for the whole
  * invocation: a caller asking several suites hands every one the same.
  */
-export async function covering(request: ParsedCovering, graph: Graph = graphOnce(request.root)): Promise<Covering> {
+export async function covering(request: CoveringQuestion, graph: Graph = graphOnce(request.root)): Promise<Covering> {
   let scope: CoveringScope | undefined;
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
@@ -276,8 +280,19 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
   let ranOther: ReadonlyMap<string, readonly string[]> | undefined;
   let lines: AskedLines | undefined;
   let entered: readonly ExecutionTest[] | undefined;
+  // No record has anything to say of a change with no lines, so none is fetched for it.
+  if (request.since !== undefined && request.listed.lines.size === 0) throw nothingChanged(request.since);
+  // `--execution` names its record, so nothing is asked of the share. Every other question reads the record every
+  // base reader reads, and a handed text, an editor's repaint, reads it without waiting for the wire.
+  const handed = request.since === undefined && (request.text !== undefined || request.held !== undefined);
+  let found: FoundRecord | undefined;
+  let from = request.execution;
   try {
-    const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+    if (from === undefined) {
+      found = await recordedOrMainline(request, handed ? { fetch: 'never' } : {});
+      from = await recordedExecutionFile(request.root, request.suite, found.at);
+      request = { ...request, record: found.at };
+    }
     record = await recordOf(request, from);
     text = request.since === undefined ? await heldText(request as CoveringAt) : undefined;
     const held = {
@@ -308,12 +323,11 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     // An answer that the record holds nothing of the file is still the record's, and still carries the gap;
     // a refusal of anything else, such as a `--where` the record never measured, is not about its probes.
     // The refusal is the answer; a record that cannot be found again only leaves it without a note.
-    const from = !RECORD_SHAPED.has(error.kind ?? '')
-      ? undefined
-      : request.execution ?? (await recordedExecutionFile(request.root, request.suite).catch(() => undefined));
-    const probes = from === undefined ? undefined : await gapOf(request, from, undefined);
-    if (probes === undefined && gap === undefined) throw error;
-    const said = probes === undefined ? error.message : `${error.message} ${probes.note}`;
+    const probes = from === undefined || !RECORD_SHAPED.has(error.kind ?? '') ? undefined : await gapOf(request, from, undefined);
+    // No record was held: what the mainline answered is why, and the only thing a reader can act on.
+    const missed = found?.held === false ? found.source?.says : undefined;
+    if (probes === undefined && gap === undefined && missed === undefined) throw error;
+    const said = [error.message, ...(probes === undefined ? [] : [probes.note]), ...(missed === undefined ? [] : [`${missed}.`])].join(' ');
     const kind = error.kind === undefined ? {} : { kind: error.kind };
     throw gap === undefined ? new OperatorError(said, { ...kind, cause: error }) : new GapRefusal(said, { ...kind, gap, cause: error });
   }
@@ -339,6 +353,8 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
       at,
       runs,
       ...(text === undefined ? {} : { held: text }),
+      // A text handed in is not the one on disk the source index names.
+      ...(text !== undefined && handed ? { handed: true as const } : {}),
       ...(framed === undefined || 'unheld' in framed ? {} : { placement: framed }),
       ...(asked === undefined ? {} : { index: asked }),
       ...(ranOther === undefined ? {} : { ranOther }),
@@ -360,6 +376,7 @@ export async function covering(request: ParsedCovering, graph: Graph = graphOnce
     ...(where === undefined ? {} : { where }),
     ...(motion === undefined ? {} : { motion }),
     ...(gap === undefined ? {} : { gap }),
+    ...(found?.source === undefined ? {} : { source: found.source }),
   };
 }
 

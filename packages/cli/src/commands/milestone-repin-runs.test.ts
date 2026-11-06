@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commitRunsFile, landRun, readCommitRuns, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
@@ -20,7 +20,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -29,7 +29,9 @@ function inPart(commit: string): TestCoverage {
   return { ...ranAlone(commit, 'test/other.test.ts'), tests: [{ file: 'test/other.test.ts', complete: false, preconditions: [] }] };
 }
 
-describe('the runs record under a repinned checkout', () => {
+// Each test publishes two mainline records to a git share (`milestone-pin.fixture.ts`),
+// and each publish keeps its record at its commit too: a push and a listing more apiece.
+describe('the runs record under a repinned checkout', { timeout: 15_000 }, () => {
   it('keeps the runs that ran a test file in part beside the place the file stood at, which it leaves where it was', async () => {
     const { ci, first, worktree, own } = await laidWorktree(home);
     const next = await publishedNext(home, ci);

@@ -18,18 +18,17 @@ import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
-import { type ResolveOptions } from './resolve.js';
+import type { ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
-  NativeJourneyModule,
-  NativeJourneyStitch,
-  NativeJourneyStitchResult,
+  NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeCommitTexts } from './native-commit-text.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
@@ -53,6 +52,8 @@ import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
   readonly size: number;
+  /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
+  readonly vouched: boolean;
   seeds(): string[];
   has(path: string): boolean;
   digest(path: string): string | null;
@@ -122,7 +123,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -162,9 +163,11 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
   /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
   seedSourceIndex(path: string, from: string): boolean;
-  /** The machine's index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
+  /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
+  /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
+  changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
   /**
@@ -233,11 +236,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[], tsconfig?: string | false): string[];
-  /**
-   * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
-   * `false` when no remote promised any, so a path a read found missing is absent.
-   */
-  fetchMissingAt?(root: string, commit: string, paths: string[]): boolean;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
   /** Every module id a run's cases and parts name, for the caller to cut again with `deriveModules`. */

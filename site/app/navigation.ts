@@ -70,6 +70,7 @@ export const NAVIGATION = [
       { href: "/docs/run-relevant-work", label: "Run relevant work", cluster: "Run less of the suite" },
       { href: "/docs/test-an-edit", label: "Run the tests an edit needs", cluster: "Run less of the suite" },
       { href: "/docs/selecting", label: "How test selection works", cluster: "Run less of the suite" },
+      { href: "/docs/selection-safety", label: "What a skipped test promises", cluster: "Run less of the suite" },
       { href: "/docs/sharding", label: "Split a suite across CI jobs", cluster: "Run less of the suite" },
       { href: "/docs/changes-before-and-beyond", label: "Changes before and beyond", cluster: "Run less of the suite", theory: true, description: "Changes before execution begins, and dependencies beyond the code being tested." },
       { href: "/docs/distance", label: "Measure test distance", cluster: "Run less of the suite" },

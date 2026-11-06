@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { main } from '../bin.js';
-import { parseCoveringArgs } from '../covering-args.js';
+import { main } from '../bin.fixture.js';
+import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeAsSetExecutionIndex,
@@ -13,7 +13,8 @@ import {
   type ExecutionIndex,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { covering, formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 
 /**
  * What a case said, printed beside it in every answer that lists it.
@@ -72,6 +73,9 @@ async function checkout(): Promise<{ root: string; execution: string }> {
   await writeFile(join(root, 'variance.config.json'), AXES);
   return { root, execution: await record() };
 }
+
+/** A `--since` question, which reaches a record with its change read. */
+const changeAnswer = (question: ParsedCovering) => coveringAnswer(question) as Promise<Covering>;
 
 function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
@@ -167,7 +171,7 @@ describe('the review reading carries what each case said', () => {
   it('prints the preconditions, and no twin, on each case line of `--since`', async () => {
     const { root, execution } = await edited();
 
-    const answer = formatCovering(await covering(parse(['--since', 'main', '--root', root, '--execution', execution])), 'text', Date.now());
+    const answer = formatCovering(await changeAnswer(parse(['--since', 'main', '--root', root, '--execution', execution])), 'text', Date.now());
 
     expect(answer).toContain('    a.test.ts > on — flags:checkout=ff-on (a.test.ts:3)\n');
     expect(answer).not.toContain('twin');
@@ -178,7 +182,7 @@ describe('the review reading carries what each case said', () => {
     const { root, execution } = await edited();
 
     const answer = formatCovering(
-      await covering(parse(['--since', 'main', '--root', root, '--execution', execution, '--where', 'flags:checkout=ff-on'])),
+      await changeAnswer(parse(['--since', 'main', '--root', root, '--execution', execution, '--where', 'flags:checkout=ff-on'])),
       'text', Date.now(),
     );
 

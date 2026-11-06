@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { narrowByExecution, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { unbuilt } from '../../unbuilt.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 // Recorded names are relative to the checkout, and this case sits inside it.
@@ -33,7 +34,7 @@ const BROWSER_AVAILABLE = (() => {
 const live = BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/playwright-storybook-case: skipped.' +
       '\n  no browser — npx playwright install chromium\n',
   );
@@ -95,7 +96,7 @@ live('a Playwright suite over a Storybook it opens itself', () => {
       // is the whole of what keeps this run out of a developer's own.
       const cache = { VARIANCE_AUTHORITY_CACHE: join(work, 'cache') };
       const built = await run(
-        [join(modules, 'storybook/bin/index.cjs'), 'build', '-o', join(work, 'static'), '--quiet'],
+        [join(modules, 'storybook/dist/bin/dispatcher.js'), 'build', '-o', join(work, 'static'), '--quiet'],
         cache,
       );
       expect(built, built.output).toMatchObject({ code: 0 });

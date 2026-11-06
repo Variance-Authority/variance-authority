@@ -33,6 +33,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import {
   globMatcher,
@@ -48,8 +49,8 @@ import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
-import { markUnplaced, placeModule, planModule } from './captured-modules.js';
-import { defaultInclude, projectPath, type ProbePlacement } from './instrumented-modules.js';
+import { markModule, markUnplaced, placeModule, planModule } from './captured-modules.js';
+import { defaultInclude, insideRoot, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
 import type { SelectionTransformerConfig } from './jest.js';
 import { namesItsMap, type TransformSourceMap } from './source-lines.js';
@@ -115,6 +116,12 @@ export async function createTransformer(
   config: SelectionTransformerConfig,
 ): Promise<JestTransformer> {
   const root = resolve(config.root);
+  // Jest loads this in a worker before it loads any environment, and loads the
+  // environment through it: the worker's root is in place for the environment's probes.
+  if (config.runtime !== undefined) {
+    (createRequire(import.meta.url)(config.runtime) as { preload(mark: typeof markEnvironmentInput): void })
+      .preload(markEnvironmentInput);
+  }
   const inner = config.transformer === undefined
     ? undefined
     : await loadTransformer<JestTransformRequest, JestTransformedSource, JestTransformer>(root, config.transformer);
@@ -321,3 +328,11 @@ function unprobedMatcher(globs: readonly string[] | undefined): ((file: string) 
 // Jest unwraps `default` when a host loader transpiles this module to CommonJS
 // with `__esModule`. Keep the named factory for callers that import it directly.
 export default { createTransformer };
+
+/** An environment input's opaque identity: a source file of the checkout's, outside the install. */
+function markEnvironmentInput(root: string, file: string): ModuleId | undefined {
+  const accepts = (path: string): boolean =>
+    insideRoot(root, path) && !/[\\/]node_modules[\\/]/u.test(path) && !path.endsWith('.node');
+  if (!accepts(file)) return undefined;
+  return markModule(root, file, readFileSync(file, 'utf8'), accepts)?.module.id;
+}

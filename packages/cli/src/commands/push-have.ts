@@ -41,13 +41,14 @@ export async function alreadyHeld(
   const held = new Set<string>();
   for (let at = 0; at < digests.length; at += MAX_HAVE_DIGESTS) {
     const batch = digests.slice(at, at + MAX_HAVE_DIGESTS);
+    const token = await review.token();
     let answered: unknown;
     try {
       const response = await send(`${endpointOf(review)}/review/have`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${review.token()}`,
+          authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ digests: batch }),
       });

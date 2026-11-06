@@ -110,9 +110,9 @@ export function rasterFor(document: RenderDocument, identity: RenderIdentity): R
   return {
     documentDigest: documentDigest(document),
     identity: { ...identity, deviceScaleFactor: document.viewport.deviceScaleFactor },
-    width: 100,
-    height: 40,
-    bytes: Buffer.from('not a real png').toString('base64'),
+    width: 10,
+    height: 10,
+    bytes: pngOf(255),
     missingFonts: [],
   };
 }

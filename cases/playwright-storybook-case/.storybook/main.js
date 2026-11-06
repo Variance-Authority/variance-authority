@@ -14,6 +14,6 @@ export default {
         include: (file) => file.includes('/cases/playwright-storybook-case/src/'),
       }),
     ],
-    esbuild: { ...config.esbuild, jsx: 'automatic' },
+    oxc: { ...config.oxc, jsx: { runtime: 'automatic' } },
   }),
 };

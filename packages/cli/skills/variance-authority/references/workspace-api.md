@@ -37,8 +37,13 @@ the first argument is positional.
   published generation for up to one hour. On either binary and either
   server, a question that generation refuses is asked again of one made from
   the checkout now, with the dependency lexicon built when it is missing or
-  behind, so a refusal is about the checkout as it is; one that could not be
-  read again says the checkout was not compared, and why, and one whose
+  behind, so a refusal is about the checkout as it is. So is a `symbol` or `uses`
+  whose files, the ones that declare the name or pass it on, the entry that publishes it and each
+  row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
+  after that generation, so it does not answer from old lines. One that could not be
+  read again or saved, or whose file was saved during the read that answers it, says the checkout
+  was not compared, and why, gives a file written since by its recorded names and
+  none of its text, and one whose
   lexicon could not be built says the installed packages were not compared. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
@@ -84,8 +89,8 @@ Run `variance-authority-help <verb> --root <dir>` on the other checkout. When
 the binary is not installed, ask the package runner for the package
 `@variance-authority/help`, never for the command `variance-authority-help`:
 that is not a package name, and the registry reports it missing. Inside a
-package script, `variance-authority-help` is the program name; an MCP `command`
-must resolve the installed binary ([MCP](mcp.md#writing-the-client-config)).
+package script, `variance-authority-help` is the program name; an MCP entry
+launches it through `npx` ([MCP](mcp.md#writing-the-client-config)).
 
 The target needs no manifest at its root, no `workspaces` field and no build. A
 repository that publishes nothing answers entirely from the exported half: every
@@ -212,11 +217,17 @@ declares and does not export, at its top level or inside a function, is answered
 from the source index, as below, after any export of the same name in another
 file; one inside a function is answered with the function that holds it. A name
 an import binds with `as` is answered with that import and the original it
-names. A member of an interface, a type literal or a class, when nothing else
-declares or binds the name at a file's top level, is answered with its container
-and the file and line that declare it, one block per declaration, beside any
-declaration of the name inside a function. `ask search` reads top-level
-declarations only: a name declared inside a function is found by `ask symbol`.
+names. A member of an interface, a type literal or a class is answered with its
+container and the file and line that declare it, one block per declaration,
+after every other declaration of the name. `Tree.has` asks for the member `has`
+of `Tree` alone; when `Tree` is declared and no body read declares `has` on it,
+the answer names `Tree`'s declaration and leaves what it inherits, and a
+member of an enum, a namespace or an object literal, which the source index does
+not read, to the go-to-definition of the language server for `Tree`'s language. `ask search` finds
+a function inside a function by its name, under the function that holds it, and
+a member by its name, by `container.member`, or by the doc above it. They print
+below the other sections, and when something else answered, only a row that is
+the question exactly.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
@@ -316,7 +327,9 @@ declaration:
 Each file that declares a name declares another thing, so `uses` answers for
 every one of them, each kept apart: the published declaration's imports, a line
 naming each file that exports the name without publishing it followed by that
-declaration's own imports, and each file that keeps it to itself. `--file
+declaration's own imports, and each file that keeps it to itself. The lines
+under the headline name every other declaration by file and line, so the count
+the headline gives is read as one declaration's. `--file
 <path>`, the file one of them is declared in, answers for that declaration
 alone; a file that only passes the name on with `export … from` answers for the
 declaration it reaches. The answer ends by saying so when it covers more than one:
@@ -374,7 +387,7 @@ src/shapes/use.ts:8 — @acme/shop, destructure
 
 No line uses `size` through a value whose type is written as `Other` at src/shapes/props.ts:7.
 
-An implementation of `size` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's go-to-implementation on the declaration you mean names it.
+An implementation of `size` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on the declaration you mean names it.
 A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
 Ask TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line (`package` narrows the declarations to one package).
 ```
@@ -430,6 +443,13 @@ Sites arrive as `path:line`, not as text. Open them: what you read then is the
 file as it is now.
 
 ### `search`
+
+**A list contains candidates, not every match.** Each list is capped and prints
+how many rows it did not show. Once any name matches, looser matches and members
+and functions inside a function that only contain your words are left out without
+a count. `git grep -i <word>` prints every tracked line that writes the word, and
+`discover --declares <regex> --limit <n>` lists every top-level name past a cap,
+exported or not, by its name alone.
 
 **A published line is `<specifier> · <name> [kind] …`, and the two halves go to
 different arguments.** `symbol` takes the **name**, the word after the `·`. The
@@ -595,5 +615,6 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search`, `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
-  list with no such line is the whole list.
+- `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
+  list with no such line is the whole list. `search` caps and counts the same way, but a list with no
+  such line can still leave out matches, as [`search`](#search) says.

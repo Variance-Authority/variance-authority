@@ -295,7 +295,7 @@ it. A changed value is charged to the tests that ran a function that reads it,
 in the same file or in a file that imports it, not to every test that loaded
 the file.
 
-**What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
+**A test file the record cannot answer for runs, and a change it cannot connect is printed.** A test file the
 record did not observe whole always runs. A changed file the record has no data for is
 parsed the same way; if parsing cannot decide, the tests of the recorded files
 that import it are selected. A file
@@ -305,7 +305,7 @@ modules that import it. A test that loaded a changed file through an edge the
 graph does not list is printed by name and is not selected: the missing edge is
 the thing to fix. Every run prints one line per changed file saying how it was
 read, or why it could not be.
-[Where selection widens](selecting.md#where-selection-widens) lists each case.
+[What a skipped test promises](selection-safety.md) lists each case.
 
 The record is columnar and stores each repeated set of tests once. In a
 checkout of around 400,000 files, close to the size of Chromium's, the

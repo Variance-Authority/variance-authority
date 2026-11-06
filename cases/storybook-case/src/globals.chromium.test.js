@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { collectStories } from '@variance-authority/storybook';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * Standing an addon down, against the addon.
@@ -123,7 +124,7 @@ afterAll(async () => {
 const live = BUILT && BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BUILT || !BROWSER_AVAILABLE) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (globals): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (BUILT

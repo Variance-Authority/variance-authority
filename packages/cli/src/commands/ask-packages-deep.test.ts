@@ -1,9 +1,9 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, commit, paragraph, run } from './ask-packages-fixture.js';
+import { checkout, commit, paragraph, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask` over the shape a large monorepo's internal libraries take: a
@@ -21,12 +21,12 @@ import { checkout, commit, paragraph, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-deep-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-deep-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 /** A published package whose `main` names a file the checkout does not hold, and an import of one of its files. */
@@ -215,10 +215,23 @@ describe('variance ask over a private app that reaches into another package', ()
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(join(root, 'packages/lib/src/internal/math.ts'), 'export function addTax(amount: number): number {\n  return amount;\n}\n\nexport const unrelated = 1;\n');
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--just-answer']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).not.toContain('export const unrelated');
+  });
+
+  it('leaves out the line of an unpublished export the checkout has since rewritten, though it still spells the name', async () => {
+    const file = 'packages/lib/src/internal/passes.ts';
+    const root = checkout({ [file]: "export { passedOn } from 'not-installed';\n" });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    expect((await run(['ask', 'symbol', '--name', 'passedOn', '--just-answer'])).out).toContain("export { passedOn } from 'not-installed';");
+    writeFileSync(join(root, file), '// passedOn went elsewhere\n');
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'passedOn', '--just-answer']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(`exported, without being published, at ${file}:1 by @acme/lib`);
+    expect(out).not.toContain('went elsewhere');
   });
 
   it('answers a name nothing declares on stdout, with what it read and where else the name may be written', async () => {

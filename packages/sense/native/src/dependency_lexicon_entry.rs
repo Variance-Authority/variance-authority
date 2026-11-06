@@ -18,7 +18,7 @@ use super::{boundary, relative, Api, Identity, Name, Readme, Source};
 
 fn digest(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
-    Some(format!("{:x}", Sha256::digest(bytes)))
+    Some(crate::journeys::hex(&Sha256::digest(bytes)))
 }
 
 fn identity(root: &Path, resolution: &oxc_resolver::Resolution) -> Option<Identity> {

@@ -21,11 +21,8 @@ pub(crate) enum Known {
     Reference,
     Handed,
     Made,
-    NameMatch,
-    New,
     Parameter,
     Enclosed,
-    Recorded,
 }
 
 impl Known {
@@ -38,11 +35,8 @@ impl Known {
             Known::Reference => "reference",
             Known::Handed => "handed",
             Known::Made => "made",
-            Known::NameMatch => "name-match",
-            Known::New => "new",
             Known::Parameter => "parameter",
             Known::Enclosed => "enclosed",
-            Known::Recorded => "recorded",
         }
     }
 
@@ -56,7 +50,7 @@ impl Known {
     }
 }
 
-const KNOWN: [Known; 12] = [
+const KNOWN: [Known; 9] = [
     Known::Call(How::Callback),
     Known::Call(How::Local),
     Known::Call(How::Import),
@@ -64,11 +58,8 @@ const KNOWN: [Known; 12] = [
     Known::Reference,
     Known::Handed,
     Known::Made,
-    Known::NameMatch,
-    Known::New,
     Known::Parameter,
     Known::Enclosed,
-    Known::Recorded,
 ];
 
 impl Tag {
@@ -102,9 +93,4 @@ pub(crate) struct Walked {
     pub entered: u32,
     /// Of those, the ones a step places.
     pub placed: u32,
-    /// Call sites (`file << 32 | call`) the recording placed because the
-    /// static resolution missed them (`journeys_recorded.rs`).
-    pub recorded: Vec<u64>,
-    /// Call sites whose imported name more than one entered function carries.
-    pub ambiguous: Vec<u64>,
 }

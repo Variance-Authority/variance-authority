@@ -8,8 +8,6 @@
  * function across the two texts. Nothing here walks history or counts commits.
  */
 
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import {
   assumedOf,
@@ -28,10 +26,11 @@ import {
   type TestPlace,
 } from '@variance-authority/sense/test-selection';
 import type { RunsRead } from './record-runs.js';
-import { evidenceOf, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
+import { evidenceOf, kindsAt, regionVerdict, type Evidence, type Region } from './covering-ran-evidence.js';
 import { listedIn } from './covering-where.js';
 import type { CoveringTarget } from './covering.js';
 import { heldAsPrecondition, type HeldAsPrecondition } from './held-as-precondition.js';
+import { heldTexts, namesOf, type Names } from './covering-ran-names.js';
 
 /** When the runs a stand's test files last ran in landed, and how many there were when the record says. */
 export interface Landed {
@@ -159,6 +158,8 @@ export interface RanQuestion {
   readonly runs: RunsRead;
   /** The asked file's text, from `--text` or disk, under a question about one file; absent when none is held. */
   readonly held?: string;
+  /** `held` was handed in, not read from disk, so the source index does not name it and it is named by its own git blob. */
+  readonly handed?: true;
   /** How the asked file's recorded lines are placed in `held`, for a line or a function. */
   readonly placement?: Placement;
   /**
@@ -257,14 +258,16 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
   // Under `--since` a test file that read a changed file only as a precondition is judged on it as one.
   const holding = answer.changed === undefined || held.size === 0 ? undefined : heldAsPrecondition(snapshot, [...held.keys()], held);
   const readers = readersOf(answer, { tests, named, index: question.index, holding });
+  const { names, rows } = held.size === 0 ? { names: new Map(), rows: new Map() } : await namesOf(question, snapshot, held);
   const judged = (test: string): Judged => new Map([...held].flatMap(([file, text]) => {
     const as = readers.get(test)?.get(file);
-    return as === undefined ? [] : [[file, { text, precondition: as === 'precondition' }] as const];
+    return as === undefined ? [] : [[file, { text, names: names.get(file)!, precondition: as === 'precondition' }] as const];
   }));
   const writers = writing === undefined ? [] : writing.tests.flatMap((test) => unitsOf(places.get(test)!, test, writing.cases.get(test)));
+  const byName = new Map([...names].flatMap(([file, one]) => ('unknown' in one ? [] : [[file, one] as const])));
   const evidence = held.size === 0
     ? undefined
-    : await evidenceOf([...units, ...writers].flatMap((unit) => unit.runs), held, {
+    : await evidenceOf([...units, ...writers].flatMap((unit) => unit.runs), byName, {
       root: question.root,
       snapshot,
       repository: read.repository,
@@ -272,6 +275,8 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
       region: region !== undefined,
       placement: question.placement,
       ranOther: question.ranOther ?? holding?.ranOther,
+      rows,
+      texts: new Map([...held].filter(([file]) => byName.has(file))),
     });
   const stands = standsOf(units, (unit) => (evidence === undefined ? {} : verdictOf(unit, judged(unit.test), held.size, evidence, region)));
   // Oldest first, by when their runs first landed; a stand the record holds no time for comes first.
@@ -280,7 +285,7 @@ export async function ranOf(answer: RanNamed, question: RanQuestion): Promise<Ra
   const fileText = answer.file === undefined ? undefined : held.get(answer.file);
   const ranOver = evidence === undefined || fileText === undefined || writers.length === 0
     ? undefined
-    : textsHolding(writers, answer.file!, fileText, evidence);
+    : textsHolding(writers, answer.file!, fileText, names.get(answer.file!)!, evidence);
   return { ran, ...(ranOver === undefined ? {} : { ranOver }) };
 }
 
@@ -309,24 +314,25 @@ function writersOf(
  * cannot say or does not keep. The snapshot's own text holds no line the
  * record has no place for, and neither does a text the run's commit lacked.
  */
-function textsHolding(writers: readonly Unit[], file: string, text: string, evidence: Evidence): (held: number) => HoldsLine {
-  const overs = writers.flatMap((unit) => unit.runs.map((run) => ({ run, over: ranOver(run, unit.test, file, text, evidence, false) })));
+function textsHolding(writers: readonly Unit[], file: string, text: string, names: Names, evidence: Evidence): (held: number) => HoldsLine {
+  if ('unknown' in names) return () => ({ unknown: names.unknown });
+  const overs = writers.flatMap((unit) => unit.runs.map((run) => ({ run, over: ranOver(run, unit.test, file, names, evidence, false) })));
   if (overs.some(({ over }) => over === 'held')) return () => true;
-  const others = new Set<string>();
+  const others = new Map<string, string>();
   const why = new Set<string>();
   for (const { run, over } of overs) {
     if (over === 'held' || over === 'absent') continue;
     if ('unknown' in over) why.add(over.unknown);
-    else if (over.text !== undefined) others.add(over.text);
+    else if (over.text !== undefined && over.name !== undefined) others.set(over.name, over.text);
     else if (!readsTheSnapshot(run, evidence.last)) why.add(`a case that crossed ${file} ran over a text of it the record does not keep`);
   }
-  const places = [...others].map((other) => evidence.across(text, other));
+  const places = [...others].map(([name, other]) => evidence.across({ name: names.blob, text }, { name, text: other }));
   const unknown = why.size === 0 ? false : { unknown: [...why].join('; ') };
   return (line) => places.some((place) => place({ startLine: line, endLine: line })?.moved === false) || unknown;
 }
 
-/** The asked files one test file is judged on, each with its held text and whether the test file holds it as a precondition. */
-type Judged = ReadonlyMap<string, { readonly text: string; readonly precondition: boolean }>;
+/** The asked files one test file is judged on, each with its held text, its names, and whether the test file holds it as a precondition. */
+type Judged = ReadonlyMap<string, { readonly text: string; readonly names: Names; readonly precondition: boolean }>;
 
 /**
  * The asked files each test file read, by test file, and how: the files its
@@ -420,14 +426,19 @@ type Verdict = Pick<RanStand, 'files' | 'text' | 'other' | 'absent' | 'held' | '
 function regionOf(answer: RanNamed, question: RanQuestion): Region {
   const target = answer.target;
   if (target === undefined) return undefined;
-  if ('line' in target) return { held: [{ startLine: target.line, endLine: target.line }] };
-  if ('lines' in target) return { held: [target.lines] };
   const placement = question.placement;
+  if ('line' in target || 'lines' in target) {
+    const lines = 'line' in target ? { startLine: target.line, endLine: target.line } : target.lines;
+    return { held: kindsAt(answer.file!, lines, question.index, placement).map((kind) => ({ ...lines, kind })) };
+  }
   if (placement === undefined) return { unknown: `the record does not say which text of ${answer.file!} its lines are numbered in` };
   if (placement.frame === 'stale') return { unknown: `the record's lines of ${answer.file!} are not placed in its text as it is now` };
   // `covering` answers a function only of a module the record holds a block of it in.
   const module = question.index!.modules.find((candidate) => candidate.file === answer.file)!;
-  return { held: functionsUnder(module.blocks, target.function).flatMap((block) => placement.place(block)?.lines ?? []) };
+  return { held: functionsUnder(module.blocks, target.function).flatMap((block) => {
+    const lines = placement.place(block)?.lines;
+    return lines === undefined ? [] : [{ ...lines, kind: block.kind }];
+  }) };
 }
 
 /**
@@ -445,8 +456,12 @@ function verdictOf(unit: Unit, judged: Judged, asked: number, evidence: Evidence
   const absent: string[] = [];
   const unknown: string[] = [];
   let regional: RanStand['region'];
-  for (const [file, { text, precondition }] of judged) {
-    const rans = unit.runs.map((run) => ranOver(run, unit.test, file, text, evidence, precondition));
+  for (const [file, { text, names, precondition }] of judged) {
+    if ('unknown' in names) {
+      unknown.push(names.unknown);
+      continue;
+    }
+    const rans = unit.runs.map((run) => ranOver(run, unit.test, file, names, evidence, precondition));
     const unread = rans.flatMap((ran) => (typeof ran === 'object' && 'unknown' in ran ? [ran.unknown] : []));
     if (unread.length > 0) unknown.push(unread[0]!);
     else if (rans.every((ran) => ran === 'held')) same.push(file);
@@ -459,7 +474,7 @@ function verdictOf(unit: Unit, judged: Judged, asked: number, evidence: Evidence
       other.push(file);
       if (judged.size !== 1) continue;
       const overs = rans.filter((ran): ran is NotHeld => ran === 'absent' || (typeof ran === 'object' && 'text' in ran));
-      const regions = overs.map((over) => regionVerdict(region, text, over, file, evidence));
+      const regions = overs.map((over) => regionVerdict(region, { name: names.blob, text }, over, file, evidence));
       regional = regions.find((one) => typeof one === 'object') ?? (regions.every((one) => one === regions[0]) ? regions[0] : { unknown: apart(file) });
     }
   }
@@ -478,15 +493,4 @@ function verdictOf(unit: Unit, judged: Judged, asked: number, evidence: Evidence
 /** Why a test file's runs ran over different texts of `file` leave its cases' text not known. */
 function apart(file: string): string {
   return `its cases ran in runs over different texts of ${file}, and the runs record does not say which case ran in which`;
-}
-
-/**
- * The held text of each asked file that has one: the one handed in for a
- * question about one file, each changed file's on disk under `--since`.
- */
-async function heldTexts(question: RanQuestion, answer: RanNamed, asked: readonly string[]): Promise<ReadonlyMap<string, string>> {
-  const texts = answer.changed === undefined
-    ? asked.map((file) => [file, question.held] as const)
-    : await Promise.all(asked.map(async (file) => [file, await readFile(resolve(question.root, file), 'utf8').catch(() => undefined)] as const));
-  return new Map(texts.flatMap(([file, text]) => (text === undefined ? [] : [[file, text] as const])));
 }

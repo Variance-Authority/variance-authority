@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import {
   caseSectionsAt,
@@ -74,11 +74,11 @@ let home: string;
 
 beforeEach(async () => {
   home = await realpath(await mkdtemp(join(tmpdir(), 'variance-land-carried-')));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cache'));
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 

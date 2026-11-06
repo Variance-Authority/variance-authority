@@ -267,6 +267,103 @@ describe('a compiler that reads the syntax it compiles', () => {
   });
 });
 
+describe('a step ahead of the probes that changed the text a map carries for the file', () => {
+  /** The function's regions sit on lines 2 to 7. Lines 1, 8 and 9 hold none. */
+  const FILE = [
+    'const a = 1;',
+    'export function f(flag) {',
+    '  if (flag) {',
+    '    return a;',
+    '  }',
+    '  return 2;',
+    '}',
+    'const tail = 3;',
+    'export { tail };',
+    '',
+  ].join('\n');
+  const OFF_A_REGION = ['const a', 'const /* changed */ a'] as const;
+  const BELOW_THE_REGIONS = ['const tail', 'const /* changed */ tail'] as const;
+  const ON_A_REGION = ['return a', 'return /* changed */ a'] as const;
+
+  const isFile = (id: string) => id.split('?')[0]!.endsWith('/src/a.js');
+
+  /** A `transform` that keeps every line where it was and answers `map: null`. */
+  const nulled = (from: string, to: string): Plugin => ({
+    name: 'nulled',
+    transform: (code, id) => (isFile(id) ? { code: code.replace(from, to), map: null } : null),
+  });
+
+  /** A `transform` that returns the map of what it wrote. */
+  const mapped = (from: string, to: string): Plugin => ({
+    name: 'mapped',
+    transform(code, id) {
+      if (!isFile(id)) return null;
+      const written = new MagicString(code);
+      written.replace(from, to);
+      return { code: written.toString(), map: written.generateMap({ source: id, includeContent: true, hires: true }) };
+    },
+  });
+
+  /** A `load` hook that answers `map: null` for the text it changed. */
+  const loaded = (change: (text: string) => string): Plugin => ({
+    name: 'loaded',
+    enforce: 'pre',
+    load: async (id) => (isFile(id) ? { code: change(await readFile(id.split('?')[0]!, 'utf8')), map: null } : null),
+  });
+
+  /** What Vite builds of `FILE` behind `plugins`, unminified, so a probe reads next to the statement it sits on. */
+  async function built(...plugins: Plugin[]): Promise<string | undefined> {
+    const root = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-carried-text-')));
+    temporary.push(root);
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await writeFile(resolve(root, 'src/a.js'), FILE);
+    await writeFile(resolve(root, 'src/main.js'), "import * as a from './a.js';\nconsole.log(a);\n");
+    const output = await build({
+      root,
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [testSelectionProbes({ root }), ...plugins],
+      build: { write: false, minify: false, rollupOptions: { input: resolve(root, 'src/main.js') } },
+    });
+    const [bundle] = Array.isArray(output) ? output : [output];
+    return 'output' in bundle! ? bundle.output.find((file) => file.type === 'chunk')?.code : undefined;
+  }
+
+  it.each([
+    ['with no step after it', [nulled(...OFF_A_REGION)]],
+    ['with a second one after it', [nulled(...OFF_A_REGION), nulled(...BELOW_THE_REGIONS)]],
+    ['with a step after it that wrote a map on a region', [nulled(...OFF_A_REGION), mapped('return 2', 'return 2 + 0')]],
+    ['with a step after it that wrote a map off the regions', [nulled(...OFF_A_REGION), mapped(...BELOW_THE_REGIONS)]],
+  ])('leaves the regions placed where `map: null` changed only lines none sits on, %s', async (_row, plugins) => {
+    const code = await built(...plugins);
+
+    expect(code).toMatch(/__va(?:\$\d+)?\(2\);\s*return a;/);
+    expect(code).toMatch(/__va(?:\$\d+)?\(4\);\s*return 2/);
+  });
+
+  it('charges no region at load for the columns a line `map: null` outgrew the file by', async () => {
+    const longer = `const a = 1; /* ${'longer than the line of the file '.repeat(4)}*/`;
+
+    const code = await built(nulled('const a = 1;', longer), mapped(...BELOW_THE_REGIONS));
+
+    expect(code).toMatch(/__va(?:\$\d+)?\(2\);\s*return a;/);
+    expect(code).not.toMatch(/__vaB(?:\$\d+)?\);\s*__va(?:\$\d+)?\(\d/);
+  });
+
+  const CARRIES = /`src\/a\.js`: the map back to the file carries a text for it that is not the file on disk, on a line a region sits on/;
+
+  it.each([
+    ['`map: null` changed a line one sits on', [nulled(...ON_A_REGION)]],
+    ['`map: null` changed a line one sits on, ahead of a step that wrote a map', [nulled(...ON_A_REGION), mapped(...BELOW_THE_REGIONS)]],
+    ['a `load` hook changed a line one sits on', [loaded((text) => text.replace(...ON_A_REGION))]],
+    ['a `load` hook changed a line one sits on, ahead of a step that wrote a map', [loaded((text) => text.replace(...ON_A_REGION)), mapped(...BELOW_THE_REGIONS)]],
+    ['a `load` hook moved lines onto them', [loaded((text) => `/* banner */\n${text}`)]],
+    ['a `load` hook moved lines onto them, ahead of a step that wrote a map', [loaded((text) => `/* banner */\n${text}`), mapped(...BELOW_THE_REGIONS)]],
+  ])('refuses the build where %s', async (_row, plugins) => {
+    await expect(built(...plugins)).rejects.toThrow(CARRIES);
+  });
+});
+
 describe('a built package, a file that names its own source map', () => {
   /** A plugin that rewrites the build and returns its map, so the probes cannot simply go into the file as it is. */
   const prepend: Plugin = {

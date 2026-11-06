@@ -96,12 +96,12 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
 
 Set and empty, the variable reads each test from the commit the snapshot names.
 Set to a ref, it also names the base for a snapshot that names no commit.
-`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in
-[Take one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time),
-and a value that is not a range fails the run. Before the first file starts,
-stderr shows one line: `selected 12 of 340`, `selected none of 340`, or
-`declined:` and the reason the selection could not be read, in which case
-every file runs. A test file the snapshot has never seen runs. A run the
+`VARIANCE_AUTHORITY_AT_DISTANCE` takes one range of hop counts, read as in [Take
+one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time), and
+a value that is not a range fails the run. Before the first file starts, stderr
+shows one line: `selected 12 of 340`, `selected none of 340, so none of them
+runs`, or `declined:` and the reason the selection could not be read, in which
+case every file runs. A test file the snapshot has never seen runs. A run the
 selection leaves nothing to run — `selected none`, or a shard that took none of
 the files kept — passes: the seam sets `passWithNoTests` for that run. A run
 that drops nothing keeps your setting.
@@ -308,12 +308,14 @@ a run records is operational state rather than source.
 ```
 
 `<cache>` is [your cache](https://variance-authority.dev/docs/cache).
-`<digest>` is taken from the checkout's absolute path, so two checkouts never
-share bytes. `testCoverageFile(root)` returns that path, and
-`sourceIndexPath(root)` the source index beside it. A git worktree gets
-`.work/<its own digest>/` beneath the primary checkout's directory. Its coverage
-reads both layers and writes only its own, so a worktree cut this morning
-inherits what the repository already recorded. Its source index is its own too,
+`<digest>` is taken from the checkout's absolute path, so two checkouts write no
+file in common but `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
+[one checkout of a repository index at a time](https://variance-authority.dev/docs/source-index)
+and the file that names its holder. `testCoverageFile(root)` returns that path,
+and `sourceIndexPath(root)` the source index beside it. A git worktree gets
+`.work/<its own digest>/` in its own cache, which is inside the worktree at the
+default location. Its coverage reads both layers and writes only its own, so a
+worktree cut this morning inherits what the repository already recorded. Its source index is its own too,
 and the first update in it starts from a copy of the primary checkout's and reads
 only the files that differ between the two. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
@@ -328,8 +330,9 @@ kind, under `suites` in the root `variance.config.json`:
 
 The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
 suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
-seam takes a `suite` option that names the one it runs. A run under one suite
-never replaces what another suite recorded. Once any suite is declared, a seam
+seam takes a `suite` option that names the one it runs, as in
+`withTestSelection(config, { suite: 'unit' })`. A run under one suite never
+replaces what another suite recorded. Once any suite is declared, a seam
 that names none, or names one the file does not declare, stops before the run
 starts. `declaredSuites(root)` returns what the file declares, and
 `testCoverageFile(root, { suite })` the path of one suite's record. A
@@ -386,7 +389,9 @@ A changed file selects by how the snapshot records it.
   loaded it, every test that imports it mocked it, or it sits outside what the
   run instrumented. Pass `relations` and `sourceAt` and it is read, with every
   export counted as changed; the nearest files that import it and have a row
-  answer for what that reading cannot (below). It is listed in `unread` when no test
+  answer for what that reading cannot (below). An importer with no row is read
+  from the text the change leaves it, so a file the diff adds charges only the
+  functions that read a changed export. It is listed in `unread` when no test
   declares it and the graph has no node for it either.
 - **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).
@@ -670,8 +675,8 @@ module.exports = sentry(Sentry);
 Name that module as `withJourneyCoverage`'s `trace`: `trace: './test/trace.cjs'`. With
 OpenTelemetry, register your provider and export
 `openTelemetry(require('@opentelemetry/api'))`. Jest requires the module once
-per worker, outside every test file's sandbox, and your `testEnvironment`
-still runs. A setup file runs again in each test file. An SDK hooks `fetch` for
+per worker, outside every test file's sandbox, and your `testEnvironment`, a
+test file's `@jest-environment` and your `runtime` still run. A setup file runs again in each test file. An SDK hooks `fetch` for
 the whole process, so a second initialization leaves the first file's hooks
 sending its trace from the next file's cases.
 
@@ -797,7 +802,14 @@ project named by path rather than spelled inline is refused, because its
 transform cannot be wrapped from here.
 
 With `VARIANCE_AUTHORITY_SINCE` set, a Jest run skips files as
-[a Vitest run does](#let-the-runner-skip-them). The files are removed in
+[a Vitest run does](#let-the-runner-skip-them). A run that found test files and
+selected none of them passes. A run where no project found a test file has nothing
+to select from, so it fails as Jest fails, and a `testMatch` that matches nothing
+stays red. One project with no file beside another that found some is not that
+failure, as it is not without the selection. `passWithNoTests` in your configuration
+or on the command line passes that run, as it always did. `--testSequencer` on the
+command line replaces the sequencer that tells the two apart, so Jest fails both,
+and stderr says so. The files are removed in
 Jest's `filter`, which runs before `--shard` and `--listTests`, so every shard
 and the listing see the same list. A `filter` your configuration names runs
 first, and the selection removes files from what it kept. `--filter` on the
@@ -1152,8 +1164,9 @@ it, or left a region of it with no code the map carries back, the build stops
 and names the file and the region. A `load` hook counts as a transform: one that
 returned rewritten text with no map is named the same way, under a build and a
 dev server alike. A map that names the file but carries a text for it that is
-not the file on disk is refused, and so is an empty map returned with
-rewritten code where the file has more than one region. Text the transforms
+not the file on disk, on a line a region other than the module's sits on, is
+refused, and so is an empty map returned with rewritten code where the file has
+more than one region. Text the transforms
 wrote from a file the instrumenter can parse, that it cannot, stops the build
 too. An import of a variant of a file, such as `?raw` or a single-file
 component's `?vue&type=script`, is placed where its map leads back to the file;
@@ -1268,7 +1281,7 @@ npm install --save-dev @variance-authority/playwright-test @playwright/test
   root names in `data-variance-reads`.
 - [`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test)
   records with the `varianceExecution` fixture option, or `tests` on
-  `createVariance`. It requires `@playwright/test >=1.49 <2`. Every observation
+  `createVariance`. It requires `@playwright/test >=1.55 <2`. Every observation
   in one spec file joins that file, because the runner's unit of execution is
   the file.
 
@@ -1666,7 +1679,16 @@ version (`state: 'other-version'`, with the version in `written`): with
 `ci: true` it throws `SourceIndexUnpublished`, whose message names `step`;
 otherwise it updates once, calls `announce` with a line that says which of the
 three it found, and reads. Pass your
-runner's own answer for `ci` — the `ci-info` package is what Jest reads.
+runner's own answer for `ci` — the `ci-info` package is what Jest reads. A
+whole index is returned as read, whatever the checkout did since it was
+written. When you name the checkout's texts by the index, call
+`updateSourceIndex` first, in CI too once the index is published, since one
+published at another commit names that commit's texts; if that update fails, the index does not
+describe the checkout, and a text it names is not known. To name a few files'
+texts, `publishedNames(root, files, options)` reads the same policy off the
+index's record rows of those files alone, and returns `names`, each file the
+index names a text for with its git blob name; `readPublishedNames(path, files)`
+is its reader without the policy.
 `sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
 have produced, so a reader with a narrower question gets the narrower graph
 without scanning.
@@ -1991,6 +2013,45 @@ tree. A recording made outside a checkout has no commit, and an index that
 records no commit has nothing to diff against, so a caller with one runs
 the suite it would have run anyway.
 
+`readableTestCoverage(root, options)` finds the record to read, nearest layer
+first, and says which layer held it. A record fetched for another mainline is no
+layer: a reader that knows the selected mainline passes it as `selected`, here
+and to `lastFetchedMainline` and `prepareRecord`. A caller with none to pass, such
+as a runner seam, takes what was fetched.
+
+### Read where the loads drift from the walk
+
+The record holds what each test file loaded; the import graph holds what its
+imports reach. A load the walk does not reach is drift: a `moduleNameMapper`
+entry, a `__mocks__` file, a setup file, a lazy `import()` behind a flag. It is
+an observed load, not a defect, and it never changes what a selection runs.
+`driftFromWalk` names each one, a row per test file and loaded file, and its
+`sourceOf` names a built file by its source. `driftChange` compares two sides'
+rows for the test files both observed whole, and its `present` says which
+baseline test files the checkout still holds; the rest are listed as removed:
+
+```ts
+import {
+  driftChange,
+  driftFromWalk,
+  readTestCoverage,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
+
+const coverage = await readTestCoverage(testCoverageFile(process.cwd()));
+const { rows } = driftFromWalk(relations, coverage.modules, ['test/setup.ts'], {
+  sourceOf: (file) => file,
+});
+const change = driftChange(baseline, { rows, observed, held }, {
+  present: (test) => existsSync(test),
+});
+console.log(change.grown, change.shrunk, change.notCompared);
+```
+
+`variance review` reads the mainline's record against the merge base's walk —
+`baseEdgesOf` undoes the change's edges — and writes the grown and shrunk rows
+into the pull request's comment.
+
 ## Fold shards into one snapshot
 
 A suite too large for one machine runs across N jobs and ends with N snapshots,
@@ -2006,7 +2067,7 @@ import {
   combineRecords,
   landedCoverage,
   openTestCoverage,
-  seedTestCoverage,
+  prepareRecord,
   testCoverageFile,
   withIndexLock,
   writeCoverageBytes,
@@ -2016,8 +2077,8 @@ const combined = 'artifacts/coverage.bin';
 const { commit, tests } = combineRecords(['shard-1/coverage.bin', 'shard-2/coverage.bin'], combined);
 
 const file = testCoverageFile(process.cwd());
-await seedTestCoverage(file, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
-const landed = await withIndexLock(file, async () => {
+const landed = await withIndexLock(file, async (lock) => {
+  await prepareRecord(lock, process.cwd(), openTestCoverage(await readFile(combined)).instrumentation);
   let previous: Uint8Array | undefined;
   try {
     previous = await readFile(file);
@@ -2047,6 +2108,14 @@ replace it. `writeCoverageBytes` stages the bytes beside `file` and renames them
 over it, so a reader sees the previous record or this one. `withIndexLock` on
 `file` is the lock every seam takes to write the record, so no run writes it
 while you land.
+
+`prepareRecord` makes the record at `file` one the fold can land on, under the
+lock you land in, so another run cannot land between the old record going and
+the base arriving. A record
+in the checkout's cache under other probes than the ones you pass is another
+build's and rebuilt by the next run, so it goes, with the files beside it, and
+one printed line names the file and both sets of probes. It then calls
+`seedTestCoverage`, which `{ alone: true }` skips for a shard recording no base.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
@@ -2533,7 +2602,8 @@ preconditions: its preconditions are unmeasured, never none.
 What the test says is a claim. A **breadcrumb**, `varianceBreadcrumb` from
 `@variance-authority/event`, records what the code under test read, on the case
 that ran it, and the readers print each read beside what the case said under
-the same name. The Vitest integration records reads in Node; `tests.read` is
+the same name. Vitest, Jest and Rstest record reads in Node, and Playwright in
+the worker and in the page; `tests.read` is
 absent from a row whose runner did not listen, and empty for a case that read
 nothing.
 

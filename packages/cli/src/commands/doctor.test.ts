@@ -335,6 +335,14 @@ describe('machineProbes partitions', () => {
     ]);
   });
 
+  it('counts a kept WebP and a PNG kept before it as baselines alike', async () => {
+    // An accept keeps a WebP; a baseline nobody re-accepted is still a PNG. A
+    // count of one extension reports half a machine's baselines as absent.
+    const root = await rootWith([`${partition}/a.webp`, `${partition}/b.png`]);
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 2 }]);
+  });
+
   it('counts baselines at the paths `baselines.path` names, by the identity each record names', async () => {
     // The readable layout names no machine in a directory: the identity is in
     // the record. A scan of directory names alone answers "this root holds

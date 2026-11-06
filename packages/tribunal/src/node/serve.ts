@@ -1,23 +1,24 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createTribunalRoutes, type Capability } from '../next.js';
+import { createTribunalRoutes } from '../next.js';
 import type { Tribunal } from '../worker.js';
 import { isPagePath } from '../ui/route.js';
-import { reviewPage, uiAsset, uiFont, UI_FONTS_PATH } from './ui-assets.js';
+import { reviewPage } from '../ui/page.js';
+import { uiAsset, uiFont, UI_FONTS_PATH } from './ui-assets.js';
 
 /**
  * The socket: `node:http` in, {@link Tribunal.fetch} out.
  *
  * A Worker handler is `(Request) => Promise<Response>` and a Node server is
  * `(IncomingMessage, ServerResponse) => void`, and the whole of this file is the
- * conversion between those two plus the two decisions the conversion forces.
+ * conversion between those two plus the one decision the conversion forces.
  * Nothing here knows what a build is; every route, every refusal and every status
  * code is the same code a Cloudflare deployment runs.
  *
  * Shaped after [`server/http.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/http.ts): `node:http`, no
  * framework, and no logic of its own beyond transport.
  *
- * ## The two decisions
+ * ## The one decision
  *
  * **A body has a ceiling.** A Worker gets one from the platform; a Node process
  * gets one from whoever wrote the reader. An unbounded `POST /review/builds`
@@ -25,14 +26,6 @@ import { reviewPage, uiAsset, uiFont, UI_FONTS_PATH } from './ui-assets.js';
  * and the failure mode is the process dying rather than the request being
  * refused. So there is a limit, it is a number, and exceeding it is a 413 with a
  * sentence rather than an OOM.
- *
- * **Who may review is not this file's to assume.** The review token promotes
- * baselines, so a browser must never hold it — the argument is in
- * [`next.ts`](../next.ts) and it does not change because the host did. So
- * `authorize` is required here too, and the mount reuses `createTribunalRoutes`
- * rather than re-deriving the token-attaching rule: one implementation of "which
- * capability is this caller allowed" means the Node service and the Next.js app
- * cannot drift into two answers.
  */
 
 /**
@@ -48,23 +41,21 @@ export const MAX_BODY_BYTES = 256 * 1024 * 1024;
 export interface TribunalServiceOptions {
   readonly tribunal: Tribunal;
   /**
-   * Which capability a request is allowed. No default — see the note above.
-   *
-   * The shipped policy is in [`bin.ts`](./bin.ts), where an operator can read it.
-   */
-  authorize(request: Request): Promise<Capability | null> | Capability | null;
-  /** The tokens the tribunal was constructed with, for the mount to attach. */
-  readonly tokens: { readonly ingest: string; readonly review: string; readonly share?: string };
-  /**
    * Serve the review surface at `/`, not just the JSON API.
    *
    * Default `true`. Off is for a deployment that only ingests — a service behind
    * CI with no reviewer on it — where a page nobody opens is a page nobody has to
-   * authorize.
+   * recognize anybody at.
    */
   readonly ui?: boolean;
-  /** Shown in the surface as who is deciding. The record carries it on every approval. */
-  readonly reviewer?: string;
+  /**
+   * The address people reach this at, when a proxy stands in front of it.
+   *
+   * Absent, a request's own `Host` says, which is right for a socket somebody
+   * reaches directly. Behind TLS termination it says `http` and the inner host, and
+   * sign-in would hand GitHub a callback nobody can reach.
+   */
+  readonly origin?: string;
 }
 
 export interface TribunalService {
@@ -108,18 +99,15 @@ export async function serveTribunal(
 export function createRequestListener(
   options: TribunalServiceOptions,
 ): (request: IncomingMessage, response: ServerResponse) => void {
-  const mounted = createTribunalRoutes(options.tribunal, {
-    authorize: options.authorize,
-    tokens: options.tokens,
-  });
+  const mounted = createTribunalRoutes(options.tribunal);
   const serveUi = options.ui ?? true;
 
   return (incoming: IncomingMessage, outgoing: ServerResponse): void => {
     void (async () => {
       try {
-        const request = await requestOf(incoming);
+        const request = await requestOf(incoming, options.origin);
 
-        const asset = serveUi ? await pageOrAsset(request, options.reviewer) : null;
+        const asset = serveUi ? await pageOrAsset(request) : null;
         const response = asset ?? (await mounted[method(request)](request));
 
         await write(outgoing, response);
@@ -145,12 +133,12 @@ export function createRequestListener(
  * request never reached the router. The one prefix is the fonts', under `/ui/`
  * where no API route lives, and it answers only the names in its table.
  */
-async function pageOrAsset(request: Request, reviewer?: string): Promise<Response | null> {
+async function pageOrAsset(request: Request): Promise<Response | null> {
   const path = new URL(request.url).pathname;
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
 
   if (isPagePath(path)) {
-    return new Response(reviewPage({ endpoint: '', ...(reviewer === undefined ? {} : { reviewer }) }), {
+    return new Response(reviewPage({ endpoint: '' }), {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
     });
   }
@@ -189,8 +177,8 @@ function method(request: Request): 'GET' | 'POST' | 'PUT' | 'HEAD' {
 }
 
 /** `IncomingMessage` → `Request`, with the body read to a ceiling. */
-async function requestOf(incoming: IncomingMessage): Promise<Request> {
-  const url = new URL(incoming.url ?? '/', `http://${incoming.headers.host ?? 'localhost'}`);
+async function requestOf(incoming: IncomingMessage, origin: string | undefined): Promise<Request> {
+  const url = new URL(incoming.url ?? '/', origin ?? `http://${incoming.headers.host ?? 'localhost'}`);
 
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {

@@ -93,6 +93,23 @@ describe('the published source index', () => {
     }
   });
 
+  it('says when it began reading, before its first step, whichever way it reads', async () => {
+    const at = index('began');
+    await updateSourceIndex(root, { index: at });
+    for (const packs of [undefined, false]) {
+      let first: number | undefined;
+      const update = await updateSourceIndex(root, {
+        index: at,
+        ...(packs === undefined ? {} : { packs }),
+        progress: () => {
+          first ??= Date.now();
+          return () => {};
+        },
+      });
+      expect(Date.parse(update.readStartedAt)).toBeLessThanOrEqual(first!);
+    }
+  });
+
   it('says which step it is on, and when each one ends, while it updates', async () => {
     const at = index('progress');
     const told: string[] = [];
@@ -113,8 +130,8 @@ describe('the published source index', () => {
     await updateSourceIndex(root, { index: at, progress });
     // The git listing is its own step: on a large checkout it is most of the update.
     expect(told).toEqual([
-      `start listing ${listed} with git`,
-      `end listing ${listed} with git`,
+      `start listing ${listed}`,
+      `end listing ${listed}`,
       'start reading the files that changed since the last index',
       'end reading the files that changed since the last index',
     ]);

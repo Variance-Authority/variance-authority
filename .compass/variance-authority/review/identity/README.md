@@ -23,6 +23,11 @@ tag, so a token minted for a neighbouring application in the same team is
 refused. A settable header is never trusted, because an origin reachable beside
 its gate turns that header into a request header like any other.
 
+A credential that rides along by itself proves nothing about who sent the write:
+a write a browser carried here from another origin never reaches a policy,
+declared or a host's own, whatever cookie came with it. `SameSite=Lax` on a cookie is a second guard behind
+that refusal.
+
 ## Depends on
 
 Nothing in this block. It reads the request and the deployment's configuration.
@@ -43,9 +48,12 @@ capability has none to give.
 It holds no accounts. Absent configuration is refusal, never a
 default — with no configured identity source, nothing can tell one visitor from
 another, and the approve button stays undrawn rather than falling back to
-anonymous. There is likewise no anonymous read-only view, because the only thing
-that would buy is a second code path that has to stay in step with the first
-about which evidence is public, and none of it is.
+anonymous. A deployment that declares `VIEW=public` serves an anonymous reader,
+because its evidence is public by the deployer's say; that visitor still has no
+name, so nothing they send can decide.
+
+A person arrives through GitHub sign-in or Cloudflare Access, whichever the
+deployment declared, and the name is the login or the email that source proved.
 
 On a loopback bind it asserts nothing and takes the operator's word: anything
 that can open a loopback socket is already running as the person who started the
@@ -55,15 +63,15 @@ all — there would be nothing between an approve button and the internet.
 
 ## Implementation coordinates
 
-- `tribunal-cloudflare/app/access.ts` — `identify`, `tokenOf`, `verify`,
-  `published`; the per-isolate key cache, and the failure that is not cached as
-  *this team has no keys*
-- `tribunal-cloudflare/app/env.ts` — `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, whose
-  absence means no review surface
+- `packages/tribunal/src/issuer.ts` — the one verifier of a signed token, its
+  per-isolate key cache and the refetch on an unknown `kid`
+- `packages/tribunal/src/github-signin.ts` — the GitHub sign-in, the write check
+  and the signed session
+- `packages/tribunal/src/policy.ts` — `declaredPolicy`, which answers a principal
+  from what the deployment declared, and `LOOPBACK`
 - `tribunal-cloudflare/app/page.tsx` — rendered per request, because who is asking
   is a per-request fact
-- `packages/tribunal/src/node/bin.ts` — `LOOPBACK`, `authorizeFor`,
-  `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
+- `packages/tribunal/src/node/bin.ts` — `TRUST_NETWORK_VARIABLE`, and `REVIEWER_VARIABLE`, which defaults to the user
   running the process
 - `packages/tribunal/src/node/serve.ts` — `reviewer`, carried into the served page
 

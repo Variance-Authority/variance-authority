@@ -12,9 +12,11 @@ import {
   type RenderIdentity,
 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { refuseUnkept } from '@variance-authority/png/header';
 import {
   REFUSAL,
   RasterStoreError,
+  messageOf,
   neverFails,
   type BaselineKey,
   type Described,
@@ -26,8 +28,9 @@ import { orAbsent } from './absent.js';
 import { claim, placedForIn, placedForOf, refuseOccupied, type Claims, type PlacedFor } from './claims.js';
 import { anyWidthOf, held } from './held.js';
 import { legacyHolders, partitionsOf } from './legacy.js';
+import { refuseAPointerRecord } from './lfs-pointer.js';
 import { familyOf, identities, nearness } from './line.js';
-import { readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
+import { KEPT, KEPT_AS, imageOf, readRaster, readSidecar, retire, type ImageReader, type Places, type Read } from './pair.js';
 import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-template.js';
 
 /**
@@ -35,7 +38,7 @@ import { DEFAULT_BASELINE_PATH, parseBaselinePath, sanitized } from './path-temp
  * store exists, with the same sentence the store would throw.
  */
 export { DEFAULT_BASELINE_PATH, parseBaselinePath, type BaselinePathTemplate } from './path-template.js';
-export type { ImageReader } from './pair.js';
+export { isKeptImage, KEPT, type ImageReader, type KeptAs } from './pair.js';
 
 /**
  * Re-exported because `{engine}` is spelled with it: a reader that matches a
@@ -232,8 +235,11 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // record may be half written, which says nobody's name yet.
       let theirs: unknown;
       try {
-        theirs = JSON.parse(await readFile(file, 'utf8')) as unknown;
+        const text = await readFile(file, 'utf8');
+        refuseAPointerRecord(text, file);
+        theirs = JSON.parse(text) as unknown;
       } catch (cause) {
+        if (cause instanceof RasterStoreError) throw cause;
         throw new RasterStoreError(
           `another writer created the baseline at ${path} while this one was accepting it for ` +
             `subject ${JSON.stringify(key.subject)}. ${REFUSAL}.`,
@@ -312,18 +318,29 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // keeps the path.
       const before = await readSidecar(places).catch(async () => ({ placedFor: placedForIn(await rawRecord(places)) }));
       occupied(before?.placedFor, key, path);
+      // Checked, never encoded: the caller encodes before `put` (`keptRaster`),
+      // so this store runs no codec. Before the first write, so bytes it must
+      // not keep are refused with the tree as it was.
+      const kept = raster.bytes === undefined ? undefined : unkeptRefused(Buffer.from(raster.bytes, 'base64'), path);
       await mkdir(dirname(places.record), { recursive: true });
-      const record = `${JSON.stringify({ ...raster, bytes: undefined, placedFor: placedForOf(key) }, null, 2)}\n`;
+      const record = `${JSON.stringify(
+        { ...raster, bytes: undefined, ...(kept === undefined ? {} : { image: KEPT_AS }), placedFor: placedForOf(key) },
+        null,
+        2,
+      )}\n`;
       // A path nobody held is taken by creating its record, so of two workers
       // that both read nothing there, the second is refused by name rather than
       // overwriting the first.
       if (before === null) await create(`${places.record}.json`, record, key, path);
       // No image for a subject that has none: the sidecar alone is the whole
       // baseline, and an image left from an earlier accept would contradict it.
-      if (raster.bytes === undefined) await rm(`${places.image}.png`, { force: true });
-      else {
+      // And one image: a PNG an earlier accept kept goes when the WebP comes.
+      if (kept !== undefined) {
         await mkdir(dirname(places.image), { recursive: true });
-        await writeFile(`${places.image}.png`, Buffer.from(raster.bytes, 'base64'));
+        await writeFile(imageOf(places, KEPT_AS), kept);
+      }
+      for (const as of KEPT) {
+        if (kept === undefined || as !== KEPT_AS) await rm(imageOf(places, as), { force: true });
       }
       await writeFile(`${places.record}.json`, record, 'utf8');
       // Written first, then the old copy removed, so a write that dies between
@@ -416,11 +433,36 @@ function cachedAt(cacheRoot: string, identity: Digest, documentDigest: Digest): 
 }
 
 
-/** A record as JSON, or `undefined` when it is gone or does not parse — damage says nobody's name. */
+/**
+ * A record as JSON, or `undefined` when it is gone or does not parse — damage
+ * says nobody's name. A pointer is not damage: it is a record this checkout
+ * cannot read, so it is refused rather than written over.
+ */
 async function rawRecord(places: Places): Promise<unknown> {
+  let text: string;
   try {
-    return JSON.parse(await readFile(`${places.record}.json`, 'utf8')) as unknown;
+    text = await readFile(`${places.record}.json`, 'utf8');
   } catch {
     return undefined;
   }
+  refuseAPointerRecord(text, `${places.record}.json`);
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The bytes, once they are an image this store keeps; refused by name otherwise. */
+function unkeptRefused(bytes: Buffer, path: string): Buffer {
+  try {
+    refuseUnkept(bytes);
+  } catch (error) {
+    throw new RasterStoreError(
+      `the baseline at ${path} was not written: ${messageOf(error)} Pass the raster through ` +
+        '`keptRaster` from `@variance-authority/store/keep` before `put`.',
+      { cause: error },
+    );
+  }
+  return bytes;
 }

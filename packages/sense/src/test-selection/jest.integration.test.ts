@@ -85,6 +85,12 @@ describe('the Jest integration', () => {
     await run('test/beta.case.ts');
     await run('test/gamma.case.ts');
 
+    // The case's own timeout where it gave one, and the run's otherwise.
+    const recorded = decodeExecutionIndex(await readFile(coverageFile)).tests;
+    const limitOf = (name: string): number | undefined => recorded.find((test) => test.name === name)?.limit;
+    expect(limitOf('takes the alpha path')).toBe(3210);
+    expect(limitOf('takes the beta path')).toBe(4321);
+
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
     const diff = `--- a/${at('src/decide.ts')}

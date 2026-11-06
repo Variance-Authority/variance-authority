@@ -74,7 +74,7 @@ to `npx --no-install variance`, the CLI the project installed. The three files
 here pass `command: node packages/cli/dist/bin.js` instead, because this
 repository builds the CLI from source and has no published one to resolve.
 
-Every job runs inside `mcr.microsoft.com/playwright:v1.62.1-noble`. An approved
+Every job runs inside `mcr.microsoft.com/playwright:v1.64.1-noble`. An approved
 image is keyed by the identity of the machine that painted it, so a moving runner
 image means baselines invalidated on somebody else's schedule. Pin the image.
 
@@ -86,7 +86,7 @@ the config's `carry` fields, and the steps hand them to `actions/cache`:
 - id: carry
   run: npx --no-install variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
 - if: steps.carry.outputs.baselines-key != ''
-  uses: actions/cache/restore@v4
+  uses: actions/cache/restore@v6
   with:
     path: ${{ steps.carry.outputs.baselines-path }}
     key: ${{ steps.carry.outputs.baselines-key }}
@@ -159,6 +159,18 @@ that promotes what it rendered, compares again, and saves the store into the
 pull request's own cache scope, which its later runs read before `main`'s. The
 run takes the label off again, so a later push that moves pixels needs a new
 label, and the timeline keeps who accepted and when.
+
+The docket carries a box that does the same in one click. Ticking it starts
+`variance-tick.yml` on the default branch, which reads no code from the pull
+request. It asks the API whether the person has write access, replaces the box
+with their name, and reruns the check. The rerun finds that name, accepts as the
+label's run does, and says who in its log. A rerun replays the commit its run
+started on and renders it again, so what it accepts is that render. A tick from
+anyone without write access, on a head the pull request has left, or that takes
+the mark off accepts nothing and says why in the tick's log. A push brings a new box for the
+new head, and the rewritten comment drops the name: the accepting run's log, the
+comment's edit history and, where a history is kept, the approval row hold it. The box is on the `cache` rows, since
+what it accepts into is the runner's cache.
 
 Merging is an accept too. A pull request is where a change is judged, and what
 lands on `main` is `main`: every push to `main` promotes what it renders,
@@ -262,9 +274,15 @@ Each file ends by turning that integer into a line in the job log:
 
 ```
 nothing needs review.
-::error::variance found changes that need review; the docket is in the pull request comment.
+::error::variance found changes that need review; the docket is in the pull request comment at https://github.com/owner/repo/pull/7#issuecomment-1
 ::error::variance could not run (exit 2); see the variance run step.
 ```
+
+The address comes from the step that posted the comment, so a run whose comment
+GitHub refused, such as a fork's, names the report instead. The comment's heading
+names the config's `project`: the `tribunal` and `site` checks each post one, and
+each is a run in this repository, accepted by its label. The check called
+`tribunal` observes that package's Storybook, and no review service holds it.
 
 What differs is what reaching `1` *means*:
 
@@ -283,7 +301,7 @@ consumer meets it, in the example repository that carries it.
 
 | Flow | Example | The accept |
 |---|---|---|
-| `cache` | `Variance-Authority/example-storybook` | the `variance: accept` label |
+| `cache` | `Variance-Authority/example-storybook` | the `variance: accept` label; the tick is not driven here, since it needs the example's own `variance-tick.yml` |
 | `lfs` | `Variance-Authority/example-static-site` | the label, whose run commits the images to the branch |
 | `tribunal` | `Variance-Authority/example-tribunal` | none: the flow ends at the build on the deployment |
 

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/png",
-  "version": "0.21.0",
+  "version": "0.25.0",
   "description": "Decode, compare and diff PNGs without a browser: two buffers in, a mask out.",
   "keywords": [
     "variance-authority",
@@ -32,6 +32,10 @@
       "types": "./dist/difference.d.ts",
       "default": "./dist/difference.js"
     },
+    "./header": {
+      "types": "./dist/header.d.ts",
+      "default": "./dist/header.js"
+    },
     "./mask": {
       "types": "./dist/mask.d.ts",
       "default": "./dist/mask.js"
@@ -49,9 +53,13 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@jsquash/webp": "1.5.0",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
   }
 }

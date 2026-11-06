@@ -8,8 +8,8 @@
 
 import { readdir, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect } from 'vitest';
-import { declaredSuites, seedTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { expect, vi } from 'vitest';
+import { declaredSuites, seedTestCoverage, testCoverageFile, withIndexLock, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { collectedBoth, git as gitIn, gitPublished, probedModule, PUSH, ranWhole, totalCoverage, totalModule } from './mainline-fixture.js';
 import { mainlineBase } from './mainline-base.js';
@@ -29,19 +29,19 @@ export async function laidWorktree(home: string): Promise<{ ci: string; first: s
   const { ci, origin, first } = await gitPublished(home);
   const primary = join(home, 'clone');
   await git(home, 'clone', '--quiet', origin, primary);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   const worktree = join(home, 'feature');
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
   const own = testCoverageFile(worktree, { suite: 'unit' });
-  expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
+  expect(await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'))).toMatchObject({ value: { from: 'mainline' } });
   return { ci, first, worktree, own };
 }
 
 /** CI pushes one more commit to main and publishes a whole run there, in which both test files run `applyDiscount`. */
 export async function publishedNext(home: string, ci: string, sections?: (record: string) => Promise<void>): Promise<string> {
   const laptop = process.env['VARIANCE_AUTHORITY_CACHE'];
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'next');
   const next = await git(ci, 'rev-parse', 'HEAD');
   await git(ci, 'push', '--quiet', 'origin', 'main');
@@ -52,7 +52,7 @@ export async function publishedNext(home: string, ci: string, sections?: (record
   await sections?.(testCoverageFile(ci, { suite: 'unit' }));
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
   if (!('published' in done)) throw new Error(`the record was to reach mainline main: ${JSON.stringify(done)}`);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = laptop;
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', laptop);
   return next;
 }
 
@@ -68,5 +68,5 @@ export async function refetch(home: string, worktree: string, commit: string): P
   const markers = (await readdir(cache, { recursive: true })).filter((path) => path.includes('variance-fetched'));
   await Promise.all(markers.map((path) => utimes(join(cache, path), 0, 0)));
   const declared = declaredSuites(worktree)?.find((one) => one.name === 'unit');
-  expect(await mainlineBase(worktree, declared, { env: LOCAL, refetch: true })).toMatchObject({ commit });
+  expect(await mainlineBase(worktree, declared, { env: LOCAL, fetch: 'always' })).toMatchObject({ commit });
 }

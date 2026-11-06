@@ -5,7 +5,7 @@
 // after the call moves, and it returns the map of what it wrote. Each runner's
 // config below runs it after the project's TypeScript transform, or before
 // it: it reads either text.
-const MagicString = require('magic-string');
+const { MagicString } = require('magic-string');
 
 const CALL = /\bcss\(\(([^)]*)\)\s*=>\s*(.*?)\);/g;
 const EVALUABLE = /^[\w.]+ \? ["']\w+["'] : ["']\w+["']$/;

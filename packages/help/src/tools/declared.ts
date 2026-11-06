@@ -18,18 +18,26 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { declaredOf, type DeclaredName } from '@variance-authority/sense';
+import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
 import { docOf, headOf } from '../indexed-surface.js';
-import type { DeclaredMatch, Matches } from './search-answer.js';
-import { SLOT } from './declaration-key.js';
+import type { AliasMatch, DeclaredMatch, HeldMatch, Matches } from './search-matches.js';
+import { boundOf, SLOT } from './declaration-key.js';
+import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
+import { textAsRead } from './as-read.js';
+import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
-const DECLARED_CAP = 5;
+export const DECLARED_CAP = 5;
+
+/** The line counting the `count` declarations of `name`, each a `noun`, past the first `DECLARED_CAP`; none when there are no more. */
+export function notShown(count: number, noun: string, name: string): readonly string[] {
+  const more = count - DECLARED_CAP;
+  return more > 0 ? [`${more} more ${noun}${more === 1 ? '' : 's'} of \`${name}\` not shown.`] : [];
+}
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -58,36 +66,39 @@ export function declarations(
   }
   if (read === undefined) return { refused: 'no source index is published; run `variance index`' };
   // Stable, so the index's file-then-line order holds within a kind.
-  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported.
-  const names = read.names.filter((one) => one.name !== SLOT).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
+  // `default` is no binding a file can keep: the index reads a default export's declaration by it, and that is exported. A member may be called it.
+  const names = read.names.filter((one) => one.name !== SLOT || isMember(one)).sort((left, right) => KIND_ORDER[left.fileKind] - KIND_ORDER[right.fileKind]);
   return { names, unread: read.unread };
 }
+
+/** The declarations of exactly `name`, read once for a generation's answer and the look at it. */
+export const declarationsNamed = askedOnce((_help: Help, root: string | undefined, name: string): Declarations => declarations(root, name));
 
 /**
  * One declaration, as `symbol` writes it: the name and its kind, where it is
  * declared, its signature and its documentation as the checkout holds them,
- * and who can reach it. The signature and the
- * documentation are left out when the file no longer holds the name where the
- * index read it.
+ * and who can reach it. The signature and the documentation are left out of a
+ * file written since `help` was read, as {@link textRows} says.
  */
-function declaredBlock(root: string, held: DeclaredName, spell: Spelling): string {
+function declaredBlock(help: Help, root: string, held: DeclaredName, spell: Spelling): string {
   return [
     `${held.name} [${held.kind}]`,
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...textRows(root, held),
+    ...textRows(help, root, held),
     reachSentences(held, spell).block,
   ].join('\n');
 }
 
 /** Where a declaration is, and the spans of its signature and documentation. */
-type Spanned = Pick<DeclaredName, 'at' | 'name' | 'line' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
+type Spanned = Pick<DeclaredName, 'at' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
 
 /**
  * A declaration's signature and documentation, as the checkout holds them;
- * neither when the file no longer holds the name where the index read it.
+ * neither when the file is gone or was written since `help` was read, since the
+ * spans are of the text that read saw.
  */
-export function textRows(root: string, held: Spanned): readonly string[] {
-  const text = textAt(root, held);
+export function textRows(help: Help, root: string, held: Spanned): readonly string[] {
+  const text = textAsRead(help, root, held.at);
   if (text === undefined) return [];
   const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
   const doc = docOf(text, spanOf(held.docStart, held.docEnd));
@@ -147,6 +158,23 @@ export function declaredLine(held: DeclaredMatch): string {
   return `${held.name} [${held.kind}] — ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
 }
 
+/** One member or function inside a function, as a `search` line writes it, under what holds it. */
+export function heldLine(held: HeldMatch): string {
+  const where = `— ${held.package ?? 'the repository'} · ${held.at}:${held.line}`;
+  if (held.on === undefined) return `${held.name} [${held.kind}] inside ${held.holder === undefined ? `the function written at ${held.at}:${held.holderLine}` : `\`${held.holder}\``} ${where}`;
+  return isUnnamedContainer(held.on) ? `${held.name} [${held.kind}] on ${held.on} ${where}` : `${held.on}.${held.name} [${held.kind}] ${where}`;
+}
+
+/** One import that binds the name, as a `search` line writes it. */
+export function aliasLine(alias: AliasMatch): string {
+  return importLine(alias, alias.imported, alias.local);
+}
+
+/** One import, saying the export as `named`, with its own spelling when that differs. */
+export function importLine(alias: Pick<AliasMatch, 'at' | 'line' | 'imported' | 'specifier' | 'type'>, named: string, local: string): string {
+  return `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
+}
+
 /** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */
 const UNREAD_NAMED = 3;
 
@@ -184,20 +212,6 @@ function spanOf(start: number | null | undefined, end: number | null | undefined
   return start === undefined || start === null || end === undefined || end === null ? undefined : { start, end };
 }
 
-/** The file's text, when it still holds the name on the line the index read it at. */
-function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>): string | undefined {
-  let text: string;
-  try {
-    text = readFileSync(join(root, held.at), 'utf8');
-  } catch {
-    return undefined;
-  }
-  // The line spells the item's own name: one inside a Rust inline module is
-  // declared as `tests::fixture` and written `fn fixture`.
-  const own = held.name.split('::').at(-1)!;
-  return text.split(/\r?\n/)[held.line - 1]?.includes(own) === true ? text : undefined;
-}
-
 /**
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
@@ -205,30 +219,28 @@ function textAt(root: string, held: Pick<DeclaredName, 'at' | 'name' | 'line'>):
  * `DECLARED_CAP` of them, a count of the rest, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
- * `topLevel` says whether one of them is a file's top-level declaration: one
- * inside a function is the workspace's too, and stands for no member.
  */
 export function declaredBlocks(
+  help: Help,
   root: string | undefined,
   name: string,
   wanted: string | undefined,
   spell: Spelling,
   from: readonly string[] = [],
-): { readonly blocks: readonly string[]; readonly topLevel: boolean } {
-  const read = declarations(root, name);
-  if (root === undefined || 'refused' in read) return { blocks: [], topLevel: false };
+): { readonly blocks: readonly string[] } {
+  const read = declarationsNamed(help, root, name);
+  if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
     read.names.filter((one) => wanted === undefined || one.by === wanted),
     from,
   );
-  if (held.length === 0) return { blocks: [], topLevel: false };
-  const more = held.length - DECLARED_CAP;
+  if (held.length === 0) return { blocks: [] };
   const blocks = [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(root, one, spell)),
-    ...(more > 0 ? [`${more} more ${more === 1 ? 'declaration' : 'declarations'} of \`${name}\` not shown.`] : []),
+    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(help, root, one, spell)),
+    ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];
-  return { blocks, topLevel: held.some((one) => !isNested(one)) };
+  return { blocks };
 }
 
 /** Whether a function's body declares it, rather than its file's top level. */
@@ -249,8 +261,8 @@ function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): r
  * The file-private declarations of the name, source first, top-level or
  * inside a function as `isNested` tells; none when the index is not at hand.
  */
-export function declaredAt(root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
-  const read = declarations(root, name);
+export function declaredAt(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {
+  const read = declarationsNamed(help, root, name);
   if ('refused' in read) return [];
   return read.names.filter((one) => wanted === undefined || one.by === wanted);
 }
@@ -260,20 +272,57 @@ export function declaredAt(root: string | undefined, name: string, wanted: strin
  * them: the first `cap`, source first, in `files` when an area named them;
  * nothing when no checkout was named or its index could not be read. A name
  * that is the query as written comes first, the same name in another case
- * second, and every name only holding it after them.
+ * second, every name only holding it after them, and a doc alone saying it last. Members and functions
+ * inside a function are `held`, every one, ordered the same way, and `exact`
+ * counts the ones at its head that are the question.
  */
 export function declaredMatches(
   root: string | undefined,
   query: string,
   files: Iterable<string> | undefined,
   cap: number,
-): (Matches<DeclaredMatch> & { readonly unread: readonly string[] }) | undefined {
+): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
-  const written = (one: DeclaredName): number => exactness(one.name, query) ?? 2;
+  const spelled = (one: DeclaredName): string => (isMember(one) ? `${one.on}.${one.name}` : one.name);
+  const lowered = query.toLowerCase();
+  const written = (one: DeclaredName): number => exactness(one.name, query) ?? exactness(spelled(one), query) ?? (spelled(one).toLowerCase().includes(lowered) ? 2 : 3);
   const names = [...read.names].sort((left, right) => written(left) - written(right));
-  return { total: names.length, shown: names.slice(0, cap).map(declaredMatch), unread: read.unread };
+  const top = names.filter((one) => !isNested(one) && !isMember(one));
+  const held = names.filter((one) => isNested(one) || isMember(one));
+  return {
+    declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch), unread: read.unread },
+    held: held.map(heldMatch),
+    exact: held.filter((one) => written(one) < 2).length,
+  };
+}
+
+/**
+ * The imports in `files`, when an area named them, that bind `query` as written
+ * to an export of another name, and a declaration of another name too: a default
+ * import that says its declaration's own name renames nothing. Nothing when the
+ * index does not read.
+ */
+export function aliasMatches(root: string | undefined, query: string, files: ReadonlySet<string> | undefined): readonly AliasMatch[] | undefined {
+  if (root === undefined) return undefined;
+  try {
+    return aliasesOf(root, query)
+      ?.filter((alias) => (files === undefined || files.has(alias.at)) && (alias.to == null || boundOf(root, { at: alias.to, name: alias.imported })?.name !== query))
+      .map((alias) => ({
+        source: 'alias',
+        local: query,
+        imported: alias.imported,
+        specifier: alias.specifier,
+        ...(alias.by === '' ? {} : { package: alias.by }),
+        at: alias.at,
+        line: alias.line,
+        type: alias.type,
+      }));
+  } catch {
+    // An index that does not read answers nothing here; `declared` says so for the search.
+    return undefined;
+  }
 }
 
 /**
@@ -284,6 +333,22 @@ export function exactness(written: string, question: string): 0 | 1 | undefined 
   if (written === question) return 0;
   return written.toLowerCase() === question.toLowerCase() ? 1 : undefined;
 }
+
+/** Whether it is a member of a container. */
+const isMember = (one: Pick<DeclaredName, 'on'>): boolean => one.on !== undefined && one.on !== null;
+
+/** One member or function inside a function, as a `search` section holds it. */
+const heldMatch = (one: DeclaredName): HeldMatch => ({
+  source: 'held',
+  name: one.name,
+  kind: one.kind,
+  ...(isMember(one) ? { on: one.on! } : {}),
+  ...(one.holder === undefined || one.holder === null ? {} : { holder: one.holder }),
+  ...(isNested(one) ? { holderLine: one.holderLine! } : {}),
+  ...(one.by === '' ? {} : { package: one.by }),
+  at: one.at,
+  line: one.line,
+});
 
 /** One declaration, as a `search` section holds it. */
 export const declaredMatch = (one: DeclaredName): DeclaredMatch => ({

@@ -150,7 +150,7 @@ fn carries_each_test_files_phases_and_reads_the_layout_before_them_as_none_repor
 fn refuses_a_version_or_a_section_this_build_does_not_read() {
     for version in [7, LAYOUT.coverage.format + 1] {
         let refused_version = refused(&[&journey_columns::encode(Vec::new(), version).unwrap()]);
-        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9, 10 and 11")), "{refused_version}");
+        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9, 10, 11 and 12")), "{refused_version}");
     }
     let mut held = spec(vec![test("a.test.ts")], Vec::new());
     held.parts.push(("index", Vec::new()));

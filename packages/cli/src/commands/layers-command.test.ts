@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /** `variance layers`, through the command a person types, over a checkout of a chain of packages. */
@@ -12,12 +12,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-layers-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-layers-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];

@@ -1,5 +1,7 @@
 import type { Browser, BrowserContext, BrowserContextOptions } from 'playwright';
+import { messageOf } from '@variance-authority/raster';
 import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
+import { operatorError } from './operator.js';
 
 /**
  * One browser per process, held for as long as anything in it is using one.
@@ -105,13 +107,30 @@ class Shelf<T> {
 const browsers = new Shelf<Browser>(async (browser) => browser.close());
 
 /**
+ * The one launch, and a browser that did not start is the operator's to fix.
+ *
+ * Nothing is asked first and no message is read: which binary a launch needs is
+ * Playwright's to know, and its public API does not say, so a check beforehand
+ * would refuse a machine whose launch works. Playwright's reason stays, because
+ * it names what to install. The cost: a launch this package got wrong, such as
+ * a bad flag, reads as the operator's too, with that reason beside it.
+ */
+async function launchBrowser(engine: BrowserEngine, launch: Launch): Promise<Browser> {
+  try {
+    return await ENGINE_TYPES[engine].launch({ headless: launch.headless, args: [...launch.args] });
+  } catch (error) {
+    throw operatorError(`the browser did not start: ${messageOf(error)}`, { cause: error });
+  }
+}
+
+/**
  * The process's browser for this engine and these launch options, launched if
  * nothing holds one.
  */
 export async function leaseBrowser(engine: BrowserEngine, launch: Launch): Promise<Lease<Browser>> {
   const key = JSON.stringify([engine, launch.headless, launch.args]);
   return browsers.lease(key, async () => {
-    const browser = await ENGINE_TYPES[engine].launch({ headless: launch.headless, args: [...launch.args] });
+    const browser = await launchBrowser(engine, launch);
     browser.on('disconnected', () => browsers.forgetValue(key, browser));
     return browser;
   });
@@ -125,7 +144,7 @@ export async function leaseBrowser(engine: BrowserEngine, launch: Launch): Promi
  * another world has used is something else.
  */
 export async function ownBrowser(engine: BrowserEngine, launch: Launch): Promise<Lease<Browser>> {
-  const browser = await ENGINE_TYPES[engine].launch({ headless: launch.headless, args: [...launch.args] });
+  const browser = await launchBrowser(engine, launch);
   return owned(browser, async () => browser.close());
 }
 

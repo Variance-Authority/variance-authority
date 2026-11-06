@@ -245,26 +245,11 @@ export function MovedHere({
   /** The change this render is filed under, which `far` measures from. */
   readonly anchor?: string | undefined;
   readonly far?: Ruler | undefined;
-}): ReactElement {
+}): ReactElement | null {
   const sense = senseOfSubject(subject);
 
-  if (sense.unmeasured === 'no-baseline') {
-    return (
-      <p className="va-note">
-        This render has no baseline yet, so nothing was compared and nothing says which components
-        moved.
-      </p>
-    );
-  }
-
-  if (sense.unmeasured === 'no-hashes') {
-    return (
-      <p className="va-note">
-        This render was compared against a baseline carrying no component hashes, so nothing says
-        which components moved — only where the pixels differ.
-      </p>
-    );
-  }
+  // Which of the two it was is `gapsOf`'s to say.
+  if (sense.unmeasured !== undefined) return null;
 
   if (sense.moved.length === 0) {
     return (

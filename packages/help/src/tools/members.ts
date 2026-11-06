@@ -25,13 +25,18 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Use } from '@variance-authority/package/help';
+import type { Help, Use } from '@variance-authority/package/help';
 import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
+import { askedOnce } from './asked-once.js';
 import { ownerOf } from './by-path.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 
 /** The declarations of a member by one name. */
 export interface Members {
+  /** The member asked for, without the container a dotted name puts it on. */
+  readonly member: string;
+  /** The container a dotted name puts the member on, as written. */
+  readonly on?: string;
   /** Each declaration, `by` the container it is on. */
   readonly declared: readonly Use[];
   /**
@@ -49,35 +54,75 @@ export interface Members {
   readonly elsewhere?: readonly string[];
 }
 
+/** Whether a container is told by what it is, having no name to write. */
+export const isUnnamedContainer = (by: string): boolean => /^a (?:type literal|class)$/u.test(by);
+
+/** The container a member is declared on, as a sentence names it. */
+export function containerOf(by: string): string {
+  return isUnnamedContainer(by) ? by : `\`${by}\``;
+}
+
+/** Identifiers joined by dots: the only names that write a container's member. */
+const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
+
+
+/**
+ * The member a name asks for and the container it is on: `Tree.chainsTo` is
+ * `chainsTo` on `Tree`, read off the last dot as written, never resolved. A
+ * name that is no path of identifiers, `src/tax.ts` or `@acme/kit`, asks for
+ * itself.
+ */
+export function memberName(name: string): { readonly member: string; readonly on?: string } {
+  if (!MEMBER_PATH.test(name)) return { member: name };
+  const dot = name.lastIndexOf('.');
+  return { member: name.slice(dot + 1), on: name.slice(0, dot) };
+}
+
 /**
  * The declarations of member `name` the source index of the checkout at
  * `root` records, in the package `wanted` names when it names one; none, and
- * why, when no checkout is named or the index does not read.
+ * why, when no checkout is named or the index does not read. A name written
+ * `Container.member` keeps the declarations on the container by that name.
  */
-export function membersOf(root: string | undefined, name: string, wanted: string | undefined): Members {
-  if (root === undefined) return { declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
+export const membersOf = askedOnce((_help: Help, root: string | undefined, name: string, wanted: string | undefined): Members => {
+  const asked = memberName(name);
+  const { member, on } = asked;
+  if (root === undefined) return { ...asked, declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
   let found: ReturnType<typeof memberDeclarationsOf>;
   try {
-    found = memberDeclarationsOf(root, name);
+    found = memberDeclarationsOf(root, member);
   } catch (error) {
-    return { declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
+    return { ...asked, declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
-  if (found === undefined) return { declared: [], used: [], unread: 'no source index is published; run `variance index`' };
+  if (found === undefined) return { ...asked, declared: [], used: [], unread: 'no source index is published; run `variance index`' };
   const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const sites = found.sites.filter((site) => owner === undefined || site.by === owner);
+  const sites = found.sites.filter((site) => (owner === undefined || site.by === owner) && (on === undefined || site.on === on));
   const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
   const used = sites.flatMap((site, at) =>
     site.uses === undefined
       ? []
       : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
   );
-  return { declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
-}
+  return { ...asked, declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
+});
 
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
 export const TYPED =
   "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, " +
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
+
+/** Whose go-to-definition or go-to-implementation answers past what the bodies read here declare, by `checkerOf`'s answer. */
+export const CHECKER = {
+  typescript: "TypeScript's language service's",
+  other: "its language server's",
+  mixed: "each declaration's own language server's",
+} as const;
+
+/** Whose type checker answers for declarations in these files: TypeScript's for JavaScript and TypeScript alone, `other` for one other language, `mixed` for several. */
+export function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
+  const languages = new Set(files.map(languageOf));
+  return languages.size > 1 ? 'mixed' : languages.size === 0 || languages.has('module') ? 'typescript' : 'other';
+}
 
 /**
  * Where the uses no line types are found: find-references on the one
@@ -90,7 +135,8 @@ export const TYPED =
  * go-to-implementation on the same declaration names the implementations
  * that take their type from where they go, which write none on their line.
  */
-export function routes(name: string, members: Members, spell: Spelling): readonly string[] {
+export function routes(members: Members, spell: Spelling): readonly string[] {
+  const name = members.member;
   const only = members.declared.length === 1 ? members.declared[0]! : undefined;
   // A container with a name is one `used` lists; one without is named by the member alone.
   const named = members.used.some(({ declared }) => declared === only);
@@ -98,20 +144,19 @@ export function routes(name: string, members: Members, spell: Spelling): readonl
     only === undefined
       ? `the declaration you mean, each listed above with its file and line (\`${spell.input('package')}\` narrows the declarations to one package)`
       : `\`${named ? `${only.by}.${name}` : name}\` at ${only.at}:${only.line}`;
-  const languages = new Set(members.declared.map((site) => languageOf(site.at)));
+  const checker = checkerOf(members.declared.map((site) => site.at));
   const ask =
-    languages.size > 1
+    checker === 'mixed'
       ? "Ask the declaration's own language's type checker for those: its find-references"
-      : languages.has('module')
+      : checker === 'typescript'
         ? "Ask TypeScript for those: its language service's find-references"
         : "Ask the declaration's own language for those: its language server's find-references";
   // An object that takes the container from where it goes implements the member with no type on its line; a class that writes `implements` is a use.
-  const checker = languages.size === 1 && languages.has('module') ? "TypeScript's" : "its language server's";
   const which = only === undefined ? 'the declaration you mean' : `${only.at}:${only.line}`;
   const gap =
     `An implementation of \`${named && only !== undefined ? `${only.by}.${name}` : name}\` that takes its type from where it goes — an argument, a property, a returned value — ` +
-    `writes no type on its line and is not listed: ${checker} go-to-implementation on ${which} names it.`;
-  const stop = membersStop(name, members);
+    `writes no type on its line and is not listed: ${CHECKER[checker]} go-to-implementation on ${which} names it.`;
+  const stop = membersStop(members);
   return ['', gap, TYPED, `${ask} on ${at}.`, ...(stop === undefined ? [] : [stop])];
 }
 
@@ -138,23 +183,39 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
   );
 }
 
+/** The languages of the checkout at `root` whose members were not read, by name; none when its index does not read. */
+export function membersUnreadOf(root: string, name: string): readonly string[] {
+  try {
+    return unreadMemberLanguages(memberDeclarationsOf(root, name)?.extensions ?? []);
+  } catch {
+    // A question's other readings say why the index does not read.
+    return [];
+  }
+}
+
 /**
- * Where a reading of member `name` stops, given the languages `elsewhere`
+ * Where a reading of the member asked for stops, given the languages `elsewhere`
  * names: members are read from JavaScript and TypeScript only, so a member of
  * those languages' files is their language server's to find, beside any
  * declaration the answer lists. Nothing when there are none, or the
  * declarations were not read.
  */
-export function membersStop(name: string, members: Members): string | undefined {
+export function membersStop(members: Members): string | undefined {
   const languages = members.elsewhere ?? [];
   if (languages.length === 0) return undefined;
   const there = members.declared.length === 0 ? 'there' : 'there too';
-  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
-  return (
-    `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them: ` +
-    `if \`${name}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`
-  );
+  return `${unread(languages)}: if \`${members.member}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`;
 }
+
+/** Where a search for words stops, given the same languages: its question may be a phrase, so it names no member. */
+export function unreadStop(languages: readonly string[]): string | undefined {
+  return languages.length === 0 ? undefined : `${unread(languages)}: a member there is for their language server's workspace symbols to find.`;
+}
+
+const unread = (languages: readonly string[]): string => {
+  const named = languages.length === 1 ? languages[0]! : `${languages.slice(0, -1).join(', ')} and ${languages.at(-1)!}`;
+  return `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them`;
+};
 
 /** `N places`, in words a sentence takes. */
 export function places(count: number): string {

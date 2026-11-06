@@ -28,7 +28,7 @@ mod unresolved_walk;
 pub(crate) use unresolved_walk::sources;
 
 #[napi(object)]
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize)]
 pub struct NamedExport {
     pub name: String,
     pub at: String,
@@ -37,16 +37,30 @@ pub struct NamedExport {
     #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
+    /// The name the export binds in its own file, by `own_binding`; absent for
+    /// an `export … from` and for a name the file imports.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bound: Option<String>,
     /// The kind of the declaration the export binds in its own file, as the
     /// parse records it (`function`, `class`, `const` …); absent for an
     /// `export … from`, whose declaration is another file's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub declaration: Option<String>,
+    /// The line of that declaration, when the export statement is on another:
+    /// absent for `export function f`, whose `line` is both.
+    #[serde(rename = "boundLine", skip_serializing_if = "Option::is_none")]
+    pub bound_line: Option<u32>,
     /// The doc comment above the export, or above the declaration it binds in
     /// the same file, as `dependency_namespace::doc` cuts it from the file at the
     /// span the index holds; absent when nothing documents it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
+    /// What the declaration the export binds in the same file writes before its
+    /// body, as `dependency_namespace::text` cuts it from the file at the span
+    /// the index holds, its parameter comments included; absent for an
+    /// `export … from` and when the parse spans none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
 }
 
 /// An import of a file of a workspace package, rather than of an entry its
@@ -95,6 +109,8 @@ pub struct NameUse {
 #[napi(object)]
 pub struct IndexedUsage {
     pub exported: Vec<NamedExport>,
+    /// Each `export … from`, named or `*`, as `forward_row` writes it.
+    pub forwards: Vec<String>,
     pub deep: Vec<DeepRequest>,
     /// Imports of a package that declares no entry: every one is by path.
     pub by_path: Vec<DeepRequest>,
@@ -114,6 +130,13 @@ pub(crate) fn kind_of(at: &str) -> &'static str {
     else { "source" }
 }
 
+/// `ownBinding` in `package/src/use.ts`: the export's local name, the slot
+/// `default` for an anonymous `export default`, and none for a name the file imports.
+fn own_binding<'a>(local: Option<&'a str>, imported: &HashSet<&str>) -> Option<&'a str> {
+    let name = local.unwrap_or("default");
+    (!imported.contains(name)).then_some(name)
+}
+
 /// `requested` in `package/src/manifest.ts`: `"<package> .<rest>"`.
 fn requested(specifier: &str) -> (&str, String) {
     let name = if specifier.starts_with('@') {
@@ -127,6 +150,7 @@ fn requested(specifier: &str) -> (&str, String) {
 #[derive(Default)]
 struct Part {
     exported: Vec<NamedExport>,
+    forwards: Vec<String>,
     deep: Vec<DeepRequest>,
     by_path: Vec<DeepRequest>,
     unfollowed: Vec<DeepRequest>,
@@ -187,6 +211,13 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
     names
 }
 
+/// One `export … from` of the file `at`, as `collect-usage.ts` writes it: `*`
+/// exports no name of its own, so no row of the export list holds it, and
+/// `imported` is what the row leads to, which no name or specifier says.
+fn forward_row(at: &str, exported: Option<&str>, from: &str, imported: Option<&str>) -> String {
+    format!("{at}\0{}\0{from}\0{}", exported.unwrap_or(""), imported.unwrap_or(""))
+}
+
 fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
@@ -197,15 +228,25 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
-        // The file is read only when an export of it is documented: the index
-        // holds where each comment is, and the text is the file's.
+        // The file is read only when an export of it is documented or binds a
+        // declaration: the index holds where each span is, and the text is the file's.
         let mut source: Option<Vec<u16>> = None;
+        let imported_here: HashSet<&str> = parses.requests.range(row)
+            .flat_map(|request| parses.request_bindings.range(request))
+            .map(|binding| text.text(parses.binding_local.at(binding)))
+            .collect();
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
+            if let Some(from) = text.optional(parses.export_from.at(export)) {
+                part.forwards.push(forward_row(at, text.optional(id), from, text.optional(parses.export_imported.at(export))));
+            }
             let Some(name) = text.optional(id) else { continue };
+            let local = text.optional(parses.export_local.at(export));
+            let passed_on = text.optional(parses.export_from.at(export)).is_some();
+            let own = if passed_on { None } else { own_binding(local, &imported_here) };
             // The TypeScript reader spans an export's doc on the export; the
             // others span it on the declaration the export binds, by its name.
-            let bound = text.optional(parses.export_local.at(export)).filter(|_| text.optional(parses.export_from.at(export)).is_none()).and_then(|local| {
+            let bound = local.filter(|_| !passed_on).and_then(|local| {
                 // One name may be declared twice, `const Kind` and `type Kind`: an
                 // export takes the declaration on its own line, else the first.
                 let line = parses.export_line.at(export);
@@ -213,13 +254,22 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
                 named().find(|&symbol| parses.symbol_line.at(symbol) == line).or_else(|| named().next())
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
-            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol))).and_then(|span| {
-                let utf16 = source.get_or_insert_with(|| {
+            let bound_line = bound.map(|symbol| parses.symbol_line.at(symbol)).filter(|&line| line != parses.export_line.at(export));
+            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol)));
+            let signature = bound.and_then(|symbol| parses.signature_of_symbol(symbol));
+            let utf16: &[u16] = if doc.is_none() && signature.is_none() { &[] } else {
+                source.get_or_insert_with(|| {
                     std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
-                });
-                crate::dependency_namespace::doc(utf16, Some(span))
+                })
+            };
+            let doc = doc.and_then(|span| crate::dependency_namespace::doc(utf16, Some(span)));
+            // The head as `headOf` keeps it: its trailing `;` dropped, and nothing when nothing is left.
+            let signature = signature.and_then(|span| crate::dependency_namespace::text(utf16, Some(span))).and_then(|head| {
+                let head = head.trim_end();
+                let head = head.strip_suffix(';').unwrap_or(head);
+                (!head.is_empty()).then(|| head.to_owned())
             });
-            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), declaration, doc });
+            part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), bound: own.map(str::to_owned), declaration, bound_line, doc, signature });
         }
     }
     let first = parses.requests.at(row) as usize;
@@ -278,11 +328,12 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
             collect(root, layers, crossing, by, &targets)
         })
         .collect();
-    let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
+    let mut out = IndexedUsage { exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
     let mut reasons = Vec::new();
     for part in parts {
         reasons.extend(part.reasons);
         out.exported.extend(part.exported);
+        out.forwards.extend(part.forwards);
         out.deep.extend(part.deep);
         out.by_path.extend(part.by_path);
         out.unfollowed.extend(part.unfollowed);

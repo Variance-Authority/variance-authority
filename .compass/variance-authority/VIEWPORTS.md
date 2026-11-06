@@ -774,12 +774,9 @@ flowchart TB
   default, and `createTribunalRoutes` **replaces** the `authorization` header
   with the token that answer implies rather than adding it — a caller may not
   choose its own capability, and the policy is binding rather than advisory. The
-  two shipped policies are `authorize` in
-  `tribunal-cloudflare/app/api/[[...path]]/route.ts` (a bearer is a machine, an
-  `identify` result is a person) and `authorizeFor` in
-  `packages/tribunal/src/node/bin.ts` (a token gets what the token is for; on a
-  loopback bind, no token reviews; on a network bind, no token is no capability
-  and the surface is not served).
+  one shipped policy is `declaredPolicy` in `packages/tribunal/src/policy.ts`:
+  every host reads the same `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, and a
+  host's only say is its defaults.
 - Assertion to name. `identify`, `tokenOf`, `verify` and `published` in
   `tribunal-cloudflare/app/access.ts` turn a signed token — from the header or
   the browser's cookie — into an `Identity`, with `alg` pinned to RS256, `aud`

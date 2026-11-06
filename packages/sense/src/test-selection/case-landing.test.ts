@@ -174,14 +174,18 @@ describe('landCases', () => {
     // Both shards ran over a `src/shared.ts` that gained `delta` above the
     // rest. The first shard re-cut the module to that text; the second's
     // cases of it before the change are the base's, at the base's lines.
+    // The root is a repository whose one commit holds neither text, so neither is found.
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '--message', 'empty'], { cwd: root });
+    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     const head = ['delta', ...regions];
     const changed = [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }];
     const first = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'] }, head));
     const second = await shard('shard-2.bin', index({ 'b.test.ts > two': ['beta'] }, head));
 
     const { sections } = landCases(record, previous, root, [
-      { path: first, coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: changed } },
-      { path: second, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: changed } },
+      { path: first, coverage: { commit, tests: [whole('a.test.ts')], modules: changed } },
+      { path: second, coverage: { commit, tests: [whole('b.test.ts')], modules: changed } },
     ], new Map([['src/shared.ts', 'v1:base']]));
 
     const before = decodeExecutionIndex(sections.before!);

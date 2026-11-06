@@ -60,10 +60,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
       await readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
     );
     const delta = result!.semantic.deltas[0]!;
+    // One Playwright revision is a different Chromium patch per platform:
+    // 156.0.8078.4 on macOS, 156.0.8078.80 in the Linux image.
+    const build = (engine: string) => engine.slice(0, engine.lastIndexOf('.'));
 
-    expect(provenance).toEqual({
+    expect({ ...provenance, engine: build(provenance.engine) }).toEqual({
       generatedBy: 'examples/readme-case/scripts/generate.mjs',
-      engine: result!.engine,
+      engine: build(result!.engine),
       change: {
         kind: delta.kind,
         property: delta.property,
@@ -87,7 +90,7 @@ describe('the root README example\'s committed artifacts', () => {
       readFile(join(REPOSITORY_ROOT, 'README.md'), 'utf8'),
     ]);
 
-    expect(diff).toEqual(diffImage(before, after));
+    expect(diff).toEqual(await diffImage(before, after));
     for (const name of ['before.png', 'after.png', 'diff.png']) {
       expect(readme).toContain(`examples/readme-case/artifacts/${name}`);
     }

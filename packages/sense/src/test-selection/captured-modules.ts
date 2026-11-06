@@ -18,6 +18,7 @@ import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { instrumentTransformed } from '../instrument/transformed.js';
+import { carriesTheFile } from './carried-text.js';
 import { recordedBlocks } from './coverage-rows.js';
 import moduleIds from './module-id.cjs';
 import { fileOrNone, insideRoot, isMissing, mayTake, projectPath, type CapturedModule } from './instrumented-modules.js';
@@ -223,11 +224,11 @@ export class MapRefusal extends Error {}
  * nowhere fires when the module loads, charged to every test that loaded it,
  * rather than recorded as never running. A rewrite with no map, one whose map
  * names no source that resolves to the file, one a plugin returned no map
- * for, one whose map carries a text for the file that is not the file, and
- * code a map with no mappings carries for a file with more than module code,
- * and text the instrumenter cannot parse written from a file it can, is an
- * error; a `variant` is marked instead. So is a file that is there and cannot
- * be read. Where `code` is the file, this is {@link placeModule}.
+ * for, one whose map carries a text that is not the file on a line a region
+ * sits on, code a map with no mappings carries for a file with more than
+ * module code, and text the instrumenter cannot parse written from a file it
+ * can, is an error; a `variant` is marked instead. So is a file that is there
+ * and cannot be read. Where `code` is the file, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -264,10 +265,11 @@ export function captureAfter(
   const texts = handedTexts(disk);
   const rewrote = unmapped.filter((step) => step.loaded === undefined || !texts.includes(step.loaded));
   const source = mapsBack(path, code, composed);
+  const lost = source !== undefined && source >= 0 && !carriesTheFile(composed!.sourcesContent?.[source], texts, file, mode);
   // A module built from the file whose code no map leads back from, such as
   // the file's text as a string, holds none of the file's code to place a
   // region in, and depends on all of it: marked, as `unprobed` marks a module.
-  if (variant && (rewrote.length > 0 || source === undefined || source < 0 || !carriesTheFile(composed!, source, texts))) {
+  if (variant && (rewrote.length > 0 || source === undefined || source < 0 || lost)) {
     const marked = markedId(projectPath(root, path), disk);
     return { module: { ...unread, id: marked }, code: markLoaded(code, marked), ...(carry && composed ? { carried: composed.mappings } : {}) };
   }
@@ -288,10 +290,10 @@ export function captureAfter(
         `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
     );
   }
-  if (source >= 0 && !carriesTheFile(composed!, source, texts)) {
+  if (lost) {
     throw new MapRefusal(
-      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk: a step ahead of the ` +
-        'transforms that wrote a map, such as a `load` hook, rewrote the file and returned no map or `map: null`, so the map names lines ' +
+      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk, on a line a region sits on: ` +
+        'a step ahead of the probes, such as a `load` hook, rewrote that line and returned no map or `map: null`, so the map names lines ' +
         `the author never wrote. Have that step return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }
@@ -340,16 +342,6 @@ export function mapsBack(path: string, code: string, map: ComposedMap | undefine
   if (!/\S/.test(code) || (map !== undefined && !/[^;,]/.test(map.mappings))) return -1;
   const source = map?.sources.findIndex((name) => name !== null && resolve(dirname(path), map.sourceRoot ?? '', name) === path) ?? -1;
   return source === -1 ? undefined : source;
-}
-
-/**
- * Whether the text `map` carries for its source `source`, if it carries one,
- * is one of `texts`, the file as a step can be handed it. A map is trusted on
- * its source's name only where it says nothing more.
- */
-export function carriesTheFile(map: ComposedMap, source: number, texts: readonly string[]): boolean {
-  const content = map.sourcesContent?.[source];
-  return typeof content !== 'string' || texts.includes(content);
 }
 
 function readOriginal(path: string): string {

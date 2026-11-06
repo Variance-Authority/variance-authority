@@ -6,6 +6,7 @@ import type { ObservationRecord } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { accept, formatAcceptance } from './accept.js';
 import type { CliObservationRecord, CliRunReport } from './run.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -20,9 +21,13 @@ const CANDIDATE: Raster = {
   identity: IDENTITY,
   width: 100,
   height: 40,
-  bytes: Buffer.from('png').toString('base64'),
+  // A one-pixel PNG: an accept keeps a WebP of it, so the bytes must be an image.
+  bytes: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4AWP4z8DwHwAFAAH/e+m+7wAAAABJRU5ErkJggg==',
   missingFonts: [],
 };
+
+/** What the store is handed for the candidate: the accept keeps it as a lossless WebP first. */
+const KEPT = await keptRaster(CANDIDATE);
 
 function observation(overrides: Partial<CliObservationRecord>): CliObservationRecord {
   return {
@@ -85,7 +90,7 @@ describe('accept', () => {
     expect(result.accepted).toEqual([
       { subject: 'fixture:a', from: 'images/fixture%3Aa.after.png' },
     ]);
-    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, KEPT]]);
   });
 
   it('refuses a subject the run settled without rendering, rather than re-rendering it', async () => {
@@ -150,7 +155,7 @@ describe('accept', () => {
     });
 
     expect(result.refused).toHaveLength(0);
-    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, KEPT]]);
   });
 
   it('re-stamps an unchanged subject under a moved identity on --all, so the move is named once', async () => {
@@ -172,7 +177,7 @@ describe('accept', () => {
     });
 
     expect(result.refused).toHaveLength(0);
-    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, KEPT]]);
     // Its pixels did not move, so nobody approved a change: no approval, no
     // commit-message entry, and the count says what was written instead.
     expect(result.accepted).toEqual([]);
@@ -194,7 +199,7 @@ describe('accept', () => {
       read: async () => CANDIDATE,
     });
 
-    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, KEPT]]);
     expect(result.accepted).toEqual([]);
     expect(result.restamped).toBe(1);
     // Not "under this run's identity": nothing about the identity moved.

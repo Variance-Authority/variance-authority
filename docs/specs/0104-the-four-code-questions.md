@@ -51,7 +51,8 @@ it is a read or a write.
 
 ## The questions
 
-**`symbol <name>`** answers every declaration of `name`, published first, each
+**`symbol <name>`** answers every declaration of `name`, published first, or by
+[place](0109-a-name-is-answered-from-where-it-is-asked.md) under `--from`, each
 on its own: two packages that declare a name are two rows, never one row
 "also published by" the other. `Container.member` and `--file`/`--kind` narrow
 to one. A local alias answers with the declaration it imports.
@@ -63,9 +64,14 @@ through every value written as its container, each use a read or a write;
 whatever a type checker would have to infer is TypeScript's to answer.
 
 **`search <words>`** answers one ranked list of declarations by the words of
-their name and their documentation: published above exported above
+their name and their documentation, and, below both, of the signature an
+exported declaration writes before its body: published above exported above
 unexported, and within each a name that is the question first — as written,
-then the same name in another case — then a rare word above a common one. It
+then the same name in another case — then a rare word above a common one. A
+signature's words are what it writes before its body, a comment in it
+included, and a type alias writes none, since what follows its `=` is its body. They
+reach no declaration whose name or documentation holds none of the question,
+and show none in a better one's place. It
 opens on its first hit, and on a miss names the word nothing carries.
 
 **`covering --file <path>`** answers, per region of the file and per suite, the
@@ -89,7 +95,8 @@ These hold today, and the tests pin them:
 - uses: tests apart from source, barrels followed and not counted, the
   renamed, type-only, `import()` and passed-on-whole notes, own-file uses of
   an unexported name, and a member's uses as reads and writes;
-- search by name words and by documentation words;
+- search by name words, by documentation words, and by signature words below
+  a doc;
 - covering per region, narrowed to a line, a file the run never loaded, and a
   record under older probes; declared preconditions and a suite with no record
   stay pinned by the `covering-*.test.ts` files that build their checkout.
@@ -103,7 +110,7 @@ The `it.todo` entries of the four acceptance files, in order of harm:
 
 1. Each declaration of a name answered apart, in `symbol` and in `uses`.
 2. `--format json`, `--file`, `--kind` on `symbol` and `uses`; no cap on rows.
-3. `Container.member`, and a name reached through `export * as`.
+3. A name reached through `export * as`.
 4. No dependency README prose, no tool of another surface named.
 5. `covering`: `dist/` read as source, repository-relative paths only, the
    record's commit, one notice per answer, JSON without repeated cases.

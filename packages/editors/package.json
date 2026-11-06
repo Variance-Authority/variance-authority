@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/editors",
-  "version": "0.21.0",
+  "version": "0.25.0",
   "description": "The Variance Authority plugins for VS Code and JetBrains IDEs, built and ready to install: which test cases went through each line, in the gutter.",
   "keywords": [
     "variance-authority",
@@ -38,6 +38,6 @@
     "prepack": "node scripts/verify-pack.mjs"
   },
   "devDependencies": {
-    "@vscode/vsce": "^4.0.0"
+    "@vscode/vsce": "^4.1.0"
   }
 }

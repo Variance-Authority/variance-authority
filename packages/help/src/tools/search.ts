@@ -1,12 +1,15 @@
-import type { FileSet, Tool, Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
+import { workspaceReadStarted } from '../snapshot.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, PublishedMatch, SearchQuestion } from './search-answer.js';
-import { declaredLine, unreadLine } from './declared.js';
+import type { PublishedMatch } from './published-match.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, Searched, SearchQuestion } from './search-matches.js';
+import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
+import { unreadStop } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
@@ -17,7 +20,7 @@ import { byPublishedPath, plural } from './format.js';
  * Substring, case-insensitive, over the name and over what was written about
  * it; and several words, over the words a name is written in, each word
  * matching one that starts with it or shares its stem. A match there is a fact
- * about the text, so it is reported first and whole, ordered first by where it
+ * about the text, so it is reported first, ordered first by where it
  * was found — the whole name, as written and then in another case, part of the
  * name, the doc's opening paragraph, the rest of the doc — and then by who
  * imports it: a name that is the word is what was asked for, a name holding it
@@ -175,8 +178,17 @@ export function searchQuestionOf(input: Readonly<Record<string, unknown>>): Sear
 
 /** The search over an opened index — what `docs_search` answers, without the Help value. */
 export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
-  const question = searchQuestionOf(input);
-  const { answer, area } = searched(index, question, tree, root, importing);
+  return spoken(searched(index, searchQuestionOf(input), tree, root, importing), root);
+}
+
+/** A list under its head, cut at what `found` shows and saying so; nothing when it holds none. */
+function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => string): readonly string[] {
+  if (found.total === 0) return [];
+  return ['', head, '', ...found.shown.map(line), ...(found.total > found.shown.length ? [`\n${found.total - found.shown.length} more not shown.`] : [])];
+}
+
+/** What a search says of what it found. */
+function spoken({ answer, area }: Searched, root: string | undefined): string {
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
@@ -228,7 +240,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       : [
           '',
           `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
+            'read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
@@ -244,36 +256,37 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   const where = area === undefined ? [] : [areaLine(area), ''];
 
   // Below the exports, since none of these is a name its file hands out.
+  const place = area === undefined ? 'somewhere in the repository' : 'in that area';
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
   const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
-  const declaredSection =
-    declared.total === 0
-      ? unread
-      : [
-          '',
-          `${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being exported:`,
-          '',
-          ...declared.shown.map(declaredLine),
-          ...(declared.total > declared.shown.length ? [`\n${declared.total - declared.shown.length} more not shown.`] : []),
-          ...unread,
-        ];
+  const inside = answer.held ?? { total: 0, shown: [] };
+  const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine);
+  const aliases = answer.aliases ?? { total: 0, shown: [] };
+  const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
+  const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
+  const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
 
-  if (found.total === 0 && rest.total === 0 && declared.total === 0 && (third?.total ?? 0) === 0) {
-    // A miss of the text is not a miss of the code: when this repository's own
-    // names answer the words, the line above them says only that the text was
-    // not written, so a reader who stops at the first line does not stop at *nothing*.
-    // It names what the substring read, names and their docs: the doc a file
-    // opens with is read only for the words, so a file may still write the phrase.
-    // Inside an area the text may be written outside it, so the way to widen stays.
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
+    // It names what the substring read, and no more: a local that is no function
+    // is in no index, a closure's doc is its holder's, and the doc a file opens
+    // with is read only for the words, so a file may still write the phrase.
+    const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
+    const read = answer.declared === undefined
+      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
+    // A miss of the text is not a miss of the code: with names to offer, the line
+    // says only that the text was not written. Inside an area the text may be
+    // written outside it, so the way to widen stays.
     const nowhere =
       own.length > 0
         ? area === undefined
-          ? `No name in this repository, nor the doc of one, writes \`${query}\` as typed. The nearest follow.`
-          : `No name in reach of that start point, nor the doc of one, writes \`${query}\` as typed — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
+          ? `${read}. The nearest follow.`
+          : `${read} — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
         : area === undefined
-        ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
-        : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+        ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
+        : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
+    const stop = unreadStop(answer.membersUnread ?? []);
+    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -327,14 +340,16 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find names whose name or documentation contains a string, case-insensitive, or whose words ' +
+    'Find candidate names, not every match; `git grep -i <word>` prints every tracked line that writes a word. ' +
+    'A name matches when its name or documentation contains a string, case-insensitive, or when its words ' +
     'start with or share the stem of every word you typed. Published names come first, a name holding ' +
     'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
     'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +
     'that import them, each labelled with those places and packages as docs_uses counts them, and carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
-    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them. Installed third-party ' +
+    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
+    'functions inside a function under what holds them, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
@@ -384,9 +399,35 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root, importingOf(help, invocation?.root)),
+  run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root),
 
   files: (help, input, invocation): FileSet => ({
     files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
 };
+
+/** The last search of each generation, and what it was asked. */
+const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: Tree | undefined; readonly found: Searched }>();
+
+/** One search for an answer and the look at its files, which asks the same of the same generation just after it. */
+function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Searched {
+  const question = searchQuestionOf(input);
+  const asked = JSON.stringify([question, invocation?.root]);
+  const last = lastSearched.get(help);
+  if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
+  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), workspaceReadStarted(help));
+  lastSearched.set(help, { asked, tree: invocation?.tree, found });
+  return found;
+}
+
+/**
+ * The files of the rows `run` prints, and the entries and barrels that make a
+ * row published, which the count of that row walked already. `search.files` is
+ * every match, a set another question crosses; a row past the cap is no part of
+ * this answer, so the count printed above the rows stays the generation's.
+ */
+export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
+  const { answer, publishing = [] } = searchedOnce(help, input, invocation);
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
+  return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
+}

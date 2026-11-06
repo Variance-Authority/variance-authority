@@ -103,10 +103,16 @@ treat unsoundly instead of claiming soundness. **Reiter** (1978) named the
 assumption underneath both: under the **closed world** what is not recorded is
 false, under the open world it is unknown.
 
+Static analysers that cannot be sound on an existing codebase accept what they
+report once as a **baseline** and report only what departs from it: PHPStan's
+`--generate-baseline`, Psalm's `--set-baseline`, detekt's baseline file.
+
 **What it means here.**
-[Spec 0105](../specs/0105-a-suite-declares-whether-its-world-is-closed.md) makes
-the assumption a per-suite declaration. A closed suite fails on a safety
-violation; an open one reports where the record stops, the soundiness way.
+[Spec 0105](../specs/0105-a-run-records-where-its-loads-drift-from-the-walk.md)
+does not ask a suite which world it is in. A record's **drift** is the loads
+its imports do not reach, and the mainline's record at a pull request's merge
+base carries the baseline. The review reports where the shape changed against
+it, the soundiness way, and a baseline explains every load its record holds.
 
 ### Dominators, and where a region begins
 
@@ -187,6 +193,35 @@ correlation over who broke what. That is the AAA boundary, and this project
 addresses it only for its own naming needs — the dragon rule, and the Act and
 Assert vocabulary in [`scenarios.md`](../scenarios.md). Neither of those reaches
 source. Nothing here joins an authored Act to the regions executed under it.
+
+### Selection in continuous integration, and the record's age
+
+A selector reads a record made at some earlier commit, and in continuous
+integration the mainline moves while the record is made. **Elbaum, Rothermel
+and Penix** (FSE 2014) measured selection and prioritization on Google's
+pre-submit and post-submit streams, and selected by recent failure history
+rather than by coverage. **Shi, Zhao and Marinov** (*Understanding and
+Improving Regression Test Selection in Continuous Integration*, ISSRE 2019) ran
+Ekstazi and STARTS over real CI histories: the failures selection missed were
+almost all flaky tests, not unsafe skips.
+
+The mainline itself is kept green by queues. The **not rocket science rule**,
+as Graydon Hoare stated it for bors, tests the merge result before it lands.
+**Uber's SubmitQueue** (Ananthanarayanan et al., *Keeping Master Green at
+Scale*, EuroSys 2019) builds speculative combinations of pending changes and
+reports thousands of commits a day; **Shopify**'s merge queue posts describe
+about 400 commits a day to master. **Chromium**'s last known good revision
+(LKGR) published the newest commit that passed, for blame and for syncing to.
+A queue tests the merge, not whether two changes interfere in meaning, which
+**Horwitz, Prins and Reps** (*Integrating Noninterfering Versions of Programs*,
+TOPLAS 1989) defined.
+
+**What it means here.** A mainline record that refreshes only the traces of
+the tests a landed change selects is Ekstazi's invariant (Gligoric et al.,
+above) applied per commit; we found no work that publishes a record that way.
+[Journal 0078](journal/0078-a-record-behind-the-merge-base-narrows-best-effort.md)
+models a record behind the merge base, what selection over it can promise,
+and measures its lag here.
 
 ## Flake detection without a rerun
 
@@ -558,6 +593,7 @@ naive count.
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
 | Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
 | An index saves the agent's exploration | SWE-grep: trained parallel grep matches frontier retrieval in about four turns, with no index | The claim needs an agent benchmark in tool calls and tokens before a product page quotes it |
+| A model trained on the history routes a question better than counting | Our own run: a small model on this repository's commits beat random and the prior, and lost to BM25 at the parent commit and to time-decayed kNN | Not enough labelled material; retry only with about ten times more, or a question direct algorithms cannot answer |
 | Structure is the import graph, rolled up | Oliva & Gerosa: 91% of co-change links have no structural dependency | Spec 0096's first definition of an edge; a structure reading names which signal it read |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a

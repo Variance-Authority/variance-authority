@@ -44,7 +44,9 @@ yarn vitest run cases/playwright-additive-case/src/workflow.chromium.test.js
 | One execution followed from the browser into a service serving many at once | [`journey-tracing-case/src/workflow.chromium.test.js`](journey-tracing-case/src/workflow.chromium.test.js) | An execution id carried in a `Cookie` header, the service reporting both its decision and the source regions it entered under that id, and a following run narrowed to the spec that reached the changed branch. |
 | An ordinary Playwright suite over a Storybook, recorded without naming a fixture | [`playwright-storybook-case/src/workflow.chromium.test.js`](playwright-storybook-case/src/workflow.chromium.test.js) | A Storybook that Storybook built with probes, seven specs that open it themselves — straight to a story, through the manager, in a second tab, past `afterEach`, across a reload — and a change to one line narrowed to the specs whose pages executed it. |
 | A selection handed to Vitest 4, not the one this repository runs | [`vitest-4-case/src/selection.integration.test.ts`](vitest-4-case/src/selection.integration.test.ts) | The real Vitest 4 CLI over a two-file fixture: a selection that skips every file passes and runs none, a shard the selection left empty passes, and a kept file is the only one recorded. |
+| A spec cut under the oldest Playwright this project takes, not the one this repository runs | [`playwright-oldest-case/src/cut.chromium.test.ts`](playwright-oldest-case/src/cut.chromium.test.ts) | The real Playwright 1.55 CLI over a one-spec fixture: `withTestSelection` cuts the spec through the Babel route, and each region of the page is recorded against the statement that first reached it, and a shard is refused. |
 | A recording under Vitest 5, its module cache warm, its cases concurrent | [`vitest-5-case/src/selection.integration.test.ts`](vitest-5-case/src/selection.integration.test.ts) | The real Vitest 5 CLI over a shared module graph with concurrent cases: both files recorded, each branch named for the case that took it across interleaved awaits, and a selection that runs only the file it kept. |
+| One worker keeping its modules across files, and the state they hold reset per test | [`vitest-shared-modules-case/src/resets.integration.test.ts`](vitest-shared-modules-case/src/resets.integration.test.ts) | The real Vitest CLI under `isolate: false`: a module evaluated once, its state leaking into the next file, ioc resetting what registered a handler, the isolator's Vitest plugin giving every test the values the module loaded with, and the isolator README's split, where a file that calls `vi.mock` keeps its mock only in the isolated project. |
 
 Two cases build an external artifact first, through their own package script:
 
@@ -88,6 +90,11 @@ file is orchestration.
 - Missing prerequisites skip loudly, with the command that makes the case run.
   A silently skipped case reads in a summary exactly like one that ran and
   agreed. [`tools/skips.check.ts`](../tools/skips.check.ts) enforces this.
+- On CI a missing prerequisite fails the case instead, through
+  [`unbuilt.mjs`](unbuilt.mjs). A file whose cases all skipped never ran, so the
+  record of that run is not whole and `main` cannot publish it.
+  [`case-subjects`](../.github/actions/case-subjects/action.yml) builds the
+  subjects in every job that runs the chromium slice.
 - Generated or prebuilt inputs refuse stale source bytes instead of reporting an
   agreement against an old build. The case-specific tests own those checks.
 

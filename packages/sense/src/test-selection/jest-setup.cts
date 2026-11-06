@@ -191,15 +191,9 @@ interface CircusNode {
 function skipTheCut(): void {
   const cutFile = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CUT'];
   if (cutFile === undefined) return;
-  let circus: { addEventHandler?: unknown };
-  try {
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return;
-  (register as (handler: (event: CircusEvent, state: { rootDescribeBlock?: CircusNode }) => void) => void)(
+  const register = circusHandlers<{ rootDescribeBlock?: CircusNode }>();
+  if (register === undefined) return;
+  register(
     (event, state): void => {
       if (event.name !== 'run_start' || state.rootDescribeBlock === undefined) return;
       const testFile = expect.getState().testPath;
@@ -232,15 +226,7 @@ function markCollected(): { at?: number } {
   const mark: { at?: number } = {};
   const native = (globalThis as { [key: symbol]: unknown })[Symbol.for('jest-native-now')];
   const now = typeof native === 'function' ? (native as () => number) : Date.now.bind(Date);
-  let circus: { addEventHandler?: unknown };
-  try {
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return mark;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return mark;
-  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+  circusHandlers()?.((event): void => {
     if (event.name !== 'run_start') return;
     mark.at = now();
   });
@@ -263,8 +249,25 @@ function cutIn(file: string): Record<string, readonly string[]> {
 /** What jest-circus hands a handler: the case, with the body about to be called. */
 interface CircusEvent {
   readonly name: string;
-  readonly test?: { fn?: unknown; name?: unknown } | undefined;
+  readonly test?: { fn?: unknown; name?: unknown; timeout?: number } | undefined;
   readonly hook?: { readonly type: string; readonly parent: CircusBlock } | undefined;
+}
+
+/**
+ * jest-circus's way to add a handler, or undefined under another runner. It is
+ * resolved at run time, from the sandbox: jest-circus is the runner Jest has
+ * defaulted to since 27, but it is the project's to replace, and a project that
+ * replaced it must still get everything else in this file.
+ */
+function circusHandlers<State>(): ((handler: (event: CircusEvent, state: State) => void) => void) | undefined {
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return undefined;
+  }
+  const register = circus.addEventHandler;
+  return typeof register === 'function' ? (register as (handler: (event: CircusEvent, state: State) => void) => void) : undefined;
 }
 
 /**
@@ -291,25 +294,18 @@ interface CircusEvent {
  * one of those.
  */
 function bracketEveryCase(nextId: () => string): void {
-  let circus: { addEventHandler?: unknown };
-  try {
-    // Resolved at run time, from the sandbox: jest-circus is the runner Jest
-    // has defaulted to since 27, but it is the project's to replace, and a
-    // project that replaced it must still get everything else in this file.
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return;
+  const register = circusHandlers<{ testTimeout?: number }>();
+  if (register === undefined) return;
 
-  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+  register((event, state): void => {
     placeCalls(event);
     if (event.name === 'test_start') attempt('begin');
     if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
+    // As jest-circus resolves it, for which a timeout of 0 is no timeout given.
+    heldTo = held.timeout || state.testTimeout;
     const body = held.fn;
     if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
@@ -395,6 +391,10 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 // wrapper reached inside it is the same case, not concurrency.
 let enclosingCase = 0;
 
+// What the case about to run is held to. The declarer route encloses a body before
+// any limit is known, so it is read when the body runs; interleaved cases are not supported.
+let heldTo: number | undefined;
+
 /**
  * One case's body, run inside the scope its crossings belong to.
  *
@@ -425,7 +425,7 @@ function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): Cas
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
+      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project, heldTo), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }

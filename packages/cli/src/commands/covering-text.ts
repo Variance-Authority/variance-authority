@@ -36,6 +36,7 @@ export function formatCovering(answer: Covering, format: CoveringFormat, now: nu
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
   return `${[
+    ...(answer.source === undefined ? [] : [answer.source.says]),
     ...probesText(answer),
     ...scopeText(answer),
     ...whereText(answer),

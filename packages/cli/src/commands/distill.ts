@@ -68,6 +68,7 @@ export interface DistillOptions {
 export async function distillFiles(options: DistillOptions): Promise<Distillation | FileDistillation | ScopeDistillation> {
   if (options.test === undefined && options.file === undefined) return distillRecords(options);
   const file = options.file === undefined ? undefined : checkoutFile(options.root, options.file);
+  // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
   const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
   // One read: the index and the journals are then one run's, whatever lands between.
   const bytes = await recordAt(record);
@@ -140,6 +141,7 @@ async function scopeOf(options: Omit<DistillOptions, 'test' | 'file'>): Promise<
   for (const suite of declared ?? [options.suite]) {
     let record: string;
     try {
+      // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
       record = options.execution ?? (await recordedExecutionFile(options.root, suite));
     } catch (error) {
       // Every suite was asked for, and one that never ran is named, not a reason to read none.

@@ -23,37 +23,23 @@ import { SCHEMA_VERSION } from './schema.js';
  * `worker.ts` authenticates before it routes, on the argument that an
  * unauthenticated 404 hands a stranger a map of the API. This route is that map,
  * so it is inside the same gate — every capability may ask, because both halves
- * of a mismatch need to hear it and only one of them ever holds the review token.
+ * of a mismatch need to hear it and only one of them ever holds the review capability.
  */
 
 /**
  * The wire contract, bumped when a client can tell the difference.
  *
- * Not the package version, and deliberately not derived from it. A patch release
- * that changes nothing on the wire would move a version string and tell a client
- * to worry; this number moves when what a client may send or expect changes, so
- * a client comparing it against its own is comparing the thing it cares about.
+ * Not the package version: this number moves when what a client may send or expect
+ * changes, so a client comparing it compares the thing it cares about. A mismatch in
+ * either direction works and is worth a line on the way past, never an error.
  *
- * - **1** — builds, decisions, changelog. What `0.1.x` served.
- * - **2** — `POST /review/have`, so a push may name bytes by digest; per-document
- *   `identity` on an ingested candidate, so a retina baseline is promoted under
- *   the digest a later run asks for.
- * - **3** — the share under `/share/`, so an `http` share may use a deployment as
- *   its store, and the optional share token that only reads it.
- * - **4** — concerns under `/review/concerns`: what a reviewer suspects about a
- *   render, kept apart from the decision on its baseline.
- * - **5** — `GET /review/decisions`, the decision history, newest first; the
- *   share token reads it, `GET /review/changelog` and `GET /review/concerns`,
- *   and the ingest token reads none of them.
- * - **6** — a stored baseline keeps the snapshot of its nodes, and
- *   `keepsSnapshot` on a baseline's description says whether it did.
- *
- * A client that speaks 2 against a service that speaks 1 works, slowly and with
- * that identity caveat. A client that speaks 1 against a service that speaks 2
- * works, and sends more than it needs to. Neither is an error; both are worth a
- * line on the way past.
+ * 2 `POST /review/have` and per-document `identity`. 3 the share under `/share/` and
+ * its token. 4 concerns. 5 `GET /review/decisions`, and the share token reads what
+ * review settled. 6 a baseline keeps its nodes' snapshot. 7 `GET /auth/me`, a run under
+ * a GitHub Actions identity, and a decision under the name the credential carries.
+ * 8 a concern is raised at `POST /review/concerns/raise`.
  */
-export const TRIBUNAL_API = 6;
+export const TRIBUNAL_API = 8;
 
 export const VERSION_PATH = '/version';
 

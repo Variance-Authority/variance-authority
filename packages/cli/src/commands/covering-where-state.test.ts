@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
@@ -13,7 +13,8 @@ import {
   type ExecutionIndex,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 
 /**
  * `--where flags:checkout=ff-on` keeps one case of three, and every other case either ran
@@ -84,10 +85,10 @@ async function checkout(index: ExecutionIndex = INDEX): Promise<{ root: string; 
 }
 
 function ask(record: { root: string; execution: string }, argv: readonly string[]) {
-  return covering(parseCoveringArgs(readFlags(
+  return coveringAnswer(parseCoveringArgs(readFlags(
     [...argv, '--execution', record.execution, '--root', record.root],
     'covering', flagsFor('covering'), synopsisFor('covering'),
-  )));
+  ))) as Promise<Covering>;
 }
 
 const ids = (tests: readonly ExecutionTest[] | undefined) => tests?.map((test) => test.id);

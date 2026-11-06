@@ -1,5 +1,68 @@
 # @variance-authority/playwright-test
 
+## 0.25.0
+
+### Patch Changes
+
+- 2886873: A selection that keeps none of the files the runner found now says what that
+  means: `selected none of 340, so none of them runs`. Exit codes do not change. A
+  script that matches the whole line matches its new end; the start of the line is
+  as it was.
+- 569d669: `variance ask slowest-tests` now says who is close to a limit. Each suite's
+  answer opens with the record it read: whose it is, at which commit, how old. Then
+  come the cases closest to their limit, each as its run and its limit, so 4.9 s of
+  5 s stands above 40 s of 60 s, and then the slowest files and cases. `--over 3s`
+  keeps the cases that ran at least that long, and `--from` and `--to` narrow all
+  of it. The record gains a `tests.limit` column, written by the harness under
+  Vitest, Jest, Rstest and Playwright, and `startRecording().finish()` takes a
+  case's `limit` from any other runner. A case with no recorded limit is counted
+  beside that ranking, and a record from before the column lists its cases by time
+  alone and says so. A passing Playwright test that drives no page now has a row in
+  the record, so its time and limit are read like any other case's.
+
+## 0.24.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.24.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.23.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.22.0
+
+### Minor Changes
+
+- b509c4f: A page story keeps its project, its documents and what it lost
+
+  A Playwright case run under two projects writes a story for each, and `variance story` lists each with its project; `--project <name>` reads one, and a comparison refuses a case that ran under two until it names one. A story of a case that ran in more than one page document marks where the route moves into each, its refs are each document's own, and `--compare` no longer counts as a difference the order two documents' work arrived in under one test line. A page closed or replaced before what it ran was read is said in the header, rather than read as a complete story.
+- 5e0171b: A Playwright run selects
+
+  A Playwright configuration wrapped in `withTestSelection` now selects: with `VARIANCE_AUTHORITY_SINCE` set, the run drops the spec files the record shows the change did not reach, before Playwright loads one or places a shard, and prints `selected N of M`. A selection that keeps no spec file passes the run. Watch and UI mode and `--list` do not select, and say so. `@variance-authority/sense/test-selection` exports `askedSelection`, the selection a run asks for, which the Jest, Vitest and Playwright seams share.
+- a899dfc: A case in a page writes a story, with the test line each statement ran at
+
+  With `VARIANCE_AUTHORITY_STORY=1`, a Playwright case, and a Vitest or Rstest case in browser mode, now write a test story, as a Node case does: the code the page ran, in order, with each statement of the test opening what the page did next with its line. What a Playwright spec prints in its own process is said there too, under the statement that printed it. A document the case replaces by navigating keeps what it ran, in the story and in the record: the next document of the same origin in its frame hands it on, under the statement that navigated, and the spec is no longer recorded as incomplete for it. A Node story carries its test lines the same way. `variance story` shows each one as `test line N`, or `hook line N` for a `beforeEach` or `afterEach` statement, at the step where it began. A test body registered through `test.extend` or under an imported alias is cut too.
+- 8485f7f: A Playwright case records what the code under test read, as a Vitest, Jest or Rstest case does. `varianceBreadcrumb` called in the worker lays its read on the running case, and one called in the page the case drives is carried home with the page's execution journal and laid on that case, misuses included; `variance covering` and `variance review` print them beside what the case said. A Playwright row now holds `read` and `misused`, empty for a case whose code read nothing, where before they were absent. The page reader is the recorder Node runs, sent with the execution collector, so a page records reads only when the collector is on it. `SAID_NOTHING` is gone from `@variance-authority/sense/journal`; a seam that listened for preconditions alone takes what the listener's `nothing` gives it.
+
+### Patch Changes
+
+- 950fd5b: A page in a context the spec makes itself writes its story
+
+  A Playwright case that opens its own context with `browser.newContext()` or `browser.newPage()` now records what its pages ran, and writes it to the case's story under the test line each statement is on, as a page in the runner's `context` does. A context the spec closes is drained as it closes, and one it leaves open is drained when the test ends.
+
+  The same pages now enter the coverage record too, so a change to code only such a page ran selects the case, and a document replaced before it was read marks the case incomplete, as one in the runner's `context` does.
+- 947be03: A drain the page holds is waited on once
+
+  When a statement's drain did not settle within its second, every later
+  statement of the same test still waited a second on that held drain, though it
+  recorded no line from then on. A test with one held frame paid a second per
+  remaining statement. Later statements now go through at once, and the teardown
+  drain reads what they reached, as before.
+- 659925c: An accepted baseline is kept as a lossless WebP, in about a quarter of the bytes of the PNG it was captured as. It is encoded once, on the machine that accepts, by `keepImage` in `@variance-authority/png-sharp` — sharp's libwebp at effort 2 — which decodes its output back and throws unless every pixel with any opacity matches in all four channels and every fully transparent pixel stays fully transparent. The colour under a fully transparent pixel is not kept; no comparison sees it. `@variance-authority/store/keep` exports `keptRaster`, which every accept calls before `put` and which loads sharp only then, so a run that accepts nothing never loads it, and an accept where sharp does not load fails and names why. A durable store's `put` encodes nothing: it refuses any image but a lossless WebP, naming what it was given, so a remote store receives the WebP and runs no codec. A read checks the image's header against the sidecar and refuses a `.webp` holding a PNG or a lossy WebP, or an `image` format it does not know, as damage. Captures and the render cache stay PNG; a report's before image is the baseline as it was kept, so `.before.webp` beside a WebP baseline, attached as `image/webp`. The sidecar records `"image": "webp"`; a baseline kept as a `.png` before has no such field, stays readable, and its next accept replaces it. A WebP holds at most 16,383 pixels on a side, so an accept refuses a larger image and writes nothing. A `sharp` upgrade that brings a new libwebp can write different bytes for the same pixels, so a baseline rewritten after it shows in git as a changed file whose pixels did not. `createLfsStore` tracks `*-*.webp` by default and leaves an existing `*-*.png` entry in place; a `pattern` you set yourself must end in `.webp` or `*`, or the store refuses to open. `doctor --baselines` and the carried pathspecs count both extensions. `@variance-authority/png` reads WebP without an addon through libwebp's WebAssembly decoder and adds `decodePortable`, `imageFormat`, `refuseUnkept`, `isLosslessWebp`, `refuseOversize` and `KEEP_LIMIT`; its decoders read either format by the bytes' header, `imageSize` replaces `pngSize`, `diffImage` is now async — it resolves to its PNG, since either side may be a WebP — and takes an optional decoder, `changeImages` takes decoded images rather than bytes, and `@variance-authority/png/header` reads a header without loading a codec. `@variance-authority/store` exports `KEPT`, `KeptAs` and `isKeptImage`, and a path template that ends in `.webp` is refused like one ending in `.png`. The tribunal worker labels each image by the format its bytes declare.
+
 ## 0.21.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

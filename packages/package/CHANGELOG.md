@@ -1,5 +1,35 @@
 # @variance-authority/package
 
+## 0.25.0
+
+### Minor Changes
+
+- ea70ad3: `ask symbol` and `ask uses`, on `variance ask`, `variance serve`, `variance-authority-help` and its server, and `docs_search` over either server, look at the files their answer rests on: when one changed or went away after the generation, the question is read again before it is answered, so a renamed export is no longer given under its old name and a declaration, its members and each use `uses` lists are given at the lines the file holds today. The files are those that declare the name or pass it on, the entry that publishes it and each row `uses` lists, and for `docs_search` each row it prints with the entry and barrels that publish it, so a name a barrel stopped passing on is no longer called published. An answer whose files are unchanged keeps its `Snapshot <T>.`. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on is saved during the read that answers it, the answer or the refusal stands and says it was not compared, and why, on its one date line. `serve` from `@variance-authority/mcp` takes `outlived`, which sends an answered call to `again`; `again` is given the call's arguments and may return `unseen`, which reaches the tool on `ToolInvocation`. `@variance-authority/help` exports `outlived` and `refusalFooter`, which gives a refusal the reason a look found. `variance-authority-help`'s server keeps no copy of a reading after a call, so a found answer's re-read fits the default heap. A generation now says when its read began, on `readStartedAt` beside `generatedAt`, and that is the time the files are compared with, so a file saved during the read counts as changed. `updateSourceIndex` answers it, `publishWorkspaceFromIndex` takes it, a refresh of `--changed-file` keeps the time of the read it refreshed and gives a listed file's names at the lines it holds now, with no generation to refresh the read is whole and the list is not used, and a value published before it is refused and read again once. A file written after the read gives no text of today's: a declaration and its members are listed by the names recorded, on every path including `--just-answer`. A read whose source index cannot be saved is dropped whole, so a value never pairs with the lines of the read before it. `refreshWorkspace` and `variance index` now keep a published name's entry only while what it was cut from is unchanged, so a declaration that moved or was rewritten, or an `export … from` that changed, the binding it imports included, is documented again; a generation records that on `forwardsDigest`, and `@variance-authority/sense` exports `forwardsDigest` and `HelpReading.exportedOf`. `Named` from `@variance-authority/package/help` gains `boundLine`.
+
+## 0.24.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.24.0
+
+### Minor Changes
+
+- e10f8c8: `ask search` reads the words an exported declaration's signature writes: its parameter names, the type names they are written with, and its return type, a comment among them read as written, and nothing of a type alias, whose text after `=` is its body. They rank a declaration below the words of its name and its doc, so an undocumented `matchTrees(baseline: SemanticNode, candidate: SemanticNode)` answers "matching between baseline and candidate trees". A word only a signature holds reaches no declaration and shows none on its own. Each exported row of the Help value carries its `signature`; the Help snapshot moves to version 11 and the search index to version 5, so an older one is written again rather than answering without signatures.
+
+## 0.23.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.22.0
+
+### Minor Changes
+
+- 085ac0e: Every published `Entry` carries `declared`, the name the file at `at` exports it under, so `at` and `declared` together say which declaration an entry publishes: `export { greet as salute } from './greet.js'` publishes `salute` and declares `greet`, beside a `salute` the same file may export too. `Names` holds each declaration as a `Reached`, which adds that name.
+
+### Patch Changes
+
+- 45ea59c: A default export is answered by a name, never by `default`. `export default function Badge` is `Badge`. An anonymous `export default function ()` takes the local name of the import nearest its file, so `import shout from './anon.js'` makes it `shout`, with every importer's own spelling listed beside its site, and every local name an import gives it answers it; when nothing imports it, the nearest export that passes it on under a name, `export { default as Thing }`, names it. A local name of a default says the declaration it imports, `imports shout (its default) as far`, and an export passing a default on says the name it passes on. Asked for `default`, `ask symbol` and `ask uses` answer only the default exports nothing names, never one passed on from a named default, and no longer list a default export's declaration as declared but not exported. The source index binds an anonymous default to its declaration, so its kind and signature are read like any other's; the index moves to version 39 and an older one is read again. Every export the package stage reads now carries `bound`, the name it binds in its own file (`default` for an anonymous default, none for `export … from`), so a declaration is keyed without reading the source index again; the help snapshot moves to version 10 and an older one is read again. The skill's workspace reference says how a declaration, and a default, is named.
+
 ## 0.21.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

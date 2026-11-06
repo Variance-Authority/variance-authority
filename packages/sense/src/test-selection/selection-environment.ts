@@ -46,7 +46,7 @@ interface Selector {
     readonly root: string;
     readonly since?: string;
     readonly suite?: string;
-    readonly atDistance?: { readonly from: number; readonly to: number };
+    readonly atDistance?: { readonly from: number; readonly to: number; readonly by?: 'environment' };
     readonly grain?: 'case';
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
@@ -93,7 +93,7 @@ export function selectionFrom(
       root: request.root,
       ...(since === '' ? {} : { since }),
       ...(request.suite === undefined ? {} : { suite: request.suite }),
-      ...(leg === undefined ? {} : { atDistance: leg }),
+      ...(leg === undefined ? {} : { atDistance: { ...leg, by: 'environment' } }),
       ...(grain === 'case' ? { grain } : {}),
     });
   };

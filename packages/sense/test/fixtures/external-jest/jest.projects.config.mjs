@@ -11,6 +11,17 @@ if (coverageFile === undefined || cacheDirectory === undefined) {
   throw new Error('VARIANCE_AUTHORITY_COVERAGE and VARIANCE_AUTHORITY_JEST_CACHE are required');
 }
 
+// A selection handed in by the test that runs this fixture: the files to skip,
+// as JSON. Absent, nothing is handed in and every file runs.
+const skip = process.env['FIXTURE_SKIP'];
+const selection = skip === undefined
+  ? {}
+  : { selection: async () => ({ whole: new Set(JSON.parse(skip)), skip: new Set(JSON.parse(skip)), notes: [] }) };
+
+// The projects whose `testMatch` matches nothing, as JSON. Absent, each finds its case.
+const empty = JSON.parse(process.env['FIXTURE_EMPTY_PROJECTS'] ?? '[]');
+const testMatch = (name) => [`<rootDir>/test/${name}.${empty.includes(name) ? 'no-such-case' : 'case'}.ts`];
+
 const transform = { '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }] };
 
 export default withTestSelection(
@@ -21,7 +32,7 @@ export default withTestSelection(
         displayName: 'alpha',
         rootDir: root,
         cacheDirectory,
-        testMatch: ['<rootDir>/test/alpha.case.ts'],
+        testMatch: testMatch('alpha'),
         transform,
         setupFiles: ['<rootDir>/test/polyfill.cjs'],
         setupFilesAfterEnv: ['<rootDir>/test/setup.cjs'],
@@ -30,11 +41,11 @@ export default withTestSelection(
         displayName: 'beta',
         rootDir: root,
         cacheDirectory,
-        testMatch: ['<rootDir>/test/beta.case.ts'],
+        testMatch: testMatch('beta'),
         transform,
         testEnvironment: '<rootDir>/test/environment.ts',
       },
     ],
   },
-  { coverageFile, preconditions: ['jest.projects.config.mjs'] },
+  { coverageFile, preconditions: ['jest.projects.config.mjs'], ...selection },
 );

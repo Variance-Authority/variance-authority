@@ -33,7 +33,7 @@ import { noteAnEmptyRecord, statusesComplete } from './finished-files.js';
 import { jestPhases, reportedDuration, type JestPerfStats } from './reported-time.js';
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
@@ -55,13 +55,12 @@ import {
   type SelectionReporterConfig,
 } from './jest.js';
 import {
-  noteSeeded,
-  seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
 } from './index.js';
 import { recordsAlone } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 
 /**
  * Set beside the case directory to the checkout the record names files against,
@@ -96,8 +95,6 @@ export interface JestTestContext {
     /** Resolved by Jest: a path for a file of the project's, and for a package, into its install. */
     readonly setupFiles?: readonly string[];
     readonly setupFilesAfterEnv?: readonly string[];
-    readonly testEnvironment?: string;
-    readonly testEnvironmentOptions?: { readonly varianceAuthority?: { readonly environment?: string } };
   };
 }
 
@@ -260,11 +257,6 @@ class JestCoverageReporter {
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    // The repository's snapshot becomes this checkout's before the first run
-    // lands on it, so a worktree layers onto months of recording rather than
-    // onto nothing. A no-op in the primary checkout and after the first run,
-    // and not asked by a shard that is a part of one whole run.
-    if (!this.#alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.
@@ -278,7 +270,12 @@ class JestCoverageReporter {
             cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
           })), root),
         });
-    const merged = await withIndexLock(coverageFile, async () => {
+    const merged = await withIndexLock(coverageFile, async (lock) => {
+      // The repository's snapshot becomes this checkout's before the first run
+      // lands on it, so a worktree layers onto months of recording rather than
+      // onto nothing. A no-op in the primary checkout and after the first run,
+      // and not asked by a shard that is a part of one whole run.
+      await prepareRecord(lock, root, laidProbes(current), { alone: this.#alone });
       await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });
@@ -376,21 +373,20 @@ function coverageTest(
 }
 
 /**
- * The setup and environment files one Jest project rests on, as Jest resolved
- * them for the test it ran.
+ * The setup files one Jest project rests on, as Jest resolved them for the
+ * test it ran. The environment is not one of them: a test file can name its
+ * own, so the runtime records the one Jest built for it, with its inputs.
  *
  * A project of an inline `projects` list governs its own tests: a change to a
  * browser project's environment does not change what a node project's test
  * ran. So each test is charged its own project's files, asked of the context
- * Jest ran it in rather than matched back to a project here. A package — the
- * environment `node`, `jest-canvas-mock` — resolves into the install, which is
+ * Jest ran it in rather than matched back to a project here. A package —
+ * `jest-canvas-mock` — resolves into the install, which is
  * no file a diff of the project can carry, and this seam's own two files are no
  * precondition of anybody's.
  */
 function projectPreconditions(config: JestTestContext['config']): readonly string[] {
-  const environment = config.testEnvironmentOptions?.varianceAuthority?.environment ?? config.testEnvironment;
   return [
-    ...(environment === undefined ? [] : [environment]),
     ...(config.setupFiles ?? []),
     ...(config.setupFilesAfterEnv ?? []),
   ].filter((file) =>

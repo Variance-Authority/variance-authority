@@ -60,6 +60,8 @@ output('promote', String(decision.promote));
 output('because', decision.because);
 output('intent', decision.promote ? `${title} — accepted: ${decision.because}` : title);
 output('exit-zero-on-changes', String(decision.exitZeroOnChanges === true));
+// A tick's rerun reads as a plain pull request here, and the action accepts on
+// what the tick left in the comment.
 console.log(`${decision.promote ? 'accepting' : 'comparing only'}: ${decision.because}`);
 
 async function decide(name) {

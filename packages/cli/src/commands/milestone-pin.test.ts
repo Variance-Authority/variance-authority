@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
@@ -25,6 +25,9 @@ import { BEFORE, DISCOUNTS, probedModule, ROUNDS } from './mainline-fixture.js';
 import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
 
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
+
 /**
  * Spec 0090 item 1: the milestone under a checkout is pinned, never written,
  * and a newer one HEAD contains replaces it under the tests the checkout did
@@ -39,7 +42,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -96,7 +99,9 @@ function crossers(record: TestCoverage): readonly string[] {
   return record.modules.find((module) => module.file === 'src/total.ts')?.blocks.flatMap((block) => block.testFiles) ?? [];
 }
 
-describe('the milestone under a checkout', () => {
+// Each test publishes two mainline records to a git share (`milestone-pin.fixture.ts`),
+// and each publish keeps its record at its commit too: a push and a listing more apiece.
+describe('the milestone under a checkout', { timeout: 15_000 }, () => {
   it('is never written by a local run, and the ledger lists exactly the tests that ran here', async () => {
     const { first, worktree, own } = await laidWorktree(home);
     const milestone = join(home, 'laptop-cache', 'share', 'read', 'unit', first, 'coverage.bin');
@@ -140,6 +145,23 @@ describe('the milestone under a checkout', () => {
       standing: [{ commit: next, files: ['test/other.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
     });
     expect(whatLanded(runs!.landings).files).toEqual(['test/total.test.ts']);
+  });
+
+  it('stays where it is for a read that fetches nothing, which an editor can kill mid-way, and moves for the next read that may', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    await landRun(own, ranAlone(first, 'test/other.test.ts'), worktree);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    const before = await readFile(own);
+
+    const base = await suiteBase(worktree, { env: LOCAL, fetch: 'never' });
+
+    expect(base).toMatchObject({ from: 'own', layer: { pinned: { commit: first } } });
+    expect(base).not.toHaveProperty('repin');
+    expect(await readFile(own)).toEqual(before);
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
   });
 
   it('answers a test file standing at the new milestone over the text the publishing run ran it over, when that run landed', async () => {
@@ -323,6 +345,8 @@ describe('the milestone under a checkout', () => {
     await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);
     const laid = await readFile(own);
     const next = await publishedNext(home, ci);
+    // Past the window: the share keeps no record at the merge base, so the newest answers.
+    await git(ci, 'push', '--quiet', 'origin', `:refs/variance/at/${first}/mainline/main`);
     // Fetched, and not merged: the branch does not contain it.
     await git(worktree, 'fetch', '--quiet', 'origin');
     await refetch(home, worktree, next);

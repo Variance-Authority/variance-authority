@@ -46,12 +46,13 @@ import { suiteIgnore } from './commands/select-before.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
-import { commentMarker, renderComment } from './commands/comment.js';
+import { clearedComment, commentMarker, renderComment } from './commands/comment.js';
 import { baselineFinding, doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
 import { runCollect, runCollectMerge } from './commands/collect-command.js';
+import { runSharePurge } from './commands/share-purge.js';
 import { runSuiteShare } from './commands/suite-share.js';
 import type { Configless } from './commands/configless.js';
 import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } from './commands/doctor-report.js';
@@ -81,6 +82,7 @@ export async function dispatch(
   // A suite's record alone: the root config declares the suite and its share,
   // and no project config is read.
   if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
+  if (parsed.command === 'share' && parsed.purgeOlderThan !== undefined) return runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
   if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
 
   const config = await loadConfig(parsed.config);
@@ -263,6 +265,7 @@ export async function dispatch(
         subjects: parsed.subjects,
         all: parsed.all,
         shapes: parsed.shapes,
+        ...(parsed.by !== undefined ? { by: parsed.by } : {}),
         read: readCandidate,
         // The acceptance is recorded where the observations went, under the same
         // project, or nowhere at all. Passed together so a store with no project
@@ -417,6 +420,10 @@ export async function dispatch(
       // clean run, whose previous docket has to be located and cleared.
       if (parsed.marker) {
         streams.out(`${commentMarker(config.project)}\n`);
+        return EXIT_CLEAN;
+      }
+      if (parsed.cleared) {
+        streams.out(`${clearedComment(config.project)}\n`);
         return EXIT_CLEAN;
       }
       const report = await reportsFor(parsed.reports, config);

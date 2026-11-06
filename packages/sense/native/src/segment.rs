@@ -12,6 +12,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use rayon::prelude::*;
@@ -25,17 +26,17 @@ pub(crate) const ALIGNMENT: usize = 8;
 pub(crate) const FORMAT: &str = "variance-authority-source-index";
 /// `VERSION` in `source-index-format.ts`: a layer the reader refuses is a layer
 /// thrown away, which `native-read.test.ts` catches.
-pub(crate) const VERSION: u8 = 39;
+pub(crate) const VERSION: u8 = 40;
 
 pub struct Column {
-    name: &'static str,
+    name: Cow<'static, str>,
     width: u8,
     bytes: Vec<u8>,
 }
 
 #[derive(Serialize)]
-struct Section {
-    name: &'static str,
+struct Section<'c> {
+    name: &'c str,
     offset: usize,
     length: usize,
     width: u8,
@@ -45,11 +46,16 @@ struct Section {
 struct Header<'f> {
     format: &'f str,
     version: u8,
-    sections: Vec<Section>,
+    sections: Vec<Section<'f>>,
 }
 
 pub fn u8s(name: &'static str, bytes: Vec<u8>) -> Column {
-    Column { name, width: 1, bytes }
+    Column { name: Cow::Borrowed(name), width: 1, bytes }
+}
+
+/// A column read back from a segment, under the name and width it was written with.
+pub fn column(name: String, width: u8, bytes: Vec<u8>) -> Column {
+    Column { name: Cow::Owned(name), width, bytes }
 }
 
 pub fn u32s(name: &'static str, values: Vec<u32>) -> Column {
@@ -57,7 +63,7 @@ pub fn u32s(name: &'static str, values: Vec<u32>) -> Column {
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    Column { name, width: 4, bytes }
+    Column { name: Cow::Borrowed(name), width: 4, bytes }
 }
 
 fn aligned(value: usize) -> usize {
@@ -77,7 +83,7 @@ pub fn encode_as(format: &str, version: u8, columns: Vec<Column>) -> Vec<u8> {
         .iter()
         .map(|column| {
             let section = Section {
-                name: column.name,
+                name: &column.name,
                 offset,
                 length: column.bytes.len(),
                 width: column.width,

@@ -161,8 +161,8 @@ export { landSuite } from './commands/journeys-command.js';
  */
 export { recordedExecutionFile } from './commands/execution-input.js';
 export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
-export { mainlineMissed, mainlineRead, primaryRead, readMissedMainline, writeMissedMainline } from './commands/mainline-base.js';
-export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/mainline-base.js';
+export { mainlineMissed, mainlineRead, primaryRead } from './commands/mainline-base.js';
+export type { MainlineMissed, MainlineRecord } from './commands/mainline-base.js';
 
 /**
  * The selection `variance select` prints, as the sets a runner's seam drops

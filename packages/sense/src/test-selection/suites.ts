@@ -31,7 +31,7 @@
 
 // compass: variance-authority.reach
 
-import { rootConfig } from './cache-layers.js';
+import { rootConfig, type RootConfig } from './cache-layers.js';
 import { PRECISION_STEPS, byRelations, type Precision } from './precision.js';
 
 /**
@@ -230,10 +230,15 @@ function parseIgnore(value: unknown, field: string, where: string): readonly str
  * evidence connects to a test does.
  */
 export function beforeOf(root: string, suite: string | undefined): readonly string[] {
-  const config = rootConfig(root);
+  return beforeIn(rootConfig(root), suite);
+}
+
+/** {@link beforeOf} as `config` declares it, a root config read at any commit. */
+export function beforeIn(config: RootConfig | undefined, suite: string | undefined): readonly string[] {
   if (config === undefined) return [];
   const shared = config.value['before'] === undefined ? [] : parseBefore(config.value['before'], 'before', config.file);
-  const own = suite === undefined ? undefined : declaredSuites(root)?.find((one) => one.name === suite)?.before;
+  const suites = suite === undefined || config.value['suites'] === undefined ? undefined : parseSuites(config.value['suites'], config.file);
+  const own = suites?.find((one) => one.name === suite)?.before;
   return [...shared, ...(own ?? [])];
 }
 

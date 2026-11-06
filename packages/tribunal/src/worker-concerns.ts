@@ -1,7 +1,7 @@
 import { CONCERN_STATES, type ConcernRegion, type ConcernState } from './concern-types.js';
 import { createConcernStore, regionOf, type ConcernStore } from './concerns.js';
 import type { D1Like } from './bindings.js';
-import { attested, requires, type Granted } from './worker-auth.js';
+import { attested, attributed, requires, type Principal } from './worker-auth.js';
 import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, string } from './worker-http.js';
 
 /**
@@ -10,25 +10,32 @@ import { BadRequest, MethodNotAllowed, asRecordBody, describe, json, optional, s
  *
  * ```
  * GET  /review/concerns?build=&subject=&state=   → { concerns, tally? }
- * POST /review/concerns                          → 201 { concern }
+ * POST /review/concerns/raise                    → 201 { concern }
  * POST /review/concerns/<id>                     → { concern }
  * ```
  *
- * ## Raised by the review token, read by the share token too
+ * ## Raised by a reviewer, read by the share token too
  *
- * Writing is the review token's, as deciding is: a concern is a person saying
- * "this looks wrong". Reading is also the share token's, as the changelog and
- * the decision history are ([`worker-attested.ts`](./worker-attested.ts)): an
- * agent working on the change reads what a reviewer suspects without any path
- * to raise or move a concern. The ingest token reads none of it, because what a
- * concern holds is what a person wrote, and the ingest token lives where a
- * failing job prints its environment.
+ * Writing is a named reviewer's, as deciding is: a concern is a person saying
+ * "this looks wrong", under the name they proved. Reading is also the share
+ * token's, as the changelog and the decision history are
+ * ([`worker-attested.ts`](./worker-attested.ts)): an agent working on the change
+ * reads what a reviewer suspects without any path to raise or move a concern.
+ * Ingest reads none of it, because what a concern holds is what a person wrote, and
+ * an ingest credential lives where a failing job prints its environment.
  */
 
 /** Every route in this file is this path or under it, and nothing else in the router is. */
 export const CONCERNS_PATH = '/review/concerns';
 
-export type ConcernRoute = (granted: Granted, url: URL, request: Request) => Promise<Response>;
+/**
+ * Where a reviewer raises a concern, apart from its read because Cloudflare Access
+ * tells paths apart and not methods: a machine reads past Access, and everything a
+ * reviewer writes sits under a path Access holds, so removing a reviewer ends it.
+ */
+export const RAISE_PATH = `${CONCERNS_PATH}/raise`;
+
+export type ConcernRoute = (principal: Principal, url: URL, request: Request) => Promise<Response>;
 
 export function createConcernRoutes(options: {
   readonly db: D1Like;
@@ -37,8 +44,9 @@ export function createConcernRoutes(options: {
 }): ConcernRoute {
   const concerns: ConcernStore = createConcernStore(options);
 
-  return async (granted, url, request) => {
+  return async (principal, url, request) => {
     const path = url.pathname;
+    const granted = principal.capability;
 
     if (path === CONCERNS_PATH && request.method === 'GET') {
       attested(granted, path);
@@ -60,15 +68,18 @@ export function createConcernRoutes(options: {
 
     if (path === CONCERNS_PATH) {
       requires(granted, 'review', path);
-      if (request.method !== 'POST') {
-        throw new MethodNotAllowed(`${path} is read with GET and raised with POST`, 'GET, POST');
-      }
+      throw new MethodNotAllowed(`${path} is read with GET, and a concern is raised with POST ${RAISE_PATH}`, 'GET');
+    }
+
+    if (path === RAISE_PATH) {
+      requires(granted, 'review', path);
+      if (request.method !== 'POST') throw new MethodNotAllowed(`${path} is raised with POST`, 'POST');
       const body = await asRecordBody(request);
       const concern = await concerns.raise({
         build: string(body, 'build', 'the concern'),
         subject: string(body, 'subject', 'the concern'),
         title: titleOf(body),
-        by: string(body, 'by', 'the concern'),
+        by: attributed(principal, body['by'], path),
         ...words(body),
         ...placed(body['region']),
         ...(body['evidence'] !== undefined ? { evidence: evidenceOf(body['evidence']) } : {}),
@@ -86,7 +97,7 @@ export function createConcernRoutes(options: {
     const body = await asRecordBody(request);
     const concern = await concerns.move(Number(id), {
       state: stateOf(body['state']),
-      by: string(body, 'by', 'the step'),
+      by: attributed(principal, body['by'], path),
       ...words(body),
     });
     return json(200, { concern });

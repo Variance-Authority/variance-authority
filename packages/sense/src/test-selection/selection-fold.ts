@@ -17,7 +17,7 @@ import { instrumentationId, type InstrumentMode, type ModuleId } from '../instru
 import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import {
   crossingsOf,
   loadedOf,
@@ -28,7 +28,7 @@ import {
 import { coverageModule } from './coverage-rows.js';
 import { joinedJournals, joinReadings, ownCut } from './readings.js';
 import { freshCases } from './case-fold.js';
-import { caseDurations } from './case-durations.js';
+import { caseDurations, caseLimits } from './case-durations.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
@@ -42,7 +42,7 @@ import { governingPreconditions } from './governing-config.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import type { CoverageModule, TestCoverage } from './index.js';
-import { noteSeeded, seedTestCoverage } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 
 /** Where a fold writes, and which of this seam's own files it clears up after. */
 export interface FoldDestination {
@@ -145,11 +145,6 @@ export function foldRun(
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    // The repository's snapshot becomes this checkout's before the first run
-    // lands on it, so a worktree layers onto months of recording rather than
-    // onto nothing. A no-op in the primary checkout and after the first run,
-    // and not asked by a shard that is a part of one whole run.
-    if (!run.alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
     // In the record, with the coverage, in one write. `run.cases` is whether
     // the run could record a case: one whose files ran in a page could not.
     // One that could, and recorded no case and finished no file — no worker
@@ -160,9 +155,16 @@ export function foldRun(
           tests,
           ...(commit === undefined ? {} : { commit }),
           durations: caseDurations(files, root),
+          limits: caseLimits(files, root),
         }, joined.readings)
       : undefined;
-    const merged = await withIndexLock(coverageFile, async () => {
+    const merged = await withIndexLock(coverageFile, async (lock) => {
+      // The repository's snapshot becomes this checkout's before the first run
+      // lands on it, so a worktree layers onto months of recording rather than
+      // onto nothing. A no-op in the primary checkout and after the first run,
+      // and not asked by a shard that is a part of one whole run. A cached record
+      // under other probes goes first, whichever run this is.
+      await prepareRecord(lock, root, laidProbes(current), { alone: run.alone });
       await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });

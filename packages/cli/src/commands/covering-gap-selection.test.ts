@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage, type Placement, type TestCoverage } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { OperatorError } from '../exit.js';
 import { graphOnce, selectedFor } from './gap-selection.js';
 import { indexOutput } from './index-command.js';
@@ -43,14 +43,14 @@ vi.mock('./source-graph.js', async (original) => {
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-gap-selection-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-gap-selection-cache-')));
 });
 
 afterEach(() => {
   framed = undefined;
   unreadable = false;
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const RECORDED: Readonly<Record<string, string>> = {

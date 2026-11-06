@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/tribunal",
-  "version": "0.21.0",
+  "version": "0.25.0",
   "description": "A self-hosted review service for Variance Authority baselines, history and per-subject decisions.",
   "keywords": [
     "variance-authority",
@@ -69,7 +69,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "variance-authority-tribunal": "./dist/node/bin.js"
+    "variance-authority-tribunal": "./dist/node/bin.js",
+    "variance-authority-tribunal-provision": "./dist/provision/bin.js"
   },
   "files": [
     "dist",
@@ -106,17 +107,18 @@
     }
   },
   "devDependencies": {
-    "@storybook/react-vite": "^9.1.13",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@storybook/react-vite": "^10.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@variance-authority/jsx-source": "workspace:^",
+    "@variance-authority/png-sharp": "workspace:^",
     "@variance-authority/remote": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/storybook-collector": "workspace:^",
     "pngjs": "^7.0.0",
-    "react": "^19",
-    "react-dom": "^19",
-    "storybook": "^9.1.13",
-    "vite": "^6.4.3"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "storybook": "^10.6.5",
+    "vite": "^8.3.5"
   }
 }

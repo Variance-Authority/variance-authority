@@ -1,9 +1,9 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, paragraph, run } from './ask-packages-fixture.js';
+import { checkout, paragraph, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask` about a name a file declares at its top level and does not
@@ -16,12 +16,12 @@ import { checkout, paragraph, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-declared-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-declared-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const RELAUNCH = {
@@ -107,7 +107,7 @@ describe('variance ask about a name declared and not exported', () => {
 
     const { code, out } = await run(['ask', 'search', '--query', 'launch']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).not.toContain('Nothing in this repository is named or documented with `launch`');
+    expect(out).not.toContain('nor the doc of one, nor a function inside a function, writes `launch`');
     expect(out).toMatch(/^1 more name is declared somewhere in the repository without being exported:$/m);
     expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4$/m);
   });

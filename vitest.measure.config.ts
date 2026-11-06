@@ -33,7 +33,7 @@ export default defineConfig({
     include: ['packages/*/src/**/*.measure.ts'],
     environment: 'node',
   },
-  esbuild: {
+  oxc: {
     // The suite's list, for the suite's reason: Vite's own leaves `.cts` out,
     // and a measure reaches whatever its subject imports. `orient` reached
     // `journal-format.cts` through the selection entry point, and the file

@@ -2,7 +2,7 @@ import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { caughtUp, foundNothingAnswer } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, outlived } from './caught-up.js';
 import {
   readWorkspaceForAnswer,
   workspaceGeneration,
@@ -20,8 +20,9 @@ import { HELP, UNCOMPARED_HELP } from './tools.js';
  * until another process deliberately replaces it. Every answer says when that
  * generation was produced, so freshness is evidence rather than hidden work,
  * and a `justAnswer` answer says it was not compared with the checkout. A
- * refusal from a reused generation is asked again of one read now, as
- * {@link caughtUp} decides for every surface that asks a source question.
+ * refusal from a reused generation, or an answer whose named files changed
+ * since it, is asked again of one read now, as {@link caughtUp} decides for
+ * every surface that asks a source question.
  *
  * `tools/surface.check.ts` holds the shape of what is served to the recorded
  * surface. No prose in this file reaches a client — `initialize` sends a name
@@ -94,14 +95,26 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     served: justAnswer ? UNCOMPARED_HELP : HELP,
     tree: () => tree,
     root,
-    // `justAnswer` reads nothing but what was published, so its refusal stands.
+    // `justAnswer` reads nothing but what was published, so its answer stands.
     ...(justAnswer ? {} : {
-      again: async (_asked: string | undefined, refused: Help, started: number) => {
-        return caughtUp(workspaceGeneration(refused), started, root, async (current) => (current ? readNow(0) : refused));
+      again: async (asked: string | undefined, refused: Help, started: number, input: Readonly<Record<string, unknown>>) => {
+        return caughtUp(
+          workspaceGeneration(refused),
+          started,
+          root,
+          async (current) => (current ? readNow(0) : refused),
+          (read = refused) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused),
+        );
       },
+      outlived: (asked: string | undefined, input: Readonly<Record<string, unknown>>, subject: Help, started: number) =>
+        outlived(asked, subject, input, { root, ...(tree === undefined ? {} : { tree }) }, started),
     }),
     // A name nothing declares is the answer once it has been read again, said as `variance ask` says it.
     answered: (thrown: unknown, subject: Help, again) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer),
+    // No question here compares one call with the last, and a copy of the whole
+    // reading, held beside the one a changed file asks for, is what ran a large
+    // checkout's server out of heap.
+    remember: (help: Help) => help,
     subject: async () => {
       try {
         const at = cached === undefined ? undefined : workspaceGeneration(cached);

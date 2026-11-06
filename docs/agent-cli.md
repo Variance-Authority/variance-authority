@@ -100,11 +100,16 @@ packages import them. When neither holds your words as written, two more
 follow, each labelled as the reading it is and both before any installed
 package: the names and files holding any of your words, matched by
 stem, a file by its name and the doc it opens with, ranked by how many of
-your words each holds, then by how many its name holds, then by how much of
+your words each holds — in its name over its doc, and its doc over the
+parameters and types its signature writes, which add to a name your words
+reached and reach none on their own — then by how many its name holds, then by how much of
 your phrase its doc writes; then the names your words reach written apart or one character off,
 exported or kept to their file. So `tsconfig custom conditions` answers
 `customConditionsFor` before the bundlers that also say those words, and
 `loose reading` answers `packages/help/src/tools/loose.ts`.
+
+These sections are candidates, not every match; `git grep -i <word>` prints
+every tracked line that writes the word.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
@@ -117,10 +122,10 @@ To read the answer as data, add `--format json`:
 variance ask search --query viewport --from packages/app/ --format json
 ```
 
-Each section has a `total`, which counts every match, and `shown`, which holds
-the rows the text would print. A published row carries `specifier`, `at`, the
-first paragraph of its documentation as `summary`, and `inArea` when you gave a
-start point. An exported row carries `at` and `line`. A section that was not run
+Each section has a `total`, which counts the section's rows, shown or not, and
+`shown`, which holds the rows the text would print. A published row carries
+`specifier`, `at`, the first paragraph of its documentation as `summary`, and
+`inArea` when you gave a start point. An exported row carries `at` and `line`. A section that was not run
 is missing: `described` and `loose` are present only when the other two are
 empty, a `described` row carries the `words` of yours it holds and a `source`
 of `published`, `exported`, `declared` or `file`, and is never repeated in `loose`, and
@@ -302,6 +307,30 @@ instrumentation, the ordering rule, and what the answers may be read to mean are
 one boundary, whichever transport carries the question: [inspect a live
 run](agent-live-run.md).
 
+## Find the tests close to their limit
+
+```bash
+variance ask slowest-tests
+variance ask slowest-tests --from packages/checkout/
+variance ask slowest-tests --over 3s --from packages/checkout/
+```
+
+A test at 4.9 s of a 5 s limit has 0.1 s to spare, and a test at 40 s of 60 s has
+20 s, so `slowest-tests` ranks by how much of its limit each case ran. Each
+suite's answer opens with the record it read: whose it is, at which commit, and
+how long ago its latest run landed. A figure is that run's reading, not an average.
+
+Then come the cases closest to their limit, each as its run and its limit, and
+the test files and cases the run spent longest in. A row states the two figures
+and judges neither: the run spans hooks and every attempt, the limit one
+attempt, so a passing case can read above its limit.
+
+`--from` keeps the tests under the paths you name, and `--to` the tests that
+ran code in them. `--over 3s` keeps the cases that ran at least that long, counts
+the rest and leaves the files out. A case with no recorded limit is counted beside
+the ranking, and a record older than the column says so and lists its cases by
+time alone.
+
 ## Find where the suite's time goes
 
 ```bash
@@ -387,11 +416,11 @@ review loop.
 - **`variance-authority`** covers reports, watchers and connections, choosing
   which tests to run, and what a workspace publishes, and opens a reference
   file for each only when the question needs it.
-- **`variance-testing`** is the order to ask in while you write, fix or debug a
-  test: which tests stand on a line, what an edit needs to run, where a failing
-  or flaky test went, what a change or a file's tests left untested, and how
-  much of a test can go. It links the
-  `variance-authority` references for its flags, so link both.
+- **`variance-testing`** is the order to ask in while you change code or write,
+  fix or debug a test: which test to turn red first, which tests stand on a
+  line, what an edit needs to run, where a failing or flaky test went, what a
+  change or a file's tests left untested, and how much of a test can go. It
+  links the `variance-authority` references for its flags, so link both.
 
 Installing the package puts them on disk; your agent reads a skill only from
 its own skills directory, in the project or your home directory. Claude Code
@@ -403,13 +432,21 @@ mkdir -p .agents/skills && for s in variance-authority variance-testing; do ln -
 mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -s ../../.agents/skills/$s .claude/skills/$s; done
 ```
 
+Without the package, or for an agent these directories do not reach, `npx skills
+add https://variance-authority.dev` installs both from the site's skills index,
+`/.well-known/agent-skills/index.json`.
+Those are the copies from the site's latest deploy: they can run ahead of the
+released CLI, and they do not follow the version you have installed.
+`variance-testing` links into `variance-authority`, so install the two together.
+
 An agent opens a skill only when its description matches the task, and it reads
 `AGENTS.md` every session. The lines that send it to `variance ask` before it
 searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
 
-`variance doctor` lists which skills your agent can find, reports whether each
-is a link or a copy that has fallen behind, and prints the link for any it
-cannot find. It never writes the link for you.
+With a `variance.config.json`, `variance doctor` lists which skills your agent
+can find, reports whether each is a link or a copy that has fallen behind, and
+prints the link for any it cannot find. It never writes the link for you. With no
+config it exits 2.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

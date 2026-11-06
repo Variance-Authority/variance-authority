@@ -81,11 +81,16 @@ source map. A map that would place a probe on the wrong code is never used.**
    build, so each plugin's `transform` and `load` is watched and such a plugin
    is refused by name; `map: null` says nothing moved and is believed. A map
    that names the file is believed only where the text it carries for it, if
-   any, is the file on disk, which also catches a `map: null` that lied before
-   a step that wrote a map, and a map with no mappings handed on with rewritten
-   code is refused. What stays unchecked is a `map: null` that lied with no
-   map-writing step after it. Rstest refuses a file that reaches the second
-   loader with no map, a configuration whose loaders leave the second out,
+   any, is the file on disk on every line a region other than the module's sits
+   on, which also catches a `map: null` that lied on such a line before a step
+   that wrote a map, and a map with no mappings handed on with rewritten code
+   is refused. A text that differs on any other line is believed, because a
+   position there names no region there: a column past the line's end stays on
+   its line. What stays unchecked is a `map: null` that lied with no map-writing
+   step after it, on a host that carries the file; a Vite 8 build carries that
+   step's text, so a lie on a region's line stops it. Rstest refuses a file
+   that reaches the second loader with no map, a configuration whose loaders
+   leave the second out,
    and, when Rspack lists no loaders, at the
    run's end, a file that went through the first loader and never reached the
    second. The Rspack and webpack loader that `testSelectionRule` adds, and the

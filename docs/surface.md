@@ -485,7 +485,7 @@ npx variance run --config variance.config.json
 `accept` promotes exactly the image the run under review produced; it never
 renders a replacement, and it launches no browser. With
 `baselines.kind: "directory"` it writes two files per subject under the baseline
-root: the `.png`, and a `.json` beside it recording which renderer painted the
+root: the image, kept as a lossless `.webp`, and a `.json` beside it recording which renderer painted the
 image, its dimensions, and what it may be compared against. A candidate whose
 run left no such sidecar is refused by name rather than reconstructed. The
 second run then reports `unchanged` and exits `0`.
@@ -500,7 +500,7 @@ Four flags:
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |
 
 Subject ids, `--all` and `--shape` are mutually exclusive, and `accept` with
-none of them is refused. Committing the changed `.png` and `.json` is what makes
+none of them is refused. Committing the changed `.webp` and `.json` is what makes
 the new approved image a diff in the pull request, reviewed like any other
 change.
 

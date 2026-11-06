@@ -181,6 +181,15 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
 };
 
 /**
+ * The probes `current` lays coverage under. Nothing for a run that instrumented
+ * no module and has no incomplete test to say must run: it lands its cases alone
+ * (`landUncovered`), over a record under any probes.
+ */
+export function laidProbes(current: Pick<TestCoverage, 'instrumentation' | 'modules' | 'tests'>): string | undefined {
+  return current.modules.length === 0 && current.tests.every((test) => test.complete) ? undefined : current.instrumentation;
+}
+
+/**
  * Lay `current` over the snapshot, add it to the runs at its commit, and keep
  * the text of every module it recorded over an edit (`kept-texts.ts`). `cases`,
  * the run's own case index, is written with the coverage in the same write. The
@@ -194,13 +203,12 @@ export async function landRun(
   cacheRoot?: string,
   cases?: FreshCases,
 ): Promise<void> {
+  if (laidProbes(current) === undefined) return landUncovered(coverageFile, root, cases);
   if (current.modules.length === 0) {
     // A complete row over no module would say its file reaches nothing. An
     // incomplete one says its file must run, which is true without a module:
-    // probes fired where nothing could place them. A run with no such file lands
-    // its cases alone (`landUncovered`).
+    // probes fired where nothing could place them.
     const selecting = current.tests.filter((test) => !test.complete);
-    if (selecting.length === 0) return landUncovered(coverageFile, root, cases);
     if (selecting.length < current.tests.length) {
       return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases);
     }
@@ -220,7 +228,9 @@ export async function landRun(
       ? previous
       : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
   const over = await recordBytes(coverageFile);
-  const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot);
+  // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
+  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
+  const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot, landed);
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut (`case-cuts.ts`).
   const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
@@ -229,8 +239,6 @@ export async function landRun(
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
   // text is never kept for a row that did not land.
-  // What differs from `HEAD` is asked once, for both.
-  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
   const kept = await keepRecordedTexts(landed, openTestCoverage(bytes));
   // So is the install it ran on, before the record that names it.
   const installed = await keepRecordedInstall(landed);
@@ -385,6 +393,19 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
     });
   }
   return commitRunsIn(text, `the runs record at ${file}`);
+}
+
+/**
+ * The commits a selection reads from the record at `coverageFile`: where it was
+ * recorded, where its runs started, and where each test stands. A clone that
+ * lacks one cannot diff from it. Undefined when no runs record beside it names
+ * where it was recorded.
+ */
+export async function namedCommits(coverageFile: string): Promise<readonly string[] | undefined> {
+  const runs = await readCommitRuns(coverageFile);
+  if (runs?.commit === undefined) return undefined;
+  const all = [runs.commit, runs.over, ...(runs.standing ?? []).map((entry) => entry.commit)];
+  return [...new Set(all.filter((commit): commit is string => commit !== undefined))];
 }
 
 /**

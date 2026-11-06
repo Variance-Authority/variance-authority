@@ -82,10 +82,11 @@ index holds nothing for, the answer prints exactly that. And a missing index is
 refused rather than answered empty, because an empty list here reads as *no test
 covers this line*, which is the sentence that gets a test deleted.
 
-The diff is measured from the commit the record was written at, not from the
-merge base with the ref, because the index spells its line ranges in that
-commit's coordinates. Under the regions, the answer names each test file that
-ran over another text of a changed file, and when its run landed. Record before
+The files are the ones your change changed, from the merge base with the ref.
+Each one's lines are measured from the commit the record was written at, because
+the index spells its line ranges in that commit's coordinates. Under the
+regions, the answer names each test file that ran over another text of a changed
+file, and when its run landed. Record before
 you review: a case that ran another text is evidence about that text, not about
 your change.
 
@@ -220,7 +221,7 @@ read, and when there is more than one a line names the suite its reading came
 from. A suite whose record cannot be read gets one line saying why; the suite
 named with `--suite` fails instead.
 
-It reads the record `covering` reads: the one `withTestSelection` writes when
+It reads the record this machine holds: the one `withTestSelection` writes when
 a suite runs in your checkout or, where your checkout has none, the mainline's
 that CI publishes to a [share](sharing.md), once fetched. Before CI has run,
 that record is older than the change, and the block says so under its summary.

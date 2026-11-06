@@ -191,7 +191,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
     model.current = ambient;
     // The case returned, so its frame is named as one that finished, and as
     // one a recorder listened to that said nothing.
-    fold(preconditions.packHeard(caseOwner.settledCase(key, false), { said: [], read: [], misused: [] }), presence, true);
+    fold(caseOwner.packHeard(caseOwner.settledCase(key, false), { said: [], read: [], misused: [] }), presence, true);
   }
   work(next(20), 0);
   fold(caseOwner.packCase(FILE, '', ''), ambient);
@@ -399,7 +399,7 @@ describe('what a case said it arranged', () => {
   const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
   const said = (frame: Uint8Array) => {
     const owner = journals.decodeJournal(frame).testFile;
-    const field = preconditions.heardField(owner);
+    const field = caseOwner.heardField(owner);
     const items = field === undefined ? undefined : (JSON.parse(field) as { said: [string, unknown, string, number][] }).said;
     return [caseOwner.unpackCase(owner).name, items?.map(([name, value, , level]) => [name, value, level])];
   };

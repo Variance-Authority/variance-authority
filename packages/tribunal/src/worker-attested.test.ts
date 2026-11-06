@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { RunReport } from '@variance-authority/report';
 import { createTribunal, type Tribunal } from './worker.js';
-import { createMemoryR2, createSqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1 } from './testing.js';
 
 /**
  * What a machine holding the share token may read about review: what was
@@ -64,9 +64,7 @@ beforeEach(async () => {
     db: await createSqliteD1(),
     bucket: createMemoryR2(),
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
-    shareToken: SHARE,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW, share: SHARE }),
   });
 });
 
@@ -193,7 +191,7 @@ describe('the share token reads what review settled', () => {
   it('reads the concerns raised on a build, and cannot raise or move one', async () => {
     variancePrecondition('fixture', { token: 'share' });
     await decided();
-    const raised = await call('/review/concerns', REVIEW, {
+    const raised = await call('/review/concerns/raise', REVIEW, {
       build: 'ci-2',
       subject: 'story:a',
       title: 'Total moved below the fold',
@@ -208,7 +206,7 @@ describe('the share token reads what review settled', () => {
     expect(shared.concerns.map((each) => each.title)).toEqual(['Total moved below the fold']);
     expect(shared).toEqual(await (await call('/review/concerns?build=ci-2', REVIEW)).json());
 
-    const raising = await call('/review/concerns', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
+    const raising = await call('/review/concerns/raise', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
     expect(raising.status).toBe(403);
     const moving = await call(`/review/concerns/${concern.id}`, SHARE, { state: 'resolved', by: 'agent' });
     expect(moving.status).toBe(403);
@@ -222,7 +220,7 @@ describe('the ingest token reads none of it', () => {
       const response = await call(path, INGEST);
       expect([path, response.status]).toEqual([path, 403]);
       const text = await response.text();
-      expect(text).toMatch(/CI holds the ingest token/);
+      expect(text).toMatch(/presented an ingest credential/);
       expect(text).toMatch(/the share token/);
     }
   });

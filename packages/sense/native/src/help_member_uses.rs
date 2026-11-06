@@ -117,7 +117,7 @@ impl Walker<'_> {
             }
             BindingPattern::ObjectPattern(it) => {
                 for property in &it.properties {
-                    if let Some(name) = property.key.static_name() { self.add(&name, property.key.span().start, of, DESTRUCTURE); }
+                    if let Some(name) = property.key.static_name().and_then(|name| name.into_cow_str()) { self.add(&name, property.key.span().start, of, DESTRUCTURE); }
                 }
             }
             BindingPattern::AssignmentPattern(it) => self.bind(&it.left, of),
@@ -130,7 +130,7 @@ impl Walker<'_> {
         let Expression::ObjectExpression(object) = expression.without_parentheses() else { return };
         for property in &object.properties {
             if let ObjectPropertyKind::ObjectProperty(property) = property {
-                if let Some(name) = property.key.static_name() { self.add(&name, property.key.span().start, of, WRITE); }
+                if let Some(name) = property.key.static_name().and_then(|name| name.into_cow_str()) { self.add(&name, property.key.span().start, of, WRITE); }
             }
         }
     }
@@ -203,7 +203,7 @@ impl<'a> Visit<'a> for Walker<'_> {
                     _ => continue,
                 };
                 if computed || is_static || matches!(key, PropertyKey::PrivateIdentifier(_)) { continue; }
-                if let Some(name) = key.static_name() { self.add(&name, key.span().start, &of.name, IMPLEMENT); }
+                if let Some(name) = key.static_name().and_then(|name| name.into_cow_str()) { self.add(&name, key.span().start, &of.name, IMPLEMENT); }
             }
         }
         walk::walk_class(self, it);
@@ -226,7 +226,7 @@ impl<'a> Visit<'a> for Walker<'_> {
 
     fn visit_computed_member_expression(&mut self, it: &ComputedMemberExpression<'a>) {
         if let Expression::StringLiteral(name) = &it.expression {
-            self.member(&it.object, &name.value, name.span.start, (it.span.start, it.span.end));
+            if let Some(key) = name.value.as_str() { self.member(&it.object, key, name.span.start, (it.span.start, it.span.end)); }
         }
         walk::walk_computed_member_expression(self, it);
     }

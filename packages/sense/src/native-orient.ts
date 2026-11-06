@@ -365,8 +365,10 @@ export interface NativeDependencyLexicon {
   dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
   /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
   describedWords(query: string): [string, string][];
-  /** Per text, how many of the adjacent word pairs of `query` it writes adjacent. */
+  /** Per text, how many of the adjacent stem pairs of `query` it writes at the distance the question puts them. */
   nearOf(query: string, texts: string[]): number[];
+  /** Per text, the first paragraph writing the whole of `query`'s stems in order; null when none does. */
+  phraseOf(query: string, texts: string[]): (number | null)[];
   /** Each word's stem, in order. */
   wordStems(words: string[]): string[];
 }
@@ -374,6 +376,8 @@ export interface NativeDependencyLexicon {
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
   exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; doc?: string }[];
+  /** Each `export … from`, named or `*`, as a row of its file, its name and where it leads. */
+  forwards: string[];
   /** Imports of a file past every specifier its package declares. */
   deep: NativeByPath[];
   /** Imports of a file of a package that declares no entry. */

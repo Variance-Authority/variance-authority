@@ -1,21 +1,10 @@
 # Where baselines live
 
 Approved images have to sit somewhere between runs, one per **subject** — the
-named UI state a baseline belongs to, such as a story or a test — and
-there are three places to put them: committed to the repository, tracked
-through git-LFS, or stored by a service. They differ in what a clone costs, who
-can approve a change, and what happens to the repository as history grows. This
-page is the reference for choosing one while you set a project up.
-
-A committed baseline is reviewed as a file in a pull request, so it is named
-for what it is an image of: the story or test, and its variant. A change to the
-primary button lists `Ui/Button/Primary-chromium.png` and its `.json` record,
-and nothing about the machine that painted it. That machine — renderer, browser
-engine version, platform, device scale factor and fonts — is written into the
-record. An image painted on another machine is still compared, and the field
-that differs is named as the cause, so where a baseline is stored has no say in
-a verdict. What placement decides is **who has the bytes when the next run
-starts**, and what that costs.
+named UI state a baseline belongs to, such as a story or a test. Where they sit
+has no say in a verdict. It decides **who has the bytes when the next run
+starts**, and what that costs. This page is the reference for choosing while you
+set a project up.
 
 There are three answers and no default. Set `baselines.kind` explicitly.
 
@@ -25,10 +14,12 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 | `lfs` | the same files, through the LFS filter | `git lfs install` | LFS storage and bandwidth |
 | `remote` | nothing in the repository | a deployment and a token | a network hop, and a run that cannot call it stops |
 
-`directory` has one more arrangement: a root git ignores, which your CI keeps in
-its cache between runs. Nothing is committed, so nothing lands in git history,
-and the cache decides how long the baselines last. [Who accepts a
-change](#who-accepts-a-change) compares all three arrangements by who approves.
+`directory` can also use a root git ignores, which your CI keeps in its cache, so
+nothing lands in git history and a pull request goes red on a change and green
+on a label: [the whole job](#the-whole-job) prints that workflow. [Who accepts a
+change](#who-accepts-a-change) compares all three by who approves.
+
+## Durable baselines
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -66,17 +57,26 @@ same as a store nobody has written to yet.
 
 ## What a committed baseline is called
 
+A committed baseline is reviewed as a file in a pull request, so it is named
+for what it is an image of: the story or test, and its variant. A change to the
+primary button lists `Ui/Button/Primary-chromium.webp` and its `.json` record,
+and nothing about the machine that painted it. That machine — renderer, browser
+engine version, platform, device scale factor and fonts — is written into the
+record. An image painted on another machine is still compared, and the field
+that differs is named as the cause, so where a baseline is stored has no say in
+a verdict.
+
 Under `directory` and `lfs`, `baselines.path` names each file. It is a template
-under `baselines.root`, the store adds `.png` and `.json`, and when you set none
+under `baselines.root`, the store adds `.webp` and `.json`, and when you set none
 it is `{title}/{name}-{engine}`. For a Storybook story titled `Ui/Button` and a
 Playwright test `checkout › empty cart`, a run writes:
 
 ```
-baselines/Ui/Button/Primary-chromium.png
+baselines/Ui/Button/Primary-chromium.webp
 baselines/Ui/Button/Primary-chromium.json
-baselines/Ui/Button/Primary__dark-chromium.png
+baselines/Ui/Button/Primary__dark-chromium.webp
 baselines/Ui/Button/Primary__dark-chromium.json
-baselines/checkout/empty-cart-chromium.png
+baselines/checkout/empty-cart-chromium.webp
 baselines/checkout/empty-cart-chromium.json
 ```
 
@@ -84,6 +84,14 @@ The `.json` record is the attribution: which machine painted the image, from
 which document, with which fonts missing. It stays text, and reviewable, in
 every placement. A labelled image — a second viewport or state of one subject —
 appends the label to the name after `__`.
+
+The image is a lossless WebP: every pixel you accepted, in about a quarter of
+the bytes of the PNG that was captured. A fully transparent pixel keeps only its
+transparency, not the colour under it, which no comparison can see. It is
+encoded once, by `sharp` on the machine that accepts, and never while a run
+compares. A baseline committed as a `.png` before is read as it is,
+and its next accept replaces it with the `.webp`. A WebP holds at most 16,383
+pixels on a side, so an accept refuses a taller page by name.
 
 | token | what it is |
 |---|---|
@@ -178,10 +186,10 @@ caused it:
 
 ```
 src/ui/Button/Button.stories.tsx
-src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.png
+src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.webp
 src/ui/Button/__baselines__/Button.stories.tsx/Primary-chromium.json
 e2e/checkout.spec.ts
-e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.png
+e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.webp
 e2e/__baselines__/checkout.spec.ts/empty-cart-chromium.json
 ```
 
@@ -198,18 +206,24 @@ with the same tokens.
 
 `{dir}` is available to `directory` too. Under either backend the images sit
 next to code people edit, so they turn up in every diff and every clone; `lfs`
-is what keeps the PNG bytes out of the git history.
+is what keeps the image bytes out of the git history.
 
 `createLfsStore` writes its own `.gitattributes` in the root, with a pattern made
 from the template, so only files the template can name go through LFS. Under
-this template that is `**/__baselines__/*/*-*.png`. The default template's
-pattern is `*-*.png`, which at a root of `.` would also take every hyphenated
+this template that is `**/__baselines__/*/*-*.webp`. The default template's
+pattern is `*-*.webp`, which at a root of `.` would also take every hyphenated
 icon, fixture and screenshot in the repository, so the config refuses that
 pair. Give the template a directory of its own, such as `__baselines__`, give
 the baselines a root of their own, or set `baselines.pattern` yourself.
 
+A root that already tracks `*-*.png` keeps that entry, so the PNGs committed
+before stay in LFS, and the store adds the `.webp` entry beside it. A
+`baselines.pattern` you set yourself is written as you gave it, and one that
+does not end in `.webp` or `*` is refused, because it would leave every kept
+image out of LFS.
+
 `directory` at a root of `.` is refused on the same template for the same
-reason: the action commits back what the glob names, and `*-*.png` from the
+reason: the action commits back what the glob names, and `*-*.webp` from the
 repository root would stage every hyphenated image in it.
 
 ## Somewhere else entirely
@@ -266,7 +280,7 @@ arrangements, and each puts the approval somewhere else:
 
 | baselines live in | config | a change is accepted by | the record of it is |
 |---|---|---|---|
-| the CI cache | `directory`, root ignored by git | a label on the pull request, and every push to `main` | the label in the pull request's timeline, and the push |
+| the CI cache | `directory`, root ignored by git | a label on the pull request, and a push to `main` | the label in the pull request's timeline, and the push |
 | git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, reviewed with the code | the commit and the pull-request review |
 | a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
 
@@ -281,9 +295,10 @@ the action sends the run there. The
 ### The CI cache
 
 The baseline root is ignored by git on purpose, and the CI job restores it from
-the runner's cache before every run. Without the restore, a run starts with an
-empty root and reports every subject `new`, as [Committed means
-committed](#committed-means-committed) describes.
+the runner's cache before every run, so the cache decides how long the baselines
+last. Without the restore, a run starts with an empty root and reports every
+subject `new`, as [Committed means committed](#committed-means-committed)
+describes.
 
 A reviewer reads the report and adds the `variance: accept` label. That starts a
 run that accepts every changed subject, compares again, and saves the baseline
@@ -295,7 +310,14 @@ subject its baseline. The pull request's later runs read
 that scope first, so they compare against what you accepted there even after
 `main` moves.
 
-Merging is the second accept. Every push to `main` accepts what `main` renders,
+With `tick-to-accept` on, the comment also carries a box, and ticking it does what
+the label does, without leaving the comment. Only a reviewer with write access
+counts, and the accepting run's log names them. The box belongs to the head it was
+written for, so a push brings a new one. The
+[action's README](https://github.com/Variance-Authority/action#accepting-with-a-tick)
+has the workflow it needs.
+
+Merging is the second accept. A push to `main` accepts what `main` renders,
 whether the pull request's check was green, red, unfinished, or never run because
 the project is new: you judge a change on its pull request, and what you merge is
 what `main` draws. The push saves as the label's run does, so a push whose
@@ -303,15 +325,185 @@ second comparison fails is red and still records what `main` renders. Every
 pull request that holds no accept of its own compares against the newest store
 saved on `main`, including one that was already open when that push landed.
 
-Nothing lands in git history, and approval is a label rather than a review of a
-diff. A push after an accept does not dismiss a reviewer's approval of the pull
+Nothing lands in git history, and approval is a label or a tick rather than a
+review of a diff. A push after an accept does not dismiss a reviewer's approval of the pull
 request, and it does not need to: a push that changes a pixel turns the check red again. The
 store lasts as long as GitHub keeps the cache entry. GitHub removes an entry
 nothing has restored for seven days, and after that every subject reports `new`
-until the next push to `main`, or a dispatch with `accept` ticked, records it
-again. A pull request from a fork runs with a read-only
+until the next push to `main` records it again. A pull request from a fork runs
+with a read-only
 token: the label run still accepts, but it cannot take the label off again, and
 the pull request gets no comment.
+
+#### The whole job
+
+This job goes red on a change, green on the label, and compares the next push
+again. It needs three things in place first. The config you already run keeps
+its `subjects`, and sets these two keys. `carry` names who keeps the root between
+jobs, and `actions-cache` is the runner's cache, which the action restores before
+the run and saves after an accept:
+
+```json
+"retention": "durable",
+"baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" }
+```
+
+Git ignores the root, on purpose here, since the cache holds it:
+
+```gitignore
+.variance/
+```
+
+Git keeps tracking a root you already committed, and every checkout then restores
+those files, so run `git rm -r --cached .variance` once.
+
+And the repository has the label:
+
+```bash
+gh label create 'variance: accept'
+```
+
+Then the workflow, as `.github/workflows/variance.yml` in your repository:
+
+```yaml
+name: variance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  merge_group: # a merge queue's own commit
+
+permissions:
+  contents: read # the checkout: a declared block sets the rest to none
+  pull-requests: write # the comment, and taking the label off
+
+jobs:
+  variance:
+    if: github.event_name != 'merge_group' # a skipped job reports success
+    concurrency:
+      group: variance-${{ github.ref }} # one comment, written by one run at a time
+      queue: max # every run waits, and none replaces a label's
+    runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: take the label off
+        if: "github.event.label.name == 'variance: accept'"
+        continue-on-error: true # a fork's token is read-only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST/labels/variance%3A%20accept"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build-storybook
+
+      - name: ask whether this run is still the head
+        id: head
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          THIS_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -n "$PULL_REQUEST" ]; then
+            head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST" --jq .head.sha)
+          else
+            head=$(gh api "repos/$GITHUB_REPOSITORY/commits/heads/$GITHUB_REF_NAME" --jq .sha)
+          fi
+          if [ "$head" != "$THIS_HEAD" ]; then echo 'superseded=true' >> "$GITHUB_OUTPUT"; fi
+
+      - uses: Variance-Authority/action@v1
+        if: "steps.head.outputs.superseded != 'true' || github.event.label.name == 'variance: accept'"
+        with:
+          config: variance.config.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          report-page: true # the report the comment links to, images included
+          comment: "${{ steps.head.outputs.superseded != 'true' }}" # the comment is the head's
+          accept: "${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}"
+          to-accept: 'check the report, then add the **variance: accept** label to this pull request'
+```
+
+`report-page` uploads the report as an artifact of the run, so a reviewer opens it
+from the comment before adding the label. The images are pixels of your product,
+and they stay for your artifact retention period.
+
+`accept` reads the event, not the label. A label stays on a pull request until
+somebody takes it off, so a job that asked whether the label is present would
+accept every push after the first. `github.event.label` is the label that started
+this run, and the step that takes it off means the next change needs the next
+label.
+
+Any other label compares again and accepts nothing, so a red check stays red. The
+job does not skip on that label, because a skipped job reports success and would
+cover the red.
+
+`queue: max` is what keeps the label's run. By default GitHub holds one waiting
+run per `concurrency` group and cancels it for the next event, so a second label
+or a push would drop the accept and leave the label on. With it every run waits,
+so a burst of pushes or labels runs them all, where the default would skip to the
+last. GitHub starts them in the order they began waiting, which need not be the
+order of their events, and it does not guarantee even that. A push can then
+compare before an accept that came first: the accept is saved, the label is off
+and the check stays red. Re-run the failed job, and it compares against the accept.
+
+Any run can also start after a newer one. An older push would save its commit's
+store over the newer one, and an older comparison would replace the head's report
+in the comment. The `head` step stops both. Once a run holds the group it asks
+GitHub for the head of its branch or pull request, and a run that is no longer the
+head skips the action and stays green, because the newer commit has a run of its
+own. A run that is still the head cannot be overtaken: any newer run waits behind
+it and writes after it. If GitHub does not answer, the step fails, the run saves
+nothing, and re-running the job asks again.
+
+The label's run is the exception, because the accept exists nowhere else. It
+accepts what its commit renders and leaves the comment to the head. The next
+comparison reads that accept, and a head that compared first stays red until you
+re-run its job.
+
+A label accepts the head the pull request is at when you add it, and nothing ties
+that to the report you read. A push lands, its run waits, and the comment still
+shows the commit before it. So before adding the label, check that the `variance`
+check on the pull request's latest commit has finished, and open the report from
+that run. A [tick](https://github.com/Variance-Authority/action#accepting-with-a-tick)
+is tied: its box names the head it was written for, and a push makes it accept
+nothing.
+
+Leave `cancel-in-progress` out: GitHub refuses `true` beside `queue: max`, and
+`true` would stop a running accept. A group holds 100 waiting runs and cancels any
+past that. If one of those was the label's, take the label off and add it again.
+If it was the head of `main`, the next push records what `main` renders.
+On GitHub Enterprise Server, check that your version's workflow syntax lists
+`queue` before you rely on it.
+
+A [merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
+waits for the required check, `variance` here, on its own commit, and only
+`merge_group` starts a workflow there. The job answers by skipping, which reports
+success. It does not compare, because the pull request's accept is in that pull
+request's cache scope, which the queue's run cannot read: every change a person
+accepted would go red. Without a queue the event never fires.
+
+So nothing compares the queue's commit. Two accepted pull requests that change a
+picture only together land unchecked, and the push to `main` records the result.
+A pull request that repairs it goes red against that store, and a person accepts
+it. With baselines in [git](#git) the accept is in the pull request's commits, so
+the queue's commit carries it, and a job without this skip can compare there.
+
+Keep the queue's *Only merge non-failing pull requests* setting on. With it off, a
+pull request that failed required checks can join a group as long as the last one
+in the group passed, and `variance` passes for every group.
+
+A subject with no baseline reports `new` and the check stays green, so a pull
+request is green until the first push to `main` records a store.
+
+For a [served route](start-routes.md), replace `npm run build-storybook` with the
+step that builds or starts what the collector reads.
 
 ### Git
 

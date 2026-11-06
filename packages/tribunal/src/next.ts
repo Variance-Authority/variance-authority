@@ -6,42 +6,24 @@ import type { Tribunal } from './worker.js';
  *
  * The whole adapter is one idea: a Next route handler is
  * `(Request) => Response | Promise<Response>`, and so is
- * {@link Tribunal.fetch}. What is left is a mount prefix to strip and one
- * decision the operator has to make, below.
+ * {@link Tribunal.fetch}. What is left is a mount prefix to strip.
  *
  * ```ts
  * // app/variance/[[...path]]/route.ts
- * import { createTribunal } from '@variance-authority/tribunal/worker';
+ * import { createTribunal, declaredPolicy } from '@variance-authority/tribunal/worker';
  * import { createTribunalRoutes } from '@variance-authority/tribunal/next';
  *
  * const worker = createTribunal({
  *   db: process.env.DB, bucket: process.env.BUCKET, project: 'todomvc',
- *   ingestToken: process.env.VARIANCE_INGEST_TOKEN!,
- *   reviewToken: process.env.VARIANCE_REVIEW_TOKEN!,
+ *   policy: declaredPolicy(process.env),
  * });
  *
- * export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, {
- *   basePath: '/variance',
- *   authorize: async (request) => (await isSignedIn(request)) ? 'review' : null,
- * });
+ * export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, { basePath: '/variance' });
  * ```
  *
- * ## The one decision this adapter does not make for you
- *
- * A browser rendering the review surface must not be handed the review token —
- * a token in a page is a token in everybody's devtools, and this one **promotes
- * baselines**. So the token stays on the server and the handler attaches it,
- * which means the handler, not the token, is now the gate.
- *
- * `authorize` is that gate, and it has no default. Returning `'review'` for every
- * request would publish an approve button to the internet, and a package that
- * shipped that as a convenience would be shipping the failure. An operator who
- * genuinely wants the surface open writes `() => 'review'` themselves, in their
- * own file, where the next person reviewing that repository can see it.
- *
- * A request that `authorize` refuses is answered 401 here, without reaching the
- * Worker — so the app's own session and the deployment's tokens stay two
- * separate things, and neither is asked to be the other.
+ * Who a request is stays the policy's, here as everywhere. An app that already
+ * knows its users writes a `Policy` over its own session, which keeps a decision
+ * attributed to the person that session proved.
  */
 
 export interface TribunalRouteOptions {
@@ -53,27 +35,7 @@ export interface TribunalRouteOptions {
    * and 404 against a route table that has never heard of the prefix.
    */
   readonly basePath?: string;
-
-  /**
-   * Which capability this request is allowed, decided by the operator's own app.
-   *
-   * `null` is a 401. There is no default — see the note above.
-   */
-  authorize(request: Request): Promise<Capability | null> | Capability | null;
-
-  /**
-   * The tokens the Worker was constructed with.
-   *
-   * Passed again rather than read off the worker, because a `Tribunal` is
-   * deliberately a `fetch` handler and nothing else: a handler that could be
-   * asked for its own secrets is a handler that can leak them by being logged.
-   * `share` is needed only when `authorize` can answer `'share'`.
-   */
-  readonly tokens: { readonly ingest: string; readonly review: string; readonly share?: string };
 }
-
-/** What `authorize` may allow a request: one of the Worker's tokens, named by what it is for. */
-export type Capability = 'ingest' | 'review' | 'share';
 
 /**
  * The four method exports a Next.js route file needs.
@@ -89,56 +51,23 @@ export interface TribunalRoutes {
   HEAD(request: Request): Promise<Response>;
 }
 
-/**
- * Mount the service inside an app that already knows who its users are.
- *
- * Strips `basePath`, asks `authorize` what this request is allowed, and
- * **replaces** the authorization header with the token that answer implies —
- * replaces, so a caller cannot present its own bearer and choose its own
- * capability. A refusal is answered 401 without the Worker seeing the request,
- * which keeps the app's session and the deployment's tokens two separate things.
- */
+/** Mount the service inside an app, under `basePath`. */
 export function createTribunalRoutes(
   worker: Tribunal,
-  options: TribunalRouteOptions,
+  options: TribunalRouteOptions = {},
 ): TribunalRoutes {
   const basePath = (options.basePath ?? '').replace(/\/$/, '');
 
   const handle = async (request: Request): Promise<Response> => {
-    const granted = await options.authorize(request);
-    if (granted === null) {
-      return new Response(JSON.stringify({ error: 'not authorized for this deployment' }), {
-        status: 401,
-        headers: { 'content-type': 'application/json; charset=utf-8' },
-      });
-    }
-
-    const token = options.tokens[granted];
-    if (token === undefined) {
-      // The operator's configuration, not the caller's: said as a failure of
-      // this deployment rather than as a refusal the caller could fix.
-      return new Response(
-        JSON.stringify({
-          error: 'authorize allowed this request the share token, and tokens.share is not set',
-        }),
-        { status: 500, headers: { 'content-type': 'application/json; charset=utf-8' } },
-      );
-    }
-
     const url = new URL(request.url);
     if (basePath !== '' && url.pathname.startsWith(basePath)) {
       url.pathname = url.pathname.slice(basePath.length) || '/';
     }
 
-    const headers = new Headers(request.headers);
-    // Replaced rather than added. A caller that sent its own bearer would
-    // otherwise decide its own capability, and `authorize` would be advisory.
-    headers.set('authorization', `Bearer ${token}`);
-
     return worker.fetch(
       new Request(url, {
         method: request.method,
-        headers,
+        headers: request.headers,
         ...(request.method === 'GET' || request.method === 'HEAD'
           ? {}
           : { body: await request.arrayBuffer() }),

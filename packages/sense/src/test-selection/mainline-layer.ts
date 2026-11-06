@@ -2,23 +2,16 @@
  * The mainline's record as this machine last fetched it: where it is kept, and
  * which copy a run lays under its own before it lands.
  *
- * A suite the root config gives to the share has one base, the record its
- * mainline's CI published, and every checkout measures from it. Two parties
- * touch that record and neither can do the other's part. The CLI fetches it:
- * the share's store, its lines and its entry formats are the CLI's, and a
- * runner seam cannot import them. A runner seam lays it: the first run in a
- * checkout lands on whatever is in the own layer, so the base has to be there
- * before the run lands. Waiting for the CLI to lay it would give a plain
- * `yarn test` in a fresh worktree the primary checkout's record instead.
+ * The CLI fetches: the share's store and formats are its, and a runner seam
+ * cannot import them. A seam lays: the first run in a checkout lands on the own
+ * layer, so the base has to be there before it does, or a plain `yarn test` in
+ * a fresh worktree gets the primary checkout's record. A seam never fetches.
  *
  * They meet here. A fetch keeps the record at
- * `<cache>/share/read/<suite>/<commit>/` and writes `fetched.json` beside the
- * commit directories, naming the mainline, the commit and when it was fetched.
- * A seam reads that file and nothing else of the share's, so the base a run
- * lays is the mainline's record as of the last fetch on this machine, by this
- * checkout or by the primary checkout it was cut from, whichever is newer. A
- * seam never fetches. When nothing has been fetched here, the run lays the
- * primary checkout's record as an offline fallback and says so.
+ * `<cache>/share/read/<suite>/<commit>/` and names it in `fetched.json`. A
+ * record fetched for one mainline answers nothing about another, and only the
+ * CLI can say which is selected, so {@link lastFetchedMainline} takes that from
+ * a reader that worked it out.
  */
 
 // compass: variance-authority.reach
@@ -35,6 +28,7 @@ import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
+import type { IndexLock } from './index-lock.js';
 import { writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { declaredSuites } from './suites.js';
@@ -52,6 +46,8 @@ export interface FetchedMainline {
   readonly fetched: string;
   /** `HEAD`'s merge base with the mainline when the line was asked; absent when the clone named none. */
   readonly base?: string;
+  /** Another job of this run read it and handed it on: the run's answer, which no reader in it asks the line past. */
+  readonly handed?: true;
 }
 
 /** The mainline's record of one suite, as the last fetch on this machine kept it. */
@@ -90,8 +86,8 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
-    const { mainline, commit, fetched, base } = value;
-    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}) };
+    const { mainline, commit, fetched, base, handed } = value;
+    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}), ...(handed === true ? { handed } : {}) };
   } catch {
     return undefined;
   }
@@ -101,25 +97,27 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * The newest mainline record of `suite` fetched on this machine, or undefined
  * when the suite is not given to the share or nothing has been fetched.
  *
- * Two caches are asked: this checkout's and, in a worktree, the primary
- * checkout's, because each checkout fetches into its own cache and a worktree
- * cut this morning has fetched nothing. A caller that names `cacheRoot` asks
- * that one only, as {@link cacheLayers} reads both layers from it. A pointer
- * whose record is not on disk, or does not read in this build, is passed over.
- *
- * Synchronous, because {@link nearestTestCoverage} asks it and a caller of that
- * cannot wait. It opens the record, so a reader asks it only once the
- * checkout's own layer has none.
+ * Two caches are asked, this checkout's and a worktree's primary's, or
+ * `cacheRoot` alone, the newest winning, unless this checkout's read was handed
+ * on, and then it alone is asked. A pointer whose record is not on disk
+ * or does not read in this build is passed over, and so is one for another
+ * mainline than `selected`. `null` is a selection that could not be read, so
+ * none answers; a caller with none to hand in takes the newest. Synchronous, as
+ * {@link nearestTestCoverage} cannot wait, and it opens the record, so a reader
+ * asks it only once the checkout's own layer has none.
  */
-export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string): LastFetched | undefined {
+export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
+  if (selected === null) return undefined;
   const declared = declaredSuites(root);
   const name = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   let newest: LastFetched | undefined;
-  for (const cache of fetchCaches(root, cacheRoot)) {
+  for (const cache of fetchCaches(root, cacheRoot, name)) {
     const readRoot = mainlineReadRoot(cache, name);
     const pointer = readFetchedMainline(readRoot);
-    if (pointer === undefined || (newest !== undefined && newest.fetched >= pointer.fetched)) continue;
+    // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
+    if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
+    if (newest !== undefined && newest.fetched >= pointer.fetched) continue;
     const coverage = join(readRoot, pointer.commit, 'coverage.bin');
     if (!existsSync(coverage)) continue;
     const runs = commitRunsFile(coverage);
@@ -136,12 +134,28 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   return newest;
 }
 
-function fetchCaches(root: string, cacheRoot: string | undefined): readonly string[] {
+function fetchCaches(root: string, cacheRoot: string | undefined, suite: string): readonly string[] {
   if (cacheRoot !== undefined) return [cacheRoot];
   const here = repositoryRoot(root);
   const own = cacheRootFor(here);
+  // A read handed here is this job's, whatever newer record a worktree's primary checkout fetched.
+  if (mainlineHanded(root, suite)) return [own];
   const primary = primaryCacheRoot(here);
   return primary === own ? [own] : [own, primary];
+}
+
+/**
+ * Whether this checkout holds another job's read of `suite`, so no layer under
+ * it answers: a handed miss leaves the mark alone, which names no record.
+ */
+export function mainlineHanded(root: string, suite: string | undefined, cacheRoot?: string): boolean {
+  if (suite === undefined) return false;
+  const readRoot = mainlineReadRoot(cacheRoot ?? cacheRootFor(repositoryRoot(root)), suite);
+  try {
+    return (JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as { handed?: unknown }).handed === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -160,7 +174,9 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
  * A runs record already in the own layer beside no snapshot describes
  * nothing, and is replaced or removed with the lay.
  */
-export async function layFetchedMainline(record: LastFetched, file: string): Promise<boolean> {
+export async function layFetchedMainline(record: LastFetched, lock: IndexLock): Promise<boolean> {
+  const { file } = lock;
+  // Held from here to the lay, so what a run lands is not laid over.
   try {
     await stat(file);
     return false;

@@ -21,6 +21,8 @@ import { indexDeclarations } from '@variance-authority/sense';
 import { stale } from '../scripts/bundle.mjs';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { SCENARIOS } from './scenarios.js';
+// @ts-expect-error — a plain .mjs module, deliberately not part of the TS build.
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * Can a team actually leave?
@@ -195,7 +197,7 @@ afterAll(async () => {
 const live = READY ? describe : describe.skip;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/incumbent-case (migration): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(BUNDLE) ? '' : '\n  no page bundle') +

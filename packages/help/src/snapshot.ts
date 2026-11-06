@@ -22,7 +22,7 @@ export interface SnapshotOptions {
 }
 
 export const SNAPSHOT_FORMAT = 'variance-authority-help';
-export const SNAPSHOT_VERSION = 10;
+export const SNAPSHOT_VERSION = 13;
 
 interface WorkspaceSnapshot {
   readonly format: typeof SNAPSHOT_FORMAT;
@@ -33,10 +33,24 @@ interface WorkspaceSnapshot {
   readonly graphDigest: string;
   readonly generatedAt: string;
   /**
+   * When the read behind the value began, before any of it was read: a file
+   * written before this is in the value, and one written after it may not be. A
+   * refresh of listed files keeps the time of the read it refreshed, because it
+   * read nothing else, so a file it listed counts as written after. `generatedAt`
+   * is taken after the read, so it says neither.
+   */
+  readonly readStartedAt: string;
+  /**
    * The export list as a set, as the search encoder states it; absent on a
    * value published before it was kept.
    */
   readonly exportedDigest?: string;
+  /**
+   * Every `export … from` as a set, as `forwardsDigest` states it: what the
+   * export list does not hold, an `export *` and where a named one leads, and
+   * so what the published names rest on past it. A value without it is read again.
+   */
+  readonly forwardsDigest?: string;
   /**
    * The index manifest the value was read from, as `indexManifestDigest`
    * states it; absent when the value was not refreshed from a published index.
@@ -52,6 +66,12 @@ const searches = new WeakMap<Help, SearchIndex>();
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {
   return generated.get(help);
+}
+
+/** When the read behind the workspace value began, in milliseconds, absent on an unrecorded reading. */
+export function workspaceReadStarted(help: Help): number | undefined {
+  const held = snapshots.get(help);
+  return held === undefined ? undefined : Date.parse(held.readStartedAt);
 }
 
 /** The answerable workspace value published beside one source-index generation. */
@@ -100,7 +120,9 @@ export async function readWorkspaceSnapshot(
     graphRoot: decoded.graphRoot,
     graphDigest: decoded.graphDigest,
     generatedAt: decoded.generatedAt,
+    readStartedAt: decoded.readStartedAt,
     ...(decoded.exportedDigest === undefined ? {} : { exportedDigest: decoded.exportedDigest }),
+    ...(decoded.forwardsDigest === undefined ? {} : { forwardsDigest: decoded.forwardsDigest }),
     ...(decoded.indexDigest === undefined ? {} : { indexDigest: decoded.indexDigest }),
   });
   return decoded.help;
@@ -143,6 +165,11 @@ export function workspaceExportedDigest(help: Help): string {
   return snapshots.get(help)?.exportedDigest ?? exportedDigest(help.exported);
 }
 
+/** The digest of the value's `export … from` rows, absent when it was not kept beside it. */
+export function workspaceForwardsDigest(help: Help): string | undefined {
+  return snapshots.get(help)?.forwardsDigest;
+}
+
 /** The index manifest the value was refreshed from, absent when it was read another way. */
 export function workspaceIndexDigest(help: Help): string | undefined {
   return snapshots.get(help)?.indexDigest;
@@ -158,7 +185,10 @@ export async function indexManifestDigest(index: string): Promise<string | undef
   return bytes === undefined ? undefined : digest(bytes);
 }
 
-/** Publish a new generation time when its authoritative changed set is empty. */
+/**
+ * Publish a new generation time when its authoritative changed set is empty.
+ * Nothing was read for it, so the value keeps the time its read began.
+ */
 export async function republishWorkspaceSnapshot(help: Help, index: string): Promise<void> {
   const held = snapshots.get(help);
   if (held === undefined) return;
@@ -183,6 +213,8 @@ export async function tryPublishWorkspaceSnapshot(
   graphRoot: string,
   help: Help,
   records: readonly FileRecord[] | Uint8Array,
+  readStartedAt: string,
+  forwards: string,
   index?: string,
 ): Promise<void> {
   try {
@@ -200,17 +232,21 @@ export async function tryPublishWorkspaceSnapshot(
       format: SNAPSHOT_FORMAT,
       version: SNAPSHOT_VERSION,
       ...generation,
+      readStartedAt,
       exportedDigest: search.exported,
+      forwardsDigest: forwards,
       help,
     };
+    // Before anything is written: a value that could not be saved was read all the
+    // same, and what it answers is dated, and its text gated, by these times.
+    generated.set(help, generatedAt);
+    const { help: _, ...held } = snapshot;
+    snapshots.set(help, held);
     await mkdir(dirname(at), { recursive: true });
     await writeFile(treeTemporary, tree);
     await rename(treeTemporary, treeAt);
     await writeFile(temporary, `${JSON.stringify(snapshot)}\n`, 'utf8');
     await rename(temporary, at);
-    generated.set(help, generatedAt);
-    const { help: _, ...held } = snapshot;
-    snapshots.set(help, held);
     await writeSearch(help, index ?? sourceIndexPath(root), search.bytes);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
@@ -294,7 +330,10 @@ function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
     && typeof held.graphDigest === 'string'
     && typeof held.generatedAt === 'string'
     && Number.isFinite(Date.parse(held.generatedAt))
+    && typeof held.readStartedAt === 'string'
+    && Number.isFinite(Date.parse(held.readStartedAt))
     && (held.exportedDigest === undefined || typeof held.exportedDigest === 'string')
+    && (held.forwardsDigest === undefined || typeof held.forwardsDigest === 'string')
     && (held.indexDigest === undefined || typeof held.indexDigest === 'string')
     && held.help !== null
     && typeof held.help === 'object';

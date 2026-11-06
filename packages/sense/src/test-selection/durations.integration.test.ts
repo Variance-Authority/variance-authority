@@ -40,7 +40,7 @@ import { withTestSelection } from ${JSON.stringify(seamModule)};
 const configured = withTestSelection(
   {
     root: ${JSON.stringify(fixture)},
-    test: { include: ['test/*.case.ts'], environment: 'node', setupFiles: ['test/setup.ts'] },
+    test: { include: ['test/*.case.ts'], environment: 'node', setupFiles: ['test/setup.ts'], testTimeout: 4321 },
   },
   {
     root: ${JSON.stringify(fixture)},
@@ -62,7 +62,7 @@ reporters[reporters.length - 1] = {
           file: module.moduleId,
           duration: run.duration,
           phases: { prepare: run.prepareDuration, environment: run.environmentSetupDuration, setup: run.setupDuration, collect: run.collectDuration, cases: run.duration },
-          cases: [...module.children.allTests()].map((test) => ({ name: test.fullName, duration: test.diagnostic()?.duration })),
+          cases: [...module.children.allTests()].map((test) => ({ name: test.fullName, duration: test.diagnostic()?.duration, limit: test.options.timeout })),
         }) + '\\n',
       );
     }
@@ -77,7 +77,7 @@ interface Reported {
   readonly file: string;
   readonly duration?: number;
   readonly phases: Readonly<Record<string, number | undefined>>;
-  readonly cases: readonly { readonly name: string; readonly duration?: number }[];
+  readonly cases: readonly { readonly name: string; readonly duration?: number; readonly limit?: number }[];
 }
 
 /** Run the fixture's suite through the seam once, and read what the runner said beside what was recorded. */
@@ -127,7 +127,9 @@ describe('the duration a recording keeps', () => {
       expect(said, `${test.file} > ${test.name}`).toHaveLength(1);
       expect(typeof said[0]!.duration).toBe('number');
       expect(test.duration, `${test.file} > ${test.name}`).toBe(Math.round(said[0]!.duration!));
+      expect(test.limit, `${test.file} > ${test.name}`).toBe(said[0]!.limit);
     }
+    expect(new Set(cases.map((test) => test.limit))).toEqual(new Set([3210, 4321]));
   }, 20_000);
 
   it('is scoped by the readers `variance covering` asks, and the two records agree on who entered a module', async () => {

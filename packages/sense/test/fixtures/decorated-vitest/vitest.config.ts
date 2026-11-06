@@ -11,6 +11,8 @@ if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is 
 export default withTestSelection(
   defineConfig({
     root,
+    // Oxc lowers the legacy form and leaves the standard one for the engine, which cannot parse it.
+    oxc: { decorator: { legacy: true } },
     test: { include: ['test/*.test.js'] },
   }),
   {

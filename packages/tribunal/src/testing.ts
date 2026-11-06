@@ -4,6 +4,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import { base64Of, type R2Like, type R2ObjectLike, type R2PutOptions, type R2Written } from './bindings.js';
 import { wrapSqlite, type SqliteDatabase } from './node/database.js';
 import { applySchema } from './schema.js';
+import type { Policy, Principal } from './worker-auth.js';
+
+export { signer, type Signer } from './testing-issuer.js';
 
 /**
  * Cloudflare, doubled — and doubled at the level where the doubling is honest.
@@ -136,6 +139,31 @@ export function createMemoryR2(): MemoryR2 {
     fail: (message: string, count = 1): void => {
       reason = message;
       failures = count;
+    },
+  };
+}
+
+/**
+ * A policy that reads a bearer as the capability it was given for, so a test of an
+ * operator's wiring can say who is calling without standing up an issuer.
+ *
+ * A review bearer is the person `reviewer` names. Never a deployment's policy: a
+ * reviewer here is a shared secret, which is what {@link declaredPolicy} exists to
+ * refuse.
+ */
+export function bearerPolicy(tokens: {
+  readonly ingest?: string;
+  readonly review?: string;
+  readonly share?: string;
+  readonly reviewer?: string;
+}): Policy {
+  return {
+    principal(request): Principal | null {
+      const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.get('authorization') ?? '')?.[1];
+      if (bearer === undefined) return null;
+      if (bearer === tokens.ingest) return { capability: 'ingest' };
+      if (bearer === tokens.share) return { capability: 'share' };
+      return bearer === tokens.review ? { capability: 'review', name: tokens.reviewer ?? 'marina' } : null;
     },
   };
 }

@@ -39,7 +39,7 @@ import { execFile } from 'node:child_process';
 import { realpathSync, existsSync } from 'node:fs';
 import { lstat, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { checkoutKey, readCheckoutMarker } from './cache-layers.js';
+import { checkoutKey, readCheckoutMarker, workDirectory } from './cache-layers.js';
 
 /** How long a dead run's scratch waits, in case its process id was reused. */
 export const RUN_FLOOR_MS = 60 * 60 * 1000;
@@ -156,7 +156,7 @@ export async function planPrune(
     }
     await layer(repository, owners, drop);
 
-    const work = join(repository, '.work');
+    const work = workDirectory(repository);
     const layers = await directoriesIn(work);
     if (layers.length === 0) continue;
     const primary = marker?.checkout ?? layers.map((key) => readCheckoutMarker(join(work, key))?.primary).find(Boolean);

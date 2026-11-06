@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { expect, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { publishLine } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
@@ -27,6 +28,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { publishRun } from './share.js';
+import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
 
 /**
@@ -164,7 +166,7 @@ export async function gitPublished(
   await git(ci, 'push', '--quiet', 'origin', 'main');
   await git(ci, 'fetch', '--quiet', 'origin');
 
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
@@ -176,11 +178,59 @@ export async function gitPublished(
   return { ci, origin, first, record };
 }
 
+/** The record CI made at `commit` published to the mainline: that commit's job finishing, whenever it does. */
+export async function publishedAt(home: string, ci: string, commit: string): Promise<void> {
+  const reader = process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+  await git(ci, 'checkout', '--quiet', commit);
+  await recordIn(ci, commit, ['test/total.test.ts'], [DISCOUNTS]);
+  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), commit);
+  const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
+  await git(ci, 'checkout', '--quiet', 'main');
+  if (reader === undefined) vi.unstubAllEnvs();
+  else vi.stubEnv('VARIANCE_AUTHORITY_CACHE', reader);
+  // The latest keeps a newer commit's record when that job finished first.
+  expect(done).toMatchObject({ published: { atCommit: { kept: [commit] } } });
+}
+
+/** Take back the git cell's held answers under `cache`, as a minute passing would. */
+export async function forgetLineAnswers(cache: string): Promise<void> {
+  const held = (await readdir(cache, { recursive: true })).filter((path) => basename(path) === 'variance-fetched');
+  for (const dir of held) await rm(join(cache, dir), { recursive: true, force: true });
+  expect(held).not.toEqual([]);
+}
+
 /** A clone of `origin` at another path, as a fresh CI checkout or a laptop has it, on `branch` when one is named. */
 export async function cloneOf(home: string, origin: string, branch?: string): Promise<string> {
   const dir = join(home, 'clone');
   await git(home, 'clone', '--quiet', ...(branch === undefined ? [] : ['--branch', branch]), origin, dir);
   return dir;
+}
+
+/** A clone that fetched the mainline's first record, with main then moved past it by a commit the clone holds. */
+export async function behindMainline(home: string, options: { readonly publish: boolean }) {
+  const asCi = () => vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+  const asClone = () => vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
+  asCi();
+  const ci = await published(home);
+  const clone = await cloneOf(home, ci.origin);
+  asClone();
+  await suiteBase(clone, { env: {} });
+
+  asCi();
+  await writeFile(join(ci.dir, 'src/moved.ts'), 'export const moved = 1;\n');
+  await git(ci.dir, 'add', '-A');
+  await git(ci.dir, 'commit', '--quiet', '-m', 'main moves on');
+  const second = await git(ci.dir, 'rev-parse', 'HEAD');
+  await git(ci.dir, 'push', '--quiet', 'origin', 'main');
+  if (options.publish) {
+    await recordIn(ci.dir, second, ['test/total.test.ts'], [DISCOUNTS]);
+    await publishTo(home, ci.dir, second, PUSH, 'mainline main');
+  }
+  asClone();
+  await git(clone, 'pull', '--quiet', 'origin', 'main');
+  process.chdir(clone);
+  return { ...ci, clone, second };
 }
 
 /** The config a CI run publishes with: `unit` given to the directory share, whose mainline is `main`. */
@@ -266,13 +316,15 @@ export async function recordIn(
   commit: string,
   covering: readonly string[],
   cases: readonly (typeof DISCOUNTS)[],
+  instrumentation = 'fixture',
 ): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
-  await writeTestCoverage(record, totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], [totalModule(covering), {
-    ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
+  const blocks = [totalModule(covering), {
+    ordinal: 1, owner: 0, kind: 'function' as const, digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
     startLine: 1, endLine: 3, source: true, testFiles: [...covering],
-  }]));
+  }];
+  await writeTestCoverage(record, { ...totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], blocks), instrumentation });
   await keepCases(record, casesOf(cases));
 }
 
@@ -404,4 +456,21 @@ async function reportAt(home: string, commit: string): Promise<string> {
 
 export async function git(at: string, ...args: string[]): Promise<string> {
   return (await run('git', args, { cwd: at })).stdout.trim();
+}
+
+/** The argv of every git process `work` started in the checkout at `at`, read from git's own trace. */
+export async function gitStarted(at: string, work: () => Promise<unknown>): Promise<string[][]> {
+  const trace = join(at, '.git', 'variance-trace.json');
+  await rm(trace, { force: true });
+  vi.stubEnv('GIT_TRACE2_EVENT', trace);
+  try {
+    await work();
+  } finally {
+    vi.stubEnv('GIT_TRACE2_EVENT', undefined);
+  }
+  const events = (await readFile(trace, 'utf8').catch(() => '')).trim().split('\n').filter((line) => line !== '');
+  return events
+    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
+    .filter((event) => event.event === 'start')
+    .map((event) => (event.argv ?? []).slice(1));
 }

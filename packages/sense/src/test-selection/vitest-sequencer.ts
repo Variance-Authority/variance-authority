@@ -24,7 +24,7 @@
  * when what it hands back is empty and the selection dropped any file. A shard
  * the selection's files all landed outside is the same answer. When nothing
  * was dropped, an empty run is the runner's, and the project's option stands.
- * The line before the run says `selected none of M`.
+ * The line before the run says `selected none of M, so none of them runs`.
  *
  * Under `--shard k/n` the files left are placed whole by the time the suite's
  * record holds for each, or by file count when it holds none, rather than by

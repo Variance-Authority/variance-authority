@@ -40,6 +40,10 @@ name: variance
 #   `variance: accept <project>` for the `tribunal` and `site` checks. The run saves
 #   into the pull request's own cache scope, which its later runs read first, and
 #   takes the label off again so the next change needs the next press.
+# - **On a pull request, by ticking the docket's box.** `variance-tick.yml`
+#   checks the person may, names them in the comment and reruns this check,
+#   which accepts into the same scope. The box is the head's, and the next push
+#   brings a new one.
 # - **On `main`, by landing there.** A pull request is where a change is
 #   judged, and merging it is the person's answer, whatever its check said at
 #   the time: green, red, still running, or never run because the check is new.
@@ -218,7 +222,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.
@@ -243,7 +247,7 @@ jobs:
       # --skip-smudge` in a step after it, or a commit stores whole images.
       # Leave `lfs` off here. The run fetches the image of each subject whose
       # document changed, and only that image.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.VARIANCE_REVIEW == 'git' && github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ env.VARIANCE_REVIEW == 'git' && github.head_ref || '' }}
@@ -269,6 +273,12 @@ jobs:
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
         run: node .github/scripts/variance-accept.mjs
+
+      # Node 24 from `setup-node`, because the image's own Node, 26, carries no
+      # Corepack. The container jobs in `check.yml` set theirs the same way.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -343,8 +353,9 @@ jobs:
               && 'approve or reject each subject on the review service, then re-run this check.'
               || env.VARIANCE_REVIEW == 'git'
               && 'check the report, then add the **variance: accept** label. The accepted images are committed to this branch, and the next run compares against them.'
-              || 'check the report, then add the **variance: accept** label to this pull request.'
+              || 'check the report, then tick the box below or add the **variance: accept** label to this pull request.'
             }}
+          tick-to-accept: ${{ env.VARIANCE_REVIEW == 'cache' }}
 
           # On under `git`, and only on the run the label started: it accepts
           # every changed subject and pushes the images to the pull request's
@@ -414,7 +425,7 @@ jobs:
       # against; and the store names a machine's partition by its digest,
       # `v1:<hex>`, whose colon this action refuses.
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-files
           path: |
@@ -511,7 +522,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
@@ -519,7 +530,7 @@ jobs:
       # run code from the pull request, so the token is not left on disk. The
       # site's row takes the merge commit's parents too: the first is the base,
       # and the change is read against it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: ${{ matrix.project == 'site' && 2 || 1 }}
@@ -541,6 +552,11 @@ jobs:
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_REVIEW: cache
         run: node .github/scripts/variance-accept.mjs
+
+      # Node 24, for the reason written at the same step in `variance`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -599,7 +615,11 @@ jobs:
           yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
-            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi
+            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
+              # The build writes the skills index, and no test reaches the build.
+              curl --fail --silent --output /dev/null http://localhost:8787/.well-known/agent-skills/index.json
+              exit 0
+            fi
             sleep 1
           done
           cat "$RUNNER_TEMP/site.log" >&2
@@ -625,8 +645,11 @@ jobs:
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          # This project's label, not the case's.
-          to-accept: 'check the report, then add the **${{ matrix.label }}** label to this pull request.'
+          # This project's label, not the case's. The second sentence runs on
+          # every row and is there for `tribunal`, which shares its name with the
+          # service and is not it.
+          to-accept: 'check the report, then tick the box below or add the **${{ matrix.label }}** label to this pull request. That is the whole review: no review service holds this run.'
+          tick-to-accept: 'true'
 
       # A server that exits mid-read leaves only `ERR_CONNECTION_REFUSED` in
       # the read's log; why it exited is in its own.
@@ -636,7 +659,7 @@ jobs:
         run: cat "$RUNNER_TEMP/site.log"
 
       - if: always() && steps.reach.outputs.observe != 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.project }}-files
           path: |
@@ -681,7 +704,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
@@ -691,7 +714,7 @@ jobs:
       # holds. The token is `VARIANCE_PUSH_TOKEN` when it is set, so the
       # commit-back starts the run that checks it; `GITHUB_TOKEN` otherwise,
       # whose push lands and starts nothing.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.head_ref || '' }}
@@ -720,6 +743,11 @@ jobs:
           VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
         run: node .github/scripts/variance-accept.mjs
 
+      # Node 24, for the reason written at the same step in `variance`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - shell: bash
         run: corepack enable && yarn install --immutable
 
@@ -735,7 +763,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.png') || exit 1
+          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.webp' 'cases/storybook-case/baselines/*.png') || exit 1
           if [ -n "$committed" ]; then expected=2; else expected=0; fi
           # `shell: bash` runs with -e, so the exit is read in the condition.
           if node packages/cli/dist/bin.js doctor \
@@ -782,7 +810,7 @@ jobs:
           exit-zero-on-changes: ${{ steps.accept.outputs['exit-zero-on-changes'] }}
 
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lfs-files
           path: |

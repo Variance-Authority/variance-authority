@@ -64,15 +64,17 @@ runner drops the files the record proves your edit did not reach before it
 starts any of them, and prints one line to stderr first:
 
 - `selected 12 of 340` — twelve test files run.
-- `selected none of 340` — your edit reached no recorded test, so none runs.
+- `selected none of 340, so none of them runs` — your edit reached no recorded
+  test.
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
 Set and empty, the variable measures each test file from the commit a run last
 finished it at, which the record keeps per test file: a later run that ran only
 some of its cases does not change it. Set to a ref, such as `origin/main`, it
-names the base for a record taken outside a git checkout, which keeps no commit. Watch mode does not select, and
-neither does Playwright's `--list`. Under Jest,
+names the base only for a record taken outside a git checkout, which keeps no
+commit: a commit the record keeps is always the base. Watch mode does not
+select, and neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
 either one turns the selection off, and stderr says so.
 
@@ -202,12 +204,15 @@ ways:
 
 - **A type error.** The compiler prints it and exits non-zero before any test
   starts.
-- **No test runs.** The run prints `selected none of 340` and exits 0. No
-  recorded test ran the code you changed, the tests that did already ran the
-  text you have now, or they sit further than one import away. The lines under
-  it say which: a file left for a later leg is counted with the range that
-  runs it, `2-`, which is `VARIANCE_AUTHORITY_AT_DISTANCE=2-` in this line.
+- **No test runs.** The run prints `selected none of 340, so none of them
+  runs`: no recorded test ran the code you changed, the tests that did already
+  ran the text you have now, or they sit further than one import away. Vitest
+  and Jest then exit 0.
+  The lines under it say which: a file left for a later leg is counted with the
+  setting that runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
   Exit 0 here says nothing near the edit failed, not that the change is done.
+  A run that found no test file at all has nothing to select from, so it fails
+  as the runner fails: check `testMatch` and the working directory.
 - **Some tests run.** The run prints `selected 1 of 340`, runs that file, and
   exits with its result.
 - **Every test runs.** The run prints `declined:` and a reason: the record
@@ -238,28 +243,26 @@ Every selected file runs in one of `0-1` and `2-`, by the same rules that place
 it in `0-2` or `3-` above.
 
 This repository's own agents run that line after each edit, as
-`yarn test:loop`; [what a selection costs](#what-a-selection-costs) gives its
-times.
+`yarn test:loop`, with their linter in front of it. [What a selection
+costs](#what-a-selection-costs) gives the times of the line alone.
+
+## Run it on a pull request
+
+A pull request selects from the record your main branch saved, so its CI job
+runs the tests the change needs and leaves the rest out. Your main branch runs
+the whole suite and saves the record to the CI cache, and the pull request
+restores it and sets the variable. [The workflow](cache.md#in-ci) is one file,
+and the page lists what a Jest preset, declared suites and a package per
+configuration change in it.
 
 ## When it runs everything
 
-Selection only ever removes files it can prove your edit did not reach, so
-everything the record cannot speak for runs:
-
-- **A test file the record has never seen.** A new test runs until a run
-  records it.
-- **An edit the record cannot read.** No record on this machine, a diff git
-  would not produce, or a lockfile that cannot be compared at the base: the run
-  prints `declined:` and runs every file.
-- **A file nothing imports.** A runner configuration or a setup file is read
-  like any other file unless you name it as
-  [before reach](changes-before-and-beyond.md); named, a change to it runs the
-  whole suite.
-
-A file the record holds nothing about, such as a README or a fixture a test
-reads with `fs`, keeps no test in the run, and stderr names it. If a test does
-read that fixture, name it in the seam's `preconditions` option, and from the
-next recording on a change to it runs every test that declared it.
+A new test file runs until a run records it, and every doubt about the record
+prints `declined:` and runs every file;
+[what a skipped test promises](selection-safety.md) lists each doubt, and the
+changed files that keep no test. If a test reads a fixture with `fs`, name it in
+the seam's `preconditions` option, and from the next recording on a change to it
+runs every test that declared it.
 
 ## What a selection costs
 
@@ -272,8 +275,8 @@ The whole loop on the same suite takes a few seconds. Change one statement in a
 function that nine of the suite's test files execute, and
 `VARIANCE_AUTHORITY_SINCE= yarn vitest run` prints `selected 9 of 686`, runs
 those nine and exits in 3.4 s. Run it again on the same tree and it prints
-`selected none of 686` and exits in 0.8 s. Each of those two times is the median
-of seven warm runs.
+`selected none of 686, so none of them runs` and exits in 0.8 s. Each of those
+two times is the median of seven warm runs.
 
 The agent loop on the same suite, grown to 1002 test files, puts the compiler
 first: a type error stops in 0.09 s, an edit no test needs answers in 0.73 s,

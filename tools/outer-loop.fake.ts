@@ -80,12 +80,12 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     const sha = pull.head.sha;
     if (behaviour.silent) return;
     const gate = change ? (behaviour.changeGate ?? 'failure') : 'success';
-    check(sha, flow.gate, gate, gate === 'failure' ? [`${NEEDS_REVIEW}; the docket is in the pull request comment.`] : []);
+    check(sha, flow.gate, gate, gate === 'failure' ? [`${NEEDS_REVIEW}; the docket is in the pull request comment at https://github.test/o/r/pull/${pull.number}#issuecomment-1`] : []);
     comment(
       pull.number,
       change && gate === 'failure'
-        ? `${DOCKET_MARKER}\n## Visual variance — 1 subject(s) need review\n\n${flow.docket.map((d: string) => `\`${d}\``).join(' ')}\n`
-        : `${DOCKET_MARKER}\n## Visual variance — nothing needs review\n`,
+        ? `${DOCKET_MARKER}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\n${flow.docket.map((d: string) => `\`${d}\``).join(' ')}\n`
+        : `${DOCKET_MARKER}\n## Visual variance in project \`case\` — nothing needs review\n`,
     );
     if (flow.unit !== undefined) {
       const unit = flow.unit;
@@ -94,7 +94,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
       const prose = `Not compared: \`${unit.untouched[0]}\` ran nothing this change touched.`;
       comment(pull.number, `${unit.might}\n### 🧭 What this change might do\n\n| | | | | | | |\n${change ? row : ''}\n\n${prose}\n`);
       comment(pull.number, `${unit.evidence}\n### Test evidence\n\n${change ? row : ''}\n\n${prose}\n`);
-      logs.set(id, change ? `${unit.selected}\n ✓ ${unit.tests[0]} (1 test)\n` : 'variance-authority: selected none of 2\n');
+      logs.set(id, change ? `${unit.selected}\n ✓ ${unit.tests[0]} (1 test)\n` : 'variance-authority: selected none of 2, so none of them runs\n');
     }
     if (flow.subjects !== undefined && !behaviour.unbuilt) {
       builds.push({
@@ -116,7 +116,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
       check(sha, flow.gate, 'success');
       return;
     }
-    check(sha, flow.gate, 'failure', [`${NEEDS_REVIEW}; the docket is in the pull request comment.`]);
+    check(sha, flow.gate, 'failure', [`${NEEDS_REVIEW}; the docket is in the pull request comment at https://github.test/o/r/pull/${pull.number}#issuecomment-1`]);
     const back = `${'c'.repeat(39)}${++shas}`;
     const digest = '0123456789abcdef'.repeat(2);
     commits.set(back, {

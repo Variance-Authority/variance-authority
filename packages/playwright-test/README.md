@@ -596,8 +596,9 @@ VARIANCE_AUTHORITY_SINCE= npx playwright test
 variance-authority: selected 4 of 31
 ```
 
-Set and empty, each spec is measured from the commit it last ran at; set to a
-ref, such as `origin/main`, from that ref. `VARIANCE_AUTHORITY_AT_DISTANCE`
+Set at all, even empty, it selects, and each spec is measured from the commit the
+record names. A ref names the base only for a record taken outside a git
+checkout. `VARIANCE_AUTHORITY_AT_DISTANCE`
 narrows it the same way it does under Vitest and Jest. A spec the selection
 keeps runs whole, every test in it, in every project that runs it.
 
@@ -607,8 +608,8 @@ a project's replaces the top level's. Playwright asks it about each file it
 finds, so the drop costs one lookup a file. The selection is read in a
 `globalSetup` the wrapper puts ahead of yours, so a record it cannot read fails
 the run with the reason before any test starts. A selection that drops every
-file prints `selected none of M`, and the run passes rather than failing on
-Playwright's "No tests found".
+file prints `selected none of M, so none of them runs`, and the run passes
+rather than failing on Playwright's "No tests found".
 
 Three runs do not select, and say so on stderr: watch and UI mode, and
 `--list`, which runs no global setup.
@@ -676,8 +677,14 @@ region, the line of the spec whose statement first reached it: the
 [lines Sense records](https://variance-authority.dev/reference/packages/sense#record-which-test-line-reached-a-region)
 under every other runner, read by the same answers.
 
-`withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
-compiles every spec with. The plugin puts an awaited call in front of each
+`withTestSelection` adds a Babel plugin to the compile every spec goes through:
+under `babelPlugins` below Playwright 1.63, and through the
+`PW_TEST_SOURCE_TRANSFORM` and `PW_TEST_SOURCE_TRANSFORM_SCOPE` environment
+variables from 1.63, which it sets for the run. Playwright takes one transform
+there, so a value of your own stops the run with an error: unset it, or pass
+`cadence: false` to keep it and record no spec lines.
+
+The plugin puts an awaited call in front of each
 statement of an async test or hook body, and the call drains every frame of
 every page the test opened before the statement runs. What a drain finds is
 charged to the statement before it, and what the teardown drain finds to the

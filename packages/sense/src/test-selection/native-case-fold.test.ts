@@ -79,8 +79,8 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     const cases = await directory();
     const file = '/repo/test/pay.test.ts';
     const level = preconditions.CASE_LEVEL;
-    const owner = (name: string, said?: Parameters<typeof preconditions.packHeard>[1]['said']) =>
-      said === undefined ? packCase(file, name, name) : preconditions.packHeard(packCase(file, name, name), { said: said });
+    const owner = (name: string, said?: Parameters<typeof caseOwner.packHeard>[1]['said']) =>
+      said === undefined ? packCase(file, name, name) : caseOwner.packHeard(packCase(file, name, name), { said: said });
     await writeFile(resolve(cases, 'a.vac'), packFrames([
       // The body overrides the file's `beforeEach`, and a nested one overrides it too.
       journalFormat.encodeJournal(owner('mocked', [
@@ -126,7 +126,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
   it('steps over the Eyes frames beside the case frames of a Jest journey artifact, as the object fold does', async () => {
     const cases = await directory();
-    const owner = preconditions.packHeard(packCase('/repo/test/pay.test.ts', 'pays', '1'), { said: [
+    const owner = caseOwner.packHeard(packCase('/repo/test/pay.test.ts', 'pays', '1'), { said: [
       ['fixture:network', '"mocked"', '/repo/test/pay.test.ts:9', preconditions.CASE_LEVEL],
     ] });
     await writeFile(resolve(cases, 'a.vac'), packFrames([
@@ -152,21 +152,21 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     const module = branchModule();
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
       journalFormat.encodeJournal(
-        preconditions.packHeard(
+        caseOwner.packHeard(
           caseOwner.settledCase(packCase('/repo/test/branch.test.ts', 'alpha', '1'), true), { said: [['fixture:clock', '"frozen"', '/repo/test/branch.test.ts:2', 0]] },),
         new Map([['src/branch.ts', counters(3, [0, 1])]]),
       ),
       journalFormat.encodeJournal(
         // A settled case with a journey and what it said: the journey is the
         // fifth field, what the case said the sixth.
-        preconditions.packHeard(
+        caseOwner.packHeard(
           caseOwner.packJourney(caseOwner.settledCase(packCase('/repo/test/branch.test.ts', 'beta', '2'), false), 'a'.repeat(32)), { said: [['fixture:network', '"mocked"', '/repo/test/branch.test.ts:4', preconditions.CASE_LEVEL]] },),
         new Map([['src/branch.ts', counters(3, [0, 2])]]),
       ),
       // Work that outlived `alpha` wrote a second frame under its coordinate,
       // unsettled, entering a region the first did not and saying more: one case.
       journalFormat.encodeJournal(
-        preconditions.packHeard(
+        caseOwner.packHeard(
           packCase('/repo/test/branch.test.ts', 'alpha', '1'), { said: [['fixture:network', '"live"', '/repo/test/branch.test.ts:8', preconditions.CASE_LEVEL]] },),
         new Map([['src/branch.ts', counters(3, [2])]]),
       ),

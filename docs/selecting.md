@@ -10,8 +10,8 @@ For a Vitest or Jest suite, [run the tests an edit needs](test-an-edit.md) puts
 that selection inside the runner you already call.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
-Selection observes those two when the evidence supports that decision. Any
-uncertainty widens the run, and the report explains why. A suite you do not yet
+Selection observes those two when the evidence supports that decision. Every
+doubt but one widens the run, and the report explains each. A suite you do not yet
 trust that far [declares a coarser precision](#how-precisely-a-suite-selects).
 
 Selection reads the record across tests. [Distill](distill.md) reads the same
@@ -126,7 +126,7 @@ empty one skips every test.
 **Fetch every commit, and no trees.** On GitHub Actions:
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     fetch-depth: 0
     filter: tree:0
@@ -173,6 +173,28 @@ other ways to fetch less give a wrong answer or cost more:
 - **Deepening until the merge base appears** is correct only when it also
   checks that no shallow cut hides a newer common ancestor. On Kibana it took 4
   to 13 fetches and 13 to 62 s.
+
+## A pull request's next push
+
+Each push to a pull request is a fresh CI machine, and measured from the
+mainline's record it reruns the whole change, so a one-line fix runs as much
+as the push before it. Your laptop does not: it keeps the record its last run
+wrote, and a selection diffs each test from the commit that test last ran at.
+Carry that record from push to push and CI does the same. The next push runs
+what changed since the last push ran, and every test file that push did not
+finish green: a failed one, and one the run never reached.
+
+`variance carry keep` copies the record a push wrote into a directory that
+`carry save` names, and the host cache saves it under a key only that pull
+request restores, red or green. On the next push `variance carry take` lays
+it over the mainline's record.
+[What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
+has the steps, and how the jobs of one run stand on one record.
+
+The carried record decides what runs, never what your change is compared
+with. `take` prints the path of the mainline's cases: the record it set aside,
+or the share's. `variance review --against` that path compares your change's
+cases with the mainline's, not with the last push's.
 
 ## What a change to a module's top level runs
 
@@ -247,7 +269,7 @@ very different costs:
   over an unwatched surface.** It does so silently, because that subject is not
   in the report to be missing from.
 
-So every uncertainty resolves toward observing:
+So every uncertainty but one resolves toward observing:
 
 | Situation | What happens |
 |---|---|
@@ -264,7 +286,8 @@ The last three produce an explicit warning or stop. A run that stays whole
 without printing that it did looks exactly like a selector that found nothing
 affected, although those facts require different next steps.
 
-These rows read the baselines and the file graph. When the suite also keeps an
+These rows read the baselines and the file graph; the execution record's own
+doubts are in [what a skipped test promises](selection-safety.md). When the suite also keeps an
 [execution record](execution-record.md), the record reads the same diff next and
 removes every subject it recorded whole that the diff did not reach, the
 subjects the two whole-suite rows kept included. It also keeps every subject it
@@ -416,9 +439,10 @@ probes go:
 | `unprobed` | none | the modules you name, such as one whose functions a test hands to `page.evaluate`, run with the `loads` line and no probe inside a finer recording, so a change to one selects every test that loaded it, as at `file-use`. Jest takes globs, Vitest and Rstest a predicate |
 
 A `loads` record has no cases, so `cadence`, `continuations` and stories do not
-apply to it. A run fails rather than lay itself over a record made under another
-`mode`, so when you change `mode`, give the run a new `coverageFile` or delete
-the old record. Each option and its edges are in
+apply to it. Each `mode` records under its own probes, so when you change it the
+next run replaces the record in [your cache](cache.md) and says so in one line.
+A run fails rather than lay itself over a `coverageFile` made under another
+`mode`: give it a new one, or delete the old record. Each option and its edges are in
 [Sense](../packages/sense/README.md#options-on-the-vitest-seam).
 
 ### A record needs a module graph per test file

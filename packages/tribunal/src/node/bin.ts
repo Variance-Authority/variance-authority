@@ -7,16 +7,15 @@ import { fileURLToPath } from 'node:url';
 import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { serveTribunal, type TribunalService } from './serve.js';
+import { LOOPBACK, declaration, declaredPolicy } from '../policy.js';
 import { createTribunal } from '../worker.js';
-import { grant } from '../worker-auth.js';
-import type { Capability } from '../next.js';
+import type { Policy } from '../worker-auth.js';
 
 /**
  * `variance-authority-tribunal` — the thing the operator runs.
  *
- * A process, a port, a file, a directory and two tokens, or three when something
- * only reads — the share and what review settled. The same review
- * service a Cloudflare deployment serves, with SQLite where D1 was and a
+ * A process, a port, a file and a directory, and whoever the deployer declared it
+ * recognizes. The same review service a Cloudflare deployment serves, with SQLite where D1 was and a
  * directory where R2 was; every route, every refusal and every status code is
  * the same code.
  *
@@ -26,9 +25,9 @@ import type { Capability } from '../next.js';
  *
  * ## The three things this refuses
  *
- * **No tokens, no service.** Inherited from `createTribunal` rather than
- * re-implemented: two bearer tokens, sixteen characters each, and not the same
- * string. The refusal is the constructor's and it is quoted straight to stderr.
+ * **Nobody declared, no service.** Inherited from `declaredPolicy` rather than
+ * re-implemented, under the same names a Worker reads with the `VARIANCE_TRIBUNAL_`
+ * prefix. The refusal is that function's and it is quoted straight to stderr.
  *
  * **A project, named.** There is no default. An invented one puts two
  * repositories' baselines in one namespace and the first symptom is a mass
@@ -37,9 +36,8 @@ import type { Capability } from '../next.js';
  * command does.
  *
  * **Loopback unless somebody typed otherwise.** Exposure is a decision, not an
- * accident of a bind address. And on a non-loopback bind the **review surface is
- * not served at all** — see {@link authorizeFor}, which is the one piece of
- * policy this file owns.
+ * accident of a bind address. And a network bind has **no reviewer** until one is
+ * declared: `loopback` is the default only where the socket is the gate.
  */
 
 export const PORT_VARIABLE = 'VARIANCE_TRIBUNAL_PORT';
@@ -48,19 +46,21 @@ export const DATABASE_VARIABLE = 'VARIANCE_TRIBUNAL_DB';
 export const STORAGE_VARIABLE = 'VARIANCE_TRIBUNAL_STORAGE';
 export const PROJECT_VARIABLE = 'VARIANCE_TRIBUNAL_PROJECT';
 export const INGEST_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_INGEST_TOKEN';
-export const REVIEW_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEW_TOKEN';
 export const SHARE_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_SHARE_TOKEN';
+export const INGEST_CREDENTIALS_VARIABLE = 'VARIANCE_TRIBUNAL_INGEST_CREDENTIALS';
+export const REVIEW_CREDENTIALS_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS';
 export const RETENTION_VARIABLE = 'VARIANCE_TRIBUNAL_RETENTION_DAYS';
 export const REVIEWER_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEWER';
 export const TRUST_NETWORK_VARIABLE = 'VARIANCE_TRIBUNAL_TRUST_NETWORK';
+export const ORIGIN_VARIABLE = 'VARIANCE_TRIBUNAL_ORIGIN';
+
+/** Every name `declaredPolicy` reads arrives under this, so one environment can hold several services. */
+const PREFIX = 'VARIANCE_TRIBUNAL_';
 
 const DEFAULT_PORT = 7789;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_DATABASE = 'variance-tribunal.db';
 const DEFAULT_STORAGE = 'variance-tribunal-objects';
-
-/** Addresses that can only be reached from the machine the process is on. */
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
 export interface TribunalConfig {
   readonly port: number;
@@ -70,15 +70,11 @@ export interface TribunalConfig {
   /** Absolute, for the same reason. */
   readonly storage: string;
   readonly project: string;
-  readonly ingestToken: string;
-  readonly reviewToken: string;
-  /**
-   * Reads the share, the changelog and the decision history, and never decides.
-   * Absent when the variable is unset.
-   */
-  readonly shareToken?: string;
+  /** What `declaredPolicy` reads: the environment's names, unprefixed, defaults applied. */
+  readonly declared: Readonly<Record<string, string>>;
   readonly retentionDays?: number;
-  readonly reviewer: string;
+  /** The address people reach this at, when a proxy stands in front of it. */
+  readonly origin?: string;
   /**
    * Whether the socket is reachable only from this machine.
    *
@@ -109,15 +105,12 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
 
   const host = orDefault(env[HOST_VARIABLE], DEFAULT_HOST);
   const loopback = LOOPBACK.has(host);
-  // This service has bearer tokens and no accounts, no TLS and no rate limit, so
-  // a network bind is a decision somebody should have typed. The review surface
-  // is not served on one, because nothing would stand between it and an approve
-  // button on the internet.
+  // This service has no TLS and no rate limit, so a network bind is a decision
+  // somebody should have typed.
   if (!loopback && orDefault(env[TRUST_NETWORK_VARIABLE], '') === '') {
     throw new Error(
       `${HOST_VARIABLE}=${host} is not loopback; set ${TRUST_NETWORK_VARIABLE}=1 to allow it. ` +
-        'The review UI is not served on a network bind: put the Next.js adapter behind your own ' +
-        'sign-in, or stay on loopback behind a reverse proxy that authenticates.',
+        `A network bind has no reviewer until ${REVIEW_CREDENTIALS_VARIABLE} declares github or access.`,
     );
   }
 
@@ -139,6 +132,8 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
     );
   }
 
+  const origin = originOf(env[ORIGIN_VARIABLE]);
+
   return {
     port,
     host,
@@ -146,51 +141,53 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
     database: resolve(orDefault(env[DATABASE_VARIABLE], DEFAULT_DATABASE)),
     storage: resolve(orDefault(env[STORAGE_VARIABLE], DEFAULT_STORAGE)),
     project,
-    // Passed through unvalidated: `createTribunal` refuses a short token and two
-    // identical ones, and a second copy of that rule here is a second place for
-    // it to be relaxed.
-    ingestToken: env[INGEST_TOKEN_VARIABLE] ?? '',
-    reviewToken: env[REVIEW_TOKEN_VARIABLE] ?? '',
-    ...(env[SHARE_TOKEN_VARIABLE] === undefined ? {} : { shareToken: env[SHARE_TOKEN_VARIABLE] }),
+    declared: declaredIn(env, loopback),
     ...(retentionDays === undefined ? {} : { retentionDays }),
-    reviewer: orDefault(env[REVIEWER_VARIABLE], defaultReviewer()),
+    ...(origin === undefined ? {} : { origin }),
   };
+}
+
+/** Sign-in sends GitHub back here, so an address with a path or no scheme is refused now rather than there. */
+function originOf(value: string | undefined): string | undefined {
+  const named = orDefault(value, '');
+  if (named === '') return undefined;
+
+  const parsed = URL.canParse(named) ? new URL(named) : null;
+  if (parsed === null || !/^https?:$/.test(parsed.protocol) || parsed.href !== `${parsed.origin}/`) {
+    throw new Error(`${ORIGIN_VARIABLE} must be a scheme and a host, such as https://review.example.com; received "${named}"`);
+  }
+  return parsed.origin;
 }
 
 /**
- * The one piece of policy this file owns: who is allowed what.
+ * The names `declaredPolicy` reads, with what a person starting this by hand means.
  *
- * `createTribunalRoutes` requires an `authorize` and gives it no default, on the
- * grounds that returning `'review'` for every request would publish an approve
- * button. This is a host writing that function in its own file, where the next
- * person can read it — which is exactly what that refusal asks for.
- *
- * Three rules, in order:
- *
- * 1. **A caller holding a token gets what the token is for.** CI posts with the
- *    ingest token from wherever CI runs, and a machine that only reads — the
- *    share, the changelog, the decision history — presents the share token. The mount replaces the header before the
- *    Worker sees it, so this is the only place the caller's own bearer is read.
- * 2. **On a loopback bind, a caller with no token reviews.** The socket is the
- *    gate: only this machine can reach it, and the person at this machine is the
- *    reviewer. This is what lets the served page work with no credential in it.
- * 3. **On a network bind, no token is no capability** — and the surface is not
- *    served at all, so there is no page to be tricked into carrying one.
+ * `token` for CI and `loopback` for the person at this machine are what a local
+ * service has always been, so they stay the defaults here, the one host where a
+ * default has somebody at the keyboard. The socket is the gate for `loopback`, so a
+ * network bind gets no reviewer unless one is declared.
  */
-export function authorizeFor(config: TribunalConfig): (request: Request) => Promise<Capability | null> {
-  return async (request: Request) => {
-    // The Worker's own check, so a token is compared in constant time here as
-    // it is there: one place decides which token a request presented.
-    if (bearerOf(request) !== null) return grant(request, config);
-    return config.loopback ? 'review' : null;
+function declaredIn(
+  env: Readonly<Record<string, string | undefined>>,
+  loopback: boolean,
+): Readonly<Record<string, string>> {
+  const named = Object.entries(env).flatMap(([name, value]) =>
+    name.startsWith(PREFIX) && value !== undefined ? [[name.slice(PREFIX.length), value] as const] : [],
+  );
+  return {
+    INGEST_CREDENTIALS: 'token',
+    ...(loopback ? { REVIEW_CREDENTIALS: 'loopback', REVIEWER: defaultReviewer() } : {}),
+    ...Object.fromEntries(named),
   };
 }
 
-function bearerOf(request: Request): string | null {
-  const header = request.headers.get('authorization');
-  if (header === null) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  return match === null ? null : (match[1] as string);
+/** Who this service recognizes: the same reading a Worker does, over the same names. */
+export function policyFor(config: TribunalConfig, log?: (line: string) => void): Policy {
+  return declaredPolicy(config.declared, {
+    loopback: config.loopback,
+    ...(config.origin === undefined ? {} : { origin: config.origin }),
+    ...(log === undefined ? {} : { log }),
+  });
 }
 
 export interface RunningTribunal extends TribunalService {
@@ -201,8 +198,8 @@ export interface RunningTribunal extends TribunalService {
  * Open the file, make the directory, bind the port, and say what was done.
  *
  * The startup line names the absolute database path, the absolute object
- * directory, the project, the schema version and the bind address, and names
- * neither token. Everything an operator needs to confirm they configured the
+ * directory, the project, the schema version and the bind address, and no secret.
+ * Everything an operator needs to confirm they configured the
  * right thing, and nothing that turns a shipped log into a credential.
  */
 export async function start(
@@ -210,6 +207,7 @@ export async function start(
   write: (line: string) => void = (line) => process.stdout.write(line),
 ): Promise<RunningTribunal> {
   const config = readConfig(env);
+  const { ingest, review, people } = declaration(config.declared);
   const database = await openDatabase(config.database);
 
   let service: TribunalService;
@@ -218,9 +216,7 @@ export async function start(
       db: database,
       bucket: createDirectoryBucket(config.storage),
       project: config.project,
-      ingestToken: config.ingestToken,
-      reviewToken: config.reviewToken,
-      ...(config.shareToken === undefined ? {} : { shareToken: config.shareToken }),
+      policy: policyFor(config),
       ...(config.retentionDays === undefined ? {} : { retentionDays: config.retentionDays }),
     });
 
@@ -228,17 +224,11 @@ export async function start(
       tribunal,
       host: config.host,
       port: config.port,
-      authorize: authorizeFor(config),
-      tokens: {
-        ingest: config.ingestToken,
-        review: config.reviewToken,
-        ...(config.shareToken === undefined ? {} : { share: config.shareToken }),
-      },
-      ui: config.loopback,
-      reviewer: config.reviewer,
+      ui: people,
+      ...(config.origin === undefined ? {} : { origin: config.origin }),
     });
   } catch (error) {
-    // A refused token or a taken port leaves the database open otherwise, holding
+    // A refused declaration or a taken port leaves the database open otherwise, holding
     // its lock against the process the operator is about to start instead.
     database.close();
     throw error;
@@ -250,13 +240,13 @@ export async function start(
       `  database: ${config.database} (schema version ${database.version})\n` +
       `  objects:  ${config.storage}\n` +
       `  review:   ${
-        config.loopback
-          ? `served at ${service.url} — this bind is reachable only from this machine`
-          : `not served: ${HOST_VARIABLE} is a network address. The JSON API is up and wants a bearer token`
+        review.length > 0
+          ? `served at ${service.url} to ${review.join(', ')}`
+          : people
+            ? `served at ${service.url} to anybody who reads. ${REVIEW_CREDENTIALS_VARIABLE} declares nobody to decide`
+            : `not served: ${REVIEW_CREDENTIALS_VARIABLE} declares nobody. The JSON API is up`
       }\n` +
-      `  auth:     bearer tokens from ${INGEST_TOKEN_VARIABLE} and ${REVIEW_TOKEN_VARIABLE}` +
-      (config.shareToken === undefined ? '' : `, and a reader's from ${SHARE_TOKEN_VARIABLE}`) +
-      '\n',
+      `  ingest:   ${ingest.join(', ')}\n`,
   );
 
   return {
@@ -337,13 +327,15 @@ const AS_VARIABLE: Readonly<Record<string, string>> = {
 /** Every variable, in the order somebody sets them. */
 const VARIABLES: readonly (readonly [string, string])[] = [
   [PROJECT_VARIABLE, 'required — scopes every row and every object key'],
-  [INGEST_TOKEN_VARIABLE, 'required — what CI pushes with'],
-  [REVIEW_TOKEN_VARIABLE, 'required — what a person decides with'],
+  [INGEST_CREDENTIALS_VARIABLE, 'token (default) or github-actions — what may write a run'],
+  [INGEST_TOKEN_VARIABLE, 'required with token — what CI pushes with'],
+  [REVIEW_CREDENTIALS_VARIABLE, 'loopback (default on loopback), github or access — who may decide'],
   [SHARE_TOKEN_VARIABLE, 'optional — what a machine reads the share, the changelog and the decisions with; it never decides'],
+  ['VARIANCE_TRIBUNAL_VIEW', 'public opens reading to anybody; deciding stays named'],
   [DATABASE_VARIABLE, `the SQLite file (default ${DEFAULT_DATABASE})`],
   [STORAGE_VARIABLE, `where images are kept (default ${DEFAULT_STORAGE})`],
   [PORT_VARIABLE, `default ${DEFAULT_PORT}`],
-  [HOST_VARIABLE, `default ${DEFAULT_HOST}; a network bind serves no review page`],
+  [HOST_VARIABLE, `default ${DEFAULT_HOST}; a network bind declares who decides`],
   [TRUST_NETWORK_VARIABLE, 'confirms a network bind was meant'],
   [RETENTION_VARIABLE, 'days after which a build is swept'],
   [REVIEWER_VARIABLE, 'the name a decision is recorded under'],
@@ -355,7 +347,7 @@ const VARIABLES: readonly (readonly [string, string])[] = [
  */
 const USAGE = ((widest: number) =>
   [
-    'variance-authority-tribunal — a process, a port, a file and two tokens.',
+    'variance-authority-tribunal — a process, a port, a file and whoever you declare.',
     '',
     'Configured by environment. There are no flags.',
     '',

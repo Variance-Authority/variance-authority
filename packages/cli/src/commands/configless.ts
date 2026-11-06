@@ -20,7 +20,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
 import { writePieces } from '../json-pieces.js';
@@ -137,15 +137,18 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const [{ answerGaps, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+      const [{ answerGaps, answerSays, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
         import('./covering-suites.js'),
         import('./evidence-gap.js'),
       ]);
       try {
         const answer = await coveringAnswer(parsed);
         streams.out(formatCoveringAnswer(answer, parsed.format, Date.now()));
-        // Under `refs` stdout is a list a runner takes, so the run that closes a gap goes to the person, on stderr.
-        if (parsed.format === 'refs') for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
+        // Under `refs` stdout is a list a runner takes, so whose record it read, and the run that closes a gap, go to the person, on stderr.
+        if (parsed.format === 'refs') {
+          for (const says of answerSays(answer)) streams.err(`${says}\n`);
+          for (const gap of answerGaps(answer)) streams.err(`${evidenceGapText(gap)}\n`);
+        }
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
@@ -183,9 +186,11 @@ export async function answerConfigless(
     }
 
     case 'coverage': {
-      const [{ coverage }, { formatCoverage }] = await Promise.all([import('./coverage.js'), import('./coverage-text.js')]);
+      const [{ coverage }, { formatCoverage }, { textOver }] = await Promise.all([
+        import('./coverage.js'), import('./coverage-text.js'), import('./coverage-over-text.js'),
+      ]);
       try {
-        streams.out(formatCoverage(await coverage(parsed), parsed.format));
+        streams.out(formatCoverage(await coverage(parsed, textOver), parsed.format));
       } catch (error) {
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
           streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
@@ -245,7 +250,9 @@ export async function answerConfigless(
       ]);
       // On stderr, beside the waiting lines: stdout is the answer a pipeline reads.
       const ticker = stepTicker((text) => streams.err(text), process.stderr.isTTY === true);
-      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress };
+      // A walk that failed is the operator's, told once every line is printed.
+      let failed = false;
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress, failed: () => { failed = true; } };
       const waiting = (text: string): void => streams.err(text);
       try {
         if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
@@ -253,7 +260,7 @@ export async function answerConfigless(
       } finally {
         ticker.done();
       }
-      return EXIT_CLEAN;
+      return failed ? EXIT_OPERATOR : EXIT_CLEAN;
     }
 
     // `watch`'s reason, one step further out. This one is asked *by somebody

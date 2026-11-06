@@ -1,10 +1,13 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { digestString } from '@variance-authority/core/format';
 import { MINUTE, PAY, indexOf, iso, oneRun, recordFixture, type Fixture } from './covering-record.fixture.js';
+
+// `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
+vi.mock('ci-info', () => ({ isCI: false }));
 
 /**
  * Every `covering` answer about a file says where the record's line numbers
@@ -68,6 +71,19 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(refs).toMatch(/src\/pay\.ts function pay( \w+)? edited: .*; no case ran 2-4 branch( \w+)? edited$/mu);
   });
 
+  it('calls an asked line or function the same in both texts when the edit since its run only wrote comments in it, as a count of what ran over this text does', async () => {
+    const { at } = await checkout({ runs: ranHere() });
+    await writeFile(join(at, 'src/pay.ts'), PAY
+      .replace('  if (amount < 0) {', '  // a refund is not a payment\n  if (amount < 0) {')
+      .replace('  return amount;', '  return amount; // already rounded'));
+    const named = await ask(at, '--file', 'src/pay.ts', '--function', 'pay');
+    const line = await ask(at, '--file', 'src/pay.ts', '--line', '6');
+
+    expect(named.json).toMatchObject({ frame: 'mapped', ran: { stands: [{ text: 'other', region: 'same' }] } });
+    expect(named.text).toContain('`pay` is the same in both.\n');
+    expect(line.json).toMatchObject({ frame: 'mapped', ran: { stands: [{ text: 'other', region: 'same' }] } });
+  });
+
   it('says no recorded line is a place in a file whose numbering text could not be found', async () => {
     const ranOver = `// never committed\n${PAY}`;
     const { at, commit } = await checkout({ ranOver, runs: ranHere({ 'src/pay.ts': digestString(ranOver) }) });
@@ -92,7 +108,7 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     );
   });
 
-  it('frames no file by a row the build did not instrument, as no other reader of a record does, and compares no text by it', async () => {
+  it('frames no file by a row the build did not instrument, as no other reader of a record does, and still compares the text the row names', async () => {
     // A run outside a checkout stood at no commit, so the snapshot it wrote is all that says which text it ran over.
     const landed = iso(Date.now() - 6 * MINUTE);
     const { at } = await checkout({
@@ -104,9 +120,8 @@ describe('a covering answer says where the record\'s line numbers stand in the a
 
     expect(json).not.toHaveProperty('frame');
     expect(text).toContain('The record does not say which text of src/pay.ts its lines are numbered in, so they are given as recorded.\n');
-    expect(text).toContain(
-      'Whether src/pay.test.ts ran over src/pay.ts as it is now, in a run that landed 6 minutes ago, is not known: the record holds no digest of the text of src/pay.ts it ran over.\n',
-    );
+    // The row names the text the run loaded, by its git blob as the source index names the file on disk: a frame needs regions, a comparison does not.
+    expect(text).toContain('src/pay.ts is the text the test file named here ran over, in a run that landed 6 minutes ago.\n');
   });
 
   it('gives the lines as recorded when the record holds no row of the file', async () => {
@@ -174,17 +189,17 @@ describe('a covering answer says where the record\'s line numbers stand in the a
     expect(edited.text).toContain('The recorded lines of src/pay.ts are placed in its text as it is now.\n');
   });
 
-  it('refuses a change it cannot read from the ref when the record names no commit to read it from, rather than saying nothing changed', async () => {
+  it('refuses a change it cannot read from the ref once, before any suite reads a record, rather than saying nothing changed', async () => {
     const { at } = await checkout({ recordedAt: null });
-    const refusal = '`--since no-such-ref` could not be read as a diff. Check the ref exists and that this is a git checkout; ' +
-      'an empty answer here would read as `your change touches nothing`.';
+    const refusal = '`--since no-such-ref` could not be read as a diff. Check the ref exists and that this is a git checkout ' +
+      '(a shallow CI clone needs every commit: `fetch-depth: 0` with `filter: tree:0`); an empty answer here would read as `your change touches nothing`.';
     // `git` reads the change from the working directory, as it does for a person asking in their checkout.
     process.chdir(at);
     try {
-      const { text, json } = await ask(at, '--since', 'no-such-ref');
-
-      expect(json).toEqual({ suite: 'unit', kind: 'unit', reason: refusal });
-      expect(text).toBe(`unit (unit): ${refusal}\n`);
+      let said = '';
+      const sink = (text: string) => void (said += text);
+      await expect(main(['covering', '--root', at, '--since', 'no-such-ref'], { out: sink, err: sink })).resolves.toBe(2);
+      expect(said).toContain(refusal);
     } finally {
       process.chdir(cwd);
     }

@@ -1,0 +1,39 @@
+name: variance tick
+
+# The box in the docket. A reviewer with write access ticks it, and this names
+# them in the comment and reruns the check that wrote it; that run accepts, in
+# the pull request's own cache scope and on its own head.
+#
+# `issue_comment` runs this file as the default branch has it, so nothing here
+# reads the pull request's code, and a pull request cannot change what a tick
+# does. The filter below only saves a runner: the comment is anybody's to edit
+# that can, and `.github/actions/variance/tick/tick.mjs` decides.
+on:
+  issue_comment:
+    types: [edited]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  tick:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.user.type == 'Bot' &&
+      github.event.sender.type != 'Bot' &&
+      contains(github.event.comment.body, 'variance-tick')
+    runs-on: ubuntu-latest
+    # Most of this is the wait for the run a tick reruns to finish.
+    timeout-minutes: 60
+    # Per comment, not per pull request: GitHub keeps one waiting run per group,
+    # and only this event knows who ticked, so a dropped one loses the name.
+    concurrency:
+      group: variance-tick-${{ github.event.comment.id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions/variance
+      - uses: ./.github/actions/variance/tick

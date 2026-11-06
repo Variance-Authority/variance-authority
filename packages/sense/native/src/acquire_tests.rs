@@ -89,3 +89,35 @@ fn a_decline_for_size_is_told_by_its_reason_and_held_while_the_file_is_over() {
     assert!(!declined_for_size("a.css", "a.css is not UTF-8, so this scan does not parse it: stream"));
     assert!((over, fits, gone) == (true, false, false));
 }
+
+const POINTER: &str = "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 20\n";
+
+#[test]
+fn a_blob_git_holds_as_an_lfs_pointer_is_read_from_the_checkout_that_smudged_it() {
+    let root = std::env::temp_dir().join(format!("sense-acquire-lfs-blob-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("a.ts"), b"export const a = 1;\n").unwrap();
+    let mut stream = Cursor::new(format!("oid blob {}\n{POINTER}\n", POINTER.len()).into_bytes());
+    let arenas = AllocatorPool::new(1);
+
+    let (read, digest, outcome) = read_blob(&root, "a.ts", &mut stream, 1024, true, &arenas, true);
+    std::fs::remove_dir_all(&root).unwrap();
+
+    assert_eq!(outcome, Outcome::Parsed);
+    assert_eq!(digest, crate::digest::of_string("export const a = 1;\n"), "the content is read, not the pointer");
+    assert!(read.unknown.is_none());
+}
+
+#[test]
+fn a_checkout_holding_an_lfs_pointer_fails_the_file_and_says_why() {
+    let root = std::env::temp_dir().join(format!("sense-acquire-lfs-disk-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("a.ts"), POINTER).unwrap();
+
+    let opened = open(&root, "a.ts", 1024, false).1;
+    std::fs::remove_dir_all(&root).unwrap();
+
+    let Opened::Settled(read, outcome) = opened else { panic!("a pointer is never parsed as source") };
+    assert_eq!(outcome, Outcome::Failed, "a `git lfs pull` changes the bytes, not the object a decline is kept by");
+    assert!(read.unknown.unwrap().starts_with("a.ts is a git-LFS pointer"));
+}

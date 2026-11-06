@@ -32,11 +32,13 @@ import { resolve } from 'node:path';
 import { digestOfSha256 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
+import { namesOnDisk } from '../tree.js';
 import { workingTreeChanges, type WorkingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
-import type { CoverageTest, TestCoverage } from './index.js';
+import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { findModules, findString } from './lookup.js';
+import { blobsAt } from './recorded-text.js';
 import { writeCoverageBytes } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -108,6 +110,42 @@ export async function keepRecordedTexts(tree: LandedTree | undefined, record: Te
     if (await keepText(top, digest, text)) kept.push(digest);
   }
   return kept;
+}
+
+/**
+ * The name git gives the text each row a landing writes was cut from: each
+ * module `current` recorded, and each of `onDisk`, carried modules cut again.
+ * Named as the source index names a file, so a reader asks the index, not the
+ * tree. Nothing with no `tree` to ask: the rows name no text.
+ */
+export async function landedNames(
+  tree: LandedTree | undefined,
+  current: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[],
+  onDisk: ReadonlyMap<string, string>,
+): Promise<ReadonlyMap<string, string>> {
+  if (tree === undefined) return new Map();
+  const dirty = new Set(tree.changes.changed);
+  const gone = new Set(tree.changes.gone);
+  const asked = [...new Set([...current.map((module) => module.file), ...onDisk.keys()])].filter((file) => !gone.has(file));
+  // A clean module by the commit, whose text the run read unless it was edited and put back while it ran.
+  const clean = asked.filter((file) => !dirty.has(file));
+  const names = new Map([
+    ...clean.length === 0 ? [] : blobsAt(tree.repository, new Map([['HEAD', clean]])).get('HEAD') ?? [],
+    ...await namesOnDisk(tree.repository, asked.filter((file) => dirty.has(file))),
+  ]);
+  // A dirty one only when the disk holds the text its row was cut from, as `keepRecordedTexts` keeps one:
+  // an edit made while the suite ran names a text the run never read.
+  await Promise.all(current.filter((module) => dirty.has(module.file) && !onDisk.has(module.file)).map(async (module) => {
+    let text: string;
+    try {
+      text = await readFile(resolve(tree.repository, module.file), 'utf8');
+    } catch {
+      names.delete(module.file);
+      return;
+    }
+    if (digestString(text) !== module.sourceDigest) names.delete(module.file);
+  }));
+  return names;
 }
 
 /**

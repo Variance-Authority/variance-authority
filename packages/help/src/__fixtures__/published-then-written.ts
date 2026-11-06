@@ -20,7 +20,7 @@ function write(root: string, files: Readonly<Record<string, string>>): void {
 }
 
 /** The cache and the checkouts made under it, and how to remove them. */
-export function publishing(): { readonly cache: () => string; readonly published: () => Promise<string>; readonly before: () => void; readonly after: () => void } {
+export function publishing(): { readonly cache: () => string; readonly published: (also?: Readonly<Record<string, string>>) => Promise<string>; readonly before: () => void; readonly after: () => void } {
   let cache = '';
   let previous: string | undefined;
   const made: string[] = [];
@@ -37,7 +37,7 @@ export function publishing(): { readonly cache: () => string; readonly published
       else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
       for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
     },
-    published: async () => {
+    published: async (also = {}) => {
       // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
       const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-caught-')));
       made.push(root);
@@ -46,6 +46,7 @@ export function publishing(): { readonly cache: () => string; readonly published
         'package.json': JSON.stringify({ private: true, workspaces: ['packages/*'] }),
         'packages/kit/package.json': JSON.stringify({ name: '@acme/kit' }),
         'packages/kit/src/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 5;\n}\n',
+        ...also,
       });
       await readWorkspace(root);
       write(root, { 'packages/kit/src/kept.ts': 'export function keptOf(amount: number): number {\n  return amount;\n}\n' });

@@ -1,0 +1,370 @@
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+import { isolateEnv, isolateGlobals } from './globals.js';
+import { perSession } from './per-session.js';
+import { isolateTimers } from './timers.js';
+import { endLoad, realm, startLoad, switchTo, testSession } from './realm.js';
+import { addSessionSource, nextSession } from './session.js';
+
+const REALM = Symbol.for('@variance-authority/isolator');
+
+/** A realm of the test's own, so a suite that runs this file through the isolator keeps its sessions. */
+beforeEach(() => {
+  const host = globalThis as Record<symbol, unknown>;
+  const kept = host[REALM];
+  delete host[REALM];
+  onTestFinished(() => {
+    host[REALM] = kept;
+  });
+  nextSession();
+});
+
+/** Enter a test of the current file, as ioc's driver does; the returned function leaves it. */
+const enterTest = (): (() => void) => {
+  const session = testSession();
+  switchTo(session, undefined);
+  return () => switchTo(realm().file, session);
+};
+
+/** Start over at setup: a realm in which no session has started yet. */
+const atSetup = () => {
+  delete (globalThis as Record<symbol, unknown>)[REALM];
+};
+
+/** Run `body` as a rewritten module's top level runs. */
+const loading = (body: () => void) => {
+  startLoad();
+  try {
+    body();
+  } finally {
+    endLoad();
+  }
+};
+
+describe('perSession', () => {
+  it('gives each test its own writes, starting from what its file wrote', () => {
+    const registry = perSession<Record<string, unknown>>({ base: 1 });
+    registry.file = 'set';
+    const leave = enterTest();
+    expect(registry.file).toBe('set');
+    registry.test = 'mine';
+    delete registry.base;
+    expect(Object.keys(registry)).toEqual(['file', 'test']);
+    leave();
+    expect(registry).toEqual({ base: 1, file: 'set' });
+    expect('test' in registry).toBe(false);
+  });
+
+  it('starts each file from the object, and leaves the object as it was', () => {
+    const object: Record<string, unknown> = { base: 1 };
+    const registry = perSession(object);
+    registry.base = 2;
+    nextSession();
+    expect(registry.base).toBe(1);
+    expect(object).toEqual({ base: 1 });
+  });
+
+  it('keeps what a module writes as it loads, in every session alive and every one to come', () => {
+    const object: Record<string, unknown> = {};
+    const registry = perSession(object);
+    registry.file = true;
+    const leave = enterTest();
+    loading(() => {
+      registry.loaded = { count: 1 };
+    });
+    expect(registry.loaded).toEqual({ count: 1 });
+    leave();
+    expect(registry).toEqual({ file: true, loaded: { count: 1 } });
+    nextSession();
+    expect(registry).toEqual({ loaded: { count: 1 } });
+    expect(object.loaded).toEqual({ count: 1 });
+  });
+
+  it('lands what a module pushes into a held array as it loads in every session alive', () => {
+    const registry = perSession<{ items: string[] }>({ items: [] });
+    registry.items.push('file');
+    const leave = enterTest();
+    loading(() => {
+      registry.items.push('loaded');
+    });
+    expect(registry.items).toEqual(['file', 'loaded']);
+    leave();
+    expect(registry.items).toEqual(['file', 'loaded']);
+    nextSession();
+    expect(registry.items).toEqual(['loaded']);
+  });
+
+  it('keeps what setup writes before any session starts, in every session to come', () => {
+    atSetup();
+    const object: Record<string, unknown> = {};
+    const registry = perSession(object);
+    registry.setup = 'kept';
+    nextSession();
+    expect(registry.setup).toBe('kept');
+    const leave = enterTest();
+    registry.setup = 'test';
+    leave();
+    expect(registry.setup).toBe('kept');
+  });
+
+  it('refuses a property fixed for good, which no session could take back', () => {
+    const registry = perSession<Record<string, unknown>>({});
+    expect(() => Object.defineProperty(registry, 'fixed', { value: 1, configurable: false })).toThrow(TypeError);
+    expect('fixed' in registry).toBe(false);
+  });
+
+  it('defines what a module defines as it loads in every session alive, and leaves a session free to redefine it', () => {
+    const object: Record<string, unknown> = {};
+    const registry = perSession(object);
+    const leave = enterTest();
+    loading(() => {
+      Object.defineProperty(registry, 'loaded', { value: 1, enumerable: true, writable: true, configurable: true });
+    });
+    expect(registry.loaded).toBe(1);
+    Object.defineProperty(registry, 'loaded', { value: 2, enumerable: true, configurable: true });
+    leave();
+    expect(registry.loaded).toBe(1);
+    nextSession();
+    expect(registry.loaded).toBe(1);
+    expect(object.loaded).toBe(1);
+  });
+
+  it('keeps one object one object in a session, however many properties hold it', () => {
+    const shared = { count: 0 };
+    const registry = perSession({ first: shared, second: shared });
+    const leave = enterTest();
+    registry.first.count = 1;
+    expect(registry.second).toBe(registry.first);
+    expect(registry.second.count).toBe(1);
+    leave();
+    expect(registry.second.count).toBe(0);
+  });
+
+  it('gives each test its own Map, starting from what its file set', () => {
+    const registry = perSession(new Map<string, number>([['base', 1]]));
+    registry.set('file', 2);
+    const leave = enterTest();
+    registry.set('test', 3);
+    registry.delete('base');
+    expect([...registry.keys()]).toEqual(['file', 'test']);
+    expect(registry.size).toBe(2);
+    leave();
+    expect([...registry]).toEqual([['base', 1], ['file', 2]]);
+    nextSession();
+    expect(registry.get('base')).toBe(1);
+    expect(registry.has('file')).toBe(false);
+  });
+
+  it('gives each test its own Set, and keeps what a module adds as it loads', () => {
+    const registry = perSession(new Set<string>());
+    const leave = enterTest();
+    registry.add('test');
+    loading(() => {
+      registry.add('loaded');
+    });
+    expect(registry.has('test')).toBe(true);
+    leave();
+    expect([...registry]).toEqual(['loaded']);
+    nextSession();
+    expect([...registry]).toEqual(['loaded']);
+  });
+
+  it('stores and tells of a value defined as a property, as of one assigned', () => {
+    const wrote: PropertyKey[] = [];
+    const registry = perSession<Record<string, unknown>>({}, { store: String, wrote: (key) => void wrote.push(key) });
+    Object.defineProperty(registry, 'port', { value: 3000, enumerable: true, writable: true, configurable: true });
+    expect(registry.port).toBe('3000');
+    expect(wrote).toEqual(['port']);
+  });
+
+  it('stores a value as the object would store it', () => {
+    const registry = perSession<Record<string, unknown>>({}, { store: String });
+    registry.port = 3000;
+    expect(registry.port).toBe('3000');
+  });
+});
+
+describe('isolateEnv', () => {
+  afterEach(() => {
+    delete process.env.VA_ISOLATED;
+  });
+
+  it('drops what a test sets in process.env as the test ends, and keeps what its file set', () => {
+    const undo = isolateEnv();
+    onTestFinished(undo);
+    process.env.VA_ISOLATED = 'file';
+    const leave = enterTest();
+    process.env.VA_ISOLATED = 'test';
+    process.env.VA_TEST_ONLY = '1';
+    leave();
+    expect(process.env.VA_ISOLATED).toBe('file');
+    expect(process.env.VA_TEST_ONLY).toBeUndefined();
+    nextSession();
+    expect(process.env.VA_ISOLATED).toBeUndefined();
+  });
+
+  it('writes TZ through to the environment Node reads, and puts it back as the test ends', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    const undo = isolateEnv();
+    onTestFinished(undo);
+    const leave = enterTest();
+    process.env.TZ = 'Asia/Tokyo';
+    expect(new Date(0).getTimezoneOffset()).toBe(-540);
+    leave();
+    expect(process.env.TZ).toBe(before);
+    process.env.TZ = 'UTC';
+    expect(new Date(0).getTimezoneOffset()).toBe(0);
+  });
+
+  it('writes a TZ defined as a property through to the environment Node reads', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    onTestFinished(isolateEnv());
+    Object.defineProperty(process.env, 'TZ', { value: 'Asia/Tokyo', enumerable: true, writable: true, configurable: true });
+    expect(new Date(0).getTimezoneOffset()).toBe(-540);
+  });
+
+  it('leaves the timezone Node reads to the fallback session, while a source answers with a session of its own', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    onTestFinished(isolateEnv());
+    process.env.TZ = 'UTC';
+    let inside = false;
+    const own = {};
+    onTestFinished(addSessionSource(() => (inside ? own : undefined)));
+    inside = true;
+    process.env.TZ = 'Asia/Tokyo';
+    expect(process.env.TZ).toBe('Asia/Tokyo');
+    inside = false;
+    expect(process.env.TZ).toBe('UTC');
+    expect(new Date(0).getTimezoneOffset()).toBe(0);
+  });
+
+  it('starts the next file from the TZ the environment held before the first', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    const undo = isolateEnv();
+    onTestFinished(undo);
+    process.env.TZ = 'Asia/Tokyo';
+    nextSession();
+    expect(process.env.TZ).toBe(before);
+  });
+
+  it('installs nothing where there is no process, as in a browser', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'process')!;
+    Object.defineProperty(globalThis, 'process', { value: undefined, configurable: true, writable: true });
+    let undo: () => void;
+    try {
+      undo = isolateEnv();
+    } finally {
+      Object.defineProperty(globalThis, 'process', descriptor);
+    }
+    expect(undo).toBeTypeOf('function');
+  });
+
+  it('installs nothing on a second call', () => {
+    const undo = isolateEnv();
+    onTestFinished(undo);
+    const isolated = process.env;
+    const again = isolateEnv();
+    expect(process.env).toBe(isolated);
+    again();
+    expect(process.env).toBe(isolated);
+  });
+
+  it('puts TZ back as it found it when undone', () => {
+    const before = process.env.TZ;
+    onTestFinished(() => {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    });
+    const undo = isolateEnv();
+    process.env.TZ = 'Asia/Tokyo';
+    undo();
+    expect(process.env.TZ).toBe(before);
+  });
+
+  it('puts the environment object back when undone', () => {
+    const real = process.env;
+    isolateEnv()();
+    expect(process.env).toBe(real);
+  });
+});
+
+describe('isolateGlobals', () => {
+  it('removes what a test adds and puts back what it replaced, as the test ends', () => {
+    const target: Record<string, unknown> = { kept: 1 };
+    onTestFinished(isolateGlobals(target));
+    target.file = 'set';
+    const leave = enterTest();
+    target.added = true;
+    target.kept = 2;
+    delete target.file;
+    leave();
+    expect(target).toEqual({ kept: 1, file: 'set' });
+    nextSession();
+    expect(target).toEqual({ kept: 1 });
+  });
+
+  it('keeps what a module adds as it loads', () => {
+    const target: Record<string, unknown> = {};
+    onTestFinished(isolateGlobals(target));
+    const leave = enterTest();
+    loading(() => {
+      target.polyfill = 'loaded';
+    });
+    leave();
+    nextSession();
+    expect(target).toEqual({ polyfill: 'loaded' });
+  });
+
+  it('keeps what setup adds before any session starts', () => {
+    atSetup();
+    const target: Record<string, unknown> = {};
+    onTestFinished(isolateGlobals(target));
+    target.setup = 'kept';
+    nextSession();
+    expect(target).toEqual({ setup: 'kept' });
+  });
+
+  it('leaves a property that cannot be configured', () => {
+    const target: Record<string, unknown> = {};
+    onTestFinished(isolateGlobals(target));
+    const leave = enterTest();
+    Object.defineProperty(target, 'fixed', { value: 1, enumerable: true });
+    leave();
+    expect(target.fixed).toBe(1);
+  });
+
+  it('installs nothing on a second call, and keeps apart what isolates the same object', () => {
+    const target: Record<string, unknown> = {};
+    onTestFinished(isolateGlobals(target));
+    onTestFinished(isolateGlobals(target));
+    onTestFinished(isolateTimers(target as never));
+    const leave = enterTest();
+    target.added = true;
+    leave();
+    expect('added' in target).toBe(false);
+  });
+
+  it('stops when undone', () => {
+    const target: Record<string, unknown> = {};
+    isolateGlobals(target)();
+    const leave = enterTest();
+    target.added = true;
+    leave();
+    expect(target.added).toBe(true);
+  });
+});

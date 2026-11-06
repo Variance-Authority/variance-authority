@@ -26,6 +26,12 @@ fn a_guard_counts_branches_and_statements_after_an_early_exit() {
 }
 
 #[test]
+fn a_title_no_text_holds_is_no_title() {
+    let parsed = parse("a.test.ts", "it('\\uD800', () => {});\nit(`a${b}\\uD800`, () => {});\n").unwrap();
+    assert_eq!(parsed.fns.iter().map(|func| func.title.as_deref()).collect::<Vec<_>>(), [None, None]);
+}
+
+#[test]
 fn a_function_is_named_by_its_binding_key_or_the_call_it_is_handed_to() {
     let parsed = parse(
         "a.test.ts",

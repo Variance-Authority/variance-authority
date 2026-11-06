@@ -18,6 +18,7 @@ use std::path::Path;
 
 use rayon::prelude::*;
 
+use crate::commit_text::{absent, contents, Blob};
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
 use crate::package_graph::{fold, join_parses, At, Crossing};
@@ -62,9 +63,6 @@ pub(crate) struct Graph {
     pub calls_from: Vec<Vec<Vec<u32>>>,
     /// Specifiers the index did not answer, which the graph resolved itself.
     pub fell_back: u32,
-    /// Why the files were parsed as the working tree holds them rather than as
-    /// the recorded commit did; absent when the commit's tree was read.
-    pub tree: Option<String>,
 }
 
 pub(crate) fn code(path: &str) -> bool {
@@ -76,23 +74,53 @@ fn bare(value: &str) -> bool {
     !value.starts_with('.') && !value.starts_with('/')
 }
 
+/// Every source file whose text at a commit is not the checkout's: the ones
+/// that differ, as they were there, and the ones the commit never held. A file
+/// it does not name is the same on disk.
+#[derive(Debug)]
+pub(crate) struct Then {
+    changed: HashMap<String, Option<String>>,
+    /// Untracked and ignored paths, a directory as one entry ending in `/`.
+    untracked: Vec<String>,
+}
+
+impl Then {
+    /// `Some(None)` for a file the commit did not hold, `Some(text)` for one
+    /// that differs, and `None` for one the checkout holds as the commit did.
+    pub(crate) fn get(&self, file: &str) -> Option<&Option<String>> {
+        const ABSENT: &Option<String> = &None;
+        self.changed.get(file).or_else(|| {
+            let outside = self.untracked.iter().any(|path| path == file || (path.ends_with('/') && file.starts_with(path.as_str())));
+            outside.then_some(ABSENT)
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn contains_key(&self, file: &str) -> bool {
+        self.get(file).is_some()
+    }
+}
+
 /// The text of every source file that differs between `commit` and the
 /// working tree, as it was at `commit`: `None` for a file that did not exist
-/// there. One diff and one `cat-file --batch`, and in a partial clone one fetch
-/// and a second read for what it had not fetched ([`crate::promisor`]); a file
-/// not in the map is the same on disk. Renames are not detected: a file moved
-/// since the commit is a path the commit did not have, and the path it had is
-/// read from there under its own name. When git cannot answer, the reason,
-/// which the prepared file carries, since the graph is then the working tree's.
-pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
+/// there, as the diff names it by an object of all zeros, or as git lists it
+/// untracked or ignored, which the diff never names. One diff, and the objects
+/// it names read together as [`contents`] reads them. Renames are not
+/// detected: a file moved since the commit is a path the commit did not have,
+/// and the path it had is read from there under its own name.
+pub(crate) fn text_at(root: &str, commit: &str) -> Result<Then, String> {
+    let others = ["ls-files", "-z", "--others", "--directory", "--no-empty-directory"];
+    let (changed, untracked) = rayon::join(|| changed_at(root, commit), || crate::git::answer(root, &others, None));
+    let untracked = untracked.map_err(|why| format!("git could not list the files it does not track: {why}"))?;
+    let untracked = untracked.split(|&byte| byte == 0).filter(|path| !path.is_empty()).map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+    Ok(Then { changed: changed?, untracked })
+}
+
+fn changed_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
     let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
-    let Some(listed) = crate::git::git(root, &args, None) else {
-        let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
-        return Err(if known {
-            format!("git could not list what changed since commit {}", short(commit))
-        } else {
-            format!("commit {} is not in this checkout's object store", short(commit))
-        });
+    let listed = match crate::git::answer(root, &args, None) {
+        Ok(listed) => listed,
+        Err(why) => return Err(absent(root, commit).unwrap_or_else(|| format!("git could not list what changed since commit {}: {why}", short(commit)))),
     };
     // `:<mode> <mode> <object> <object> <status>` and then the path, each ended
     // by a NUL. The first object is the commit's, all zeros where it had none.
@@ -102,53 +130,22 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
         .filter_map(|pair| {
             let object = pair[0].split(|&byte| byte == b' ').nth(2)?;
             let object = String::from_utf8_lossy(object).into_owned();
-            Some((String::from_utf8_lossy(pair[1]).into_owned(), Some(object).filter(|object| object.bytes().any(|byte| byte != b'0'))))
+            // A submodule's entry names its commit, which is no file's text.
+            let file = !pair[0].starts_with(b":160000") && object.bytes().any(|byte| byte != b'0');
+            Some((String::from_utf8_lossy(pair[1]).into_owned(), Some(object).filter(|_| file)))
         })
         .filter(|(path, _)| code(path))
         .collect();
-    let mut texts = HashMap::new();
-    if changed.is_empty() {
-        return Ok(texts);
-    }
-    let unread = || format!("git could not read the files changed since commit {}", short(commit));
-    let files: Vec<&str> = changed.iter().map(|(file, _)| file.as_str()).collect();
-    let mut read = read_at(root, commit, &files, false).ok_or_else(unread)?;
-    let missing: Vec<usize> = (0..changed.len()).filter(|&at| read[at].is_none() && changed[at].1.is_some()).collect();
-    let oids: Vec<String> = missing.iter().filter_map(|&at| changed[at].1.clone()).collect();
-    if !missing.is_empty() && crate::promisor::fetch_missing(root, &oids) {
-        let files: Vec<&str> = missing.iter().map(|&at| changed[at].0.as_str()).collect();
-        for (at, text) in missing.iter().zip(read_at(root, commit, &files, true).ok_or_else(unread)?) {
-            read[*at] = text;
-        }
-    }
-    for ((file, _), text) in changed.into_iter().zip(read) {
-        texts.insert(file, text);
-    }
-    Ok(texts)
-}
-
-/// Each of `files` at `commit` from one `cat-file --batch`, `None` where it
-/// answers `missing`. Without `fetch`, an object a partial clone has not
-/// fetched is answered missing too, rather than fetched on its own.
-fn read_at(root: &str, commit: &str, files: &[&str], fetch: bool) -> Option<Vec<Option<String>>> {
-    let asked: String = files.iter().map(|file| format!("{commit}:./{file}\n")).collect();
-    let env: &[(&str, &str)] = if fetch { &[] } else { &[("GIT_NO_LAZY_FETCH", "1")] };
-    let out = crate::git::git_with(root, &["cat-file", "--batch"], Some(asked.into_bytes()), env)?;
-    let mut read = Vec::with_capacity(files.len());
-    let mut at = 0;
-    for _ in files {
-        let end = at + out.get(at..)?.iter().position(|&byte| byte == b'\n')?;
-        let head = String::from_utf8_lossy(&out[at..end]).into_owned();
-        at = end + 1;
-        if head.ends_with(" missing") {
-            read.push(None);
-            continue;
-        }
-        let size: usize = head.rsplit(' ').next()?.parse().ok()?;
-        read.push(Some(String::from_utf8_lossy(out.get(at..at + size)?).into_owned()));
-        at += size + 1;
-    }
-    Some(read)
+    let unread = |why: &str| format!("git could not read the files changed since commit {}: {why}", short(commit));
+    let read = {
+        let asked: Vec<Blob> = changed.iter().filter_map(|(path, oid)| Some(Blob { oid: oid.as_deref()?, path, commit })).collect();
+        contents(root, &asked).map_err(|why| unread(&why))?
+    };
+    let mut read = read.into_iter();
+    Ok(changed
+        .into_iter()
+        .map(|(file, oid)| (file, oid.and_then(|_| read.next()).map(|bytes| String::from_utf8_lossy(&bytes).into_owned())))
+        .collect())
 }
 
 /// A commit as the output names one.
@@ -196,14 +193,29 @@ struct Read {
     fell_back: u32,
 }
 
+/// `file` as the checkout holds it, for a file unchanged since the commit. A
+/// file the checkout does not hold is no text, and neither is one that is not
+/// UTF-8, which the scan declines too. A git-LFS pointer fails the read, as the
+/// scan fails it ([`crate::lfs::checked_out`]), never parsed as source; so does
+/// a file the system will not read, with its reason.
+pub(crate) fn on_disk(root: &str, file: &str) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(Path::new(root).join(file)) {
+        Ok(text) if crate::lfs::pointer(text.as_bytes()) => Err(crate::lfs::checked_out(file)),
+        Ok(text) => Ok(Some(text)),
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::InvalidData) => Ok(None),
+        Err(error) => Err(format!("{file} does not read: {error}")),
+    }
+}
+
 impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
-    /// `commit` is the commit the recording ran at, or why there is none.
+    /// `commit` is the commit the recording ran at; a file changed since it is
+    /// read from it, and one git cannot read fails the build with git's reason.
     /// `tsconfig` is the config the scan that built the index resolved under.
-    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], tsconfig: Tsconfig) -> Graph {
+    pub(crate) fn build(root: &str, layers: &[Layer], commit: &str, seeds: &[String], tsconfig: Tsconfig) -> Result<Graph, String> {
         let (then, index) = rayon::join(
-            || commit.map_err(str::to_owned).and_then(|commit| text_at(root, commit)),
+            || text_at(root, commit),
             || {
                 let folded = fold(layers);
                 let mut crossings: Vec<Crossing> = folded
@@ -226,9 +238,8 @@ impl Graph {
             targets: Vec::new(),
             calls_from: Vec::new(),
             fell_back: 0,
-            tree: None,
         };
-        let then = then.map_err(|why| graph.tree = Some(why)).ok();
+        let then = then?;
         let mut frontier: Vec<u32> = seeds.iter().map(|seed| graph.intern(seed)).collect();
         frontier.dedup();
         while !frontier.is_empty() {
@@ -236,13 +247,13 @@ impl Graph {
                 .par_iter()
                 .map(|&id| {
                     let file = graph.files[id as usize].as_str();
-                    let text = match then.as_ref().and_then(|then| then.get(file)) {
+                    let text = match then.get(file) {
                         Some(then) => then.clone(),
-                        None if code(file) => std::fs::read_to_string(absolute.join(file)).ok(),
+                        None if code(file) => on_disk(root, file)?,
                         None => None,
                     };
                     let Some(parsed) = text.filter(|_| code(file)).and_then(|text| parse(file, &text)) else {
-                        return Read { parsed: None, specs: Vec::new(), fell_back: 0 };
+                        return Ok(Read { parsed: None, specs: Vec::new(), fell_back: 0 });
                     };
                     let answered = by_file.get(file).and_then(|&at| answers(layers, &index[at]));
                     let mut written: Vec<&str> = parsed.imports.values().map(|import| import.spec.as_str()).collect();
@@ -267,9 +278,9 @@ impl Graph {
                             (spec.to_owned(), to)
                         })
                         .collect();
-                    Read { parsed: Some(parsed), specs, fell_back }
+                    Ok(Read { parsed: Some(parsed), specs, fell_back })
                 })
-                .collect();
+                .collect::<Result<_, String>>()?;
             let mut next = Vec::new();
             for (&id, read) in frontier.iter().zip(read) {
                 graph.fell_back += read.fell_back;
@@ -316,7 +327,7 @@ impl Graph {
             .collect();
         graph.targets = targets;
         graph.calls_from = calls_from;
-        graph
+        Ok(graph)
     }
 
     fn intern(&mut self, file: &str) -> u32 {

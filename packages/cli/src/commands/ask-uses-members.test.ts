@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages-fixture.js';
+import { checkout, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` over a member of an interface, a type literal or a
@@ -19,12 +19,12 @@ import { checkout, run } from './ask-packages-fixture.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-members-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-members-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 const SCANNER = {
@@ -61,6 +61,15 @@ describe('variance ask uses over a member', () => {
     expect(out).toContain(`${STOP}\n${ROUTE}`);
     expect(out).not.toContain('docs_grep');
     expect(out).not.toContain('elsewhere.ts');
+  });
+
+  it('names the member under the headline of a declaration its file keeps, before any use', async () => {
+    checkout(SCANNER);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, ...rest] = (await run(['ask', 'uses', '--name', 'resolveThings'])).out.split('\n');
+    expect(headline).toMatch(/^`resolveThings` \[const\] is declared, not exported, at packages\/lib\/src\/references\.ts:3/);
+    expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/lib/src/native.ts:2, a member of `Scanner`']);
   });
 
   it('says nothing of types for a name that is no member', async () => {

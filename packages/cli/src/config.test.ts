@@ -456,3 +456,23 @@ function attempt(value: unknown): ConfigError {
   }
   throw new Error('expected parseConfig to refuse this value');
 }
+
+describe('a credential the runner issues', () => {
+  it('takes the audience, and asks for nothing until it is used', () => {
+    const config = parseConfig(
+      { ...VALID, review: { endpoint: 'https://t.example', token: { 'github-actions': { audience: 'https://t.example' } } } },
+      OPTIONS,
+    );
+
+    expect(typeof config.review?.token).toBe('function');
+  });
+
+  it('refuses a declaration with no audience, naming the field', () => {
+    expect(() =>
+      parseConfig(
+        { ...VALID, review: { endpoint: 'https://t.example', token: { 'github-actions': {} } } },
+        OPTIONS,
+      ),
+    ).toThrow('review.token.github-actions.audience');
+  });
+});

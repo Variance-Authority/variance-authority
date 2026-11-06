@@ -1,10 +1,12 @@
 import { type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 
-/** The two directions of `variance share`, which take different inputs. */
+/** The directions of `variance share`, which take different inputs. */
 export interface ParsedShare {
   readonly command: 'share';
   readonly config: string;
+  /** Set when `--config` was given: a purge then removes from that config's share and no other. */
+  readonly configNamed?: boolean;
   /** The mainline to read. The pull request's base, else the listed one nearest `HEAD`. */
   readonly mainline?: string;
   /** Publish the report's suite index and subject costs rather than fetch mainline's. */
@@ -31,6 +33,8 @@ export interface ParsedShare {
    * selects. Empty when the mainline holds none.
    */
   readonly format?: 'text' | 'github';
+  /** Remove what is kept by commit, written more than this many days ago, rather than read or publish. */
+  readonly purgeOlderThan?: number;
 }
 
 /**
@@ -78,10 +82,20 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
   if (format !== undefined && (suite === undefined || publish)) {
     throw new OperatorError('`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote');
   }
+  const purge = flags.values.get('--purge-older-than');
+  if (purge !== undefined && !/^\d+$/u.test(purge)) {
+    throw new OperatorError(`--purge-older-than takes a whole number of days, not \`${purge}\``);
+  }
+  if (purge !== undefined && (publish || suite !== undefined || flags.positionals.length > 0)) {
+    // A record at a commit holds every suite's entries, so a purge names no suite.
+    throw new OperatorError('`--purge-older-than` removes whole records by commit, so it takes no `--publish`, `--suite` or report');
+  }
   return {
     command: 'share',
     config,
+    ...(flags.values.has('--config') ? { configNamed: true } : {}),
     publish,
+    ...(purge !== undefined ? { purgeOlderThan: Number(purge) } : {}),
     ...(mainline !== undefined ? { mainline } : {}),
     reports: flags.positionals,
     ...(suite !== undefined ? { suite } : {}),

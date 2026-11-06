@@ -30,6 +30,12 @@ export interface ExecutionTest {
    * which is not zero.
    */
   readonly duration?: number;
+  /**
+   * The milliseconds the case ran under, as the harness read them off its runner
+   * — the longest, where its frames name more than one. Absent where none could
+   * be read or the runner sets none, which is not a case that cannot time out.
+   */
+  readonly limit?: number;
   /** Every item the case said it arranged, unresolved; `[]` is heard-nothing, absent is unheard. */
   readonly said?: Said;
 }
@@ -398,6 +404,8 @@ export interface CoveringRegion {
  */
 export interface CoveringChange {
   readonly file: string;
+  /** The commit the record was made at, when that commit held no file by this name: the missing row is then no statement about the run. */
+  readonly absentAt?: string;
   /** Whether the index holds a module row for this file at all. */
   readonly recorded: boolean;
   readonly regions: readonly CoveringRegion[];

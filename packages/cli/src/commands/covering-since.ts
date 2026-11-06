@@ -4,12 +4,11 @@
  * coordinates, and each changed region stated over every case that reached it.
  */
 
-import { realpath } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
-import { changedLines, type CoveringRegion, type LineRange } from '@variance-authority/sense/test-selection';
+import { changedLines, changeInRecord, hunksByFile, type ChangeRead, type CoveringRegion, type LineRange } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { requireCommit, unreadDiff } from './base-diff.js';
 import { regionState } from './covering-frame.js';
-import { diffSince } from './since.js';
+import { diffPoint, diffSince, topLevel } from './since.js';
 import type { StatedRegion } from './covering.js';
 
 /** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
@@ -23,39 +22,60 @@ export function stated(listed: CoveringRegion, reached: CoveringRegion): StatedR
   };
 }
 
-/**
- * Every line a diff changed, in the index's coordinates: measured from the
- * commit the record was written at, when it names one, rather than from the
- * merge base with `ref`, since the index numbered its lines at that commit. A
- * hunk read at another end lands on another region, and a wrong list of test
- * names reads exactly like a right one.
- */
-export async function changeSince(
-  since: string,
-  root: string,
-  at: string | undefined,
-): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const diff = await diffSince(since, [], at);
-  if (diff === undefined) {
-    throw new OperatorError(
-      `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a ` +
-        'git checkout; an empty answer here would read as `your change touches nothing`.',
-    );
-  }
+/** What a change changed, read once for every suite asked: the commit it parted from `since` at, and its diff from there, with no lines when it changed nothing. */
+export interface ListedChange extends ChangeRead {
+  readonly base: string;
+  /** The change in the numbers of each record commit asked: suites that stand on one commit read its diff once. */
+  readonly inRecords: Map<string, Promise<ReadonlyMap<string, readonly LineRange[]>>>;
+}
 
-  // `git` names files from the repository root and the index from the run's. The working directory is always
-  // a real path and `--root` is spelled however the caller spelled it; through a symlink (`/var` on macOS) the
-  // two never meet.
-  const here = process.cwd();
-  const base = await realpath(root);
-  const changed = new Map<string, readonly LineRange[]>();
-  for (const [file, ranges] of changedLines(diff)) {
-    changed.set(here === base ? file : relative(base, resolve(here, file)), ranges);
-  }
-  if (changed.size === 0) {
+const readChange = (diff: string): ChangeRead => ({ lines: changedLines(diff), hunks: hunksByFile(diff) });
+
+/**
+ * The change since `since`'s merge base. A ref that does not read is one
+ * refusal, before any record is read: every suite would give it the same way.
+ */
+export async function listedChange(since: string, root: string): Promise<ListedChange> {
+  const base = (await diffPoint(since, [], root))?.base;
+  const diff = base === undefined ? undefined : await diffSince(since, [], base, { cwd: root, unified: 0 });
+  if (base === undefined || diff === undefined) {
     throw new OperatorError(
-      `nothing has changed since \`${since}\`, so there is no region to ask about.`,
+      `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a git checkout ` +
+        '(a shallow CI clone needs every commit: `fetch-depth: 0` with `filter: tree:0`); ' +
+        'an empty answer here would read as `your change touches nothing`.',
+      { kind: 'undiffed' },
     );
   }
-  return changed;
+  return { base, ...readChange(diff), inRecords: new Map() };
+}
+
+/**
+ * Every line the change changed, named from `--root` as the diff names them,
+ * which is the index's coordinates. The listed change is the scope and the
+ * commit the record was written at only says how to read it, since a hunk read
+ * at another end lands on another region: every file listed stays, however much
+ * of it that record already holds.
+ */
+export async function changeSince(listed: ListedChange, since: string, root: string, at: string | undefined): Promise<ReadonlyMap<string, readonly LineRange[]>> {
+  return at === undefined || at === listed.base ? listed.lines : inRecordAt(listed, at, since, root);
+}
+
+/** The listed change in the numbers of `at`, read the first time that commit is asked. */
+function inRecordAt(listed: ListedChange, at: string, since: string, root: string): Promise<ReadonlyMap<string, readonly LineRange[]>> {
+  const read = listed.inRecords.get(at) ?? readFrom(at, since, root).then((diff) => changeInRecord(diff, listed));
+  listed.inRecords.set(at, read);
+  return read;
+}
+
+/** The diff from `at`. The listed change read, so what git could not read is from the record's commit. */
+async function readFrom(at: string, since: string, root: string): Promise<string> {
+  const diff = await diffSince(since, [], at, { cwd: root, unified: 0 });
+  if (diff !== undefined) return diff;
+  await requireCommit(at, (await topLevel(root)) ?? root, 'The record');
+  throw new OperatorError(unreadDiff('The record', at), { kind: 'undiffed' });
+}
+
+/** The refusal of a change with no region in it: each suite's reason, when a question reads them all. */
+export function nothingChanged(since: string): OperatorError {
+  return new OperatorError(`nothing has changed since \`${since}\`, so there is no region to ask about.`);
 }

@@ -26,6 +26,8 @@
 
 import { INSTRUMENTATION_ID, instrumentModeOf } from '@variance-authority/sense/instrument';
 import type { ExecutionBlock } from '@variance-authority/sense/test-selection';
+import { selectedMainline } from './mainline-selected.js';
+import { namedSuite } from './suite-record.js';
 
 /** A record cut under probes this build does not place. */
 export interface ProbesGap {
@@ -56,7 +58,8 @@ export async function probesGap(record: string, root: string, suite?: string): P
   if (under === undefined || instrumentModeOf(under) !== undefined) return undefined;
   let fetched: ReturnType<typeof selection.lastFetchedMainline>;
   try {
-    fetched = selection.lastFetchedMainline(root, suite);
+    const { name, declared } = await namedSuite(root, suite);
+    fetched = selection.lastFetchedMainline(root, name, undefined, await selectedMainline(root, declared));
   } catch {
     fetched = undefined;
   }
@@ -92,7 +95,12 @@ function identityOf(ask: (file: string, question: (view: { readonly instrumentat
 export async function cutGap(root: string, commit: string | undefined, file: string, blocks: readonly ExecutionBlock[]): Promise<CutGap> {
   if (commit === undefined) return { file, unread: 'the record names no commit, so the text it was made over is not known' };
   const { sourceCut, textAtRecording } = await import('@variance-authority/sense/test-selection');
-  const text = textAtRecording(root, [file])(file, commit);
+  let text: string | undefined;
+  try {
+    text = textAtRecording(root, [file])(file, commit);
+  } catch (error) {
+    return { file, unread: error instanceof Error ? error.message : String(error) };
+  }
   if (text === undefined) return { file, unread: `git holds no text of it at ${commit}` };
   const cut = sourceCut(text, file, 'presence');
   if (cut === undefined) return { file, unread: `this build cannot parse it as it stood at ${commit}` };

@@ -22,16 +22,52 @@ You start with none of the author's context, so its reasons are not yours
 until the evidence makes them so. You work in one of two modes.
 
 **Idea mode** comes first, before any code exists. You are given an issue
-number. Read it with `gh issue view <n>`. Its body is the author's case, so
-build yours first: do step 1 below from the issue's Problem alone, then ask
-each question in
-`.agents/references/escapes.md` of the idea. Then read the Evidence and open
-every item — the quote, the issue, the run, the measurement. Evidence that does
-not open, or does not say what the issue claims, is **nobody asked**. Then
-weigh the Change as step 2 weighs a diff: what it would make `main` carry for
-ever. Your verdict is **build** when no rejection with evidence stands, and
-otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is
-a verdict you may give; it is the only place it is.
+number. See first that the brief is all here, from its headings alone:
+
+```bash
+gh issue view <n> --json body --jq .body | awk '/^```/ { fence = !fence; next } !fence && /^#+ / { print; next } NF { print "  text" }' | uniq
+```
+
+A section of the brief in `.agents/references/refine.md` that is missing, out of
+order or has no text is not reviewed, and neither is one you find, as you read
+on, to hold only a placeholder: your verdict is **incomplete**, naming the
+section, and you stop. **Incomplete** rejects nothing: it says only that the case
+is not all here.
+
+The brief runs in a fixed order. What comes before the Root cause states the
+problem; the Root cause and what follows it are the author's case, so build yours
+without them, and print only the first part:
+
+```bash
+gh issue view <n> --json title,body --jq '.title, .body' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { exit } { print }'
+```
+
+Open every item of Evidence — the quote, the issue, the run, the measurement.
+Evidence that does not open, or does not say what the issue claims, is **nobody
+asked**. Do step 1 below from what you read, chain included. Only then print the
+rest, the labels last:
+
+```bash
+gh issue view <n> --json body,labels --jq '.body, .labels[].name' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { on = 1 } on'
+```
+
+Read the Root cause and hold it against your chain. A link that does not open, or
+does not say what the brief claims, is a guess whether it says so or not: the
+chain stops there, and your verdict names it. A guess rejects nothing by itself,
+because a missing proof is not proof of another cause. Then read the Affected
+and the Impact and challenge them against your case: what the scenario crosses, who is
+hurt, how often, at what cost, and why each RICE label holds. An Impact the
+Evidence does not carry is **nobody asked**; a label it does not carry is named
+in your verdict. Then read the Change. One that acts above the root and does not
+say why is **incomplete**, as a missing section is. Ask each question in
+`.agents/references/escapes.md` of it, and weigh it as step 2 weighs a diff: what
+it would make `main` carry for ever. Where links a reader can open show a cause
+lower than the brief's or other than it, that is **not the root**, unless a
+reason the Change gives for stopping above that cause still holds; a reason they
+defeat is **not the root** too. Where the chains differ and nothing opens to
+settle it, neither wins, and the difference is named in your verdict. Your verdict is **build** when no rejection with evidence stands, and
+otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is a
+verdict you may give, as is **incomplete**; it is the only place they are.
 
 **Diff mode** is the rest of these instructions, once the code is written.
 Every hunk that the issue's Change does not name is **nobody asked**, however
@@ -52,9 +88,12 @@ next:
    how often, and how would anyone know? Search `docs/specs/`,
    `docs/context/adr/`, `docs/context/journal/` and
    `docs/context/prior-art.md` for the subject: what was already decided,
-   tried, rejected or left to a neighbour. Name what already exists that
-   answers the task, or most of it, and the cheapest way to live without the
-   change: a sentence in a doc, a flag nobody needs to add, a neighbour's tool.
+   tried, rejected or left to a neighbour. Ask the whys of the problem as you
+   have it, as "The whys come before the Change" in
+   `.agents/references/refine.md` says, and write the chain down.
+   Name what already exists that answers the task, or most of it, and the
+   cheapest way to live without the change: a sentence in a doc, a flag nobody
+   needs to add, a neighbour's tool.
 2. **The diff.** Read it, and count what it adds that `main` has to carry for
    ever: files, exports, flags, options, configuration keys, concepts a reader
    must learn, words the project coins, tests, packages, dependencies, bytes in
@@ -74,6 +113,11 @@ Reasons you reject on, and you name the one you use:
   answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
+- **Not the root.** Escape 5: links a reader can open show a lower cause or
+  another one, or the change stops above the cause without a reason that holds.
+  Your chain is a hypothesis as the author's is, so every link it stands on is
+  something a reader can open. What stands at the root should be fixed or removed, which leaves this problem
+  nothing to answer.
 - **Too much for what it buys.** The cost in step 2 is out of proportion to the
   harm in step 1.
 - **Rejected before.** `docs/context/` already decided against it, and the

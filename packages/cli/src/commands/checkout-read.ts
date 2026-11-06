@@ -29,24 +29,24 @@ export async function checkoutRead(
   }
   const pinned = layer.pinned;
   const tests = layer.ran.flatMap((state) => state.files).length;
-  // Every git question the note asks is asked at once, and each commit once.
-  const contained = new Map(tests === 0 ? [] : [...new Set(layer.ran.map((state) => state.commit))].map((commit) => [commit, ancestor(cwd, commit)]));
+  // One process for the whole ledger, so a repaint costs the same however much this checkout ran.
+  const elsewhere = tests === 0 ? undefined : offBranch(cwd, layer.ran.map((state) => state.commit));
   const over = pinned === undefined
     ? "over the primary checkout's record, which is no mainline record"
     : `over mainline ${pinned.mainline} at ${short(pinned.commit)}, ${await since(cwd, pinned.commit)}`;
   const moved = repin === undefined ? '' : repin.repinned
     ? `; moved from ${short(repin.from)}${repin.dropped.length === 0 ? '' : `, and ${String(repin.dropped.length)} test file(s) that ran over older code than it are read from it now`}`
     : refused(repin.why);
-  if (tests === 0) return `${head}, ${over}${moved}; this checkout has run no test of it itself`;
+  if (elsewhere === undefined) return `${head}, ${over}${moved}; this checkout has run no test of it itself`;
+  const offHead = await elsewhere;
   return `${head}, ${over}${moved}; ${String(tests)} test file(s) ran here, every other is the mainline's: ` +
-    (await Promise.all(layer.ran.map((state) => stateRead(state, contained.get(state.commit)!)))).join('; ');
+    layer.ran.map((state) => stateRead(state, offHead)).join('; ');
 }
 
-async function stateRead(state: OwnState, contained: Promise<boolean | undefined>): Promise<string> {
+function stateRead(state: OwnState, offHead: ReadonlySet<string>): string {
   const files = state.files.length <= LISTED ? state.files.join(', ') : `${String(state.files.length)} test files`;
   const edits = state.tree === undefined ? '' : ` with uncommitted edits (tree ${short(state.tree)})`;
-  const elsewhere = (await contained) === false ? ', not on this branch' : '';
-  return `${files} at ${short(state.commit)}${edits}${elsewhere}`;
+  return `${files} at ${short(state.commit)}${edits}${offHead.has(state.commit) ? ', not on this branch' : ''}`;
 }
 
 function refused(why: RepinRefusal): string {
@@ -68,9 +68,10 @@ async function since(cwd: string, commit: string): Promise<string> {
   return count === undefined ? 'at a distance this clone cannot count' : `${String(count)} commit(s) before HEAD`;
 }
 
-async function ancestor(cwd: string, commit: string): Promise<boolean | undefined> {
-  const { code } = await ask(cwd, ['merge-base', '--is-ancestor', commit, 'HEAD']);
-  return code === 0 ? true : code === 1 ? false : undefined;
+/** Which of `commits` HEAD does not contain. A commit this clone does not hold is not among them: nothing says where it is. */
+async function offBranch(cwd: string, commits: readonly string[]): Promise<ReadonlySet<string>> {
+  const { code, out } = await ask(cwd, ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], `${[...new Set(commits)].join('\n')}\n`);
+  return new Set(code === 0 ? out.split('\n') : []);
 }
 
 function short(commit: string): string {

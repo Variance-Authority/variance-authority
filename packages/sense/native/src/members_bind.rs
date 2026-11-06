@@ -16,7 +16,7 @@ impl Walker<'_, '_> {
             BindingPattern::BindingIdentifier(it) => self.hold(it.symbol_id.get(), held),
             BindingPattern::ObjectPattern(it) => {
                 for property in &it.properties {
-                    let Some(name) = property.key.static_name() else {
+                    let Some(name) = property.key.static_name().and_then(|name| name.into_cow_str()) else {
                         self.add(held, WHOLE, property.span.start);
                         continue;
                     };
@@ -83,7 +83,7 @@ impl Walker<'_, '_> {
                             }
                         }
                         AssignmentTargetProperty::AssignmentTargetPropertyProperty(it) => {
-                            let Some(name) = it.name.static_name() else {
+                            let Some(name) = it.name.static_name().and_then(|name| name.into_cow_str()) else {
                                 self.add(held, WHOLE, it.span.start);
                                 continue;
                             };

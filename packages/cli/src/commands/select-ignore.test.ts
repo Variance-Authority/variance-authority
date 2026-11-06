@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { selectOutput } from './select-command.js';
@@ -21,12 +21,12 @@ describe('a changed file a suite ignores', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-ignore-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-ignore-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('runs the test of its importer in a suite that ignores nothing', async () => {
@@ -49,7 +49,8 @@ describe('a changed file a suite ignores', () => {
     const said = await select(root);
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\n');
-    expect(said.err).toContain(`the suite ignores 1 changed file (${file}) by its \`ignore\``);
+    expect(said.err).toContain('the suite ignores 1 changed file by its `ignore`');
+    expect(said.err).toContain(`read ${file}: unread (the suite's \`ignore\` matches it)`);
   });
 
   it('reads the files it does not ignore in the same change', async () => {
@@ -60,7 +61,8 @@ describe('a changed file a suite ignores', () => {
     const said = await select(root);
 
     expect(said.out).toBe('test/beta.test.ts\n');
-    expect(said.err).toContain('the suite ignores 1 changed file (src/logo.png)');
+    expect(said.err).toContain('the suite ignores 1 changed file by its `ignore`');
+    expect(said.err).toContain("read src/logo.png: unread (the suite's `ignore` matches it)");
   });
 
   it('lists what it ignored in `--format json`, apart from what it could not read', async () => {

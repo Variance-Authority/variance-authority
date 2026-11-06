@@ -14,7 +14,7 @@ import { BLOCK_KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import { askCoverageFile } from './coverage-file.js';
 import { findModules } from './lookup.js';
-import { cutAlike, sharesRegion, type Cut } from './region-landing.js';
+import { cutAlike, sameCut, sharesRegion, type Cut } from './region-landing.js';
 import { NO_LINE } from './written-lines.js';
 
 /** A case index's module, as {@link casesCutApart} reads it. */
@@ -46,7 +46,7 @@ export function casesCutApart(coverageFile: string, modules: readonly IndexedCut
     const apart = new Set<string>();
     for (const module of modules) {
       if (!rows.has(module.file)) rows.set(module.file, findModules(coverage, module.file).map((row) => snapshotCut(coverage, row)));
-      if (rows.get(module.file)!.some((cut) => !cutAlike(module, cut) || disjoint(module, cut))) apart.add(module.file);
+      if (rows.get(module.file)!.some((cut) => !sameCut(module, cut) && (!cutAlike(module, cut) || disjoint(module, cut)))) apart.add(module.file);
     }
     return apart;
   });

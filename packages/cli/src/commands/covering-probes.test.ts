@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   cacheRootFor,
@@ -13,13 +13,14 @@ import {
   writeFetchedMainline,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
 import { changed } from './review-fixture.js';
+import { cutGap } from './probes-gap.js';
 import { indexPosition } from './since.js';
 
 function parse(argv: readonly string[]) {
@@ -103,6 +104,10 @@ async function checkout(suites?: Record<string, object>): Promise<{ root: string
 }
 
 describe('a record cut under probes this build does not place', () => {
+  // `changed` works from inside the checkout it lays down.
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
   it('answers which cases ran the file, and names both probes and the question the difference leaves open', async () => {
     const execution = await recorded(RETIRED);
 
@@ -234,6 +239,16 @@ describe('a record cut under probes this build does not place', () => {
     await recorded(RETIRED, { at: testCoverageFile(root), commit: head });
 
     expect(await indexPosition(root)).toEqual({ commit: head, changed: 0 });
+  });
+});
+
+describe('the cut of a file at a commit git cannot read', () => {
+  it("leaves the question open with git's reason, not as a file the commit lacks", async () => {
+    const { root } = await checkout();
+
+    const gap = await cutGap(root, 'f'.repeat(40), 'src/total.ts', []);
+
+    expect(gap).toEqual({ file: 'src/total.ts', unread: expect.stringMatching(/^commit ffffffffffff is not in this checkout's object store/) });
   });
 });
 

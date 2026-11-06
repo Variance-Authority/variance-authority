@@ -88,7 +88,7 @@ pub(crate) fn exported_import(program: &Program) -> Vec<String> {
     let Some((local, scopes)) = assigned(program) else { return Vec::new() };
     scopes.into_iter().flatten().filter_map(|statement| match statement {
         Statement::TSImportEqualsDeclaration(it) if it.id.name == local.as_str() => match &it.module_reference {
-            TSModuleReference::ExternalModuleReference(reference) => Some(reference.expression.value.to_string()),
+            TSModuleReference::ExternalModuleReference(reference) => reference.expression.value.as_str().map(str::to_owned),
             _ => None,
         },
         _ => None,
@@ -117,6 +117,11 @@ mod tests {
     fn an_import_assigned_to_the_export_is_read_from_code() {
         let source = "import globbing = require(\"./lib/globbing\");\nexport = globbing;\n";
         assert_eq!(imported(source), ["./lib/globbing"]);
+    }
+
+    #[test]
+    fn an_import_no_text_holds_names_nothing() {
+        assert!(imported("import held = require('\\uD800');\nexport = held;\n").is_empty());
     }
 
     #[test]

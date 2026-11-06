@@ -9,32 +9,17 @@
  * and {@link nextSession} replaces it.
  *
  * Between tests nothing has to be called: `@variance-authority/ioc/reset`'s
- * driver runs {@link nextSession} before each test, so every test starts on
- * values its module wrote when it was first evaluated, as if nothing ran
- * before it.
+ * driver enters this module's test scope. A file starts on the values its
+ * modules were loaded with; what its collection and its once-per-scope hooks
+ * (`beforeAll`, `afterAll`) write is kept in the file's session, and each test
+ * runs in a session of its own that starts from it and is dropped when the
+ * test ends — as if the file ran alone, in a fresh worker.
  */
 
-import { registerResetHandler } from '@variance-authority/ioc/reset';
+import { driverInstalled, registerTestScope } from '@variance-authority/ioc/reset';
+import { realm, switchTo, testSession, type SessionSource } from './realm.js';
 
-/** Answers with the current session, or `undefined` when it has none. */
-export type SessionSource = () => object | undefined;
-
-interface Realm {
-  readonly sources: SessionSource[];
-  fallback: object;
-}
-
-const REALM = Symbol.for('@variance-authority/isolator');
-
-type Host = typeof globalThis & { [REALM]?: Realm };
-
-/**
- * The state every copy of this module shares: on `globalThis`, because a
- * reset module registry or a dual CommonJS/ES resolution hands the runtime and
- * the code that starts a session two copies of this file, and both have to
- * answer with the same session.
- */
-const realm = (): Realm => ((globalThis as Host)[REALM] ??= { sources: [], fallback: {} });
+export type { SessionSource } from './realm.js';
 
 /**
  * Add a source of sessions, asked before every source added after it.
@@ -62,11 +47,27 @@ export function currentSession(): object {
 
 /**
  * Start a new fallback session: every frame read outside any source's session
- * starts again from its initial value. A browser calls this between runs; a
- * test suite has ioc's reset driver call it.
+ * starts again from the values its module was loaded with. A browser calls
+ * this between runs; a test suite has ioc's driver call it as each file starts.
  */
 export function nextSession(): void {
-  realm().fallback = {};
+  const state = realm();
+  const ended = state.file;
+  state.file = {};
+  switchTo(state.file, ended);
 }
 
-registerResetHandler(nextSession);
+registerTestScope({
+  enterFile: nextSession,
+  enterTest() {
+    switchTo(testSession(), undefined);
+  },
+  leaveTest() {
+    const state = realm();
+    switchTo(state.file, state.fallback === state.file ? undefined : state.fallback);
+  },
+});
+
+// A driver installed before this module loaded entered its file unheard: setup
+// is over and the file has started, so what it writes from here ends with it.
+if (driverInstalled() && realm().fallback === realm().base) nextSession();

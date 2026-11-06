@@ -113,7 +113,7 @@ function renamed(record: PlacedFor, placed: PlacedFor, path: string): string {
     record.subject !== placed.subject
       ? `${JSON.stringify(placed.subject)} is ${JSON.stringify(record.subject)} renamed`
       : `project ${JSON.stringify(placed.project ?? '')} is ${JSON.stringify(record.project ?? '')} renamed`;
-  return `If ${was}, delete ${path}.png and ${path}.json and accept again.`;
+  return `If ${was}, delete ${path}.json and the image beside it and accept again.`;
 }
 
 function named(placed: PlacedFor): string {

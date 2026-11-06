@@ -67,7 +67,6 @@ pub(crate) struct Call {
     pub col: u64,
     pub callback: Option<u32>,
     pub guard: u32,
-    pub is_new: bool,
     /// A function passed by name as an argument, which the callee may call.
     pub by_ref: bool,
     pub callee: Callee,
@@ -224,7 +223,6 @@ impl Walker {
                 col: site.col,
                 callback: Some(at),
                 guard: site.guard,
-                is_new: false,
                 by_ref: false,
                 callee: Callee::default(),
             });
@@ -248,11 +246,11 @@ impl Walker {
         self.stack.pop();
     }
 
-    fn call(&mut self, span: Span, callee: Option<Callee>, arguments: &[Argument<'_>], own: u32, is_new: bool) {
+    fn call(&mut self, span: Span, callee: Option<Callee>, arguments: &[Argument<'_>], own: u32) {
         let from = self.from();
         let line = self.line(span.start);
         if let Some(callee) = callee {
-            self.calls.push(Call { from, line, col: span.end as u64 * 4, callback: None, guard: own, is_new, by_ref: false, callee });
+            self.calls.push(Call { from, line, col: span.end as u64 * 4, callback: None, guard: own, by_ref: false, callee });
         }
         // A function passed by name (`map(doProcess)`) is a callback like an inline one: the callee may run it.
         for argument in arguments {
@@ -269,7 +267,7 @@ impl Walker {
             };
             if let Some((start, callee)) = named {
                 let line = self.line(start);
-                self.calls.push(Call { from, line, col: span.end as u64 * 4 - 1, callback: None, guard: own, is_new: false, by_ref: true, callee });
+                self.calls.push(Call { from, line, col: span.end as u64 * 4 - 1, callback: None, guard: own, by_ref: true, callee });
             }
         }
     }
@@ -277,9 +275,10 @@ impl Walker {
     fn arguments(&mut self, span: Span, arguments: &[Argument<'_>], via: Option<String>, own: u32, titled: bool) {
         let title = if titled {
             match arguments.first() {
-                Some(Argument::StringLiteral(it)) => Some(it.value.to_string()),
+                Some(Argument::StringLiteral(it)) => it.value.as_str().map(str::to_owned),
                 Some(Argument::TemplateLiteral(it)) => {
-                    Some(it.quasis.iter().map(|quasi| quasi.value.cooked.as_ref().map_or("", |cooked| cooked.as_str())).collect::<Vec<_>>().join("*"))
+                    let parts = it.quasis.iter().map(|quasi| quasi.value.cooked.map_or(Some(""), |cooked| cooked.as_str()));
+                    parts.collect::<Option<Vec<_>>>().map(|parts| parts.join("*"))
                 }
                 _ => None,
             }
@@ -328,7 +327,7 @@ pub(crate) fn parse(file: &str, text: &str) -> Option<Parsed> {
     let source_type = dialect(file).unwrap_or_else(SourceType::tsx);
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, text, source_type).parse();
-    if parsed.panicked {
+    if parsed.fatal_error {
         return None;
     }
     let record = &parsed.module_record;

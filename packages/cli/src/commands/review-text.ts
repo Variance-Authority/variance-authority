@@ -24,6 +24,7 @@ import { LEGEND, MARK, notKnown, REACH_TEXT } from './review-words.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';
 import { reviewJson } from './review-json.js';
+import { driftWords } from './review-drift.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
@@ -58,7 +59,7 @@ export function* reviewPieces(review: Review, format: ReviewFormat): Generator<s
 
 /** What the record leaves open beside the answer, said before it. */
 function notes(review: Review): readonly string[] {
-  return [review.probes, review.runsUnread].filter((note) => note !== undefined);
+  return [review.probes, review.notUpdated, review.runsUnread].filter((note) => note !== undefined);
 }
 
 function text(review: Review): string {
@@ -73,6 +74,10 @@ function text(review: Review): string {
   lines.push(...casesText(review.files, (code) => code));
   lines.push(...beforeText(review, (code) => code), ...installLines(review, (code) => code, false));
   lines.push(...motionText(review.motion));
+  if (review.drift !== undefined) {
+    const drift = driftWords(review.drift, (code) => code);
+    lines.push('', drift.sentence, ...drift.lists.flatMap(({ label, items }) => [`${label}:`, ...items.map((item) => `  ${item}`)]));
+  }
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
       regionKind(region)
@@ -120,6 +125,8 @@ function markdown(review: Review): string {
     } it before any import.`));
   }
   lines.push(...installLines(review, code, true));
+  const drift = review.drift === undefined ? undefined : driftWords(review.drift, code);
+  if (drift?.changed === true) lines.push('', `🧭 ${drift.sentence} Each row is under drift from the walk below.`);
   const uncovered = uncoveredMarkdown(review, mark);
   const functions = functionsMarkdown(review, mark);
   if (changed.length === 0 && uncovered.length + functions.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
@@ -137,6 +144,12 @@ function markdown(review: Review): string {
   if (motion.length > 0) {
     said.push('cases moved against the base');
     more.push('', '<details><summary>🔀 Cases moved against the base</summary>', '', '```', ...motion, '```', '', '</details>');
+  }
+  if (drift !== undefined) {
+    said.push('drift from the walk');
+    more.push('', `<details><summary>🧭 Drift from the walk</summary>`, '', drift.sentence);
+    for (const { label, items } of drift.lists) more.push('', `${label}:`, '', ...items.map((item) => `- ${item}`));
+    more.push('', '</details>');
   }
   const files = review.files.filter((file) => file.regions !== undefined || file.verdict !== undefined || file.unread !== undefined || file.created === true);
   if (files.length > 0) {

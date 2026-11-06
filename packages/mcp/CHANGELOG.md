@@ -1,5 +1,105 @@
 # @variance-authority/mcp
 
+## 0.25.0
+
+### Minor Changes
+
+- ea70ad3: `ask symbol` and `ask uses`, on `variance ask`, `variance serve`, `variance-authority-help` and its server, and `docs_search` over either server, look at the files their answer rests on: when one changed or went away after the generation, the question is read again before it is answered, so a renamed export is no longer given under its old name and a declaration, its members and each use `uses` lists are given at the lines the file holds today. The files are those that declare the name or pass it on, the entry that publishes it and each row `uses` lists, and for `docs_search` each row it prints with the entry and barrels that publish it, so a name a barrel stopped passing on is no longer called published. An answer whose files are unchanged keeps its `Snapshot <T>.`. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on is saved during the read that answers it, the answer or the refusal stands and says it was not compared, and why, on its one date line. `serve` from `@variance-authority/mcp` takes `outlived`, which sends an answered call to `again`; `again` is given the call's arguments and may return `unseen`, which reaches the tool on `ToolInvocation`. `@variance-authority/help` exports `outlived` and `refusalFooter`, which gives a refusal the reason a look found. `variance-authority-help`'s server keeps no copy of a reading after a call, so a found answer's re-read fits the default heap. A generation now says when its read began, on `readStartedAt` beside `generatedAt`, and that is the time the files are compared with, so a file saved during the read counts as changed. `updateSourceIndex` answers it, `publishWorkspaceFromIndex` takes it, a refresh of `--changed-file` keeps the time of the read it refreshed and gives a listed file's names at the lines it holds now, with no generation to refresh the read is whole and the list is not used, and a value published before it is refused and read again once. A file written after the read gives no text of today's: a declaration and its members are listed by the names recorded, on every path including `--just-answer`. A read whose source index cannot be saved is dropped whole, so a value never pairs with the lines of the read before it. `refreshWorkspace` and `variance index` now keep a published name's entry only while what it was cut from is unchanged, so a declaration that moved or was rewritten, or an `export … from` that changed, the binding it imports included, is documented again; a generation records that on `forwardsDigest`, and `@variance-authority/sense` exports `forwardsDigest` and `HelpReading.exportedOf`. `Named` from `@variance-authority/package/help` gains `boundLine`.
+
+### Patch Changes
+
+- 43fd313: The docs print one way to connect an agent in a git repository with no config: install, `variance index`, an MCP entry that launches through `npx`, and a line that lists the tools. MCP entries no longer name a bare binary, which a client cannot find on its own `PATH`, and `variance serve` and `variance doctor` are named with the config they need.
+
+## 0.24.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.24.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.23.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.22.0
+
+### Minor Changes
+
+- f606d7d: A hint names what you can type where you asked
+
+  An answer's hints were spelled for one surface and printed on both. Each is
+  now spelled for the surface that asked:
+
+  - From a shell, `variance ask` and `variance-authority-help` name an input as
+    its flag (`--limit`, `--query`, `--from`), a tool as the command that runs it
+    (`variance ask symbol`), and a whole question, such as the `grep` that finds
+    an underscored name, as the command line that asks it.
+  - Over MCP, the same hints use the wire's names: the input `limit`, the tool
+    `docs_symbol`, and a question as the tool with its inputs. This covers the
+    `search` and `grep` hints, the `--package` refusal, the operands an
+    `intersection` names, and the line every listing (`costs`, `run_signals`
+    among them) adds for the rows it left out. A `limit` refused from a shell
+    names `--limit`, and over MCP names `limit`.
+
+  The lexicon line of `symbol` names `variance index` as the command that
+  publishes the dependency lexicon, on both surfaces.
+
+  A tool invocation carries the shell it was asked from as `shell`.
+  `@variance-authority/mcp/tools` exports the one spelling every surface uses:
+  `spellingOf`, `verbOf`, `flagOf` and the `Spelling` type. `limitOf` and
+  `notShown` take a `Spelling`. The CLI's `questionOf` is removed; `verbOf`
+  replaces it.
+
+  `Spelling` and `verbOf` take a declared tool — its name, description and input
+  schema — so a hint cannot be spelled from a tool name written as a string, and
+  renaming a tool fails the build of every hint that names it.
+- 9e1e684: Which tests covered a place is asked one way
+
+  `@variance-authority/mcp` no longer serves `variance_source_tests` and
+  `variance_changed_tests`. It no longer exports the `SOURCE_TEST_TOOLS` set,
+  `sourceTestToolByName` or the `SOURCE_TESTS` served set, `OBSERVABILITY` no
+  longer carries the two tools, and `Tree` no longer holds `relations`, which only
+  `variance_changed_tests` read. The pair answered `variance covering`'s question
+  with a copy of their own that read the record without the commit it was written
+  at and without asking whether each test file ran over the file as it is now, so
+  one place could be answered two ways. `variance covering` is the answer, with
+  `--file`, `--line`, `--function` and `--since`. `variance_distill` still reads
+  the execution index over MCP. The skill's MCP, covering and producers
+  references, and the `mcp` and `sense` READMEs, send a reader to `variance
+  covering`.
+- 1c40704: `ask uses` names the files whose imports the source index resolved to no file when one could take the name, since a use there is not listed. For a name no file here declares but a file imports from a package outside the workspace or a runtime module, the answer names each source and the `discover --imports <source>#<name>` question that lists the files; over MCP it names the command to run in the checkout, since `docs_discover` there refuses the question. A path alias such as `@/lib`, a `paths` or `baseUrl` mapping a `tsconfig` or `jsconfig` declares, and a package of this workspace are never named as outside sources; an unresolved one of them, or a `#` subpath import, is named among the files that could take the name. `@variance-authority/sense` publishes `outsideSourcesOf(root, name, index?)`, and `importersOf` carries `unresolved`. `@variance-authority/mcp/tools` publishes `conjoined`, which joins words as `a, b and c`.
+
+### Patch Changes
+
+- 76db46b: The whole-file answer names the region no case entered
+
+  `variance covering --file <path>` painted a function's cases over every line of
+  it, so a one-line branch no case took read as walked: its only line also charges
+  the function, and the range folded into its neighbours. The range now stands on
+  its own and says no case entered the branch, with its state — `unwalked`, or a
+  hole naming the stopped case. `--format json` carries the regions under the
+  range's `unentered`, `--format refs` adds `; unentered <kind> <lines>` to the
+  range's line, and the MCP file answer says the same sentence, with the state.
+  The opening line of a longer branch no case entered says it too.
+
+  It holds in an answer `--in-package` or `--at-distance` narrowed, and on a file
+  edited since the run, where the region is named at the line it stands on now
+  and left out when the edit removed it. `coveringTestsInFile` takes `keep`, the
+  cases it names, and folds its ranges over what is left.
+  `@variance-authority/sense/test-selection` exports `unenteredSentence`,
+  `whyUnentered` and the `Unentered` type, the sentence both surfaces print.
+- 84f98e4: `@variance-authority/mcp/tools` exports `rarity(population, holders)`, the integer from 0 to 1000 that `locate`, `orient` and the place line already ranked words by, so another word search ranks by the same count. `heldWeight(held, rarityOf, fieldOf)` sums each held word's rarity times the weight of the field it is held in, the weight `locate` ranks subjects by.
+- 9e1e684: The source tree reads the mocks, as `variance covering --since` does
+
+  The source tree `readTree` reads, which `variance ask`, the `docs_*` tools and
+  an MCP host walk, now reads `vi.mock`, `jest.mock` and `sb.mock` calls off what
+  the parse recorded: a mock subtracts its target from the test file's edges, and
+  a real module its factory loads adds one. `@variance-authority/sense` exports
+  `runGraphOf`, the one fold that graph and `variance covering --since` are both
+  built by: the mocks, then the taints you pass, and the records folded with
+  their shadows.
+
 ## 0.21.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
