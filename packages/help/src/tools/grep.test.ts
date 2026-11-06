@@ -58,8 +58,16 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 const ask = (input: Record<string, unknown>): string => grep.run(undefined, input, { tree });
 
 describe('grep refuses without a closure', () => {
-  it('names the command that answers the whole checkout', () => {
-    expect(() => grep.run(undefined, { query: 'needle' })).toThrow('run `rg "needle"`');
+  it('teaches a start point, and sends nobody to another command', () => {
+    const refusal = (): string => grep.run(undefined, { query: 'needle' }, { tree, shell: 'variance ask' });
+    expect(refusal).toThrow('Pass `--from` or `--to` with the file or folder you are working in');
+    expect(refusal).not.toThrow('rg');
+  });
+
+  it.each(['.', './'])('refuses %s as the root, not as a path the tree lacks', (path) => {
+    const refusal = (): string => ask({ query: 'needle', from: path });
+    expect(refusal).toThrow(`\`${path}\` is the root, and a start point is a place in it`);
+    expect(refusal).not.toThrow('not found');
   });
 
   it('refuses a path the tree does not hold', () => {

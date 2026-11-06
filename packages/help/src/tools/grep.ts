@@ -1,6 +1,6 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import { areaLine, areaOf } from './area.js';
+import { areaLine, areaOf, startPointNeeded } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /**
@@ -15,9 +15,9 @@ import { ripgrep, type Hit } from './ripgrep.js';
  *
  * ## A start point is required
  *
- * Without one the question is `rg <pattern>`, which the reader can already ask
- * and which this would only answer slower. The closure is the whole value, so a
- * call without it is refused with the command that answers it.
+ * The closure is the whole value: nearest first needs a place to measure from.
+ * So a call without one is refused with how to say one, the root is refused so
+ * the caller names a place, and a top folder is the widest single path.
  *
  * ## Nearest first
  *
@@ -42,8 +42,8 @@ export const grep: Tool<unknown> = {
     'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
     'matching lines nearest first. `from` searches the files that path imports, at any depth; ' +
     '`to` the files that import it. The pattern is passed to `rg` unchanged, so it is a ' +
-    'regular expression and your ripgrep config applies. A start point is required: for the ' +
-    'whole checkout, run `rg <pattern>` yourself.',
+    'regular expression and your ripgrep config applies. A start point is required: name the file or ' +
+    'folder you are working in, or a top folder at the widest.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -117,10 +117,7 @@ function grepped(input: Readonly<Record<string, unknown>>, invocation: ToolInvoc
   const from = startPointArg(input, 'from');
   const to = startPointArg(input, 'to');
   if (from === undefined && to === undefined) {
-    throw new Error(
-      `\`grep\` searches the files a start point reaches, and none was given. Pass \`--from\` or ` +
-        `\`--to\` with a path from the root. For the whole checkout, run \`rg ${JSON.stringify(query)}\`.`,
-    );
+    throw new Error(`\`grep\` searches the files a start point reaches, and none was given. ${startPointNeeded(invocation)}`);
   }
 
   const area = areaOf(from, to, invocation?.tree);

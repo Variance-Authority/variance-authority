@@ -86,13 +86,17 @@ line happens to spell:
 yarn variance ask symbol --name <name>     # what it is and where it is declared
 yarn variance ask uses --name <name>       # who imports it
 yarn variance ask search --query <words>   # find a name by what it does
+yarn variance ask grep --query <pattern> --from <path>   # a local name, a string or a pattern in code
 yarn variance covering --file <path>       # which tests entered a file
 ```
 
-Text is `rg`'s: prose, configuration, workflows, logs, session transcripts,
-string literals, and a line in a file you already have open. So is a code
-question `variance` could not answer, and that miss is a defect in `variance`:
-name it in your report.
+Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
+local name, a string or a pattern to `grep`, from the file or folder you are
+working in, or a top folder such as `packages/` or `tools/` at the widest.
+
+Text is `rg`'s: prose, configuration, workflows, logs, session transcripts, and
+a line in a file you already have open. So is a code question `variance` could
+not answer, and that miss is a defect in `variance`: name it in your report.
 
 A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the
