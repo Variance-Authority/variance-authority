@@ -378,7 +378,11 @@ describe('a container job runs in the CI image its Dockerfile builds', () => {
   });
 
   it.each(pins)('%s', (line) => {
-    expect(line, `docker/ci.Dockerfile builds ${image}`).toContain(image);
+    // The whole value the line names: a tag with more after it is another image.
+    const named =
+      /^\s*(?:image|container):\s*["']?([^\s"'#]+)/.exec(line.replace(/^[^:]*:\d+:/, ''))?.[1] ??
+      /ghcr\.io\/variance-authority\/ci:[^\s"'#]*/.exec(line)?.[0];
+    expect(named, `docker/ci.Dockerfile builds ${image}`).toBe(image);
   });
 });
 
