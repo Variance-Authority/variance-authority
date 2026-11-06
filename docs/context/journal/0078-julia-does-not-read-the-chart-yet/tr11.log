@@ -1,0 +1,13 @@
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 4429.04it/s]
+train units 2272 val units 229 steps 426 val0 0.344
+ ep1 step50 loss 2.502 0.66s/step
+ ep1 step100 loss 2.322 0.67s/step
+epoch 1 loss 2.209 val 0.360
+ ep2 step50 loss 1.767 0.81s/step
+ ep2 step100 loss 1.651 0.75s/step
+epoch 2 loss 1.604 val 0.450
+ ep3 step50 loss 1.340 0.68s/step
+ ep3 step100 loss 1.294 0.68s/step
+epoch 3 loss 1.281 val 0.443
+selected epoch 2
+pairs 35 julia 28 bm25 29
