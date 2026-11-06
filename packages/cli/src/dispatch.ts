@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Config } from './config.js';
-import { loadConfig } from './config-load.js';
+import { loadConfig, loadRenderless } from './config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor, type ExitCode } from './exit.js';
 import {
   collectorPath,
@@ -47,7 +47,7 @@ import { runJourneyArtifactCommand } from './commands/journey-artifact-command.j
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { clearedComment, commentMarker, renderComment } from './commands/comment.js';
-import { baselineFinding, doctor, machineProbes } from './commands/doctor.js';
+import { baselineFinding, doctor, machineProbes, renderlessDoctor } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
@@ -55,7 +55,7 @@ import { runCollect, runCollectMerge } from './commands/collect-command.js';
 import { runSharePurge } from './commands/share-purge.js';
 import { runSuiteShare } from './commands/suite-share.js';
 import type { Configless } from './commands/configless.js';
-import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } from './commands/doctor-report.js';
+import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis, formatRenderless } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
@@ -84,6 +84,12 @@ export async function dispatch(
   if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
   if (parsed.command === 'share' && parsed.purgeOlderThan !== undefined) return runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
   if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
+
+  const renderless = parsed.command === 'doctor' && parsed.baselines !== true ? await loadRenderless(parsed.config) : undefined;
+  if (renderless !== undefined) {
+    streams.out(`${formatRenderless(await renderlessDoctor(renderless))}\n`);
+    return EXIT_CLEAN;
+  }
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
