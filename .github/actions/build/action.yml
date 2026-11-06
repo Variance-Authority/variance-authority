@@ -35,9 +35,6 @@ runs:
       shell: bash
       run: |
         command -v cargo >/dev/null && exit 0
-        if ! command -v cc >/dev/null || ! command -v curl >/dev/null; then
-          apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
-        fi
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
         echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 

@@ -78,7 +78,7 @@ jobs:
     # moved last Tuesday is a claim about the browser. Same image as the gate, so
     # "it flakes nightly but not on pull requests" cannot be the engine.
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:333b6224985beb6d859d65fdf88ce20c15a7bb0e
       # Chromium's renderer processes need more than a container's default 64MB
       # of shared memory. Without this the browser dies partway through, which
       # arrives as subjects missing from the sweep rather than as a crash — and a

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -353,6 +353,34 @@ describe('every package says what it is', () => {
   );
 });
 
+/**
+ * A container job runs in the image `ci-image.yml` publishes from
+ * `docker/ci.Dockerfile`, under the file's blob id: any other image installs its
+ * own tools, and any other tag is an image this file did not build, or none.
+ */
+describe('a container job runs in the CI image its Dockerfile builds', () => {
+  const image = `ghcr.io/variance-authority/ci:${execFileSync('git', ['hash-object', 'docker/ci.Dockerfile'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  }).trim()}`;
+
+  // `git grep` exits 1 when nothing matches, which the next test reports.
+  const pins = spawnSync(
+    'git',
+    ['grep', '-n', '-E', '-e', '^[[:space:]]*(image|container):[[:space:]]*[^[:space:]#]', '-e', 'ghcr\\.io/variance-authority/ci:', '--', '.github/*.yml'],
+    { cwd: ROOT, encoding: 'utf8' },
+  )
+    .stdout.split('\n')
+    .filter(Boolean);
+
+  it('finds the pins, so a moved file cannot empty this rule', () => {
+    expect(pins.length).toBeGreaterThan(0);
+  });
+
+  it.each(pins)('%s', (line) => {
+    expect(line, `docker/ci.Dockerfile builds ${image}`).toContain(image);
+  });
+});
 
 /**
  * A pinned browser image is a declared requirement, and it must match the

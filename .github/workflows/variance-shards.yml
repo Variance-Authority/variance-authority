@@ -115,7 +115,7 @@ jobs:
     # the merge refuses them naming both files (ADR-0011). A matrix that varied
     # the image would produce reports that cannot be added up.
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ghcr.io/variance-authority/ci:333b6224985beb6d859d65fdf88ce20c15a7bb0e
       options: --ipc=host
 
     steps:

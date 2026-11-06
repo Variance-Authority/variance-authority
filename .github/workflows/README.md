@@ -1,6 +1,6 @@
 # Workflows
 
-Six workflow files live here, and all of them are this repository's own. Three
+The workflow files here are all this repository's own. Three
 run variance over this repository's subjects, each answering a different
 question, through the action as it stands in this checkout,
 `./.github/actions/variance`. A release publishes that action as
@@ -22,9 +22,10 @@ is the unit these files count, shard and gate on.
 *Collection* is reading the live page; *render* is repainting that reading into
 an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
-The other three files here, [`check.yml`](check.yml),
-[`release.yml`](release.yml) and [`outer-loop.yml`](outer-loop.yml), are this
-repository's build, publish and end-to-end test.
+Four other files here, [`check.yml`](check.yml),
+[`release.yml`](release.yml), [`outer-loop.yml`](outer-loop.yml) and
+[`ci-image.yml`](ci-image.yml), are this repository's build, publish, end-to-end
+test and the image its containerized jobs run in.
 `outer-loop.yml` has [its own section](#the-outer-loop). On a pull request,
 `check.yml` uses the recording `main` saved to select the tests the change
 reached. It compares the predicted time of that selection in one job with a
@@ -74,7 +75,10 @@ to `npx --no-install variance`, the CLI the project installed. The three files
 here pass `command: node packages/cli/dist/bin.js` instead, because this
 repository builds the CLI from source and has no published one to resolve.
 
-Every job runs inside `mcr.microsoft.com/playwright:v1.64.1-noble`. An approved
+Every job that observes runs inside the CI image, `mcr.microsoft.com/playwright:v1.64.1-noble`
+with this repository's tools, built from
+[`docker/ci.Dockerfile`](../../docker/ci.Dockerfile) and tagged with that file's
+git blob id, so the tag never moves. An approved
 image is keyed by the identity of the machine that painted it, so a moving runner
 image means baselines invalidated on somebody else's schedule. Pin the image.
 
