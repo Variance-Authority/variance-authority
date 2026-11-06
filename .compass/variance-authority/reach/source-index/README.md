@@ -56,9 +56,6 @@ from the checkout: parses keyed by content digest, records also by layout and
 resolution settings, never by where the checkout sits. A lost generation costs
 an update and cannot change what the update finds.
 
-A test block's title and doc are held beside a file's symbols, never among
-them: a title is no name, so a reader of a file's top level does not meet one.
-
 Every file the update answered is held, one it could not read as `unknown`: a
 file missing from a generation reads as a file nobody has. A worktree's first
 update starts from a copy of the primary checkout's generation, never a

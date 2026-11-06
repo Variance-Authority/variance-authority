@@ -60,32 +60,3 @@ fn a_blank_line_written_with_carriage_returns_parts_a_doc_too() {
     assert_eq!(file.as_deref(), Some("The banner."));
     assert_eq!(declared, None);
 }
-
-#[test]
-fn a_test_block_declares_nothing() {
-    let source = "/** The rule. */\ndescribe('a rule', () => {\n  it('holds', () => {});\n});\n";
-    let read = read_module("a.test.ts", source, &Allocator::default(), true);
-    assert!(read.symbols.is_empty());
-    assert!(read.nested.is_empty());
-    let titles: Vec<&str> = read.test_blocks.iter().map(|block| block.title.as_str()).collect();
-    assert_eq!(titles, ["a rule", "holds"]);
-    let doc = read.test_blocks[0].doc.expect("the doc above the call is the block's");
-    assert_eq!(source[doc.start as usize..doc.end as usize].trim_start_matches('*').trim(), "The rule.");
-}
-
-#[test]
-fn a_block_awaited_or_voided_keeps_the_doc_above_its_statement() {
-    let source = "/** Awaited. */\nawait describe('a', run);\n/** Voided. */\nvoid test('b', run);\n";
-    let read = read_module("a.test.ts", source, &Allocator::default(), true);
-    let docs: Vec<&str> = read.test_blocks.iter().map(|block| {
-        let doc = block.doc.expect("the doc above the statement is the block's");
-        source[doc.start as usize..doc.end as usize].trim_start_matches('*').trim()
-    }).collect();
-    assert_eq!(docs, ["Awaited.", "Voided."]);
-}
-
-#[test]
-fn a_block_negated_takes_no_doc_from_above_its_statement() {
-    let read = read_module("a.test.ts", "/** Negated. */\n!describe('a', run);\n", &Allocator::default(), true);
-    assert!(read.test_blocks[0].doc.is_none());
-}

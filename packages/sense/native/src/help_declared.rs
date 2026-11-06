@@ -15,10 +15,6 @@
 //! the member declarations beside it, each row with what holds it, so `search`
 //! finds what `symbol` finds. A closure answers by its name alone, and never a
 //! description: it is its holder's working name, documented for its holder.
-//!
-//! A piece of a name also reads the index's test blocks, and only that question
-//! does: a title is no name, so `symbol` never meets one. A rule a repository
-//! holds only as a test answers by its title or by the doc above the call.
 
 // compass: variance-authority.report.agent-surface
 
@@ -126,9 +122,7 @@ pub(crate) enum Matching {
     /// the doc comment above it does, read as prose, or writes it as a phrase
     /// by [`crate::dependency_lexicon::purposes::writes_run`]'s rule. A member is
     /// read the same way and also answers to `container.member`; a function
-    /// inside a function answers by its name. A test block answers by its
-    /// title, which holds `query` or every stem of it in any order, a title
-    /// being a sentence rather than a name, and by its doc as a symbol does.
+    /// inside a function answers by its name.
     Containing,
     /// The words of the name and of its doc, cut into stems as the dependency
     /// lexicon cuts a package's words, hold any of `stems` — the question's —
@@ -185,13 +179,12 @@ type FileHits<'a> = (Vec<Hit<'a>>, Option<&'a str>, Option<FileHit<'a>>);
 /// bytes of that doc.
 type Held = (Vec<u32>, Vec<u32>, u32, Option<u32>);
 
-/// A row of a parse's top-level symbols, of its nested table, of its member declarations, or of its test blocks.
+/// A row of a parse's top-level symbols, of its nested table, or of its member declarations.
 #[derive(Clone, Copy)]
 enum Row {
     Symbol(usize),
     Nested(usize),
     Member(usize),
-    Test(usize),
 }
 
 /// A layer, a file, a row and how it was held, when it was described.
@@ -247,7 +240,6 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
     let crossings = crossings(layers, &folded, files);
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
     let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();
-    let asked = if matches!(matching, Matching::Containing) { code_stems(query) } else { Vec::new() };
     let found: Vec<FileHits> = crossings
         .par_iter()
         .map(|crossing| {
@@ -326,15 +318,6 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                         hits.push((layer, crossing.file, Row::Member(at), None));
                     }
                 }
-                for at in parses.test_blocks.range(row) {
-                    let title = text.text(parses.test_block_title.at(at));
-                    let (doc_start, doc_end) = span(parses.test_block_doc[0], parses.test_block_doc[1], at);
-                    let mut doc = || source_of(&mut source, root, crossing.file).and_then(|source| prose(source, doc_start?, doc_end?));
-                    let titled = title.to_lowercase().contains(query) || (!asked.is_empty() && held_in(&asked, title).len() == asked.len());
-                    if titled || (doc_start.is_some() && doc().is_some_and(|doc| doc_holds(&doc))) {
-                        hits.push((layer, crossing.file, Row::Test(at), None));
-                    }
-                }
             }
             (hits, None, file)
         })
@@ -377,7 +360,6 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                 Row::Symbol(symbol) => symbol,
                 Row::Nested(nested) => return nested_name(layers, layer, at, nested, owners.package_of(at)),
                 Row::Member(member) => return member_name(layers, layer, at, member, owners.package_of(at)),
-                Row::Test(block) => return test_name(layers, layer, at, block, owners.package_of(at)),
             };
             let (signature_start, signature_end) = span(parses.symbol_signature[0], parses.symbol_signature[1], symbol);
             let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
@@ -429,32 +411,6 @@ fn nested_name(layers: &[Layer], layer: usize, at: &str, nested: usize, by: &str
         doc_length: None,
         holder: text.optional(parses.nested_holder.at(nested)).map(str::to_owned),
         holder_line: Some(parses.nested_holder_line.at(nested)),
-        on: None,
-    }
-}
-
-/// One test block of a parse, as a declared name of the kind `test`: its title is what it is called.
-fn test_name(layers: &[Layer], layer: usize, at: &str, block: usize, by: &str) -> DeclaredName {
-    let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
-    let (doc_start, doc_end) = span(parses.test_block_doc[0], parses.test_block_doc[1], block);
-    DeclaredName {
-        name: text.text(parses.test_block_title.at(block)).to_owned(),
-        kind: "test".to_owned(),
-        at: at.to_owned(),
-        by: by.to_owned(),
-        line: parses.test_block_line.at(block),
-        file_kind: kind_of(at).to_owned(),
-        signature_start: None,
-        signature_end: None,
-        doc_start,
-        doc_end,
-        reach: None,
-        held: None,
-        named: None,
-        near: None,
-        doc_length: None,
-        holder: None,
-        holder_line: None,
         on: None,
     }
 }

@@ -227,11 +227,7 @@ not read, to the go-to-definition of the language server for `Tree`'s language. 
 a function inside a function by its name, under the function that holds it, and
 a member by its name, by `container.member`, or by the doc above it. They print
 below the other sections, and when something else answered, only a row that is
-the question exactly. `ask search` also finds a rule held only as a test: a
-`describe`, `it` or `test` call, marked `[test]`, by its title, with the words
-you typed in any order, or by the doc above the call. A title is no name, so
-`ask symbol` does not answer for one, and a title a row fills in whole, `%s`, is
-not kept.
+the question exactly.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier

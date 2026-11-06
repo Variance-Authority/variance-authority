@@ -159,7 +159,7 @@ describe('variance ask about a name written after the source index', () => {
 
     const { code, out } = await run(['ask', 'search', '--query', 'keptOf']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, nor the title of a `describe`, `it` or `test` call or the doc above it, writes `keptof`');
+    expect(out).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `keptof`');
     expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
   });
 

@@ -1,9 +1,9 @@
 //! The parse half of a source-index segment, as columns: the part of
 //! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member, member-declaration, member-use, own-use, nested, test-block
-//! and binding-member columns `source-index-harvest.ts`, `-mocks.ts`,
+//! mock, member, member-declaration, member-use, own-use, nested and
+//! binding-member columns `source-index-harvest.ts`, `-mocks.ts`,
 //! `-members.ts`, `-member-declarations.ts`, `-member-uses.ts`,
-//! `-own-uses.ts`, `-nested.ts`, `-test-blocks.ts` and `-binding-members.ts` add.
+//! `-own-uses.ts`, `-nested.ts` and `-binding-members.ts` add.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -108,10 +108,6 @@ pub struct ParseColumns {
     nested_doc: [Vec<u32>; 2],
     nested_holder: Vec<u32>,
     nested_holder_line: Vec<u32>,
-    test_blocks: Vec<u32>,
-    test_block_title: Vec<u32>,
-    test_block_line: Vec<u32>,
-    test_block_doc: [Vec<u32>; 2],
     binding_members: Vec<u32>,
     binding_member_request: Vec<u32>,
     binding_member_binding: Vec<u32>,
@@ -168,7 +164,6 @@ impl ParseColumns {
         self.member_uses.push(self.member_use_name.len() as u32);
         self.own_uses.push(self.own_use_name.len() as u32);
         self.nested.push(self.nested_name.len() as u32);
-        self.test_blocks.push(self.test_block_title.len() as u32);
         self.binding_members.push(self.binding_member_name.len() as u32);
     }
 
@@ -262,13 +257,6 @@ impl ParseColumns {
         self.nested_holder_line.push(holder_line);
     }
 
-    /// One titled test block.
-    pub fn test_block(&mut self, title: u32, line: u32, doc: Span) {
-        self.test_block_title.push(title);
-        self.test_block_line.push(line);
-        span(&mut self.test_block_doc, doc);
-    }
-
     /// One name read off a value inside a module; `within` are the names read
     /// off `binding` to reach the value, nearest first.
     pub fn binding_member(&mut self, request: u32, binding: u32, within: impl IntoIterator<Item = u32>, name: u32, line: u32) {
@@ -291,7 +279,6 @@ impl ParseColumns {
         let [doc_start, doc_end] = self.doc;
         let [nested_signature_start, nested_signature_end] = self.nested_signature;
         let [nested_doc_start, nested_doc_end] = self.nested_doc;
-        let [test_block_doc_start, test_block_doc_end] = self.test_block_doc;
         let [member_declaration_doc_start, member_declaration_doc_end] = self.member_declaration_doc;
         vec![
             u32s("parses.key", self.digest),
@@ -373,11 +360,6 @@ impl ParseColumns {
             u32s("nested.doc-end", nested_doc_end),
             u32s("nested.holder", self.nested_holder),
             u32s("nested.holder-line", self.nested_holder_line),
-            u32s("parses.test-blocks", self.test_blocks),
-            u32s("test-blocks.title", self.test_block_title),
-            u32s("test-blocks.line", self.test_block_line),
-            u32s("test-blocks.doc-start", test_block_doc_start),
-            u32s("test-blocks.doc-end", test_block_doc_end),
             u32s("parses.binding-members", self.binding_members),
             u32s("binding-members.request", self.binding_member_request),
             u32s("binding-members.binding", self.binding_member_binding),

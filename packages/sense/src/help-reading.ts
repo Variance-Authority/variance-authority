@@ -375,9 +375,7 @@ export interface DeclaredNames {
  * holds it in any case; only in `files`, repo-relative, when they are named. A name declared
  * twice in one file is answered once. A function inside a function answers
  * either question by its name, and a member answers `containing`, by its name,
- * its doc or `container.member`: each says what holds it. A test block answers
- * `containing` by its title or the doc above it, as kind `test`, its title in
- * `name`, though a title is no name. `undefined` when no index was
+ * its doc or `container.member`: each says what holds it. `undefined` when no index was
  * published; throws when the index does not read.
  */
 export function declaredOf(

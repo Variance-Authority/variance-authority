@@ -77,9 +77,8 @@ find out which, not all the way to `rg`.
 ## What Variance searches
 
 `variance ask search` is symbol search. It reads the names the source declares,
-the documentation written above them, the titles of `describe`, `it` and `test`
-calls and the docs above those, each file's name and opening doc, and the names
-and descriptions of installed packages, so a question about `createStore`
+the documentation written above them, each file's name and opening doc, and the
+names and descriptions of installed packages, so a question about `createStore`
 does not list every file that imports or mentions it. It adds one step an IDE
 does not take by default: the module graph keeps the candidates connected to a
 path you already have. A few words of what the code does reach it too: when no

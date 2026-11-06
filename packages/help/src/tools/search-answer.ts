@@ -266,15 +266,13 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(declared === undefined ? {} : { declared }),
     ...(inside === undefined ? {} : { held: { total: inside.length, shown: inside.slice(0, ELSEWHERE_CAP) } }),
-    ...(read === undefined ? {} : { tests: read.tests }),
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, ELSEWHERE_CAP) } }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
   // Installed packages that describe the words never stand in for this repository's
   // names: only an installed name holding the query as written ends the search.
   // A held row ends it only by being the question: one that holds the words prints
-  // beside the readings below, which may hold the name that was meant, and so does
-  // a test block: a title is no name.
+  // beside the readings below, which may hold the name that was meant.
   if (others || (read?.exact ?? 0) > 0 || (aliases?.length ?? 0) > 0) return { answer, area };
 
   // The empty answer read as a description: names holding any of its words,

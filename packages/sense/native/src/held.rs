@@ -90,14 +90,6 @@ pub struct HeldNested {
     holder_line: u32,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct HeldTestBlock {
-    title: String,
-    #[serde(default)]
-    line: u32,
-    doc: Option<HeldSpan>,
-}
-
 #[derive(Debug, Default, Deserialize)]
 pub struct HeldMocks {
     #[serde(default)]
@@ -179,8 +171,6 @@ pub struct HeldParse {
     own_uses: Vec<HeldOwnUse>,
     #[serde(default)]
     nested: Vec<HeldNested>,
-    #[serde(default, rename = "testBlocks")]
-    test_blocks: Vec<HeldTestBlock>,
     #[serde(default, rename = "bindingMembers")]
     binding_members: Vec<HeldBindingMember>,
     unknown: Option<String>,
@@ -233,7 +223,6 @@ impl ParseRow for HeldParse {
             values.insert(&nested.kind);
             values.extend(nested.holder.as_deref());
         }
-        values.extend(self.test_blocks.iter().map(|block| block.title.as_str()));
         for read in &self.binding_members {
             values.insert(&read.binding);
             values.extend(read.within.iter().map(String::as_str));
@@ -290,9 +279,6 @@ impl ParseRow for HeldParse {
         for nested in &self.nested {
             let holder = strings.optional(nested.holder.as_deref());
             into.nested(id(&nested.name), id(&nested.kind), nested.line, span(nested.signature), span(nested.doc), holder, nested.holder_line);
-        }
-        for block in &self.test_blocks {
-            into.test_block(id(&block.title), block.line, span(block.doc));
         }
         for read in &self.binding_members {
             into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);

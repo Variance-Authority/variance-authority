@@ -12,7 +12,6 @@ const PARSED: Parsed = {
   declares: [],
   bindingMembers: [{ request: 0, binding: 'Props', within: ['tint'], name: 'tintDeep', line: 9 }],
   nested: [{ name: 'inner', kind: 'function', line: 12, signature: { start: 40, end: 60 }, holder: 'outer', holderLine: 11 }],
-  testBlocks: [{ title: 'keeps one tag', line: 20, doc: { start: 70, end: 90 } }, { title: 'keeps another', line: 21 }],
 };
 
 /** The index of `PARSED`, and the `count` numbers its column `name` holds, to write over. */
@@ -33,7 +32,6 @@ describe('a source index whose binding members or nested declarations are damage
     const parsed = decodeSourceIndex(encoded).parses.get(DIGEST);
     expect(parsed?.bindingMembers).toEqual(PARSED.bindingMembers);
     expect(parsed?.nested).toEqual(PARSED.nested);
-    expect(parsed?.testBlocks).toEqual(PARSED.testBlocks);
   });
 
   it('rejects binding members whose offsets run past their columns', () => {
@@ -52,18 +50,6 @@ describe('a source index whose binding members or nested declarations are damage
   it('rejects nested declarations whose offsets run past their columns', () => {
     const { encoded, values } = column('parses.nested', 2);
     values[1] = PARSED.nested!.length + 1;
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('rejects test blocks whose offsets run past their columns', () => {
-    const { encoded, values } = column('parses.test-blocks', 2);
-    values[1] = PARSED.testBlocks!.length + 1;
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('rejects a test block doc that has a start and no end', () => {
-    const { encoded, values } = column('test-blocks.doc-end', 2);
-    values[0] = NONE;
     expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
   });
 
