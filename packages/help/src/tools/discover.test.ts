@@ -259,8 +259,10 @@ describe('discover refuses', () => {
     expect(() => ask({})).toThrow('needs at least one set');
   });
 
-  it('text alone, which is ripgrep over the checkout', () => {
-    expect(() => ask({ text: 'dark' })).toThrow('run `rg "dark"`');
+  it('text alone, and teaches the start point it needs', () => {
+    const refusal = (): string => ask({ text: 'dark' });
+    expect(refusal).toThrow('Pass `from` or `to` with the file or folder you are working in');
+    expect(refusal).not.toThrow('rg');
   });
 
   it('naming the sets as the surface it was asked on takes them', () => {

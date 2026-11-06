@@ -3,6 +3,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
+import { startPointNeeded } from './area.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
@@ -28,8 +29,7 @@ import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
  * ## Text comes last
  *
  * A pattern is ripgrep's, over the files the other operands kept — never over
- * the checkout, which `rg` answers without this. So `text` alone is refused
- * with the command that answers it.
+ * the checkout. So `text` alone is refused with how to say a start point.
  *
  * ## Names are read with the tree
  *
@@ -162,7 +162,7 @@ function reach(term: string, tree: Tree, along: boolean, root: string | undefine
     if (named.name !== undefined && tree.files.has(named.spec)) return reachingName(term, named.spec, named.name, tree, root);
   }
   const seeds = entryPoints([term], tree);
-  const refused = refusalFor(seeds.unmatched);
+  const refused = refusalFor(seeds.unmatched, tree.root);
   if (refused !== undefined) {
     throw new Error(
       `\`discover\` ran nothing: ${refused}. Say a real path from the root — \`src/a/File.ts\` is ` +
@@ -451,7 +451,7 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
     throw new Error(
       text === undefined
         ? `\`discover\` needs at least one set to cross: ${sets} or \`${spell.input('path')}\`.`
-        : `\`${spell.input('text')}\` searches inside the files the other sets kept, and none was given. For the whole checkout, run \`rg ${JSON.stringify(text)}\`.`,
+        : `\`${spell.input('text')}\` searches inside the files the other sets kept, and none was given. ${startPointNeeded(invocation)}`,
     );
   }
 

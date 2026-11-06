@@ -379,6 +379,12 @@ describe('an absolute path is the same question, asked from the root', () => {
     // an answer rather than an error.
     expect(scopeOf(REPORT, '/Users/somebody/site/src/billing/', TREE).refused).toContain('not found');
   });
+
+  it.each(['.', './', './.', './/', '/repo', '/repo/'])('refuses %s as the root, however it is spelled', (root) => {
+    const { refused } = scopeOf(REPORT, root, TREE);
+    expect(refused).toContain(`\`${root}\` is the root`);
+    expect(refused).not.toContain('not found');
+  });
 });
 
 describe('a start point is grounded in a file, at whatever width the caller has', () => {
