@@ -174,7 +174,7 @@ describe('the words of an empty answer', () => {
     checkout(HELD);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const text = await searched('qqzzq');
-    expect(text).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `qqzzq`.');
+    expect(text).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `qqzzq`; no recorded case was read.');
   });
 
   it('names the language whose members were not read', async () => {

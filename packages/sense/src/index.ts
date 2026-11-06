@@ -105,6 +105,7 @@ export {
   type PackagesAround,
   type RecordedCases,
 } from './orient.js';
+export { recordedCaseNames, type RecordedCaseName, type RecordedCaseNames } from './recorded-case-names.js';
 export {
   fileCases,
   recordedDurations,

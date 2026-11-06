@@ -16,6 +16,7 @@ import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
 import { docsSaying } from './phrase.js';
+import { recordedTests } from './search-tests.js';
 
 /** Published matches shown before the answer says it stopped. */
 export const CAP = 40;
@@ -255,6 +256,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const read = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP, told);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
+  const tests = root === undefined ? undefined : recordedTests(root, question.query, area?.files, ELSEWHERE_CAP);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.
   const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
@@ -267,6 +269,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     ...(declared === undefined ? {} : { declared }),
     ...(inside === undefined ? {} : { held: { total: inside.length, shown: inside.slice(0, ELSEWHERE_CAP) } }),
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, ELSEWHERE_CAP) } }),
+    ...(tests === undefined ? {} : { tests }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
   // Installed packages that describe the words never stand in for this repository's
