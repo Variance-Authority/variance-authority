@@ -17,6 +17,7 @@ import { openBindingMembers } from './source-index-binding-members.js';
 import { openHarvest } from './source-index-harvest.js';
 import { openMemberDeclarations } from './source-index-member-declarations.js';
 import { openNested } from './source-index-nested.js';
+import { openTestBlocks } from './source-index-test-blocks.js';
 import { openMemberUses } from './source-index-member-uses.js';
 import { openOwnUses } from './source-index-own-uses.js';
 import { openMembers } from './source-index-members.js';
@@ -38,7 +39,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 42;
+export const SOURCE_INDEX_VERSION = 43;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -177,6 +178,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const memberUsesOf = openMemberUses(opened, text, parseKey.length);
   const ownUsesOf = openOwnUses(opened, text, parseKey.length);
   const nestedOf = openNested(opened, text, parseKey.length);
+  const testBlocksOf = openTestBlocks(opened, text, parseKey.length);
   const bindingMembersOf = openBindingMembers(opened, text, parseKey.length);
   const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
@@ -245,6 +247,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       ...memberUsesOf(row),
       ...ownUsesOf(row),
       ...nestedOf(row),
+      ...testBlocksOf(row),
       ...bindingMembersOf(row, requests.length),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),

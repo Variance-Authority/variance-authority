@@ -100,6 +100,12 @@ export interface Parsed {
    */
   readonly nested?: readonly NestedDeclaration[];
   /**
+   * Every titled `describe`, `it` or `test` call. Kept apart from `symbols`: a
+   * title is no name. Absent when there are none, and absent from any reader
+   * but the native module reader.
+   */
+  readonly testBlocks?: readonly TestBlock[];
+  /**
    * Every name read off a binding a named import takes. Absent when there are
    * none, and absent from any reader but the native module one.
    */
@@ -179,6 +185,14 @@ export interface NestedDeclaration {
   readonly holder?: string;
   /** The line the function that holds it starts on. */
   readonly holderLine: number;
+}
+
+/** One titled test block. */
+export interface TestBlock {
+  /** The title as written; a template's holes read `*`. */
+  readonly title: string;
+  readonly line: number;
+  readonly doc?: TextSpan;
 }
 
 /** One line that uses a name its file declares at its top level or binds by an import. */

@@ -261,19 +261,21 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
   const inside = answer.held ?? { total: 0, shown: [] };
   const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine);
+  const tests = answer.tests ?? { total: 0, shown: [] };
+  const testsSection = section(`${tests.total} test ${tests.total === 1 ? 'block writes' : 'blocks write'} it ${place}:`, tests, declaredLine);
   const aliases = answer.aliases ?? { total: 0, shown: [] };
   const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
   const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
-  const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
+  const declaredSection = [...namesSection, ...insideSection, ...testsSection, ...aliasSection];
 
-  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
     // is in no index, a closure's doc is its holder's, and the doc a file opens
     // with is read only for the words, so a file may still write the phrase.
     const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
     const read = answer.declared === undefined
       ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
-      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, nor a test's title or the doc above it, writes \`${query}\``;
     // A miss of the text is not a miss of the code: with names to offer, the line
     // says only that the text was not written. Inside an area the text may be
     // written outside it, so the way to widen stays.
@@ -349,7 +351,8 @@ export const search: Tool<Help> = {
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
     'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
-    'functions inside a function under what holds them, and the imports that bind the name as a local one. Installed third-party ' +
+    'functions inside a function under what holds them, then the `describe`, `it` and `test` calls that write it in their title or the doc above them, ' +
+    'and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
@@ -428,6 +431,6 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
   const { answer, publishing = [] } = searchedOnce(help, input, invocation);
-  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.tests, answer.aliases, answer.loose, answer.described];
   return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
 }

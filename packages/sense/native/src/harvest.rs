@@ -52,6 +52,16 @@ pub struct NestedSymbol {
     pub holder_line: u32,
 }
 
+/// A titled test block, as [`crate::test_blocks`] finds it. Kept apart from
+/// [`SourceSymbol`], so a reader of a file's top level never meets one.
+#[derive(Clone, Debug, Serialize)]
+pub struct TestBlock {
+    pub title: String,
+    pub line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc: Option<TextSpan>,
+}
+
 /// Every reach a symbol records, in the order the index stores them, from 1:
 /// its file alone (an ES module, a Swift or Kotlin `private`), its module and
 /// the modules inside it (a Rust item that is not `pub`), and any module that
@@ -109,6 +119,8 @@ pub struct Harvest {
     pub symbols: Vec<SourceSymbol>,
     /// Every function a function's body declares, in source order.
     pub nested: Vec<NestedSymbol>,
+    /// Every titled test block, in source order.
+    pub test_blocks: Vec<TestBlock>,
     docs: HashMap<u32, TextSpan>,
     /// The role tags a doc declares, by where its subject starts; only docs that declare one.
     pub tagged: HashMap<u32, u8>,
@@ -171,6 +183,7 @@ impl Harvest {
         let mut harvest = Self {
             symbols: Vec::new(),
             nested: Vec::new(),
+            test_blocks: Vec::new(),
             docs,
             tagged,
             module_doc,
@@ -196,6 +209,10 @@ impl Harvest {
                     kind: found.kind,
                     holder: found.holder,
                 })
+                .collect();
+            harvest.test_blocks = crate::test_blocks::test_blocks(program)
+                .into_iter()
+                .map(|found| TestBlock { doc: harvest.doc(found.at), line: lines.at(found.at), title: found.title })
                 .collect();
         }
         harvest

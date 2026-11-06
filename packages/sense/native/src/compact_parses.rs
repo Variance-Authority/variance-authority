@@ -85,6 +85,10 @@ pub(crate) struct Parses<'a> {
     /// The holder's name, or `NONE` when nothing names it.
     pub nested_holder: U32s<'a>,
     pub nested_holder_line: U32s<'a>,
+    pub test_blocks: U32s<'a>,
+    pub test_block_title: U32s<'a>,
+    pub test_block_line: U32s<'a>,
+    pub test_block_doc: Ends<'a>,
     pub binding_members: U32s<'a>,
     pub binding_member_request: U32s<'a>,
     pub binding_member_binding: U32s<'a>,
@@ -111,6 +115,7 @@ impl<'a> Parses<'a> {
         let member_use_name = u32s("member-uses.name")?;
         let own_use_name = u32s("own-uses.name")?;
         let nested_name = u32s("nested.name")?;
+        let test_block_title = u32s("test-blocks.title")?;
         let binding_member_name = u32s("binding-members.name")?;
         let binding_within_name = u32s("binding-within.name")?;
         let parses = Parses {
@@ -185,6 +190,10 @@ impl<'a> Parses<'a> {
             nested_holder: u32s("nested.holder")?,
             nested_holder_line: u32s("nested.holder-line")?,
             nested_name,
+            test_blocks: stored.offsets("parses.test-blocks", rows, test_block_title.len())?,
+            test_block_line: u32s("test-blocks.line")?,
+            test_block_doc: ends("test-blocks.doc-start", "test-blocks.doc-end")?,
+            test_block_title,
             binding_members: stored.offsets("parses.binding-members", rows, binding_member_name.len())?,
             binding_member_request: u32s("binding-members.request")?,
             binding_member_binding: u32s("binding-members.binding")?,
@@ -306,6 +315,11 @@ impl<'a> Parses<'a> {
             ("nested.doc-end", self.nested_doc[1].len()),
             ("nested.holder", self.nested_holder.len()),
             ("nested.holder-line", self.nested_holder_line.len()),
+        ])?;
+        same_length(self.test_block_title.len(), &[
+            ("test-blocks.line", self.test_block_line.len()),
+            ("test-blocks.doc-start", self.test_block_doc[0].len()),
+            ("test-blocks.doc-end", self.test_block_doc[1].len()),
         ])?;
         same_length(self.binding_member_name.len(), &[
             ("binding-members.request", self.binding_member_request.len()),

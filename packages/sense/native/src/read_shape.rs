@@ -94,6 +94,9 @@ pub struct Read {
     /// Every function a function's body declares, apart from the top level.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) nested: Vec<crate::harvest::NestedSymbol>,
+    /// Every titled test block, kept apart from the symbols.
+    #[serde(rename = "testBlocks", skip_serializing_if = "Vec::is_empty")]
+    pub(crate) test_blocks: Vec<crate::harvest::TestBlock>,
     #[serde(skip_serializing_if = "is_false")]
     pub(crate) harvested: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]

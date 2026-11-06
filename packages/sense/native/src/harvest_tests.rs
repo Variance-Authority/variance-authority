@@ -60,3 +60,15 @@ fn a_blank_line_written_with_carriage_returns_parts_a_doc_too() {
     assert_eq!(file.as_deref(), Some("The banner."));
     assert_eq!(declared, None);
 }
+
+#[test]
+fn a_test_block_declares_nothing() {
+    let source = "/** The rule. */\ndescribe('a rule', () => {\n  it('holds', () => {});\n});\n";
+    let read = read_module("a.test.ts", source, &Allocator::default(), true);
+    assert!(read.symbols.is_empty());
+    assert!(read.nested.is_empty());
+    let titles: Vec<&str> = read.test_blocks.iter().map(|block| block.title.as_str()).collect();
+    assert_eq!(titles, ["a rule", "holds"]);
+    let doc = read.test_blocks[0].doc.expect("the doc above the call is the block's");
+    assert_eq!(source[doc.start as usize..doc.end as usize].trim_start_matches('*').trim(), "The rule.");
+}

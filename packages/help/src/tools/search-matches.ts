@@ -168,6 +168,11 @@ export interface SearchAnswer {
    * `declared` is.
    */
   readonly held?: Matches<HeldMatch>;
+  /**
+   * The `describe`, `it` and `test` calls whose title or doc writes the query: a
+   * rule held only as a test. Absent when the source index could not be read.
+   */
+  readonly tests?: Matches<DeclaredMatch>;
   /** The imports that bind the name as written to another. Absent when the source index could not be read. */
   readonly aliases?: Matches<AliasMatch>;
   /** The languages of this workspace whose members were not read, by name, when nothing answered; absent otherwise and when there are none. */

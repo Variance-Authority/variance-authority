@@ -75,6 +75,9 @@ impl ParseRow for ParseView<'_, '_> {
             text(columns.nested_name, at);
             text(columns.nested_kind, at);
         }
+        for at in columns.test_blocks.range(row) {
+            text(columns.test_block_title, at);
+        }
         for at in columns.binding_members.range(row) {
             text(columns.binding_member_binding, at);
             text(columns.binding_member_name, at);
@@ -176,6 +179,9 @@ impl ParseRow for ParseView<'_, '_> {
                 strings.optional(stored.optional(columns.nested_holder.at(at))),
                 columns.nested_holder_line.at(at),
             );
+        }
+        for at in columns.test_blocks.range(row) {
+            into.test_block(id(columns.test_block_title, at), columns.test_block_line.at(at), span(columns.test_block_doc[0], columns.test_block_doc[1], at));
         }
         for at in columns.binding_members.range(row) {
             let (binding, name) = (id(columns.binding_member_binding, at), id(columns.binding_member_name, at));

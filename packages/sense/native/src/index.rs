@@ -71,6 +71,7 @@ impl ParseRow for Read {
             values.insert(nested.kind);
             values.extend(nested.holder.as_deref());
         }
+        values.extend(self.test_blocks.iter().map(|block| block.title.as_str()));
         values.extend(self.declares.iter().map(String::as_str));
         values.extend(self.mocks.minus.iter().map(String::as_str));
         values.extend(self.mocks.plus.iter().map(String::as_str));
@@ -142,6 +143,9 @@ impl ParseRow for Read {
         for nested in &self.nested {
             let holder = strings.optional(nested.holder.as_deref());
             into.nested(id(&nested.name), id(nested.kind), nested.line, span(Some(nested.signature)), span(nested.doc), holder, nested.holder_line);
+        }
+        for block in &self.test_blocks {
+            into.test_block(id(&block.title), block.line, span(block.doc));
         }
         for read in &self.binding_members {
             into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);

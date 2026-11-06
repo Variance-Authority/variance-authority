@@ -165,6 +165,7 @@ mod source_tree;
 mod source_update;
 mod specifier;
 mod stored;
+mod test_blocks;
 mod text_digests;
 mod top_level;
 mod tree;

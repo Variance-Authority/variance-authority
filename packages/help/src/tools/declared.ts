@@ -248,6 +248,9 @@ export function declaredBlocks(
 /** Whether a function's body declares it, rather than its file's top level. */
 export const isNested = (one: Pick<DeclaredName, 'holderLine'>): boolean => one.holderLine !== undefined && one.holderLine !== null;
 
+/** Whether it is a test block, whose title is what it is called: `search` alone reads one. */
+const isTestBlock = (one: Pick<DeclaredName, 'kind'>): boolean => one.kind === 'test';
+
 /**
  * The declarations, those in a file nearest one of `from` first: the more
  * leading path segments they share, as `uses` orders its sites. Stable, so the
@@ -276,7 +279,8 @@ export function declaredAt(help: Help, root: string | undefined, name: string, w
  * that is the query as written comes first, the same name in another case
  * second, every name only holding it after them, and a doc alone saying it last. Members and functions
  * inside a function are `held`, every one, ordered the same way, and `exact`
- * counts the ones at its head that are the question.
+ * counts the ones at its head that are the question. Test blocks are `tests`,
+ * the first `cap`, ordered the same way.
  */
 export function declaredMatches(
   root: string | undefined,
@@ -284,7 +288,7 @@ export function declaredMatches(
   files: Iterable<string> | undefined,
   cap: number,
   told: (one: DeclaredRead) => DeclaredMatch,
-): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
+): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly tests: Matches<DeclaredMatch>; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
   // Stable, so the index's order holds within each.
@@ -292,11 +296,13 @@ export function declaredMatches(
   const lowered = query.toLowerCase();
   const written = (one: DeclaredName): number => exactness(one.name, query) ?? exactness(spelled(one), query) ?? (spelled(one).toLowerCase().includes(lowered) ? 2 : 3);
   const names = [...read.names].sort((left, right) => written(left) - written(right));
-  const top = names.filter((one) => !isNested(one) && !isMember(one));
+  const blocks = names.filter(isTestBlock);
+  const top = names.filter((one) => !isNested(one) && !isMember(one) && !isTestBlock(one));
   const held = names.filter((one) => isNested(one) || isMember(one));
   return {
     declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch).map(told), unread: read.unread },
     held: held.map(heldMatch),
+    tests: { total: blocks.length, shown: blocks.slice(0, cap).map(declaredMatch).map(told) },
     exact: held.filter((one) => written(one) < 2).length,
   };
 }
