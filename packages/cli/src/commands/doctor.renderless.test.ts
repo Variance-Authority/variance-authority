@@ -18,14 +18,14 @@ function doctorOn(settings: unknown, ...flags: string[]) {
   return doctorIn('.', settings, ...flags);
 }
 
-/** The same, with the config in `directory` of that repository. */
+/** The same, with the config in `directory` of that repository. A string is the file's text. */
 async function doctorIn(directory: string, settings: unknown, ...flags: string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-renderless-'));
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   const at = join(root, directory);
   await mkdir(at, { recursive: true });
   const file = join(at, 'variance.config.json');
-  await writeFile(file, JSON.stringify(settings));
+  await writeFile(file, typeof settings === 'string' ? settings : JSON.stringify(settings));
 
   let out = '';
   let err = '';
@@ -69,6 +69,13 @@ describe('doctor on a config that renders nothing', () => {
 
     expect(code).toBe(0);
     expect(out).toContain('renderer: not checked');
+  });
+
+  it('refuses a file that is not JSON', async () => {
+    const { code, err } = await doctorOn('{ "suites": ');
+
+    expect(code).toBe(2);
+    expect(err).toContain('is not valid JSON');
   });
 
   it('refuses a misspelled setting by name', async () => {
