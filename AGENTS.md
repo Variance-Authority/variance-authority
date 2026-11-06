@@ -90,8 +90,9 @@ line happens to spell:
 ./node_modules/.bin/variance covering --file <path>       # which tests entered a file
 ```
 
-The workspace questions are also the `docs_*` tools of the
-`variance-authority-help` server that [`.mcp.json`](.mcp.json) declares.
+The `ask` questions are also the `docs_symbol`, `docs_uses`, `docs_search` and
+`docs_grep` tools of the `variance-authority-help` server that
+[`.mcp.json`](.mcp.json) declares; `covering` is the command alone.
 
 Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
 local name, a string or a pattern to `grep`, from the file or folder you are
