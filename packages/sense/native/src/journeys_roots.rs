@@ -13,6 +13,7 @@ use std::sync::Mutex;
 
 use crate::journeys_graph::Graph;
 use crate::journeys_parse::{Export, Parsed};
+use crate::test_blocks::{RUNNER_MEMBERS, RUNNER_WORDS};
 
 /// The top level of a file, as a function index.
 pub(crate) const TOP: u32 = u32::MAX - 1;
@@ -54,11 +55,8 @@ pub(crate) fn body_hint(hint: Option<&str>) -> bool {
 
 /// A function the runner registers rather than calls in place.
 pub(crate) fn registered(hint: Option<&str>) -> bool {
-    hint_is(
-        hint,
-        &["it", "test", "describe", "each", "only", "skip", "concurrent", "todo", "beforeEach", "beforeAll", "afterEach", "afterAll"],
-        b"0123456789",
-    )
+    let at = b"0123456789";
+    hint_is(hint, &RUNNER_WORDS, at) || hint_is(hint, &RUNNER_MEMBERS, at) || hint_is(hint, &["beforeEach", "beforeAll", "afterEach", "afterAll"], at)
 }
 
 fn describe(hint: Option<&str>) -> bool {

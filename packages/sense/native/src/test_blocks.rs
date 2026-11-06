@@ -1,7 +1,7 @@
 //! The blocks a test file writes: a `describe`, an `it` or a `test` called with
-//! a title. Those three words are what is read: Jest's `fit`, `xit`, `xtest`,
-//! `fdescribe` and `xdescribe`, Vitest's `suite`, and a local alias such as
-//! `const live = ready ? describe : describe.skip` wait.
+//! a title. This reads the words the journeys read a runner by and no others: a
+//! block written any other way is not worked out from its source, because a case
+//! that ran is named by the record.
 //!
 //! A rule a repository holds only as a test is declared nowhere else: its title
 //! says what must be true and the doc above the call says why, and neither is a
@@ -13,8 +13,8 @@
 //! a template. `regex.test(text)` starts from `regex`, so it is no block, and
 //! `it.replace('a', 'b')` writes no runner's member, so `it` is a value there. A
 //! block has a title and something the title stands for, or says `todo`. A title
-//! a row fills in whole, `%s`, spells nothing, so it is no row, and the doc above
-//! it goes with it.
+//! a row fills in whole, `%s` under `it.each`, spells nothing, so it is no row, and
+//! the doc above it goes with it.
 
 // compass: variance-authority.reach.source-index
 
@@ -49,16 +49,16 @@ pub(crate) fn title(arguments: &[Argument<'_>]) -> Option<String> {
     }
 }
 
-/// What Vitest, Jest, Mocha and Playwright write after a block's word.
-const RUNNER_MEMBERS: [&str; 20] = [
-    "concurrent", "describe", "each", "extend", "fail", "failing", "fails", "fixme", "for", "only",
-    "parallel", "runIf", "sequential", "serial", "shuffle", "skip", "skipIf", "slow", "step", "todo",
-];
+/// The words a runner's block starts from.
+pub(crate) const RUNNER_WORDS: [&str; 3] = ["describe", "it", "test"];
+
+/// What a runner writes after one of those words.
+pub(crate) const RUNNER_MEMBERS: [&str; 6] = ["concurrent", "describe", "each", "only", "skip", "todo"];
 
 /// Whether `callee` starts from a block's word, and if so whether it says `todo`.
 fn block_callee(callee: &Expression<'_>) -> Option<bool> {
     match callee {
-        Expression::Identifier(it) => matches!(it.name.as_str(), "describe" | "it" | "test").then_some(false),
+        Expression::Identifier(it) => RUNNER_WORDS.contains(&it.name.as_str()).then_some(false),
         Expression::StaticMemberExpression(it) if RUNNER_MEMBERS.contains(&it.property.name.as_str()) => {
             block_callee(&it.object).map(|todo| todo || it.property.name == "todo")
         }
@@ -68,8 +68,11 @@ fn block_callee(callee: &Expression<'_>) -> Option<bool> {
     }
 }
 
-/// Whether a title writes a word once a row's placeholders are read past: `%s`, `$name`, a template's `*`.
-fn spells(title: &str) -> bool {
+/// Whether a title writes a word. `%s` and `$name` are holes only where `rows` fill them, so only there are they read past; a template's `*` never spells.
+fn spells(title: &str, rows: bool) -> bool {
+    if !rows {
+        return title.chars().any(char::is_alphanumeric);
+    }
     let mut characters = title.chars();
     while let Some(character) = characters.next() {
         match character {
@@ -95,7 +98,7 @@ impl<'a> Visit<'a> for Walker {
         loop {
             inner = match inner {
                 Expression::AwaitExpression(it) => &it.argument,
-                Expression::UnaryExpression(it) => &it.argument,
+                Expression::UnaryExpression(it) if it.operator == UnaryOperator::Void => &it.argument,
                 _ => break,
             };
         }
@@ -107,7 +110,8 @@ impl<'a> Visit<'a> for Walker {
 
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
         if block_callee(&call.callee).is_some_and(|todo| todo || call.arguments.len() >= 2) {
-            if let Some(title) = title(&call.arguments).filter(|title| spells(title)) {
+            let rows = matches!(call.callee, Expression::CallExpression(_) | Expression::TaggedTemplateExpression(_));
+            if let Some(title) = title(&call.arguments).filter(|title| spells(title, rows)) {
                 let at = self.opened.filter(|(opens, _)| *opens == call.span.start).map_or(call.span.start, |(_, statement)| statement);
                 self.found.push(TestBlock { title: title.split_whitespace().collect::<Vec<_>>().join(" "), at });
             }
@@ -135,13 +139,12 @@ mod tests {
         let source = "describe('outer', () => {
             it('plain', run);
             it.skip('skipped', run);
-            it.skipIf(ci)('conditional', run);
             it.each([1])('row %s stays', run);
             it.each`a\n${1}`('tagged', run);
             test.describe('playwright', run);
             it.todo\n('later');
         });";
-        assert_eq!(titles(source), ["outer", "plain", "skipped", "conditional", "row %s stays", "tagged", "playwright", "later"]);
+        assert_eq!(titles(source), ["outer", "plain", "skipped", "row %s stays", "tagged", "playwright", "later"]);
     }
 
     #[test]
@@ -162,6 +165,11 @@ mod tests {
     #[test]
     fn a_title_on_two_lines_reads_as_one() {
         assert_eq!(titles("it('holds \\n  on two lines', run);"), ["holds on two lines"]);
+    }
+
+    #[test]
+    fn a_title_nothing_fills_in_is_read_as_it_is_written() {
+        assert_eq!(titles("describe('$watch', run); it('$emit', run); it.each(rows)('$emit', run);"), ["$watch", "$emit"]);
     }
 
     #[test]

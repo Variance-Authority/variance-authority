@@ -83,3 +83,9 @@ fn a_block_awaited_or_voided_keeps_the_doc_above_its_statement() {
     }).collect();
     assert_eq!(docs, ["Awaited.", "Voided."]);
 }
+
+#[test]
+fn a_block_negated_takes_no_doc_from_above_its_statement() {
+    let read = read_module("a.test.ts", "/** Negated. */\n!describe('a', run);\n", &Allocator::default(), true);
+    assert!(read.test_blocks[0].doc.is_none());
+}
