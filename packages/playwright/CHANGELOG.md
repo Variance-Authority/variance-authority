@@ -1,5 +1,23 @@
 # @variance-authority/playwright
 
+## 0.26.0
+
+### Minor Changes
+
+- 0b201a2: Playwright 1.55 is the oldest release these packages take, where it was 1.49. A
+  version is supported while its projects would adopt, and 1.49 is two years old:
+  3.3% of a week's downloads of stable `@playwright/test` were older than 1.55.
+  `cases/playwright-oldest-case` runs `@variance-authority/playwright-test` on
+  1.55.0.
+
+### Patch Changes
+
+- b4c1f49: `variance run` on a machine with no browser installed says the browser did not
+  start, followed by Playwright's reason, which names the command that installs it.
+  It no longer calls that a defect in the tool or prints a stack. The exit code
+  stays `2`. Any launch that fails reads this way, and nothing is checked before
+  the launch, so a machine whose launch works is never refused.
+
 ## 0.25.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
