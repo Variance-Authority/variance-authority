@@ -3258,13 +3258,14 @@ ran, red or green:
 ```
 
 Only selection reads the pushed record. `take` prints the mainline's cases
-for each suite it takes as `against-<suite>`: the record the restore laid,
-set aside under `.variance/against` before `take` replaced it, or, where the
-restore laid none, the cases the share holds. `keep` leaves it there, so the
-review may run before or after `keep`. Pass it to `variance review --against`, so the change's
-cases are compared with the mainline's rather than the last push's. A suite
-neither gave a record prints none, and `take` says so: put the restore before
-`take`.
+as `against-<suite>`: for each declared suite the record the restore laid, set
+aside under `.variance/against` before anything replaces it, and for a suite it
+takes where the restore laid none, the cases the share holds. `keep` leaves it there, so the
+review may run before or after `keep`. Pass it to `variance review --against`,
+so the change's cases are compared with the mainline's rather than the last
+push's. A suite it does not take and the restore did not lay prints none: a
+review reads a shared suite from the share, and any other needs the restore
+before `take`.
 
 The record names the commits its tests last ran at: the merge commits of
 earlier pushes, which no branch holds. `take` fetches the ones the clone lacks

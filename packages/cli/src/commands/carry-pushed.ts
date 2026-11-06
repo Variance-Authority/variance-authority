@@ -6,8 +6,9 @@
  * that push left incomplete, a failed one included. `keep` copies each suite's
  * own record into a directory the host cache saves under the pull request's
  * key, red or green; `take` lays it back over the mainline's. Only selection
- * reads it: `take` names the mainline's cases for `review --against`, the record
- * it replaced or, where the restore laid none, the cases the share holds.
+ * reads it: `take` names each suite's mainline cases for `review --against`, the
+ * restored record set aside or, where the restore laid none, the cases the share
+ * holds.
  *
  * The records name earlier pushes' merge commits, which no branch holds;
  * `take` fetches the ones the clone lacks by name. A suite whose commits cannot
@@ -24,7 +25,7 @@ import { cp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { declaredSuites, foreignProbes, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { declaredSuites, foreignProbes, keepsCases, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 import type { Env } from '../share-lines.js';
@@ -45,15 +46,15 @@ export interface PushedTaken {
   readonly left: readonly PushedLeft[];
   /**
    * The mainline's cases by suite, for `variance review --against`, which would
-   * otherwise compare the change's cases with the last push's: the record
-   * `take` replaced, set aside, or the share's when the restore laid none.
-   * Absent when no taken suite had either.
+   * otherwise compare the change's cases with the last push's: the restored
+   * record, set aside, or the share's when the restore laid none. Absent when
+   * no declared suite had either.
    */
   readonly against?: Readonly<Record<string, string>>;
 }
 
 /**
- * Where `take` sets aside the record it replaces, under the checkout: outside
+ * Where `take` sets aside the mainline's record, under the checkout: outside
  * the pushed directory, which `keep` replaces whole, so a review that reads it
  * after `keep` still finds it.
  */
@@ -101,6 +102,16 @@ export async function keepPushed(root: string, dir: string): Promise<PushedKept>
   return { kept: kept.sort() };
 }
 
+/** Where the restored record of `suite` stays readable once this push writes over it: absent when none was laid, or the one laid kept no cases, since a review could not read it. */
+async function setAside(root: string, suite: string): Promise<string | undefined> {
+  const record = testCoverageFile(root, { suite });
+  if (!existsSync(record) || !keepsCases(record)) return undefined;
+  const aside = resolve(root, AGAINST, suite, 'coverage.bin');
+  await mkdir(dirname(aside), { recursive: true });
+  await cp(record, aside);
+  return aside;
+}
+
 /**
  * Lay each suite under `dir` into the checkout at `root` as its own record,
  * replacing one a restore laid from the mainline: the last push was laid on a
@@ -130,6 +141,11 @@ export async function takePushed(
   // A shallow clone fetches each commit alone: a diff reads two trees, not history.
   const depth = run(root, 'rev-parse', '--is-shallow-repository') === 'true' ? ['--depth=1'] : [];
   const declared = declaredNames(root);
+  // Every declared suite: what `take` leaves in place, the run writes over.
+  for (const suite of [...declared].sort()) {
+    const aside = await setAside(root, suite);
+    if (aside !== undefined) against[suite] = aside;
+  }
   for (const suite of entries.map((entry) => entry.name).sort()) {
     const from = join(dir, suite);
     if (!existsSync(join(from, 'coverage.bin'))) continue;
@@ -159,17 +175,12 @@ export async function takePushed(
       continue;
     }
     const record = testCoverageFile(root, { suite });
-    const own = dirname(record);
-    if (existsSync(record)) {
-      const aside = resolve(root, AGAINST, suite, 'coverage.bin');
-      await mkdir(dirname(aside), { recursive: true });
-      await cp(record, aside);
-      against[suite] = aside;
-    } else {
-      // Nothing laid here: a suite the share carries reads the mainline's from it.
+    if (!existsSync(record)) {
+      // Nothing laid here, and the last push's record is about to read as the suite's own: only the share still has the mainline's.
       const base = await suiteBase(root, { suite, ...(options.env === undefined ? {} : { env: options.env }) });
       if (base.from === 'mainline' && base.mainline.cases !== undefined) against[suite] = base.mainline.cases;
     }
+    const own = dirname(record);
     await rm(own, { recursive: true, force: true });
     await cp(from, own, { recursive: true });
     taken.push(suite);
@@ -205,7 +216,10 @@ export function takenLines(result: PushedTaken): readonly string[] {
             : `${one.suite} is not taken: the last push kept it, and the repository no longer declares it.`,
     );
   }
-  if (result.taken.length === 0 && result.left.length === 0) lines.push("no earlier push kept a record, so every suite reads the mainline's.");
+  for (const [suite, aside] of Object.entries(result.against ?? {})) {
+    if (!result.taken.includes(suite)) lines.push(`${suite}: the mainline's cases are at ${aside}, for \`review --against\`.`);
+  }
+  if (lines.length === 0) lines.push("no earlier push kept a record, so every suite reads the mainline's.");
   return lines;
 }
 
