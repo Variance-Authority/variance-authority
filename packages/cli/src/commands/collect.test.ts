@@ -149,18 +149,6 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(part.subjects.map((row) => row.subject)).toEqual(['card--default@375']);
   });
 
-  // A failed visit realized no width for the glob to decide on: what it failed to
-  // read is the width the scope named, so the failure is reported, not filtered.
-  it('reports a visit that failed under a scope naming one of its widths', async () => {
-    const story = PLAN.subjects[2]!;
-    const opened = collecting(PLAN, (id) => (id === story.subject.id ? { ok: false, because: 'the browser crashed' } : answer(id)));
-    const part = await collectEvidence(inputOf(opened, { scope: '*@375' }));
-
-    expect(part.outcomes.filter((outcome) => outcome.position === 2).map((outcome) => [outcome.subject, outcome.outcome])).toEqual([
-      ['card--default', 'failed'],
-    ]);
-  });
-
   // A visit that realized nothing read nothing, and the story the plan holds
   // must still be accounted for: it failed, at its own position.
   it('says a story failed when its visit realized no subject', async () => {

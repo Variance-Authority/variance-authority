@@ -252,6 +252,25 @@ describe('a story its owner read at widths', () => {
     ]);
   });
 
+  // Globs that split a story by width: the shard whose visit failed left the story,
+  // and the width it was given is still named, by the shard that left that width.
+  it('still fails a width every shard left, when the globs split by width', () => {
+    const merged = mergeReports([
+      shard('shard-1.json', {
+        observations: [],
+        notObserved: [{ subject: 'story:card', kind: 'excluded', because: shardFilterBecause('*@375') }],
+      }),
+      shard('shard-2.json', {
+        observations: [observation('story:card@800')],
+        notObserved: [{ subject: 'story:card@375', kind: 'excluded', because: shardFilterBecause('*@800') }],
+      }),
+    ]);
+
+    expect(merged.notObserved).toEqual([
+      { subject: 'story:card@375', kind: 'failed', because: expect.stringContaining('no shard observed it') },
+    ]);
+  });
+
   // Widths answer for a story another shard left, not for one it tried: a visit
   // that failed there read a width nobody can name, so the failure stands.
   it('keeps the failure of a shard that tried to read it', () => {
