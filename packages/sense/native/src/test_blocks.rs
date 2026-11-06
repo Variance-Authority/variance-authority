@@ -1,16 +1,20 @@
 //! The blocks a test file writes: a `describe`, an `it` or a `test` called with
-//! a title, in any runner's spelling of them.
+//! a title. Those three words are what is read: Jest's `fit`, `xit`, `xtest`,
+//! `fdescribe` and `xdescribe`, Vitest's `suite`, and a local alias such as
+//! `const live = ready ? describe : describe.skip` wait.
 //!
 //! A rule a repository holds only as a test is declared nowhere else: its title
 //! says what must be true and the doc above the call says why, and neither is a
 //! name. So each block is kept beside the symbols, never among them, where a
 //! reader of a file's top level does not meet it and `search` does.
 //!
-//! The call is known by the word it starts from, through whatever a runner
+//! The call is known by the word it starts from, through the members a runner
 //! writes after it: `it.skip`, `test.describe`, `it.each(rows)`, `it.each` over
-//! a template. `regex.test(text)` starts from `regex`, so it is no block. A
+//! a template. `regex.test(text)` starts from `regex`, so it is no block, and
+//! `it.replace('a', 'b')` writes no runner's member, so `it` is a value there. A
 //! block has a title and something the title stands for, or says `todo`. A title
-//! a row fills in whole, `%s`, spells nothing, so it is no row.
+//! a row fills in whole, `%s`, spells nothing, so it is no row, and the doc above
+//! it goes with it.
 
 // compass: variance-authority.reach.source-index
 
@@ -21,7 +25,8 @@ use oxc_ast_visit::{walk, Visit};
 pub(crate) struct TestBlock {
     /// The title as written; a template's holes read `*`.
     pub(crate) title: String,
-    /// Where the call starts, where its line and its doc are read.
+    /// Where its statement starts when the call opens one behind an `await` or
+    /// a `void`, else where the call starts: its line and its doc are read here.
     pub(crate) at: u32,
 }
 
@@ -44,11 +49,19 @@ pub(crate) fn title(arguments: &[Argument<'_>]) -> Option<String> {
     }
 }
 
+/// What Vitest, Jest, Mocha and Playwright write after a block's word.
+const RUNNER_MEMBERS: [&str; 20] = [
+    "concurrent", "describe", "each", "extend", "fail", "failing", "fails", "fixme", "for", "only",
+    "parallel", "runIf", "sequential", "serial", "shuffle", "skip", "skipIf", "slow", "step", "todo",
+];
+
 /// Whether `callee` starts from a block's word, and if so whether it says `todo`.
 fn block_callee(callee: &Expression<'_>) -> Option<bool> {
     match callee {
         Expression::Identifier(it) => matches!(it.name.as_str(), "describe" | "it" | "test").then_some(false),
-        Expression::StaticMemberExpression(it) => block_callee(&it.object).map(|todo| todo || it.property.name == "todo"),
+        Expression::StaticMemberExpression(it) if RUNNER_MEMBERS.contains(&it.property.name.as_str()) => {
+            block_callee(&it.object).map(|todo| todo || it.property.name == "todo")
+        }
         Expression::CallExpression(it) => block_callee(&it.callee),
         Expression::TaggedTemplateExpression(it) => block_callee(&it.tag),
         _ => None,
@@ -72,13 +85,31 @@ fn spells(title: &str) -> bool {
 #[derive(Default)]
 struct Walker {
     found: Vec<TestBlock>,
+    /// Where a call behind an `await` or a `void` starts, and where its statement does.
+    opened: Option<(u32, u32)>,
 }
 
 impl<'a> Visit<'a> for Walker {
+    fn visit_expression_statement(&mut self, statement: &ExpressionStatement<'a>) {
+        let mut inner = &statement.expression;
+        loop {
+            inner = match inner {
+                Expression::AwaitExpression(it) => &it.argument,
+                Expression::UnaryExpression(it) => &it.argument,
+                _ => break,
+            };
+        }
+        if let Expression::CallExpression(call) = inner {
+            self.opened = Some((call.span.start, statement.span.start));
+        }
+        walk::walk_expression_statement(self, statement);
+    }
+
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
         if block_callee(&call.callee).is_some_and(|todo| todo || call.arguments.len() >= 2) {
             if let Some(title) = title(&call.arguments).filter(|title| spells(title)) {
-                self.found.push(TestBlock { title, at: call.span.start });
+                let at = self.opened.filter(|(opens, _)| *opens == call.span.start).map_or(call.span.start, |(_, statement)| statement);
+                self.found.push(TestBlock { title: title.split_whitespace().collect::<Vec<_>>().join(" "), at });
             }
         }
         walk::walk_call_expression(self, call);
@@ -121,6 +152,16 @@ mod tests {
     #[test]
     fn a_call_that_is_not_a_block_is_no_row() {
         assert!(titles("pattern.test('text', 1); check('title', run); it(title, run); it('alone');").is_empty());
+    }
+
+    #[test]
+    fn a_member_no_runner_writes_is_a_value_called_it() {
+        assert!(titles("rows.map((it) => it.replace('a word', 'b')); test.set('key', 1); it.startsWith('a', 1);").is_empty());
+    }
+
+    #[test]
+    fn a_title_on_two_lines_reads_as_one() {
+        assert_eq!(titles("it('holds \\n  on two lines', run);"), ["holds on two lines"]);
     }
 
     #[test]

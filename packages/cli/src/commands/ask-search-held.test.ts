@@ -131,7 +131,7 @@ describe('what search and symbol say of one name', () => {
     expect((await run(['ask', 'symbol', '--name', name])).out).not.toContain('No file in this workspace declares');
     const text = await searched(name);
     expect(text).toContain(name.split('.').at(-1));
-    expect(text).not.toContain('nor a function inside a function, nor a test\'s title or the doc above it, writes');
+    expect(text).not.toContain('nor a function inside a function, nor the title of a `describe`, `it` or `test` call or the doc above it, writes');
   });
 });
 
@@ -174,7 +174,7 @@ describe('the words of an empty answer', () => {
     checkout(HELD);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const text = await searched('qqzzq');
-    expect(text).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, nor a test\'s title or the doc above it, writes `qqzzq`.');
+    expect(text).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, nor the title of a `describe`, `it` or `test` call or the doc above it, writes `qqzzq`.');
   });
 
   it('names the language whose members were not read', async () => {

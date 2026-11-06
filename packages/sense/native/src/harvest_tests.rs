@@ -72,3 +72,14 @@ fn a_test_block_declares_nothing() {
     let doc = read.test_blocks[0].doc.expect("the doc above the call is the block's");
     assert_eq!(source[doc.start as usize..doc.end as usize].trim_start_matches('*').trim(), "The rule.");
 }
+
+#[test]
+fn a_block_awaited_or_voided_keeps_the_doc_above_its_statement() {
+    let source = "/** Awaited. */\nawait describe('a', run);\n/** Voided. */\nvoid test('b', run);\n";
+    let read = read_module("a.test.ts", source, &Allocator::default(), true);
+    let docs: Vec<&str> = read.test_blocks.iter().map(|block| {
+        let doc = block.doc.expect("the doc above the statement is the block's");
+        source[doc.start as usize..doc.end as usize].trim_start_matches('*').trim()
+    }).collect();
+    assert_eq!(docs, ["Awaited.", "Voided."]);
+}

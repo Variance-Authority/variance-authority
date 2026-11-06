@@ -107,7 +107,7 @@ describe('variance ask about a name declared and not exported', () => {
 
     const { code, out } = await run(['ask', 'search', '--query', 'launch']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).not.toContain('nor a test\'s title or the doc above it, writes `launch`');
+    expect(out).not.toContain('nor the title of a `describe`, `it` or `test` call or the doc above it, writes `launch`');
     expect(out).toMatch(/^1 more name is declared somewhere in the repository without being exported:$/m);
     expect(out).toMatch(/^relaunch \[function\] — @acme\/kit · packages\/kit\/src\/money\/restart\.ts:4 — Start the program again in a process of its own\.$/m);
   });

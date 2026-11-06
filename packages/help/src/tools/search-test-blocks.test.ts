@@ -54,7 +54,7 @@ it('finds a block by the doc above the call, and shows the doc it matched', asyn
 });
 
 it('says a title was read when no block writes the question', async () => {
-  expect(await asked('resize every thumbnail')).toContain("nor a function inside a function, nor a test's title or the doc above it, writes `resize every thumbnail`");
+  expect(await asked('resize every thumbnail')).toContain("nor a function inside a function, nor the title of a `describe`, `it` or `test` call or the doc above it, writes `resize every thumbnail`");
 });
 
 it('takes no row for a title that spells nothing', async () => {

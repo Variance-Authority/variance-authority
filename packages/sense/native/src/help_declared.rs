@@ -331,7 +331,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     let (doc_start, doc_end) = span(parses.test_block_doc[0], parses.test_block_doc[1], at);
                     let mut doc = || source_of(&mut source, root, crossing.file).and_then(|source| prose(source, doc_start?, doc_end?));
                     let titled = title.to_lowercase().contains(query) || (!asked.is_empty() && held_in(&asked, title).len() == asked.len());
-                    if titled || doc().is_some_and(|doc| doc_holds(&doc)) {
+                    if titled || (doc_start.is_some() && doc().is_some_and(|doc| doc_holds(&doc))) {
                         hits.push((layer, crossing.file, Row::Test(at), None));
                     }
                 }

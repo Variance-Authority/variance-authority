@@ -36,7 +36,7 @@ it('reaches react from "state management", answers an undescribed job empty with
 
   const none = said('resize images');
   expect(none).toContain('Third-party names searched: 1 package under package.json.');
-  expect(none).not.toContain('describe');
+  expect(none).not.toContain('describes');
 
   const manifest = join(root, 'node_modules/react/package.json');
   writeFileSync(manifest, JSON.stringify({ name: 'react', version: '1.0.0', description: 'Image resizing for components', types: 'index.d.ts' }));
@@ -136,7 +136,7 @@ describe('which names the described section holds, and in what order', () => {
     // No name holds two of `cache`, `chart` and `palette`; `cacheEntries` holds one.
     const said = await ask('cache chart palette');
     expect(said).not.toContain('[holds:');
-    expect(said).toContain('nor a function inside a function, nor a test\'s title or the doc above it, writes `cache chart palette`. `packages` lists every entrypoint');
+    expect(said).toContain('nor a function inside a function, nor the title of a `describe`, `it` or `test` call or the doc above it, writes `cache chart palette`. `packages` lists every entrypoint');
   });
 
   it('says no name or a name\'s doc writes the words, not that no doc does, when only a file\'s opening doc writes them', async () => {
@@ -146,7 +146,7 @@ describe('which names the described section holds, and in what order', () => {
     });
     const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'painted frogs dance' }, treeOf([], root), root);
     expect(said).toMatch(/src\/frogs\.ts \[file\].*\[holds: dance, frogs, painted\]/u);
-    expect(said).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, nor a test\'s title or the doc above it, writes `painted frogs dance`. The nearest follow.');
+    expect(said).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, nor the title of a `describe`, `it` or `test` call or the doc above it, writes `painted frogs dance`. The nearest follow.');
     expect(said).not.toContain('No name or doc');
   });
 

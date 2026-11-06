@@ -275,7 +275,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
     const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
     const read = answer.declared === undefined
       ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
-      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, nor a test's title or the doc above it, writes \`${query}\``;
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, nor the title of a \`describe\`, \`it\` or \`test\` call or the doc above it, writes \`${query}\``;
     // A miss of the text is not a miss of the code: with names to offer, the line
     // says only that the text was not written. Inside an area the text may be
     // written outside it, so the way to widen stays.
