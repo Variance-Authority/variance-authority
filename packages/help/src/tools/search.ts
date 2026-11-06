@@ -378,7 +378,10 @@ export const search: Tool<Help> = {
     'answer is a fact about the area. Names match the words you typed and nothing else — no ' +
     'synonyms, no model — so a repository that calls sign-in `CredentialGate` is not reached by ' +
     '`auth`. Supplying the likely vocabulary is your half: when a query matches nothing, ask again ' +
-    'with another candidate word rather than a longer description of the same idea.',
+    'with another candidate word rather than a longer description of the same idea. A word under three ' +
+    'letters has no stem, so the reading of a description only keeps its place: ask `session store`, ' +
+    'not `session id store`. It still counts as written, so keep it when it spells a name or a phrase: ' +
+    '`node id` finds `NodeId`.',
   inputSchema: {
     type: 'object',
     properties: {

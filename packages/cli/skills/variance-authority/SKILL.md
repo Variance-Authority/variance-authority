@@ -147,7 +147,10 @@ runtime evidence from repository files.
 the characters you typed, with no synonyms and no model, so `auth` does not find
 a sign-in screen whose component is `CredentialGate`. Ask each likely spelling —
 `login`, `session`, `credential`, `token` — as its own short query, and use the
-vocabulary of the first hit for every question after it.
+vocabulary of the first hit for every question after it. A word under three
+letters has no stem, so the reading of a description only keeps its place: ask
+`session store`, not `session id store`. It still counts as written, so keep it
+when it spells a name or a phrase: `node id` finds `NodeId`.
 
 **`search` lists candidates, not every match.** For every tracked line that
 writes a word, run `git grep -i <word>`.
