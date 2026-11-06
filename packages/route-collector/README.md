@@ -529,7 +529,11 @@ console.log(routesFrom(xml));
 ## When integration fails
 
 - **The server does not answer:** start the application before `npx variance run`
-  and verify the exact URLs from the machine running CI.
+  and verify the exact URLs from the machine running CI. A server that stops
+  partway through ends the read at the first route whose connection is refused:
+  the run exits 2 with one error naming the origin and that route, instead of
+  recording every route left as failed. An empty response or a reset is still
+  recorded as that one page failing, and the read goes on.
 - **A subject is missing:** for `kind: "list"`, match every config id to a key in
   `routes`. For discovery, inspect the sitemap or built `.html` files that are
   the actual inventory.
