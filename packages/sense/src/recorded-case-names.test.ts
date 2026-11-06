@@ -69,6 +69,17 @@ describe('the case names a record holds', () => {
     ]);
   });
 
+  it('keeps the suites it can read when a record of another cannot be opened', () => {
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, site: { kind: 'e2e' } } }));
+    record(index(['a.test.ts > reads'], {}), 'unit');
+    mkdirSync(testCoverageFile(root, { suite: 'site' }), { recursive: true });
+
+    const [site, unit] = recordedCaseNames(root);
+
+    expect(unit).toMatchObject({ suite: 'unit', cases: [{ file: 'a.test.ts', name: 'reads' }] });
+    expect(site).toMatchObject({ suite: 'site', unread: expect.stringContaining('EISDIR') });
+  });
+
   it('says so when nothing is recorded', () => {
     expect(recordedCaseNames(root)).toEqual([{ recording: testCoverageFile(root), unread: 'no run kept its cases there' }]);
   });

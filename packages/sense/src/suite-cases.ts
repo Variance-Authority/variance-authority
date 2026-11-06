@@ -20,15 +20,15 @@ export type SuiteCases<Answer> = {
 /**
  * `read` over the nearest record of each suite the root config declares, or the
  * one record of a repository that declares none. A record that kept no cases,
- * and one `read` could not read, each answer with why.
+ * and one that could not be read, each answer with why.
  */
 export function eachSuiteCases<Answer extends object>(root: string, read: (recording: string) => Answer): readonly SuiteCases<Answer>[] {
   const suites = declaredSuites(root)?.map((declared) => declared.name) ?? [undefined];
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
     const recording = nearestTestCoverage(root, { suite });
-    if (!keepsCases(recording)) return { ...named, recording, unread: 'no run kept its cases there' };
     try {
+      if (!keepsCases(recording)) return { ...named, recording, unread: 'no run kept its cases there' };
       return { ...named, recording, ...read(recording) };
     } catch (error) {
       return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
