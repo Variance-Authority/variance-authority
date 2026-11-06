@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@playwright/test": "1.55.1",
+    "@playwright/test": "1.55.0",
     "@variance-authority/playwright-test": "workspace:^",
     "@variance-authority/sense": "workspace:^"
   },

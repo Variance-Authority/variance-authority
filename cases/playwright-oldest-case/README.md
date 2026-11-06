@@ -14,7 +14,7 @@ something other than a unit test's stand-in.
 fixture/playwright.config.mjs          withTestSelection() over one spec, with the browser from FIXTURE_CHROMIUM
 fixture/src/shop.js                    the page's source, with two regions: choose and pay
 fixture/tests/shop-page.ts             the page object the spec drives
-fixture/tests/shop.spec.ts             one test, whose statements end `// chooses` and `// pays`
+fixture/tests/shop.spec.ts             one test and a `beforeEach`, whose statements end in a comment naming each
 src/cut.chromium.test.ts               the outer test: runs Playwright on the fixture and reads its record
 ```
 
@@ -36,14 +36,18 @@ yarn vitest run --config vitest.chromium.config.mts cases/playwright-oldest-case
 
 ## What it shows
 
-- The version it installs is the floor `packages/playwright-test/package.json`
-  declares, so raising one without the other fails here.
+- The version it installs is the floor `packages/playwright-test`,
+  `packages/presentation` and `packages/playwright` declare, so raising one
+  without the others fails here.
 - `choose` is recorded against the `// chooses` statement and `pay` against the
   `// pays` statement, which only a cut spec can tell apart.
+- A `beforeEach` inside a `describe` is placed at that `describe`, which is read
+  from this release's own test loader in `lib/common/testLoader.js`.
 - `--shard 1/2` is refused when the configuration loads, because this release
   has no `preprocess` and would split the shard test by test.
 
 ## What it does not test
 
 The releases between the floor and 1.63 are not run here, and neither is a
-CommonJS spec.
+CommonJS spec. `@variance-authority/playwright` still resolves the repository's
+`playwright-core` beside the one installed here, which an install would not.

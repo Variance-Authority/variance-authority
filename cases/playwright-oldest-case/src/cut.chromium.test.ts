@@ -6,7 +6,13 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { caseIndexOf, decodeExecutionIndex, openSetColumns } from '@variance-authority/sense/test-selection';
+import {
+  caseIndexOf,
+  decodeExecutionIndex,
+  openSetColumns,
+  rowOf,
+  type ExecutionIndex,
+} from '@variance-authority/sense/test-selection';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
@@ -49,9 +55,9 @@ const playwright = (...flags: string[]) =>
     cwd: fixture,
     env: {
       ...process.env,
-      // A workspace link's real path resolves the repository's Playwright, and
-      // two in one process refuse to load. An install has one, and this keeps
-      // the link where an install would put the package.
+      // A workspace link's real path resolves the repository's
+      // `@playwright/test`, and two in one process refuse to load. An install
+      // has one, and this keeps the link where an install would put the package.
       NODE_OPTIONS: '--preserve-symlinks',
       VARIANCE_AUTHORITY_COVERAGE: coverage(),
       VARIANCE_AUTHORITY_CACHE: resolve(directory, 'cache'),
@@ -68,11 +74,18 @@ afterAll(async () => {
 
 describe('the oldest Playwright this project takes', () => {
   it('is the one this case installs', () => {
-    const manifest = JSON.parse(readFileSync(resolve(repository, 'packages/playwright-test/package.json'), 'utf8')) as {
-      peerDependencies: Record<string, string>;
-    };
+    const manifest = (name: string) =>
+      JSON.parse(readFileSync(resolve(repository, `packages/${name}/package.json`), 'utf8')) as {
+        dependencies: Record<string, string>;
+        peerDependencies: Record<string, string>;
+      };
+    const peer = `>=${version.split('.').slice(0, 2).join('.')} <2`;
 
-    expect(manifest.peerDependencies['@playwright/test']).toBe(`>=${version.split('.').slice(0, 2).join('.')} <2`);
+    expect({
+      'playwright-test': manifest('playwright-test').peerDependencies['@playwright/test'],
+      presentation: manifest('presentation').peerDependencies['@playwright/test'],
+      playwright: manifest('playwright').dependencies['playwright'],
+    }).toEqual({ 'playwright-test': peer, presentation: peer, playwright: `^${version}` });
   });
 
   it('refuses a shard, which it would split test by test', async () => {
@@ -81,27 +94,44 @@ describe('the oldest Playwright this project takes', () => {
     });
   });
 
-  it.runIf(browser !== undefined)('records the spec line that first reached each region of the page', async () => {
-    await playwright();
-
-    const cases = (await caseIndexOf(coverage()))!;
-    const index = decodeExecutionIndex(cases);
-    const test = index.tests.findIndex((entry) => entry.id === `${at('tests/shop.spec.ts')} > pays for what it chose`);
-    const lines = linesOf(openSetColumns(cases)!.testLines, test);
-    const module = index.modules.findIndex((entry) => entry.file === at('src/shop.js'));
-    const source = (await readFile(resolve(fixture, 'src/shop.js'), 'utf8')).split('\n');
-    const spec = (await readFile(resolve(fixture, 'tests/shop.spec.ts'), 'utf8')).split('\n');
+  describe.runIf(browser !== undefined)('run over a spec', () => {
+    let index: ExecutionIndex;
+    let cases: Awaited<ReturnType<typeof caseIndexOf>>;
+    let test: number;
+    let spec: string[];
     const named = (statement: string) => spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1;
-    const reached = (name: string) => {
-      const line = source.findIndex((text) => text.startsWith(`function ${name}(`)) + 1;
-      const blocks = index.modules[module]!.blocks;
-      const block = blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
-      return lines === undefined ? undefined : lineAt(lines, module, block);
-    };
 
-    expect({ choose: reached('choose'), pay: reached('pay') }).toEqual({
-      choose: { line: named('chooses'), ambient: false },
-      pay: { line: named('pays'), ambient: false },
+    beforeAll(async () => {
+      await playwright();
+      cases = await caseIndexOf(coverage());
+      index = decodeExecutionIndex(cases!);
+      test = index.tests.findIndex((entry) => entry.id === `${at('tests/shop.spec.ts')} > at the till > pays for what it chose`);
+      spec = (await readFile(resolve(fixture, 'tests/shop.spec.ts'), 'utf8')).split('\n');
+    }, 120_000);
+
+    it('records the spec line that first reached each region of the page', async () => {
+      const lines = linesOf(openSetColumns(cases!)!.testLines, test);
+      const module = index.modules.findIndex((entry) => entry.file === at('src/shop.js'));
+      const source = (await readFile(resolve(fixture, 'src/shop.js'), 'utf8')).split('\n');
+      const reached = (name: string) => {
+        const line = source.findIndex((text) => text.startsWith(`function ${name}(`)) + 1;
+        const blocks = index.modules[module]!.blocks;
+        const block = blocks.findLastIndex((entry) => entry.startLine <= line && line <= entry.endLine);
+        return lines === undefined ? undefined : lineAt(lines, module, block);
+      };
+
+      expect({ choose: reached('choose'), pay: reached('pay') }).toEqual({
+        choose: { line: named('chooses'), ambient: false },
+        pay: { line: named('pays'), ambient: false },
+      });
     });
-  }, 120_000);
+
+    // The level is the one thing here only this release's own test loader
+    // can say: which `describe` declared the `beforeEach` that was running.
+    it('places what a beforeEach arranged at the describe that declared it', () => {
+      expect(rowOf(index.tests[test]!)).toEqual([
+        { name: 'fixture:network', value: 'mocked', site: `${at('tests/shop.spec.ts')}:${named('arranges')}`, level: 1 },
+      ]);
+    });
+  });
 });
