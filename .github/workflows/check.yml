@@ -497,7 +497,7 @@ jobs:
         include: ${{ fromJSON(needs.base.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:333b6224985beb6d859d65fdf88ce20c15a7bb0e
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # Chromium's renderers need more shared memory than a container's default.
       options: --ipc=host
 
@@ -1090,7 +1090,7 @@ jobs:
     needs: rules
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:333b6224985beb6d859d65fdf88ce20c15a7bb0e
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # See `variance.yml`: Chromium's renderers need more shared memory than a
       # container's default.
       options: --ipc=host
@@ -1178,7 +1178,7 @@ jobs:
     if: github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:333b6224985beb6d859d65fdf88ce20c15a7bb0e
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
     outputs:
       legs: ${{ steps.count.outputs.legs }}
@@ -1284,7 +1284,7 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:333b6224985beb6d859d65fdf88ce20c15a7bb0e
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
 
     steps:

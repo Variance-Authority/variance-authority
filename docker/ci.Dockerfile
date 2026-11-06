@@ -12,9 +12,11 @@
 # for:
 #
 # - git-lfs, for the store's test that commits a baseline through the filter,
-#   which skips where git-lfs is absent, and for the `lfs` job's pull. A checkout
-#   with `lfs: false` still holds pointers with it installed, because
-#   `actions/checkout` skips the smudge.
+#   which skips where git-lfs is absent, and for the `lfs` job's pull. Ubuntu's
+#   package turns its filter on for every repository, so every checkout would
+#   fetch the baselines and `doctor` would find no pointers to name; it is
+#   turned off again, and a job that wants the files installs it in its own
+#   checkout.
 # - build-essential and curl, for the native scanner, built on this machine by
 #   `.github/actions/build`, which installs Rust through rustup.
 #
@@ -25,4 +27,6 @@ FROM mcr.microsoft.com/playwright:v1.64.1-noble
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git-lfs build-essential curl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && git lfs uninstall --system \
+  && ! git config --system --get-regexp '^filter\.lfs\.'
