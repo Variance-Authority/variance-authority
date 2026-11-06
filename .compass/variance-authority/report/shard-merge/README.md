@@ -45,7 +45,9 @@ Narrowing a run to a slice records every subject outside it as excluded, so
 merging naively makes each subject observed once and excluded twice; dropping
 the exclusions instead would throw away the only evidence of the case that
 matters, which is a split that covered the suite incompletely — excluded
-everywhere, red nowhere. A correct split never produces one.
+everywhere, red nowhere. A correct split never produces one. A story that splits
+by width is left under its planned id and read under its widths, so an
+observation at a width answers for that exclusion and for no failure.
 
 It merges nothing that is not a fold over per-subject answers. The composition
 section is the run's subjects compared to each other, and the split is exactly

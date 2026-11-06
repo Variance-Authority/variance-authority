@@ -2685,8 +2685,7 @@ against what was actually observed. **A subject that every shard left to another
 is promoted to `failed` and turns the merged run red** — each shard exits `0`
 because each ran exactly its slice, and the merge is what finds that the
 suite is missing a component. A story that splits by width is observed once any
-of its widths is, since a shard that left it to another knows only the story; a
-width its owner could not read stays `failed`. With `--shard`, an exclusion names
+of its widths is; a width its owner could not read stays `failed`. With `--shard`, an exclusion names
 the shard that owns the subject and what placed it there, so two jobs that read
 different costs show it in their reports.
 

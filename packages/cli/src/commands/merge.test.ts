@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { OperatorError, exitFor } from '../exit.js';
 import { mergeReports, type Shard } from './merge.js';
-import { shardFilterBecause, type CliRunReport } from './run-report.js';
+import { shardFilterBecause, shardOwnedBecause, type CliRunReport } from './run-report.js';
 
 /**
  * Merging is all string and set work, so every case here is a plain value — no
@@ -213,7 +213,7 @@ describe('a story its owner read at widths', () => {
   const widened = (over: Partial<CliRunReport> = {}): readonly Shard[] => [
     shard('shard-1.json', {
       observations: [observation('story:a')],
-      notObserved: [{ subject: 'story:card', kind: 'excluded', because: shardFilterBecause(GLOB) }],
+      notObserved: [{ subject: 'story:card', kind: 'excluded', because: shardOwnedBecause(2, 2, 'count') }],
     }),
     shard('shard-2.json', {
       observations: [observation('story:card@375'), observation('story:card@800')],
@@ -252,14 +252,17 @@ describe('a story its owner read at widths', () => {
     ]);
   });
 
-  it('disagrees with a shard that decided not to read it', () => {
-    expect(() =>
-      mergeReports(
-        widened({
-          notObserved: [{ subject: 'story:card', kind: 'failed', because: 'it threw' }],
-        }),
-      ),
-    ).toThrow(/disagree about whether it was looked at/);
+  // Widths answer for a story another shard left, not for one it tried: a visit
+  // that failed there read a width nobody can name, so the failure stands.
+  it('keeps the failure of a shard that tried to read it', () => {
+    const [left, owner] = widened();
+    const merged = mergeReports([
+      { ...left!, report: { ...left!.report, notObserved: [{ subject: 'story:card', kind: 'failed', because: 'it threw' }] } },
+      owner!,
+    ]);
+
+    expect(merged.notObserved).toEqual([{ subject: 'story:card', kind: 'failed', because: 'it threw' }]);
+    expect(exitFor(merged)).toBe(1);
   });
 });
 

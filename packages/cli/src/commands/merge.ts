@@ -279,14 +279,11 @@ function observationsOf(shards: readonly Shard[]): CliRunReport['observations'] 
 function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObserved[] } {
   if (shards.some((shard) => shard.report.notObserved === undefined)) return {};
 
+  const observed = new Set(shards.flatMap((shard) => shard.report.observations.map(({ subject }) => subject)));
   // A story splits into its widths only when it is visited, so a shard that left
   // it to another names the planned id, and the owner's observations name the
-  // widths: each observation answers for the id it was read from too.
-  const observed = new Set(
-    shards.flatMap((shard) =>
-      shard.report.observations.flatMap(({ subject }) => [subject, widenedFrom(subject) ?? subject]),
-    ),
-  );
+  // widths: a width answers for the story that was left, never for a decision.
+  const widened = new Set([...observed].flatMap((subject) => widenedFrom(subject) ?? []));
 
   const bySubject = new Map<string, { entries: NotObserved[]; paths: string[] }>();
   for (const shard of shards) {
@@ -315,6 +312,7 @@ function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObser
     }
 
     if (decisions.length === 0) {
+      if (widened.has(subject)) continue;
       notObserved.push({
         subject,
         kind: 'failed',

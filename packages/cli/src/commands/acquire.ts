@@ -141,8 +141,10 @@ export async function acquire(input: AcquireInput): Promise<Acquisition> {
     for (const { planned: realized, collected } of subjects) {
       const id = realized.subject.id;
       // The glob decides on what the visit realized: the plan named the story,
-      // and `--subjects` may name one of its widths.
-      if (input.scope !== undefined && !matchesGlob(input.scope, id)) {
+      // and `--subjects` may name one of its widths. A visit that failed realized
+      // none, so the width the glob named went unread and only the failure says so.
+      const failedVisit = !collected.ok && collected.excluded !== true && id === planned.subject.id;
+      if (input.scope !== undefined && !failedVisit && !matchesGlob(input.scope, id)) {
         input.passed(index, { subject: id, kind: 'excluded', because: shardFilterBecause(input.scope) });
         continue;
       }
