@@ -43,19 +43,19 @@ import { landingRecord } from './suite-record.js';
  * laid with the others', its files finished as its last run ran them. Landed alone where no coverage stands, it writes a
  * record of cases and no coverage, which narrows no later selection.
  *
- * A target that exists and cannot be read, or one under other probes, is
- * refused rather than replaced, as the runner refuses it: one build reads what
- * it wrote under one set of probes, so either is another build's, and a
+ * A target that exists and cannot be read, or one `into` names under other
+ * probes, is refused rather than replaced: either is another build's, and a
  * sentence naming the file is worth more than the evidence a silent overwrite
- * would cost.
+ * would cost. The checkout's cached record under other probes is the tool's own,
+ * and `prepareRecord` replaces it, as it does for a runner.
  */
 export async function landJourneys(
   root: string,
   shards: readonly string[],
   into?: string,
+  suite?: string,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const at = into ?? (await landingRecord(root));
   if (into !== undefined && selection.writesBase(selection.repositoryLayers(root), into)) {
     throw new OperatorError(
       `${into} is the record the primary checkout's runs write, which this worktree's runs are laid over and never write. ` +
@@ -63,11 +63,12 @@ export async function landJourneys(
     );
   }
 
+  const { file: at, selected } = await landingRecord(root, suite, into);
   // The combine is staged beside the target, so the rename below never crosses
   // a file system, and the staged name ends in `.tmp` for prune to find.
   const combinedAt = `${at}.${process.pid}-${randomUUID()}-combined.tmp`;
   try {
-    return await landCombined(selection, root, shards, at, combinedAt);
+    return await landCombined(selection, root, shards, at, combinedAt, selected);
   } finally {
     await rm(combinedAt, { force: true });
   }
@@ -81,6 +82,7 @@ async function landCombined(
   shards: readonly string[],
   at: string,
   combinedAt: string,
+  selected: string | null | undefined,
 ): Promise<LandedJourneys> {
   let combined;
   try {
@@ -95,29 +97,23 @@ async function landCombined(
   const unmeasured = combined.shards.flatMap((shard) => (shard.measured ? [] : shard.files));
 
   // Each shard's own landing kept the install it ran on in the runs record
-  // beside its snapshot, where that shard ran, and the fold ran on it only when
-  // every shard names the same one. A record that cannot be read names none.
-  // A shard that recorded no test file ran no test the install could speak for,
-  // so it names nothing either way and is left out.
+  // beside its snapshot, where that shard ran, and named the texts it ran over;
+  // the fold ran on them only when every shard names the same ones. A record
+  // that cannot be read names none. A shard that recorded no test file ran no
+  // test they could speak for, so it names nothing either way and is left out.
   // FIXME: the texts a shard's install names are kept in the cache of the
   // machine it ran on, and nothing carries them here, so a shard that ran over
   // an uncommitted install elsewhere is compared from its commit after all.
-  const installed = fold === undefined
+  const ran = fold === undefined
     ? undefined
-    : selection.shardsInstall(
-        await Promise.all(
-          measured.filter((shard) => shard.files.length > 0).map(async (shard) => ({
-            tests: { ...(shard.commit == null ? {} : { commit: shard.commit }), tests: shard.files.map((file) => ({ file })) },
-            runs: await shardRuns(shard.path),
-          })),
-        ),
+    : await Promise.all(
+        measured.filter((shard) => shard.files.length > 0).map(async (shard) => ({
+          tests: { ...(shard.commit == null ? {} : { commit: shard.commit }), tests: shard.files.map((file) => ({ file })) },
+          runs: await shardRuns(shard.path),
+        })),
       );
-
-  // A checkout's first landing starts from the base its first `yarn test`
-  // would: the mainline's record as last fetched here, else the primary
-  // checkout's. Without the copy the fold would land over nothing and stand for
-  // the whole suite. A no-op for `--into` and after the first landing.
-  selection.noteSeeded(await selection.seedTestCoverage(at, root, fold?.coverage.instrumentation));
+  const installed = ran === undefined ? undefined : selection.shardsInstall(ran);
+  const ranOver = ran === undefined ? undefined : selection.shardsTexts(ran);
 
   // The snapshot is read, merged and written, its cases laid into it, under
   // the lock every runner seam takes on it. The runs record beside the snapshot
@@ -140,7 +136,13 @@ async function landCombined(
   const stage = `${process.pid}-${randomUUID()}.tmp`;
   const staged = `${at}.${stage}`;
   const stagedRuns = `${runsAt}.${stage}`;
-  const locked = await selection.withIndexLock(at, async () => {
+  const locked = await selection.withIndexLock(at, async (lock) => {
+    // A checkout's first landing starts from the base its first `yarn test`
+    // would: the selected mainline's record as last fetched here, else the
+    // primary checkout's. Without the copy the fold would land over nothing and stand for
+    // the whole suite. A cached record under other probes is replaced first. A
+    // no-op for `--into`, and after the first landing.
+    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected });
     let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
       over = await readFile(at);
@@ -176,7 +178,6 @@ async function landCombined(
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
-    const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded, installed);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(before);
@@ -187,15 +188,23 @@ async function landCombined(
       [{ path: combinedAt, ...(run === undefined ? {} : { coverage: run }) }],
       texts,
       before?.commit,
+      undefined,
+      before?.tests,
     );
     // The landing laid at most one record, the combine's, and that record's
     // cases are those of every shard the combine folded a case index from.
     // Where it kept none, every shard it folded kept none: the combine
     // refuses shards of which only some kept cases.
     const cased = combined.shards.filter((shard) => shard.cased).length;
-    const cases = 'laid' in landing
-      ? { ...landing, shards: landing.shards === 0 ? 0 : cased }
-      : { ...landing, shards: [...shards] };
+    // The shards name the cases they laid of a file they ran in part: the ones
+    // they executed, or none when they kept no cases.
+    const ranCases = 'laid' in landing && landing.shards > 0 ? selection.casesRan(laid) : 'none';
+    const runs = folded === undefined
+      ? undefined
+      : selection.commitRunsAfter(before, held, { ...folded, laid: ranCases }, installed, ranOver);
+    const cases = 'unanswered' in landing
+      ? { ...landing, shards: [...shards] }
+      : { ...landing, shards: landing.shards === 0 ? 0 : cased };
     const sections = landed === undefined
       ? laid
       : selection.followRowsIn(laid, landed, texts, selection.editsBetween(root, undefined, [before?.commit, landed.commit]));
@@ -267,7 +276,7 @@ function unreadable(at: string, error: unknown): OperatorError {
 
 /**
  * The snapshot at `at` is another build's — one this build cannot lay over, or
- * one under other probes — and is left for the operator to delete.
+ * a handed-in one under other probes — and is left for the operator to delete.
  */
 function unlaid(at: string, error: unknown): OperatorError {
   return new OperatorError(

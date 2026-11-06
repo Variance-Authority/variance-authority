@@ -69,20 +69,23 @@ flowchart LR
 
 Looking for a declaration, search declarations. Holding the name, search names.
 Holding a file or a package, scope the search to it. Holding only the concept,
-translate it into the words the repository is likely to use. Knowing none of that, use `rg`: it
-assumes the least. A narrow search that comes back empty is either a true answer
-about that area or a sign that something you assumed is wrong. Widen one step to
-find out which, not all the way to `rg`.
+translate it into the words the repository is likely to use. Holding only a
+string in code, ask for it from a top folder. `rg` is for what no import reaches:
+prose, configuration and logs. A narrow search that comes back empty is either a
+true answer about that area or a sign that something you assumed is wrong. Widen
+one step to find out which, not all the way to `rg`.
 
 ## What Variance searches
 
-`variance ask search` is symbol search. Its corpus is exported names and the
-documentation written above them, so a question about `createStore` never
-returns the files that only import or mention it. It adds one step an IDE does
-not take by default: the module graph keeps the candidates connected to a path
-you already have. A few words of what the code does reach it too: when no name
-holds them as written, the names holding at least half of them, matched by
-stem, come back before any installed package that says the same words.
+`variance ask search` is symbol search. It reads the names the source declares,
+the documentation written above them, each file's name and opening doc, and the
+names and descriptions of installed packages, so a question about `createStore`
+does not list every file that imports or mentions it. It adds one step an IDE
+does not take by default: the module graph keeps the candidates connected to a
+path you already have. A few words of what the code does reach it too: when no
+name holds them as written, the names and files holding most of them, matched by
+stem and with rarer words counting for more, come back before any installed
+package that says the same words.
 
 ```bash
 variance ask search --query createStore --from src/checkout/ --just-answer
@@ -104,7 +107,7 @@ xychart-beta horizontal
 ```
 
 The two text searches return every file that contains the string. Symbol search
-returns the exported names that match it, and `--from` keeps the ones reachable
+returns candidate names, not every match, and `--from` keeps the ones reachable
 from one entry file. The chart is one warm reading of a large frontend monorepo;
 [the workspace guide](agent-workspace-api.md#search-finds-the-name-the-graph-finds-the-area)
 has what each answer cost in time and what producing the index costs.
@@ -117,21 +120,24 @@ way every time and keeps the answer inside the area the graph connects. If the
 repository calls sign-in `CredentialGate`, that name comes back when a word you
 supplied is part of it, and you can always say why a hit is a hit.
 
-Use `rg` when the text itself is the answer, and `git grep` when the committed
-tree is the answer. Both are exact and need no Variance index.
+Use `rg` when the text is outside the source, and `git grep` when the committed
+tree is the answer. Both are exact and need no Variance index. In code, `ask
+grep` matches the same text in the files a path reaches, nearest first, and a
+top folder is the widest path it takes.
 
 ## Choose the entrance from what you have
 
 | What you have | Ask | What you get |
 | --- | --- | --- |
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
-| An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
+| Text outside the source: prose, configuration, logs | `rg -n <text> .` | Current files containing that text |
+| An exact string or a pattern in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
-| Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
+| Words for a source name | `variance ask search --query <words>` | Candidate names, not every match |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
-| An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
-| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path, then the interface or class members by that name and the `grep --to` that finds their callers |
+| An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation, the members of an interface, type alias or class, and consumers; for a name only a member declares, each container and its `file:line`, pointing to `uses` |
+| A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, inside the declaring package and from other packages apart, ordered near the path, each with the lines that use it, the lines of the declaring file that use it, then the interface or class members by that name, the lines that use each through a value whose type they write, the classes that implement each, and the declaration to ask its language's find-references and go-to-implementation about for the rest |
 | Several facts about the file you want | `variance ask discover --from <path> --imports <module#name> --declares <regex>` | The files every fact holds for, each fact checked against every file rather than its nearest fifty, with the line behind each fact |
 | Two questions you could ask alone, and want where they agree | `variance ask intersection '<question>' '<question>'` | The files every question answers, each question read whole rather than its first fifty, with the lines that put each file in each |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
@@ -194,9 +200,12 @@ APIs. It reads every direct dependency available to a workspace, including a
 package that workspace has not imported. The source index adds observed
 external requests; the manifest alone cannot prove use. The resolver selects
 the installed runtime and declaration provider for each public entrypoint.
-The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.json`
-beside the source index. A refresh retains unchanged declaration readings and
-reads changed declarations without rescanning repository source. `ask search`
+The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.bin`
+beside the source index, and the import requests each source file writes in
+`dependency-lexicon.sites.bin`. An edit adds the requests of the files it changed
+to the second file. The catalogue is written again only when a manifest, an
+installed package or a specifier no source file imported before changes, and
+then it keeps the declaration readings whose files are unchanged. `ask search`
 uses this catalogue alongside local names; `--from` and `--to` constrain which
 workspace's available packages it shows. `orient --files` keeps the dependency
 graph concise. Ask for a name when its third-party API detail matters.
@@ -217,8 +226,9 @@ variance ask search --query createStore --from src/checkout/ --just-answer
 
 Every answer prints when its workspace generation was produced. If no
 generation exists, `--just-answer` refuses instead of turning the question into
-an index build. `search` always reads this way, with or without the flag: it
-is a lookup, and it expects the generation to be published already. [The source index](source-index.md) explains production,
+an index build. `search` opens a published search this way, with or without
+the flag. With none published, it reads the checkout like any other question
+unless you passed `--just-answer`. [The source index](source-index.md) explains production,
 incremental reuse and CI caching.
 
 Subject orientation reads the report a completed run already produced. Its
@@ -254,8 +264,14 @@ The source graph records module imports, re-exports, literal dynamic imports,
 type imports and asset edges. It is not a function-call graph. `uses` reports
 where a name is imported, or read off a namespace or an `import()`, not where
 code called it at runtime. A member of an interface, a type literal or a class
-is never imported; `uses` names its declarations after any imports, and `grep
---to` a declaring file finds its callers as text.
+is never imported. `symbol` names each container that declares the name as a
+member, with the member's `file:line`, after any other declaration of it, and
+`Tree.has` asks for the member `has` of `Tree` alone. `uses` names its declarations after any imports, the lines
+that use each one through a value whose type they write, and the declaration
+to ask its language's find-references about for the uses a type checker has
+to infer. Members are read from JavaScript and TypeScript files only, and
+when the workspace holds files of another language, both answers end by
+naming those languages, whose members their language server finds.
 
 No graph database service is required. The workspace generation stores a
 compact graph with dependencies and dependents both materialized. The useful

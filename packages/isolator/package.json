@@ -1,0 +1,99 @@
+{
+  "name": "@variance-authority/isolator",
+  "version": "0.25.0",
+  "description": "Experimental. Give every test, request or render its own copy of a module's mutable state: a build transform turns module-level variables into per-session slots.",
+  "keywords": [
+    "variance-authority",
+    "flaky-tests",
+    "test-isolation",
+    "shared-state",
+    "module-state",
+    "jest",
+    "rspack",
+    "webpack"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/isolator",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/isolator"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "type": "module",
+  "sideEffects": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./jest": {
+      "types": "./dist/jest.d.ts",
+      "default": "./dist/jest.js"
+    },
+    "./loader": {
+      "types": "./dist/loader.d.ts",
+      "default": "./dist/loader.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./transform": {
+      "types": "./dist/transform.d.ts",
+      "default": "./dist/transform.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@jridgewell/remapping": "^2.3.5",
+    "@variance-authority/ioc": "workspace:^",
+    "@variance-authority/sense": "workspace:^",
+    "magic-string": "^1.4.5",
+    "oxc-parser": "^0.157.0",
+    "picomatch": "^4.0.7"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@rspack/core": "^2.3.1",
+    "@swc/jest": "^0.2.39",
+    "@types/picomatch": "^4.0.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jest": "^30.5.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-server-dom-parcel": "^19.3.1"
+  }
+}

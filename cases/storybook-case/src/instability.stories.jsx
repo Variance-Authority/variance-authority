@@ -29,12 +29,12 @@ export const Loading = {
  *
  * The collector fixes `Date`, and that does not help: its text counts the
  * ticks of its own timer, which the collector leaves running so a page that
- * settles on a timer still settles. Two readings of one mount seconds apart
+ * settles on a timer still settles. Two consecutive readings of one mount
  * never agree. A baseline is another mount, and a reading agrees with it only
  * when both were taken the same 50 ms step after mounting, so a comparison
- * against a baseline is a coin flip. It has the tag `ticking`, so a run that
- * asserts `unchanged` can exclude it: `cli.chromium.test.js` does that for its
- * cycle, and reads this story in a sweep of its own.
+ * against a baseline is a coin flip. It has the tag `ticking`, and the case's
+ * `variance.config.json` excludes it, as `cli.chromium.test.js` does for its
+ * cycle, which reads this story in a sweep of its own.
  */
 export const Ticking = {
   name: 'Clock — ticking',

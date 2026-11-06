@@ -39,25 +39,13 @@
 //
 // Usage:
 //   node post-comment.mjs --body-file <path> --marker <string> \
-//     --adopt-unkeyed <true|false> [--pr <number>]
+//     --adopt-unkeyed <true|false> [--cleared-file <path>] [--pr <number>]
 
-import { readFileSync } from 'node:fs';
-
-const API_VERSION = '2022-11-28';
-const PER_PAGE = 100;
+import { appendFileSync, readFileSync } from 'node:fs';
+import { forge } from './forge.mjs';
 
 /** The marker every docket carried before markers named the config's `project`. */
 const UNKEYED = '<!-- variance-authority: pr-docket v1 -->';
-
-/**
- * Pages of comments this will read before refusing to guess.
- *
- * A pull request with more than five thousand comments is pathological, and the
- * important part is what happens at the boundary: this stops and says so rather
- * than concluding "no previous comment" and posting a duplicate, which is the
- * silent-failure shape the whole design is arranged against.
- */
-const MAX_PAGES = 50;
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -97,7 +85,7 @@ if (pull === undefined) {
   process.exit(0);
 }
 
-const api = (process.env['GITHUB_API_URL'] ?? 'https://api.github.com').replace(/\/+$/, '');
+const { request, commentPages } = forge({ refused, fail });
 const existing = await findOwnComment();
 
 if (body.trim() === '') {
@@ -115,16 +103,17 @@ if (body.trim() === '') {
   // neutral — it is a stale finding presented as the current one, which is the
   // review-blindness failure with the tool's own name on it. Updating in place is
   // still one comment and still no new notification thread.
-  await patch(existing.id, cleared(options.marker));
+  await patch(existing.id, clearedBody());
   note(`the previous docket no longer applies; comment ${existing.id} was cleared`);
   process.exit(0);
 }
 
 if (existing === undefined) {
   const created = await post(body);
-  note(`posted comment ${created}`);
+  note(`posted comment ${created?.id}`);
+  handOver(created);
 } else {
-  await patch(existing.id, body);
+  handOver(await patch(existing.id, body));
   note(`updated comment ${existing.id} in place`);
 }
 
@@ -139,28 +128,12 @@ if (existing === undefined) {
  */
 async function findOwnComment() {
   let adoptable;
-  for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const comments = await request(
-      'GET',
-      `${api}/repos/${repository}/issues/${pull}/comments?per_page=${PER_PAGE}&page=${page}`,
-    );
-
-    if (!Array.isArray(comments)) {
-      fail(`the comments endpoint returned ${typeof comments}, not a list`);
-    }
-
+  for await (const comments of commentPages(pull)) {
     const found = comments.find((comment) => carries(comment, options.marker));
     if (found !== undefined) return found;
     if (options.adoptUnkeyed) adoptable ??= comments.find((comment) => carries(comment, UNKEYED));
-
-    if (comments.length < PER_PAGE) return adoptable;
   }
-
-  fail(
-    `this pull request has more than ${MAX_PAGES * PER_PAGE} comments and no marker was found ` +
-      'in them. Refusing to conclude that there is no previous comment, because that ' +
-      'conclusion posts a duplicate.',
-  );
+  return adoptable;
 }
 
 function carries(comment, marker) {
@@ -168,75 +141,50 @@ function carries(comment, marker) {
 }
 
 async function post(text) {
-  const created = await request(
-    'POST',
-    `${api}/repos/${repository}/issues/${pull}/comments`,
-    { body: text },
-  );
-  return created?.id;
+  return request('POST', `issues/${pull}/comments`, { body: text });
 }
 
 async function patch(id, text) {
-  await request('PATCH', `${api}/repos/${repository}/issues/comments/${id}`, { body: text });
-}
-
-async function request(method, url, payload) {
-  let response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: 'application/vnd.github+json',
-        'x-github-api-version': API_VERSION,
-        'user-agent': 'variance-authority-action',
-        ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
-      },
-      ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
-    });
-  } catch (error) {
-    fail(`${method} ${url} could not be sent: ${messageOf(error)}`);
-  }
-
-  if (response.status === 403 || response.status === 404) {
-    // Almost always a token that cannot write here, and the usual cause is a
-    // `pull_request` run from a fork, which gets a read-only token by design.
-    // Warned rather than failed: the verdict still reaches the pull request as
-    // the check's exit code, and turning an unfixable permission fact into a red
-    // build teaches contributors that this check is noise. This action does not
-    // use `pull_request_target`, which would hand a writable token to code from
-    // the fork.
-    warn(
-      `${method} ${url} was refused (${response.status}). The token cannot write here. ` +
-        'A `pull_request` run from a fork gets a read-only token; the docket is still in ' +
-        "the check's exit code and in the run's artifacts.",
-    );
-    process.exit(0);
-  }
-
-  if (!response.ok) {
-    fail(`${method} ${url} failed: ${response.status} ${await response.text()}`);
-  }
-
-  return response.status === 204 ? undefined : await response.json();
+  return request('PATCH', `issues/comments/${id}`, { body: text });
 }
 
 /**
- * The body a superseded docket is replaced with.
- *
- * Replaced rather than deleted: this action keeps exactly one comment per
- * marker, and deleting it would leave the check's history with a gap nobody
- * can account for. That is the action's bookkeeping, so it stays here and the
- * reviewer reads only the outcome.
+ * The address of the comment, as the step output `comment-url`, for the check's
+ * error to link. Only a comment GitHub took has one: a run with no address has
+ * no comment to send a reader to.
  */
-function cleared(marker) {
-  return [
-    marker,
-    '',
-    '## Visual variance — nothing to review',
-    '',
-    'A later run found nothing to review.',
-  ].join('\n');
+function handOver(comment) {
+  const output = process.env['GITHUB_OUTPUT'];
+  if (output === undefined || output === '' || typeof comment?.html_url !== 'string') return;
+  appendFileSync(output, `comment-url=${comment.html_url}\n`);
+}
+
+/** Almost always a token that cannot write here. */
+function refused(method, url, status) {
+  // The usual cause is a `pull_request` run from a fork, which gets a read-only
+  // token by design. Warned rather than failed: the verdict still reaches the
+  // pull request as the check's exit code, and turning an unfixable permission
+  // fact into a red build teaches contributors that this check is noise. This
+  // action does not use `pull_request_target`, which would hand a writable token
+  // to code from the fork.
+  warn(
+    `${method} ${url} was refused (${status}). The token cannot write here. ` +
+      'A `pull_request` run from a fork gets a read-only token; the docket is still in ' +
+      "the check's exit code and in the run's artifacts.",
+  );
+  process.exit(0);
+}
+
+/** What `variance comment --cleared` rendered: a clean run may only clear with its words. */
+function clearedBody() {
+  if (options.clearedFile === undefined) {
+    fail('a previous docket needs clearing and there is no --cleared-file to clear it with');
+  }
+  try {
+    return readFileSync(options.clearedFile, 'utf8');
+  } catch (error) {
+    fail(`cannot read the cleared comment ${options.clearedFile}: ${messageOf(error)}`);
+  }
 }
 
 /**
@@ -268,8 +216,8 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index];
     const value = argv[index + 1];
-    if (!['--adopt-unkeyed', '--body-file', '--marker', '--pr'].includes(name)) {
-      fail(`unknown argument \`${String(name)}\`; this takes --adopt-unkeyed, --body-file, --marker, --pr`);
+    if (!['--adopt-unkeyed', '--body-file', '--cleared-file', '--marker', '--pr'].includes(name)) {
+      fail(`unknown argument \`${String(name)}\`; this takes --adopt-unkeyed, --body-file, --cleared-file, --marker, --pr`);
     }
     if (value === undefined) fail(`\`${name}\` needs a value`);
     values.set(name, value);
@@ -294,6 +242,7 @@ function parseArgs(argv) {
   const pr = values.get('--pr');
   return {
     bodyFile,
+    clearedFile: values.get('--cleared-file'),
     marker,
     adoptUnkeyed: adopt === 'true',
     ...(pr === undefined || pr === '' ? {} : { pr: Number(pr) }),

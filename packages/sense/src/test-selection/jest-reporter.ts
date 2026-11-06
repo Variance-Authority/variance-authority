@@ -16,24 +16,27 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
-import { digestString } from '../digest.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { Digest } from '../digest.js';
+import { runTexts } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
 import { CUT_VARIABLE, cutFiles, removeCut } from './case-cut.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord, reportedDuration } from './finished-files.js';
+import { noteAnEmptyRecord, statusesComplete } from './finished-files.js';
+import { jestPhases, reportedDuration, type JestPerfStats } from './reported-time.js';
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
-  codeUnitOrder,
   crossingsOf,
   loadedOf,
   projectPath,
@@ -52,13 +55,12 @@ import {
   type SelectionReporterConfig,
 } from './jest.js';
 import {
-  noteSeeded,
-  seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
 } from './index.js';
 import { recordsAlone } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 
 /**
  * Set beside the case directory to the checkout the record names files against,
@@ -81,8 +83,7 @@ export interface JestRunResults {
       readonly fullName?: string;
       readonly duration?: number | null;
     }>;
-    /** `runtime` is the milliseconds Jest measured for the file. */
-    readonly perfStats?: { readonly runtime?: number };
+    readonly perfStats?: JestPerfStats;
   }>;
 }
 
@@ -94,7 +95,6 @@ export interface JestTestContext {
     /** Resolved by Jest: a path for a file of the project's, and for a package, into its install. */
     readonly setupFiles?: readonly string[];
     readonly setupFilesAfterEnv?: readonly string[];
-    readonly testEnvironment?: string;
   };
 }
 
@@ -129,8 +129,22 @@ class JestCoverageReporter {
   /** Whether this run is one shard of a run that selects nothing — see `recordsAlone`. */
   readonly #alone: boolean;
 
-  constructor(globalConfig: { readonly shard?: unknown } | undefined, config: JestReporterConfig) {
+  /**
+   * Whether `-t` chose the cases this run ran. Jest reports every case it left
+   * out as pending, which is how a case its file skips reads too, so under a
+   * filter no pending case is the file's own.
+   */
+  readonly #named: boolean;
+
+  /** When `onRunStart` began this run: see `runTexts`. */
+  #startedAt = 0;
+
+  constructor(
+    globalConfig: { readonly shard?: unknown; readonly testNamePattern?: string } | undefined,
+    config: JestReporterConfig,
+  ) {
     this.#config = config;
+    this.#named = (globalConfig?.testNamePattern ?? '') !== '';
     this.#alone = recordsAlone(globalConfig?.shard != null, 'selected' in config && config.selected === true);
   }
 
@@ -141,12 +155,21 @@ class JestCoverageReporter {
   }
 
   onRunStart(): void {
+    this.#startedAt = Date.now();
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
+    process.env[ROOT_VARIABLE] = this.#config.root;
+    // A Jest started inside a recording run inherits its case scope; the
+    // workers read what this run sets, and nothing it does not.
+    delete process.env[CASE_DIRECTORY_VARIABLE];
+    delete process.env[CONTINUATIONS_VARIABLE];
+    delete process.env[STORY_DIRECTORY_VARIABLE];
+    // Under `loads` a module is marked as its file loads it, before any case
+    // opens: with no case directory the setup file keeps one bucket per file.
+    if (!probesRegions(this.#config.mode)) return;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
-    process.env[ROOT_VARIABLE] = this.#config.root;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
     const stories = askedForStories(recordFile);
     if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;
@@ -205,16 +228,21 @@ class JestCoverageReporter {
     const observed = crossingsOf(rows);
     const early = loadedOf(rows);
 
-    const tests = oneTestPerFile(await Promise.all(
-      results.testResults.map((result) => coverageTest(
-        result,
-        cut.has(result.testFilePath),
-        selection,
-        [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
-        journalsOf(written, projectNamed(result.displayName)),
-        modules,
-      )),
-    ));
+    const governed = results.testResults.map((result) => ({
+      result,
+      governing: [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
+    }));
+    const texts = runTexts(governed.map(({ result, governing }) => ({ test: result.testFilePath, governing })), this.#startedAt);
+    const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(
+      result,
+      cut.has(result.testFilePath) || texts.moved(result.testFilePath, governing),
+      this.#named,
+      selection,
+      governing,
+      texts.digests,
+      journalsOf(written, projectNamed(result.displayName)),
+      modules,
+    )));
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,
@@ -229,11 +257,6 @@ class JestCoverageReporter {
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    // The repository's snapshot becomes this checkout's before the first run
-    // lands on it, so a worktree layers onto months of recording rather than
-    // onto nothing. A no-op in the primary checkout and after the first run,
-    // and not asked by a shard that is a part of one whole run.
-    if (!this.#alone) noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation));
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.
@@ -247,7 +270,12 @@ class JestCoverageReporter {
             cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
           })), root),
         });
-    const merged = await withIndexLock(coverageFile, async () => {
+    const merged = await withIndexLock(coverageFile, async (lock) => {
+      // The repository's snapshot becomes this checkout's before the first run
+      // lands on it, so a worktree layers onto months of recording rather than
+      // onto nothing. A no-op in the primary checkout and after the first run,
+      // and not asked by a shard that is a part of one whole run.
+      await prepareRecord(lock, root, laidProbes(current), { alone: this.#alone });
       await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });
@@ -263,6 +291,9 @@ class JestCoverageReporter {
   }
 }
 
+/** Jest's case statuses in the words `statusesComplete` reads; any other is not an outcome. */
+const jestOutcomes: Readonly<Record<string, string>> = { passed: 'pass', pending: 'skip', todo: 'todo' };
+
 /**
  * One test file's observation, and whether it was whole.
  *
@@ -271,21 +302,29 @@ class JestCoverageReporter {
  * failing case each leave the observation partial: what the file did not run
  * it did not enter, and a selector must not read that absence as evidence.
  */
-async function coverageTest(
+function coverageTest(
   result: JestRunResults['testResults'][number],
-  /** Whether the selection skipped some of the file's cases, whose reach the run then did not record. */
-  cut: boolean,
+  /**
+   * Whether the record of the file is partial: the selection skipped some of
+   * its cases, whose reach the run then did not record, or a text it rests on
+   * was written while it ran.
+   */
+  partial: boolean,
+  /** Whether a name filter ran, which reports every case it left out as pending. */
+  named: boolean,
   config: SelectionReporterConfig,
   governing: readonly string[],
+  /** Every file's text digest, from `textDigests`, read once for the whole run. */
+  digests: ReadonlyMap<string, Digest>,
   journals: readonly ReadJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
-): Promise<CoverageTest> {
+): CoverageTest {
   const file = projectPath(config.root, result.testFilePath);
   const preconditions: CoveragePrecondition[] = [];
   for (const input of new Set([result.testFilePath, ...governing])) {
     preconditions.push({
       name: projectPath(config.root, input),
-      digest: digestString(await readFile(input, 'utf8')),
+      digest: digests.get(input)!,
     });
   }
   let placed = true;
@@ -295,11 +334,15 @@ async function coverageTest(
   // counts as a usable outcome below, and carries no record of the modules its
   // collection did enter. Recorded whole, that empty reach excludes the file
   // from every diff there will ever be. `journals` are this result's project's
-  // own: another project's journal for the same path is not this one's.
+  // own: another project's journal for the same path is not this one's, as far
+  // as the projects' names tell them apart. Unnamed projects share their
+  // journals, so the marks go to `jestPhases`, which keeps the run's own.
   let recorded = false;
+  const marks: number[] = [];
   for (const journal of journals) {
     if (projectPath(config.root, journal.testFile) !== file) continue;
     recorded = true;
+    if (journal.collected !== undefined) marks.push(journal.collected);
     for (const entered of journal.modules) {
       const module = modules.get(entered.id);
       if (module === undefined) placed = false;
@@ -315,34 +358,35 @@ async function coverageTest(
   // edits either the test file or a module its collection entered, both of which
   // already select it. A failure or an error is a different thing and still
   // spoils the file — it recorded only as far as it got.
-  const complete =
-    !cut &&
-    placed &&
-    recorded &&
-    result.testExecError === undefined &&
-    result.testResults.length > 0 &&
-    result.testResults.every(
-      (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
-    );
-  return { file, complete, preconditions, ...reportedDuration(result.perfStats?.runtime) };
+  const complete = !partial && placed && recorded && statusesComplete(
+    result.testExecError === undefined ? 'pass' : 'fail',
+    result.testResults.map((assertion) => jestOutcomes[assertion.status] ?? 'fail'),
+    named,
+  );
+  return {
+    file,
+    complete,
+    preconditions,
+    ...reportedDuration(result.perfStats?.runtime),
+    ...jestPhases(result.perfStats, marks),
+  };
 }
 
-
 /**
- * The setup and environment files one Jest project rests on, as Jest resolved
- * them for the test it ran.
+ * The setup files one Jest project rests on, as Jest resolved them for the
+ * test it ran. The environment is not one of them: a test file can name its
+ * own, so the runtime records the one Jest built for it, with its inputs.
  *
  * A project of an inline `projects` list governs its own tests: a change to a
  * browser project's environment does not change what a node project's test
  * ran. So each test is charged its own project's files, asked of the context
- * Jest ran it in rather than matched back to a project here. A package — the
- * environment `node`, `jest-canvas-mock` — resolves into the install, which is
+ * Jest ran it in rather than matched back to a project here. A package —
+ * `jest-canvas-mock` — resolves into the install, which is
  * no file a diff of the project can carry, and this seam's own two files are no
  * precondition of anybody's.
  */
 function projectPreconditions(config: JestTestContext['config']): readonly string[] {
   return [
-    ...(config.testEnvironment === undefined ? [] : [config.testEnvironment]),
     ...(config.setupFiles ?? []),
     ...(config.setupFilesAfterEnv ?? []),
   ].filter((file) =>

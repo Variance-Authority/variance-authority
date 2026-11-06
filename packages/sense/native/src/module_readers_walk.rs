@@ -11,7 +11,7 @@ use oxc_syntax::scope::ScopeFlags;
 use crate::loads::requires;
 use crate::module_shape::{plain_class, pure, Lines};
 
-use super::{declared, Import, Read, Reading, Reexport, Where};
+use super::{declared, Erased, Import, Read, Reading, Reexport, Where};
 
 pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     let mut walker = Walker {
@@ -33,7 +33,10 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     };
     for statement in &program.body {
         let Statement::ImportDeclaration(import) = statement else { continue };
-        let source = import.source.value.to_string();
+        let Some(source) = import.source.value.as_str().map(str::to_string) else {
+            walker.reading.untraced = true;
+            continue;
+        };
         walker.reading.sources.insert(source.clone());
         // `import { type A } from` keeps its braces, emptied; only `import './x'` has none.
         if import.specifiers.is_none() {
@@ -126,7 +129,10 @@ impl Walker<'_> {
         match statement {
             Statement::ImportDeclaration(_) => {}
             Statement::ExportFromDeclaration(it) => {
-                let source = it.source.value.to_string();
+                let Some(source) = it.source.value.as_str().map(str::to_string) else {
+                    self.reading.untraced = true;
+                    return;
+                };
                 self.reading.sources.insert(source.clone());
                 for specifier in &it.specifiers {
                     let taken = specifier.local.name().to_string();
@@ -135,7 +141,10 @@ impl Walker<'_> {
                 }
             }
             Statement::ExportAllDeclaration(it) => {
-                let source = it.source.value.to_string();
+                let Some(source) = it.source.value.as_str().map(str::to_string) else {
+                    self.reading.untraced = true;
+                    return;
+                };
                 self.reading.sources.insert(source.clone());
                 let given = it.exported.as_ref().map(|name| name.name().to_string());
                 self.reading.reexports.push(Reexport { taken: "*".to_string(), given, source });
@@ -147,7 +156,7 @@ impl Walker<'_> {
                 }
             }
             Statement::ExportDeclaration(it) => {
-                for name in declared(&it.declaration) {
+                for name in declared(&it.declaration, Erased::Kept) {
                     self.export_as(&name, &name);
                 }
                 self.declaration(&it.declaration);

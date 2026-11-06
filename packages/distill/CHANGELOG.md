@@ -1,5 +1,219 @@
 # @variance-authority/distill
 
+## 0.25.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.24.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.24.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.23.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.22.0
+
+### Minor Changes
+
+- 704c49d: `variance covering` says how fresh and how actual its answer is for the question you asked
+
+  A partial run moves the record to its commit, and every test file it did not run keeps where it last ran, so one answer can name a test file that ran a minute ago over your text beside one that ran days ago over a text that was never committed. Every answer about a file, a line, a run of lines or a function now ends with where its line numbers stand in your text, then, for the test files it names, whether they ran over your text and when their runs landed, a group the record holds no time for first, then the oldest:
+
+  ```
+  The recorded lines of src/pay.ts are placed in its text as it is now.
+  src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 9 hours ago; `pay` is the same in both.
+  src/pay.ts is the text the other test file named here ran over, in a run that landed 6 minutes ago.
+  ```
+
+  Each test file is placed by the run that last finished it, a run that ran it whole or one the record held no cases of, and each case the answer names is dated and compared by the run that last ran it: a later run in part under `-t`, a filter or a skip names the cases it ran, so a test file whose named cases last ran apart is said part by part, each part with its time and text; a run in part that kept no cases names none, so its cases are dated by the run before it and its lines by both; and a run that executed none of a file's cases, every one skipped or filtered out, runs it in part and names none of them either. A run that finishes a test file and keeps no cases drops the case index, as `variance journeys` does for such a shard, rather than date the cases an earlier run laid by it; and a run that keeps cases writes an index into a record that holds none only once it has finished every test file the record holds that the checkout still has, which `journeys` says when its shards did not. `variance select` reads the same place: a test file a run at a newer commit ran only in part is compared from the commit where a run last finished it, and counted among the test files that last ran before the journal's commit. Your text is the `--text` buffer, else the file on disk, compared by digest with the texts that run kept where they were not committed, else the committed one at its commit. For `--line`, `--lines` and `--function`, a test file that ran over another text is told whether the asked region is the same in both, gone from yours, or why that is not known. The time is when that run landed in the record; a commit's date is never used. A group the record holds no time or no texts for says what it does not hold, as a record seeded before landings does of its time, and a test file the record does not place, or every one when no runs record of the snapshot's commit lies beside it, is dated where it is assumed and its text is not known. A test file is compared only on the files its runs read: the asked file its cases entered or hold as a precondition, and under `--since` each changed file its cases are named for, entered or hold as a precondition, so a file its runs never loaded is neither another text nor one that did not exist. A file the commit a run stood at did not hold is said not to have existed where it ran, and every file a test file read is said, so no file's verdict hides another's. Runs outside a git checkout stand at one place, each dated by its landing, and a test file read from a newer mainline record is dated by the run that published it. Under `--execution`, a record that names its commit is read as the suite's own: the answer's `at` is that commit, its lines are framed against it, and it is dated by the runs record beside it. `--since` says the same under its regions and names a changed file not on disk instead of comparing it, and an answer that names no test file is dated by the test files that entered the file, and compared over it, else by every case it read, and compared over nothing.
+
+  The frame line replaces the `, placed in the text as it is now` the file answer's heading ended with, and `frame` is now on `--function` answers too: under `mapped` a part no case ran that an edit touched prints as `edited`, and under `stale` the answer names the function's cases and no parts. In JSON, `at` is the record's commit on every answer whose record names one, `ran.stands` holds the groups the lines are read from (`commit`, `assumed`, `tests`, `cases`, `landed`, `partly`, `files`, `text`, `other`, `absent`, `held`, `unknown`, `region`) with `ran.assumed`, `ran.unheld` and `ran.named` beside them, `ran` is `{ tests, unread }` when where they ran cannot be read, `moved: true` marks a `--function` answer and each `unrun` part an edit touched, and `unheld: true` a file not on disk. A line a case ran over, where a run over another text has landed since, is named in `overwritten` instead of `written`, and said to be in a text a case ran over, so which case ran it is not known, whatever text the record's lines are numbered in: a line your text holds and the record's does not, which a case that entered the file ran over, every line of a region a run in part landed an edit over, which the cases that ran it before ran in another text, and every line of the module when that run cannot find the text they ran over, under `--line`, `--lines` and `--function` unless a case called into a region that holds the line, and of the range or region under the whole file and `--since`. A branch inside an asked function is read like the same line asked alone. `written` keeps the lines the record shows no case ran over: a line your text holds and the record's does not, where the record cannot say which text a case that crossed the file ran over, since its runs record names no texts or no commit there, or that text is not kept, is named in `unknown`, with `why`, and the answer prints that whether a case has run it is not known. Over the whole file, a range names those cases in its own `overwritten`, and `variance select` runs them for a change to the region. `variance review` says of a region no case is known to have run, in its comment, its text and its handover, that none is known to have run it, and counts it apart from the regions no case covered: its `reach` in JSON is `overwritten`, `changedPackages[].overwritten` counts the functions of a package that hold one and no code no case ran, and the comment marks it ❔ in its legend, its callout, a Where fold of its own, its diagram and a packages column shown when a package holds one. A region no case entered, where the record cannot say whether a case stopped first, stays `unknown` and still reads as one no case covered. `@variance-authority/distill` names a declaration a test's case ran only in another text neither among the regions the test `entered` nor among the ones it never reached (`unentered`).
+
+  The runs record keeps one landing per run at its commit, with the test files it finished, the ones it ran in part and the cases of each it laid into the case index, none when it kept no cases, when it landed, its install and the texts it ran over where those were not committed, and a run at another commit leaves the test files of each landing standing where they ran, with that landing's time and texts. A test file a checkout takes from a newer mainline record keeps the time and texts of the run that published it, and one your checkout ran itself keeps the place its own runs record gave it, with that run's time, install and texts and the runs that ran it in part, or, where that record places it nowhere, is assumed to stand where those runs started. Beside the landings the record keeps `latest`, when a run last wrote it, and `runs`, how many did, and no longer stores the install or when its first run landed: the install is what the landings say together, and a record written before landings reads as one landing of its run, with its time. It still lists, as `files`, the test files the landings finished, which an earlier release reads as the test files that ran at its commit, so that release reads and lands on the record, and compares a test file a run there ran only in part from where it stands. A record whose list an earlier release rewrote beside the landings it carried unread is read as that release wrote it. `variance review`'s JSON `runs` reads its test files and install off the landings and no longer holds `first`. `@variance-authority/sense/test-selection` exports `commitRunsIn`, which reads a runs record's text, `whatLanded`, what its landings say together, `testPlaces`, where and when each test last ran and over which texts, `assumedOf`, how placing some of the tests one reading placed fell back where the record could not say, `lastRunsOf`, which of a place's runs last ran each named case, `ranOver`, over which text of a file a placed run ran, `readsTheSnapshot`, whether that is read from the snapshot's rows, `placeAcross`, which places a range of one text in another, `placeInTexts`, which frames many held texts against one snapshot, `casesRan`, the cases the run that last wrote a record's case index laid there, by test file, `overwrittenIn`, the cases flagged on a module's regions that called into none of them, `overwrittenOn`, the cases a target's regions hold that ran them in another text and called into none of them, `lostText`, the sentence that says which case ran such a line is not known, `shardsTexts`, and the `TestPlace`, `CasesLastRan`, `RanOver`, `NotHeld`, `RanOverEvidence`, `OverwrittenOn`, `KeptTexts`, `ShardRuns` and `WhatLanded` types.
+
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+### Minor Changes
+
+- d61417a: Expose each test file’s recorded phases in distill --format jsonl as an optional time object, preserving unavailable phases and measured zero values.
+
+### Patch Changes
+
+- 1e5d9df: A case records what the code under test read, beside what the test said. `varianceBreadcrumb(dimension, key, value)` from `@variance-authority/event` returns its value and, under a Vitest, Jest or Rstest run in Node recorded with `@variance-authority/sense`, lays `dimension:key` and the value on the case that made the read; a read made while the test file loads lands on every case of the file. `variancePrecondition` now takes a dimension and a record, `variancePrecondition('flags', { discount: true })`, which records `flags:discount`, and holds any value JSON can hold; the one-name form and the `PreconditionValue` type are gone. `variance covering` prints `read flags:discount=false said true` beside each case and takes `--read <name>[=<value>]` to keep the cases by what the code read. `variance review` splits each changed region's cases by what they read, `flags:express read false by 1, true by 1, not by 6`, and `review.json` gives each case its `reads`. The review handover's breadcrumbs are now called pointers. `@variance-authority/distill` reads the new recorded form.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.16.0
+
+### Minor Changes
+
+- 80db3dc: A test file costs what running it took, the time before its first case included
+
+  Vitest's file duration is its cases alone, so a file that spent 5.4 s on its
+  environment, setup files and imports and 33 ms in its cases was ranked and
+  placed as a 33 ms file. Every reader that weighs a file by its time now reads
+  one figure: the larger of the runner's duration and the file's phases summed.
+  A Jest file still costs its runtime unless its phases add up to more, and a
+  file recorded without phases still costs its duration.
+
+  - `variance ask slowest-tests` and `docs_slowest_tests` rank files by it.
+  - A sharded run, and `variance shards`, place and count files by it.
+  - `variance distill`'s "loading" is everything before the first case —
+    `prepare`, `environment`, `setup` and `collect` — rather than `collect`
+    alone, as `timeBeforeCases` from `@variance-authority/sense/test-selection`
+    reads it, and a file is load-bound when that outlasts its cases. In
+    `--format json`, each `loadBound` entry is `{ file, loading, cases }`; its
+    `collect` field is gone.
+
+  The stored `tests.duration` is unchanged: it stays the runner's own figure.
+- 90358a4: A proposed mock names the module, not a runner's call
+
+  `distill` spelled its mock proposals in one runner's API: a file reading
+  proposed `jest.mock('../src/editor', () => ({ edit: jest.fn() }))` for a test
+  file Vitest runs, and a case reading proposed `vi.mock(...)` with a note that
+  `jest.mock` and `sb.mock` said the same. Both now name the module and why, and
+  leave the call to the test file's runner. A file reading reads
+  `Or mock src/editor.ts in this file, so src/dialog.ts does not load it: stand a
+  function in for each value it exports (edit, format); an automock loads the
+  module to read its shape.` A case reading reads `substitution to try: mock
+  src/heavy-chart.tsx in this test's file; loading it is all this test used of
+  it. Stand in for what it exports: an automock loads the module to read its
+  shape`. The module is the repository-relative path the rest of the reading uses,
+  not a specifier relative to the test file. A script that matched either line's
+  old text has the new wording to match.
+- add7c98: A recording keeps where each test file's time went, and `variance distill` shows it
+
+  Beside its duration, each test file now carries the time it spent in five
+  phases: readying the file in its worker, the test environment, the setup
+  files, collecting the file — importing it and everything it loads — and its
+  cases. Vitest reports all five. Under Jest, `perfStats` times the environment
+  and the setup files, and the setup module marks where collecting ended, so the
+  rest splits into collect and cases.
+
+  `variance distill` over a folder, a suite or the repository sums the phases of
+  the test files it reads, gives each its share, and names the files whose
+  loading took over ten times as long as their cases: the files where what a
+  test imports, not what it checks, is what the run pays for.
+- 1741299: Distill reads its records in the native addon
+
+  `variance distill` over a whole suite read every test file's coverage rows and
+  case index as objects, which a suite of tens of thousands of test files cannot
+  afford: one of about 30k test files ran for most of a minute and several
+  gigabytes of memory, and a larger one did not finish. The sense addon now reads
+  each record once into what the question needs — per test file the modules it
+  loaded, per module how many of its cases entered it — and answers the scope,
+  one test file, and the import behind each module no case entered, in columns.
+  On a synthetic suite of that shape a whole-suite reading takes a few seconds
+  in place of most of a minute, and every output there is the same, byte for
+  byte. Outputs change only where a function is run while its module loads, as
+  the fix below says. `--file` still opens the whole record, a fifth of a second there, and reads the
+  file graph, about a second more, only when a module no case entered needs its
+  import named.
+
+  Breaking: `distillFile` and `distillScope` take the record's bytes as `record`
+  and the file graph as `relations`, in place of the decoded `coverage` and
+  `execution` and the `imports`, `lazy` and `republishes` callbacks; drop
+  `execution`, since the cases and the regions a charge reads come from `record`.
+  `scopeRows` reads the scope, and refuses one it cannot read, when it is called,
+  and makes each row as it is reached. They require the addon, and throw naming
+  why where it did not install.
+
+  Fixed: an import referenced in a function the importer calls while it loads
+  is read as one used at load, and never proposed as a `jest.mock`. Over a record
+  whose case index is in the set spelling, such a function was charged as if no
+  case ran it, since that spelling keeps a run at load as a flag that names no
+  case, and distill could propose a mock that breaks the test; the same held
+  over the row spelling where only another test file's case ran it while
+  loading. A run at load is now read as this test file's, whichever file's case
+  made it.
+
+  A record whose case index is in the row spelling, which no current writer
+  emits, is converted to the set spelling as it is read, and needs nothing from
+  you. Which spelling is written does not change. A record whose module says it was instrumented and has no regions, or
+  the other way round, is refused, as reading its coverage already refused it.
+
+  `readDistillRecords` and `rankDistillCauses` are exported from
+  `@variance-authority/sense/test-selection`. The records answer `cases` and
+  `regions` for one test file, and `NativeDistillRegion` is the region they
+  answer; `rankDistillCauses` orders a test file's load causes as a scope's
+  reading orders them, so one test file's reading and a scope's rank them alike.
+
+  `variance distill --format jsonl` makes each row as it writes it, and `json`
+  writes its answer as it serializes it, a piece at a time. A reader that closes
+  the pipe early, `| head`, ends the command quietly with exit 0.
+
+### Patch Changes
+
+- 8bab581: A refusal names what is missing instead of asking you to run the suite again
+
+  Running a whole suite again to refresh a record is rarely yours to do, so no
+  message tells you to. Where something can still be answered, it is:
+
+  - `variance_composition {subject}` against a report with no per-subject
+    structure lists the components the census holds in that subject and the
+    renderings it shares, and says the report holds no order, depth, mount or
+    count within it.
+  - `variance_locate` with `under`, `above` or another spatial relation, against
+    a run that resolved no layout, prints where the anchor is on each surface that
+    says it, and says the run cannot tell what sits in that relation to it.
+  - `variance_composition` against a report merged from shards says each shard's
+    report still holds its composition, and the suite index the build composes
+    from every shard's part holds the census across them.
+
+  Where nothing can be answered, the refusal stays and names the condition, not a
+  rerun: shards that started from, or chose their tests from, different records
+  are not combined, and the record before the build stands; shards written by
+  another version, or of which only some kept cases, are not combined;
+  `variance shards --unrecorded 0` says a matrix of none starts no job; a Vitest
+  run whose `--reporter` replaced the recording reporter says the record is as it
+  was; a distill reading withheld for an incomplete coverage row, and a missing
+  unit-test capture directory, name what is missing.
+- e4e1b5b: What a case said it arranged is stored once, and read the same way everywhere
+
+  The record keeps each distinct precondition once, with the cases that said it
+  as a set in the pool coverage already uses, so a `beforeEach` that every case
+  of a file runs costs one entry rather than one per case. Every item is kept,
+  including one a narrower level overrode, and a case's row is resolved when it is
+  read: per name, the narrowest level wins, two values there are a
+  contradiction, and a value said at several sites is printed at the first.
+
+  Two runs, two shards or two frames of one case now give the same row whichever
+  arrived first. Before, a value said at two sites could print either site, and a
+  fraction could print as `0.000001` or `1e-6`, depending on which writer laid
+  the record. A contradiction's values now print in the code-unit order of their
+  JSON text.
+
+  A record written by an earlier release opens with every case unmeasured: `variance
+  covering --where` counts them as such until the suite is recorded again.
+
+  **Breaking:** on `ExecutionIndex` and `ObservedCase`, a test's `preconditions`
+  rows are replaced by `said`, the unresolved items as one string; `rowOf(test)`
+  returns the resolved rows. `encodeExecutionIndex` refuses a test that carries
+  `said`; `encodeAsSetExecutionIndex` writes it.
+
 ## 0.15.0
 
 ### Minor Changes

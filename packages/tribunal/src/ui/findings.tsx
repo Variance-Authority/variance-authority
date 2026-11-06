@@ -18,9 +18,8 @@ import { element, headline, number, sentence } from './text.js';
  * Findings, and the three things a reader has to be told before the list is one.
  *
  * **Whether anything looked.** `[]` means this render was inspected and no defect
- * was found. `undefined` means nothing inspected it. Printing the second as the
- * first tells a reviewer the component is fine on the authority of something that
- * never looked.
+ * was found; `undefined` means nothing inspected it. Neither is a list, so this
+ * draws neither, and `gapsOf` says the second so it never reads as the first.
  *
  * **What kind of defect these are.** The rows used to arrive under a bare
  * *Findings* as rule ids and clauses, and a reader who did not already know what
@@ -39,7 +38,7 @@ import { element, headline, number, sentence } from './text.js';
  * the defects this change brought lead the panel at full size, and everything the
  * record does not put on this change is folded behind its count. *Not dated* is
  * its own answer and is never drawn as *arrived with this change*: the reading is
- * [`byArrival`](../../../report/src/findings.ts), shared with the HTML report so
+ * [`byArrival`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/report/src/findings.ts), shared with the HTML report so
  * the two surfaces say it in the same words and in the same order.
  *
  * Drawn in three registers rather than one line. The report writes a rule id and
@@ -50,13 +49,8 @@ import { element, headline, number, sentence } from './text.js';
  * beside the file, where it belongs: it is the least of the three to a reviewer
  * and the whole of it to an ignore list.
  */
-export function Findings({ subject }: { readonly subject: SubjectView }): ReactElement {
-  if (subject.findings === undefined) {
-    return <p className="va-note">This render was not inspected, so no defect list applies.</p>;
-  }
-  if (subject.findings.length === 0) {
-    return <p className="va-note">Inspected, and nothing to report.</p>;
-  }
+export function Findings({ subject }: { readonly subject: SubjectView }): ReactElement | null {
+  if (subject.findings === undefined || subject.findings.length === 0) return null;
 
   const { arrived, rest, dated } = byArrival(subject.findings);
   const carried = carriedLine(subject.findings);

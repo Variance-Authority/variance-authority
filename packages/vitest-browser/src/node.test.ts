@@ -15,6 +15,7 @@ import {
   type RenderIdentity,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
+import { keptRaster } from '@variance-authority/store/keep';
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { OBSERVE_COMMAND } from './protocol.js';
@@ -44,6 +45,8 @@ function imageOf(level: number): string {
 }
 
 const IMAGE = imageOf(0xff);
+/** What a durable store keeps, and hands back, for {@link IMAGE}. */
+const KEPT = (await keptRaster({ bytes: IMAGE })).bytes;
 const DARK = imageOf(0x00);
 
 function fakeRenderer(
@@ -150,7 +153,7 @@ describe('the command the browser half calls', () => {
     await commands.varianceObserve(undefined, { artifact: artifactFor('b') });
 
     const found = await store.find({ subject: 'b' }, renderer.identity);
-    expect(found?.raster.bytes).toBe(IMAGE);
+    expect(found?.raster.bytes).toBe(KEPT);
     // From the run's own render cache: painting again here would store bytes
     // nobody compared.
     expect(renderer.renders).toBe(1);
@@ -169,7 +172,7 @@ describe('the command the browser half calls', () => {
 
     expect(await readdir(join(root, 'src/ui/__baselines__/Button.test.tsx/Button'))).toEqual([
       'renders-primary-fake.json',
-      'renders-primary-fake.png',
+      'renders-primary-fake.webp',
     ]);
   });
 
@@ -266,7 +269,7 @@ describe('the command the browser half calls', () => {
 
       const found = await store.find({ subject: 'g' }, renderer.identity);
       expect(found?.comparable).toBe(true);
-      expect(found?.raster.bytes).toBe(IMAGE);
+      expect(found?.raster.bytes).toBe(KEPT);
     });
 
     it('adopts another machine`s changed subject when the run declares itself a baseline writer', async () => {
@@ -349,7 +352,7 @@ describe('the render cache a directory store keeps', () => {
 
     expect(await readdir(join(baselines, '__baselines__/Button'))).toEqual([
       'renders-primary-fake.json',
-      'renders-primary-fake.png',
+      'renders-primary-fake.webp',
     ]);
   });
 

@@ -1,7 +1,7 @@
 # Selection through the API
 
 Read this for what `variance select` and `variance reach` do not print: a
-distance per test, the `because` trail, or a diff that is not a ref. The
+distance per test outside a leg, or a diff that is not a ref. The
 recording, the commands and the bearings are in [test
 selection](test-selection.md).
 

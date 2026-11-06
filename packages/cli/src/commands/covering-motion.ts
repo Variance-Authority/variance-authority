@@ -11,27 +11,16 @@
  * the edit you just ran.
  */
 
-import {
-  anyStopped,
-  caseMotion,
-  caseSectionsAt,
-  decodeExecutionIndex,
-  lastCaseRunOf,
-  recordedCommit,
-  type CaseMotion,
-  type CommitRuns,
-  type ExecutionIndex,
-  type ExecutionTest,
-  type LastCaseRun,
-  type MovedRegion,
-} from '@variance-authority/sense/test-selection';
+import { anyStopped, caseMotion, caseSectionsAt, decodeExecutionIndex, lastCaseRunOf, recordedCommit, whatLanded, type CaseMotion, type CommitRuns, type ExecutionIndex, type ExecutionTest, type LastCaseRun, type MovedRegion } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import type { ParsedCovering } from '../covering-args.js';
+import type { CoveringQuestion } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { diffFromBase, movedOnBase } from './base-diff.js';
+import { carriedOver, diffFromBase, movedOnBase, unnamedCommit } from './base-diff.js';
 import { cutElsewhere } from './before-texts.js';
+import { runsOnce, type RunsRead } from './record-runs.js';
 import { relationsFor } from './source-graph.js';
+import { functionOf, regionKind } from './review-scope.js';
 
 /** Which record the answer was compared with, and what of it was left out. */
 export interface MotionBase {
@@ -78,11 +67,23 @@ export interface CoveringMotion {
    */
   readonly unmeasured?: readonly string[];
   /**
+   * Modules git could not give the text of at the commit they are compared
+   * from, each with git's reason. They are not compared. Absent when there are
+   * none.
+   */
+  readonly unreadText?: readonly { readonly file: string; readonly why: string }[];
+  /**
    * The file naming the run that wrote the case index last, when it is there
    * and could not be read. Which files a run at this commit wrote is then not
    * known, so nothing is compared.
    */
   readonly lastRunUnread?: string;
+  /**
+   * Why the layer the runs at this commit retired cannot be paired with the
+   * current regions, when it names no commit to diff from: a second run there
+   * ran a test file again. Nothing is compared, and the review says so.
+   */
+  readonly undiffed?: string;
 }
 
 /**
@@ -107,34 +108,36 @@ export type RunsWrote =
   }
   | { readonly lastRunUnread: string };
 
-export async function runsWrote(from: string, runs: CommitRuns): Promise<RunsWrote> {
+export async function runsWrote(from: string, runs: Pick<CommitRuns, 'commit' | 'landings'>): Promise<RunsWrote> {
   const last = lastRun(from);
   if (last === 'unreadable') return { lastRunUnread: from };
-  if (last === undefined) return { compared: new Set(runs.files) };
-  if (last.commit === undefined || last.commit !== runs.commit) return { compared: new Set(), unwritten: [...runs.files] };
+  const { files } = whatLanded(runs.landings);
+  if (last === undefined) return { compared: new Set(files) };
+  if (last.commit === undefined || last.commit !== runs.commit) return { compared: new Set(), unwritten: [...files] };
   const written = new Set(last.files);
   const unbased = new Set(last.unbased ?? []);
   const compared = new Set(last.files.filter((test) => !unbased.has(test)));
   return {
     compared,
     ...(last.before === undefined ? {} : { at: last.before }),
-    unwritten: runs.files.filter((test) => !written.has(test)),
+    unwritten: files.filter((test) => !written.has(test)),
     ...(unbased.size === 0 ? {} : { unbased: [...unbased] }),
   };
 }
 
 /** The motion a request asks for: against `--against`, or under `--cases last` against the run before. */
 export async function motionFor(
-  request: ParsedCovering,
+  request: CoveringQuestion,
   from: string,
   scope: CoveringScope | undefined,
   full: ExecutionIndex | undefined,
+  runs: RunsRead = runsOnce(from, request.root),
 ): Promise<CoveringMotion | undefined> {
   if (request.since !== undefined && request.against !== undefined) {
-    return motionAgainst(from, request.against, request.since, request.root);
+    return motionAgainst(from, request.against, { since: request.since, mergeBase: request.listed.base }, request.root, runs);
   }
   if (scope?.cases !== 'last' || full === undefined) return undefined;
-  return motionOfLast(full, from, scope.tests, request.root, request.file);
+  return motionOfLast(full, from, scope.tests, request.root, request.file, undefined, runs);
 }
 
 /**
@@ -150,12 +153,13 @@ export async function motionOfLast(
   root: string,
   file?: string,
   since?: string,
+  runs: RunsRead = runsOnce(from, root),
 ): Promise<CoveringMotion> {
   const last = lastRun(from);
   const at = last === 'unreadable' ? undefined : last?.before;
   const asked = new Set(cases);
   const ran = new Set(last === 'unreadable' || last === undefined ? full.tests.filter((test) => asked.has(test.id)).map((test) => test.file) : last.files);
-  return againstBefore(full, from, cases, root, { at, file, since, ran });
+  return againstBefore(full, from, cases, root, { at, file, since, ran, runs });
 }
 
 /**
@@ -169,12 +173,13 @@ async function againstBefore(
   from: string,
   cases: readonly string[],
   root: string,
-  { at, file, since, files, ran }: {
+  { at, file, since, files, ran, runs }: {
     readonly at: string | undefined;
     readonly file?: string | undefined;
     readonly since?: string | undefined;
     readonly files?: ReadonlySet<string>;
     readonly ran: ReadonlySet<string>;
+    readonly runs: RunsRead;
   },
 ): Promise<CoveringMotion> {
   const unread: MotionBase = { from, kind: 'before', ...(at === undefined ? {} : { at }) };
@@ -187,22 +192,23 @@ async function againstBefore(
   } catch (error) {
     throw new OperatorError(`the cases the last run retired in ${from} do not read (${error instanceof Error ? error.message : String(error)}), so what the run moved cannot be compared.`);
   }
-  const { commit, diff } = await diffFromBase(at, root, BEFORE_LAYER);
+  const { commit, diff, repository } = await diffFromBase(at, root, BEFORE_LAYER);
   const parting = since === undefined ? undefined : await movedOnBase(commit, since, root);
   const base: MotionBase = { ...unread, ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }) };
   if (files !== undefined) held = keepFiles(held, files);
   const cased = held.modules
     .filter((module) => (file === undefined || module.file === file) && module.blocks.some((block) => block.crossings.length > 0))
     .map((module) => module.file);
-  const elsewhere = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root);
+  const { elsewhere, unread: unreadText } = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root);
   const asked = new Set(cases);
   const now = keepCases(full, asked);
   // A case of a file no run here ran retains an earlier recording, which stands
   // at both ends. A case a run here recorded says nothing of what came before.
   const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
-  const exclude = new Set([...(parting?.files ?? []), ...elsewhere]);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, retained, diff });
-  return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }) };
+  const exclude = new Set([...(parting?.files ?? []), ...elsewhere, ...unreadText.keys()]);
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), repository), exclude, retained, diff });
+  return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }),
+    ...(unreadText.size === 0 ? {} : { unreadText: [...unreadText].map(([path, why]) => ({ file: path, why })) }) };
 }
 
 /** The before layer, as a refusal names it, and why it can name no commit. */
@@ -228,6 +234,7 @@ export async function motionOfRuns(
   wrote: RunsWrote,
   root: string,
   since?: string,
+  runs: RunsRead = runsOnce(from, root),
 ): Promise<CoveringMotion> {
   const base: MotionBase = { from, kind: 'before' };
   if ('lastRunUnread' in wrote) return { base, lastRunUnread: wrote.lastRunUnread };
@@ -245,15 +252,19 @@ export async function motionOfRuns(
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   const ran = new Set([...wrote.compared, ...(wrote.unwritten ?? []), ...(wrote.unbased ?? [])]);
-  return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
+  // A layer naming no commit is the record's own state, left uncompared; a
+  // commit it names that this clone cannot diff from is refused.
+  if (wrote.at === undefined) return { base, ...said, undiffed: unnamedCommit(BEFORE_LAYER) };
+  return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran, runs })), ...said };
 }
 
 /** The current record against the base `--against` names, with what the base's branch moved left out. */
 export async function motionAgainst(
   from: string,
   against: string,
-  since: string,
+  parted: { readonly since: string; readonly mergeBase: string },
   root: string,
+  runs: RunsRead = runsOnce(from, root),
 ): Promise<CoveringMotion> {
   let held: ExecutionIndex;
   try {
@@ -266,11 +277,11 @@ export async function motionAgainst(
     );
   }
   const now = await readExecutionIndex(from);
-  const { commit, diff } = await diffFromBase(await baseCommit(against), root, { name: `The base \`${against}\`` });
-  const parting = await movedOnBase(commit, since, root);
+  const { commit, diff, repository } = await diffFromBase(await baseCommit(against), root, { name: `The base \`${against}\`` });
+  const parting = await movedOnBase(commit, parted.since, root, parted.mergeBase);
   const base: MotionBase = { from: against, kind: 'record', at: commit, mergeBase: parting.mergeBase, leftOut: parting.files };
   const exclude = new Set(parting.files);
-  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude, diff }) };
+  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), ...carriedOver(await runs(), repository), exclude, diff }) };
 }
 
 /**
@@ -293,6 +304,7 @@ export function motionText(
   if (motion.unbased !== undefined && motion.unbased.length > 0) {
     unwritten.push(`Not compared, no case of these was recorded before this commit's first run: ${listedOf(motion.unbased, listed, 'test file')}.`);
   }
+  if (motion.undiffed !== undefined) return ['', `Not compared: ${motion.undiffed}`, ...unwritten];
   if (motion.lastRunUnread !== undefined) {
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }
@@ -353,12 +365,19 @@ export function motionText(
     }
     lines.push(...notListed(mismatched.length - listed, 'row'));
   }
+  const carried = moved.unmeasured ?? [];
+  if (carried.length > 0) {
+    lines.push(`Not measured, ${carried.length} region${carried.length === 1 ? '' : 's'} whose cases last ran before ${carried.length === 1 ? 'its' : 'their'} file changed:`);
+    for (const region of carried.slice(0, listed)) lines.push(`  ${place(region)} — was ${named(region.before)}`);
+    lines.push(...notListed(carried.length - listed, 'region'));
+  }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${listedOf(moved.unread, listed, 'file')}.`);
   if (motion.unmeasured !== undefined && motion.unmeasured.length > 0) {
     lines.push(`Not compared, the cases before were recorded over another text than ${base.at!.slice(0, 12)} holds: ${
       listedOf(motion.unmeasured, listed, 'file')
     }.`);
   }
+  for (const { file, why } of motion.unreadText ?? []) lines.push(`Not compared, ${file}: ${why}`);
   lines.push(...unwritten);
   return lines;
 }
@@ -366,10 +385,11 @@ export function motionText(
 /**
  * The line that counts what a bounded list left out, and says where it is
  * listed. Plain text, because the markdown sets these lines in a code block.
+ * `which` follows the noun, where two lists of the same noun sit side by side.
  */
-function notListed(more: number, noun: string): readonly string[] {
+export function notListed(more: number, noun: string, which = ''): readonly string[] {
   if (more <= 0) return [];
-  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}, not listed here; --format json lists every one.`];
+  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}${which}, not listed here; --format json lists every one.`];
 }
 
 /** Names in one line, no more than `listed` of them, and the rest counted. */
@@ -391,14 +411,14 @@ export function functionsIn(regions: readonly MovedRegion[]): string {
   if (regions.length === 0) return 'nothing';
   const byFile = new Map<string, Set<string>>();
   for (const region of regions) {
-    const name = region.kind === 'module' || region.name === '' ? 'the top level' : region.name.split('/')[0]!;
+    const name = functionOf(region);
     const held = byFile.get(region.file);
     if (held === undefined) byFile.set(region.file, new Set([name]));
     else held.add(name);
   }
   const functions = [...byFile.values()].reduce((sum, names) => sum + names.size, 0);
   const count = `${regions.length} region${regions.length === 1 ? '' : 's'}`;
-  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} files (${count})`;
+  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} file${byFile.size === 1 ? '' : 's'} (${count})`;
   const said = [...byFile].map(([file, names]) => `${[...names].join(', ')} in ${file}`).join('; ');
   return `${said} (${count})`;
 }
@@ -414,7 +434,7 @@ function casesByFile(tests: readonly ExecutionTest[]): string {
 }
 
 function place(region: MovedRegion): string {
-  return `${region.file} ${region.startLine}-${region.endLine} ${region.kind} ${region.name}`;
+  return `${region.file} ${region.startLine}-${region.endLine} ${regionKind(region)}`;
 }
 
 /** The motion of one module, and each test file's reach into it. */

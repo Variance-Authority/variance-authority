@@ -31,7 +31,7 @@
  * and a configuration that names this reporter without it is not refused.
  */
 
-import type { Reporter } from '@playwright/test/reporter';
+import type { FullConfig, FullResult, Reporter, Suite, TestError } from '@playwright/test/reporter';
 import {
   closeStage,
   foldStage,
@@ -44,7 +44,10 @@ import {
   landingTimes,
   recordFileFor,
   repositoryRoot,
+  selectedLines,
 } from '@variance-authority/sense/test-selection';
+import { fileSelection, keptFiles } from './file-selection.js';
+import { fileOwner } from './test-coordinate.js';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { placeWholeFiles, type Preprocess } from './whole-file-shard.js';
@@ -104,6 +107,10 @@ export default class implements Reporter {
   readonly #snapshot: string;
   readonly #start: string;
   #directory: string | undefined;
+  /** What the run failed on outside a test. */
+  readonly #errors: TestError[] = [];
+  /** The run's configuration, from `onBegin`, which Playwright calls before `onEnd` even when it found nothing. */
+  #config: FullConfig | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
     this.#options = options;
@@ -124,6 +131,7 @@ export default class implements Reporter {
 
   /** Playwright 1.62 and newer: place a `--shard` by whole files, before Playwright would split it. */
   async preprocess(params: Preprocess): Promise<void> {
+    this.#tellSelected(params.suite);
     const times = landingTimes(this.#snapshot, {
       root: this.#root,
       from: this.#start,
@@ -133,7 +141,9 @@ export default class implements Reporter {
     await placeWholeFiles(params, this.#root, times, (line) => process.stderr.write(`${line}\n`));
   }
 
-  onBegin(): void {
+  onBegin(config: FullConfig, suite: Suite): void {
+    this.#config = config;
+    this.#tellSelected(suite);
     // Before the first worker is forked, because a worker inherits the
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this
@@ -142,7 +152,49 @@ export default class implements Reporter {
     openStage(this.#directory);
   }
 
-  async onEnd(): Promise<void> {
+  onError(error: TestError): void {
+    this.#errors.push(error);
+  }
+
+  async onEnd(result?: FullResult): Promise<{ status?: FullResult['status'] } | undefined> {
+    await this.#fold();
+    // A selection that skips every spec file is an answer, the change reached
+    // no test the record holds, and the run passes; Playwright has no setting
+    // that passes "No tests found" for a configuration to set. Only then: the
+    // same error after a `--grep` or an empty `testDir` is the run's own.
+    // Playwright serializes the error it throws, so its message keeps the name.
+    const noTests =
+      result?.status === 'failed' &&
+      this.#errors.length === 1 &&
+      this.#errors[0]!.message?.startsWith('Error: No tests found') === true;
+    if (!noTests || !this.#emptied()) return undefined;
+    this.#tellSelected(undefined);
+    return { status: 'passed' };
+  }
+
+  /** Whether the selection dropped a spec file and kept none. */
+  #emptied(): boolean {
+    const asked = fileSelection();
+    if (asked?.selection === undefined || asked.dropped.size === 0 || this.#config === undefined) return false;
+    return keptFiles(asked, this.#config.projects.map((project) => project.testMatch)).length === 0;
+  }
+
+  /**
+   * Say what the selection kept of the files Playwright found, once, from the
+   * first place that has them: `preprocess` sees every file before a shard is
+   * placed, `onBegin` is where a Playwright older than 1.62 first does, and a
+   * run the selection emptied reaches neither with a test, so `onEnd` says it.
+   */
+  #tellSelected(suite: Suite | undefined): void {
+    const asked = fileSelection();
+    if (asked?.selection === undefined || asked.told) return;
+    const found = new Set((suite?.allTests() ?? []).map((test) => fileOwner(asked.root, test.location.file)));
+    if (found.size === 0 && suite !== undefined) return;
+    for (const line of selectedLines(asked.selection, [...found, ...asked.dropped])) process.stderr.write(`${line}\n`);
+    asked.told = true;
+  }
+
+  async #fold(): Promise<void> {
     const directory = this.#directory ?? stagingDirectory();
     if (directory === undefined) return;
     try {

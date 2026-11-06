@@ -22,6 +22,7 @@ vi.mock('@variance-authority/sense/test-selection', () => ({
   declaredSuites: () => undefined,
   readableTestCoverage: async () => '/nowhere/coverage.bin',
   recordedCommit: commitOfIndex,
+  testCoverageFile: () => '/nowhere/own/coverage.bin',
 }));
 
 const cwd = process.cwd();

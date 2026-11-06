@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
-import type { UserConfig } from 'vitest/config';
+import type { ViteUserConfig as UserConfig } from 'vitest/config';
+import { probesRegions } from '../instrument/identity.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
@@ -17,8 +19,7 @@ import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
-import { notingRead } from './record-base.js';
-import { landingTimes, selectionFrom } from './selection-environment.js';
+import { askedSelection, landingTimes } from './selection-environment.js';
 import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 import { shardArgument } from './shard-placement.js';
 
@@ -55,9 +56,13 @@ export interface TestSelectionOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * `presence` probes every arrival region; `entries` probes modules and
-   * functions only, and costs a fraction of it. Both record which functions
-   * ran before the file's first test.
+   * `presence`, the default, probes every arrival region; `entries` probes
+   * modules and functions only, so a suite reads it no finer than
+   * `function-use`. Both record which functions ran before the file's first
+   * test. `loads` probes nothing: each module
+   * runs with one line after its own text, the record says which files each
+   * test loaded, and a change to a file selects every test that loaded it.
+   * Under it `cadence` is off, whatever it says.
    */
   readonly mode?: InstrumentMode;
   /**
@@ -164,11 +169,12 @@ export function withTestSelection(
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  // Each reading notes the record it read against the record this run lands in, which names it.
-  const asked = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
-  const selection = asked && notingRead(coverageFile, asked);
+  const selection = askedSelection(options.selection, () => coverageFile, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
-  const reporter = selectionReporter(run, settle);
+  // Asked of the mode, not of `run.cases`: a page clears that on the run, and
+  // Vitest loads the configuration again for its browser server, in this process.
+  const story = probesRegions(mode) ? askedForStories(coverageFile) : undefined;
+  const reporter = selectionReporter(run, settle, story);
   // Ahead of the project's reporters, so the banner the first of them prints
   // names the seed of a shuffled run, as Vitest's own does.
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
@@ -193,12 +199,13 @@ export function withTestSelection(
     };
   }
 
-  const cut = options.cadence === false ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms');
+  // Under `loads` no region is probed, so no line of a test can be said to
+  // have reached one first: the cut would cost a call per statement for nothing.
+  const cut = options.cadence === false || (!run.cases && story === undefined) ? undefined : testFiles(config, configRoot);
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms', story);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
-  const continuations = options.continuations === true;
-  const story = askedForStories(coverageFile);
+  const continuations = run.cases && options.continuations === true;
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],
@@ -214,7 +221,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
         ),
         ...setupFiles,
       ],
@@ -233,8 +240,7 @@ export function withTestSelection(
       ...(config.test?.runner === undefined
         ? {
           runner: writeSeamModule(run, runnerId, caseRunnerSource({
-            module: runnerImport(configRoot, runnerId, '@vitest/runner'),
-            utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
+            ...runnerImports(configRoot, runnerId),
             finished: run.finishedDirectory,
             cut: run.cutFile,
             recording: { continuations, story: story !== undefined },
@@ -279,7 +285,7 @@ function selecting(
 }
 
 /**
- * How the case runner should spell a package of Vitest's own.
+ * How the case runner should spell `@vitest/runner`, on a Vitest that ships it.
  *
  * The runner is a file in the project root, and `@vitest/runner` is Vitest's
  * dependency rather than the project's. A layout that hoists answers a bare
@@ -298,15 +304,43 @@ function selecting(
  * Vite. To the file Vitest itself loads, because a second copy of
  * `@vitest/runner` is a second `getFn` over a different map, and that one
  * answers `undefined` for every task.
+ *
+ * Nothing where Vitest's manifest declares no `@vitest/runner`: Vitest 5
+ * ships none, and the runner reads its class instead. A Vitest the root
+ * cannot resolve leaves the bare specifiers, as before.
  */
-function runnerImport(root: string, runnerId: string, specifier: string): string {
+function runnerImports(root: string, runnerId: string): { module?: string; utils?: string } {
+  let entry: string;
   try {
-    const fromRoot = createRequire(resolve(root, 'package.json'));
-    const file = createRequire(fromRoot.resolve('vitest')).resolve(specifier);
-    const path = relative(dirname(runnerId), file).split(sep).join('/');
-    return path.startsWith('.') ? path : `./${path}`;
+    entry = createRequire(resolve(root, 'package.json')).resolve('vitest');
   } catch {
-    return specifier;
+    return { module: '@vitest/runner', utils: '@vitest/runner/utils' };
+  }
+  if (!dependsOnRunner(entry)) return {};
+  const fromVitest = createRequire(entry);
+  const spelling = (specifier: string): string => {
+    const path = relative(dirname(runnerId), fromVitest.resolve(specifier)).split(sep).join('/');
+    return path.startsWith('.') ? path : `./${path}`;
+  };
+  return { module: spelling('@vitest/runner'), utils: spelling('@vitest/runner/utils') };
+}
+
+/**
+ * Whether the Vitest whose entry this is declares `@vitest/runner` among its
+ * dependencies. Its manifest answers, not resolution: inside a monorepo whose
+ * root runs an older Vitest, the specifier resolves from Vitest 5 by walking up
+ * to the root's copy, which is another Vitest's runner.
+ */
+function dependsOnRunner(entry: string): boolean {
+  for (let directory = dirname(entry); ; directory = dirname(directory)) {
+    let manifest: { name?: string; dependencies?: Record<string, string> };
+    try {
+      manifest = JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8'));
+    } catch {
+      manifest = {};
+    }
+    if (manifest.name === 'vitest') return manifest.dependencies?.['@vitest/runner'] !== undefined;
+    if (dirname(directory) === directory) return true;
   }
 }
 

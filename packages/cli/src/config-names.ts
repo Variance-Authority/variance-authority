@@ -2,11 +2,9 @@ import { NameGrammarError, parseNameGrammar, type NameGrammar } from '@variance-
 import { fail, type ParseOptions } from './config-values.js';
 
 /**
- * The `names` section: the grammar a repository's subject ids and case
- * preconditions are read on.
+ * The `names` section: the grammar a repository's subject ids are read on.
  *
- * `variations` reads the grammar for a subject's parent and `covering` for a
- * case's axis and twin, so its rules live in `@variance-authority/sense` beside
+ * `variations` reads the grammar for a subject's parent, so its rules live in `@variance-authority/sense` beside
  * the reading and are carried here rather than written twice. A refusal comes
  * back in this file's shape, naming the field.
  */

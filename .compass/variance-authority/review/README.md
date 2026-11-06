@@ -90,14 +90,14 @@ somebody else's write.
 | Component | Responsibility |
 |---|---|
 | [review-router](./review-router/README.md) | Answers every request this deployment serves, and turns each refusal into a typed status rather than an empty answer |
-| [capability](./capability/README.md) | Decides which of two secrets a caller presented, and whether that capability may do what the route requires |
+| [capability](./capability/README.md) | Decides which declared credential a caller presented, and whether that capability may do what the route requires |
 | [identity](./identity/README.md) | Establishes that a request comes from a named person, so a decision can carry a name |
 | [build-store](./build-store/README.md) | Keeps one run's uploaded evidence and reads it back as the **docket** a reviewer works from |
 | [decision](./decision/README.md) | Records one person's answer for one **subject** and, when it is yes, promotes the **candidate** the run already uploaded |
 | [concern](./concern/README.md) | Keeps what reviewers suspect about a **subject**, and each step it takes, apart from any decision on it |
 | [review-surface](./review-surface/README.md) | Draws a build as causes first, regions second and images last, and collects the answer |
 | [retention-sweep](./retention-sweep/README.md) | Removes builds past a window on request, and reports what it removed |
-| [deployment-adapters](./deployment-adapters/README.md) | Wires the one handler to a runtime without changing a route, a refusal or a status code |
+| [deployment-adapters](./deployment-adapters/README.md) | Wires the one handler to a runtime without changing a route, a refusal or a status code, and provisions a Cloudflare deployment in one run |
 | `packages/tribunal/src/worker-http.ts`, `packages/tribunal/src/worker-input.ts` | L5 — the typed refusals and the readers every route validates its arguments through |
 | `packages/tribunal/src/review-rows.ts` | L5 — column readers that refuse a malformed stored row rather than casting it |
 | `packages/tribunal/src/ui/styles.ts`, `packages/tribunal/src/ui/text.ts` | L5 — the stylesheet as text, and number and word formatting |
@@ -120,8 +120,7 @@ flowchart TB
 
     ADAPT -->|a request, and the capability it is allowed| ROUTER
     ID -->|a verified name| ADAPT
-    CAP -->|which secret, and may it| ROUTER
-    CAP -->|the token the policy implies| ADAPT
+    CAP -->|which credential, and may it| ROUTER
     ROUTER --> STORE
     ROUTER --> DECIDE
     ROUTER --> CONCERN

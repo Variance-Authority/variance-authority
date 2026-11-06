@@ -1,4 +1,4 @@
-import { heldText } from './case-axes.js';
+import { heldText } from './case-said.js';
 import type { RangeState } from './range-state.js';
 import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
 
@@ -15,17 +15,10 @@ export type StatedCoveringRegion = CoveringChange['regions'][number] & { readonl
 export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly regions: readonly StatedCoveringRegion[] };
 
 /**
- * The review reading, in words, for whichever surface is asking.
+ * The review reading, in words, which the CLI prints under
+ * `variance covering --since`.
  *
- * Its own module because two of them ask. The CLI prints it under
- * `variance covering --since`, and the MCP tool `variance_changed_tests` hands
- * it to an agent holding a patch. Both had their own copy of these sentences,
- * and the copies drifted the way two copies do: one of them was still printing
- * a call-stack depth that this project records as zero everywhere, so every
- * witness an agent read arrived as `depth 0 —`. A reading with two renderers
- * has two answers, and nobody finds out which one a reader saw.
- *
- * It lives beside {@link coveringChange} rather than in either caller, because
+ * It lives beside {@link coveringChange} rather than in its caller, because
  * the words are about the shape rather than about the transport — the same
  * reason `@variance-authority/distill` ships `formatDistillation` next to
  * `distill`. Text is the output format here and there is no other: an agent
@@ -36,29 +29,20 @@ export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly 
 /**
  * Where the reading came from, said once at the top when the caller knows.
  *
- * The MCP tool is handed an index by its host and cannot honestly name a path
- * or a ref; the CLI read a file at a commit and can. So every field is optional
- * and an absent one prints nothing, rather than the caller passing a placeholder
- * that reads like an answer.
+ * A caller handed an index rather than a file cannot honestly name a path or a
+ * ref. So every field is optional, and an absent `since` or `from` prints
+ * nothing, rather than the caller passing a placeholder that reads like an
+ * answer. A record read from a path names the
+ * commit it stands at or none, and the heading says which.
  */
 export interface CoveringChangeHeading {
   /** The ref the diff was taken against. */
   readonly since?: string;
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from?: string;
-  /** The commit the record stands at. The diff is measured from it. */
+  /** The commit the record stands at. The diff is measured from it. Absent beside `from` when the record names none. */
   readonly at?: string;
 }
-
-/**
- * What a caller knows about a case beyond its name: a tail for its line, and
- * the lines under it. Without one a case's line carries what it said; the CLI
- * adds its twin, which needs the checkout's `names.axes` the MCP tool never reads.
- */
-export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: string) => {
-  readonly tail: string;
-  readonly under: readonly string[];
-};
 
 /**
  * The counts first, then the regions that produced them.
@@ -77,16 +61,16 @@ export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: stri
 export function formatCoveringChange(
   changed: readonly StatedCoveringChange[],
   heading: CoveringChangeHeading = {},
-  note: CoveringCaseNote = (test) => ({ tail: heldText(test.preconditions), under: [] }),
 ): string {
-  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => {
-    const { tail, under } = note(test, '      ');
-    return [`    ${describe(test)}${tail}`, ...under];
-  };
+  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => [`    ${describe(test)}${heldText(test)}`];
   const regions = changed.flatMap((file) => file.regions);
-  const blind = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
+  const unlisted = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
+  // A region a case ran in another text is neither covered here nor known not to be.
+  const blind = unlisted.filter((region) => region.overwritten === undefined);
+  const elsewhere = unlisted.length - blind.length;
   const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);
-  const alone = regions.filter((region) => region.state === undefined ? region.tests.length === 1 : region.state === 'alone');
+  const alone = regions.filter((region) =>
+    region.state === undefined ? region.tests.length === 1 && region.overwritten === undefined : region.state === 'alone');
   const silent = changed.filter((file) => !file.recorded && file.cases.length === 0);
 
   const lines = [
@@ -94,7 +78,7 @@ export function formatCoveringChange(
       heading.since === undefined ? '' : ` since ${heading.since}`
     }, ${count(regions.length, 'changed region')}: ${blind.length} nothing covered${
       holes.length === 0 ? '' : ` (${holes.length} of them ${holes.length === 1 ? 'a hole' : 'holes'})`
-    }, ${alone.length} covered by one case.`,
+    }, ${elsewhere === 0 ? '' : `${elsewhere} covered only in another text, `}${alone.length} covered by one case.`,
     ...source(heading),
   ];
 
@@ -110,7 +94,9 @@ export function formatCoveringChange(
     if (!file.recorded) {
       if (file.cases.length === 0) {
         lines.push(
-          '  no row — the recorded run never loaded this file, which is not the same as nobody covering it',
+          file.absentAt === undefined
+            ? '  no row — the recorded run never loaded this file, which is not the same as nobody covering it'
+            : `  no row — ${absentText(file.absentAt)}`,
         );
       }
       continue;
@@ -146,7 +132,7 @@ export function formatCoveringChange(
  */
 function source(heading: CoveringChangeHeading): readonly string[] {
   if (heading.from === undefined) return [];
-  return [`Read from ${heading.from}${heading.at === undefined ? '' : `, recorded at ${heading.at}`}.`];
+  return [`Read from ${heading.from}${heading.at === undefined ? '; the record names no commit' : `, recorded at ${heading.at}`}.`];
 }
 
 function count(of: number, noun: string): string {
@@ -170,6 +156,11 @@ function claim(region: StatedCoveringRegion): string {
   const tests = region.tests.length;
   const stopped = region.stopped?.length ?? 0;
   const also = stopped === 0 ? '' : `, and ${count(stopped, 'case')} that could have reached it stopped first`;
+  if (region.overwritten !== undefined) {
+    // A case ran it in another text: no case entering here is no measured absence, and one entering is not alone.
+    if (tests === 0 && !covered(region.state)) return `${lostText({ other: false, it: 'it' })}${also}`;
+    return `${tests === 0 ? 'covered by cases not listed here' : count(tests, 'case')}${also}; it is also ${lostText({ other: true, it: 'it' })}`;
+  }
   if (tests === 0 && covered(region.state)) {
     return `covered only by ${region.state === 'alone' ? 'a case' : 'cases'} not listed here${also}`;
   }
@@ -182,6 +173,20 @@ function claim(region: StatedCoveringRegion): string {
   }
   if (tests === 1) return stopped === 0 ? '1 case, and it is the only witness' : `1 case${also}`;
   return `${tests} cases${also}`;
+}
+
+/**
+ * How a place is said that a case ran over in a text, where a run over another
+ * text has landed since, so the record lost which case ran it: no case is known
+ * to have run it, nor known not to. `which` ends it with that, said of the
+ * place as `it` or `them`, and of a case `other` than the ones named beside it.
+ *
+ * It holds whatever frame the record's lines are in: a run that numbers them in
+ * the asked text again does not bring back a crossing the record lost.
+ */
+export function lostText(which?: { readonly other: boolean; readonly it: 'it' | 'them' }): string {
+  const lost = 'in a text a case ran over, but a run over another text has landed there since';
+  return which === undefined ? lost : `${lost}, so which ${which.other ? 'other ' : ''}case ran ${which.it} is not known`;
 }
 
 /** A state that says a case went there, whether or not it is listed. */
@@ -215,4 +220,10 @@ function carried(passengers: CoveringChange['regions'][number]['passengers']): s
 function describe(test: CoveringTest | ExecutionTest): string {
   // The id is the file and the name unless a project spelled it otherwise, so it is printed only then.
   return `${test.file} > ${test.name}${test.id === `${test.file} > ${test.name}` ? '' : ` [${test.id}]`}`;
+}
+
+/** Why a changed path has no row, when the commit the record was made at held no file by it, and what to ask instead. */
+export function absentText(commit: string): string {
+  return `${commit.slice(0, 12)}, the commit the record was made at, held no file by this name. ` +
+    'A file added or renamed since is new to the record: ask `variance covering --file` with the name that commit held, or record this commit';
 }

@@ -60,6 +60,21 @@ describe('one leg of the selection', () => {
     expect(inLeg(skippableTests(input), input, undefined)).toEqual(skippableTests(input));
   });
 
+  it('cuts nothing by hops from a graph that could not be brought up to the checkout, whichever leg is asked', () => {
+    const narrowed = read(DISTANCES, [PARTIAL]);
+    const reason = 'the source index at /cache/index could not be updated to the checkout: EACCES';
+    const input: SelectInput = { ...narrowed, ground: { ...narrowed.ground, stale: reason } as SelectInput['ground'] };
+
+    for (const leg of [{ from: 0, to: 1 }, { from: 3, to: Number.MAX_SAFE_INTEGER }]) {
+      const selection = inLeg(skippableTests(input), input, leg);
+      expect(selection.skip).toEqual([IDLE]);
+      expect(selection.left).toEqual([]);
+      expect(selection.notes[0]).toBe(
+        `\`--at-distance ${leg.from}-${leg.to === 1 ? '1' : ''}\` runs every selected test file: the hops are measured on a graph that is not the checkout's, because ${reason}`,
+      );
+    }
+  });
+
   it('skips the tests further out than the leg, and names them as left', () => {
     const input = read();
     const selection = inLeg(skippableTests(input), input, { from: 0, to: 2 });
@@ -297,6 +312,18 @@ describe('one leg of the selection', () => {
     expect(err).toContain(
       '1 selected test file is left for an earlier leg, nearer than 1 hop: the same command with `--at-distance 0` runs it',
     );
+  });
+
+  it('names the variable, not the flag, for a leg a seam read from the environment', () => {
+    const input = read([...DISTANCES, { test: PARTIAL, bearing: 'unexplained' }], [PARTIAL]);
+    const err = selectionNotes(inLeg(skippableTests(input), input, { from: 0, to: 1, by: 'environment' }));
+
+    expect(err).toContain('outside `VARIANCE_AUTHORITY_AT_DISTANCE=0-1`;');
+    expect(err).toContain(
+      '3 selected test files are left for a later leg: the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-` runs them',
+    );
+    expect(err).toContain('left for the open leg: the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-` runs it');
+    expect(err).not.toContain('--at-distance');
   });
 
   it('writes the leg and what it left into json', () => {

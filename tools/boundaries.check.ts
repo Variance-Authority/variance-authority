@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -275,6 +275,14 @@ describe('every package says what it is', () => {
   );
 
   it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s says what a review of it keeps',
+    (_name, workspace) => {
+      const path = join(workspace.dir, 'REVIEW.md');
+      expect(existsSync(path), `${workspace.dir}/REVIEW.md is missing`).toBe(true);
+    },
+  );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
     '%s does not open on its preconditions',
     (_name, workspace) => {
       // A published README opens for a person deciding whether this is for them.
@@ -345,6 +353,38 @@ describe('every package says what it is', () => {
   );
 });
 
+/**
+ * A container job runs in the image `ci-image.yml` publishes from
+ * `docker/ci.Dockerfile`, under the file's blob id: any other image installs its
+ * own tools, and any other tag is an image this file did not build, or none.
+ */
+describe('a container job runs in the CI image its Dockerfile builds', () => {
+  const image = `ghcr.io/variance-authority/ci:${execFileSync('git', ['hash-object', 'docker/ci.Dockerfile'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  }).trim()}`;
+
+  // `git grep` exits 1 when nothing matches, which the next test reports.
+  const pins = spawnSync(
+    'git',
+    ['grep', '-n', '-E', '-e', '^[[:space:]]*(image|container):[[:space:]]*[^[:space:]#]', '-e', 'ghcr\\.io/variance-authority/ci:', '--', '.github/*.yml'],
+    { cwd: ROOT, encoding: 'utf8' },
+  )
+    .stdout.split('\n')
+    .filter(Boolean);
+
+  it('finds the pins, so a moved file cannot empty this rule', () => {
+    expect(pins.length).toBeGreaterThan(0);
+  });
+
+  it.each(pins)('%s', (line) => {
+    // The whole value the line names: a tag with more after it is another image.
+    const named =
+      /^\s*(?:image|container):\s*["']?([^\s"'#]+)/.exec(line.replace(/^[^:]*:\d+:/, ''))?.[1] ??
+      /ghcr\.io\/variance-authority\/ci:[^\s"'#]*/.exec(line)?.[0];
+    expect(named, `docker/ci.Dockerfile builds ${image}`).toBe(image);
+  });
+});
 
 /**
  * A pinned browser image is a declared requirement, and it must match the
@@ -366,10 +406,11 @@ describe('every package says what it is', () => {
  * harness the same day it was repaired for a different one.
  *
  * The version is read from the lockfile rather than from `package.json`, because
- * `^1.49.0` is the range and the resolution is what gets installed.
+ * `^1.55.0` is the range and the resolution is what gets installed.
  */
 describe('a pinned browser image matches the playwright it runs', () => {
-  const resolved = /^"playwright@npm:[^"]*":\n  version: (\S+)$/m.exec(
+  // A range, because the exact pin beside it is the oldest case's, which no image serves.
+  const resolved = /^"playwright@npm:[^"]*\^[^"]*":\n  version: (\S+)$/m.exec(
     readFileSync(join(ROOT, 'yarn.lock'), 'utf8'),
   )?.[1];
 
@@ -379,8 +420,9 @@ describe('a pinned browser image matches the playwright it runs', () => {
   })
     .trim()
     .split('\n')
-    // This file names the registry to find the pins, and is not one.
-    .filter((line) => !line.startsWith('tools/'));
+    // This file names the registry to find the pins, and is not one. A journal
+    // records the image a measurement ran on, and pins nothing.
+    .filter((line) => !line.startsWith('tools/') && !line.startsWith('docs/context/journal/'));
 
   it('reads a resolved playwright version out of the lockfile', () => {
     expect(resolved).toMatch(/^\d+\.\d+\.\d+$/);

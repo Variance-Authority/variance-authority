@@ -5,7 +5,7 @@
  * observing means. Everything under `source` is read by the selector before a
  * browser opens, and every setting in it is arranged so that a wrong or missing
  * value widens a run rather than narrowing it
- * ([`docs/selecting.md`](../../../docs/selecting.md)).
+ * ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
  */
 
 import { ConfigError, object, type ParseOptions } from './config-values.js';
@@ -21,7 +21,7 @@ export interface SourceConfig {
    * that declares no component could have moved anything, so it moves everything
    * — which is every token file, every theme, every hook. With a graph the same
    * file is answered exactly, by walking from it to the components that rest on
-   * it ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * it ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
    *
    * Off by default because it costs a parse of the source tree, and because the
    * selector's answer is only as good as the graph: a repository the scan cannot
@@ -40,7 +40,7 @@ export interface SourceConfig {
    * without recording them, and the run observes everything rather than reporting
    * success over them. A server component is in no client fiber tree and is
    * always that; for now, so is anything outside the browser
-   * ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
    */
   readonly unrendered?: 'whole' | 'narrow';
 
@@ -50,7 +50,7 @@ export interface SourceConfig {
   /**
    * Tables of what a file imports beyond, or short of, what its text says,
    * as JSON files relative to the config
-   * ([`sense/taint`](../../sense/src/taint/index.ts)).
+   * ([`sense/taint`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/taint/index.ts)).
    *
    * One table is read without being named: the mocks. A test that calls
    * `vi.mock('./api')` imports `./api` by the letter and runs none of it, and a

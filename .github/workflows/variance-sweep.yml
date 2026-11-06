@@ -1,9 +1,8 @@
 name: variance sweep
 
-# The nightly recipe: find a flake one run before it costs somebody a build.
+# The nightly sweep: find a flake one run before it costs somebody a build.
 #
-# An example workflow, meant to be copied and edited rather than read as the only
-# way to wire this up. Everything in it that is a decision is commented as one.
+# This repository's own. Everything in it that is a decision is commented as one.
 #
 # ## What this asks that the pull-request gate cannot
 #
@@ -79,7 +78,7 @@ jobs:
     # moved last Tuesday is a claim about the browser. Same image as the gate, so
     # "it flakes nightly but not on pull requests" cannot be the engine.
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # Chromium's renderer processes need more than a container's default 64MB
       # of shared memory. Without this the browser dies partway through, which
       # arrives as subjects missing from the sweep rather than as a crash — and a
@@ -87,12 +86,17 @@ jobs:
       options: --ipc=host
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # For the reason written at the same step in `variance.yml`.
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Node 24, for the reason written at the same step in `variance.yml`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -124,7 +128,7 @@ jobs:
 
       - if: ${{ steps.carry.outputs.baselines-key != '' }}
         name: restore the baselines main last painted
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.carry.outputs.baselines-path }}
           key: ${{ steps.carry.outputs.baselines-key }}
@@ -192,7 +196,7 @@ jobs:
           # two places to be red and no way to tell which one spoke.
 
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-sweep
           path: |

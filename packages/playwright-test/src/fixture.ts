@@ -28,7 +28,7 @@ import { acquireFrom, refocusAfter } from './acquire.js';
 import { baselineKeyOf, runOf, subjectFromRun, viewportOf, type VarianceRun } from './run.js';
 import { regionOf, settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
-import { varianceDocumentFixtures } from './documents.js';
+import { varianceDocumentFixtures, type VarianceDocumentFixtures } from './documents.js';
 import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
@@ -53,6 +53,7 @@ import {
 } from './renderers.js';
 import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * The optional Playwright fixture parts, for a suite that already owns a shared
@@ -83,10 +84,12 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  * two networks away.
  */
 
+/** The fixtures a test holds: `base.extend`'s first type, beside {@link VarianceWorkerFixtures}. */
 export interface VarianceFixtures
   extends VarianceEventFixtures,
     VarianceVantageFixtures,
     VarianceCompletedFixtures,
+    VarianceDocumentFixtures,
     VarianceDriveFixtures,
     VarianceRendererFixtures {
   /**
@@ -104,6 +107,7 @@ export interface VarianceFixtures
     VarianceDesk;
 }
 
+/** The fixtures a worker holds across its tests: `base.extend`'s second type, beside {@link VarianceFixtures}. */
 export interface VarianceWorkerFixtures
   extends VarianceEventWorkerFixtures,
     VarianceWireFixtures,
@@ -277,7 +281,10 @@ export const varianceFixtures: Fixtures<
         options,
       );
       for (const [name, path] of Object.entries(observed.evidence ?? {})) {
-        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
+        // The before is kept as the store keeps it, a WebP or an older PNG;
+        // the after and the diff are PNGs.
+        const contentType = path.endsWith('.webp') ? 'image/webp' : 'image/png';
+        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType });
       }
       // Annotated as well as carried, so the report shows it under a passing
       // test too.
@@ -413,12 +420,15 @@ async function observeAcquired(
       ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
     });
     if (adopts(observation, run)) {
-      await store.put(key, {
-        ...candidate,
-        components: hashComponents(heldSnapshot),
-        snapshot: packSnapshot(heldSnapshot),
-        accessibility: held.accessibility,
-      });
+      await store.put(
+        key,
+        await keptRaster({
+          ...candidate,
+          components: hashComponents(heldSnapshot),
+          snapshot: packSnapshot(heldSnapshot),
+          accessibility: held.accessibility,
+        }),
+      );
       return accepted(observation);
     }
     return await withEvidence(runtime, key, observation, async () => candidate);

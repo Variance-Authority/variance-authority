@@ -15,6 +15,7 @@ import { openSetColumns } from './execution-set-format.js';
 // The story format is a CommonJS sandbox module whose own requires resolve only
 // once built, so it is read from `dist/` as the seam itself loads it.
 const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+const { readRoute } = (await import('../../dist/story/read.js')) as typeof import('../story/read.js');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -94,6 +95,15 @@ describe('the Rstest integration', () => {
     ]);
   }, 120_000);
 
+  it('holds a case two projects ran to the longer of their limits', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-projects-'));
+    temporary.push(directory);
+    await run('rstest.projects.config.mjs', directory);
+
+    const index = decodeExecutionIndex(await readFile(resolve(directory, 'coverage.bin')));
+    expect(index.tests.map((test) => test.limit)).toEqual([6543, 3210, 6543]);
+  }, 120_000);
+
   it('names the individual cases of a file, and gives a branch only to the case that walked it', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-cases-'));
     temporary.push(directory);
@@ -112,6 +122,9 @@ describe('the Rstest integration', () => {
       at('test/alpha.case.ts > takes the alpha path'),
       at('test/beta.case.ts > takes the beta path'),
     ]);
+
+    // The case's own timeout where it gave one, and the run's otherwise.
+    expect(index.tests.map((test) => test.limit)).toEqual([4321, 3210, 4321]);
 
     const decide = index.modules.find((module) => module.file === at('src/decide.ts'));
     expect(decide).toBeDefined();
@@ -205,5 +218,25 @@ describe('the Rstest integration', () => {
       };
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
+  }, 120_000);
+
+  it('names every region a story went through by its coordinate in the record beside it', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-route-'));
+    temporary.push(directory);
+    await run('rstest.config.mjs', directory, { VARIANCE_AUTHORITY_STORY: '1' });
+    const taped = (await readdir(directory, { recursive: true })).filter((path) => path.endsWith('.story'));
+    const alpha = taped.map((path) => resolve(directory, path))
+      .find((path) => readRoute(repository, path).name === 'takes the alpha path');
+    const route = readRoute(repository, alpha!);
+
+    // A row of the tape names the module and the text it ran; the record
+    // beside it holds that text's regions, so nothing is left as a bare file.
+    expect(route.unresolved).toEqual([]);
+    const stop = route.route.map((step) => ('token' in step ? step.token : undefined))
+      .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide');
+    expect(stop).toMatchObject({
+      place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
+      arms: [{ path: 'if#0/then', at: `${at('src/decide.ts')}#decide/if#0/then` }],
+    });
   }, 120_000);
 });

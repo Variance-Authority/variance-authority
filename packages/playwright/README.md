@@ -5,6 +5,7 @@
 > A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this package does
 
@@ -36,7 +37,7 @@ npm install --save-dev @variance-authority/playwright
 npx playwright install chromium
 ```
 
-The package depends on `playwright ^1.49.0` and installs it for you, so you
+The package depends on `playwright ^1.55.0` and installs it for you, so you
 supply only the browser binaries. Node 22 or newer. The engine and container
 figures further down were taken on Playwright 1.62.1.
 
@@ -152,6 +153,8 @@ subjects into one document and let one decide the other's verdict.
 | `subjectId` | `fixture:<subject>` | how a subject name becomes a capture id |
 | `timezoneId`, `locale` | `UTC`, `en-US` | the timezone the page's clock reads in and the language it formats for. Pinned rather than taken from the host, so a date read on two machines is one date, and written to the environment key of every capture. Give the renderer the same pair: it is the renderer that carries them in `RenderIdentity` |
 | `headless` | `true` | set false to watch a case that is behaving oddly |
+| `warm` | `false` | open the page in a context shared with every other warm harness on the same browser — the same engine, headless flag and launch arguments — and of the same viewport and region. The context holds the HTTP cache, so your second page boots from what the first fetched; the pages also share cookies and storage, which is why you ask for it |
+| `isolated` | `false` | launch a browser of the harness's own. Every other harness leases one browser per launch recipe and the last to close it closes it, so a run with workers and a renderer starts one Chromium |
 | `stabilize` | none | a stabilization recipe whose driver tricks — `no-hover`, `reduced-motion`, `freeze-clock` — are applied before the first navigation. The ids it applied are `harness.driven`, for the page agent to keep in the recipe it records; with `reduced-motion` applied the capture declares `prefers-reduced-motion: reduce` unless `features` declares its own |
 | `prepare` | none | run against the page *before* its first navigation. This is where `observeNetwork` attaches: a watcher installed after `goto` has already missed every asset the document pulled in, and the alternative pays a second page load per run to observe the first one |
 
@@ -205,6 +208,7 @@ Only a reading of the network response shows the difference.
 | `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame, on the wire rather than in the page |
 | `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It reads the URL and the intrinsic size, and does not read the DOM |
 | `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and buffered long enough to digest, so a portable document costs a map and not a second crawl |
+| `cache` | `false` | leave the browser's HTTP cache on. Requests are held through the DevTools protocol rather than Playwright's routing, which turns the cache off, so a page in a context another page filled is answered from memory and every answer still passes the observation. An image the same page already shows is drawn again without a request, so turn it on only when you never call `reset`. Chromium only |
 
 `retainResources` keeps **what was served** — the blank an image became, the
 single frame a GIF was truncated to. Keeping what *arrived* would paint a
@@ -311,18 +315,19 @@ WebKit.
 
 ### Only Chromium can be told how to paint text
 
-`CHROMIUM_RASTER_ARGS` — `--disable-lcd-text`, `--font-render-hinting=none` —
-makes Chromium's text independent of host defaults, and there is no equivalent
-for Firefox or WebKit. Their text is painted the way the host paints text.
-WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
-substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the
-subject rather than the conditions the subject is photographed under.
+Two of `CHROMIUM_RASTER_ARGS`, `--disable-lcd-text` and
+`--font-render-hinting=none`, make Chromium's text independent of host defaults,
+and there is no equivalent for Firefox or WebKit. Their text is painted the way
+the host paints text. WebKit's one lever is the page's own
+`-webkit-font-smoothing`, which is not a substitute: it changes 4,204 pixels of
+a 500x160 subject, so it changes the subject rather than the conditions the
+subject is photographed under.
 
 On macOS none of this bites. The system has had no subpixel antialiasing since
 10.14, all four candidate flags are no-ops, and every engine paints greyscale
 headed or headless at 1x and 2x. Where fontconfig is live — Linux, so most CI —
 the flags are load-bearing for Chromium and absent for the other two. Measured in
-`mcr.microsoft.com/playwright:v1.62.1-noble`: Chromium painting a webfont emits
+Playwright 1.62.1's Noble image: Chromium painting a webfont emits
 6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit
 are unaffected because the flags were never passed to them.
 
@@ -337,7 +342,7 @@ raster tier for them. The semantic tier is unaffected and stays local.
 
 The container is cheap, which is not what people assume. Measured on an Apple M4
 Max (16 cores, 64 GB) under Docker Desktop 29.0.1 with Playwright 1.62.1,
-`mcr.microsoft.com/playwright:v1.62.1-noble` costs WebKit 1.66x per paint against
+its Noble image costs WebKit 1.66x per paint against
 native macOS and Chromium roughly 1.1x — the least repeatable of the three cells,
 and not worth quoting to two figures. Firefox it costs nothing at all: Firefox is
 *faster* in the container, 7.5 ms against 8.3. The same image run as arm64 and as
@@ -392,8 +397,8 @@ script is the only thing you mount:
 mkdir -p box && cp node_modules/@variance-authority/playwright/scripts/host.mjs box/
 docker run --rm --ipc=host --user pwuser -v "$PWD/box:/work" -w /work \
   -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-  mcr.microsoft.com/playwright:v1.62.1-noble \
-  sh -c 'npm i playwright@1.62.1 >/dev/null && node host.mjs --out .'
+  mcr.microsoft.com/playwright:v1.64.1-noble \
+  sh -c 'npm i playwright@1.64.1 >/dev/null && node host.mjs --out .'
 ```
 
 Use `--ipc=host`: on a container's 64 MB `/dev/shm` Chromium crashes rather than
@@ -462,10 +467,10 @@ const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
 
-Chromium launches with `--disable-lcd-text` and `--font-render-hinting=none` by
-default. An explicit ordered `launchArgs` list replaces that default. Headless
-mode and the ordered launch recipe are hashed into
-`RenderIdentity.rasterization`, so changing font rasterization settings
+Chromium launches with `--disable-lcd-text`, `--font-render-hinting=none` and
+`--disable-partial-raster` by default. An explicit ordered `launchArgs` list
+replaces that default. Headless mode and the ordered launch recipe are hashed
+into `RenderIdentity.rasterization`, so changing font rasterization settings
 is named as the cause instead of appearing as a product diff.
 
 A resource-closed document is rendered without network access: archived resource
@@ -508,4 +513,4 @@ with `harness.pageErrors()`.
 
 ---
 
-**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/playwright) · MIT

@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { encodeExecutionIndex, writeTestCoverage, type ExecutionIndex } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { DISCOUNTS, cloneOf, git, published, ranHere } from './mainline-fixture.js';
 
 /**
@@ -27,12 +27,12 @@ const CASES: ExecutionIndex = {
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-review-base-commit-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
 });
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -59,7 +59,7 @@ describe('`variance review --against` a base whose commit it cannot diff from', 
   it('fails when the base was recorded at a commit this clone does not have, and names how to fetch it', async () => {
     const ci = await published(home);
     const clone = await cloneOf(home, ci.origin);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await ranHere(clone, ci.first);
 
     const answer = await ask(['review', '--root', clone, '--since', 'origin/main', '--against', await casesAt(ABSENT)]);
@@ -74,7 +74,7 @@ describe('`variance review --against` a base whose commit it cannot diff from', 
   it('fails when the base names no commit', async () => {
     const ci = await published(home);
     const clone = await cloneOf(home, ci.origin);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await ranHere(clone, ci.first);
 
     const answer = await ask(['review', '--root', clone, '--since', 'origin/main', '--against', await casesAt(undefined)]);
@@ -94,7 +94,7 @@ describe('`variance review --coverage` in a clone without the commit its mainlin
     // A checkout with only the tip, as `actions/checkout` makes one by default.
     const clone = join(home, 'clone');
     await git(home, 'clone', '--quiet', '--depth', '1', pathToFileURL(ci.origin).href, clone);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await ranHere(clone, second);
 
     // Diffed from the tip, which the clone has: only the coverage's base is the mainline's.

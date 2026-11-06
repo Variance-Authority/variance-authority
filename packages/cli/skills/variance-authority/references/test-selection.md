@@ -99,9 +99,9 @@ combined without checking that read, and the output names it. It refuses, by sha
 test files or case files, different commits, different probe recipes, a shard
 that kept cases beside one that kept none, before layers that started from
 different records, different Eyes journals for one case attempt or a journal of a case the index does not
-record, a case index this build cannot read (record it again with this
-version), and lines on a file two shards cut into different regions (record
-every shard with one build). Land the result with
+record, a case index this build cannot read, with the reader's reason, and
+lines on a file two shards cut into different regions, which combine only when
+one build recorded every shard. Land the result with
 `variance journeys <record>`; to lay the shards over a record that is already
 there, run `variance journeys <shard.bin>... --into <record>`.
 `journeys stitch` reads journey-only artifacts instead, which lack the per-file
@@ -122,8 +122,16 @@ variance reach --since origin/main              # files a diff reaches over impo
 - **`select` prints a skip list, never a run list.** A test the recording has
   not seen stays in the run. An empty stdout skips nothing, and runs the whole
   suite. Every sentence about the reading goes to stderr, so `$(...)` gets only
-  arguments for the runner. `--format json` gives the counts, and gives the
-  reason it declined to narrow as `widened`.
+  arguments for the runner. `--format json` gives the counts, the reason it
+  declined to narrow as `widened`, and which reading was made as `ground`
+  (`read`, `no-journal`, `no-coverage`, `no-diff`, `no-install`, or `before`
+  with the changed files under `rests`). When the record narrowed, `selected`
+  lists each test file the change reached with the positions of its reasons in
+  `reasons`, where each `region`, `precondition`, `reader` or `importer` reason
+  is named once; a journey file's reading names no reasons and carries
+  neither. A region of a file under `install.files` was changed whole by a bump,
+  with `through` the chain from the bumped package. `incomplete`, when the record keeps one, lists the recorded test
+  files not observed whole, which run whatever changed.
 - **`select` flags.** `--suite <name>` names the record, and is required when
   the root config declares more than one suite. `--since <ref>` is the base when
   the recording names no commit. `--execution <journey file>` reads that file
@@ -131,19 +139,23 @@ variance reach --since origin/main              # files a diff reaches over impo
   needs `--execution` and is refused beside `--since`. `--no-git` reads file
   contents from the working tree, not git's object store. `--at-distance <hops>`
   cuts the run to one leg of the selection and skips the selected files outside
-  it; `0-2` then `3-` runs every selected file in one of the two. stderr counts
-  the entered tests at each hop count. `json` gives the leg as `leg`, the files
-  it left as `left`, and each entered test's hops, bearing and the reason none
-  was measured as `distances`; an entered test with no hop count runs in the
-  end leg, the one leg that holds the furthest hop measured, or the open leg
-  when nothing was measured, and an unplaced incomplete test in the open leg
-  only. An incomplete test the change did not enter is placed by the shortest
-  path it ran to a changed file it loaded, and stderr counts the ones the leg
-  runs. A changed file seeds no such path when the parser read its edit as
-  changing nothing at runtime, when it is stale, when its text was checked and
-  it has no line ranges (a rename, mode or binary change), or when the record
-  has no rows for it. A placed test counts toward the furthest hop, so it
-  decides which leg is the end leg.
+  it; `0-2` then `3-` runs every selected file in one of the two. An edited test
+  seen whole that declared the text it now holds already ran it and stays
+  skipped. stderr counts the entered tests at each hop count and gives each
+  changed file a `read` line: its reading, or why no reader was asked of it
+  (nothing recorded holds it, it is stale, the suite declines or ignores it,
+  or its rows answered for it), which `json` gives under `readings`. `json` gives the leg as `leg`,
+  the files it left as `left`, and each entered test's hops, bearing
+  and the reason none was measured as `distances`; an entered test with no hop
+  count runs in the end leg, the one leg that holds the furthest hop measured,
+  or the open leg when nothing was measured, and an unplaced incomplete test in
+  the open leg only. An incomplete test the change did not enter is placed by
+  the shortest path it ran to a changed file it loaded, and stderr counts the
+  ones the leg runs. A changed file seeds no such path when the parser read its
+  edit as changing nothing at runtime, when it is stale, when its text was
+  checked and it has no line ranges (a rename, mode or binary change), or when
+  the record has no rows for it. A placed test counts toward the furthest hop,
+  so it decides which leg is the end leg.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
   Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
   produce one exits `2` with an empty stdout rather than print a short list.
@@ -157,7 +169,7 @@ Which cases ran one line, and what a change did to the cases, is `variance
 covering`, in [covering](covering.md).
 
 For what the commands do not print, read [selection API](selection-api.md): a
-distance per test, the `because` trail, or a diff that is not a ref.
+distance per test outside a leg, or a diff that is not a ref.
 
 ## Test an edit in a loop
 
@@ -171,9 +183,11 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 
 - **Read the first stderr line.** `variance-authority: selected N of M` is the
   run you asked for. `declined:` means the selection could not be read and every
-  file ran; the reason follows it. `selected none of M` means the edit reached
-  no recorded test: a type or comment edit, or a file no test ran. Under
-  Vitest that run passes, with nothing run.
+  file ran; the reason follows it. `selected none of M, so none of them runs`
+  means the edit reached no recorded test: a type or comment edit, or a file no
+  test ran. That run passes under Vitest and Jest, with nothing run. A run that
+  found no test file at all has nothing to select from and fails: check
+  `testMatch` and the working directory.
 - **Each run lands.** The next edit is measured from what each test last ran,
   so a test the near leg left out still runs in the far leg, and in the next
   run if you skip that.

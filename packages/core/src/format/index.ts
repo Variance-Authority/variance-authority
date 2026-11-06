@@ -122,3 +122,5 @@ export type {
 } from './document.js';
 export { keepsSnapshot, PACKED_SNAPSHOT_HEADER } from './packed.js';
 export type { PackedSnapshot } from './packed.js';
+export { atWidth, realizes, widenedFrom } from './width.js';
+export type { Widenable } from './width.js';

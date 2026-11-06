@@ -55,7 +55,8 @@ describe('docs_packages', () => {
         {
           subpath: '.',
           source: `packages/${name.slice(6)}/src/index.ts`,
-          entries: [{ name: 'one', kind: 'function' as const, at: `packages/${name.slice(6)}/src/one.ts`, line: 1, usedBy: ['@acme/app'], uses: 1, sites: [] }],
+          entries: [{ name: 'one', kind: 'function' as const, at: `packages/${name.slice(6)}/src/one.ts`, line: 1, usedBy: ['@acme/app'], uses: 1, sites: [], throughDefault: [] }],
+          whole: [],
         },
       ],
     });

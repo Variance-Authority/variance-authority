@@ -8,21 +8,21 @@ import {
   withCaseSections,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const cwd = process.cwd();
 const made: string[] = [];
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-distill-scope-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-distill-scope-cache-')));
   made.push(process.env['VARIANCE_AUTHORITY_CACHE']);
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -54,7 +54,7 @@ async function recorded(at: string, files: readonly string[]): Promise<void> {
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
-    tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
+    tests: files.map((file) => ({ file, complete: true, preconditions: [], phases: { collect: 5, cases: 0 } })),
     modules: [row('src/cart.ts', 5), row('src/chart.ts', 30)],
   });
   const block = { kind: 'function', name: 'main', path: 'main', startLine: 2, endLine: 2, source: true };
@@ -177,6 +177,8 @@ describe('distill over a scope of test files', () => {
 
     expect(answer.code).toBe(EXIT_OPERATOR);
     expect(answer.err).toContain('none of the suites it declares, "e2e", "unit", has a per-case index');
+    // A whole run is often impossible where the question is asked, so the refusal sends nobody to one.
+    expect(answer.err).not.toMatch(/\b(run|re-run|rerun|record) (the|it|this|that|again)\b|withTestSelection/i);
   });
 
   it('refuses a record `--execution` names where nothing is recorded', async () => {
@@ -205,7 +207,7 @@ describe('distill over a scope of test files', () => {
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(answer.out.endsWith('\n')).toBe(true);
     const row = (suite: string, file: string) =>
-      ({ suite, file, cases: 1, loaded: { modules: 2, lines: 35 }, unentered: { modules: 1, lines: 30 } });
+      ({ suite, file, cases: 1, time: { collect: 5, cases: 0 }, loaded: { modules: 2, lines: 35 }, unentered: { modules: 1, lines: 30 } });
     expect(answer.out.trimEnd().split('\n').map((line) => JSON.parse(line))).toEqual([
       row('e2e', E2E[0]!),
       ...UNIT.map((file) => row('unit', file)),

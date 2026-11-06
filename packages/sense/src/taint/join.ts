@@ -15,6 +15,7 @@
 
 import { join } from 'node:path';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { resolveTo, type Resolvers } from '../resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from '../specifier.js';
 
@@ -65,8 +66,8 @@ export function reach(said: Said, target: Target): Reached {
   }
 
   return {
-    targets: [...by.keys()].sort(byCodeUnit),
-    by: new Map([...by].map(([to, names]) => [to, [...names].sort(byCodeUnit)])),
+    targets: [...by.keys()].sort(codeUnitOrder),
+    by: new Map([...by].map(([to, names]) => [to, [...names].sort(codeUnitOrder)])),
     missed,
   };
 }
@@ -108,7 +109,7 @@ export function applied(record: FileRecord, plus: Reached): FileRecord {
     ...rest,
     ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
     ...(packages.length > 0 ? { packages: dedupe(packages) } : {}),
-    ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
+    ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) } : {}),
     ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
   };
 }
@@ -123,9 +124,5 @@ function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] 
       seen.add(key);
       return true;
     })
-    .sort((a, b) => byCodeUnit(a.to, b.to) || byCodeUnit(a.kind, b.kind));
-}
-
-export function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
 }

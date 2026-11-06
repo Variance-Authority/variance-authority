@@ -5,12 +5,14 @@ use oxc_parser::Parser;
 use oxc_span::SourceType;
 
 use super::member_declarations_in;
+use crate::harvest::Harvest;
 use crate::read::Lines;
 
 fn on(text: &str, name: &str) -> Vec<(u32, String)> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
-    member_declarations_in(&parsed.program, &Lines::new(text))
+    let lines = Lines::new(text);
+    member_declarations_in(&parsed.program, &lines, &Harvest::new(&parsed.program, text, &lines, false))
         .into_iter()
         .filter(|declared| declared.name == name)
         .map(|declared| (declared.line, declared.on))
@@ -32,6 +34,12 @@ fn a_constraint_is_not_the_alias_body() {
 }
 
 #[test]
+fn an_alias_names_the_literals_its_intersection_or_union_joins() {
+    let found = on("type X = Base & {\n  m: 1;\n};\ntype Y = { m: 2 } | { m: 3 };\ntype Z = Array<{ m: 4 }>;\n", "m");
+    assert_eq!(found, vec![(2, "X".to_owned()), (4, "Y".to_owned()), (4, "Y".to_owned()), (5, "a type literal".to_owned())]);
+}
+
+#[test]
 fn a_constructor_parameter_property_is_a_member() {
     let found = on("class Held {\n  constructor(private m: string, n: number) {}\n}\n", "m");
     assert_eq!(found, vec![(2, "Held".to_owned())]);
@@ -43,8 +51,25 @@ fn records_every_member_by_name() {
     let allocator = Allocator::default();
     let text = "interface A {\n  x: 1;\n  y(): void;\n}\nclass B {\n  ['computed' + 1] = 2;\n  z = 3;\n}\n";
     let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
-    let names: Vec<String> = member_declarations_in(&parsed.program, &Lines::new(text)).into_iter().map(|declared| declared.name).collect();
+    let lines = Lines::new(text);
+    let names: Vec<String> = member_declarations_in(&parsed.program, &lines, &Harvest::new(&parsed.program, text, &lines, false)).into_iter().map(|declared| declared.name).collect();
     assert_eq!(names, ["x", "y", "z"]);
+}
+
+/// The comment a member's first token follows, modifiers and decorators
+/// included, is its doc, as a top-level declaration's is.
+#[test]
+fn keeps_the_doc_above_a_member() {
+    let allocator = Allocator::default();
+    let text = "interface A {\n  /** Who. */\n  readonly by: string;\n  bare: 1;\n}\nclass B {\n  /** Go. */\n  private go(): void {}\n  constructor(/** Held. */ private held: string) {}\n}\n";
+    let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
+    let lines = Lines::new(text);
+    let docs: Vec<(String, Option<&str>)> = member_declarations_in(&parsed.program, &lines, &Harvest::new(&parsed.program, text, &lines, false))
+        .into_iter()
+        .map(|declared| (declared.name, declared.doc.map(|doc| &text[doc.start as usize..doc.end as usize])))
+        .collect();
+    let want = |name: &str, doc: Option<&'static str>| (name.to_owned(), doc);
+    assert_eq!(docs, [want("by", Some("* Who. ")), want("bare", None), want("go", Some("* Go. ")), want("constructor", None), want("held", Some("* Held. "))]);
 }
 
 /// Two layers the way the scan writes them: the newer one rewrites `a.ts`, its

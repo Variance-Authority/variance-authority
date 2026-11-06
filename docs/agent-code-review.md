@@ -66,6 +66,7 @@ src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
     applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   62-66 branch applyDiscount — no case covered this region
+src/checkout/total.test.ts ran over another text of src/checkout/total.ts, in a run that landed 2 hours ago.
 ```
 
 The two counts in the first line are the findings. A region **no case covered**
@@ -81,20 +82,19 @@ index holds nothing for, the answer prints exactly that. And a missing index is
 refused rather than answered empty, because an empty list here reads as *no test
 covers this line*, which is the sentence that gets a test deleted.
 
-The diff is measured from the commit the record was written at, not from the
-merge base with the ref, because the index spells its line ranges in that
-commit's coordinates. Record before you review: an index behind the tree
-answers fluently about regions that have moved.
+The files are the ones your change changed, from the merge base with the ref.
+Each one's lines are measured from the commit the record was written at, because
+the index spells its line ranges in that commit's coordinates. Under the
+regions, the answer names each test file that ran over another text of a changed
+file, and when its run landed. Record before
+you review: a case that ran another text is evidence about that text, not about
+your change.
 
 This reading needs [test-level coverage](test-level-coverage.md) — the same
 recording with a case axis, which every run wrapped in `withTestSelection`
 writes beside the file-grain [record](execution-record.md). The file-grain
 record alone answers which test *files* covered a module and cannot name a
 case.
-
-Over MCP the same evidence is `variance_changed_tests`, which takes the unified
-diff the agent is already holding rather than a ref — nothing in that package
-runs git.
 
 ## Ask the run which of the changes are one change
 
@@ -183,24 +183,36 @@ Read from the record of `unit` before this change ran.
 
 And 1 more, every one reached by a case: 1 near.
 
-More on one file: `variance covering --since 3f2a9c0d1e4b --file <path>`
+More on one file: `variance covering --file <path>`
 </details>
 <!-- /variance-authority: handover -->
 ```
 
 It hands over where to look, not the review. A changed function gets a line
 when there is something to look at: 🔴 means part of it ran under no case, or
-has no case in a record from before the change, 🔵 that the change wrote it and
-no case has run it yet. The other marks are the review comment's, for the
-furthest part a case reached: 🟡 from far, 🟠 from a distance not measured, ⚪
-only while its module loaded. The line names how many cases and the test file
-to open. *Near* means a case came from a test file that imports the changed
-file. *Far* means every case came from further away, through other modules;
-see [test distance](distance.md). A function every case reached from near is
-only counted: a test file that imports it is easy to find. Functions with code
-no case ran come first. Past twelve lines the rest are only counted, so the
-block stays a handful of lines on a change of any size, and its last line is
-the `covering` command that reads one file in full.
+has no case in a record from before the change, ❔ that a case ran part of it in
+a text an edit wrote over, so no case is known to have run it, and 🔵 that the
+change wrote it and no case has run it yet. The other marks are the review
+comment's, for the furthest part a case reached: 🟡 from far, 🟠 from a distance
+not measured, ⚪ only while its module loaded. The line names how many cases and
+the test file to open. *Near* means a case came from a test file that imports
+the changed file. *Far* means every case came from further away, through other
+modules; see [test distance](distance.md). A function every case reached from
+near is only counted: a test file that imports it is easy to find. Functions
+with code no case ran come first, then those no case is known to have run. Past
+twelve lines the rest are only counted, so the block stays a handful of lines
+on a change of any size, and its last line is the `covering` command that reads
+one file in full, from every suite the block reads. For a 🔴 function, `variance
+covering --file <path> --function <name>` names the part no case ran, in each
+suite.
+
+The changed source files that no suite's record holds, in any language the
+[source index](source-index.md) reads, such as Rust, are named on one last line, *not in the
+record*, twelve by name and the rest counted. The record holds no function from
+those files, so the block cannot name one there. When they are all the change
+touched, the summary prints *no changed function in the record, 2 changed files
+not in it* rather than *no changed function*. A test file the record holds
+cases of is in the record, and is not named there.
 
 A person sees one collapsed line. A bot reads the raw body, folded content
 included. The markers show where the block a later run prints is pasted, so
@@ -209,7 +221,7 @@ read, and when there is more than one a line names the suite its reading came
 from. A suite whose record cannot be read gets one line saying why; the suite
 named with `--suite` fails instead.
 
-It reads the record `covering` reads: the one `withTestSelection` writes when
+It reads the record this machine holds: the one `withTestSelection` writes when
 a suite runs in your checkout or, where your checkout has none, the mainline's
 that CI publishes to a [share](sharing.md), once fetched. Before CI has run,
 that record is older than the change, and the block says so under its summary.

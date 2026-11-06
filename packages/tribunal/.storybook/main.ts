@@ -28,8 +28,15 @@ const config: StorybookConfig = {
   viteFinal: async (config) => ({
     ...config,
     plugins: [...(config.plugins ?? []), jsxSource()],
-    build: { ...config.build, sourcemap: true },
-    esbuild: { ...config.esbuild, jsx: 'automatic', keepNames: true, jsxDev: true },
+    build: {
+      ...config.build,
+      sourcemap: true,
+      rolldownOptions: {
+        ...config.build?.rolldownOptions,
+        output: { ...config.build?.rolldownOptions?.output, keepNames: true },
+      },
+    },
+    oxc: { ...config.oxc, jsx: { runtime: 'automatic', development: true } },
   }),
 };
 

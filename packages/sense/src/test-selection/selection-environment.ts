@@ -46,7 +46,7 @@ interface Selector {
     readonly root: string;
     readonly since?: string;
     readonly suite?: string;
-    readonly atDistance?: { readonly from: number; readonly to: number };
+    readonly atDistance?: { readonly from: number; readonly to: number; readonly by?: 'environment' };
     readonly grain?: 'case';
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
@@ -93,10 +93,27 @@ export function selectionFrom(
       root: request.root,
       ...(since === '' ? {} : { since }),
       ...(request.suite === undefined ? {} : { suite: request.suite }),
-      ...(leg === undefined ? {} : { atDistance: leg }),
+      ...(leg === undefined ? {} : { atDistance: { ...leg, by: 'environment' } }),
       ...(grain === 'case' ? { grain } : {}),
     });
   };
+}
+
+/**
+ * The selection a run asks for: the one it was handed, else the environment's,
+ * noted against the record the run lands in, which names the record it read.
+ * `landing` is asked only when a selection is: a run that asks for none
+ * need not say where it lands. `undefined` when it asks for none.
+ */
+export function askedSelection(
+  handed: (() => Promise<SuiteSelection>) | undefined,
+  landing: () => string,
+  request: SelectionRequest,
+  env: NodeJS.ProcessEnv = process.env,
+  say?: (line: string) => void,
+): (() => Promise<SuiteSelection>) | undefined {
+  const asked = handed ?? selectionFrom(env, request, say);
+  return asked && notingRead(landing(), asked);
 }
 
 /**

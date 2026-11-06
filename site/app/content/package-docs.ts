@@ -8,6 +8,7 @@ import eyes from "../../../packages/eyes/README.md?raw";
 import help from "../../../packages/help/README.md?raw";
 import history from "../../../packages/history/README.md?raw";
 import ioc from "../../../packages/ioc/README.md?raw";
+import isolator from "../../../packages/isolator/README.md?raw";
 import jsxSource from "../../../packages/jsx-source/README.md?raw";
 import mcp from "../../../packages/mcp/README.md?raw";
 import observe from "../../../packages/observe/README.md?raw";
@@ -53,6 +54,7 @@ const packages = [
   ["help", help],
   ["history", history],
   ["ioc", ioc],
+  ["isolator", isolator],
   ["jsx-source", jsxSource],
   ["mcp", mcp],
   ["observe", observe],

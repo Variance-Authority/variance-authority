@@ -6,8 +6,27 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { relative, resolve } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SELECTION_REPORTER, withTestSelection } from './with-test-selection.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SELECTION_SETUP, SkippedFiles, fileSelection } from './file-selection.js';
+import { SELECTION_REPORTER, selectingFiles, withTestSelection } from './with-test-selection.js';
+
+/** A package at `at` that installed Playwright `version`. */
+async function installing(at: string, version: string): Promise<void> {
+  const installed = resolve(at, 'node_modules/@playwright/test');
+  await mkdir(installed, { recursive: true });
+  await writeFile(resolve(installed, 'package.json'), JSON.stringify({ name: '@playwright/test', version }));
+  await writeFile(resolve(at, 'package.json'), '{}');
+}
+
+// The wrapper writes these on a Playwright that reads no `babelPlugins`.
+beforeEach(() => {
+  vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', undefined);
+  vi.stubEnv('PW_TEST_SOURCE_TRANSFORM_SCOPE', undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('a configuration that records what it ran', () => {
   it('gives the workers and the fold the same values', () => {
@@ -64,15 +83,68 @@ describe('a configuration that records what it ran', () => {
 describe('a configuration whose specs are cut statement by statement', () => {
   // Beside the wrapper, which is where Playwright `require`s it from.
   const PLUGIN = expect.stringMatching(/^\/.*\/cadence-babel\.cjs$/u);
+  const projects: string[] = [];
 
-  it('compiles every spec with the cadence plugin by default', () => {
-    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await Promise.all(projects.splice(0).map((path) => rm(path, { recursive: true, force: true })));
   });
 
-  it('keeps the plugins the configuration already had, ahead of the cut', () => {
+  /** Run from a project that installed Playwright `version`. */
+  async function on(version: string): Promise<void> {
+    const project = await mkdtemp(resolve(tmpdir(), 'variance-playwright-project-'));
+    projects.push(project);
+    await installing(project, version);
+    vi.spyOn(process, 'cwd').mockReturnValue(project);
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test']);
+  }
+
+  it('compiles every spec with the cadence plugin by default', async () => {
+    await on('1.62.1');
+
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+  });
+
+  it('keeps the plugins the configuration already had, ahead of the cut', async () => {
+    await on('1.62.1');
     const wrapped = withTestSelection({ '@playwright/test': { babelPlugins: [['/repo/own.cjs', { on: true }]], other: 1 } });
 
     expect(wrapped['@playwright/test']).toEqual({ babelPlugins: [['/repo/own.cjs', { on: true }], [PLUGIN]], other: 1 });
+  });
+
+  it('hands the plugin to the transform a Playwright that no longer reads `babelPlugins` keeps', async () => {
+    await on('1.63.0');
+    const wrapped = withTestSelection({});
+
+    expect(wrapped).not.toHaveProperty('@playwright/test');
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/');
+  });
+
+  it('takes the configuration route in a worker of a main process that took it, whatever Playwright the worker finds', async () => {
+    await on('1.64.1');
+    vi.stubEnv('TEST_WORKER_INDEX', '0');
+
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+  });
+
+  it('adds no `babelPlugins` in a worker of a main process that took the environment', async () => {
+    await on('1.64.1');
+    withTestSelection({});
+    await on('1.62.1');
+    vi.stubEnv('TEST_WORKER_INDEX', '0');
+
+    expect(withTestSelection({})).not.toHaveProperty('@playwright/test');
+  });
+
+  it('leaves the plugins of a configuration on such a Playwright as they were', async () => {
+    await on('2.0.0');
+    const compile = { babelPlugins: [['/repo/own.cjs']] };
+
+    expect(withTestSelection({ '@playwright/test': compile })['@playwright/test']).toBe(compile);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
   });
 
   it('leaves the cut it requires untranspiled, beside what the configuration already left', () => {
@@ -87,13 +159,70 @@ describe('a configuration whose specs are cut statement by statement', () => {
     });
   });
 
-  it('compiles the specs as they were when cadence is off', () => {
+  it('compiles the specs as they were when cadence is off', async () => {
+    await on('1.64.1');
     const config = { '@playwright/test': { babelPlugins: [['/repo/own.cjs']] }, build: { external: ['**/*bundle.js'] } };
 
     expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('@playwright/test');
     expect(withTestSelection({}, { cadence: false })).not.toHaveProperty('build');
     expect(withTestSelection(config, { cadence: false })['@playwright/test']).toBe(config['@playwright/test']);
     expect(withTestSelection(config, { cadence: false }).build).toBe(config.build);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+  });
+
+  it('takes the transform back when a later configuration turns cadence off', async () => {
+    await on('1.64.1');
+    withTestSelection({});
+    withTestSelection({}, { cadence: false });
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBeUndefined();
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBeUndefined();
+  });
+
+  it('gives the transform back to a later configuration that turns cadence on', async () => {
+    await on('1.64.1');
+    withTestSelection({}, { cadence: false });
+    withTestSelection({});
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
+  });
+
+  it('leaves what a worker inherited, which the next configuration there reads', async () => {
+    await on('1.64.1');
+    withTestSelection({});
+    vi.stubEnv('TEST_WORKER_INDEX', '0');
+    withTestSelection({}, { cadence: false });
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toEqual(PLUGIN);
+    expect(withTestSelection({})).not.toHaveProperty('@playwright/test');
+  });
+
+  it("leaves a transform of the project's own when cadence is off", async () => {
+    await on('1.64.1');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', '/repo/own.cjs');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM_SCOPE', '/repo');
+    withTestSelection({}, { cadence: false });
+
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBe('/repo/own.cjs');
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/repo');
+  });
+
+  it("refuses a transform of the project's own, which the one variable cannot hold beside the cut", async () => {
+    await on('1.64.1');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', '/repo/own.cjs');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM_SCOPE', '/repo');
+
+    expect(() => withTestSelection({})).toThrow(/PW_TEST_SOURCE_TRANSFORM.*\/repo\/own\.cjs.*cadence: false/u);
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBe('/repo/own.cjs');
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE']).toBe('/repo');
+  });
+
+  it("takes no issue with a transform of the project's own on a Playwright that reads `babelPlugins`", async () => {
+    await on('1.62.1');
+    vi.stubEnv('PW_TEST_SOURCE_TRANSFORM', '/repo/own.cjs');
+
+    expect(withTestSelection({})['@playwright/test']).toEqual({ babelPlugins: [[PLUGIN]] });
+    expect(process.env['PW_TEST_SOURCE_TRANSFORM']).toBe('/repo/own.cjs');
   });
 });
 
@@ -104,14 +233,6 @@ describe('a configuration evaluated for a shard', () => {
     vi.restoreAllMocks();
     await Promise.all(projects.splice(0).map((path) => rm(path, { recursive: true, force: true })));
   });
-
-  /** A package at `at` that installed Playwright `version`. */
-  async function installing(at: string, version: string): Promise<void> {
-    const installed = resolve(at, 'node_modules/@playwright/test');
-    await mkdir(installed, { recursive: true });
-    await writeFile(resolve(installed, 'package.json'), JSON.stringify({ name: '@playwright/test', version }));
-    await writeFile(resolve(at, 'package.json'), '{}');
-  }
 
   /**
    * Evaluate the wrapper as `playwright test <argv>` would, from a project that
@@ -170,5 +291,79 @@ describe('a configuration evaluated for a shard', () => {
     const from = process.cwd();
     vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test', '--shard', '1/2', `--reporter=./${relative(from, reporter)}`]);
     expect(project).not.toThrow();
+  });
+});
+
+describe('a configuration handed a selection', () => {
+  const selection = async () => ({ whole: new Set<string>(), skip: new Set<string>(), notes: [] });
+  const asked = (argv: readonly string[], env: NodeJS.ProcessEnv = {}, config = {}) => {
+    const said: string[] = [];
+    const drop = selectingFiles(config, { suite: 'chromium' }, selection, { argv, env, say: (line) => said.push(line) });
+    return { drop, said };
+  };
+  const testing = () => vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'playwright', 'test']);
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('drops what it skips in the main process of a playwright test', () => {
+    expect(asked(['node', 'playwright', 'test']).drop).toBeInstanceOf(SkippedFiles);
+    expect(fileSelection()?.dropped).toEqual(new Set());
+  });
+
+  it('selects nothing in a worker, or in a command that collects no files', () => {
+    expect(asked(['node', 'playwright', 'test'], { TEST_WORKER_INDEX: '0' }).drop).toBeUndefined();
+    expect(asked(['node', 'playwright', 'show-report']).drop).toBeUndefined();
+    expect(asked(['node', 'playwright', 'merge-reports']).drop).toBeUndefined();
+  });
+
+  it('says watch mode and --list do not select, and selects nothing there', () => {
+    expect(asked(['node', 'playwright', 'test', '--ui'])).toEqual({ drop: undefined, said: ['variance-authority: watch mode does not select'] });
+    expect(asked(['node', 'playwright', 'test', '--ui-port=0']).said).toEqual(['variance-authority: watch mode does not select']);
+    expect(asked(['node', 'playwright', 'test'], { PWTEST_WATCH: '1' }).said).toEqual(['variance-authority: watch mode does not select']);
+    const list = asked(['node', 'playwright', 'test', '--list']);
+    expect(list.drop).toBeUndefined();
+    expect(list.said).toEqual([expect.stringContaining('--list runs no global setup')]);
+  });
+
+  it('reads the selection in a global setup ahead of the configuration\'s own, and drops by testIgnore after its own', () => {
+    testing();
+    const wrapped = withTestSelection({ globalSetup: './setup.ts', testIgnore: '**/skip/**' }, { selection, suite: 'chromium' }) as {
+      globalSetup?: unknown;
+      testIgnore?: unknown;
+    };
+
+    expect(wrapped.globalSetup).toEqual([SELECTION_SETUP, './setup.ts']);
+    expect(wrapped.testIgnore).toEqual(['**/skip/**', expect.any(SkippedFiles)]);
+  });
+
+  it('adds the drop to a project with its own testIgnore, which replaces the top level\'s', () => {
+    testing();
+    const wrapped = withTestSelection(
+      { projects: [{ name: 'chromium', testIgnore: /legacy/u }, { name: 'webkit' }] },
+      { selection, suite: 'chromium' },
+    ) as { projects: ReadonlyArray<{ testIgnore?: unknown }> };
+
+    expect(wrapped.projects[0]!.testIgnore).toEqual([/legacy/u, expect.any(SkippedFiles)]);
+    expect(wrapped.projects[1]).not.toHaveProperty('testIgnore');
+  });
+
+  it('selects once when a configuration is wrapped twice', () => {
+    testing();
+    const twice = withTestSelection(withTestSelection({}, { selection, suite: 'chromium' }), { selection, suite: 'chromium' }) as {
+      globalSetup?: unknown[];
+      testIgnore?: unknown[];
+    };
+
+    expect(twice.globalSetup).toEqual([SELECTION_SETUP]);
+    expect(twice.testIgnore).toHaveLength(1);
+  });
+
+  it('changes nothing when no selection is asked for', () => {
+    testing();
+    const wrapped = withTestSelection({}, {});
+
+    expect(wrapped).not.toHaveProperty('globalSetup');
+    expect(wrapped).not.toHaveProperty('testIgnore');
   });
 });

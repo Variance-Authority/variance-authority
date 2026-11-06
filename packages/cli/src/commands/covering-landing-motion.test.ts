@@ -10,7 +10,6 @@ import {
   encodeExecutionIndex,
   landCases,
   writeTestCoverage,
-  type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -122,7 +121,7 @@ describe('the before layer of a landing', () => {
     await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, sections);
 
     const full = decodeExecutionIndex(sections.index!);
-    const wrote = await runsWrote(execution, { commit: head, files: [DISCOUNTS.file, CHECKS_OUT.file] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: head, landings: [{ files: [DISCOUNTS.file, CHECKS_OUT.file] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.base.at).toBe(base);
@@ -140,7 +139,7 @@ describe('the before layer of a landing', () => {
       tests: [DISCOUNTS],
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 30, []), block('round', 50, [])] }],
     };
-    const read = async () => motionOfRuns(full, execution, await runsWrote(execution, { commit: head, files: [DISCOUNTS.file] } as CommitRuns), root);
+    const read = async () => motionOfRuns(full, execution, await runsWrote(execution, { commit: head, landings: [{ files: [DISCOUNTS.file] }] }), root);
     await keep(execution, full, { before: RETIRED, last: { ...last, beforeTexts: { 'src/total.ts': digestString(HEAD_TEXT) } } });
 
     const motion = await read();

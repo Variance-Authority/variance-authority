@@ -5,6 +5,7 @@
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 This package supplies one of those readings, and it is the one that never
 renders anything. It reads a TypeScript workspace's public API as data: a
@@ -388,4 +389,4 @@ silently producing a smaller surface:
 
 ---
 
-**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/package) · MIT

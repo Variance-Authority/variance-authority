@@ -2,9 +2,8 @@ name: variance
 
 # Two things at once, and it is worth knowing which half you are reading.
 #
-# It is **an example workflow**, meant to be copied and edited rather than read as
-# the only way to wire this up. Everything in it that is a decision is commented
-# as one.
+# It is **this repository's own gate**, run through the action as it stands in
+# this checkout. Everything in it that is a decision is commented as one.
 #
 # It is also **the only thing in this repository that observes a subject**. Until
 # it did, every step here was skipped behind a check for a `variance.config.json`
@@ -17,11 +16,15 @@ name: variance
 # photographed it. `site` observes variance-authority.dev, [`site/`](../../site):
 # its catalog and component pages, since every markdown page excludes itself.
 #
+# The case is observed once more: `lfs` commits its baselines to the pull
+# request's branch through git-LFS. It runs the arrangement an adopter would
+# choose, on this repository's own pull requests, rather than on a fixture of one.
+#
 # ## Where the baselines come from, since nothing here is committed
 #
 # That is a choice, `VARIANCE_REVIEW` below, and this section describes the
-# `cache` answer this repository runs. The other two, `git` and `tribunal`, are
-# described where they are chosen.
+# `cache` answer the two subjects run. The other two, `git` and `tribunal`, are
+# described where they are chosen, and each has its job below.
 #
 # `.variance/` is ignored, on purpose: a record changes whenever the document
 # does, so records beside their images would make a diff out of every edit that
@@ -37,6 +40,10 @@ name: variance
 #   `variance: accept <project>` for the `tribunal` and `site` checks. The run saves
 #   into the pull request's own cache scope, which its later runs read first, and
 #   takes the label off again so the next change needs the next press.
+# - **On a pull request, by ticking the docket's box.** `variance-tick.yml`
+#   checks the person may, names them in the comment and reruns this check,
+#   which accepts into the same scope. The box is the head's, and the next push
+#   brings a new one.
 # - **On `main`, by landing there.** A pull request is where a change is
 #   judged, and merging it is the person's answer, whatever its check said at
 #   the time: green, red, still running, or never run because the check is new.
@@ -75,9 +82,11 @@ name: variance
 # it would go red on somebody else's schedule — every baseline moved by an
 # infrastructure update nobody in the repository approved.
 #
-# The image below is the one `docker/linux-verify.Dockerfile` uses, so the
-# baselines this workflow writes are comparable with the ones produced there. Pin
-# it by digest for a guarantee that survives a tag being moved.
+# The image below is `docker/ci.Dockerfile`'s: the Playwright image
+# `docker/linux-verify.Dockerfile` uses, with build tools on top, so the
+# baselines this workflow writes are comparable with the ones produced there. Its
+# tag is the file's blob id, and `ci-image.yml` never publishes a tag twice, so
+# the tag does not move.
 #
 # ## Why `pull_request` and not `pull_request_target`
 #
@@ -180,7 +189,8 @@ permissions:
 #   store and a `review` section, and `VARIANCE_INGEST_TOKEN` is a secret.
 #
 # `cache` here, because the case writes its store under `.variance/`, which
-# this repository ignores.
+# this repository ignores. The `lfs` job runs `git` with its own config, and
+# sets what it needs itself.
 env:
   VARIANCE_REVIEW: cache
   VARIANCE_IMAGES: refs/variance/project
@@ -214,7 +224,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.
@@ -234,16 +244,18 @@ jobs:
       # A fork's pull request gets no secrets, so there the label cannot commit:
       # the contributor commits the baselines themselves.
       #
-      # For `lfs`, add `lfs: true` here and install git-lfs in a step before this
-      # one: the Playwright image has no git-lfs, and the store refuses to read
-      # a pointer file as an image.
-      - uses: actions/checkout@v4
+      # For `lfs`, git-lfs has to be on the machine, as the CI image carries it,
+      # and `git lfs install --local --skip-smudge` has to run in a step after
+      # this one, or a commit stores whole images.
+      # Leave `lfs` off here. The run fetches the image of each subject whose
+      # document changed, and only that image.
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.VARIANCE_REVIEW == 'git' && github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ env.VARIANCE_REVIEW == 'git' && github.head_ref || '' }}
           token: ${{ env.VARIANCE_REVIEW == 'git' && secrets.VARIANCE_PUSH_TOKEN || github.token }}
 
-      # The Playwright image runs as a user that does not own the checkout, and
+      # The CI image runs as a user that does not own the checkout, and
       # git refuses a directory it does not trust. Everything after this asks
       # git something: the build names the native scanner's tree by it, and a
       # tree it cannot name restores another commit's scanner.
@@ -263,6 +275,12 @@ jobs:
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
         run: node .github/scripts/variance-accept.mjs
+
+      # Node 24 from `setup-node`, because the image's own Node, 26, carries no
+      # Corepack. The container jobs in `check.yml` set theirs the same way.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -285,11 +303,16 @@ jobs:
       # exits 1 when a subject moved and nothing here suppresses that: a red
       # pull request is the tool saying the pixels are not the ones on `main`,
       # and the way to answer it is to look and then accept — not to make the
-      # check quieter. On `main` the run accepts first, so its check goes red
-      # only where accepting cannot settle it — a subject still unstable, an
-      # observation that errored, a subject not observed. The store is kept
-      # anyway: one subject that does not render the same way twice is that
-      # subject's defect, and every other subject's baseline still lands.
+      # check quieter. On `main` the merge was the accept. Under `cache` the
+      # run promotes first, so its check goes red only where accepting cannot
+      # settle it — a subject still unstable, an observation that errored, a
+      # subject not observed. Under `git` it compares against the images that
+      # merged, since `main` has no branch to commit what it renders to: a
+      # change, an unstable subject among them, is a warning, and only an
+      # errored observation, a subject not observed or an unreadable report
+      # is red. The store is kept anyway: one subject that does not render the
+      # same way twice is that subject's defect, and every other subject's
+      # baseline still lands.
       #
       # `comment` is on only where there is a pull request to comment on. On a
       # push the action would render a docket, find no issue number, and warn.
@@ -332,8 +355,9 @@ jobs:
               && 'approve or reject each subject on the review service, then re-run this check.'
               || env.VARIANCE_REVIEW == 'git'
               && 'check the report, then add the **variance: accept** label. The accepted images are committed to this branch, and the next run compares against them.'
-              || 'check the report, then add the **variance: accept** label to this pull request.'
+              || 'check the report, then tick the box below or add the **variance: accept** label to this pull request.'
             }}
+          tick-to-accept: ${{ env.VARIANCE_REVIEW == 'cache' }}
 
           # On under `git`, and only on the run the label started: it accepts
           # every changed subject and pushes the images to the pull request's
@@ -350,6 +374,9 @@ jobs:
           # catch, in the same run that found it, and the next run is green: the
           # check has stopped being a gate and has become a recorder.
           commit-baselines: ${{ env.VARIANCE_REVIEW == 'git' && steps.accept.outputs.promote == 'true' }}
+          # On under `git`, on a push to `main`: the merge was the accept, and
+          # `main` has no branch to commit the images it renders to.
+          exit-zero-on-changes: ${{ steps.accept.outputs['exit-zero-on-changes'] }}
 
       # Under `tribunal`, the build goes to the service whatever the verdict, red
       # or green: a red one is what a person decides on there, and a green one
@@ -400,7 +427,7 @@ jobs:
       # against; and the store names a machine's partition by its digest,
       # `v1:<hex>`, whose colon this action refuses.
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-files
           path: |
@@ -497,7 +524,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
 
     steps:
@@ -505,12 +532,12 @@ jobs:
       # run code from the pull request, so the token is not left on disk. The
       # site's row takes the merge commit's parents too: the first is the base,
       # and the change is read against it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: ${{ matrix.project == 'site' && 2 || 1 }}
 
-      # The Playwright image runs as a user that does not own the checkout, and
+      # The CI image runs as a user that does not own the checkout, and
       # git refuses a directory it does not trust. Everything after this asks
       # git something: the build names the native scanner's tree by it, and a
       # tree it cannot name restores another commit's scanner.
@@ -527,6 +554,11 @@ jobs:
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
           VARIANCE_REVIEW: cache
         run: node .github/scripts/variance-accept.mjs
+
+      # Node 24, for the reason written at the same step in `variance`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -585,7 +617,11 @@ jobs:
           yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
-            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then exit 0; fi
+            if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
+              # The build writes the skills index, and no test reaches the build.
+              curl --fail --silent --output /dev/null http://localhost:8787/.well-known/agent-skills/index.json
+              exit 0
+            fi
             sleep 1
           done
           cat "$RUNNER_TEMP/site.log" >&2
@@ -611,8 +647,11 @@ jobs:
           accept: ${{ steps.accept.outputs.promote == 'true' }}
           report-page: 'true'
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          # This project's label, not the case's.
-          to-accept: 'check the report, then add the **${{ matrix.label }}** label to this pull request.'
+          # This project's label, not the case's. The second sentence runs on
+          # every row and is there for `tribunal`, which shares its name with the
+          # service and is not it.
+          to-accept: 'check the report, then tick the box below or add the **${{ matrix.label }}** label to this pull request. That is the whole review: no review service holds this run.'
+          tick-to-accept: 'true'
 
       # A server that exits mid-read leaves only `ERR_CONNECTION_REFUSED` in
       # the read's log; why it exited is in its own.
@@ -622,9 +661,160 @@ jobs:
         run: cat "$RUNNER_TEMP/site.log"
 
       - if: always() && steps.reach.outputs.observe != 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.project }}-files
+          path: |
+            ${{ steps.variance.outputs.report }}
+            ${{ steps.variance.outputs.images }}
+          include-hidden-files: true
+          if-no-files-found: warn
+
+  # `VARIANCE_REVIEW: git` with an `lfs` store, run here rather than described:
+  # the case's twelve stories again, under `variance.lfs.config.json`, whose
+  # baselines are committed to `cases/storybook-case/baselines` through
+  # git-LFS. A pull request is the same one every other job here judges, so
+  # the commit-back lands on a real contributor's branch, through the real
+  # clean filter, and the merge takes the images to `main` with the code.
+  #
+  # Its own label, `variance: accept lfs`, and its own comment and image ref,
+  # both keyed by the config's `project`. The label is the only way it accepts:
+  # a push to `main` compares and promotes nothing, because under `git` the
+  # images arrived in the merge, and a dispatch has no branch to commit to.
+  # Merging is the accept, so on `main` a change is a warning, never red: the
+  # pull request merged with what it committed, and `main` cannot commit the
+  # images it renders without a pull request of its own. A subject `main`
+  # could not observe stays red.
+  #
+  # It also asserts what a checkout that skipped the LFS fetch does, because
+  # that is the failure an adopter meets first: once baselines are committed,
+  # such a checkout holds pointers where images should be, and
+  # `doctor --baselines` must exit 2 on them before git-lfs fetches them.
+  lfs:
+    if: >-
+      github.event.action != 'closed' &&
+      (github.event.action != 'labeled' ||
+      github.event.label.name == 'variance: accept lfs')
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    concurrency:
+      group: variance-lfs-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      options: --ipc=host
+
+    steps:
+      # The pull request's own branch, which the accept commits to; `main` on a
+      # push. `lfs: false` is the default, spelled out: the image carries git-lfs
+      # with its filter off, so the checkout holds pointers, and the step after
+      # the build asserts what that checkout holds. The token is
+      # `VARIANCE_PUSH_TOKEN` when it is set, so the commit-back starts the run
+      # that checks it; `GITHUB_TOKEN` otherwise, whose push lands and starts
+      # nothing.
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.head_ref || '' }}
+          token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
+          lfs: false
+
+      # The CI image runs as a user that does not own the checkout, and
+      # git refuses a directory it does not trust. Everything after this asks
+      # git something: the build names the native scanner's tree by it, and a
+      # tree it cannot name restores another commit's scanner.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: decide whether this run accepts
+        id: accept
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VARIANCE_ACCEPT_LABEL: 'variance: accept lfs'
+          # Not `inputs.accept`: a dispatch has no pull request branch to commit
+          # to, and the script refuses one under `git`. The dispatch accepts the
+          # other jobs' stores; this one compares.
+          VARIANCE_DISPATCH_ACCEPT: 'false'
+          VARIANCE_REVIEW: git
+          VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
+        run: node .github/scripts/variance-accept.mjs
+
+      # Node 24, for the reason written at the same step in `variance`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # Exit 2 when a baseline is committed and exit 0 when none is: a checkout
+      # that skipped the LFS fetch holds pointers, and doctor names them before anything
+      # compares. Either other answer fails the job, a 0 over pointers most of
+      # all, since that is a gate that passes until somebody edits a component.
+      # A refusing `ls-files` fails the step rather than reading as "nothing
+      # committed", which would expect the wrong code.
+      - name: refuse the pointers a checkout that skipped the LFS fetch holds
+        shell: bash
+        run: |
+          set -uo pipefail
+          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.webp' 'cases/storybook-case/baselines/*.png') || exit 1
+          if [ -n "$committed" ]; then expected=2; else expected=0; fi
+          # `shell: bash` runs with -e, so the exit is read in the condition.
+          if node packages/cli/dist/bin.js doctor \
+            --config cases/storybook-case/variance.lfs.config.json --baselines; then
+            code=0
+          else
+            code=$?
+          fi
+          if [ "$code" != "$expected" ]; then
+            echo "::error::doctor --baselines exited $code on a checkout that skipped the LFS fetch; $expected was expected"
+            exit 1
+          fi
+
+      # The bytes back through the smudge filter, and `fsck` checks each one
+      # against the digest its pointer names: what the commit-back cleaned is
+      # what this checkout reads.
+      - name: fetch the baselines through git-lfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull
+          git lfs fsck
+
+      - name: build the Storybook this run observes
+        shell: bash
+        run: yarn workspace @variance-authority/case-storybook build-storybook
+
+      - id: variance
+        uses: ./.github/actions/variance
+        with:
+          config: cases/storybook-case/variance.lfs.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          comment: ${{ github.event_name == 'pull_request' }}
+          adopt-unkeyed-comment: 'false'
+          intent: ${{ steps.accept.outputs.intent }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          report-page: 'true'
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
+          to-accept: 'check the report, then add the **variance: accept lfs** label. The accepted images are committed to this branch through git-LFS, and the next run compares against them.'
+          commit-baselines: ${{ steps.accept.outputs.promote == 'true' }}
+          exit-zero-on-changes: ${{ steps.accept.outputs['exit-zero-on-changes'] }}
+
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lfs-files
           path: |
             ${{ steps.variance.outputs.report }}
             ${{ steps.variance.outputs.images }}

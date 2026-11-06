@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
@@ -6,9 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { BASELINE_FIND_PATH } from '@variance-authority/remote/store';
 import type { RunReport } from '@variance-authority/report';
-import { createTribunal } from '../worker.js';
+import { createTribunal, type Tribunal } from '../worker.js';
 import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
+import { declaredPolicy } from '../policy.js';
 import { serveTribunal, type TribunalService } from './serve.js';
 
 /**
@@ -22,7 +24,6 @@ import { serveTribunal, type TribunalService } from './serve.js';
  */
 
 const INGEST = 'ingest-token-0123456789';
-const REVIEW = 'review-token-0123456789';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -71,20 +72,13 @@ async function serve(
       db: database,
       bucket: createDirectoryBucket(join(directory, 'objects')),
       project: 'todomvc',
-      ingestToken: INGEST,
-      reviewToken: REVIEW,
+      policy: declaredPolicy(
+        { INGEST_CREDENTIALS: 'token', INGEST_TOKEN: INGEST, REVIEW_CREDENTIALS: 'loopback', REVIEWER: 'marina' },
+        { loopback: true },
+      ),
     }),
     host: '127.0.0.1',
     port: 0,
-    tokens: { ingest: INGEST, review: REVIEW },
-    // The loopback policy `bin.ts` applies: a bearer decides, and a caller
-    // without one is the browser on this machine.
-    authorize: (request) => {
-      const header = request.headers.get('authorization');
-      if (header === `Bearer ${INGEST}`) return 'ingest';
-      if (header === `Bearer ${REVIEW}`) return 'review';
-      return header === null ? 'review' : null;
-    },
     ...overrides,
   });
   return service;
@@ -104,6 +98,40 @@ function call(
   });
 }
 
+describe('reached by a name somebody pointed here', () => {
+  // `fetch` will not set `Host`, and the header is the whole question.
+  function asked(host: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      request(`${service.url}/auth/me`, { headers: { host } }, (answer) => {
+        let text = '';
+        answer.on('data', (chunk) => (text += chunk));
+        answer.on('end', () => resolve(text));
+      })
+        .on('error', reject)
+        .end();
+    });
+  }
+
+  it('reaches the policy with the name the browser used', async () => {
+    await serve();
+
+    expect(JSON.parse(await asked(new URL(service.url).host))).toMatchObject({ capability: 'review', name: 'marina' });
+    expect(JSON.parse(await asked('attacker.example:7789'))).not.toHaveProperty('name');
+  });
+});
+
+describe('behind a proxy', () => {
+  const echoing = {
+    fetch: (request: Request) => Promise.resolve(Response.json({ url: request.url })),
+  } as unknown as Tribunal;
+
+  it('hands the service the address the deployer named, whatever the Host header says', async () => {
+    await serve({ tribunal: echoing, ui: false, origin: 'https://review.example.com' });
+
+    expect(await (await call('/auth/me')).json()).toEqual({ url: 'https://review.example.com/auth/me' });
+  });
+});
+
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tribunal-serve-'));
 });
@@ -120,7 +148,7 @@ describe('the three adapters compose into one service', () => {
 
     expect((await call('/review/builds', { token: INGEST, body: BUILD })).status).toBe(201);
 
-    const listed = (await (await call('/review/builds', { token: REVIEW })).json()) as {
+    const listed = (await (await call('/review/builds')).json()) as {
       readonly builds: readonly { readonly build: string; readonly pending: number }[];
     };
     expect(listed.builds).toHaveLength(1);
@@ -133,7 +161,6 @@ describe('the three adapters compose into one service', () => {
     await call('/review/builds', { token: INGEST, body: BUILD });
 
     const decided = await call('/review/builds/ci-1/subjects/story:a/decision', {
-      token: REVIEW,
       body: { decision: 'approved', by: 'marina' },
     });
     expect(decided.status).toBe(200);
@@ -153,7 +180,6 @@ describe('the three adapters compose into one service', () => {
     await serve();
     await call('/review/builds', { token: INGEST, body: BUILD });
     await call('/review/builds/ci-1/subjects/story:a/decision', {
-      token: REVIEW,
       body: { decision: 'approved', by: 'marina' },
     });
 
@@ -176,7 +202,7 @@ describe('the three adapters compose into one service', () => {
     await serve();
     await call('/review/builds', { token: INGEST, body: BUILD });
 
-    const image = await call('/review/builds/ci-1/subjects/story:a/after.png', { token: REVIEW });
+    const image = await call('/review/builds/ci-1/subjects/story:a/after.png');
     expect(image.status).toBe(200);
     expect(image.headers.get('content-type')).toBe('image/png');
     expect(Buffer.from(await image.arrayBuffer()).toString('base64')).toBe(BYTES);
@@ -185,17 +211,16 @@ describe('the three adapters compose into one service', () => {
 
 describe('the surface is a document, one script and its faces', () => {
   it('serves the review page at the root, with no token in it', async () => {
-    await serve({ reviewer: 'marina' });
+    await serve();
 
     const page = await fetch(service.url);
     expect(page.headers.get('content-type')).toBe('text/html; charset=utf-8');
 
     const html = await page.text();
     expect(html).toContain('id="variance-review"');
-    expect(html).toContain('"reviewer":"marina"');
-    // The rule the whole `authorize` design exists for. A page carrying the
-    // review token is an approve button in everybody's devtools.
-    expect(html).not.toContain(REVIEW);
+    // Who is looking is `/auth/me`'s to say. A page naming a person or holding a
+    // token is the same page for everybody who opens it.
+    expect(html).not.toContain('marina');
     expect(html).not.toContain(INGEST);
   });
 
@@ -283,23 +308,19 @@ describe('the surface is a document, one script and its faces', () => {
   });
 });
 
-describe('what the transport refuses', () => {
-  it('answers 401 without reaching the router when authorize says no', async () => {
-    await serve({ authorize: () => null });
+describe('what the transport passes through', () => {
+  it('leaves the verdict on a credential to the policy', async () => {
+    await serve();
 
-    const refused = await call('/review/builds', { token: REVIEW });
+    const refused = await call('/review/builds', { token: 'nonsense-token-01234' });
     expect(refused.status).toBe(401);
-    expect(await refused.text()).toMatch(/not authorized for this deployment/);
   });
 
-  it('will not let a caller choose its own capability', async () => {
-    // `authorize` grants ingest; the caller sends the review token anyway. The
-    // mount replaces the header, so the Worker sees ingest and refuses to decide.
-    await serve({ authorize: () => 'ingest' });
+  it('decides as the machine’s reviewer, whatever the body names', async () => {
+    await serve();
     await call('/review/builds', { token: INGEST, body: BUILD });
 
     const decided = await call('/review/builds/ci-1/subjects/story:a/decision', {
-      token: REVIEW,
       body: { decision: 'approved', by: 'nobody' },
     });
     expect(decided.status).toBe(403);

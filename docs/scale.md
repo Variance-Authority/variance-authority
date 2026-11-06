@@ -454,7 +454,10 @@ variance journeys shard-1/coverage.bin shard-2/coverage.bin --into coverage.bin
 Each shard's record carries its case index, so the record is the whole upload.
 The fold lays the shards' cases into the stitched record. A shard that ran a
 test file to the end and kept no cases leaves no index at all, because nothing
-can then say which of that file's cases ran a line.
+can then say which of that file's cases ran a line. Over a record that holds no
+index, the shards' cases land only once they ran to the end every test file the
+record holds that the checkout still has, since an index of some of them would
+say no case of the rest runs a line.
 
 The fold refuses rather than guesses. Every record names the record its run
 chose and placed its tests from, and the record it was laid over, and shards

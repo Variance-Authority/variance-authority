@@ -13,8 +13,12 @@ import type { Parsed, ParseKey } from './cache.js';
 import type { DeclaredRole, Export } from './read.js';
 import { native, nativeRefusal } from './addon.js';
 import type { NativeScanner } from './native.js';
+import { openBindingMembers } from './source-index-binding-members.js';
 import { openHarvest } from './source-index-harvest.js';
 import { openMemberDeclarations } from './source-index-member-declarations.js';
+import { openNested } from './source-index-nested.js';
+import { openMemberUses } from './source-index-member-uses.js';
+import { openOwnUses } from './source-index-own-uses.js';
 import { openMembers } from './source-index-members.js';
 import { openMocks } from './source-index-mocks.js';
 import { openSize } from './source-index-size.js';
@@ -25,7 +29,7 @@ import { packageOf } from './specifier.js';
  *
  * The writer is the addon's (`native/src/generation.rs`); this file hands it
  * documents and reads back what it wrote. The segment arithmetic is not here
- * either: [`core/segment`](../../core/src/segment/index.ts) owns sections,
+ * either: [`core/segment`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/core/src/segment/index.ts) owns sections,
  * alignment and the checks a decode runs before it believes a file.
  *
  * What stays is the part that is about *source*: which columns exist, which of
@@ -34,7 +38,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 20;
+export const SOURCE_INDEX_VERSION = 42;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -151,7 +155,9 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const requestValue = opened.u32('requests.value');
   const requestKind = opened.u32('requests.kind');
   const requestLine = opened.u32('requests.line');
+  const requestFlags = opened.u8('requests.flags');
   const requestBindings = opened.u32('requests.bindings');
+  const requestRepublishes = opened.u8('requests.republishes');
   const bindingImported = opened.u32('bindings.imported');
   const bindingLocal = opened.u32('bindings.local');
   const bindingType = opened.u8('bindings.type');
@@ -168,13 +174,17 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const mocksOf = openMocks(opened, text, parseKey.length);
   const membersOf = openMembers(opened, text, parseKey.length);
   const declaredMembersOf = openMemberDeclarations(opened, text, parseKey.length);
+  const memberUsesOf = openMemberUses(opened, text, parseKey.length);
+  const ownUsesOf = openOwnUses(opened, text, parseKey.length);
+  const nestedOf = openNested(opened, text, parseKey.length);
+  const bindingMembersOf = openBindingMembers(opened, text, parseKey.length);
   const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
   validateOffset(parseDeclares, declareName.length, parseKey.length);
   sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested, parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
-  sameLength(requestValue.length, [requestKind, requestLine]);
+  sameLength(requestValue.length, [requestKind, requestLine, requestFlags, requestRepublishes]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
   sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
@@ -194,6 +204,8 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
         type: flag(bindingType[binding]),
         line: bindingLine[binding]!,
       })),
+      ...requestFlagsOf(requestFlags[request]!),
+      ...(flag(requestRepublishes[request]) ? { republishes: true as const } : {}),
     }));
     const published = range(parseExports, row).map((entry): Export => {
       const exported = optional(exportExported[entry]!);
@@ -216,6 +228,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       };
     });
     const symbols = harvest.symbols(row);
+    const moduleDoc = harvest.moduleDoc(row);
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
     const mocks = mocksOf(row);
@@ -229,8 +242,13 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       ...(mocks === undefined ? {} : { mocks }),
       ...membersOf(row, requests.length),
       ...declaredMembersOf(row),
+      ...memberUsesOf(row),
+      ...ownUsesOf(row),
+      ...nestedOf(row),
+      ...bindingMembersOf(row, requests.length),
       ...(unknown === undefined ? {} : { unknown }),
       ...sizeOf(row),
+      ...(moduleDoc === undefined ? {} : { doc: moduleDoc }),
     });
   }
   const deletedParses = new Set<ParseKey>();
@@ -344,6 +362,43 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   };
 }
 
+/** What one generation's record rows say of some files: the name each one it puts gives its text, and the ones it deletes. */
+export interface RecordNames {
+  /** Each asked file a row puts, with its text's name, or none when the row names no text. */
+  readonly puts: ReadonlyMap<string, Digest | undefined>;
+  readonly deletes: ReadonlySet<string>;
+}
+
+/**
+ * The record rows of `files` in one generation, read off the file, digest and
+ * deleted columns alone: {@link decodeSourceIndex} for a reader that asks a few
+ * files their names, which decodes no parse and no other row's edges. A segment
+ * of another format version throws as the whole decode does.
+ */
+export function recordNamesOf(input: Uint8Array, files: ReadonlySet<string>): RecordNames {
+  const opened = openSegment(FORMAT, VERSION, input, WHAT);
+  const strings = openStrings(opened.u8('strings.blob'), opened.u32('strings.off'), invalid).text;
+  const recordFile = opened.u32('records.file');
+  const recordDigest = opened.u32('records.digest');
+  sameLength(recordFile.length, [recordDigest]);
+  const puts = new Map<string, Digest | undefined>();
+  for (let row = 0; row < recordFile.length; row += 1) {
+    const at = recordFile[row]!;
+    if (at === NONE) throw invalid();
+    const file = strings(at);
+    if (!files.has(file)) continue;
+    const digest = recordDigest[row]!;
+    puts.set(file, digest === NONE ? undefined : strings(digest) as Digest);
+  }
+  const deletes = new Set<string>();
+  for (const at of opened.maybeU32('records.deleted')) {
+    if (at === NONE) throw invalid();
+    const file = strings(at);
+    if (files.has(file)) deletes.add(file);
+  }
+  return { puts, deletes };
+}
+
 /** Whether a later layer decided `key`, so its row is not decoded; a key two rows share is refused all the same. */
 function skips<K>(decided: ReadonlySet<K> | undefined, skipped: Set<K>, key: K): boolean {
   if (decided?.has(key) !== true) return false;
@@ -388,3 +443,11 @@ function joinedKey(digest: string, way: string): ParseKey {
 }
 
 function invalid(): Error { return new Error(`not a variance-authority ${WHAT}`); }
+
+/** `request_flags` in `native/src/parse_columns.rs`: guessed is the low bit, item the next. */
+function requestFlagsOf(flags: number): { readonly guessed?: true; readonly item?: true } {
+  return {
+    ...((flags & 1) === 0 ? {} : { guessed: true }),
+    ...((flags & 2) === 0 ? {} : { item: true }),
+  };
+}

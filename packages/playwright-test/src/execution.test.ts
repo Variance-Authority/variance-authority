@@ -1,15 +1,13 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { Page, TestInfo } from '@playwright/test';
+import type { TestInfo } from '@playwright/test';
 import {
   closeStage,
   foldStage,
-  moduleId,
   openStage,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
-import { caseIndexOf, coveringTests, readTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, coveringTests, decodeExecutionIndex, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import {
@@ -17,10 +15,7 @@ import {
   testOf,
   type ExecutionRecorder,
 } from './execution.js';
-import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
-import { variancePrecondition } from '@variance-authority/sense/precondition';
-import type { PreconditionStanding } from '@variance-authority/sense/journal';
-import { caseKey } from './test-coordinate.js';
+import { INSTRUMENTATION, inRoot, instrumented, pageReporting } from './execution.fixture.js';
 
 // These drive the fixture with a `TestInfo` cut to what recording reads, which
 // carries none of the worker internals a hook's describe is read from; that
@@ -29,35 +24,6 @@ vi.mock('./preconditions.js', async (original) => ({
   ...(await original<typeof import('./preconditions.js')>()),
   enterDescribes: async () => {},
 }));
-
-const INSTRUMENTATION = 'sense:instrument/presence-v6';
-
-/** A page that hands over whatever the test says it entered, once per drain. */
-function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {
-  const queue = [...journals];
-  return {
-    evaluate: async () => queue.shift(),
-  } as unknown as Page;
-}
-
-const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
-
-async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
-  const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-execution-'));
-  try {
-    await run(root);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-}
-
-/** One real module on disk, so the ordinals its id names mean something. */
-async function instrumented(
-  root: string,
-): Promise<{ cacheRoot: string; id: string; ordinals: number[] }> {
-  await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
-  return { cacheRoot: resolve(root, 'cache'), id: moduleId('price.js', SOURCE), ordinals: [0, 1] };
-}
 
 /**
  * End one test the way the runner ends it, through the fixture that is supposed
@@ -73,6 +39,7 @@ async function ended(
   owner: string,
   status: TestInfo['status'],
   duration?: number,
+  timeout?: number,
 ): Promise<void> {
   const declared = varianceCompletedFixtures.varianceCompleted as unknown as readonly [
     (
@@ -89,6 +56,7 @@ async function ended(
     titlePath: [owner, 'the one test'],
     testId: `${owner}-1`,
     ...(duration === undefined ? {} : { duration }),
+    ...(timeout === undefined ? {} : { timeout }),
   } as unknown as TestInfo);
 }
 
@@ -411,34 +379,73 @@ describe('a worker that is one of several', () => {
     });
   });
 
-  it('lays what a case said, in its beforeEach and its body, on its row, and a case that only said something is a case', async () => {
+  it('records the longest limit any attempt of a case ran under', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');
       const { cacheRoot, id } = await instrumented(root);
       const owner = 'tests/checkout.spec.ts';
-      const pays = { name: 'pays', id: 'one' };
-      const refunds = { name: 'refunds', id: 'two' };
+      const test = { name: 'the one test', id: `${owner}-1` };
 
-      let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, pays.id), depth: 1 };
-      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
-      variancePrecondition({ network: 'live' });
-      standing = { at: 'case', key: caseKey(owner, pays.id) };
-      variancePrecondition({ network: 'mocked' });
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      // `test.setTimeout` in the body leaves a later attempt with another limit.
+      for (const timeout of [30_000, 90_000, 60_000]) {
+        await recorder.note(
+          pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+          owner,
+          test,
+        );
+        await ended(recorder, root, owner, 'passed', 10, timeout);
+      }
+      await recorder.close();
+
+      expect(decodeExecutionIndex(await readFile(coverageFile)).tests.map((one) => one.limit)).toEqual([90_000]);
+    });
+  });
+
+  it('records no limit for a case one attempt of which ran with none', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+      const test = { name: 'the one test', id: `${owner}-1` };
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      // `test.setTimeout(0)` is Playwright's word for no timeout, the longest there is.
+      for (const timeout of [0, 30_000]) {
+        await recorder.note(
+          pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+          owner,
+          test,
+        );
+        await ended(recorder, root, owner, 'passed', 10, timeout);
+      }
+      await recorder.close();
+
+      expect(decodeExecutionIndex(await readFile(coverageFile)).tests.map((one) => one.limit)).toEqual([undefined]);
+    });
+  });
+
+  it('keeps the time and limit of a passing case that drove no page', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
         owner,
-        pays,
+        { name: 'drives a page', id: `${owner}-1` },
       );
-      recorder.mark(owner, true, pays);
-      standing = { at: 'case', key: caseKey(owner, refunds.id) };
-      variancePrecondition({ seeded: true });
-      recorder.mark(owner, true, refunds);
+      recorder.mark(owner, true, { name: 'drives a page', id: `${owner}-1` }, 10, 30_000);
+      // A test of an API alone asks for no page, and is as close to its limit as any other.
+      recorder.mark(owner, true, { name: 'calls the API', id: `${owner}-2` }, 4_900, 5_000);
       await recorder.close();
 
-      const index = decodeExecutionIndex(await readFile(coverageFile));
-      expect(index.tests.map((one) => [one.name, one.preconditions?.map(({ name, value, level }) => [name, value, level])]))
-        .toEqual([['pays', [['network', 'mocked', 0xffff]]], ['refunds', [['seeded', true, 0xffff]]]]);
-      expect(index.tests[0]!.preconditions![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
+      expect(decodeExecutionIndex(await readFile(coverageFile)).tests.map(({ name, duration, limit }) => [name, duration, limit])).toEqual([
+        ['calls the API', 4_900, 5_000],
+        ['drives a page', 10, 30_000],
+      ]);
     });
   });
 

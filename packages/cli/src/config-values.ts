@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
 import { OperatorError } from './exit.js';
+import { githubActionsToken } from './github-actions-token.js';
 
 /**
  * The primitive checks every rule in the config is built out of, and the refusal
@@ -136,7 +137,7 @@ export function secret(
   key: string,
   options: ParseOptions,
   field = key,
-): string {
+): string | Credential {
   const value = source[key];
   if (typeof value === 'string') {
     if (value.trim() === '') fail(field, `must be a non-empty string, not ${quote(value)}`, options);
@@ -147,6 +148,9 @@ export function secret(
     fail(field, WRONG_SHAPE + quote(value), options);
   }
 
+  const issued = issuedCredential(value as Record<string, unknown>, field, options);
+  if (issued !== undefined) return issued;
+
   const variable = (value as Record<string, unknown>)['env'];
   if (typeof variable !== 'string' || variable.trim() === '') {
     fail(`${field}.env`, WRONG_SHAPE + quote(variable), options);
@@ -154,6 +158,9 @@ export function secret(
 
   return held(variable, field, options);
 }
+
+/** A token read when it is sent, which for a runner-issued one means fetched. */
+export type Credential = () => string | Promise<string>;
 
 /**
  * A secret one command needs and the others must not be stopped by.
@@ -174,7 +181,7 @@ export function declaredSecret(
   key: string,
   options: ParseOptions,
   field = key,
-): () => string {
+): Credential {
   const value = source[key];
 
   if (typeof value === 'string') {
@@ -186,12 +193,31 @@ export function declaredSecret(
     fail(field, WRONG_SHAPE + quote(value), options);
   }
 
+  const issued = issuedCredential(value as Record<string, unknown>, field, options);
+  if (issued !== undefined) return issued;
+
   const variable = (value as Record<string, unknown>)['env'];
   if (typeof variable !== 'string' || variable.trim() === '') {
     fail(`${field}.env`, WRONG_SHAPE + quote(variable), options);
   }
 
   return () => held(variable, field, options);
+}
+
+/** `{ "github-actions": { "audience": "…" } }`: the token the runner signs, asked for on use. */
+function issuedCredential(
+  value: Record<string, unknown>,
+  field: string,
+  options: ParseOptions,
+): Credential | undefined {
+  const declared = value['github-actions'];
+  if (declared === undefined) return undefined;
+
+  const audience = (declared as Record<string, unknown> | null)?.['audience'];
+  if (typeof audience !== 'string' || audience.trim() === '') {
+    fail(`${field}.github-actions.audience`, `must name the deployment's audience, not ${quote(audience)}`, options);
+  }
+  return githubActionsToken(audience, field);
 }
 
 /** The one step {@link secret} and {@link declaredSecret} disagree about when to take. */
@@ -210,8 +236,8 @@ function held(variable: string, field: string, options: ParseOptions): string {
 }
 
 const WRONG_SHAPE =
-  'must be a non-empty string, or `{ "env": "NAME" }` naming the environment variable that ' +
-  'holds it, not ';
+  'must be a non-empty string, `{ "env": "NAME" }` naming the environment variable that ' +
+  'holds it, or `{ "github-actions": { "audience": "…" } }`, not ';
 
 export function optionalText(
   source: Record<string, unknown>,

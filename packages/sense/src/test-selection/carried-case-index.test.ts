@@ -156,6 +156,8 @@ const whole = (file: string) => ({ file, complete: true });
 /**
  * The mainline's record over `text`, then `FILE` rewritten to `moved` and a run
  * of `THREE` landed over `recorded` alone, keeping its cases when `keeps` says so.
+ * One that keeps none runs `THREE` in part: a run that finished a test file and
+ * kept no cases leaves no case index to carry.
  */
 function landOver(text: string, moved: string, keeps: boolean, recorded = OTHER): Promise<Landed> {
   return inRepository(text, moved, async ({ root, cacheRoot, git }) => {
@@ -167,7 +169,8 @@ function landOver(text: string, moved: string, keeps: boolean, recorded = OTHER)
     });
     await writeFile(resolve(root, FILE), moved, 'utf8');
     const over = recorded === FILE ? moved : OTHER_TEXT;
-    await landRun(coverageFile, recording(recorded, over, [THREE], commit), root, cacheRoot, keeps
+    const run = recording(recorded, over, [THREE], commit);
+    await landRun(coverageFile, keeps ? run : { ...run, tests: run.tests.map((test) => ({ ...test, complete: false })) }, root, cacheRoot, keeps
       ? { fresh: casesOf(recorded, over, [THREE]), run: { tests: [whole(THREE)], commit } }
       : undefined);
     return coverageFile;
@@ -251,12 +254,14 @@ describe('a case index carried over a module whose text moved on disk', () => {
     expect(landed.covering).toEqual({ 'n + 1': [caseOf(ONE)], 'n * 2': [caseOf(TWO)] });
   });
 
-  it('stays at the lines the rows stayed at, where no address carries the rows onto the text on disk', async () => {
-    // The rows keep the text they were recorded over, and a reader that checks
-    // it against the tree charges the module whole; the index stays beside them.
+  it('stands at the lines on disk, where no address carries the rows onto the text there', async () => {
+    // A callback written in front of two others moves their seats, so no
+    // callback's address names one region in both cuts: the rows are re-cut to
+    // the text on disk, each callback taking what the top level took, and the
+    // index stands beside them.
     const landed = await landOver(SEATED, RESEATED, false);
 
-    expect(landed.rows).toEqual(['anon#0 2-4', 'anon#1 5-7']);
+    expect(landed.rows).toEqual(['anon#0 4-6', 'anon#1 7-9', 'anon#2 10-12']);
     expect(landed.index).toEqual(landed.rows);
   });
 

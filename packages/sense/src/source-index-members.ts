@@ -25,13 +25,14 @@ export function openMembers(
   const request = opened.u32('members.request');
   const name = opened.u32('members.name');
   const line = opened.u32('members.line');
+  const throughDefault = opened.u8('members.through-default');
   validateOffsets(parseMembers, name.length, parseCount, reject);
-  if (request.length !== name.length || line.length !== name.length) reject();
+  if (request.length !== name.length || line.length !== name.length || throughDefault.length !== name.length) reject();
 
   return (row, requests) => {
     const members = rangeOf(parseMembers, row, reject).map((at): Member => {
       if (request[at]! >= requests) reject();
-      return { request: request[at]!, name: text(name[at]!), line: line[at]! };
+      return { request: request[at]!, name: text(name[at]!), line: line[at]!, ...(throughDefault[at] === 1 ? { throughDefault: true } : {}) };
     });
     return members.length === 0 ? {} : { members };
   };

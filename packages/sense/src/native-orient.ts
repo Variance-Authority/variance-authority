@@ -352,24 +352,32 @@ export interface NativeOrientMaps {
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
 export interface NativeDependencyLexicon {
   /** Refresh all installed third-party public declarations on the Rust side, resolving under `tsconfig` as the scan did. */
-  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string, tsconfig?: string | false): Promise<{
-    readonly path: string; readonly packages: number; readonly entrypoints: number;
+  refreshDependencyLexicon(root: string, index: string, path: string, sites: string, tsconfig?: string | false): Promise<{
+    readonly path: string; readonly sites: string; readonly packages: number; readonly entrypoints: number;
     readonly reused: number; readonly unavailable: number; readonly unresolved?: number; readonly unchanged: boolean;
-    /** The last refresh's record carried, and of the source only what the index wrote since read. */
-    readonly merged: boolean;
+    /** The source files whose requests this refresh recorded. */
+    readonly appended: number;
+    /** The requests file was written whole, because its base or the names a request is internal to moved. */
+    readonly rebuilt: boolean;
   }>;
-  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+  queryDependencyLexicon(path: string, sites: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
-  dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
+  dependencyStack(path: string, sites: string, files: string[], offset: number, limit: number): string | null;
   /** A question's distinct stems as `[stem, word]`, split the way package descriptions are. */
   describedWords(query: string): [string, string][];
+  /** Per text, how many of the adjacent stem pairs of `query` it writes at the distance the question puts them. */
+  nearOf(query: string, texts: string[]): number[];
+  /** Per text, the first paragraph writing the whole of `query`'s stems in order; null when none does. */
+  phraseOf(query: string, texts: string[]): (number | null)[];
   /** Each word's stem, in order. */
   wordStems(words: string[]): string[];
 }
 
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
-  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
+  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; doc?: string }[];
+  /** Each `export … from`, named or `*`, as a row of its file, its name and where it leads. */
+  forwards: string[];
   /** Imports of a file past every specifier its package declares. */
   deep: NativeByPath[];
   /** Imports of a file of a package that declares no entry. */
@@ -384,6 +392,8 @@ export interface NativeIndexedUsage {
 export interface NativeNameUse {
   key: string;
   name: string;
+  /** The name the importing file binds it to, or passes it on as, when its binding renames it with `as`. */
+  local?: string | null;
   by: string;
   at: string;
   line: number;
@@ -391,6 +401,16 @@ export interface NativeNameUse {
   kind: 'story' | 'test' | 'source';
   through?: 'dynamic' | 'namespace' | null;
   throughLine: number;
+  /** Read off the module's `default`, which under interop is a CommonJS module's `module.exports`. */
+  throughDefault: boolean;
+  /** The module goes, whole, somewhere the reader does not follow: the line may read the name. */
+  whole: boolean;
+  /**
+   * The lines of the importing file that use what the import binds, in line
+   * order; absent where they were not read: a member read, which binds
+   * nothing, and the usage the Help value records.
+   */
+  lines?: number[] | null;
 }
 
 /** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
@@ -399,6 +419,34 @@ export interface NativeImporters {
   uses: NativeNameUse[];
   /** Every file that passes the name on, in code-unit order; none of the files asked about. */
   through: string[];
+  /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
+  inFile: NativeInFile[];
+  /**
+   * Every namespace a file passes the name on inside, by file in code units,
+   * then by name: `export * as shout` passes `greet` as `shout.greet`, `name`
+   * `shout` and `members` `['greet']`, the last member the name itself.
+   */
+  namespaces: NativeNamespace[];
+  /**
+   * Every file, in code-unit order, with an import the index resolved to no
+   * file that could take the name: a use there is not listed.
+   */
+  unresolved: string[];
+}
+
+/** A namespace one file passes a name on inside, under the name it exports it as. */
+export interface NativeNamespace {
+  at: string;
+  name: string;
+  members: string[];
+}
+
+/** One line of a file that uses a name the file declares at its top level. */
+export interface NativeInFile {
+  at: string;
+  line: number;
+  by: string;
+  kind: 'story' | 'test' | 'source';
 }
 
 /** An import of a file rather than an entry, with the file it resolved to when the index recorded one. */

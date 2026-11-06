@@ -11,9 +11,9 @@ the answer. Run them from the checkout you are asking about.
 | nothing yet, in a repository you do not know | `orient`, then `orient --area <id>` |
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
-| one test, and the question of what only it checks | `test-composition --file <test> --name <words>` |
+| one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
 | a place, and the question of what it may import | `stack --from <path>` |
-| a suite that is slow | `slowest-tests`, scoped with `--from` or `--to` |
+| a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
 
 ## `orient`
 
@@ -70,9 +70,11 @@ smaller test with nine tenths of its footprint inside this one's, a whole a
 larger test holding nine tenths of this one's. What no piece entered is listed
 region by region: `own` is a module no piece entered, `reached` is a path
 through a piece's module that only this test takes. A test with neither runs
-nothing a nearer test does not run, and can check only how the pieces are put
-together. It reads execution: a mocked module is
-entered by nobody, so a test that mocks its pieces lists none.
+nothing a nearer test does not run. Every piece and whole is a candidate,
+inferred from what each test ran: a piece runs the same code, which does not
+establish that it checks the same thing, so a test with neither may still check
+something its pieces do not. It reads execution: a mocked module is entered by
+nobody, so a test that mocks its pieces lists none.
 
 ## `stack`
 
@@ -89,19 +91,32 @@ before you write code against the package; nothing is installed or copied for
 you. Only `skills/<name>/SKILL.md` beside the package's `package.json` is read,
 the layout [TanStack Intent](https://tanstack.com/intent/latest) set for npm. A
 skill a package keeps elsewhere and installs with its own command, as
-Playwright does for its CLI skills, is not listed. `search` does not list skills. A lexicon written before skills were read says so
-in the answer; `variance index` reads them.
+Playwright does for its CLI skills, is not listed. `search` does not list skills.
 
 ## `slowest-tests`
 
-The test files, then the test cases, that the latest recorded run spent longest
-in, with the duration the runner reported. Nothing is timed here. A file or case
+The answer opens with the record it read: whose it is, at which commit, and how
+long ago its latest run landed. A figure is one reading, not an average, so weigh it by those.
+
+Then the cases closest to their limit, ranked by how much of it they ran, so
+4.9 s of 5 s stands above 40 s of 60 s. Each row states the run and the limit
+and judges neither: the run spans hooks and every attempt, the limit one
+attempt, so a passing case can read 5.3 s of 5 s. A case with no recorded
+limit is counted, and a record older than the column says so and lists its cases
+by time alone.
+
+Then the test files and test cases that run spent longest in. A file's time is what running it cost: the larger of the duration its
+runner reported and its phases summed, so the environment, setup files and
+import before its first case count, as Vitest's own file duration does not.
+Nothing is timed here. A file or case
 with no reported duration is counted apart and never ranked as fast. `--from`
 keeps the tests declared under the paths you give. `--to` keeps the tests that,
 in the recording, ran code in those paths, the same reading `variance covering`
 makes, not an import walk. A `--to` path the recording has no row for is named
 as unrecorded. A path that is in neither the recording nor the checkout is
-refused.
+refused. `--over 3s` keeps the cases that ran at least that long, in both
+rankings, leaves the files out and counts what ran faster; `500ms` and `1.5s`
+read too.
 
 For the time each visual subject takes, ask `variance ask costs`, which needs
 the config.

@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
-import { readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, discover, grep, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
-import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
+import { answerSearch, discover, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import { readTree, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
+import { invocationOf } from './asking.js';
 import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
 
 /**
@@ -23,13 +24,14 @@ export interface Answering {
   /** The answer as data, for the one question that has a shape: `search`. */
   readonly data?: () => SearchAnswer;
   readonly at: string | undefined;
-}
-
-/** The question `search` was asked, read off the input its schema accepted. */
-function searchQuestion(input: Readonly<Record<string, unknown>>) {
-  const from = startPointArg(input, 'from');
-  const to = startPointArg(input, 'to');
-  return { query: stringArg(input, 'query'), ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) };
+  /** True when the reading was opened at its age and nothing compared it with the checkout. */
+  readonly unseen?: boolean;
+  /** The published files that were there and did not open; absent when none failed. */
+  readonly unopened?: readonly Unopened[];
+  /** The workspace value the answer comes from, when it is one. */
+  readonly help?: Help;
+  /** Whether the files the answer names changed since its generation, as `outlived` from the help package says, for the request that began at `started`, a refusal resting on what it rested on in `before`; absent for a reading that cannot say. */
+  readonly outlived?: (started: number, before?: Help) => Promise<boolean>;
 }
 
 export async function wholeSource(
@@ -42,9 +44,11 @@ export async function wholeSource(
   const sourced = await read(root, reading);
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
-    answer: () => tool.run(sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }),
-    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree, root),
+    answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
+    data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
+    help: sourced.help,
+    outlived: (started, before) => outlived(tool.name, sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }, started, before),
   };
 }
 
@@ -54,17 +58,21 @@ export async function searchSource(
   options: SourceReadOptions,
 ): Promise<Answering> {
   let tree: Tree | undefined;
-  const index = await readSearchForAnswer(root, {
+  const read = await readSearchForAnswer(root, {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
+  const { index, compared } = read;
+  const { importing, unopened } = await countingShown(read, searchQuestionOf(input), tree, root);
   return {
-    answer: () => answerSearch(index, input, tree, root),
-    data: () => searchNames(index, searchQuestion(input), tree, root),
+    answer: () => answerSearch(index, input, tree, root, importing),
+    data: () => searchNames(index, searchQuestionOf(input), tree, root, importing),
     at: index.generation?.generatedAt,
+    unseen: !compared,
+    ...(unopened === undefined ? {} : { unopened }),
   };
 }
 
@@ -77,7 +85,7 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
   // Unread is not fatal: `grep` refuses a start point it has no tree for, in
   // the sentence that says so, and a call with no start point needs none.
   const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
-  return { answer: () => grep.run(undefined, input, { ...(tree === undefined ? {} : { tree }), root }), at: undefined };
+  return { answer: () => grep.run(undefined, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })), at: undefined };
 }
 
 /**
@@ -87,7 +95,7 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
  */
 export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
   const read = await readNamedTree(root, input);
-  return { answer: () => discover.run(undefined, input, { ...read, root }), at: undefined };
+  return { answer: () => discover.run(undefined, input, invocationOf({ ...read, root })), at: undefined };
 }
 
 /**
@@ -107,7 +115,7 @@ export async function intersectionSource(
   const names = namesWanted(input) ? (await readNamedTree(root, input)).names : undefined;
   const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
   return {
-    answer: () => intersection.run(sourced.help, input, { ...drawn, root }),
+    answer: () => intersection.run(sourced.help, input, invocationOf({ ...drawn, root })),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -119,7 +127,7 @@ export async function intersectionSource(
  * generation to date the answer with.
  */
 export function orientSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => orient.run(undefined, input, { root }), at: undefined };
+  return { answer: () => orient.run(undefined, input, invocationOf({ root })), at: undefined };
 }
 
 /**
@@ -128,7 +136,7 @@ export function orientSource(root: string, input: Readonly<Record<string, unknow
  * to read first and no generation to date the answer with.
  */
 export function slowestSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => slowestTests.run(undefined, input, { root }), at: undefined };
+  return { answer: () => slowestTests.run(undefined, input, invocationOf({ root })), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
@@ -138,6 +146,7 @@ export async function readSource(root: string, options: SourceReadOptions = {}):
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
+    ...(options.current === true ? { refreshAfterMs: 0 } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
   return { help, tree: () => tree };
@@ -164,10 +173,10 @@ export async function readChanged(path: string): Promise<readonly string[]> {
 
 /** `journey-map` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
 export function journeyMapSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => journeyMapTool.run(undefined, input, { root }), at: undefined };
+  return { answer: () => journeyMapTool.run(undefined, input, invocationOf({ root })), at: undefined };
 }
 
 /** `test-composition` opens the same recording `journey-map` does, and dates nothing for the same reason. */
 export function testCompositionSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => testCompositionTool.run(undefined, input, { root }), at: undefined };
+  return { answer: () => testCompositionTool.run(undefined, input, invocationOf({ root })), at: undefined };
 }

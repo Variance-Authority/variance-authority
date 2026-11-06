@@ -64,6 +64,12 @@ import type { SelectInput, TestSelection } from './select.js';
 export interface Leg {
   readonly from: number;
   readonly to: number;
+  /**
+   * Where the leg was asked: `environment` when a seam read it from
+   * `VARIANCE_AUTHORITY_AT_DISTANCE`, so the notes name that variable rather
+   * than a flag the run has no command line for. The `--at-distance` flag when absent.
+   */
+  readonly by?: 'environment';
 }
 
 /**
@@ -89,7 +95,21 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       ...selection,
       ...asked,
       left: [],
-      notes: [`\`--at-distance ${range}\` runs every test file: nothing was narrowed`, ...selection.notes],
+      notes: [`${asking(leg, range)} runs every test file: nothing was narrowed`, ...selection.notes],
+    };
+  }
+
+  // Hops read off edges the checkout may no longer hold place no test: every
+  // leg runs what the selection runs.
+  if (input.ground.stale !== undefined) {
+    return {
+      ...selection,
+      ...asked,
+      left: [],
+      notes: [
+        `${asking(leg, range)} runs every selected test file: the hops are measured on a graph that is not the checkout's, because ${input.ground.stale}`,
+        ...selection.notes,
+      ],
     };
   }
 
@@ -138,14 +158,18 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     // counts are named apart rather than as a share of the whole.
     because:
       `skipping ${many(skip.length, 'test file')}: ${selection.skip.length} of ${whole} recorded whole ` +
-      `covered no changed line, and ${outside.length} ${outside.length === 1 ? 'is' : 'are'} outside \`--at-distance ${range}\`; ` +
+      `covered no changed line, and ${outside.length} ${outside.length === 1 ? 'is' : 'are'} outside ${asking(leg, range)}; ` +
       'every other test file runs',
     notes: [
       ...byDistance(reading, measured),
       ...placedNote(placedHere),
-      ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
-      ...unseenNote(unseen.length, `${leg.to + 1}-`),
-      ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
+      ...leftNote(further, 'for a later leg', again(leg, `${leg.to + 1}-`)),
+      ...unseenNote(unseen.length, again(leg, `${leg.to + 1}-`)),
+      ...leftNote(
+        nearer.length,
+        `for an earlier leg, nearer than ${many(leg.from, 'hop')}`,
+        again(leg, spelled({ from: 0, to: leg.from - 1 })),
+      ),
       ...overdueNote(overdue.length),
       ...selection.notes,
     ],
@@ -194,21 +218,21 @@ function placedNote(count: number): readonly string[] {
 }
 
 /** How many selected files this leg left, and the leg that runs them. */
-function leftNote(count: number, where: string, range: string): readonly string[] {
+function leftNote(count: number, where: string, rerun: string): readonly string[] {
   if (count === 0) return [];
   return [
     `${many(count, 'selected test file')} ${count === 1 ? 'is' : 'are'} left ${where}: ` +
-      `the same command with \`--at-distance ${range}\` runs ${count === 1 ? 'it' : 'them'}`,
+      `${rerun} runs ${count === 1 ? 'it' : 'them'}`,
   ];
 }
 
 /** How many unplaced tests the record never saw whole this leg left, for the open leg. */
-function unseenNote(count: number, range: string): readonly string[] {
+function unseenNote(count: number, rerun: string): readonly string[] {
   if (count === 0) return [];
   return [
     `${many(count, 'test file')} the record never saw whole and the change did not enter ` +
       `${count === 1 ? 'is' : 'are'} left for the open leg: ` +
-      `the same command with \`--at-distance ${range}\` runs ${count === 1 ? 'it' : 'them'}`,
+      `${rerun} runs ${count === 1 ? 'it' : 'them'}`,
   ];
 }
 
@@ -224,6 +248,16 @@ function overdueNote(count: number): readonly string[] {
 /** The leg as `json` gives it: an open end is absent rather than a sentinel number. */
 function legOf(leg: Leg): { readonly from: number; readonly to?: number } {
   return leg.to === Number.MAX_SAFE_INTEGER ? { from: leg.from } : { from: leg.from, to: leg.to };
+}
+
+/** The leg named as it was asked: the variable a seam read, or the flag. */
+function asking(leg: Leg, range: string): string {
+  return leg.by === 'environment' ? `\`VARIANCE_AUTHORITY_AT_DISTANCE=${range}\`` : `\`--at-distance ${range}\``;
+}
+
+/** What asks for another leg the way this one was asked. */
+function again(leg: Leg, range: string): string {
+  return leg.by === 'environment' ? `the same run with ${asking(leg, range)}` : `the same command with ${asking(leg, range)}`;
 }
 
 /** The leg as it was typed. */

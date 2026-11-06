@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
 import { encodeSuiteIndex, type SuiteIndex } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
@@ -19,11 +19,11 @@ let home: string;
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-share-suite-index-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -42,7 +42,7 @@ async function holding(name: string, commit: string): Promise<void> {
 
 /** A reader on a machine that kept no index of its own. */
 async function readFresh(dir: string): ReturnType<typeof mainlineIndex> {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = await mkdtemp(join(home, 'cold-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', await mkdtemp(join(home, 'cold-')));
   return mainlineIndex(shareConfig(home), { env: {}, cwd: dir });
 }
 

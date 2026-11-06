@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
-  encodeExecutionIndex,
+  encodeAsSetExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
@@ -23,15 +23,18 @@ const AFTER = BEFORE.replace('0.9', '0.8');
 const SPEC = 'test/total.test.ts';
 const TEST = "import { applyDiscount } from '../src/total';\nit('discounts', () => applyDiscount(1));\n";
 
-function row(name: string, preconditions?: ExecutionTest['preconditions'], id = `${SPEC} > ${name}`): ExecutionTest {
-  return { id, file: SPEC, name, stopped: false, ...(preconditions === undefined ? {} : { preconditions }) };
+/** One thing a case said, as the frame spells it: name, value, call site, level. */
+type Item = readonly [name: string, value: string | number | boolean, site: string, level: number];
+
+function row(name: string, said?: readonly Item[], id = `${SPEC} > ${name}`): ExecutionTest {
+  return { id, file: SPEC, name, stopped: false, ...(said === undefined ? {} : { said: JSON.stringify({ said: said.map(([name, value, site, level]) => [name, JSON.stringify(value), site, level]) }) }) };
 }
 
 const SAID: readonly ExecutionTest[] = [
-  row('flag off', [{ name: 'flag', value: 'ff-off', site: `${SPEC}:7`, level: 1 }]),
+  row('flag off', [['flags:checkout', 'ff-off', `${SPEC}:7`, 1]]),
   row('flag on', [
-    { name: 'flag', value: 'ff-on', site: `${SPEC}:3`, level: 1 },
-    { name: 'network', value: 'mocked', site: `${SPEC}:1`, level: 1 },
+    ['flags:checkout', 'ff-on', `${SPEC}:3`, 1],
+    ['network:api', 'mocked', `${SPEC}:1`, 1],
   ]),
   row('plain', []),
 ];
@@ -74,7 +77,7 @@ async function changed(tests: readonly ExecutionTest[]): Promise<{ root: string;
     }],
   });
   await writeFile(coverageFile, withCaseSections(await readFile(coverageFile), {
-    index: encodeExecutionIndex({
+    index: encodeAsSetExecutionIndex({
       tests,
       modules: [{
         file: 'src/total.ts',
@@ -100,13 +103,13 @@ describe('the cases a review lists under a changed function, with what each arra
 
     const region = answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((one) => one.name === 'applyDiscount');
     expect(region?.called.map((called) => [called.name, called.preconditions])).toEqual([
-      ['flag off', [{ name: 'flag', value: 'ff-off', site: `${SPEC}:7`, level: 1 }]],
-      ['flag on', [{ name: 'flag', value: 'ff-on', site: `${SPEC}:3`, level: 1 }, { name: 'network', value: 'mocked', site: `${SPEC}:1`, level: 1 }]],
+      ['flag off', [{ name: 'flags:checkout', value: 'ff-off', site: `${SPEC}:7`, level: 1 }]],
+      ['flag on', [{ name: 'flags:checkout', value: 'ff-on', site: `${SPEC}:3`, level: 1 }, { name: 'network:api', value: 'mocked', site: `${SPEC}:1`, level: 1 }]],
       ['plain', []],
     ]);
     const markdown = formatReview(answer, 'markdown');
     // `network` is said by one case only, so it does not split the cases and the summary leaves it out.
-    expect(markdown).toMatch(/\| 🟢 \| `applyDiscount` \|[^\n]*\| 3; ran under flag=ff-off, flag=ff-on \|/u);
+    expect(markdown).toMatch(/\| 🟢 \| `applyDiscount` \|[^\n]*\| 3; ran under flags:checkout=ff-off, flags:checkout=ff-on \|/u);
     expect(markdown).not.toContain('unmeasured');
   });
 
@@ -114,40 +117,51 @@ describe('the cases a review lists under a changed function, with what each arra
     // Said out of order: `zone` before `Locale`, `east` before `West`, `fr` before `de`.
     const { root, first } = await changed([
       row('first', [
-        { name: 'zone', value: 'east', site: `${SPEC}:1`, level: 1 },
-        { name: 'Locale', value: 'fr', site: `${SPEC}:2`, level: 1 },
+        ['geo:zone', 'east', `${SPEC}:1`, 1],
+        ['Locale', 'fr', `${SPEC}:2`, 1],
       ]),
       row('second', [
-        { name: 'zone', value: 'West', site: `${SPEC}:5`, level: 1 },
-        { name: 'Locale', value: 'de', site: `${SPEC}:6`, level: 1 },
+        ['geo:zone', 'West', `${SPEC}:5`, 1],
+        ['Locale', 'de', `${SPEC}:6`, 1],
       ]),
     ]);
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('| 2; ran under Locale=de, Locale=fr, zone=West, zone=east |');
+    expect(markdown).toContain('| 2; ran under Locale=de, Locale=fr, geo:zone=West, geo:zone=east |');
   });
 
   it('keeps a flag set and a flag said as the text `true` apart, as `covering` prints them', async () => {
     const { root, first } = await changed([
-      row('set', [{ name: 'flag', value: true, site: `${SPEC}:1`, level: 1 }]),
-      row('said', [{ name: 'flag', value: 'true', site: `${SPEC}:5`, level: 1 }]),
+      row('set', [['flags:checkout', true, `${SPEC}:1`, 1]]),
+      row('said', [['flags:checkout', 'true', `${SPEC}:5`, 1]]),
     ]);
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('| 2; ran under flag, flag=true |');
+    expect(markdown).toContain('| 2; ran under flags:checkout, flags:checkout=true |');
+  });
+
+  it('splits two record values of one key apart, by their JSON', async () => {
+    const { root, first } = await changed([
+      row('one', [['fixture:cart', { items: 1 }, `${SPEC}:1`, 1]]),
+      row('two', [['fixture:cart', { items: 2 }, `${SPEC}:5`, 1]]),
+    ]);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('| 2; ran under fixture:cart={"items":1}, fixture:cart={"items":2} |');
   });
 
   it('prints a value as its text, never as markup the comment would render', async () => {
     const { root, first } = await changed([
-      row('bold', [{ name: 'label', value: '<b>x</b>', site: `${SPEC}:1`, level: 1 }]),
-      row('closing', [{ name: 'label', value: '</summary>', site: `${SPEC}:5`, level: 1 }]),
+      row('bold', [['copy:label', '<b>x</b>', `${SPEC}:1`, 1]]),
+      row('closing', [['copy:label', '</summary>', `${SPEC}:5`, 1]]),
     ]);
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('ran under label=&lt;/summary&gt;, label=&lt;b&gt;x&lt;/b&gt; |');
+    expect(markdown).toContain('ran under copy:label=&lt;/summary&gt;, copy:label=&lt;b&gt;x&lt;/b&gt; |');
     expect(markdown).not.toContain('<b>x</b>');
     expect(markdown.split('</summary>').length).toBe(markdown.split('<summary>').length);
   });
@@ -162,7 +176,7 @@ describe('the cases a review lists under a changed function, with what each arra
   });
 
   it('says what the cases arranged is unmeasured, never none, from a record made before cases said anything', async () => {
-    const { root, first } = await changed(SAID.map(({ preconditions: _, ...test }) => test));
+    const { root, first } = await changed(SAID.map(({ said: _, ...test }) => test));
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
@@ -179,5 +193,28 @@ describe('the cases a review lists under a changed function, with what each arra
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
     expect(markdown).toContain('1 of 4 cases was recorded without preconditions, so the state it ran under is unmeasured.');
+  });
+
+  it('gives a case that misused a breadcrumb its misuse apart from what the code read, and splits nothing by it', async () => {
+    const reading: ExecutionTest = {
+      id: `${SPEC} > reads`, file: SPEC, name: 'reads', stopped: false,
+      said: JSON.stringify({
+        said: [],
+        read: [['flags:checkout', '"on"', 'src/total.ts:2', 0xffff]],
+        misused: [['key', '7', 'src/total.ts:2', 0xffff]],
+      }),
+    };
+    const { root, first } = await changed([reading]);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    const region = answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((one) => one.name === 'applyDiscount');
+    expect(region?.called.map(({ reads, misused }) => ({ reads, misused }))).toEqual([{
+      reads: [{ name: 'flags:checkout', value: 'on', site: 'src/total.ts:2', level: 0xffff }],
+      misused: [{ argument: 'key', value: 7, site: 'src/total.ts:2', level: 0xffff }],
+    }]);
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).not.toMatch(/(^|[ ;|])read the key/mu);
+    expect(markdown).toContain('misused varianceBreadcrumb at src/total.ts:2 by 1: the key 7 is not a string');
   });
 });

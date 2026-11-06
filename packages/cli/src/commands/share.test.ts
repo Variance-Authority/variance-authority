@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
 import { caseSectionsOf, commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
@@ -30,11 +30,11 @@ let home: string;
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-share-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cache'));
 });
 
 afterEach(async () => {
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -426,7 +426,7 @@ async function pullRequest(head: string): Promise<Env> {
 }
 
 async function emptyLocalCache(): Promise<void> {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = await mkdtemp(join(home, 'cold-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', await mkdtemp(join(home, 'cold-')));
 }
 
 async function git(cwd: string, ...args: string[]): Promise<string> {

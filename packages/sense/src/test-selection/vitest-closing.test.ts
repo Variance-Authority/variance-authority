@@ -46,6 +46,7 @@ describe('a run whose runner is the project\'s own, closed with no reporter of t
 
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]![0]).toMatch(/^variance-authority: this run recorded nothing\./);
+    expect(warn.mock.calls[0]![0]).toMatch(/so no worker reported which files passed\. The record is as it was before this run\.$/);
     expect(existsSync(resolve(root, 'coverage.bin'))).toBe(false);
     expect((await readdir(root)).filter((name) => name.startsWith('.run-'))).toEqual([]);
   });

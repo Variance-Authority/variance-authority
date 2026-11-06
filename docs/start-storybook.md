@@ -10,9 +10,9 @@ and readiness. Those stay with Storybook; nothing here re-implements them.
 
 ## What you get that you do not have now
 
-`@storybook/test-runner` runs your play functions and assertions in a browser.
-It keeps no approved screenshots, so a visual change nobody wrote an assertion
-for goes through green. Chromatic stores them and renders and reviews in its
+Storybook's Vitest addon, `@storybook/addon-vitest`, runs each story and its
+play function as a test in a browser. It keeps no approved screenshots, so a
+visual change nobody wrote an assertion for goes through green. Chromatic stores them and renders and reviews in its
 own cloud.
 
 Here:
@@ -125,12 +125,16 @@ export const Dense = {
 | `viewport` | Any of `width`, `height`, `deviceScaleFactor` and `colorScheme`, laid over the run's `viewport`. The story keeps its subject id and its approved image. |
 | `widths` | The story is read once at each width, as `<story id>@<width>`, and each width has its own approved image. Put `widths` in `preview.ts` when every story in a design system should be seen at every breakpoint. A component library usually leaves it out, and each story is read once. |
 
-The collector reads these values from the built preview before the first story
-is read. A key it does not recognise, or a value it cannot use, such as a width
-written as `'1280px'`, leaves that story out of the run, and the report names
-the key. Reading the story at the run's size would hide the breakpoint you
-asked for. If the preview cannot list its stories at all, the run reads every
-story at the run's `viewport` and prints a warning saying no parameters applied.
+The collector reads these values when it reaches the story, from the file the
+preview loads to show it, so no story file is imported before its story comes
+up and each file's import is timed on the first story that needed it. Every
+width is read on that same page: a story at three widths costs one visit, not
+three. A key the collector does not recognise, or a value it cannot use, such
+as a width written as `'1280px'`, leaves that story out of the run, and the
+report names the key. Reading the story at the run's size would hide the
+breakpoint you asked for. If the preview cannot give a story's parameters, the
+run reads that story at the run's `viewport` and prints a warning saying its
+parameters did not apply.
 
 ## Write the run config
 
@@ -258,6 +262,10 @@ painter and use it for both:
   for both and owns the identity. It is mutually exclusive with `browser`, and
   it has no authentication of its own, so it belongs inside a network you
   control.
+
+A third way paints only in CI: keep the baselines in the runner's cache, and
+accept with a label. [Baseline placement](placement.md#the-whole-job) prints that
+job whole.
 
 ## Go deeper
 

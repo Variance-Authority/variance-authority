@@ -56,6 +56,7 @@
  * Reflection is invisible, as it is to the compiler.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { TreeWorld } from './world.js';
 
 /** Extensions a JVM import can land on. A Kotlin file may import a Java class and back. */
@@ -158,7 +159,7 @@ function rootIndex(world: TreeWorld): readonly string[] {
 
     // Shortest first, so the outermost root is tried before a directory that is
     // only a root because nothing in it said otherwise.
-    return [...roots].sort((a, b) => a.length - b.length || (a < b ? -1 : 1));
+    return [...roots].sort((a, b) => a.length - b.length || codeUnitOrder(a, b));
   });
 }
 

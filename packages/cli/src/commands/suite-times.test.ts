@@ -1,18 +1,20 @@
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync } from 'node:fs';
+import { realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { cloneOf, published } from './mainline-fixture.js';
 import { suiteTimes } from './suite-times.js';
 
 describe('the times a sharded run places its files by', () => {
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-times-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-times-cache-')));
   });
 
   afterEach(() => {
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('reads them from the record a selection reads', async () => {
@@ -34,6 +36,17 @@ describe('the times a sharded run places its files by', () => {
       read: `sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`,
       times: new Map([['a.test.ts', 1200]]),
     });
+  });
+
+  it("reads them from the mainline's record in a checkout that ran nothing, as a selection does", async () => {
+    const home = await realpath(mkdtempSync(join(tmpdir(), 'va-times-mainline-')));
+    const { first, origin } = await published(home);
+    const clone = await cloneOf(home, origin);
+
+    const times = await suiteTimes({ root: clone, suite: 'unit' });
+
+    expect(times).toMatchObject({ commit: first });
+    expect(times).not.toHaveProperty('unread');
   });
 
   it('says where it looked when nothing is recorded', async () => {

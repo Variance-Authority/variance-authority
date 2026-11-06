@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
-import { MODULES } from './modules.js';
+import { SOURCE, commentsOf } from './comments.js';
+import { INTO_GITHUB, MARKDOWN, PUBLIC_MARKDOWN, ROOT, lineOf, linksIn, prose } from './markdown.js';
 
 /**
  * Where the documentation points, checked against what is there.
@@ -36,6 +36,9 @@ const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docke
  */
 const FOREIGN: Readonly<Record<string, string>> = {
   'tests/home.spec.ts': "an incumbent's spec file, quoted from its output",
+  'src/shapes/props.ts': "a reader's own module, quoted from a sample answer of uses",
+  'src/shapes/use.ts': "a reader's own module, quoted from a sample answer of uses",
+  'src/shapes/fit.ts': "a reader's own module, quoted from a sample answer of uses",
   'announcement.spec.mjs': "Playwright's list reporter naming a spec relative to its testDir, quoted from a run",
   'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
   'tests/checkout.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
@@ -55,9 +58,16 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/Checkout.tsx': "a reader's own component, quoted from a sample role check",
   'src/testing/users.ts': "a reader's own fixture module, quoted from a sample role check",
   'src/format.ts': "a reader's own module, quoted from a sample role check",
+  'libs/alpha/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
+  'libs/kit/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
+  'libs/beta-kit/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
+  'libs/gamma/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
   'cart.ts': "a reader's own module, quoted from a sample test story",
   'price.ts': "a reader's own module, quoted from a sample test story",
   'format.ts': "a reader's own module, quoted from a sample test story",
+  'packages/price/src/index.ts': "a reader's own module, quoted from a sample answer of symbol",
+  'theme.tsx': "a reader's own component, quoted from a sample test story",
+  'panel.tsx': "a reader's own component, quoted from a sample test story",
   'src/cart.ts': "a reader's own module, quoted from a sample comparison of readings",
   'checkout.ts': "a reader's own module, quoted from a sample test story",
   'src/cart/checkout.ts': "a reader's own module, quoted from a sample test composition",
@@ -65,11 +75,19 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/checkout.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/price.ts': "a reader's own module, quoted from a sample comparison of readings",
   'src/env.ts': "a reader's own module, quoted from a sample tech-stack answer",
+  'src/mode.ts': "a reader's own module, quoted from a sample isolator warning",
   'apps/app/src/checkout.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'apps/app/src/total.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'packages/lib/src/internal/math.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
+  'packages/lib/src/other.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
+  'packages/kit/src/money/rates.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
+  'packages/kit/src/money/tax.ts': 'the workspace ask-packages.fixture.ts builds, quoted from an answer of ask-passed-on.test.ts',
+  'apps/app/src/hello.ts': 'the workspace ask-packages.fixture.ts builds, quoted from an answer of ask-uses-in-package.test.ts',
   'save-bar.tsx': "a reader's own component, quoted from a sample test story",
+  'packages/query-core/src/hydration.ts': "TanStack Query's own module, named by the case study",
+  'packages/query-core/src/index.ts': "TanStack Query's own module, named by the case study",
   'packages/query-core/src/query.ts': "TanStack Query's own module, named by the case study",
+  'packages/query-devtools/src/contexts/PiPContext.tsx': "TanStack Query's own module, named by the case study",
   'packages/zod/src/v4/locales/ru.ts': "Zod's own module, named by the case study",
   'packages/resolution/attw.test.ts':
     'a test file in the Zod fork, named for why the record will not speak for it',
@@ -78,6 +96,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'test/refund.test.ts': "a reader's own test file, quoted from a sample answer about case preconditions",
   'test/flags.ts': "a reader's own test helper, quoted from a sample answer about case preconditions",
   'test/prices.ts': "a reader's own test helper, quoted from a sample answer about case preconditions",
+  'src/flags.ts': "a reader's own module, quoted from a sample answer about case preconditions",
   'test/cleanup.test.ts': "a reader's own test file, quoted from a sample warning about case preconditions",
   'test/misplaced.test.ts': "a reader's own test file, quoted from a sample error about case preconditions",
 };
@@ -107,33 +126,25 @@ describe('every link resolves', () => {
   };
 
   it.each(MARKDOWN)('%s', (file) => {
-    // A fenced block is shown, not followed: a sample of generated markdown
-    // carries the links of the artifact it depicts, not of this document.
-    const text = prose(file);
     const broken: string[] = [];
 
-    for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-      const target = match[2]!;
-      if (/^(https?:|mailto:)/.test(target)) continue;
+    for (const { target, line, inside, anchor } of linksIn(file)) {
+      if (inside === undefined) continue;
 
-      // A bare `#anchor` splits to an empty path, which resolves to this file —
-      // so an in-page link is checked against this file's own headings.
-      const [path, anchor] = target.split('#') as [string, string | undefined];
-      const resolved = path === '' ? join(ROOT, file) : resolve(dirname(join(ROOT, file)), path);
-
+      const resolved = join(ROOT, inside);
       if (!existsSync(resolved)) {
-        broken.push(`${file}:${lineOf(text, match.index)} → ${target}`);
+        broken.push(`${file}:${line} → ${target}`);
         continue;
       }
       if (anchor === undefined) continue;
 
       const document = statSync(resolved).isDirectory() ? join(resolved, 'README.md') : resolved;
       if (!existsSync(document) || !document.endsWith('.md')) {
-        broken.push(`${file}:${lineOf(text, match.index)} → ${target} (anchor on a non-document)`);
+        broken.push(`${file}:${line} → ${target} (anchor on a non-document)`);
         continue;
       }
       if (!headings(document).has(anchor)) {
-        broken.push(`${file}:${lineOf(text, match.index)} → ${target} (no such heading)`);
+        broken.push(`${file}:${line} → ${target} (no such heading)`);
       }
     }
 
@@ -141,34 +152,32 @@ describe('every link resolves', () => {
   });
 });
 
-/**
- * Pages published as product documentation, rather than repository context for
- * contributors and maintainers.
- */
-const PUBLIC_MARKDOWN = MARKDOWN.filter(
-  (file) =>
-    (file === 'README.md' ||
-      /^docs\/[^/]+\.md$/.test(file) ||
-      /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file)) &&
-    file !== 'docs/AGENTS.md' &&
-    file !== 'docs/visual-guidelines.md',
-);
+/** The action's own directory: the root of `Variance-Authority/action`, which a release publishes. */
+const ACTION = '.github/actions/variance';
 
-describe('public documentation stands without internal project history', () => {
+/**
+ * Where a public page does not lead: our history, and `.github/`, which holds
+ * this repository's own build. The action's README may name its own files,
+ * since it is the front page of the repository the action is installed from.
+ */
+function internalTo(file: string, inside: string): boolean {
+  if (inside.startsWith('docs/context/') || inside.startsWith('docs/specs/')) return true;
+  const withinAction = file.startsWith(`${ACTION}/`) && inside.startsWith(`${ACTION}/`);
+  return !withinAction && (inside === '.github' || inside.startsWith('.github/'));
+}
+
+
+describe('public documentation stands without this repository’s internals', () => {
   it.each(PUBLIC_MARKDOWN)('%s', (file) => {
     const text = prose(file);
     const internal: string[] = [];
 
-    for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-      const target = match[2]!;
-      if (/^(https?:|mailto:)/.test(target)) continue;
+    for (const { target, line, inside } of linksIn(file)) {
+      if (inside !== undefined && internalTo(file, inside)) internal.push(`${file}:${line} → ${target}`);
+    }
 
-      const [path] = target.split('#') as [string];
-      const resolved = path === '' ? join(ROOT, file) : resolve(dirname(join(ROOT, file)), path);
-      const inside = relative(ROOT, resolved);
-      if (inside.startsWith('docs/context/') || inside.startsWith('docs/specs/')) {
-        internal.push(`${file}:${lineOf(text, match.index)} → ${target}`);
-      }
+    for (const match of text.matchAll(INTO_GITHUB)) {
+      internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
     }
 
     for (const match of text.matchAll(/\b(?:ADR-\d{4}|(?:journal|spec)\s+\d{4})\b/gi)) {
@@ -231,77 +240,6 @@ describe('every path named in prose exists', () => {
     expect(unresolved(file, pathsIn(prose(file)))).toEqual([]);
   });
 });
-
-/**
- * Where else a path gets named: source, CI workflows, shell scripts.
- *
- * Close to the list `tools/unrun.mjs` scans for markers, and for its reason — a
- * comment is a comment whether it opens with `//` or `#`, and CI and the
- * container harness are where the stalest ones sit, because nobody rereads a
- * workflow the way they reread a page. Wider by the `Dockerfile`, which carries
- * comments about this tree and no markers. The modules come from the shared
- * list, so an extension added there is read here too.
- *
- * Not that file's own `tracked()`, which drops `tools/unrun.mjs` and
- * `tools/unrun.check.ts` so their spelled-out markers do not register as
- * markers. Both are full of paths, and skipping them would be a hole in this
- * rule rather than a feature of it.
- */
-const SOURCE: readonly string[] = [
-  ...MODULES,
-  ...execFileSync('git', ['ls-files', '*.sh', '*.yml', '*.yaml', '*Dockerfile'], { cwd: ROOT, encoding: 'utf8' })
-    .trim()
-    .split('\n')
-    .filter((file) => existsSync(join(ROOT, file))),
-];
-
-/** Files whose comments open with `#` and run to the end of the line. */
-const HASH = /(?:\.(?:sh|ya?ml)|Dockerfile)$/;
-
-/**
- * One file with everything that is not a comment blanked out.
- *
- * The inverse of `prose()`, which blanks markdown's fences so a prose rule
- * cannot read an example. Spaces rather than deletion, so `lineOf` still counts
- * the lines the file actually has and a failure names the line an editor opens.
- *
- * String literals are stepped over, because `'https://…'` carries a `//` and a
- * scanner that opened a comment there would read the rest of a line of code as
- * prose. A regex literal holding a lone quote can still confuse that; what it
- * costs is a comment left unread, never a path invented.
- */
-function commentsOf(file: string): string {
-  const text = readFileSync(join(ROOT, file), 'utf8');
-  const kept = Array.from(text, (char) => (char === '\n' ? '\n' : ' '));
-  const keep = (from: number, to: number): void => {
-    for (let at = from; at < to; at += 1) kept[at] = text[at]!;
-  };
-
-  if (HASH.test(file)) {
-    let at = 0;
-    for (const line of text.split('\n')) {
-      if (/^[ \t]*#/.test(line)) keep(at, at + line.length);
-      at += line.length + 1;
-    }
-    return kept.join('');
-  }
-
-  for (let at = 0; at < text.length; at += 1) {
-    const opener = text.slice(at, at + 2);
-    const quote = text[at]!;
-
-    if (opener === '//' || opener === '/*') {
-      const end = opener === '//' ? text.indexOf('\n', at) : text.indexOf('*/', at + 2);
-      const stop = end === -1 ? text.length : opener === '//' ? end : end + 2;
-      keep(at, stop);
-      at = stop - 1;
-    } else if (quote === "'" || quote === '"' || quote === '`') {
-      at += 1;
-      while (at < text.length && text[at] !== quote) at += text[at] === '\\' ? 2 : 1;
-    }
-  }
-  return kept.join('');
-}
 
 describe('every path named in a comment exists', () => {
   const CLAIMED = new Map(SOURCE.map((file) => [file, pathsIn(commentsOf(file))] as const));

@@ -9,6 +9,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { keepCases } from './covering-scope.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const INDEX = {
   tests: [
@@ -35,7 +36,7 @@ const INDEX = {
 async function recorded(last?: { readonly cases: readonly string[]; readonly commit?: string }): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-scope-'));
   const file = join(dir, 'coverage.bin');
-  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, tests: [], modules: [] }, {
     index: encodeExecutionIndex(INDEX),
     ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], ...last })) }),
   });
@@ -57,9 +58,9 @@ describe('a test read alone', () => {
       [10, ['total.test.ts > discounts']],
       [30, []],
     ]);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text.split('\n')[0]).toBe('Read from the 1 case of the last run at abcdef012345, not the whole suite.');
-    expect(JSON.parse(formatCovering(answer, 'json')).scope.tests).toEqual(['total.test.ts > discounts']);
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).scope.tests).toEqual(['total.test.ts > discounts']);
   });
 
   it('answers from every case of one test file', async () => {
@@ -89,7 +90,8 @@ describe('a test read alone', () => {
     const asked = covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     await expect(asked).rejects.toThrow(OperatorError);
-    await expect(asked).rejects.toThrow(`from the record \`${execution}\`, and it names none.`);
+    await expect(asked).rejects.toThrow(`from the record \`${execution}\`, and it names none, so which of its cases the last run wrote is not recorded. Without \`--cases\`, the answer reads every case the record holds.`);
+    await expect(asked).rejects.not.toThrow(/run a test file|ask again/);
   });
 
   it('renumbers the crossings of the cases it keeps', () => {

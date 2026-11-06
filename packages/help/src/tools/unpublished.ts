@@ -14,22 +14,25 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Taken } from '@variance-authority/package/help';
+import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
-import { useOf } from '../refresh-native.js';
+import { useOf } from '../native-use.js';
 import { importsByPath } from './by-path.js';
+import { answers, says } from './declaration-key.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'a read through an `export * as` namespace and a call through a qualified path are not counted';
+export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted';
 
-/** Every export of `name` from ordinary source, in `within` when one is named. */
-export function exportsNamed(help: Help, name: string, within: string | undefined): readonly Named[] {
-  return help.exported.filter(
-    (held) =>
-      held.name === name &&
-      held.kind === 'source' &&
-      (within === undefined || held.by === within || fileOf(help, held, within)),
-  );
+/**
+ * Every export of `name` from ordinary source, in `within` when one is named,
+ * and every default export its declaration is named `name` by.
+ */
+export function exportsNamed(help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] {
+  const answering = help.exported.filter((held) => held.kind === 'source' && answers(help, root, held, name));
+  // A file that exports the binding by the name is answered by that export, not by its other names.
+  const spelled = answering.filter((held) => says(held.name, name));
+  const keyed = answering.filter((held) => !says(held.name, name) && !spelled.some((other) => other.at === held.at));
+  return [...spelled, ...keyed].filter((held) => within === undefined || held.by === within || fileOf(help, held, within));
 }
 
 /**
@@ -52,15 +55,38 @@ export function exportedAt(exported: readonly Named[]): string {
 }
 
 /** One use the source index resolved, with the specifier its file wrote. */
-export type IndexedUse = Taken & { readonly specifier: string };
+export type IndexedUse = Taken & {
+  readonly specifier: string;
+  /** The lines of the importing file that use what the import binds; absent for a member read, which binds nothing. */
+  readonly lines?: readonly number[];
+};
+
+/**
+ * A namespace one file passes a name on inside: `export * as shout` passes
+ * `greet` as `shout.greet`, `name` `shout` and `members` `['greet']`.
+ */
+export interface PassedInside {
+  readonly at: string;
+  readonly name: string;
+  readonly members: readonly string[];
+}
 
 /**
  * What the source index says about the imports of one name out of a set of
- * files: each use with the name it takes, and every file that passes the name
- * on with `export … from`; or why it could not be read.
+ * files: each use with the name it takes, every file that passes the name on
+ * with `export … from`, every namespace one passes it on inside, and each line
+ * of one of the files that uses the name it declares there; or why it could
+ * not be read.
  */
 export type Within =
-  | { readonly uses: readonly IndexedUse[]; readonly through: readonly string[] }
+  | {
+    readonly uses: readonly IndexedUse[];
+    readonly through: readonly string[];
+    readonly namespaces: readonly PassedInside[];
+    readonly inFile: readonly Use[];
+    /** Every file with an import the index resolved to no file that could take the name. */
+    readonly unresolved: readonly string[];
+  }
   | { readonly unread: string };
 
 /**
@@ -77,7 +103,9 @@ export function importsOf(root: string | undefined, files: readonly string[], na
     return { unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
   if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
-  return { uses: read.uses.map((use) => ({ name: use.name, specifier: use.key, ...useOf(use) })), through: read.through };
+  const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
+  const uses = read.uses.map((use): IndexedUse => ({ name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) }));
+  return { uses, through: read.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

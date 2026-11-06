@@ -8,9 +8,9 @@
  * possible — the id already crossed, which is the whole design.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { INSTRUMENTATION_ID } from '../instrument/identity.js';
 import type { ModuleId } from '../instrument/index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ObservedSubject } from './journal.js';
 import type { ExecutedModule } from './probes.js';
@@ -22,7 +22,7 @@ import type { ExecutedModule } from './probes.js';
  * every journey depends on it and none records it. The same is true of a
  * background timer started outside any request. Those are folded into
  * **every** subject by {@link stitchJourneys} — over-including, in the
- * direction [`selecting.md`](../../../../docs/selecting.md) argues for, rather
+ * direction [`selecting.md`](https://variance-authority.dev/docs/selecting) argues for, rather
  * than pretending a process can name a caller it never had. The leading space
  * keeps it out of the space a driver mints from: a UUID has none.
  */

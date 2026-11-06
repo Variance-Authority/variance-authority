@@ -199,7 +199,7 @@ impl<'a> Visit<'a> for Walker {
         let own = self.guard + u32::from(it.optional);
         let callee = callee_of(&it.callee);
         let via = via_of(&callee);
-        self.call(it.span, callee, &it.arguments, own, false);
+        self.call(it.span, callee, &it.arguments, own);
         self.visit_expression(&it.callee);
         if let Some(arguments) = &it.type_arguments {
             self.visit_ts_type_parameter_instantiation(arguments);
@@ -211,7 +211,7 @@ impl<'a> Visit<'a> for Walker {
         let own = self.guard;
         let callee = callee_of(&it.callee);
         let via = via_of(&callee);
-        self.call(it.span, callee, &it.arguments, own, true);
+        self.call(it.span, callee, &it.arguments, own);
         self.visit_expression(&it.callee);
         if let Some(arguments) = &it.type_arguments {
             self.visit_ts_type_parameter_instantiation(arguments);
@@ -221,7 +221,7 @@ impl<'a> Visit<'a> for Walker {
 
     fn visit_tagged_template_expression(&mut self, it: &TaggedTemplateExpression<'a>) {
         let own = self.guard;
-        self.call(it.span, callee_of(&it.tag), &[], own, false);
+        self.call(it.span, callee_of(&it.tag), &[], own);
         walk::walk_tagged_template_expression(self, it);
     }
 
@@ -234,7 +234,7 @@ impl<'a> Visit<'a> for Walker {
         if let Some(name) = name.filter(|name| name.starts_with(|first: char| first.is_ascii_uppercase())) {
             let (from, line, guard) = (self.from(), self.line(it.span.start), self.guard);
             let callee = Callee { id: Some(name.to_owned()), ..Callee::default() };
-            self.calls.push(Call { from, line, col: it.span.end as u64 * 4, callback: None, guard, is_new: false, by_ref: false, callee });
+            self.calls.push(Call { from, line, col: it.span.end as u64 * 4, callback: None, guard, by_ref: false, callee });
         }
         walk::walk_jsx_opening_element(self, it);
     }

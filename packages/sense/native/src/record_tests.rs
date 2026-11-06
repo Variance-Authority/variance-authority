@@ -11,7 +11,7 @@ fn set(values: &[&str]) -> HashSet<String> {
 }
 
 fn request(value: &str, kind: Kind) -> Request {
-    Request { value: value.to_owned(), kind, bindings: Vec::new(), line: 1 }
+    Request { value: value.to_owned(), kind, bindings: Vec::new(), line: 1, republishes: false }
 }
 
 #[test]

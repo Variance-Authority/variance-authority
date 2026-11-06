@@ -33,6 +33,7 @@
  */
 
 import { useState, type ReactElement } from 'react';
+import { useReading } from './reading.js';
 import type { BuildDetail, Decision } from '../review-types.js';
 import {
   Arrival,
@@ -52,6 +53,7 @@ import type { MovedBaseline, ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
 import { HeldStill, controlsFor } from './control.js';
 import type { Crossing } from './crossing.js';
+import { decidableOf } from './decision.js';
 import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
 import { handedTo } from './handed.js';
@@ -106,7 +108,7 @@ export function ChangePanel({
   const causes = causesOf(build, origin);
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
-    ({ subject }) => subject.decision === null && subject.approvable,
+    ({ subject }) => subject.decision === null && decidableOf(subject).approve,
   );
 
   return (
@@ -263,11 +265,13 @@ function Where({
   readonly onDecided: () => void | Promise<void>;
 }): ReactElement {
   const { subject, pixels } = appearance;
+  const decidable = decidableOf(subject);
   // Minus the names the mark beside it already carries. `alongside` is every
   // component the regions put in this render, causes and pushed together, and
   // printing `also CardFooter` next to `alongside CardFooter` spends the row's
   // width saying one name twice under two words that do not mean the same thing.
   const alongside = appearance.alongside.filter((name) => !also.includes(name));
+  const viewing = useReading();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | MovedBaseline | undefined>(undefined);
 
@@ -323,21 +327,22 @@ function Where({
         </span>
       )}
       {subject.decision === null ? (
-        <span className="va-where-act">
+        viewing ? null : <span className="va-where-act">
           <button
             type="button"
             className="va-approve"
-            disabled={busy || !subject.approvable}
+            disabled={busy || !decidable.approve}
             onClick={() => void decide('approved')}
-            title={
-              subject.approvable
-                ? 'Promote this render’s candidate, and no others'
-                : 'This run kept no candidate image for this subject, so there is nothing to promote.'
-            }
+            title={decidable.approve ? 'Promote this render’s candidate, and no others' : decidable.why}
           >
             ✓
           </button>
-          <button type="button" disabled={busy} onClick={() => void decide('rejected')}>
+          <button
+            type="button"
+            disabled={busy || !decidable.reject}
+            onClick={() => void decide('rejected')}
+            title={decidable.reject ? undefined : decidable.why}
+          >
             ✕
           </button>
         </span>
@@ -384,12 +389,17 @@ function Batch({
   readonly open: readonly Appearance[];
   readonly settled: number;
   readonly onDecided: () => void | Promise<void>;
-}): ReactElement {
+}): ReactElement | null {
+  const viewing = useReading();
   const [busy, setBusy] = useState(false);
   // The render a refusal stopped at, beside what moved, so the notice can name it.
   const [failed, setFailed] = useState<string | Stopped | undefined>(undefined);
 
-  const blocked = origin.appearances.length - open.length - settled;
+  const left = new Map<string, number>();
+  for (const { subject } of origin.appearances) {
+    const { why } = decidableOf(subject);
+    if (subject.decision === null && why !== undefined) left.set(why, (left.get(why) ?? 0) + 1);
+  }
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
@@ -420,6 +430,8 @@ function Batch({
   };
   const reload = (): Promise<void> => reading(setBusy, setFailed, onDecided);
 
+  if (viewing) return null;
+
   return (
     <div className="va-decide-act">
       <button
@@ -439,11 +451,11 @@ function Batch({
         Reject
       </button>
       {settled === 0 ? null : <span className="va-note">{number(settled)} already decided</span>}
-      {blocked === 0 ? null : (
-        <span className="va-note">
-          {count(blocked, 'render')} kept no candidate and cannot be approved here
+      {[...left].map(([why, renders]) => (
+        <span key={why} className="va-note">
+          {count(renders, 'render')} left out. {why}
         </span>
-      )}
+      ))}
       {failed === undefined ? null : typeof failed === 'string' ? (
         <p className="va-failure">{failed}</p>
       ) : (

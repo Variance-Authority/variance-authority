@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
   caseSectionsAt,
@@ -13,11 +13,13 @@ import {
   recordOfCases,
   seedTestCoverage,
   testCoverageFile,
+  whatLanded,
+  withIndexLock,
   withoutCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
-import { DISCOUNTS, PUSH, gitPublished, parseReview, probedModule, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, PUSH, gitPublished, keptDiscounts, parseReview, probedModule, recordIn, selectedIn } from './mainline-fixture.js';
 import { review } from './review.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
@@ -40,7 +42,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -72,7 +74,7 @@ async function worktreeAtPublished(): Promise<{ first: string; head: string; wor
 
   const primary = join(home, 'clone');
   await git(home, 'clone', '--quiet', origin, primary);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
   await recordIn(primary, head, ['test/other.test.ts'], [DISCOUNTS]);
   const worktree = join(home, 'feature');
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
@@ -81,15 +83,28 @@ async function worktreeAtPublished(): Promise<{ first: string; head: string; wor
 }
 
 describe('a worktree at the commit its mainline published', () => {
+  it('lays its seed with the files its landings finished listed beside them, the files a build that keeps no landings reads as run at its commit', async () => {
+    const { worktree } = await worktreeAtPublished();
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
+
+    const written = JSON.parse(await readFile(commitRunsFile(own), 'utf8')) as Record<string, unknown>;
+    expect(written['files']).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it('has no run listed before it runs, and its first run starts its change there rather than where CI\'s run did', async () => {
     const { head, worktree } = await worktreeAtPublished();
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    await seedTestCoverage(own, worktree, 'fixture');
+    await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
     process.chdir(worktree);
     await updateSourceIndex(worktree);
 
     // The mainline's runs are laid as a seed: where its tests last ran, and no run of this worktree's.
-    expect(await readCommitRuns(own)).toMatchObject({ commit: head, runs: 0, standing: [] });
+    // CI wrote its record before landings were kept, and the seed keeps when that run landed as its one landing.
+    expect(await readCommitRuns(own)).toMatchObject({
+      commit: head, runs: 0, standing: [],
+      landings: [{ files: ['test/other.test.ts', 'test/total.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }],
+    });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
       `no run has listed itself beside \`${own}\`, so nothing records where this change starts.`,
     );
@@ -101,15 +116,16 @@ describe('a worktree at the commit its mainline published', () => {
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
       modules: [probedModule(['test/total.test.ts'])],
     };
-    await landRun(own, ran, worktree);
+    await landRun(own, ran, worktree, undefined, keptDiscounts(head));
 
-    expect(await readCommitRuns(own)).toMatchObject({
+    const runs = await readCommitRuns(own);
+    expect(runs).toMatchObject({
       commit: head,
       over: head,
       runs: 1,
-      files: ['test/total.test.ts'],
       standing: [{ commit: head, files: ['test/other.test.ts'] }],
     });
+    expect(whatLanded(runs!.landings).files).toEqual(['test/total.test.ts']);
     expect(await review(parseReview(['--root', worktree]))).toMatchObject({ from: head });
   });
 });
@@ -124,7 +140,7 @@ describe('a fetched record this build does not read', () => {
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'primary', file: primary });
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    expect(await seedTestCoverage(own, worktree, 'fixture')).not.toMatchObject({ from: 'mainline' });
+    expect(await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'))).not.toMatchObject({ value: { from: 'mainline' } });
     await rm(own, { force: true });
     await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
     const { err } = await selectedIn(worktree);
@@ -156,12 +172,12 @@ describe('a mainline record whose run instrumented nothing', () => {
 
     const primary = join(home, 'clone');
     await git(home, 'clone', '--quiet', origin, primary);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     const worktree = join(home, 'feature');
     await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: head } });
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    expect(await seedTestCoverage(own, worktree, 'fixture')).toMatchObject({ from: 'mainline' });
+    expect(await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'))).toMatchObject({ value: { from: 'mainline' } });
     expect(withoutCoverage(own)).toBe(true);
     expect(caseSectionsAt(own).index).toBeDefined();
 

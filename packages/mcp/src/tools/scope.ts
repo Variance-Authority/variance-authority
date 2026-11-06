@@ -161,7 +161,7 @@ export function scopeOf(
   const up = entryPoints(toTerms, tree);
   const unmatched = [...down.unmatched, ...up.unmatched];
 
-  const refused = refusalFor(unmatched);
+  const refused = refusalFor(unmatched, tree.root);
   if (refused !== undefined) {
     return { ...nowhere, terms, from: down.found, to: up.found, unmatched, refused };
   }

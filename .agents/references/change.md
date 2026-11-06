@@ -6,20 +6,71 @@ where each kind of writing goes.
 ## Look around
 
 **Which tests stand on it?** Before an edit, `yarn variance covering --file
-<path>` names the tests that entered the code, and the change starts there:
+<path> --function <name>` names the tests that entered the code; `--line
+<a>-<b>` asks the same of what is not a function. Add `--hops` when the order of
+the candidates is useful: it ranks test files by import distance, and costs a
+scan of the tree. Every change that alters behaviour starts there, before any
+other writing.
 
-1. Amend the test that pins the behaviour being changed, or add one beside it,
-   so that it states the behaviour the change is for.
+`covering` finds candidates. Choose the case whose assertion states the required
+behaviour, which may be a more distant integration test: proximity orders the
+list, it does not decide.
+
+Behaviour the change does not touch and nothing covers is pinned as it is first:
+one test per edge case, green on the old code, so a test that turns red shows
+what the change broke. An assertion on the behaviour being changed is amended or
+replaced, never pinned: when `calculateFee(100)` returns 5 and should return 10,
+no green test asserts 5, because the fix would turn it red. Then:
+
+1. Amend or replace the case you chose, or add one beside it, so that it states
+   the behaviour the change is for.
 2. Run it and watch it fail on the code as it is. A test that passes before the
-   change pins nothing the change does.
-3. Change the code until it passes, and the tests `covering` named still pass.
+   change pins nothing the change does. Which failure counts:
+   - Existing behaviour fails at the assertion that states it.
+   - An API that does not exist yet fails at import, compile, collection or the
+     first call, and the failure names what is missing. Write no stub to get an
+     assertion failure.
+   - A failure from anything else, such as a typo or a broken fixture, is not
+     the red state: fix the test and run it again.
+3. Change the code until it passes, and the other tests `covering` named still
+   pass.
 
-A behaviour nothing covers is pinned as it is before it is changed: one test per
-edge case, green on the old code, so the change shows up as the tests it turns
-red, and the test the change is for is still written to fail first. `covering`
-answers from the last recording, so for a file it has never seen, put the edit
-in the tree and read `yarn variance select --suite <slice>`: it selects from the
-diff, and says nothing about a file that has not changed.
+`covering` answers from the last recording, so code it has never seen starts
+from a failing test too: ask about the code that will call it and write the test
+there, or in a new test file beside it. Once the edit is in the tree, `yarn
+variance select --suite <slice>` selects from the diff, and says nothing about a
+file that has not changed. A `refactor` or `perf` change alters no assertion:
+name the green tests `covering` found and the invariants the change preserves,
+and those tests stay green on both sides. A file of types alone never runs, so
+`covering` has no answer for it: `yarn variance ask uses` names what stands on
+it, and the invariant is the build's emitted `.js` and `.d.ts`, compared before
+and after.
+
+**Does existing code already answer it?** Before writing, ask `yarn variance
+ask search` for what the code is to do. After, `yarn test:loop` ends by naming,
+for each function new on the branch in the package sources, the scripts a
+package ships and `tools/`, with five needs or more, the existing functions
+there that need what it needs: the same calls, fields, strings, types, imports
+and identifier words, whatever their order or shape. A name it lists is a lead to read, not a
+verdict: where it answers, call or extend it instead of keeping the new one.
+The list misses copies, so an empty list clears nothing, and it does not see a
+second path written inside a function that already existed.
+
+**Does it change how a record is carried or read?** Carrying, the case index,
+and the selection and comparison read off them, keep one contract: an
+ambiguous correspondence never becomes measured absence, and evidence never
+lands on a region that did not earn it. A unit test of one function cannot show
+either. A defect there shows only over a history: a cut, an edit, a run of other
+tests, then a selection that misses a test or a comparison that calls a region
+lost. So a change to these mechanisms names, in its PR, the clause of the
+contract it keeps and the journey in
+`packages/sense/src/test-selection/__fixtures__/carry-stories.ts` that exercises
+it, in-process and through the CLI, adding the journey when none does. It also
+shows the regression test failing on the code before the fix: the command and
+its failing assertion, quoted in the PR's `Pinned by` column. The
+`carry contract` step of the `rules` job in
+[`check.yml`](../../.github/workflows/check.yml) runs these journeys by path rather than by selection, because a carrying defect
+corrupts the very record a selection would be read from.
 
 **Is it this task?** A task is the sentence of done from [refine](refine.md),
 and its code is its branch's diff, `git diff origin/main`. A defect in that diff
@@ -56,10 +107,14 @@ file that does two jobs is split, not extended.
 | `packages/*/README.md`, `cases/*/README.md` | How to use the package or example, in the `context-docs` skill's *Package README* role. Short: what grows past that moves to `docs/`. | Present |
 | JSDoc on exported symbols | What the symbol accepts, returns and refuses. | Present |
 | Source docstrings | Why this code is shaped this way. | Present |
+| `.agents/references/positions.md` | What the project has decided about its subject, for the agent working on it. | Present |
 | `.changeset/*.md` | What this change does to a published package, for someone upgrading. | Present |
 
-**Does it ship?** A change to a published package's code, manifest, schema or
-skills carries a changeset: `yarn changeset`, the product's bump, and a body
+**Does it ship?** `.agents/skills/variance-authority` and `variance-testing` are
+symlinks into `packages/cli/skills/`, so `git diff -- .agents/` shows nothing
+after a skill edit: diff the package path. A change to a published package's
+code, manifest, schema or skills carries a changeset: `yarn changeset`, the
+product's bump, and a body
 saying what the user sees and runs. It is written with the change, because only
 its author knows what the change does; at release time it is reconstructed from
 diffs, or it is missing and the changelog says only that the version moved.
@@ -86,6 +141,9 @@ the site, CLI output and error messages. Read it before writing any of them.
 
 ## Code rules
 
+Standing decisions no check enforces are in [positions](positions.md), read with
+these.
+
 - **Absent is not empty** (ADR-0002). A thing the run could not determine is
   missing from the output, never zero, never `[]`.
 - **A package is named for what it is for** (ADR-0042), never for a library it
@@ -99,6 +157,21 @@ the site, CLI output and error messages. Read it before writing any of them.
   `codeUnitOrder` from `@variance-authority/core/segment`, not a local
   comparator.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.
+- **A budget per written surface**, in content lines: a file overview 15, a
+  declaration's docblock 10, a block comment in code 5, a public page's lead 15.
+  Blank lines, bare tags and pragmas such as `// compass:` do not count.
+  `tools/budgets.check.ts` reads comments with oxc and holds the debt recorded
+  in `tools/budgets.baseline.json`.
+- **A breach is a collapse, not a trim.** Write what the task needs while you
+  work; the limits are checked once, in `verify:rules`. A surface or file that
+  breaches is collapsed in the same change, as a commit of its own before the
+  feature commit, and well under the limit: a comment to about half its budget,
+  a file split by responsibility to about 300 lines each. Overflow moves to its
+  owner — down to the site it governs, up to the folder or package, or to the
+  export's docblock — and an owner that does not exist is created, held to its
+  own limit. A change that grows a surface on the debt list collapses the whole
+  surface, not the lines it added. A debt entry that shrinks is written down with
+  `yarn budgets --write`.
 - **An export a README names is run by something**, enforced by
   `tools/docs-exercised.check.ts`. The rule is deliberately shallow — it asks
   whether a test *names* the export, not whether the test is about it — and it
@@ -108,7 +181,44 @@ the site, CLI output and error messages. Read it before writing any of them.
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and
   names each owner, and `tools/clones.check.ts` holds pasted blocks per pair of
-  files. Neither sees a long flow re-typed with new names.
+  files. Neither sees a long flow re-typed with new names; the needs list
+  `yarn test:loop` ends with is the lead while it is written, and the
+  Alignment reviewer looks for that.
+- **One implementation.** A second way to compute an answer that already has
+  one is a defect, however it is spelled: a new flag beside an old one, a fast
+  path beside the general path, a fallback beside the reader that refused. The
+  change extends, calls or replaces the first; it never sits next to it.
+- **Four roles, and complexity goes down.** Each file plays one of them. A
+  shell imports decisions and mechanisms, a mechanism imports engines, and a
+  decision imports only decisions and types; nothing imports a shell. A role is
+  not a package layer: those are depth in the import graph, from
+  `variance layers`.
+  1. **Engine** — borrowed: oxc parses, git finds files and diffs, TypeScript
+     answers types, Chromium paints, the runner says what an import meant under
+     test. We call an engine; we never re-implement it.
+  2. **Mechanism** — our deep modules: complex inside, a narrow interface out,
+     no policy. The source index, the recording, the comparator.
+  3. **Decision** — pure functions over values a mechanism returned. No I/O,
+     no clock, no process.
+  4. **Shell** — wiring: read arguments, call, print. No branches beyond
+     dispatch.
+
+  A rule that wants a loop over bytes goes down a role into a mechanism; a
+  mechanism that wants a policy takes it as a parameter. Before writing a
+  mechanism, ask whether an engine already answers it. This is Bernhardt's
+  "functional core, imperative shell" with the core split into Ousterhout's
+  deep modules. Nothing checks a role yet: a file does not declare one
+  (`tools/relations.check.ts` holds the marker).
+- **Scope stops at a neighbour's answer.** What another tool owns — the table in
+  [`.compass/COMPASS.md`](../../.compass/COMPASS.md#not-ours) — is asked of that
+  tool, never grown here. A capability that would make variance answer its
+  neighbour's question is a separate decision, not a step inside a feature.
+- **No runner is the default.** Runner-neutral code reads no runner's
+  integration: Jest, Vitest and Rstest are peers, and what two of them share
+  moves into a neutral file they each call. `.relations.json` beside the
+  integrations holds the fence, and `yarn restrictions` (in `verify:rules`)
+  fails an import across it. A feature lands for every runner or says, at the
+  site, which runner it waits for.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a
@@ -125,6 +235,13 @@ the site, CLI output and error messages. Read it before writing any of them.
   names the writer and the selector that connected them, and we guide the fix.
   Rinsing an unstable subject until it looks stable hides the defect and charges
   every other subject for it.
+  A navigation, a reload, a new browser, page or context is a `fresh-page` site, and a
+  `setTimeout`, `setInterval` or `waitForTimeout` is a `timer` site:
+  `tools/owners.check.ts` holds today's per file, tests included, and a new one
+  fails. Readiness
+  is a signal — an event, a promise, `aria-busy`, the harness hook — and a timer
+  is only a deadline that names what never answered. A deadline lands the way
+  any recorded site does: its reason at the site, then `yarn owners --write`.
 - **No magic, and not alone.** Nothing performs an operation the user did not
   ask for, in a place they would not look for it. We never keep the user blind,
   and we never fix an edge case behind their back. Across a boundary we ride what

@@ -261,8 +261,11 @@ reads as one of three:
   import, against the principle of least knowledge. The reading is a
   warning that names the importer as the place to fix it.
 
-The mock is written as `jest.mock`: the record does not say which runner
-made it.
+The mock is named, not written: the reading names the module, the importer
+it stops loading it and every value it exports, and names no runner's call.
+The record does not say which runner made it, and a call in one runner's
+API does not work in another's; how to write the mock is the reader's, for
+the test file's runner.
 
 ### Absent is not empty
 
@@ -345,7 +348,7 @@ made it.
    charges nothing; two sources that export the same name, each charged
    to its own references. Each import also reads by its importer's
    distance from the test file: an error for the test file's own import,
-   a `jest.mock` with a factory for its subject's, a warning for one
+   a mock with a stand-in for each export for its subject's, a warning for one
    further away. A real Jest run over `jest-prune` prints all three.
    **Discharged for the file reading.** The sense addon's
    `moduleReferences` and `importReferences` give each reference with its

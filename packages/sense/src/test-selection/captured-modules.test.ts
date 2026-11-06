@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EVALUATING } from '../instrument/index.js';
 import { captureAfter, captureModule, deriveModules, markModule, pathOf, planModule } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
 
@@ -133,6 +132,35 @@ describe('a module whose probes go in after the transforms', () => {
     expect(captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, own)!.module.instrumented).toBe(true);
   });
 
+  it('believes a carried text that is the file on every line a region sits on, and only there', async () => {
+    const { root, file } = await checkout(`const rate = 1;\n${SOURCE}`);
+    const map = (carried: string) => () => ({ sources: ['src-cart.js'], sourcesContent: [carried], mappings: 'AAAA;AACA;AACA;AACA' });
+    const code = `const rate = 2;\n${SOURCE}\n`;
+
+    expect(captureAfter(root, file, code, defaultInclude, undefined, map(`const rate = 2;\n${SOURCE}`))!.module.instrumented).toBe(true);
+    const onARegion = `const rate = 1;\n${SOURCE.replace('> 0', '> 1')}`;
+    expect(() => captureAfter(root, file, code, defaultInclude, undefined, map(onARegion))).toThrow(/carries a text for it that is not the file on disk/);
+  });
+
+  it('holds a region on the line of a blanked map comment to the file as a step is handed it', async () => {
+    const text = 'const rate = 1;\nexport const total = () => rate; //# sourceMappingURL=cart.js.map\n';
+    const { root, file } = await checkout(text);
+    const blanked = text.replace('//# sourceMappingURL=cart.js.map', ' '.repeat('//# sourceMappingURL=cart.js.map'.length));
+    const carried = blanked.replace('rate = 1', 'rate = 2');
+    const map = () => ({ sources: ['src-cart.js'], sourcesContent: [carried], mappings: 'AAAA;AACA' });
+
+    expect(captureAfter(root, file, `${carried}\n`, defaultInclude, undefined, map)!.module.instrumented).toBe(true);
+  });
+
+  it('believes a carried text for a file of module code alone, which has no line a region sits on but its own', async () => {
+    const text = 'export const rate = 1;\n';
+    const { root, file } = await checkout(text);
+    const carried = `/* banner */\n${text}`;
+    const map = () => ({ sources: ['src-cart.js'], sourcesContent: [carried], mappings: 'AAAA;AACA' });
+
+    expect(captureAfter(root, file, carried, defaultInclude, undefined, map)!.module.instrumented).toBe(true);
+  });
+
   it('is refused where the map names no source that resolves to the file', async () => {
     const { root, file } = await checkout(SOURCE);
     const map = () => ({ sources: ['elsewhere.js'], mappings: 'AAAA;AACA;AACA' });
@@ -160,6 +188,9 @@ describe('a module whose probes go in after the transforms', () => {
     const after = captureAfter(root, file, `${UNPARSED}\n`, defaultInclude, undefined, map)!;
 
     expect(after.module).toEqual(captureModule(root, file, UNPARSED, defaultInclude, undefined)!.module);
+    // It has no region to compare, so a text the map carries for it does not refuse it either.
+    const carrying = () => ({ ...map(), sourcesContent: [`/* banner */\n${UNPARSED}`] });
+    expect(captureAfter(root, file, `${UNPARSED}\n`, defaultInclude, undefined, carrying)!.module).toEqual(after.module);
   });
 
   it('is marked as loaded where the import asked for a variant of the file no map leads back from', async () => {
@@ -197,7 +228,7 @@ describe('a module whose probes go in after the transforms', () => {
     const after = captureAfter(root, file, compiled, defaultInclude, undefined, () => ({ sources: [], mappings: '' }))!;
 
     expect(after.module).toEqual(captureModule(root, file, TYPES, defaultInclude, undefined)!.module);
-    expect(after.code).toContain('__va(');
+    expect(after.code).toContain(`.m(${JSON.stringify(after.module.id)});`);
   });
 });
 
@@ -213,14 +244,15 @@ describe('a module marked as loaded', () => {
     expect(runInNewContext(`(${total.toString()})([1, 2])`)).toBe(2);
   });
 
-  it('reports its own region once, as entered while it evaluated', async () => {
+  it('reports itself loaded in one call, after its last line', async () => {
     const { root, file } = await checkout(SCRIPT);
     const marked = markModule(root, file, SCRIPT, defaultInclude)!;
     const fake = recordingRoot();
 
     runInNewContext(marked.code!, { __VA__: fake });
 
-    expect(fake.calls).toEqual([['r', marked.module.id, 1], ['e'], ['g', EVALUATING >>> 0], ['x']]);
+    expect(fake.calls).toEqual([['m', marked.module.id]]);
+    expect(marked.code).toBe(`${SCRIPT}\n;globalThis.__VA__.m(${JSON.stringify(marked.module.id)});`);
   });
 
   it('is the module the transform would have probed, recorded as not instrumented', async () => {
@@ -233,6 +265,18 @@ describe('a module marked as loaded', () => {
       instrumented: false,
       blocks: [],
     });
+  });
+
+  it('is how the loads recipe places a module, which it never probes', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(captureModule(root, file, SOURCE, defaultInclude, 'loads')).toEqual(markModule(root, file, SOURCE, defaultInclude));
+  });
+
+  it('is not marked under the loads recipe when `include` refuses it', async () => {
+    const { root, file } = await checkout(SOURCE);
+
+    expect(captureModule(root, file, SOURCE, () => false, 'loads')).toBeUndefined();
   });
 
   it('is not marked when the predicate refuses it', async () => {
@@ -293,7 +337,7 @@ describe('a module the instrumenter cannot read', () => {
     expect(captured.module.instrumented).toBe(false);
     expect(captured.code?.startsWith(BROKEN)).toBe(true);
     runInNewContext(captured.code!.slice(BROKEN.length), { __VA__: fake });
-    expect(fake.calls).toEqual([['r', captured.module.id, 1], ['e'], ['g', EVALUATING >>> 0], ['x']]);
+    expect(fake.calls).toEqual([['m', captured.module.id]]);
   });
 
   it('is not instrumented when it is cut again from the checkout', async () => {
@@ -320,6 +364,7 @@ function recordingRoot(): { calls: unknown[][] } & Record<string, unknown> {
     e: () => calls.push(['e']),
     x: () => calls.push(['x']),
     g: (entry: number) => calls.push(['g', entry >>> 0]),
+    m: (id: string) => calls.push(['m', id]),
   };
 }
 

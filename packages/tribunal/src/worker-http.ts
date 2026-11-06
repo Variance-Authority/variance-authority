@@ -13,6 +13,8 @@
  * later query answers confidently and wrongly.
  */
 
+import { imageFormat } from '@variance-authority/png/header';
+
 export class BadRequest extends Error {
   override readonly name = 'BadRequest';
 }
@@ -53,6 +55,22 @@ export function json(status: number, body: unknown, headers: Record<string, stri
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json; charset=utf-8', ...headers },
+  });
+}
+
+/**
+ * One of a build's images. The path says `.png` for every image; the bytes say
+ * what this one is, and a `before` is the baseline as the run's store kept it, a
+ * lossless WebP. A build's images never change: the row is written once and the
+ * object with it, so anything a reviewer reloads is fetched again for nothing.
+ */
+export function imageResponse(bytes: ArrayBuffer): Response {
+  const format = imageFormat(new Uint8Array(bytes));
+  return new Response(bytes, {
+    headers: {
+      'content-type': format === null ? 'application/octet-stream' : `image/${format}`,
+      'cache-control': 'private, max-age=31536000, immutable',
+    },
   });
 }
 

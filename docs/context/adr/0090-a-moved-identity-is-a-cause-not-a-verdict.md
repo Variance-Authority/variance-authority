@@ -15,8 +15,10 @@ ADR-0011, [ADR-0019](0019-one-comment-that-leads-with-causes.md)'s pinned
 container, [ADR-0021](0021-approval-promotes-an-image-that-already-exists.md)'s
 sidecar, [ADR-0026](0026-ignored-is-not-unchanged.md)'s baseline from another
 machine, [ADR-0049](0049-browser-accessibility-is-an-independent-retained-signal.md)'s
-one-sided and cross-engine accessibility evidence, and
-[ADR-0077](0077-the-config-says-where-an-artifact-lives.md)'s store partition
+one-sided and cross-engine accessibility evidence,
+[ADR-0077](0077-the-config-says-where-an-artifact-lives.md)'s store partition, and
+[ADR-0054](0054-presentation-consequence-is-a-signal.md)'s `incomparable`
+presentation signal for a missing side
 **Relates to:** [`packages/raster/src/settle.ts`](../../../packages/raster/src/settle.ts),
 [`packages/observe/src/observe.ts`](../../../packages/observe/src/observe.ts),
 [`packages/raster/src/renderer.ts`](../../../packages/raster/src/renderer.ts)
@@ -76,6 +78,13 @@ reviewer reads first.
    upgrades, the older copy could be read first, and a reversion to the old
    look would read `unchanged`. A matrix of engines is several lines, and each
    keeps its baseline.
+7. **A missing side is a change.** Evidence on one side only, an accessibility
+   snapshot or a presentation reading, is `changed`, and `because` names the
+   side that has none. Nothing is invented from the side that is there: a
+   presentation signal read on one side carries no effects. Neither side
+   measured is no signal at all, as when no producer looked; a presentation
+   reading without layout findings has not measured the layout. A presentation
+   signal still changes no subject's verdict (ADR-0054).
 
 The partition by `identityDigest` stays where nobody reads a path: it keys the
 render cache and the bucket store's rows. A baseline painted under another

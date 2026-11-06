@@ -5,14 +5,15 @@
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
 A tool given a rendered DOM node can ask which JSX expression wrote it, and in
 a React development build the answer is already there — read straight off the
 fiber, with no plugin, no custom JSX runtime and no build change. A production
-build keeps no such record, and neither does React 18 compiled by an unchanged
-classic transform.
+build keeps no such record, and neither does React 18 compiled by a classic
+transform that writes no `__source`.
 
 Install this package only when a *production*-built React artifact has to name
 the JSX expression that wrote each element. A built Storybook or a statically
@@ -29,7 +30,7 @@ never imports it.
 | --- | --- | --- |
 | React 19 development, automatic or classic JSX | Yes, from `_debugStack` and the development source map | No |
 | React 18 development, automatic JSX | Yes, from `_debugSource` | No |
-| React 18 development, classic `createElement` output | No | Only after changing the transform; see below |
+| React 18 development, classic `createElement` output with no `__source` | No | Only after changing the transform; see below |
 | Production React artifact | No | Only when exact per-element lines are required |
 
 The package is useful only when all of these are true:
@@ -84,12 +85,12 @@ arrives at `fiber.memoizedProps`, where `@variance-authority/react` reads it. It
 survives minification, never appears in the document, and is not digested, so
 nothing about the page the browser draws changes.
 
-It does not intercept `React.createElement`. React 18 with an unchanged classic
-transform therefore remains uninstrumented: development emission alone does not
-change classic output. To use this package for that build, switch the transform
-to automatic JSX and enable its development emission. A classic
-transform that already emits `__source` gives React 18 its native
-`_debugSource`, so this package is unnecessary there.
+It does not intercept `React.createElement`. React 18 with a classic transform
+that writes no `__source` therefore remains uninstrumented. To use this package
+for that build, switch the transform to automatic JSX and enable its development
+emission. A classic transform that emits `__source`, as Vite 8 does while serving
+development, gives React 18 its native `_debugSource`, so this package is
+unnecessary there.
 
 ## Install it in the build
 
@@ -489,4 +490,4 @@ happens.
 
 ---
 
-**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/jsx-source) · MIT

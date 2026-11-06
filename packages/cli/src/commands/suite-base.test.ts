@@ -1,28 +1,29 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
 import {
-  commitRunsFile,
   declaredSuites,
   keepsCases,
   readCommitRuns,
   seedTestCoverage,
   testCoverageFile,
+  withIndexLock,
 } from '@variance-authority/sense/test-selection';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { parseArgs } from '../bin.js';
 import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN } from '../exit.js';
 import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
-import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, GIT_SHARE, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, mainlinePassedOver, suiteBase } from './suite-base.js';
-import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
+import { runSuiteShare, suiteShare, suiteShareLines } from './suite-share.js';
 import { suiteTimes } from './suite-times.js';
 
 /**
@@ -44,7 +45,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -55,7 +56,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 /** Point every cache read and write in this process at `name` under the test's directory. */
 function cacheOf(name: string): string {
   const cache = join(home, name);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
   return cache;
 }
 
@@ -77,46 +78,6 @@ async function laptop(origin: string, first: string): Promise<{ primary: string;
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   return { primary, worktree, cache, record };
 }
-
-describe('a published record reaches the remote', () => {
-  it('as refs/variance/mainline/main on origin, after a push to main', async () => {
-    const { origin } = await mainline();
-    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toMatch(/refs\/variance\/mainline\/main$/u);
-  });
-
-  it('is refused for a record made at another commit, rather than published under this one', async () => {
-    const { ci } = await mainline({ publish: false });
-    await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'second');
-    expect(await publishSuite(ci, 'unit', { env: PUSH })).toMatchObject({ none: expect.stringContaining('was recorded at') });
-  });
-
-  it('is refused for a record whose run did not run the whole suite, rather than published as the base', async () => {
-    const { ci, origin, first } = await mainline({ publish: false });
-    const own = testCoverageFile(ci, { suite: 'unit' });
-    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: 'c'.repeat(40), files: ['test/other.test.ts'] }] };
-    await writeFile(commitRunsFile(own), JSON.stringify(runs));
-    const collected = join(home, 'collected.txt');
-    await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
-
-    expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected })).toEqual({
-      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: 1 test file(s) the suite collects last ran before ${first}, test/other.test.ts among them`,
-    });
-    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe('');
-  });
-
-  it('is refused without the runner\'s collected list, even when the runs record lists no test as run elsewhere', async () => {
-    // `test/other.test.ts` is tracked and never ran; only the runner can say it is a test.
-    const { ci, origin, first } = await mainline({ publish: false });
-    const own = testCoverageFile(ci, { suite: 'unit' });
-    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [] };
-    await writeFile(commitRunsFile(own), JSON.stringify(runs));
-
-    expect(await publishSuite(ci, 'unit', { env: PUSH })).toEqual({
-      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: the runner was not asked which test files it collects, so nothing says the run covered all of them: pass \`--collected\``,
-    });
-    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe('');
-  });
-});
 
 describe('the record a worktree that has run nothing measures from', () => {
   it('is the mainline\'s, ahead of the primary checkout\'s, named with the mainline and its distance', async () => {
@@ -152,9 +113,9 @@ describe('the record a worktree that has run nothing measures from', () => {
     expect(laid).toEqual({ laid: own });
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(keepsCases(own)).toBe(true);
-    // The mainline's runs record, as a seed: none of its runs are this checkout's.
-    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
-    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
+    // The mainline's runs record, as a seed: none of its runs are this checkout's, and they landed when they landed.
+    const published = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0 });
     expect(await suiteBase(fresh, { env: LOCAL })).toEqual({
       from: 'own',
       suite: 'unit',
@@ -163,6 +124,31 @@ describe('the record a worktree that has run nothing measures from', () => {
       repin: { repinned: false, why: 'current' },
     });
     expect(await layMainline(fresh, base.mainline, 'fixture')).toBeUndefined();
+  });
+
+  it('says so when the record is held by another writer, and lays nothing', async () => {
+    const { origin } = await mainline();
+    const fresh = join(home, 'fresh');
+    await git(home, 'clone', '--quiet', origin, fresh);
+    cacheOf('fresh-cache');
+    const base = await suiteBase(fresh, { env: LOCAL });
+    if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
+    const own = testCoverageFile(fresh, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(`${own}.lock`, '1\n');
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    variancePrecondition('fixture', { clock: 'faked' });
+    let settled = false;
+    const refused = expect(layMainline(fresh, base.mainline, 'fixture')).rejects.toThrow(`another process is holding ${own}.lock`).finally(() => (settled = true));
+    while (!settled) {
+      vi.advanceTimersByTime(1000);
+      await new Promise((turn) => setImmediate(turn));
+    }
+    vi.useRealTimers();
+    await refused;
+
+    expect(existsSync(own)).toBe(false);
   });
 
   it('is passed over, named with both probes, when the suite\'s run records under other probes than it was written under', async () => {
@@ -276,38 +262,58 @@ describe('the times a sharded run places its files by, from a suite given to the
   });
 });
 
-describe('`variance share --suite unit`', () => {
-  it('publishes the record alone, and says so the way `share --publish` does', async () => {
-    const { ci } = await mainline({ publish: false });
-    const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
+describe('`variance share --suite unit` reads the mainline', () => {
+  it('names the commit of the record the mainline holds, for a workflow to merge the change with', async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+
+    const done = await suiteShare(worktree, { suite: 'unit', publish: false, format: 'github' }, { env: LOCAL });
+
+    expect(done).toEqual({
+      lines: [`commit=${ci.first}`],
+      notes: [expect.stringMatching(/^record of "unit": read from mainline main, published at /u)],
+      exit: EXIT_CLEAN,
+    });
   });
 
-  it('says which test files it retired because the suite no longer collects them', async () => {
-    const { ci } = await mainline({ publish: false });
-    const collected = join(home, 'collected-other.txt');
-    await writeFile(collected, 'test/other.test.ts\n');
-    const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected }, { env: PUSH });
-    expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
-    expect(lines[1]).toBe('retired 1 test file(s) from suite-v1/unit that the suite no longer collects, test/total.test.ts among them.');
+  it("prints the commit alone for `$GITHUB_OUTPUT`, and says the read on stderr", async () => {
+    const ci = await mainline();
+    const { worktree } = await laptop(ci.origin, ci.first);
+    const out: string[] = [];
+    const err: string[] = [];
+
+    const exit = await runSuiteShare({ suite: 'unit', publish: false, format: 'github' }, { out: (text) => out.push(text), err: (text) => err.push(text) }, worktree, { env: LOCAL });
+
+    expect({ exit, out, err }).toEqual({
+      exit: EXIT_CLEAN,
+      out: [`commit=${ci.first}\n`],
+      err: [expect.stringMatching(/^record of "unit": read from mainline main, published at .*\n$/su)],
+    });
   });
 
-  it('says nothing was published when this checkout holds no record at this commit', async () => {
-    const { ci } = await mainline({ publish: false });
-    await rm(testCoverageFile(ci, { suite: 'unit' }));
-    expect(await suiteShareLines(ci, { suite: 'unit', publish: true }, { env: PUSH })).toEqual([
-      'nothing published: this checkout holds no record of "unit".',
-    ]);
+  it('names no commit when the mainline holds no record, and says why beside it', async () => {
+    const ci = await mainline({ publish: false });
+    const { worktree } = await laptop(ci.origin, ci.first);
+
+    expect(await suiteShare(worktree, { suite: 'unit', publish: false, format: 'github' }, { env: LOCAL })).toEqual({
+      lines: ['commit='],
+      notes: ['record of "unit": the share has none either; mainline main: nothing is published there.'],
+      exit: EXIT_CLEAN,
+    });
   });
 
-  it("refuses the other form's inputs beside it", () => {
-    expect(() => parseArgs(['share', '--suite', 'unit', '--config', 'web.json'])).toThrow(
-      '`share --suite` reads the suite and its share from the root variance.config.json, so it takes no `--config`',
+  it('takes `--format` only to read the mainline', () => {
+    expect(parseArgs(['share', '--suite', 'unit', '--format', 'github'])).toMatchObject({ command: 'share', suite: 'unit', format: 'github' });
+    expect(() => parseArgs(['share', '--suite', 'unit', '--format', 'json'])).toThrow('--format must be text or github, not `json`');
+    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', '--format', 'github'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
     );
-    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', 'report.json'])).toThrow(/so it takes no report$/u);
-    expect(parseArgs(['share', '--suite', 'unit', '--publish'])).toMatchObject({ command: 'share', suite: 'unit', publish: true });
+    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', '--format', 'text'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
+    expect(() => parseArgs(['share', '--mainline', 'main', '--format', 'github'])).toThrow(
+      '`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote',
+    );
   });
 });
 
@@ -320,13 +326,14 @@ describe('every reader of a worktree that has run nothing starts from the same r
     const own = testCoverageFile(worktree, { suite: 'unit' });
 
     // What `yarn test`'s seam does before it lands the run it made.
-    const seeded = await seedTestCoverage(own, worktree, 'fixture');
+    const locked = await withIndexLock(own, (lock) => seedTestCoverage(lock, worktree, 'fixture'));
+    const seeded = locked.held ? locked.value : undefined;
 
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);
     expect(await readFile(own)).not.toEqual(record);
-    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
-    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
+    const published = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0 });
   });
 
   it('`variance select` reads the mainline\'s record, and says so, where the primary checkout holds one too', async () => {
@@ -369,49 +376,6 @@ describe('every reader of a worktree that has run nothing starts from the same r
     } finally {
       delete process.env['GIT_TRACE2_EVENT'];
     }
-  });
-});
-
-describe('a mainline publish counts a whole run against what the runner collects', () => {
-  it('passes over a file that last ran at an older commit when the runner no longer collects it', async () => {
-    const { ci, origin, first } = await mainline({ publish: false });
-    const own = testCoverageFile(ci, { suite: 'unit' });
-    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: 'c'.repeat(40), files: ['test/other.test.ts'] }] };
-    await writeFile(commitRunsFile(own), JSON.stringify(runs));
-    const collected = join(home, 'collected.txt');
-    await writeFile(collected, 'test/total.test.ts\n');
-
-    expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected })).toMatchObject({ published: { written: [suiteEntry('unit')] } });
-    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toMatch(/refs\/variance\/mainline\/main$/u);
-  });
-
-  it('counts a file standing at the publish commit itself as run there', async () => {
-    const { ci, first } = await mainline({ publish: false });
-    const own = testCoverageFile(ci, { suite: 'unit' });
-    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: first, files: ['test/other.test.ts'] }] };
-    await writeFile(commitRunsFile(own), JSON.stringify(runs));
-    const collected = join(home, 'collected.txt');
-    await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
-
-    expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected })).toMatchObject({ published: { written: [suiteEntry('unit')] } });
-  });
-
-  it('fails the command when a mainline publish writes nothing, and not when a branch\'s does', async () => {
-    const { ci } = await mainline({ publish: false });
-    await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'second');
-
-    const refused = await suiteShare(ci, { suite: 'unit', publish: true }, { env: PUSH });
-    expect(refused.exit).toBe(EXIT_OPERATOR);
-    expect(refused.lines.join('\n')).toContain('was recorded at');
-    const branch = { ...PUSH, GITHUB_REF_NAME: 'feature' };
-    expect((await suiteShare(ci, { suite: 'unit', publish: true }, { env: branch })).exit).toBe(EXIT_CLEAN);
-  });
-
-  it('refuses `--collected` anywhere but beside `--suite` and `--publish`', () => {
-    expect(() => parseArgs(['share', '--suite', 'unit', '--collected', 'files.txt'])).toThrow(
-      '`--collected` is for `share --suite <name> --publish`, which counts a whole run against it',
-    );
-    expect(parseArgs(['share', '--suite', 'unit', '--publish', '--collected', 'files.txt'])).toMatchObject({ collected: 'files.txt' });
   });
 });
 

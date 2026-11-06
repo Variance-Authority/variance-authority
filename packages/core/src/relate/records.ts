@@ -83,7 +83,7 @@ export interface FileRecord {
    * store or Yarn PnP there may not be one, and under a custom resolver the path
    * would be a lie about a different machine — so the name stands for the
    * dependency, and what the install currently has under that name is a question
-   * for the lockfile ([`sense/lock`](../../../sense/src/lock/index.ts)).
+   * for the lockfile ([`sense/lock`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/lock/index.ts)).
    *
    * A file that imports `@mui/material` is affected when `@mui/material`
    * changes; a file that does not, is not. That is the whole rule, and it is why this is
@@ -177,7 +177,7 @@ export interface RelationsOptions {
 
   /**
    * `[dependent, dependency]` pairs between packages, from a lockfile
-   * ([`packageRelations`](../../../sense/src/lock/lockfile.ts)).
+   * ([`packageRelations`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/lock/lockfile.ts)).
    *
    * Optional, and a graph without them is not wrong, only shorter-sighted: it
    * answers a change to a package some file imports directly, and says nothing
@@ -271,8 +271,9 @@ export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
  * — a commit that bumps a dependency and edits a file is one seed set and one
  * traversal.
  *
- * One breadth-first search, whatever the number of changed files, over the
- * runtime edges unless the caller names others.
+ * One breadth-first search, whatever the number of changed files, over every
+ * edge kind unless the caller names others: test selection names
+ * `RUNTIME_EDGES`.
  */
 export function affectedBy(
   relations: Relations,

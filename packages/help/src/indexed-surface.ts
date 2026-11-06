@@ -3,11 +3,13 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import type { Parsed, SourceSymbol, TextSpan } from '@variance-authority/sense';
 import {
+  boundDeclaration,
   requested,
   type Declaration,
   type DeclarationKind,
   type Names,
   type Offering,
+  type Reached,
 } from '@variance-authority/package/help';
 
 export interface IndexedSource {
@@ -18,24 +20,25 @@ export interface IndexedSource {
 const DEFAULT = 'default';
 const NAMESPACE = '*';
 
-function add(into: Names, name: string, declaration: Declaration): void {
+function add(into: Names, name: string, declaration: Reached): void {
   const held = into.get(name);
   if (held === undefined) into.set(name, new Map([[declaration.kind, declaration]]));
   else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
 }
 
-function headOf(text: string, span: TextSpan | undefined): string | undefined {
+export function headOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const head = text.slice(span.start, span.end).trimEnd().replace(/;$/, '');
   return head === '' ? undefined : head;
 }
 
-function docOf(text: string, span: TextSpan | undefined): string | undefined {
+export function docOf(text: string, span: TextSpan | undefined): string | undefined {
   if (span === undefined) return undefined;
   const doc = text
     .slice(span.start, span.end)
     .split('\n')
-    .map((line) => line.replace(/^[ \t]*\*[ \t]?/, ''))
+    // A JSDoc or Javadoc block's `*` margin, or a Rust or Swift doc line's `///` or `//!`.
+    .map((line) => line.replace(/^[ \t]*(?:\/\/[/!]|\*)[ \t]?/, ''))
     .join('\n')
     .trim();
   return doc === '' ? undefined : doc;
@@ -60,12 +63,10 @@ function declaration(
   };
 }
 
-function localDeclarations(at: string, source: IndexedSource, text: string): Map<string, Declaration> {
-  const local = new Map<string, Declaration>();
-  for (const symbol of source.parsed.symbols ?? []) {
-    if (!local.has(symbol.name)) local.set(symbol.name, declarationOfSymbol(at, symbol, text));
-  }
-  return local;
+function symbolsByName(symbols: readonly SourceSymbol[]): Map<string, SourceSymbol[]> {
+  const named = new Map<string, SourceSymbol[]>();
+  for (const symbol of symbols) named.set(symbol.name, [...(named.get(symbol.name) ?? []), symbol]);
+  return named;
 }
 
 function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): Declaration {
@@ -76,8 +77,7 @@ function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): De
 export async function indexedNames(
   root: string,
   offerings: readonly Offering[],
-  sources: Map<string, IndexedSource>,
-  enrich: (files: readonly string[]) => Promise<ReadonlyMap<string, Parsed>>,
+  sources: ReadonlyMap<string, IndexedSource>,
 ): Promise<(source: string) => Names> {
   const entrypoints = new Map<string, string>();
   for (const offering of offerings) {
@@ -123,17 +123,7 @@ export async function indexedNames(
   for (;;) {
     expanded.clear();
     for (const source of wanted) visit(source);
-    const missing = [...wanted].filter((file) => sources.get(file)?.parsed.harvested !== true);
     let changed = false;
-    if (missing.length > 0) {
-      for (const [file, parsed] of await enrich(missing)) {
-        const held = sources.get(file);
-        if (held !== undefined) {
-          sources.set(file, { parsed, targets: held.targets });
-          changed = true;
-        }
-      }
-    }
 
     const unread = [...wanted].filter((file) => !texts.has(file));
     let next = 0;
@@ -181,7 +171,7 @@ export async function indexedNames(
       reached.set(file, found);
       return found;
     }
-    const local = localDeclarations(file, source, text);
+    const local = symbolsByName(source.parsed.symbols ?? []);
 
     for (const published of source.parsed.exports ?? []) {
       const specifier = published.from;
@@ -197,7 +187,7 @@ export async function indexedNames(
       );
 
       if (published.exported === undefined) {
-        if (target === undefined) add(found, `* from '${specifier}'`, written);
+        if (target === undefined) add(found, `* from '${specifier}'`, { ...written, declared: `* from '${specifier}'` });
         else for (const [name, kinds] of namesAt(target, stack)) {
           for (const value of kinds.values()) add(found, name, value);
         }
@@ -206,7 +196,7 @@ export async function indexedNames(
 
       const name = published.exported;
       if (published.imported === NAMESPACE) {
-        add(found, name, written);
+        add(found, name, { ...written, declared: name });
       } else if (specifier === undefined) {
         // `local` is the name this file binds the export under, as Sense read
         // it: a declaration's own name, or the identifier `export default name`
@@ -221,9 +211,9 @@ export async function indexedNames(
         // the import it names, `logger` as `const logger: typeof OriginalLogger`.
         // Only a name bound here and declared nowhere here goes to its import.
         const bound = published.local ?? name;
-        const value = local.get(bound);
-        if (value !== undefined) {
-          add(found, name, value);
+        const symbol = boundDeclaration(local.get(bound) ?? [], published.line);
+        if (symbol !== undefined) {
+          add(found, name, { ...declarationOfSymbol(file, symbol, text), declared: name });
           continue;
         }
         const imported = source.parsed.requests.flatMap((request, index) =>
@@ -232,16 +222,16 @@ export async function indexedNames(
             .map((binding) => ({ name: binding.imported, target: typed(source.targets[index]) })),
         )[0];
         if (imported?.target === undefined) {
-          if (imported !== undefined) add(found, name, written);
+          if (imported !== undefined) add(found, name, { ...written, declared: name });
           else throw new Error(`${file} exports \`${name}\`, and no declaration there says what it is`);
           continue;
         }
         if (imported.name === NAMESPACE) {
-          add(found, name, { ...written, kind: 'namespace-object' });
+          add(found, name, { ...written, kind: 'namespace-object', declared: name });
           continue;
         }
         if (!sources.has(imported.target)) {
-          add(found, name, written);
+          add(found, name, { ...written, declared: name });
           continue;
         }
         const kinds = namesAt(imported.target, stack).get(imported.name);
@@ -250,7 +240,7 @@ export async function indexedNames(
         }
         for (const declared of kinds.values()) add(found, name, declared);
       } else if (target === undefined) {
-        add(found, name, written);
+        add(found, name, { ...written, declared: name });
       } else {
         const linked = source.parsed.requests
           .find((request) => request.value === specifier && request.kind === 'imports')

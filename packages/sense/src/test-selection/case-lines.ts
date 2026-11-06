@@ -65,7 +65,12 @@ export function lineValue(line: number, ambient: boolean): number {
 /** The line a region of `module` was first reached at, for a region the case crossed. */
 export function lineAt(lines: CaseLines, module: number, block: number): { readonly line: number; readonly ambient: boolean } | undefined {
   const value = valueAt(lines, module, block);
-  return value === undefined ? undefined : { line: Math.floor(value / 2), ambient: value % 2 === 1 };
+  return value === undefined ? undefined : lineOf(value);
+}
+
+/** The line a stored value names, and whether a hook's statement reached it: {@link lineValue} read back. */
+export function lineOf(value: number): { readonly line: number; readonly ambient: boolean } {
+  return { line: Math.floor(value / 2), ambient: value % 2 === 1 };
 }
 
 /** The stored value of a region of `module`, for a region the case crossed. */

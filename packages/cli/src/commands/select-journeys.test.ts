@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readWorkspace } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
@@ -35,7 +35,7 @@ describe('selecting from a journey file', () => {
   let root: string;
 
   beforeEach(async () => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-')));
     root = project();
     process.chdir(root);
     await indexOutput({ cwd: root, noGit: true });
@@ -43,13 +43,24 @@ describe('selecting from a journey file', () => {
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('skips the test file that never entered the changed function', async () => {
     writeFileSync(join(root, 'change.patch'), patch(6));
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('test/other.test.ts\n');
+  });
+
+  // A journey reading names the tests it reached and not why; an empty list
+  // would say the record never saw them.
+  it('lists under json no reasons for a journey reading, which names none', async () => {
+    writeFileSync(join(root, 'change.patch'), patch(6));
+    const said = await selectOutput({ cwd: root, format: 'json', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    const json = JSON.parse(said.out) as Record<string, unknown>;
+    expect(json).toMatchObject({ ground: 'read', skip: ['test/other.test.ts'] });
+    expect(json).not.toHaveProperty('selected');
+    expect(json).not.toHaveProperty('reasons');
   });
 
   it('skips every test for a comment above a function, which sits in the region that ran as the module loaded', async () => {
@@ -104,7 +115,8 @@ describe('selecting from a journey file', () => {
     writeFileSync(join(root, 'change.patch'), git('diff', 'HEAD~1', 'HEAD'));
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('test/branch.test.ts\n');
-    expect(said.err).not.toContain('yarn.lock');
+    expect(said.err).toContain('read yarn.lock: unread (its rows, its preconditions, its importers or the install comparison answer for it)');
+    expect(said.err).not.toContain('records nothing');
   });
 
   // A question that publishes reads the index `variance index` wrote and saves
@@ -204,7 +216,8 @@ describe('selecting from a journey file', () => {
     writeFileSync(join(root, 'change.patch'), unmeasured);
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
     expect(said.out).toBe('test/branch.test.ts\ntest/other.test.ts\n');
-    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure (src/format.ts)');
+    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure keeps no test');
+    expect(said.err).toContain('read src/format.ts: unread (no recorded text to read it against)');
   });
 
   async function declaring(config: unknown, files: Readonly<Record<string, string>> = {}): Promise<string> {

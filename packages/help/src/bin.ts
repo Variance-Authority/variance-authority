@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { ask, askSearch, askSearchJson, inputFrom, toolNamed, verbs } from './ask.js';
+import type { Help } from '@variance-authority/package/help';
+import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
+import { caughtUp, foundNothingAnswer, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
-import { search } from './tools/search.js';
+import { search, searchQuestionOf } from './tools/search.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -33,12 +35,36 @@ import { writePages } from './write.js';
  * come off the scan that draws the tree, so both are read there rather than
  * the tree the workspace reading keeps.
  */
-async function crossNamed(root: string, justAnswer: boolean, args: readonly string[]): Promise<string> {
+async function crossNamed(root: string, reading: Reading, args: readonly string[]): Promise<Answering> {
   const input = inputFrom(intersection, args);
-  const help = await readWorkspaceForAnswer(root, { justAnswer });
-  const answer = intersection.run(help, input, { ...(await readNamedTree(root, input)), root });
+  const help = await readWorkspaceForAnswer(root, reading);
+  const names = await readNamedTree(root, input);
   const at = workspaceGeneration(help);
-  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+  return {
+    answer: () => {
+      const answer = intersection.run(help, input, invocationOf({ ...names, root }));
+      return at === undefined ? answer : `${answer}\n${snapshotLine(at, reading.justAnswer)}`;
+    },
+    at,
+  };
+}
+
+/** How a verb reads the checkout: the generation's expiry, and the tree when it names a path. */
+interface Reading {
+  readonly justAnswer: boolean;
+  readonly refreshAfterMs?: number;
+  readonly tree?: (drawn: Tree) => void;
+}
+
+/** An answer not yet given, and the generation it will be given from. */
+interface Answering {
+  /** The answer, its date line saying `unseen` when the checkout was not compared with it for that reason. */
+  readonly answer: (unseen?: string) => string;
+  readonly at: string | undefined;
+  /** The workspace value the answer comes from, when it is one. */
+  readonly help?: Help;
+  /** Whether the files the answer names changed since its generation, as {@link outlived} says, for the request that began at `started`, a refusal resting on what it rested on in `before`; absent for a reading that cannot say. */
+  readonly outlived?: (started: number, before?: Help) => Promise<boolean>;
 }
 
 /** The longest verb and a gap, so a verb added later never runs into its description. */
@@ -126,20 +152,68 @@ if (asking(verb) && verb !== undefined) {
     if (format !== 'text' && format !== 'json') throw new Error(`--format must be text or json, not \`${format}\``);
     if (format === 'json' && tool !== search) throw new Error(`\`${verb}\` answers in text only; \`--format json\` is taken by \`search\``);
     const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
-    let tree: Tree | undefined;
-    const reading = {
-      justAnswer: args.includes('--just-answer'),
-      ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
+    const justAnswer = args.includes('--just-answer');
+    // `search` opens the file published for it rather than the whole value, at
+    // any age, so it is compared with the checkout only when nothing was
+    // published and the checkout was read; `discover` reads no workspace
+    // value, only the tree and its names.
+    const answering = async (current: boolean): Promise<Answering> => {
+      let tree: Tree | undefined;
+      const reading: Reading = {
+        justAnswer,
+        ...(current ? { refreshAfterMs: 0 } : {}),
+        ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
+      };
+      if (tool === search) {
+        const read = await readSearchForAnswer(root, reading);
+        const { index, compared } = read;
+        const { importing, unopened } = await countingShown(read, searchQuestionOf(inputFrom(search, ownArgs)), tree, root);
+        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, !compared, unopened, importing), at: index.generation?.generatedAt };
+      }
+      if (tool === discover) {
+        const named = await readNamedTree(root, inputFrom(tool, ownArgs));
+        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at: undefined };
+      }
+      if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
+      const help = await readWorkspaceForAnswer(root, reading);
+      return {
+        answer: (unseen) => ask(help, verb, ownArgs, () => tree, root, unseen ?? justAnswer),
+        at: workspaceGeneration(help),
+        help,
+        outlived: (started, before) => outlived(tool.name, help, inputFrom(tool, ownArgs), { root, ...(tree === undefined ? {} : { tree }) }, started, before),
+      };
     };
-    // `search` opens the file published for it rather than the whole value;
-    // `discover` reads no workspace value, only the tree and its names.
-    const answer = tool === search
-      ? (format === 'json' ? askSearchJson : askSearch)(await readSearchForAnswer(root, reading), ownArgs, () => tree)
-      : tool === discover
-        ? discover.run(undefined, inputFrom(tool, ownArgs), { ...(await readNamedTree(root, inputFrom(tool, ownArgs))), root })
-        : tool === intersection && namesWanted(inputFrom(tool, ownArgs))
-          ? await crossNamed(root, reading.justAnswer, ownArgs)
-          : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree, root);
+
+    const started = Date.now();
+    const read = await answering(false);
+    // An answer whose named files changed since its generation is asked again
+    // first; one that could not be, or whose files moved again, says so where it is dated.
+    const again = (from: Answering): ReturnType<typeof caughtUp<Answering>> =>
+      caughtUp(from.at, started, root, answering, async (subject = from) => (await subject.outlived?.(started, from.help)) === true);
+    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await again(read) : undefined;
+    const first = looked?.subject ?? read;
+    let answer: string;
+    try {
+      answer = first.answer(looked?.unseen);
+    } catch (refusal) {
+      // A refusal from a reused generation is asked again of one read now;
+      // `--just-answer` and `search` read only what was published, so theirs stands.
+      // A refusal whose checkout could not be compared says why.
+      const caught = justAnswer || tool === search ? undefined : (looked ?? (await again(first)));
+      const footer = refusalFooter(caught, caught?.subject?.at ?? first.at, justAnswer);
+      try {
+        if (caught?.subject === undefined) throw refusal;
+        answer = caught.subject.answer(caught.unseen);
+      } catch (still) {
+        // A name not found is an answer once nothing newer can be read, dated as any other.
+        const found = foundNothingAnswer(still, caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
+        if (found === undefined) {
+          if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
+          throw still;
+        }
+        answer = found;
+      }
+    }
 
     process.stdout.write(`${answer}\n`);
   } catch (failure) {

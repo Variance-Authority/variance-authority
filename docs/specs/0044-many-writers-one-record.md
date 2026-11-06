@@ -115,7 +115,9 @@ It needs to be a property checked over generated inputs.
   as if it behaved like the recorder's.
 - The lay refuses a previous record written under another instrumentation
   recipe, or one it cannot read, with the reason and the remedy: it was written
-  by another build, so delete it and run again. The fold refuses the same
+  by another build, so delete it and run again. A cached record under another
+  recipe never reaches the lay: the run replaces it first, in one printed line,
+  and only a handed-in one is refused. The fold refuses the same
   disagreement between shards. Nothing is discarded without a word.
 
 **Acceptance:** two runs against one repository, started together and finishing

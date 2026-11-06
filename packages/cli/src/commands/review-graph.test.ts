@@ -47,6 +47,15 @@ describe('the changed functions drawn for a comment', () => {
     expect(text).not.toContain('with no case</summary>');
   });
 
+  it('marks a function no case is known to have run apart from one no case ran, and counts its places apart', () => {
+    const arm = { ...region('f', 3, 'overwritten'), kind: 'branch' };
+    const text = changeGraph(review([region('f', 1, 'near', ['f.test.ts']), arm, region('f/map.arg0', 2, 'unwalked'), region('g', 10, 'overwritten', [], 'modified'), region('h', 20, 'unwalked')])).join('\n');
+    expect(text).toContain('<summary>🔀 3 changed functions, 1 with no case, 1 with no case known to have run it</summary>');
+    expect(text).toContain('"🟢 f · new<br/>1 case, 1 ran a changed line · 1 place no case ran · 1 place no case is known to have run"]:::near');
+    expect(text).toContain('"❔ g · modified<br/>no case is known to have run it"]:::notknown');
+    expect(text).toContain('  classDef notknown fill:#fbefff,stroke:#8250df,color:#1f2328');
+  });
+
   it('names the closure, not the function, when the change reached only a closure in it', () => {
     const text = changeGraph(review([region('f/map.arg0', 2, 'near', ['f.test.ts'], 'modified')])).join('\n');
     expect(text).toContain('"🟢 f/map.arg0 · modified<br/>1 case, 1 ran a changed line"]:::near');

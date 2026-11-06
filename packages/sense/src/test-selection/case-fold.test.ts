@@ -9,12 +9,14 @@ import { foldCaseRun, freshCases, inspectCaseRun } from './case-fold.js';
 import { layCases, lastCaseRunOf } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
+import { rowOf } from './case-said.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { NO_OWNER } from './format-layout.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { ExecutionIndex } from './reverse.js';
+import caseOwner from './case-owner.cjs';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
 import { nativeModule } from './jest-journey-artifact.js';
@@ -226,21 +228,37 @@ describe('the bounded case fold', () => {
     });
   });
 
+  it('lays the limit each case ran under on its row, the longest of its frames, and names none where no frame did', async () => {
+    const cases = await directory();
+    const file = '/repo/test/pay.test.ts';
+    const entered = new Map([['src/pay.ts', counters(2, [1])]]);
+    await writeFile(resolve(cases, 'a.vac'), packFrames([
+      journalFormat.encodeJournal(packCase(file, 'bound', '1', undefined, 5000), entered),
+      journalFormat.encodeJournal(packCase(file, 'bound', '1', undefined, 8000), new Map()),
+      journalFormat.encodeJournal(packCase(file, 'free', '2'), entered),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([['src/pay.ts', captured('src/pay.ts', 'src/pay.ts', 2)]]);
+
+    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64)).bytes);
+
+    expect(folded.tests.map(({ name, limit }) => [name, limit])).toEqual([['bound', 8000], ['free', undefined]]);
+  });
+
   it('lays what each case said on its row, joined across its frames and named from the checkout', async () => {
     const cases = await directory();
     const file = '/repo/test/pay.test.ts';
     const level = preconditions.CASE_LEVEL;
-    const owner = (name: string, said?: Parameters<typeof preconditions.packSaid>[1]) =>
-      said === undefined ? packCase(file, name, name) : preconditions.packSaid(packCase(file, name, name), said);
+    const owner = (name: string, said?: Parameters<typeof caseOwner.packHeard>[1]['said']) =>
+      said === undefined ? packCase(file, name, name) : caseOwner.packHeard(packCase(file, name, name), { said: said });
     const entered = new Map([['src/pay.ts', counters(2, [1])]]);
     await writeFile(resolve(cases, 'a.vac'), packFrames([
       journalFormat.encodeJournal(owner('mocked', [
-        ['network', 'live', `${file}:3`, 0],
-        ['network', 'mocked', 'file:///repo/test/pay.test.ts:9', level],
+        ['fixture:network', '"live"', `${file}:3`, 0],
+        ['fixture:network', '"mocked"', 'file:///repo/test/pay.test.ts:9', level],
       ]), entered),
       // A retry of the same case that said something else: the same contradiction.
-      journalFormat.encodeJournal(owner('flips', [['flag', 'ff-on', `${file}:12`, level]]), entered),
-      journalFormat.encodeJournal(owner('flips', [['flag', 'ff-off', `${file}:12`, level]]), new Map()),
+      journalFormat.encodeJournal(owner('flips', [['fixture:flag', '"ff-on"', `${file}:12`, level]]), entered),
+      journalFormat.encodeJournal(owner('flips', [['fixture:flag', '"ff-off"', `${file}:12`, level]]), new Map()),
       journalFormat.encodeJournal(owner('silent', []), entered),
       // Written by a recording that never listened.
       journalFormat.encodeJournal(owner('unheard'), entered),
@@ -255,12 +273,19 @@ describe('the bounded case fold', () => {
         entered: ['test/pay.test.ts > flips', 'test/pay.test.ts > mocked', 'test/pay.test.ts > silent', 'test/pay.test.ts > unheard'],
       },
     });
-    expect(Object.fromEntries(folded.tests.map((test) => [test.name, test.preconditions]))).toEqual({
-      flips: [
-        { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:12', level },
-        { name: 'flag', value: 'ff-on', site: 'test/pay.test.ts:12', level },
+    // Every item is kept, the overridden one too, each site named from the checkout.
+    expect(folded.tests.find((test) => test.name === 'mocked')?.said).toBe(JSON.stringify({
+      said: [
+        ['fixture:network', '"live"', 'test/pay.test.ts:3', 0],
+        ['fixture:network', '"mocked"', 'test/pay.test.ts:9', level],
       ],
-      mocked: [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level }],
+    }));
+    expect(Object.fromEntries(folded.tests.map((test) => [test.name, rowOf(test)]))).toEqual({
+      flips: [
+        { name: 'fixture:flag', value: 'ff-off', site: 'test/pay.test.ts:12', level },
+        { name: 'fixture:flag', value: 'ff-on', site: 'test/pay.test.ts:12', level },
+      ],
+      mocked: [{ name: 'fixture:network', value: 'mocked', site: 'test/pay.test.ts:9', level }],
       silent: [],
       unheard: undefined,
     });

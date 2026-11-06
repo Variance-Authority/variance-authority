@@ -1,6 +1,7 @@
 import { digestString } from '../digest.js';
 import type { TestCoverageView } from './format-view.js';
-import type { ExecutionNarrowingOptions } from './importers.js';
+import type { ExecutionNarrowingOptions } from './narrowing.js';
+import { applied, type Hunk } from './patch.js';
 
 /** The text a module's rows were recorded from, under the name that proved it. */
 export interface Frame {
@@ -92,4 +93,53 @@ function keptFor(
   // The store answers by name, and a name is a claim: the text is held to it.
   if (text === undefined || digestString(text) !== digest) return undefined;
   return { name, text, kept: true };
+}
+
+/**
+ * The text at the record's commit of a file no row holds, under the first of
+ * its names the commit holds, and empty under `fallback` for a file the commit
+ * does not hold: a new file's diff is its whole text.
+ */
+export function commitFrame(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  fallback: string,
+  sourceAt: NonNullable<ExecutionNarrowingOptions['sourceAt']>,
+): Frame {
+  return heldFrame(coverage, names, sourceAt) ?? { name: fallback, text: '' };
+}
+
+/**
+ * A file no row holds as the change leaves it: its text at the record's commit
+ * under the first of its names the commit holds, with `hunks` applied, which
+ * for a file the diff adds is the hunks alone, and that text alone when the
+ * change does not move it. `undefined` when neither the commit nor the change
+ * gives it a text — a file the commit does not hold and the diff does not add
+ * has an old text nobody read — or the hunks do not apply.
+ */
+export function arrivedFrame(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  hunks: readonly Hunk[] | undefined,
+  sourceAt: ExecutionNarrowingOptions['sourceAt'],
+): Frame | undefined {
+  if (sourceAt === undefined) return undefined;
+  const held = heldFrame(coverage, names, sourceAt);
+  if (hunks === undefined) return held;
+  if (held === undefined && hunks.some((hunk) => hunk.added !== true)) return undefined;
+  const after = applied(held?.text ?? '', hunks)?.after;
+  const name = held?.name ?? names[0];
+  return after === undefined || name === undefined ? undefined : { name, text: after };
+}
+
+function heldFrame(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  sourceAt: NonNullable<ExecutionNarrowingOptions['sourceAt']>,
+): Frame | undefined {
+  for (const name of names) {
+    const text = sourceAt(name, coverage.commit);
+    if (text !== undefined) return { name, text };
+  }
+  return undefined;
 }

@@ -1,0 +1,2894 @@
+{
+ "tip": "94a02988b3a5312903bbd9cf04424a101a1896b5",
+ "copies": [
+  {
+   "id": "h-c10",
+   "kind": "function",
+   "base": "eb921f93176073b41ef00e8e31c1390e4e52976c",
+   "head": "fdb8927c9c54e099b6844345a8fdd22b510520e2",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/react/src/suspense.ts",
+     "name": "containerFiber",
+     "line": 189
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/react/src/fiber.ts",
+     "name": "findReactContainers"
+    }
+   ]
+  },
+  {
+   "id": "h-c10k",
+   "kind": "constant",
+   "base": "eb921f93176073b41ef00e8e31c1390e4e52976c",
+   "head": "fdb8927c9c54e099b6844345a8fdd22b510520e2",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/react/src/suspense.ts",
+     "name": "CONTAINER_KEY_PREFIX",
+     "line": 113
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/react/src/fiber.ts",
+     "name": "CONTAINER_KEY_PREFIX"
+    }
+   ]
+  },
+  {
+   "id": "h-c35",
+   "kind": "inline-idiom",
+   "base": "1c93ebc99c3e2949e5c30b73086a6ddf2bb78992",
+   "head": "0e41db909996822da7b3b2fdcb573bf8e0b04748",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/mcp/src/tools/orient.ts",
+     "name": "orient",
+     "line": 94
+    },
+    {
+     "path": "packages/mcp/src/tools/place.ts",
+     "name": "placesOn",
+     "line": 141
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/mcp/src/tools/locate.ts",
+     "name": "locateSubjects"
+    }
+   ]
+  },
+  {
+   "id": "b-ancestor-1",
+   "kind": "function",
+   "base": "3aaedb42668b185a29ce1da1473d0eadeb6549d7",
+   "head": "8c76e42a5d262a5a87d4ca84b145fefa95246f16",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/runs-base.ts",
+     "name": "runsBase",
+     "line": 102
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/share-lines.ts",
+     "name": "headPast"
+    },
+    {
+     "path": "packages/store/src/share-git.ts",
+     "name": "gitDescends"
+    }
+   ]
+  },
+  {
+   "id": "b-ancestor-2",
+   "kind": "function",
+   "base": "8c76e42a5d262a5a87d4ca84b145fefa95246f16",
+   "head": "eb65d1e72c87cc5e3a725fa8e994fa793868ef82",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/stands.ts",
+     "name": "isAncestor",
+     "line": 82
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/share-lines.ts",
+     "name": "headPast"
+    },
+    {
+     "path": "packages/store/src/share-git.ts",
+     "name": "gitDescends"
+    },
+    {
+     "path": "packages/cli/src/commands/runs-base.ts",
+     "name": "runsBase"
+    }
+   ]
+  },
+  {
+   "id": "b-ancestor-3",
+   "kind": "function",
+   "base": "cc25d6a65847be5a563940eabdfb7975bd21035c",
+   "head": "18c80a48d1e0df62d85d58e4ebb3d20fc5fb662b",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/milestone-repin.ts",
+     "name": "ancestor",
+     "line": 234
+    },
+    {
+     "path": "packages/cli/src/commands/checkout-read.ts",
+     "name": "ancestor",
+     "line": 69
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/share-lines.ts",
+     "name": "headPast"
+    },
+    {
+     "path": "packages/store/src/share-git.ts",
+     "name": "gitDescends"
+    },
+    {
+     "path": "packages/cli/src/commands/runs-base.ts",
+     "name": "runsBase"
+    },
+    {
+     "path": "packages/sense/src/test-selection/stands.ts",
+     "name": "isAncestor"
+    }
+   ]
+  },
+  {
+   "id": "b-toplevel-1",
+   "kind": "inline-idiom",
+   "base": "4977ce89b70cf91fa1591b523b8591f49ecc0eba",
+   "head": "16f6dd69cdbd0e05f9e7694d71566c10df3a7f95",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/repository-root.ts",
+     "name": "repositoryRoot",
+     "line": 34
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/since.ts",
+     "name": "topLevel"
+    }
+   ]
+  },
+  {
+   "id": "b-toplevel-2",
+   "kind": "inline-idiom",
+   "base": "8fb6c00613c404a15679222a95345aa6a3acb3fa",
+   "head": "79a8d05eb0cf56d33fadc67c9ef0661af9c5c589",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/report-source.ts",
+     "name": "checkoutOf",
+     "line": 240
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/since.ts",
+     "name": "topLevel"
+    },
+    {
+     "path": "packages/sense/src/test-selection/repository-root.ts",
+     "name": "repositoryRoot"
+    }
+   ]
+  },
+  {
+   "id": "b-toplevel-3",
+   "kind": "inline-idiom",
+   "base": "c799fa0c153946039477094bc3fd117b8e5f87a3",
+   "head": "43073b283df53ce6fa736fc9ce3d9c937b1311d6",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "packages/help/src/scan-scope.ts",
+     "name": "scanScope",
+     "line": 16
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/since.ts",
+     "name": "topLevel"
+    },
+    {
+     "path": "packages/sense/src/test-selection/repository-root.ts",
+     "name": "repositoryRoot"
+    },
+    {
+     "path": "packages/cli/src/commands/report-source.ts",
+     "name": "checkoutOf"
+    }
+   ]
+  },
+  {
+   "id": "b-toplevel-4",
+   "kind": "inline-idiom",
+   "base": "42d1e05b351e938db2873cbb96df3d06cff9c438",
+   "head": "74414e6359c18ff398ccb06ab426a68272808e24",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/base-diff.ts",
+     "name": "movedOnBase",
+     "line": 64
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/since.ts",
+     "name": "topLevel"
+    },
+    {
+     "path": "packages/sense/src/test-selection/repository-root.ts",
+     "name": "repositoryRoot"
+    },
+    {
+     "path": "packages/cli/src/commands/report-source.ts",
+     "name": "checkoutOf"
+    },
+    {
+     "path": "packages/help/src/scan-scope.ts",
+     "name": "scanScope"
+    }
+   ]
+  },
+  {
+   "id": "b-toplevel-5",
+   "kind": "inline-idiom",
+   "base": "15e5e39a94444f5250156166edd0afcf672d7f3f",
+   "head": "fa7d65a1600175ebc4aed814bb96fdf69c2b97a3",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/store/src/lfs-fetch.ts",
+     "name": "locate",
+     "line": 168
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/since.ts",
+     "name": "topLevel"
+    },
+    {
+     "path": "packages/sense/src/test-selection/repository-root.ts",
+     "name": "repositoryRoot"
+    },
+    {
+     "path": "packages/cli/src/commands/report-source.ts",
+     "name": "checkoutOf"
+    },
+    {
+     "path": "packages/help/src/scan-scope.ts",
+     "name": "scanScope"
+    },
+    {
+     "path": "packages/cli/src/commands/base-diff.ts",
+     "name": "movedOnBase"
+    }
+   ]
+  },
+  {
+   "id": "b-duration-1",
+   "kind": "function",
+   "base": "3dc7eefba645bfc16c55d67be56ed7fd20b93ad7",
+   "head": "86597711291a8463ae7b3c167960dff27ee0ca05",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/help/src/tools/slowest-tests.ts",
+     "name": "spent",
+     "line": 34
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/mcp/src/tools/costs.ts",
+     "name": "seconds"
+    }
+   ]
+  },
+  {
+   "id": "b-duration-2",
+   "kind": "function",
+   "base": "32785f0e9cb53b4465b18c75716a65e6d91032b8",
+   "head": "00c6990c9aa00661bfb84f18beb0e26fcb9c146c",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/core/src/shard/placement.ts",
+     "name": "durationText",
+     "line": 175
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/mcp/src/tools/costs.ts",
+     "name": "seconds"
+    },
+    {
+     "path": "packages/help/src/tools/slowest-format.ts",
+     "name": "spent"
+    }
+   ]
+  },
+  {
+   "id": "b-pngsize-1",
+   "kind": "function",
+   "base": "d17897588b1cd58a5978c82be3a9dd87879108b1",
+   "head": "0d5b58ceeaf2bf51ab75e466535cd5af878a3d5f",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/png/src/size.ts",
+     "name": "pngSize",
+     "line": 26
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/playwright/src/blank.ts",
+     "name": "imageSize"
+    }
+   ]
+  },
+  {
+   "id": "b-pngsize-2",
+   "kind": "function",
+   "base": "651c51f385639bc64df81c19b9465283146b72ce",
+   "head": "efae529b82ee7f3707ede19b23d217e828f368e4",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/report-html-pictures.ts",
+     "name": "sizeOf",
+     "line": 156
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/playwright/src/blank.ts",
+     "name": "imageSize"
+    },
+    {
+     "path": "packages/png/src/size.ts",
+     "name": "pngSize"
+    }
+   ]
+  },
+  {
+   "id": "b-digestbytes",
+   "kind": "function",
+   "base": "086aca1ec125e71b38bca20cae58cd51bc76c3b3",
+   "head": "bd2e2d08832a1fc67b4ed2b14992a62162e14aaf",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/digest.ts",
+     "name": "digestBytes",
+     "line": 32
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/core/src/format/hash.ts",
+     "name": "digestBytes"
+    }
+   ]
+  },
+  {
+   "id": "b-testmodule",
+   "kind": "constant",
+   "base": "d1dc428eaf5c9fc81c60b3d76da74e3b3d7a3c0d",
+   "head": "3054feb5de715acf8799a46809153e972dbcb9e7",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "tools/owners.mjs",
+     "name": "COLLECTED_NAME",
+     "line": 125
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/workspaces.ts",
+     "name": "TEST_MODULE"
+    }
+   ]
+  },
+  {
+   "id": "b-head-1",
+   "kind": "function",
+   "base": "c799fa0c153946039477094bc3fd117b8e5f87a3",
+   "head": "43073b283df53ce6fa736fc9ce3d9c937b1311d6",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/coverage.ts",
+     "name": "head",
+     "line": 159
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/commit.ts",
+     "name": "commitOf"
+    }
+   ]
+  },
+  {
+   "id": "b-head-2",
+   "kind": "function",
+   "base": "3d8e7a91487adfd4d3db20b14766da8e6d2d64b5",
+   "head": "f44730dc6dd579fbabdc64b03ed47389adfd2405",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/suite-share.ts",
+     "name": "headOf",
+     "line": 193
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/commit.ts",
+     "name": "commitOf"
+    },
+    {
+     "path": "packages/cli/src/commands/coverage.ts",
+     "name": "head"
+    }
+   ]
+  },
+  {
+   "id": "b-hops",
+   "kind": "function",
+   "base": "572b7e927d9a0f4f953fbb994b82b2524cdf3541",
+   "head": "d9d0251b1431b2fc0b8dbe0708d8f11b59c8c529",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/distance.ts",
+     "name": "hopsFromTest",
+     "line": 382
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/core/src/relate/reach.ts",
+     "name": "dependenciesOf"
+    }
+   ]
+  },
+  {
+   "id": "b-tracked-1",
+   "kind": "function",
+   "base": "086aca1ec125e71b38bca20cae58cd51bc76c3b3",
+   "head": "bd2e2d08832a1fc67b4ed2b14992a62162e14aaf",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/scripts/coverage-corpus.mjs",
+     "name": "tracked",
+     "line": 69
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/unrun.mjs",
+     "name": "tracked"
+    }
+   ]
+  },
+  {
+   "id": "b-tracked-2",
+   "kind": "function",
+   "base": "5499ac82243370bcf09d5f1014b8f4e11b5841a5",
+   "head": "6867e25be377190783a2e90b20406731657f7f41",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/scripts/source-index.mjs",
+     "name": "tracked",
+     "line": 66
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/unrun.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/coverage-corpus.mjs",
+     "name": "tracked"
+    }
+   ]
+  },
+  {
+   "id": "b-tracked-3",
+   "kind": "function",
+   "base": "71fbf70f0e22bc94fed79f31acad4be57f419126",
+   "head": "9d72e592faee815e9205efa093731ff1fd3c92b8",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/scripts/published-index.mjs",
+     "name": "tracked",
+     "line": 64
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/unrun.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/coverage-corpus.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/source-index.mjs",
+     "name": "tracked"
+    }
+   ]
+  },
+  {
+   "id": "b-tracked-4",
+   "kind": "function",
+   "base": "8fabe274757473cc33d96cbf5557dfa8247ddb93",
+   "head": "ff619e29a90c285b9150e89455fc8f7ee66e78f2",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "tools/native-sources.check.ts",
+     "name": "tracked",
+     "line": 19
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/unrun.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/coverage-corpus.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/source-index.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/published-index.mjs",
+     "name": "tracked"
+    }
+   ]
+  },
+  {
+   "id": "b-tracked-5",
+   "kind": "function",
+   "base": "0030024d3376c0cac93067128e6e791e622d0147",
+   "head": "b456df16633f74ce1ab638ddabec44cace73eeac",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "tools/native-packages.check.ts",
+     "name": "tracked",
+     "line": 206
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/unrun.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/coverage-corpus.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/source-index.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/published-index.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "tools/native-sources.check.ts",
+     "name": "tracked"
+    }
+   ]
+  },
+  {
+   "id": "b-tracked-6",
+   "kind": "function",
+   "base": "d9d0251b1431b2fc0b8dbe0708d8f11b59c8c529",
+   "head": "94a02988b3a5312903bbd9cf04424a101a1896b5",
+   "earlier": [
+    "doors"
+   ],
+   "copy": [
+    {
+     "path": "tools/modules.mjs",
+     "name": "tracked",
+     "line": 19
+    }
+   ],
+   "owner": [
+    {
+     "path": "tools/unrun.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/coverage-corpus.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/source-index.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "packages/sense/scripts/published-index.mjs",
+     "name": "tracked"
+    },
+    {
+     "path": "tools/native-sources.check.ts",
+     "name": "tracked"
+    },
+    {
+     "path": "tools/native-packages.check.ts",
+     "name": "tracked"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-1",
+   "kind": "function",
+   "base": "9431995b8964d825a2eefeeee27a088890b3e342",
+   "head": "6ecc2395e7866e3157923356fa0b3f175c17cbc0",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder",
+     "line": 182
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/vitest.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-2",
+   "kind": "function",
+   "base": "da18c4735b14d4f77ada0c3b48ac1e3eac237487",
+   "head": "5fd07c06aa2ebcc1df503340dafc9f1fd476699a",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder",
+     "line": 104
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/vitest.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-3",
+   "kind": "function",
+   "base": "bf21736281fbfd019fbd362747c85586079b76a5",
+   "head": "8fcdebb89a5d2e9e07b1dc6bc2d6bb3541226953",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/source-index-format.ts",
+     "name": "order",
+     "line": 429
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/vitest.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-4",
+   "kind": "function",
+   "base": "fd6c93f3fa950b61208723867e9c28579e7fb32a",
+   "head": "01539b0423c0b7318704b83fba275524036deae4",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder",
+     "line": 188
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/source-index-format.ts",
+     "name": "order"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-5",
+   "kind": "function",
+   "base": "07c16b1fd657001ee1a39e05e4fcfb0071f67a2a",
+   "head": "b8b4ab922574f7a0407977ebc5cec2dbd026fdbe",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/core/src/attribute/closure.ts",
+     "name": "codeUnitOrder",
+     "line": 322
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/source-index-format.ts",
+     "name": "order"
+    },
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-6",
+   "kind": "function",
+   "base": "ee4f741ce89d7ef1fcfd300ce1758f206592f0a4",
+   "head": "0718464515ac662265e25d262aa5a8303de70cc3",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/importers.ts",
+     "name": "codeUnitOrder",
+     "line": 167
+    },
+    {
+     "path": "packages/sense/src/test-selection/lookup.ts",
+     "name": "codeUnitOrder",
+     "line": 81
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/source-index-format.ts",
+     "name": "order"
+    },
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/attribute/closure.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-7",
+   "kind": "function",
+   "base": "304e3365058b7ad3b703eac8ba147c19e0d5cec5",
+   "head": "4727322cc8d0442861c46d48cd3f252f0f53f85c",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/bands.ts",
+     "name": "codeUnitOrder",
+     "line": 123
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/segment/index.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/attribute/closure.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/importers.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/lookup.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-8",
+   "kind": "function",
+   "base": "0137757332129c36f096a66756df85367b0946d8",
+   "head": "0d0beb24a06bf50b90b780a864a0694e218585c1",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/at-source.ts",
+     "name": "codeUnitOrder",
+     "line": 335
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/segment/index.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/attribute/closure.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/importers.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/lookup.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/at-distance.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-9",
+   "kind": "function",
+   "base": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "head": "dfab8cdbcf24a470dd8192fc4e1c0474078dc0ba",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/execution-select.ts",
+     "name": "codeUnitOrder",
+     "line": 113
+    },
+    {
+     "path": "packages/sense/src/test-selection/journey-native.ts",
+     "name": "codeUnitOrder",
+     "line": 113
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/segment/index.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/attribute/closure.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/importers.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/lookup.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/at-distance.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/at-source.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-codeunit-10",
+   "kind": "function",
+   "base": "77ca973ab572ecb5533cba0f86babaa429173d89",
+   "head": "f5f61a96eeae4a4197af1fda4e229e4369f340d6",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/select-leg.ts",
+     "name": "codeUnitOrder",
+     "line": 158
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/format.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/deviation.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/mcp/src/tools/source-tests.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/segment/index.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/divergence.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/core/src/attribute/closure.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/importers.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/lookup.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/at-distance.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/at-source.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/execution-select.ts",
+     "name": "codeUnitOrder"
+    },
+    {
+     "path": "packages/sense/src/test-selection/journey-native.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "b-inherit",
+   "kind": "constant",
+   "base": "9671aa17181931e7b1ee6cbea5fd330b1cb71f99",
+   "head": "d72ab796a9220992a9ef4765bde99eb55e214b73",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/collector-dom/src/collect.ts",
+     "name": "INHERITABLE",
+     "line": 255
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/core/src/normalize/cascade.ts",
+     "name": "INHERITED_PROPERTIES"
+    }
+   ]
+  },
+  {
+   "id": "b-lines",
+   "kind": "function",
+   "base": "fe6624fb2319538be888e9fafff3dc539abb6285",
+   "head": "f67f37d774c4fbf1274659a903407f670c089a55",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/source-lines.ts",
+     "name": "lineOfStart",
+     "line": 224
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/read.ts",
+     "name": "linesOf"
+    }
+   ]
+  },
+  {
+   "id": "b-mib-1",
+   "kind": "function",
+   "base": "2439ec5d459c7be4dadc781ba2e605420edd2daf",
+   "head": "7f5334bda4132abf84ad71f5a6ed29c948cb35f4",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/renders.ts",
+     "name": "mib",
+     "line": 62
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/doctor-report.ts",
+     "name": "mib"
+    }
+   ]
+  },
+  {
+   "id": "b-mib-2",
+   "kind": "function",
+   "base": "8fb6c00613c404a15679222a95345aa6a3acb3fa",
+   "head": "79a8d05eb0cf56d33fadc67c9ef0661af9c5c589",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/prune.ts",
+     "name": "mib",
+     "line": 264
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/cli/src/commands/doctor-report.ts",
+     "name": "mib"
+    },
+    {
+     "path": "packages/cli/src/commands/renders.ts",
+     "name": "mib"
+    }
+   ]
+  },
+  {
+   "id": "b-window",
+   "kind": "function",
+   "base": "04f3f0b01273c86b313132679616b0be4a495e9f",
+   "head": "493e7e93c9a775bbb7896c026281bfa4ee63f0d5",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/cloudflare/src/worker.ts",
+     "name": "windowOf",
+     "line": 610
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/server/src/http.ts",
+     "name": "windowOf"
+    }
+   ]
+  },
+  {
+   "id": "b-send",
+   "kind": "function",
+   "base": "673c4a7593478553c2cb620d75b535d5d0e8684f",
+   "head": "de7e8dbf3d41e451ae692faa887b4318caed0404",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/server/src/http.ts",
+     "name": "send",
+     "line": 589
+    },
+    {
+     "path": "packages/raster/src/store-remote.ts",
+     "name": "send",
+     "line": 438
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/raster/src/render-remote.ts",
+     "name": "send"
+    }
+   ]
+  },
+  {
+   "id": "b-hookprefix",
+   "kind": "constant",
+   "base": "f1b4fbf65339647e0e04afa49757492e0c92ddae",
+   "head": "037225bcbef2dad1830e124359009ce9dd712fff",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/react/src/hook.ts",
+     "name": "CONTAINER_KEY_PREFIX",
+     "line": 7
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/react/src/fiber.ts",
+     "name": "CONTAINER_KEY_PREFIX"
+    }
+   ]
+  },
+  {
+   "id": "b-hookmounted",
+   "kind": "function",
+   "base": "f1b4fbf65339647e0e04afa49757492e0c92ddae",
+   "head": "037225bcbef2dad1830e124359009ce9dd712fff",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/react/src/hook.ts",
+     "name": "reactHasMounted",
+     "line": 75
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/react/src/fiber.ts",
+     "name": "findReactContainers"
+    }
+   ]
+  },
+  {
+   "id": "b-fibersource",
+   "kind": "function",
+   "base": "7cd755998917cfd7b64983dc380e14b403bdaac0",
+   "head": "26ae9edd49e09cb93631d2766d8c796b3e663505",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/react/src/traversal.ts",
+     "name": "fiberSourceLocation",
+     "line": 100
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/react/src/resolve.ts",
+     "name": "sourceLocation"
+    }
+   ]
+  },
+  {
+   "id": "b-descendants",
+   "kind": "function",
+   "base": "36f93a0ae371835910d13784cae9066ef93da54b",
+   "head": "7899bb6bed3dac3c11c5622632b8e5969272d98e",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/presentation/src/hierarchy.ts",
+     "name": "descendantIds",
+     "line": 197
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/presentation/src/alignment.ts",
+     "name": "descendantIds"
+    },
+    {
+     "path": "packages/presentation/src/focus.ts",
+     "name": "descendantIds"
+    }
+   ]
+  },
+  {
+   "id": "b-crc-1",
+   "kind": "function",
+   "base": "705f99fd5012ef847869ce747c4543372a7a7ac0",
+   "head": "3183bb5ece4581cb5cbc4922fe2d4bd634364d4b",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/run.test.ts",
+     "name": "crc32",
+     "line": 842
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/raster/src/difference/serialize.ts",
+     "name": "crc32"
+    }
+   ]
+  },
+  {
+   "id": "b-crc-2",
+   "kind": "function",
+   "base": "6be93fa3991d2643989420b6305a12ac5ba8f3ca",
+   "head": "446d7a921f827c5388011252febf40730f3830d2",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/playwright/src/blank.ts",
+     "name": "crc32",
+     "line": 352
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/raster/src/difference/serialize.ts",
+     "name": "crc32"
+    },
+    {
+     "path": "packages/cli/src/commands/run-fixture.ts",
+     "name": "crc32"
+    }
+   ]
+  },
+  {
+   "id": "b-jsonc",
+   "kind": "function",
+   "base": "5cf4cc24ced5b3bfbf39f78e6f9a60c0572038ad",
+   "head": "4432f677c8f2ab5bfb821a30696bf4033ef5a4c5",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/package/src/use.ts",
+     "name": "built",
+     "line": 99
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/package/src/manifest.ts",
+     "name": "read"
+    }
+   ]
+  },
+  {
+   "id": "m-0193f1c-order",
+   "kind": "function",
+   "base": "864cbf8171e933d02f3ea4091a4929cc90e5e92d",
+   "head": "40f5288098a21a5dff54e52a7c46e4f7faaad67b",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/cli/src/commands/review-graph.ts",
+     "name": "order",
+     "line": 96
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/core/src/segment/index.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "m-47f9c5b-readJournals",
+   "kind": "function",
+   "base": "ee4f741ce89d7ef1fcfd300ce1758f206592f0a4",
+   "head": "0718464515ac662265e25d262aa5a8303de70cc3",
+   "earlier": [
+    "resemblance"
+   ],
+   "copy": [
+    {
+     "path": "packages/sense/src/test-selection/jest-reporter.ts",
+     "name": "readJournals",
+     "line": 213
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/sense/src/test-selection/vitest.ts",
+     "name": "readJournals"
+    }
+   ]
+  },
+  {
+   "id": "m-754187f-byCodeUnit",
+   "kind": "function",
+   "base": "ff619e29a90c285b9150e89455fc8f7ee66e78f2",
+   "head": "b3c1bdf593d50a33878c741b635b31ca278941a4",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/help/src/tools/by-path.ts",
+     "name": "byCodeUnit",
+     "line": 97
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/core/src/segment/index.ts",
+     "name": "codeUnitOrder"
+    }
+   ]
+  },
+  {
+   "id": "m-1c81975-reachedFrom",
+   "kind": "function",
+   "base": "01d9b24a4e91c913fdce3fb5bac7234bb952862a",
+   "head": "f018ae9d90056913d6656d03c3af0a69f1f2c635",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/help/src/read.ts",
+     "name": "reachedFrom",
+     "line": 345
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/package/src/help.ts",
+     "name": "reachedFrom"
+    }
+   ]
+  },
+  {
+   "id": "m-2bd796d-limitArg",
+   "kind": "function",
+   "base": "16f432a14498c4218c909403caa25495def35a27",
+   "head": "bdf3b8ea425ce4eddb75585b40dc24b1d8e4538c",
+   "earlier": [],
+   "copy": [
+    {
+     "path": "packages/mcp/src/tools/limit.ts",
+     "name": "limitOf",
+     "line": 13
+    }
+   ],
+   "owner": [
+    {
+     "path": "packages/mcp/src/tools/run-signals.ts",
+     "name": "limitArg"
+    }
+   ]
+  }
+ ],
+ "judged": [
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/tribunal/src/worker-http.ts",
+    "name": "record"
+   },
+   "existing": {
+    "path": "packages/raster/src/store.ts",
+    "name": "recordFrom"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/cli/src/commands/run-fixture.ts",
+    "name": "identityFor"
+   },
+   "existing": {
+    "path": "packages/raster/src/renderer.ts",
+    "name": "identityAtScale"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-query.mjs",
+    "name": "pick"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/scale-chunks.mjs",
+    "name": "pick"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "68e7438ccc91b03873307412cb6b967e1f0c9cd2",
+   "head": "93d95e87a58c60f5ee865f51069a2c3c6ca7623f",
+   "added": {
+    "path": "packages/report/src/findings.ts",
+    "name": "methodLine"
+   },
+   "existing": {
+    "path": "packages/report/src/findings.ts",
+    "name": "findingTotals"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/server/src/sqlite-queries.ts",
+    "name": "tokenFilter"
+   },
+   "existing": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "tokenFilter"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-graph.mjs",
+    "name": "secs"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/scale-chunks.mjs",
+    "name": "secs"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "01eaf1b0a1d4e61fe3884a6697375b8bf3fbe06a",
+   "head": "42b6e26063799412d720d654a2dad4cb2aca9419",
+   "added": {
+    "path": "packages/remote/src/serve-store.ts",
+    "name": "closeServer"
+   },
+   "existing": {
+    "path": "packages/remote/src/renderer.ts",
+    "name": "closeServer"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "3b0dd4c5674c614c32827653a3eae8d1cffa435f",
+   "head": "82000014e558c72d24478955c738f1616e84413d",
+   "added": {
+    "path": "packages/sense/src/test-selection/jest-globals.cts",
+    "name": "get"
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/journey.ts",
+    "name": "get"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/snapshot-scale-fixture.mjs",
+    "name": "secs"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/scale-chunks.mjs",
+    "name": "secs"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-graph.mjs",
+    "name": "walk"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/snapshot-scale.mjs",
+    "name": "journalOf"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/dom/src/selector-parts.ts",
+    "name": "ancestorPortion"
+   },
+   "existing": {
+    "path": "packages/session/src/reads.ts",
+    "name": "ancestorPortion"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-query.mjs",
+    "name": "histogram"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/reach-probe.mjs",
+    "name": "depthHistogram"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "20def92fae5b8747d89034e2ba9019ca518d1ec5",
+   "head": "cfb333d48c0821ea48e80d7e2ab2ef6b1baf7475",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "isMissing"
+   },
+   "existing": {
+    "path": "packages/scenario/src/archive.ts",
+    "name": "isMissing"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-classes.mjs",
+    "name": "test"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/scale-chunks.mjs",
+    "name": "bit"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "95d3bb13d94b253085befca3094b8e0fc1e31348",
+   "head": "3c06f516e0d4500efb7099fc8231483da588907b",
+   "added": {
+    "path": "tools/surface.mjs",
+    "name": "ROOT"
+   },
+   "existing": {
+    "path": "tools/doc-examples.mjs",
+    "name": "ROOT"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "705f99fd5012ef847869ce747c4543372a7a7ac0",
+   "head": "3183bb5ece4581cb5cbc4922fe2d4bd634364d4b",
+   "added": {
+    "path": "packages/cli/src/config.ts",
+    "name": "DEFAULT_ALONE_LIMIT"
+   },
+   "existing": {
+    "path": "packages/core/src/attribute/region.ts",
+    "name": "DEFAULT_LIMIT"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "examples/kitchen-sink/src/observation.ts",
+    "name": "HARNESS_PAGE_URL"
+   },
+   "existing": {
+    "path": "examples/kitchen-sink/scripts/agent-bundle.mjs",
+    "name": "HARNESS_PAGE_URL"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/session/src/findings.ts",
+    "name": "formatFindings"
+   },
+   "existing": {
+    "path": "packages/session/src/session.ts",
+    "name": "report"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "ad8fbeb37e3dc12c7c9439e226ffc057c3c82340",
+   "head": "05acbd8f49492488ca0ef12e3c2c95877f2300f1",
+   "added": {
+    "path": "tools/since-shard.mjs",
+    "name": "valueOf"
+   },
+   "existing": {
+    "path": "packages/playwright/scripts/host.mjs",
+    "name": "flag"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "0bea106518ae65edb02c6891721484fc317d94a8",
+   "head": "2c7693586083d6640b49df51b0f9108a345390c0",
+   "added": {
+    "path": "packages/event/src/head.ts",
+    "name": "LOOPBACK"
+   },
+   "existing": {
+    "path": "packages/tribunal/src/node/bin.ts",
+    "name": "LOOPBACK"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "5fb8561f1e01be21dcbe2ef60c243868e95be226",
+   "head": "16c4966720a93c763a224f7673bd7b0927104038",
+   "added": {
+    "path": "packages/jsx-source/src/under.ts",
+    "name": "under"
+   },
+   "existing": {
+    "path": "packages/jsx-source/src/jsx-dev-runtime.ts",
+    "name": "jsxDEV"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "4e3ee37f2f7b0f472932414b7adaa984f6073ed8",
+   "head": "1f30e0ae0da4be2012a891faec1282c03bb65ec0",
+   "added": {
+    "path": "packages/cli/src/commands/distill.ts",
+    "name": "recordedPath"
+   },
+   "existing": {
+    "path": "packages/cli/src/covering-args.ts",
+    "name": "fromRoot"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "b9738f6b38bce2665e69437a6e06883b50627a58",
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/help/src/search-index.ts",
+    "name": "rank"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/chunk-store.mjs",
+    "name": "rank"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "fd771bfc5a52e115fd8fd1444252fec9370c70b4",
+   "head": "8e52d9f5cc1d60e6da75be58445f849c071d3910",
+   "added": {
+    "path": "packages/cli/src/commands/distill.ts",
+    "name": "REEXPORTS"
+   },
+   "existing": {
+    "path": "packages/core/src/relate/narrow.ts",
+    "name": "REEXPORTS"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-graph.mjs",
+    "name": "watch"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/crossings.mjs",
+    "name": "watch"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-verify.mjs",
+    "name": "held"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/crossings.mjs",
+    "name": "held"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "efae529b82ee7f3707ede19b23d217e828f368e4",
+   "head": "887aa42188319c4ed5a9fc5945c57599f0ba7d40",
+   "added": {
+    "path": "packages/sense/src/test-selection/fold-landing.ts",
+    "name": "recordedRun"
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/case-landing.ts",
+    "name": "textsIn"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "29f8e1a1e508b6053832877bc03759333672c7ae",
+   "head": "ec32b14ae631fd29038a27eab645d2e54a74383f",
+   "added": {
+    "path": "packages/sense/src/rust.ts",
+    "name": "directoryOf"
+   },
+   "existing": {
+    "path": "packages/core/src/relate/beyond.ts",
+    "name": "directoryOf"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "95d3bb13d94b253085befca3094b8e0fc1e31348",
+   "head": "3c06f516e0d4500efb7099fc8231483da588907b",
+   "added": {
+    "path": "tools/workspaces.ts",
+    "name": "nestedManifests"
+   },
+   "existing": {
+    "path": "tools/workspaces.ts",
+    "name": "sourceFiles"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "5fd2df4af5c24a89d2733919680b66211c29cedb",
+   "head": "232815a534b61c4218a70e4d1ddf0a06295a1177",
+   "added": {
+    "path": "packages/sense/scripts/variance-store-classes.mjs",
+    "name": "reachClass"
+   },
+   "existing": {
+    "path": "packages/sense/scripts/scale-chunks.mjs",
+    "name": "reachOfClass"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "68e7438ccc91b03873307412cb6b967e1f0c9cd2",
+   "head": "93d95e87a58c60f5ee865f51069a2c3c6ca7623f",
+   "added": {
+    "path": "packages/cli/src/commands/report-html-subjects.ts",
+    "name": "bands"
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/report-html-subjects.ts",
+    "name": "findings"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "14b2e4301c629e490c70dcf817e3ba3f2e45053c",
+   "head": "ccbf44b82bcad7ea5b31baec4b9dda7333579918",
+   "added": {
+    "path": "packages/sense/src/test-selection/coverage-rows.ts",
+    "name": "digested"
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/coverage-rows.ts",
+    "name": "coverageBlocks"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "20def92fae5b8747d89034e2ba9019ca518d1ec5",
+   "head": "cfb333d48c0821ea48e80d7e2ab2ef6b1baf7475",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "instrumentedModulesFile"
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/index.ts",
+    "name": "testCoverageFile"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "3b0dd4c5674c614c32827653a3eae8d1cffa435f",
+   "head": "82000014e558c72d24478955c738f1616e84413d",
+   "added": {
+    "path": "packages/sense/src/test-selection/journal-format.cts",
+    "name": "unpackCase"
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/cases.ts",
+    "name": "unpackCase"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "c1e2d75eb0011717d0cc0a061bfd6fcceb0c20e0",
+   "head": "2810065e4a23f4478c871b5c821c21a86fe2eab7",
+   "added": {
+    "path": "packages/raster/src/store.ts",
+    "name": "constructor"
+   },
+   "existing": {
+    "path": "packages/cli/src/exit.ts",
+    "name": "constructor"
+   },
+   "verdict": "unrelated"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "examples/kitchen-sink/src/corpus-restructured.ts",
+    "name": "RESTRUCTURED_CASES"
+   },
+   "existing": {
+    "path": "examples/kitchen-sink/src/corpus.ts",
+    "name": "CORPUS"
+   },
+   "verdict": "family"
+  },
+  {
+   "base": "a906565f446cb6191269fc57c8f9cd4f6c92da06",
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/session/src/ledger.ts",
+    "name": "confirm"
+   },
+   "existing": {
+    "path": "packages/session/src/session.ts",
+    "name": "confirm"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "49d7132174325dc25a8177b966661196011b89f2",
+   "head": "053205f4c18ddf412e99167c7638efe796ee3df7",
+   "added": {
+    "path": "packages/sense/src/source-index.ts",
+    "name": "getIndexed"
+   },
+   "existing": {
+    "path": "packages/sense/src/source-index.ts",
+    "name": "get"
+   },
+   "verdict": "reuse"
+  },
+  {
+   "base": "845d345b3fe07157eec6b9483d13f062d0591c03",
+   "head": "019734195d3eb2027d6e82d8ae1fed51bb785cff",
+   "added": {
+    "path": "packages/unit-test/src/shape.ts",
+    "name": "stringArray"
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/run-report.ts",
+    "name": "isStringArray"
+   },
+   "verdict": "family"
+  }
+ ],
+ "sampled": [
+  {
+   "head": "8cf41518d89c957b014044710e3d88b4da25a40e",
+   "added": {
+    "path": "packages/sense/scripts/witnesses.mjs",
+    "name": "median",
+    "line": 90
+   },
+   "existing": {
+    "path": "packages/presentation/src/math.ts",
+    "name": "median",
+    "line": 11
+   },
+   "verdict": "family",
+   "why": "Both take a median of numbers, but the new one returns the upper-middle element and 0 when empty; the existing averages the two middles and returns undefined."
+  },
+  {
+   "head": "756535dc755a15fd4c66a2151277b7cfc3841364",
+   "added": {
+    "path": "packages/sense/src/record.ts",
+    "name": "byCodeUnit",
+    "line": 165
+   },
+   "existing": {
+    "path": "packages/core/src/attribute/composition.ts",
+    "name": "byCodeUnit",
+    "line": 446
+   },
+   "verdict": "reuse",
+   "why": "Identical code-unit string comparator returning -1/0/1; the new one could call the existing one through an export with no change in behaviour."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/transform.ts",
+    "name": "within",
+    "line": 322
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/recorded-text.ts",
+    "name": "positionOf",
+    "line": 92
+   },
+   "verdict": "family",
+   "why": "Both binary-search a sorted sequence, but one finds the node whose span holds an offset and the other finds the index of an exact string, or -1."
+  },
+  {
+   "head": "76a988aab9515744403e511bb77b8c76d5c1462e",
+   "added": {
+    "path": "tools/owners.mjs",
+    "name": "calleeName",
+    "line": 182
+   },
+   "existing": {
+    "path": "packages/sense/src/taint/mocks.ts",
+    "name": "methodOf",
+    "line": 137
+   },
+   "verdict": "family",
+   "why": "Both name a call's callee; calleeName accepts any identifier or member property, while methodOf needs a CallExpression whose object is in a callers set."
+  },
+  {
+   "head": "8a7d727c55738536cf863bacd67349de4f3a19af",
+   "added": {
+    "path": "packages/core/src/format/shape.ts",
+    "name": "finiteNumber",
+    "line": 302
+   },
+   "existing": {
+    "path": "packages/unit-test/src/shape.ts",
+    "name": "finiteNumber",
+    "line": 178
+   },
+   "verdict": "reuse",
+   "why": "Identical predicate: typeof number and Number.isFinite. The existing one answers exactly what the new one computes."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/cli/src/commands/run-report.ts",
+    "name": "isStringArray",
+    "line": 191
+   },
+   "existing": {
+    "path": "packages/remote/src/store.ts",
+    "name": "stringsFrom",
+    "line": 296
+   },
+   "verdict": "reuse",
+   "why": "Both test for an array of strings. isStringArray(v) equals stringsFrom(v) !== null, and cli already depends on remote."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/transform.ts",
+    "name": "line",
+    "line": 477
+   },
+   "existing": {
+    "path": "packages/mcp/src/tools/locate-index.ts",
+    "name": "lowerBound",
+    "line": 173
+   },
+   "verdict": "family",
+   "why": "Both binary-search a sorted array, but line returns the 1-based index of the last start at or before a number; lowerBound returns the first string not below a key."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "text",
+    "line": 426
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "text",
+    "line": 621
+   },
+   "verdict": "reuse",
+   "why": "Same rule: read a row column, throw with the same message unless it is a string. Only the row type annotation differs; describe is identical."
+  },
+  {
+   "head": "f44730dc6dd579fbabdc64b03ed47389adfd2405",
+   "added": {
+    "path": "packages/sense/src/test-selection/mainline-layer.ts",
+    "name": "place",
+    "line": 230
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/report-source.ts",
+    "name": "settle",
+    "line": 300
+   },
+   "verdict": "family",
+   "why": "Both write atomically through a temp file and a rename, but place deletes on undefined and throws, while settle returns an error string and never deletes."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/scope.ts",
+    "name": "isNode",
+    "line": 346
+   },
+   "existing": {
+    "path": "packages/sense/src/taint/calls.ts",
+    "name": "isNode",
+    "line": 98
+   },
+   "verdict": "reuse",
+   "why": "Identical type guard: a non-null object with a string type field. The new one could import the existing one unchanged."
+  },
+  {
+   "head": "8e52d9f5cc1d60e6da75be58445f849c071d3910",
+   "added": {
+    "path": "packages/sense/src/taint/reach.ts",
+    "name": "byCodeUnit",
+    "line": 55
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/reach-subjects.ts",
+    "name": "byCodeUnit",
+    "line": 127
+   },
+   "verdict": "reuse",
+   "why": "Identical code-unit comparator; it could be shared through an export with the same behaviour."
+  },
+  {
+   "head": "c81ecfa713ea13901288d09bab9e192f38b90824",
+   "added": {
+    "path": "packages/cli/src/config-sensitivity.ts",
+    "name": "parseSensitivities",
+    "line": 34
+   },
+   "existing": {
+    "path": "packages/cli/src/config-sections.ts",
+    "name": "parseIgnores",
+    "line": 395
+   },
+   "verdict": "family",
+   "why": "Both parse an array of config rules with the same helpers, but they check different schemas: sensitivity levels with a subjects/tags requirement versus ignore fields validated by core."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/tribunal/src/worker-http.ts",
+    "name": "flag",
+    "line": 125
+   },
+   "existing": {
+    "path": "packages/history/src/client.ts",
+    "name": "flag",
+    "line": 270
+   },
+   "verdict": "family",
+   "why": "Both read a required boolean field, but tribunal throws BadRequest (an HTTP 400) with its own message; the history client throws a plain Error naming the service url."
+  },
+  {
+   "head": "ff718d3f3c67ae43c8662a179a57eb268ea305f9",
+   "added": {
+    "path": "packages/distill/src/index.ts",
+    "name": "locateEyesTest",
+    "line": 103
+   },
+   "existing": {
+    "path": "packages/mcp/src/tools/attention.ts",
+    "name": "locateEyesTest",
+    "line": 44
+   },
+   "verdict": "family",
+   "why": "Same id/exact/partial matching, but distill returns undefined and throws on ambiguity, while mcp returns explanatory strings for no match and for ambiguity."
+  },
+  {
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/help/src/tools/loose.ts",
+    "name": "lowerBound",
+    "line": 155
+   },
+   "existing": {
+    "path": "packages/sense/src/world.ts",
+    "name": "lowerBound",
+    "line": 144
+   },
+   "verdict": "family",
+   "why": "Both are lower-bound bisections, but the new one searches a SearchIndex's term bytes from an offset with Buffer.compare; the existing searches a string array with <."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "openModuleNames",
+    "line": 66
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "recordStore",
+    "line": 93
+   },
+   "verdict": "family",
+   "why": "Both resolve a path in the checkout's top cache layer, but openModuleNames seeds names.bin from the base layer first; recordStore returns a label's store directory."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "instant",
+    "line": 409
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "instant",
+    "line": 605
+   },
+   "verdict": "reuse",
+   "why": "Identical: Date.parse an instant and throw the same error when it is NaN. The existing one answers exactly what the new one computes."
+  },
+  {
+   "head": "12095354c94c03624df1cdcdd99c6902e590570e",
+   "added": {
+    "path": "examples/selection-reuse/src/demo.js",
+    "name": "git",
+    "line": 10
+   },
+   "existing": {
+    "path": "packages/sense/scripts/overhead.mjs",
+    "name": "git",
+    "line": 242
+   },
+   "verdict": "family",
+   "why": "Both run git in a directory, but overhead.mjs injects a commit identity and ignores stdio; the demo passes no identity and pipes, so commits behave differently."
+  },
+  {
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/cli/src/commands/ask-source.ts",
+    "name": "tree",
+    "line": 52
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/serve.ts",
+    "name": "tree",
+    "line": 150
+   },
+   "verdict": "family",
+   "why": "Both are tree-sink callbacks keeping the drawn tree, but each writes its own enclosing closure variable, so one cannot stand in for the other."
+  },
+  {
+   "head": "4277063b73f1e95513ddbb506009d7824cec57f5",
+   "added": {
+    "path": "packages/cli/src/commands/ask-source.ts",
+    "name": "tree",
+    "line": 64
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/serve.ts",
+    "name": "tree",
+    "line": 150
+   },
+   "verdict": "family",
+   "why": "Same tree-capturing callback shape as serve's, but it assigns readSource's local rather than serve's nextTree, so swapping them would change which state holds the tree."
+  },
+  {
+   "head": "eb5717dfa6d10cbfc26bada043aa8d69d811800a",
+   "added": {
+    "path": "packages/dom/src/media.ts",
+    "name": "splitTopLevel",
+    "line": 212
+   },
+   "existing": {
+    "path": "packages/core/src/normalize/shorthand.ts",
+    "name": "topLevelParts",
+    "line": 402
+   },
+   "verdict": "family",
+   "why": "Both split a string outside parentheses; splitTopLevel takes any multi-char separator and keeps empty parts, topLevelParts splits on whitespace, trims and drops empties."
+  },
+  {
+   "head": "26ae9edd49e09cb93631d2766d8c796b3e663505",
+   "added": {
+    "path": "packages/react/src/quiet.ts",
+    "name": "now",
+    "line": 66
+   },
+   "existing": {
+    "path": "packages/react/src/arrival.ts",
+    "name": "now",
+    "line": 240
+   },
+   "verdict": "reuse",
+   "why": "Both return performance.now() when it exists, else Date.now(); the bodies are the same, in the same package."
+  },
+  {
+   "head": "f701c75aeb354b91f0ecd53fa5d5b5d080109d1b",
+   "added": {
+    "path": "packages/tribunal/src/ui/client.ts",
+    "name": "read",
+    "line": 325
+   },
+   "existing": {
+    "path": "packages/remote/src/store.ts",
+    "name": "safeText",
+    "line": 470
+   },
+   "verdict": "reuse",
+   "why": "Both return response.text() or '<body could not be read>' on failure; the bodies are the same."
+  },
+  {
+   "head": "2810065e4a23f4478c871b5c821c21a86fe2eab7",
+   "added": {
+    "path": "packages/raster/src/store.ts",
+    "name": "messageOf",
+    "line": 545
+   },
+   "existing": {
+    "path": ".github/actions/variance/render-comment.mjs",
+    "name": "messageOf",
+    "line": 149
+   },
+   "verdict": "reuse",
+   "why": "Both return error.message for an Error, else String(error); the same answer."
+  },
+  {
+   "head": "6b4372aecbd7f5aa306fd295c7d51b365fe86d85",
+   "added": {
+    "path": "packages/sense/src/test-selection/region-edit.ts",
+    "name": "hashingTo",
+    "line": 79
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/edit-readings.ts",
+    "name": "hashingTo",
+    "line": 149
+   },
+   "verdict": "reuse",
+   "why": "The bodies are the same: the text when its digestString matches the digest, else undefined. Same directory, same digest import."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/worker.ts",
+    "name": "optional",
+    "line": 589
+   },
+   "existing": {
+    "path": "packages/server/src/http.ts",
+    "name": "requiredParam",
+    "line": 319
+   },
+   "verdict": "family",
+   "why": "Both read a URL query parameter; requiredParam throws BadRequest when it is absent, optional returns undefined. That rule differs (optionalParam was the true twin)."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "openModuleNames",
+    "line": 66
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "moduleNamesFile",
+    "line": 56
+   },
+   "verdict": "family",
+   "why": "Both name the names.bin path in the top cache layer; openModuleNames also seeds the table from the base checkout, which moduleNamesFile never does."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "optionalText",
+    "line": 434
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "text",
+    "line": 621
+   },
+   "verdict": "family",
+   "why": "Both read a text column from a row; text throws on null, optionalText maps null/undefined to undefined. Different rule for absence."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "cases/incumbent-case/src/replacement-arm.ts",
+    "name": "buildSourceIndex",
+    "line": 75
+   },
+   "existing": {
+    "path": "cases/storybook-case/collector/index.mjs",
+    "name": "buildSourceIndex",
+    "line": 87
+   },
+   "verdict": "family",
+   "why": "Both index a src/ directory by component; the new reads .ts/.tsx under a given root excluding .spec., the old reads .js/.jsx under a fixed ROOT excluding .stories."
+  },
+  {
+   "head": "2e683d3a8c3e047b1156641ce5d14dad12bbea10",
+   "added": {
+    "path": "packages/cli/src/commands/comment.ts",
+    "name": "describeIdentity",
+    "line": 659
+   },
+   "existing": {
+    "path": "packages/raster/src/observe.ts",
+    "name": "describe",
+    "line": 225
+   },
+   "verdict": "reuse",
+   "why": "describeIdentity(report) returns exactly describe(report.identity): the same 'renderer (engine, platform, Nx)' string."
+  },
+  {
+   "head": "f44730dc6dd579fbabdc64b03ed47389adfd2405",
+   "added": {
+    "path": "packages/sense/src/test-selection/mainline-layer.ts",
+    "name": "place",
+    "line": 230
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/record-location.ts",
+    "name": "writeCoverageBytes",
+    "line": 348
+   },
+   "verdict": "reuse",
+   "why": "place writes to a temp file and renames it into place, the same body as writeCoverageBytes (exported). It only adds an rm branch for undefined bytes, a thin wrapper."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/worker.ts",
+    "name": "asBand",
+    "line": 694
+   },
+   "existing": {
+    "path": "packages/server/src/http.ts",
+    "name": "asBand",
+    "line": 501
+   },
+   "verdict": "reuse",
+   "why": "The asBand bodies are the same: they check a value against BANDS and throw BadRequest naming the allowed bands. Only the local BadRequest class differs."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/index.ts",
+    "name": "missing",
+    "line": 257
+   },
+   "existing": {
+    "path": "packages/tribunal/src/node/bucket.ts",
+    "name": "absentAsNull",
+    "line": 152
+   },
+   "verdict": "family",
+   "why": "Both classify a missing-file error; missing is an ENOENT predicate, absentAsNull also accepts ENOTDIR and rethrows anything else, returning null."
+  },
+  {
+   "head": "8636b9d68862cd13f42cd4543739ca73944a2540",
+   "added": {
+    "path": "packages/core/src/relate/beyond.ts",
+    "name": "directoryOf",
+    "line": 118
+   },
+   "existing": {
+    "path": "packages/tribunal/src/ui/distance.ts",
+    "name": "basename",
+    "line": 152
+   },
+   "verdict": "unrelated",
+   "why": "directoryOf returns the directory part of a path ('.' if there is none); basename returns the last segment. They are opposite halves of a path, so they answer different questions."
+  },
+  {
+   "head": "ff718d3f3c67ae43c8662a179a57eb268ea305f9",
+   "added": {
+    "path": "packages/distill/src/index.ts",
+    "name": "targetsOf",
+    "line": 182
+   },
+   "existing": {
+    "path": "packages/mcp/src/tools/attention.ts",
+    "name": "targetsOf",
+    "line": 66
+   },
+   "verdict": "reuse",
+   "why": "The targetsOf bodies are the same: an Attention entry's target snapshots for rtl-query, document-event and playwright-locator. The existing one is exported."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/transform.ts",
+    "name": "line",
+    "line": 477
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/source-lines.ts",
+    "name": "lineOfStart",
+    "line": 462
+   },
+   "verdict": "reuse",
+   "why": "Both bisect line starts for an offset; line returns 1-based, lineOfStart 0-based, so line is lineOfStart(...) + 1."
+  },
+  {
+   "head": "8636b9d68862cd13f42cd4543739ca73944a2540",
+   "added": {
+    "path": "packages/core/src/relate/beyond.ts",
+    "name": "importersOf",
+    "line": 107
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/reading.ts",
+    "name": "directImporters",
+    "line": 451
+   },
+   "verdict": "family",
+   "why": "Both list runtime importers one edge against the arrows; importersOf drops depends-on edges and keeps only file nodes, directImporters keeps every runtime kind and drops self-edges."
+  },
+  {
+   "head": "eb5717dfa6d10cbfc26bada043aa8d69d811800a",
+   "added": {
+    "path": "packages/dom/src/aria.ts",
+    "name": "normalize",
+    "line": 241
+   },
+   "existing": {
+    "path": "packages/core/src/normalize/index.ts",
+    "name": "normalizeText",
+    "line": 426
+   },
+   "verdict": "family",
+   "why": "Both collapse runs of whitespace; normalize also trims, while normalizeText deliberately does not, because boundary spaces are rendered."
+  },
+  {
+   "head": "e122cd3ea2863f904be1c9b62c26098c6b704df9",
+   "added": {
+    "path": "cases/storybook-case/collector/index.mjs",
+    "name": "buildSourceIndex",
+    "line": 87
+   },
+   "existing": {
+    "path": "examples/todomvc/src/source-index.ts",
+    "name": "buildSourceIndex",
+    "line": 29
+   },
+   "verdict": "family",
+   "why": "Both build a component source index; todomvc walks src recursively for .ts/.tsx under a fixed cwd root, the collector reads a flat src for .js/.jsx excluding stories."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "windowFilter",
+    "line": 237
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "windowFilter",
+    "line": 433
+   },
+   "verdict": "family",
+   "why": "Both build the since/until window SQL from parsed instants; the D1 one emits positional ? with an array, the sqlite one named $params with a record."
+  },
+  {
+   "head": "e17fa975a3f2379a4fdcb8c4ba89a7365d94cd24",
+   "added": {
+    "path": "packages/cli/src/commands/covering-motion.ts",
+    "name": "listedOf",
+    "line": 316
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/journeys.ts",
+    "name": "listed",
+    "line": 290
+   },
+   "verdict": "family",
+   "why": "Both join names and count the rest, but listed caps at a fixed 6 with 'and N more'; listedOf takes a limit, a noun and points at --format json. Different text."
+  },
+  {
+   "head": "113077e25de9f48e5e4a9aa7fc0e36ca0654cd32",
+   "added": {
+    "path": "packages/help/src/search-read.ts",
+    "name": "reasonOf",
+    "line": 54
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/accept.ts",
+    "name": "messageOf",
+    "line": 410
+   },
+   "verdict": "reuse",
+   "why": "Both return error.message for an Error and String(error) for anything else. The bodies are identical; only the name differs."
+  },
+  {
+   "head": "ec0a8bd70fafa984c3b9f861dcd18c2828871a87",
+   "added": {
+    "path": "packages/store/src/path-template.ts",
+    "name": "escaped",
+    "line": 316
+   },
+   "existing": {
+    "path": "editors/vscode/extension.js",
+    "name": "escape",
+    "line": 256
+   },
+   "verdict": "family",
+   "why": "Both escape text for a target syntax: escaped for a RegExp, escape for Markdown. The character sets differ (escape leaves ?, ^ and $ alone), so swapping them breaks the regex."
+  },
+  {
+   "head": "42b6e26063799412d720d654a2dad4cb2aca9419",
+   "added": {
+    "path": "packages/remote/src/serve-store.ts",
+    "name": "close",
+    "line": 76
+   },
+   "existing": {
+    "path": "packages/server/src/http.ts",
+    "name": "close",
+    "line": 139
+   },
+   "verdict": "family",
+   "why": "Both close the HTTP server they started. The existing closeServer calls closeAllConnections first and the new one does not, so keep-alive sockets behave differently."
+  },
+  {
+   "head": "cfd0d26f7401eb055ac2e42c3ccaa54ca50b58a1",
+   "added": {
+    "path": "packages/cli/src/commands/reach.ts",
+    "name": "byCodeUnit",
+    "line": 262
+   },
+   "existing": {
+    "path": "packages/core/src/attribute/composition.ts",
+    "name": "byCodeUnit",
+    "line": 372
+   },
+   "verdict": "reuse",
+   "why": "Both are the same code-unit string comparator, returning -1, 0 or 1 by < and >. The bodies are identical."
+  },
+  {
+   "head": "e17fa975a3f2379a4fdcb8c4ba89a7365d94cd24",
+   "added": {
+    "path": "packages/cli/src/commands/covering-motion.ts",
+    "name": "listedOf",
+    "line": 316
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/reach.ts",
+    "name": "listed",
+    "line": 419
+   },
+   "verdict": "family",
+   "why": "Both print a bounded name list with the rest counted. listedOf takes a caller limit and noun and points to --format json; listed caps at three and joins with 'and'. The text differs."
+  },
+  {
+   "head": "8be004e491fec6cb21cefc40d7c734c4dc7e0e13",
+   "added": {
+    "path": "packages/cli/src/commands/select.ts",
+    "name": "declinedNotes",
+    "line": 298
+   },
+   "existing": {
+    "path": "packages/cli/src/commands/select.ts",
+    "name": "unreadNotes",
+    "line": 283
+   },
+   "verdict": "family",
+   "why": "Both write the same note shape for changed files that keep no test. One gives the reason 'journal records nothing' and the other 'suite declines relations', so the wording and the remedy differ."
+  },
+  {
+   "head": "b43312944c2102ff5264dadb216e655afc6946ed",
+   "added": {
+    "path": "packages/isolator/src/scope.ts",
+    "name": "each",
+    "line": 113
+   },
+   "existing": {
+    "path": "packages/sense/src/taint/calls.ts",
+    "name": "each",
+    "line": 88
+   },
+   "verdict": "family",
+   "why": "Both walk AST child values. The new each hands an array or node to the scope-tracking walker one level at a time; the existing each visits every descendant with a callback and ignores scopes."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/tribunal/src/worker-input.ts",
+    "name": "asObservation",
+    "line": 205
+   },
+   "existing": {
+    "path": "packages/history/src/client.ts",
+    "name": "asObservation",
+    "line": 324
+   },
+   "verdict": "family",
+   "why": "Both validate an Observation. Tribunal throws BadRequest for request input, parses at as an instant and drops an empty file; history raises url-tagged Errors on responses and keeps at as text."
+  },
+  {
+   "head": "c303c64ed5f03fc4db05e0efc45e5e5609680952",
+   "added": {
+    "path": "packages/sense/src/test-selection/format-layer.ts",
+    "name": "foreignProbes",
+    "line": 51
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/record-location.ts",
+    "name": "passedOver",
+    "line": 239
+   },
+   "verdict": "reuse",
+   "why": "Both open the record, read its instrumentation, and return the foreign probe string when it differs from the run's, else nothing. passedOver only wraps it with file and run."
+  },
+  {
+   "head": "8fb4184307a57c47e0962d9dee8bb81c56c44cc2",
+   "added": {
+    "path": "packages/dom/src/selector-parts.ts",
+    "name": "unescapeName",
+    "line": 95
+   },
+   "existing": {
+    "path": "packages/dom/src/generated-box.ts",
+    "name": "unescape",
+    "line": 146
+   },
+   "verdict": "reuse",
+   "why": "Both resolve CSS escapes with identical hex and U+FFFD rules. They differ only on backslash-newline, which cannot occur in the selector id/class names unescapeName is given."
+  },
+  {
+   "head": "cf5e2c2f32b0afe342a71925bcb3138aab24712a",
+   "added": {
+    "path": "packages/sense/src/test-selection/case-said.ts",
+    "name": "items",
+    "line": 85
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/case-said.ts",
+    "name": "saidRow",
+    "line": 83
+   },
+   "verdict": "unrelated",
+   "why": "items is the closure inside saidRow that decodes spelled tuples into preconditions. saidRow resolves a whole Said into a row and calls items, so neither could stand in for the other."
+  },
+  {
+   "head": "6fc6027088dfddf55c02915c0b7484a8a9a2da17",
+   "added": {
+    "path": "packages/tribunal/src/review.ts",
+    "name": "instant",
+    "line": 807
+   },
+   "existing": {
+    "path": "packages/server/src/backend-sqlite.ts",
+    "name": "instant",
+    "line": 605
+   },
+   "verdict": "reuse",
+   "why": "Both parse an ISO instant to milliseconds and refuse NaN with the same message. Only the error class differs (ReviewError maps to 422), which one error-constructor parameter would cover."
+  },
+  {
+   "head": "26ae9edd49e09cb93631d2766d8c796b3e663505",
+   "added": {
+    "path": "packages/eyes/src/archive.ts",
+    "name": "strings",
+    "line": 324
+   },
+   "existing": {
+    "path": "packages/eyes/src/archive.ts",
+    "name": "checkedArguments",
+    "line": 201
+   },
+   "verdict": "family",
+   "why": "Both validate an array element by element, but strings requires non-empty strings and checkedArguments accepts any JSON-like argument snapshot. Swapping changes what is refused."
+  },
+  {
+   "head": "d0841b84e64de2a26ac14f6bd0df6f6cf5fe9bfb",
+   "added": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "recordStores",
+    "line": 113
+   },
+   "existing": {
+    "path": "packages/sense/src/test-selection/instrumented-modules.ts",
+    "name": "moduleNamesFile",
+    "line": 56
+   },
+   "verdict": "unrelated",
+   "why": "moduleNamesFile names one path, the names.bin table in the top layer; recordStores lists a label's store directories across base and top layers. Different things located."
+  },
+  {
+   "head": "36f93ec79845c118896e321fd9bda60adf4cfa9f",
+   "added": {
+    "path": "packages/server/src/backend.ts",
+    "name": "flakinessFrom",
+    "line": 308
+   },
+   "existing": {
+    "path": "packages/server/src/backend.ts",
+    "name": "churnFrom",
+    "line": 274
+   },
+   "verdict": "family",
+   "why": "Same two-slice pattern that drops stranded rows. churnFrom reads observationsOf into accumulateChurn; flakinessFrom reads instabilitiesOf into accumulateFlakiness. Different data and output."
+  },
+  {
+   "head": "0084455e3794b6e435ba7ab37b361f4686460026",
+   "added": {
+    "path": "packages/server/src/sqlite-queries.ts",
+    "name": "windowFilter",
+    "line": 45
+   },
+   "existing": {
+    "path": "packages/tribunal/src/history.ts",
+    "name": "windowFilter",
+    "line": 244
+   },
+   "verdict": "family",
+   "why": "Same window-to-SQL rule. The server version emits named $since/$until bindings in a record for node:sqlite; the tribunal version emits positional ? with an array for D1. Different output formats."
+  }
+ ]
+}

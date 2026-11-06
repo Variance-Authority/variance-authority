@@ -26,19 +26,26 @@
  * them: never going into it says the condition held every time.
  *
  * A region is named from the coverage snapshot, which holds every recorded
- * module's regions by ordinal. A module whose regions the snapshot does not
- * hold with the count the story recorded — not recorded yet, or recorded from
- * another text — is still on the route, as its file, and is listed under
- * `unresolved`. It is never matched to a region by guess.
+ * module's regions by ordinal, and is keyed by its coordinate
+ * (`coordinatesOf`), so two declarations of one name stay two stops. A row of
+ * the tape names the module's path and the digest of the text it ran; a module
+ * the snapshot does not hold under that digest with the count the story
+ * recorded — not recorded yet, or recorded from another text — is still on the
+ * route, as its file, and is listed under `unresolved`. It is never matched to
+ * a region by guess.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative } from 'node:path';
+import { digestOfSha256 } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { BlockKind } from '../instrument/index.js';
 import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { BLOCK_KINDS } from '../test-selection/format-layout.js';
 import type { TestCoverageView } from '../test-selection/format-view.js';
 import { findModules } from '../test-selection/lookup.js';
+import moduleIds from '../test-selection/module-id.cjs';
+import { coordinatesOf } from './region-coordinates.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
 import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';
@@ -50,6 +57,8 @@ export interface Place {
   /** The declaration's name path, `Cart/removeItem`; empty for the module's top level. */
   readonly name: string;
   readonly kind: BlockKind;
+  /** The coordinate of the region the place is drawn by, `src/cart.ts#Cart/removeItem/entry` — its first region where it has no `entry`; the file alone where the record does not hold its regions. */
+  readonly at: string;
   readonly startLine?: number;
   readonly endLine?: number;
 }
@@ -58,6 +67,8 @@ export interface Place {
 export interface Arm {
   /** Where in the declaration it sits: `for#0/body/if#0/then`. */
   readonly path: string;
+  /** Its coordinate: `src/cart.ts#Cart/removeItem/for#0/body/if#0/then`. */
+  readonly at: string;
   readonly startLine?: number;
   readonly endLine?: number;
   readonly times: number;
@@ -103,6 +114,17 @@ export interface Route {
   /** How many times another case's work ran in the middle of this one. */
   readonly interleaved: number;
   readonly stopped?: boolean;
+  /** The project the case ran under, where its runner names one. */
+  readonly project?: string;
+  /** Whether a page the case ran in was gone before what it ran there was read. */
+  readonly lost?: boolean;
+  /**
+   * How many page documents the case ran in, where it ran in more than one:
+   * each says where the route moves into it, the refs it names are its own, and
+   * what two of them did under one test line is in the order it reached the
+   * runner, not the order it ran.
+   */
+  readonly documents?: number;
 }
 
 /** One reading on disk, as a listing names it. */
@@ -110,6 +132,8 @@ export interface StoryEntry {
   readonly path: string;
   readonly file: string;
   readonly name: string;
+  /** The project the case ran under, where its runner names one. */
+  readonly project?: string;
   readonly visits: number;
   /** When the reading was written, in milliseconds since the epoch; absent on one written before readings were kept. */
   readonly written?: number;
@@ -117,9 +141,11 @@ export interface StoryEntry {
   readonly label?: string;
   /** Whether the case threw or rejected in this reading; absent where the collector could not see it settle. */
   readonly stopped?: boolean;
+  /** Whether a page the case ran in was gone before it was read, so the reading is missing what ran there. */
+  readonly lost?: boolean;
 }
 
-/** Every reading in this checkout, by test file, then case name, then newest first. */
+/** Every reading in this checkout, by test file, then case name, then project, then newest first. */
 export function listStories(root: string): StoryEntry[] {
   const entries: StoryEntry[] = [];
   for (const directory of storyDirectories(root)) {
@@ -133,18 +159,21 @@ export function listStories(root: string): StoryEntry[] {
         path,
         file: inCheckout(root, story.file),
         name: story.name,
+        ...(story.project === undefined ? {} : { project: story.project }),
         visits: story.visits,
         ...(reading.written === undefined ? {} : { written: reading.written }),
         ...(reading.label === undefined ? {} : { label: reading.label }),
         ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
+        ...(story.lost === undefined ? {} : { lost: story.lost }),
       });
     }
   }
   return entries.sort((left, right) =>
-    compare(left.file, right.file)
-    || compare(left.name, right.name)
+    codeUnitOrder(left.file, right.file)
+    || codeUnitOrder(left.name, right.name)
+    || codeUnitOrder(left.project ?? '', right.project ?? '')
     || (right.written ?? 0) - (left.written ?? 0)
-    || compare(left.path, right.path));
+    || codeUnitOrder(left.path, right.path));
 }
 
 /** Every region a module holds by ordinal, for each row of `story`, where the snapshot beside it holds them. */
@@ -152,10 +181,10 @@ export function regionsOfStory(
   path: string,
   story: ReturnType<typeof stories.decodeStory>,
 ): { readonly files: readonly string[]; readonly regions: readonly (readonly Region[] | undefined)[] } {
-  const files = story.rows.map(([id]) => id);
+  const files = story.rows.map(([id]) => moduleIds.pathOf(id));
   const snapshot = recordOfStories(dirname(path));
   const regions = existsSync(snapshot)
-    ? askCoverageFile(snapshot, (view) => story.rows.map(([, count], row) => regionsOf(view, files[row]!, count)))
+    ? askCoverageFile(snapshot, (view) => story.rows.map(([id, count]) => regionsOf(view, id, count)))
     : story.rows.map(() => undefined);
   return { files, regions };
 }
@@ -191,7 +220,7 @@ export function drawRoute(
     total += count;
   }
   const shown = files.map((file) => inCheckout(root, file));
-  const declarations = regions.map((own, row) => (own === undefined ? undefined : declarationsOf(shown[row]!, own)));
+  const declarations = regions.map((own, row) => (own === undefined ? undefined : placesOf(shown[row]!, own)));
   const seen = new Set<string>();
   const unresolved = new Set<string>();
   const taken = new Set<number>();
@@ -235,14 +264,15 @@ export function drawRoute(
       const own = regions[row];
       let place: Place;
       let region: Region | undefined;
+      const ordinal = index - bases[row]!;
       if (own === undefined) {
         unresolved.add(file);
-        place = { file, name: '', kind: 'module' };
+        place = { file, name: '', kind: 'module', at: file };
       } else {
-        region = own[index - bases[row]!]!;
-        place = declarations[row]!.get(region.name)!;
+        region = own[ordinal]!;
+        place = declarations[row]!.places[ordinal]!;
       }
-      const key = `${place.file}\0${place.name}`;
+      const key = place.at;
       if (region !== undefined && !placed.has(key)) placed.set(key, { place, row });
       if (key !== last || open === undefined) {
         open = { place, entered: 0, arms: [] };
@@ -257,6 +287,7 @@ export function drawRoute(
         else {
           const entered = {
             path: region.path,
+            at: declarations[row]!.at[ordinal]!,
             ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
             times: 1,
           };
@@ -268,21 +299,25 @@ export function drawRoute(
     hear(Infinity);
     return stops;
   };
-  const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : `${stop.place.file}\0${stop.place.name}`);
+  const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : stop.place.at);
   const opening = { before: [] as string[], route: [] as string[] };
-  const before = foldSteps(stopsOf(story.before, story.beforeNotes, opening.before), keyOf, added);
-  const route = foldSteps(stopsOf(story.visits, story.notes, opening.route), keyOf, added);
+  const pages = new Set((story.parts ?? []).flatMap(([, , , document]) => (document === 0 ? [] : [document]))).size;
+  const documents = pages > 1 ? pages : undefined;
+  const before = foldSteps(stopsOf(story.before, heard(story.beforeNotes, story.beforeLines), opening.before), keyOf, added);
+  const route = foldSteps(stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route), keyOf, added);
 
   const untaken: Untaken[] = [];
   for (const { place, row } of placed.values()) {
     const arms: Omit<Arm, 'times'>[] = [];
+    const { places, at } = declarations[row]!;
     regions[row]!.forEach((region, ordinal) => {
-      if (region.name !== place.name || region.path === 'entry' || region.path === 'module') return;
+      if (places[ordinal]!.at !== place.at || region.path === 'entry' || region.path === 'module') return;
       if (taken.has(bases[row]! + ordinal)) return;
       // An arm's regions come after the arm, so the one around it is already listed.
       if (arms.some((arm) => region.path.startsWith(`${arm.path}/`))) return;
       arms.push({
         path: region.path,
+        at: at[ordinal]!,
         ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
       });
     });
@@ -294,8 +329,8 @@ export function drawRoute(
     name: story.name,
     before,
     route,
-    files: [...seen].sort(compare),
-    unresolved: [...unresolved].sort(compare),
+    files: [...seen].sort(codeUnitOrder),
+    unresolved: [...unresolved].sort(codeUnitOrder),
     untaken,
     ...(opening.before.length + opening.route.length === 0 ? {} : {
       opening: {
@@ -307,7 +342,35 @@ export function drawRoute(
     untaped: story.untaped,
     interleaved: story.interleaved,
     ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
+    ...(story.project === undefined ? {} : { project: story.project }),
+    ...(story.lost === undefined ? {} : { lost: story.lost }),
+    ...(documents === undefined ? {} : { documents }),
   };
+}
+
+/**
+ * What a route says at each place: the notes, each test line spelled as where
+ * the case was, and each part as the realm the case moved into, in the order
+ * they came in. A part placed where a line is comes after it: the runner cuts
+ * the line, then drains what the statement did.
+ */
+function heard(
+  notes: readonly (readonly [number, string])[],
+  lines: readonly (readonly [number, number, number, 1?])[],
+  parts: readonly (readonly [number, number, number, number])[] = [],
+): (readonly [number, string])[] {
+  const cuts = [
+    ...lines.map(([at, line, said, hook]) => ({ at, said, text: `${hook === 1 ? 'hook' : 'test'} line ${line}` })),
+    ...parts.map(([at, said, , document]) => ({ at, said, text: document === 0 ? 'in the runner' : `in document ${document}` })),
+  ].sort((left, right) => left.said - right.said || left.at - right.at);
+  const all: (readonly [number, string])[] = [];
+  let cut = 0;
+  for (const [index, note] of notes.entries()) {
+    for (; cut < cuts.length && cuts[cut]!.said <= index; cut += 1) all.push([cuts[cut]!.at, cuts[cut]!.text]);
+    all.push(note);
+  }
+  for (; cut < cuts.length; cut += 1) all.push([cuts[cut]!.at, cuts[cut]!.text]);
+  return all;
 }
 
 /** Two passes of one stop, as the one stop that stands for both. */
@@ -324,15 +387,15 @@ function added(kept: Stop, folded: Stop): Stop {
 }
 
 /**
- * A module's regions by ordinal, from the snapshot row whose region count is
- * the one the story recorded. A source and its build can be recorded under one
- * path, so the count is what tells them apart.
+ * A module's regions by ordinal, from the snapshot row of the path and text
+ * the story's row id names, holding the count of regions the story recorded.
+ * An id that names no digest is matched on its path and count alone.
  */
-function regionsOf(view: TestCoverageView, file: string, count: number): Region[] | undefined {
-  // TODO: carry the module's source digest on the story's rows and match on
-  // it; two texts of one path with the same region count are told apart by
-  // nothing here.
-  for (const row of findModules(view, file)) {
+function regionsOf(view: TestCoverageView, id: string, count: number): Region[] | undefined {
+  const parts = moduleIds.ID.exec(id);
+  const digest = parts === null ? undefined : digestOfSha256(parts[3]!);
+  for (const row of findModules(view, parts?.[1] ?? id)) {
+    if (digest !== undefined && view.string(view.moduleSource.at(row)) !== digest) continue;
     const first = view.moduleBlocks.at(row);
     const end = view.moduleBlocks.at(row + 1);
     if (end - first !== count) continue;
@@ -351,32 +414,43 @@ function regionsOf(view: TestCoverageView, file: string, count: number): Region[
   return undefined;
 }
 
+/** A module's regions placed, by ordinal: the declaration each belongs to, and its coordinate. */
+export interface Placed {
+  readonly places: readonly Place[];
+  readonly at: readonly string[];
+}
+
 /**
- * Each declaration in a module by name, drawn by its own region: a function's
- * `entry`, or the `module` region for the top level. A name whose own region
- * the module does not hold is drawn by the first region it has.
+ * Each region's declaration, drawn by its own region: a function's `entry`, or
+ * the `module` region for the top level — the last of its name at or before
+ * it, so two declarations of one name stay two. A region of a name whose own
+ * region comes after it, or that the module does not hold, is drawn by the
+ * first region it has.
  */
-export function declarationsOf(file: string, regions: readonly Region[]): Map<string, Place> {
-  const out = new Map<string, Place>();
-  const drawn = new Set<string>();
-  for (const region of regions) {
-    const own = region.path === 'entry' || region.path === 'module';
-    if (drawn.has(region.name) || (out.has(region.name) && !own)) continue;
-    if (own) drawn.add(region.name);
-    out.set(region.name, {
-      file,
-      name: region.name,
-      kind: region.kind,
-      ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
-    });
-  }
-  return out;
+export function placesOf(file: string, regions: readonly Region[]): Placed {
+  const at = coordinatesOf(file, regions);
+  const drawn = (region: Region, ordinal: number): Place => ({
+    file,
+    name: region.name,
+    kind: region.kind,
+    at: at[ordinal]!,
+    ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
+  });
+  const owned = new Map<string, Place>();
+  const first = new Map<string, Place>();
+  const places = regions.map((region, ordinal) => {
+    if (region.path === 'entry' || region.path === 'module') {
+      const place = drawn(region, ordinal);
+      owned.set(region.name, place);
+      return place;
+    }
+    const place = owned.get(region.name) ?? first.get(region.name) ?? drawn(region, ordinal);
+    if (!first.has(region.name)) first.set(region.name, place);
+    return place;
+  });
+  return { places, at };
 }
 
 export function inCheckout(root: string, file: string): string {
   return isAbsolute(file) ? relative(root, file) : file;
-}
-
-function compare(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

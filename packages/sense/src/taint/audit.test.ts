@@ -92,6 +92,22 @@ describe('the taint audit', () => {
     ]);
   });
 
+  it('asks nothing about a module the test imports for its types alone', () => {
+    // Nothing behind `import type` runs, so not entering `relay.ts` is no deviation.
+    const typed = relationsOfFiles(
+      RECORDS.map((entry) =>
+        entry.file === 'src/plain.test.ts' ? { ...entry, edges: [...entry.edges!, { to: 'src/relay.ts', kind: 'type' as const }] } : entry,
+      ),
+    );
+    const coverage = record({
+      'src/card.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
+      'src/api.ts': [block(['src/plain.test.ts'])],
+      'src/relay.ts': [block([])],
+    });
+
+    expect(auditTaints(coverage, typed, { shadows, additions })).toEqual([]);
+  });
+
   it('asks nothing about absence of a partial observation', () => {
     const coverage = record({ 'src/card.ts': [block([])], 'src/api.ts': [block([])] }, false);
 

@@ -70,6 +70,7 @@ function probesWith(
       };
     },
     exists: async () => exists,
+    pointers: async () => [],
     partitions: async () => partitions,
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -84,6 +85,7 @@ function refusingProbes(): DoctorProbes {
       throw new Error('Executable does not exist at /ms-playwright/chromium/chrome');
     },
     exists: async () => true,
+    pointers: async () => [],
     partitions: async () => [],
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
@@ -331,6 +333,14 @@ describe('machineProbes partitions', () => {
     expect(await machineProbes(configOf()).partitions(root)).toEqual([
       { identity, baselines: 3, colonSpelled: 2 },
     ]);
+  });
+
+  it('counts a kept WebP and a PNG kept before it as baselines alike', async () => {
+    // An accept keeps a WebP; a baseline nobody re-accepted is still a PNG. A
+    // count of one extension reports half a machine's baselines as absent.
+    const root = await rootWith([`${partition}/a.webp`, `${partition}/b.png`]);
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 2 }]);
   });
 
   it('counts baselines at the paths `baselines.path` names, by the identity each record names', async () => {

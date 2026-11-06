@@ -1,9 +1,9 @@
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
-import { crc32, deflateSync } from 'node:zlib';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { observeNetwork } from './network.js';
+import { animatedGif, solidPng } from './network.fixture.js';
+import { observeNetwork, type NetworkObservation } from './network.js';
 
 /**
  * An animated GIF, held still on the wire.
@@ -29,121 +29,7 @@ if (!BROWSER_AVAILABLE) {
   );
 }
 
-/**
- * Four frames, 8×8, alternating solid black and solid white.
- *
- * Solid and large enough that a screenshot difference is unmissable — the
- * failure this guards against is a freeze that *nearly* works, and a two-pixel
- * image would let one pass. The LZW payload is real: a browser decodes this.
- * With a two-colour table the minimum code size is 2, so clear is 4 and end is
- * 5, and 64 pixels of one index compress to a run of that index's code.
- */
-function animatedGif(): Buffer {
-  const side = 8;
-
-  const header = [
-    0x47, 0x49, 0x46, 0x38, 0x39, 0x61,
-    side, 0x00, side, 0x00,
-    0x80, 0x00, 0x00,
-    0x00, 0x00, 0x00, // index 0: black
-    0xff, 0xff, 0xff, // index 1: white
-  ];
-
-  // NETSCAPE2.0, loop forever — so the browser is genuinely animating rather
-  // than resting on a last frame, which would let a broken freeze look correct.
-  const loop = [
-    0x21, 0xff, 0x0b, 0x4e, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2e, 0x30,
-    0x03, 0x01, 0x00, 0x00, 0x00,
-  ];
-
-  const frame = (index: number): readonly number[] => {
-    // Real LZW, and the fiddly part is the code width. With a minimum code size
-    // of 2 the stream starts at 3 bits, `clear` is 4, `end` is 5, and the next
-    // free dictionary slot is 6 — so after two data codes the next slot is 8 and
-    // the decoder switches to 4-bit codes. Emitting everything at 3 bits
-    // produces a file that decodes to nothing, which is the failure mode that
-    // matters here: a GIF that never paints makes *both* arms of this suite
-    // pass, the frozen one vacuously.
-    //
-    // Re-clearing every two codes keeps the width at 3 forever. It compresses
-    // nothing, which is the right trade for a fixture whose bit packing a reader
-    // has to be able to check by hand.
-    const codes: number[] = [];
-    for (let pixel = 0; pixel < side * side; pixel += 2) {
-      codes.push(4, index, index);
-    }
-    codes.push(5);
-
-    const bytes: number[] = [];
-    let bits = 0;
-    let width = 0;
-    for (const code of codes) {
-      bits |= code << width;
-      width += 3;
-      while (width >= 8) {
-        bytes.push(bits & 0xff);
-        bits >>>= 8;
-        width -= 8;
-      }
-    }
-    if (width > 0) bytes.push(bits & 0xff);
-
-    const subBlocks: number[] = [];
-    for (let at = 0; at < bytes.length; at += 255) {
-      const slice = bytes.slice(at, at + 255);
-      subBlocks.push(slice.length, ...slice);
-    }
-    subBlocks.push(0x00);
-
-    return [
-      0x21, 0xf9, 0x04, 0x00, 0x06, 0x00, 0x00, 0x00, // 60ms per frame
-      0x2c, 0x00, 0x00, 0x00, 0x00, side, 0x00, side, 0x00, 0x00,
-      0x02,
-      ...subBlocks,
-    ];
-  };
-
-  return Buffer.from([...header, ...loop, ...frame(0), ...frame(1), ...frame(0), ...frame(1), 0x3b]);
-}
-
 const GIF = animatedGif();
-
-/**
- * An opaque PNG, written here rather than imported from the thing under test.
- *
- * `blankPng` could produce these in one line and the blanking suite would then
- * be comparing its own output against itself — a substitution that changed
- * nothing would pass. So this writes its own: same one-bit palette, no `tRNS`,
- * palette entry 0 set to solid black, so every pixel paints.
- */
-function solidPng(width: number, height: number): Buffer {
-  const stride = Math.ceil(width / 8);
-  const raw = Buffer.alloc(height * (stride + 1));
-
-  const chunk = (type: string, data: Buffer): Buffer => {
-    const head = Buffer.alloc(8);
-    head.writeUInt32BE(data.length, 0);
-    head.write(type, 4, 'ascii');
-    const tail = Buffer.alloc(4);
-    tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
-    return Buffer.concat([head, data, tail]);
-  };
-
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header.writeUInt8(1, 8);
-  header.writeUInt8(3, 9);
-
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('PLTE', Buffer.from([0, 0, 0])),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
 const HERO = solidPng(120, 90);
 const ICON = solidPng(16, 16);
 
@@ -177,7 +63,18 @@ const SPECULATING_PAGE = `<!doctype html><html><head>
   </script>
 </body></html>`;
 
+/** Two cacheable images, one of them animated, and a guess at what comes next. */
+const CACHING_PAGE = `<!doctype html><html><head><link rel="prefetch" href="/guessed/cached"></head><body>
+  <img id="hero" src="/cached/hero.png"><img id="spinner" src="/cached/spinner.gif">
+</body></html>`;
+
 let server: Server | undefined;
+/**
+ * A page or context per test, never per subject. What each test reads is the
+ * network its navigations make, so a load is the subject: the cache tests open
+ * a second page to be answered by the first one's fetches, and the browser is
+ * launched once for the file.
+ */
 let browser: Browser | undefined;
 let base = '';
 const served: string[] = [];
@@ -197,6 +94,15 @@ beforeAll(async () => {
       withheldArrived();
       return;
     }
+    // The same bytes as their uncached twins, under a header that lets the
+    // browser keep them.
+    if (path.startsWith('/cached/')) {
+      const gif = path.endsWith('.gif');
+      response
+        .writeHead(200, { 'content-type': gif ? 'image/gif' : 'image/png', 'cache-control': 'max-age=3600' })
+        .end(gif ? GIF : HERO);
+      return;
+    }
     if (path.startsWith('/spinner.gif')) {
       response.writeHead(200, { 'content-type': 'image/gif' }).end(GIF);
       return;
@@ -210,17 +116,14 @@ beforeAll(async () => {
       return;
     }
 
-    response
-      .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      .end(
-        path.startsWith('/withholding')
-          ? '<!doctype html><html><body><img id="late" src="/withheld.png"></body></html>'
-          : path.startsWith('/images')
-            ? IMAGES_PAGE
-            : path.startsWith('/speculating')
-              ? SPECULATING_PAGE
-              : PAGE,
-      );
+    const pages: readonly (readonly [string, () => string])[] = [
+      ['/withholding', () => '<!doctype html><html><body><img id="late" src="/withheld.png"></body></html>'],
+      ['/images', () => IMAGES_PAGE],
+      ['/speculating', () => SPECULATING_PAGE],
+      ['/caching', () => CACHING_PAGE],
+    ];
+    const html = pages.find(([prefix]) => path.startsWith(prefix))?.[1]() ?? PAGE;
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(html);
   });
 
   const port = await new Promise<number>((resolve) => {
@@ -426,6 +329,76 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image served as nothing', () => {
       // hashed like anything else. `^` stays.
       expect(network.assets[`${base}/icons/chevron.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
 
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+});
+
+// A Storybook run's worker pages share a context so that each boots from what
+// the first one fetched. Playwright's routing turns the cache off, so with
+// `cache` on the wire is watched another way, and must record the same things.
+describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already filled', () => {
+  it('is answered from the cache, and still records what it was answered', async () => {
+    const context = await browser!.newContext({ viewport: { width: 200, height: 200 } });
+    const before = served.filter((path) => path === '/cached/hero.png').length;
+
+    try {
+      const observed: NetworkObservation[] = [];
+      for (const page of [await context.newPage(), await context.newPage()]) {
+        const network = await observeNetwork(page, { cache: true });
+        await page.goto(`${base}/caching`, { waitUntil: 'load' });
+        await network.settle();
+        observed.push(network);
+      }
+
+      expect(served.filter((path) => path === '/cached/hero.png').length - before).toBe(1);
+      for (const network of observed) {
+        expect(network.assets[`${base}/cached/hero.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
+        expect(network.frozen).toEqual([`${base}/cached/spinner.gif`]);
+        expect(network.diagnostics).toEqual([]);
+        await network.close();
+      }
+      expect(observed[1]!.assets).toEqual(observed[0]!.assets);
+      expect(served.filter((path) => path.startsWith('/guessed'))).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  // The control: the same two pages with the wire watched through routing. If
+  // this fetched once too, the test above would show nothing about the cache.
+  it('is fetched again by every page when routing holds the requests', async () => {
+    const context = await browser!.newContext({ viewport: { width: 200, height: 200 } });
+    const before = served.filter((path) => path === '/cached/hero.png').length;
+
+    try {
+      for (const page of [await context.newPage(), await context.newPage()]) {
+        const network = await observeNetwork(page);
+        await page.goto(`${base}/caching`, { waitUntil: 'load' });
+        await network.settle();
+        await network.close();
+      }
+
+      expect(served.filter((path) => path === '/cached/hero.png').length - before).toBe(2);
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  it('names an image the server never answers, and closes with it still open', async () => {
+    const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
+
+    try {
+      const network = await observeNetwork(page, { cache: true });
+      const arrived = new Promise<void>((resolve) => {
+        withheldArrived = resolve;
+      });
+      await page.goto(`${base}/withholding`, { waitUntil: 'domcontentloaded' });
+      await arrived;
+
+      expect(await network.settle(0)).toMatch(/1 image, font or media request.*\/withheld\.png/s);
       await network.close();
     } finally {
       await page.close();

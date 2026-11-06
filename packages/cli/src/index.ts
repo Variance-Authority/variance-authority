@@ -96,7 +96,7 @@ export { formatReport } from './commands/report.js';
 export type { ReportFormat, ReportOptions } from './commands/report.js';
 
 export { ASKED, ask, questions } from './commands/ask.js';
-export { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './commands/asking.js';
+export { QUESTIONS, argumentsOf, questionFor, takes } from './commands/asking.js';
 export type { Argument, Question } from './commands/asking.js';
 export { readVantage, watch, watching } from './commands/watch.js';
 export type { Watching } from './commands/watch.js';
@@ -161,8 +161,8 @@ export { landSuite } from './commands/journeys-command.js';
  */
 export { recordedExecutionFile } from './commands/execution-input.js';
 export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
-export { mainlineMissed, mainlineRead, primaryRead, readMissedMainline, writeMissedMainline } from './commands/mainline-base.js';
-export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/mainline-base.js';
+export { mainlineMissed, mainlineRead, primaryRead } from './commands/mainline-base.js';
+export type { MainlineMissed, MainlineRecord } from './commands/mainline-base.js';
 
 /**
  * The selection `variance select` prints, as the sets a runner's seam drops

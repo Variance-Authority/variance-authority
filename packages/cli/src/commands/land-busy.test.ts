@@ -18,12 +18,12 @@ let home: string;
 
 beforeEach(async () => {
   home = await realpath(await mkdtemp(join(tmpdir(), 'variance-land-busy-')));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cache'));
 });
 
 afterEach(async () => {
   vi.useRealTimers();
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -61,7 +61,7 @@ const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   const nextTurn = setTimeout;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  variancePrecondition({ clock: 'faked' });
+  variancePrecondition('fixture', { clock: 'faked' });
   let settled = false;
   const running = work().then(
     () => undefined,
@@ -107,11 +107,11 @@ async function landing(): Promise<{ dir: string; record: string; shard: string }
 
 describe('landJourneys when another process holds a lock', () => {
   it('refuses on the snapshot, names its lock, and changes nothing, its cases included', async () => {
-    variancePrecondition({ lock: 'held' });
+    variancePrecondition('fixture', { lock: 'held' });
     const { dir, record, shard } = await landing();
     const snapshot = await readFile(record);
     // The fixture leaves no runs record beside the snapshot. One is written here, so a landing that changed it would show.
-    await writeCommitRuns(commitRunsFile(record), { first: '', latest: '', runs: 1, files: ['test/total.test.ts'] });
+    await writeCommitRuns(commitRunsFile(record), { latest: '', runs: 1, landings: [{ files: ['test/total.test.ts'] }] });
     const runs = await readFile(commitRunsFile(record));
     const lock = `${record}.lock`;
     // Written a moment ago by somebody else, which is what a live holder in

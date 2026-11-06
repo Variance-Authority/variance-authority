@@ -4,18 +4,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { parseCoveringArgs } from '../covering-args.js';
+import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
   encodeExecutionIndex,
   writeTestCoverage,
-  type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { covering, formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 import { motionOfLast, motionOfRuns, motionText, runsWrote } from './covering-motion.js';
 import { indexOutput } from './index-command.js';
+import { gitStarted } from './mainline-fixture.js';
 
 const DISCOUNTS = { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts', stopped: false };
 const CHECKS_OUT = { id: 'flow.test.tsx > checks out', file: 'flow.test.tsx', name: 'checks out', stopped: false };
@@ -36,6 +37,9 @@ function index(apply: readonly number[], round: readonly number[], other?: reado
     ],
   };
 }
+
+/** A `--since` question, which reaches a record with its change read. */
+const changeAnswer = (question: ParsedCovering) => coveringAnswer(question) as Promise<Covering>;
 
 function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
@@ -103,7 +107,7 @@ describe('what the last run moved', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'lost']]);
-    const text = formatCovering(answer, 'text');
+    const text = formatCovering(answer, 'text', Date.now());
     expect(text).toContain(`Against the run before it at ${first.slice(0, 12)}: 1 lost.`);
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
     expect(text).toContain('total.test.ts no longer enters round in src/total.ts (1 region).');
@@ -177,7 +181,7 @@ describe('what the last run moved', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved).toBeUndefined();
-    expect(formatCovering(answer, 'text')).toContain('Nothing to compare:');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Nothing to compare:');
   });
 
   it('refuses cases it retired that name no commit, and says when that happens', async () => {
@@ -248,7 +252,7 @@ describe('what the runs at one commit moved', () => {
       ] },
     });
 
-    const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: 'c', landings: [{ files: ['flow.test.tsx', 'total.test.ts'] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions).toEqual([]);
@@ -273,7 +277,7 @@ describe('what the runs at one commit moved', () => {
       ] },
     });
 
-    const wrote = await runsWrote(execution, { commit: first, files: ['total.test.ts'] } as CommitRuns);
+    const wrote = await runsWrote(execution, { commit: first, landings: [{ files: ['total.test.ts'] }] });
     const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'thinned']]);
@@ -302,12 +306,23 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
 
-    const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     expect(answer.motion?.base).toMatchObject({ at: first, mergeBase: first, leftOut: [] });
     expect(answer.motion?.moved?.counts).toEqual({ lost: 1, hidden: 0, thinned: 0, gained: 0 });
-    expect(formatCovering(answer, 'text')).toContain(`Against ${against} at ${first.slice(0, 12)}: 1 lost`);
-    expect(JSON.parse(formatCovering(answer, 'json')).motion.moved.regions[0].name).toBe('round');
+    expect(formatCovering(answer, 'text', Date.now())).toContain(`Against ${against} at ${first.slice(0, 12)}: 1 lost`);
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).motion.moved.regions[0].name).toBe('round');
+  });
+
+  it('asks git once where the change parted from `--since`, for the change listed and the base compared', async () => {
+    const { root, first } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
+
+    const started = await gitStarted(root, () => changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution])));
+
+    expect(started.filter(([command, ref]) => command === 'merge-base' && ref === 'main')).toHaveLength(1);
   });
 
   it('names the moved regions\' cases by the numbers of the refs table, and each case once', async () => {
@@ -317,8 +332,8 @@ describe('what a change moved against the base', () => {
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
 
     const refs = formatCovering(
-      await covering(parse(['--since', 'main', '--against', against, '--execution', execution])),
-      'refs',
+      await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution])),
+      'refs', Date.now(),
     );
 
     expect(refs).toContain('  lost     src/total.ts 30-34 function round — was 1\n');
@@ -331,9 +346,9 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { against, execution } = await recorded(index([0], [1]), index([0], [1]), first);
 
-    const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
-    expect(formatCovering(answer, 'text')).toContain('no region moved.');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('no region moved.');
   });
 
   it('names a base row the diff put on a region of another path as not compared, with where it landed', () => {
@@ -351,6 +366,22 @@ describe('what a change moved against the base', () => {
     ]);
   });
 
+  it('names a region whose carried case its file\'s edit dropped as not measured, never as lost', () => {
+    const region = { file: 'src/total.ts', kind: 'module', name: '', startLine: 1, endLine: 20 };
+    const carried = { id: 'b.test.ts > two', file: 'b.test.ts', name: 'two', stopped: false };
+    const moved = {
+      regions: [], counts: { lost: 0, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [], renumbered: [],
+      unmeasured: [{ ...region, before: [carried], now: [] }],
+    };
+
+    expect(motionText({ base: { from: 'base.json', kind: 'record' }, moved })).toEqual([
+      '',
+      'Against base.json, no region moved.',
+      'Not measured, 1 region whose cases last ran before its file changed:',
+      expect.stringMatching(/^  src\/total\.ts 1-20 .* — was /u),
+    ]);
+  });
+
   it('leaves out what the base branch changed after the base was recorded, and names it', async () => {
     const { root, first } = await checkout();
     await writeFile(join(root, 'src/other.ts'), 'export const other = 2;\n');
@@ -359,11 +390,11 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { against, execution } = await recorded(index([0], [1], [0]), index([0], [1], []), first);
 
-    const answer = await covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     expect(answer.motion?.base.leftOut).toEqual(['src/other.ts']);
     expect(answer.motion?.moved?.regions).toEqual([]);
-    expect(formatCovering(answer, 'text')).toContain('Left out, changed on the base\'s branch between');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Left out, changed on the base\'s branch between');
   });
 
   it('reads the cases the run retired as the base, at the commit they were recorded at', async () => {
@@ -391,7 +422,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { execution } = await recorded(index([0], []), index([0], []), 'HEAD');
 
-    await expect(covering(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
+    await expect(changeAnswer(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
       .rejects.toThrow(/needs no `--against`/);
   });
 
@@ -401,7 +432,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), ABSENT);
 
-    const refused = covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+    const refused = changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]));
 
     await expect(refused).rejects.toMatchObject({
       exitCode: 2,
@@ -417,7 +448,7 @@ describe('what a change moved against the base', () => {
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
     const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), undefined);
 
-    await expect(covering(parse(['--since', 'main', '--against', against, '--execution', execution]))).rejects.toMatchObject({
+    await expect(changeAnswer(parse(['--since', 'main', '--against', against, '--execution', execution]))).rejects.toMatchObject({
       exitCode: 2,
       message: expect.stringContaining(`The base \`${against}\` names no commit it was recorded at`),
     });

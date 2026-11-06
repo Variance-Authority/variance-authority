@@ -1,13 +1,15 @@
 import { PassThrough } from 'node:stream';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readHelp } from '@variance-authority/package/help';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
+import { FoundNothing } from './tools/find.js';
+import { publishing } from './__fixtures__/published-then-written.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
@@ -64,12 +66,12 @@ describe('what one door opens', () => {
 
   it('carries the kind, the counts and the first line of the doc', () => {
     expect(call('docs_entrypoint', { package: 'alpha' })).toContain(
-      'measure [function] 1 packages, 1 imports — Measures the thing, and says how much of it there was.',
+      'measure [function] 1 import by published path from 1 other package — Measures the thing, and says how much of it there was.',
     );
   });
 
   it('marks a name that says nothing about itself', () => {
-    expect(call('docs_entrypoint', { package: 'alpha' })).toContain('Reading [class] 1 packages, 2 imports — UNDOCUMENTED');
+    expect(call('docs_entrypoint', { package: 'alpha' })).toContain('Reading [class] 2 imports by published path from 1 other package — UNDOCUMENTED');
   });
 
   it('answers the main entrypoint when no subpath is named', () => {
@@ -148,8 +150,14 @@ describe('one name in full', () => {
     );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
-    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `docs_search`/);
+  });
+
+  it('answers the files of an unknown name as found nothing, as its answer is', () => {
+    const symbol = HELP_TOOLS.find((tool) => tool.name === 'docs_symbol')!;
+    expect(() => symbol.files!(READING, { name: 'nope' })).toThrow(FoundNothing);
   });
 
   it('refuses an empty name rather than answering about the first thing it finds', () => {
@@ -180,15 +188,15 @@ describe('what the workspace says when the declaration says nothing', () => {
 describe('where the repository already writes a name', () => {
   it('names every place it is imported, with a line to open', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('`behind` is imported in 4 places.');
+    expect(text).toContain('`behind` [const] is imported in 4 places, all from other packages.');
     expect(text).toContain('packages/beta/src/index.ts:2 — beta');
   });
 
   it('separates the files written to show it in use from the ones that depend on it', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('Stories:');
+    expect(text).toContain('Stories, from other packages:');
     expect(text).toContain('packages/beta/src/again.stories.jsx:1');
-    expect(text).toContain('Tests:');
+    expect(text).toContain('Tests, from other packages:');
     expect(text).toContain('packages/beta/src/again.test.js:1');
   });
 
@@ -210,12 +218,13 @@ describe('where the repository already writes a name', () => {
 
   it('answers plainly when no other package imports a published name, and says the imports within its own were not read', () => {
     expect(call('docs_uses', { name: 'Span' })).toBe(
-      '`Span` is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
+      '`Span` [type] is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
     );
   });
 
-  it('refuses an unknown name by pointing at the question that finds one', () => {
-    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `search`/);
+  it('answers an unknown name as found nothing, pointing at the question that finds one', () => {
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `docs_search`/);
   });
 });
 
@@ -385,6 +394,63 @@ describe('the server', () => {
     stop();
 
     expect(JSON.parse(String(line)).result.content[0].text).toContain('not found');
+  });
+});
+
+describe('a server over a generation it reuses', () => {
+  const fixture = publishing();
+  beforeEach(fixture.before);
+  afterEach(fixture.after);
+
+  /** One line asked of a server over `root`, and the text it answered. */
+  async function asked(root: string, name: string, args: Readonly<Record<string, unknown>>): Promise<string> {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const stop = serveWorkspace(root, { input, output });
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } })}\n`);
+    const line = await new Promise<string>((resolve) => output.once('data', resolve));
+    stop();
+    return JSON.parse(String(line)).result.content[0].text as string;
+  }
+
+  const rename = async (root: string): Promise<void> => {
+    const tax = join(root, 'packages/kit/src/tax.ts');
+    await writeFile(tax, (await readFile(tax, 'utf8')).replace('taxOf', 'dutyOf'));
+  };
+
+  it('reads the checkout again before `docs_search` lists a name renamed since it', async () => {
+    const root = await fixture.published();
+    const before = await asked(root, 'docs_search', { query: 'taxOf' });
+    expect(before).toContain('packages/kit/src/tax.ts');
+    await rename(root);
+
+    const after = await asked(root, 'docs_search', { query: 'taxOf' });
+    expect(after).not.toContain('packages/kit/src/tax.ts');
+    expect(after).not.toBe(before);
+  });
+
+  it('reads the checkout again before `docs_symbol` answers a name renamed since it', async () => {
+    const root = await fixture.published();
+    await rename(root);
+
+    const answer = await asked(root, 'docs_symbol', { name: 'taxOf' });
+    expect(answer).toContain('`taxOf` is not');
+    expect(answer).not.toContain('tax.ts:1');
+  });
+
+  it('answers from it when only a file the answer does not name changed', async () => {
+    const root = await fixture.published();
+    const first = await asked(root, 'docs_search', { query: 'taxOf' });
+    expect(await asked(root, 'docs_search', { query: 'taxOf' })).toBe(first);
+  });
+
+  it('reads the checkout again before `docs_uses` answers a name renamed since it', async () => {
+    const root = await fixture.published();
+    const first = await asked(root, 'docs_uses', { name: 'taxOf' });
+    await rename(root);
+    const again = await asked(root, 'docs_uses', { name: 'taxOf' });
+    expect(again).not.toBe(first);
+    expect(again).toContain('`taxOf` is not');
   });
 });
 

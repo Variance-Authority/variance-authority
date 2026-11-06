@@ -5,6 +5,7 @@
 > Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your component test in Vitest browser mode has already mounted the component in
 a real engine with the real stylesheets, and the locator it awaited is proof the
@@ -47,15 +48,11 @@ package install:
 npx playwright install chromium
 ```
 
-Vitest 4 and newer take their browser provider as a value, from a package of its
-own:
+Vitest takes its browser provider as a value, from a package of its own:
 
 ```bash
 npm install --save-dev @vitest/browser-playwright
 ```
-
-On Vitest 3 the provider is the string `'playwright'` and comes from
-`@vitest/browser`; both are inside this package's peer range.
 
 The line each changed region is reported at comes from a second plugin, which
 makes `react/jsx-dev-runtime` resolve to a runtime that keeps the location the
@@ -238,7 +235,7 @@ component behind them are printed as coordinates and marked unattributed. The
 plugin the component and the element are still named and the row is absent.
 Paths are absolute, and are made relative to `sourceRoot` when you pass one.
 
-The images are files. The approved baseline is the `.png` under the baseline
+The images are files. The approved baseline is the `.webp` under the baseline
 directory, beside a `.json` recording what painted it; the candidate this run
 painted is in `renders/` in the cache, named by the digest of the document it
 came from.
@@ -388,11 +385,11 @@ it wrote, or pass one shared `renderer` to the plugin so laptop and CI paint on
 the same machine.
 
 Full walkthrough:
-[add one baseline comparison to a Vitest browser-mode test](https://variance-authority.dev/docs/start-vitest-browser).
+[add one baseline comparison to a Vitest browser-mode test](https://variance-authority.dev/start/vitest-browser).
 How a region resolves to a component and a line:
 [attribution](https://variance-authority.dev/docs/attribution). Where the bytes
 live: [baseline placement](https://variance-authority.dev/docs/placement).
 
 ---
 
-**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/vitest-browser](https://variance-authority.dev/reference/packages/vitest-browser)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/vitest-browser) · MIT

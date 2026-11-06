@@ -51,12 +51,12 @@ export interface Traversal {
 
 export interface TraversalOptions {
   /**
-   * Edge kinds to walk. `RUNTIME_EDGES` when absent: every kind but `type`.
+   * Edge kinds to walk. Every kind when absent, `type` included.
    *
-   * A type-only import is erased before anything runs, so a change behind it
-   * fails no test and changes no pixel, and walking it selects work nothing can fail.
-   * A caller asking a question about source rather than about a runtime passes
-   * `EDGE_KINDS`, or any narrower list, and gets exactly those.
+   * A type-only import is a dependency: a change behind it can break the
+   * importer's types and a consumer's published declarations. Only a question
+   * about what a run loads leaves it out, because nothing behind it runs: test
+   * selection passes `RUNTIME_EDGES`. Any other list is walked exactly.
    */
   readonly through?: Iterable<EdgeKind>;
   /**

@@ -45,15 +45,16 @@ describe('a name the substring cannot reach', () => {
     const text = ask({ query: 'meesure' });
     expect(text).toContain('measure');
     expect(text).toContain('loosely');
-    // The fact about the substring is still told, whole, above the offer.
-    expect(text).toContain('Nothing in this repository is named or documented with `meesure`');
+    // The fact about the substring is still told above the offer, as a miss of the text and not of the code.
+    expect(text).toContain('No export in this repository, nor the doc of one, writes `meesure`; no source index was read, so a name no file exports is not known. The nearest follow.');
+    expect(text).not.toContain('`packages` lists every entrypoint');
   });
 
   it('allows one character off a long word, and not two, because an agent does not mistype', () => {
     // `behind` is documented *Only reachable through a second door.*
     expect(ask({ query: 'reachible' })).toContain('behind [const]');
     const swapped = ask({ query: 'raechable' });
-    expect(swapped).toContain('Nothing in this repository is named or documented with `raechable`');
+    expect(swapped).toContain(`No export in this repository, nor the doc of one, writes \`raechable\``);
     expect(swapped).not.toContain('loosely');
   });
 
@@ -72,10 +73,10 @@ describe('a name the substring cannot reach', () => {
   });
 
   it('requires every word to land, so a two-word query is not the union', () => {
-    // Half the words is the described section's rule, and it says which it holds.
+    // A word nothing holds outweighs one a row holds, so no row carries the question.
     const text = ask({ query: 'numbers unwritten' });
     expect(text).not.toContain('loosely');
-    expect(text).toMatch(/Span .*\[holds: numbers\]/);
+    expect(text).not.toContain('[holds:');
   });
 });
 
@@ -101,9 +102,19 @@ describe('what it may never do', () => {
     expect(ask({ query: 'meesure', from: 'packages/beta/src/again.ts' })).toContain('measure');
   });
 
+  it('keeps the way to widen when a miss inside an area has the nearest in reach to show', () => {
+    // The text may be written outside the start point's reach, so the nearest
+    // names in reach do not replace the way to widen.
+    const text = ask({ query: 'meesure', from: 'packages/beta/src/again.ts' });
+    expect(text).toContain('measure');
+    expect(text).toContain('No export in reach of that start point, nor the doc of one, writes `meesure`');
+    expect(text).toContain('ask again without `from`/`to` to search the whole workspace');
+    expect(text).not.toContain('That is a fact about the area');
+  });
+
   it('leaves an empty answer empty when the wider net catches nothing either', () => {
     const text = ask({ query: 'zzz' });
-    expect(text).toContain('Nothing in this repository is named or documented with `zzz`');
+    expect(text).toContain(`No export in this repository, nor the doc of one, writes \`zzz\``);
     expect(text).not.toContain('loosely');
   });
 });

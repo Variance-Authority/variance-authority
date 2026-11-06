@@ -3,8 +3,10 @@
 `variance distill` reads no report, and from the root `variance.config.json`
 only the declared suites, to find the record `--suite` names; a checkout that
 has never configured this tool gets the same answer. Its input is one record:
-the one `covering` reads, the declared suite's `--suite` names, or the file
-`--execution` names. `--test` takes a case id or a whole title,
+the nearest one this machine holds, the declared suite's `--suite` names, or the
+file `--execution` names. It fetches nothing: the nearest is this checkout's own,
+else the mainline's as last fetched here, else, in a worktree, the primary
+checkout's. `--test` takes a case id or a whole title,
 and `--file` the test file's path, relative to `--root` or absolute; give either
 or both. `--file` names that file alone: a recorded path that contains it or
 ends in it is another file, and a path outside `--root` is refused. More than
@@ -36,10 +38,26 @@ variance distill --file test/checkout.test.tsx --test 'checkout > submits'
 
 ## How much each test file loads for nothing
 
+A scope reading opens with where its time went, from the phases the runner
+timed for each test file: `prepare`, `environment`, `setup`, `collect` and
+`cases`, summed in milliseconds. `collect` — importing the test file and every
+module it loads — is the part that is not a test. Jest records no `prepare`. A
+file whose loading — every phase before `cases`, summed — is longer than its
+`cases` is listed as load-bound; start there, because what it costs before its
+first case is more than what it tests. In `--format json` this is `time`, with
+every load-bound file in `loadBound` as `{ file, loading, cases }`.
+
 `--format jsonl` writes the scope reading one line a test file instead: its
 suite, its `cases`, what it `loaded` (modules that declare a function, other
 than itself, and their lines), and the part of that no case of it entered as
-`unentered`. A file whose cases cannot say what it did without has `withheld`
+`unentered`. Its optional `time` object gives the recorded `prepare`, `environment`,
+`setup`, `collect` and `cases` phases in milliseconds. A phase the runner did
+not time is absent; a measured zero stays `0`. With no recorded phases, `time`
+is absent. Timings remain available when `unentered` is withheld. These are
+elapsed times in each worker; summing files counts concurrent workers
+separately and does not measure CI wall time. Read them beside `unentered` to
+choose a file to investigate: unused lines do not measure time saved by a
+change. A file whose cases cannot say what it did without has `withheld`
 with the reason instead of `unentered`. A suite that kept no record is named on
 stderr. `--test` and `--file` refuse it. Percentiles across a suite are a `jq`
 away; this one gives the share of what each file loaded that no case entered,

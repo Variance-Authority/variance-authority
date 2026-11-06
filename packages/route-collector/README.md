@@ -5,6 +5,7 @@
 > Turn pages your application already serves into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -549,10 +550,10 @@ console.log(routesFrom(xml));
 - **Elements report their component's declaration rather than their own line:**
   a route served by `vite dev`, `next dev`, or any other development server
   reports exact lines with no build change. A production build, or React 18
-  compiled to classic `createElement` calls, has nothing to read. This does not
-  affect collection or comparison. If the report must distinguish the exact
-  element instance, make that build emit automatic development JSX and add the
-  `@variance-authority/jsx-source` plugin.
+  compiled to classic `createElement` calls with no `__source`, has nothing to
+  read. This does not affect collection or comparison. If the report must
+  distinguish the exact element instance, make that build emit automatic
+  development JSX and add the `@variance-authority/jsx-source` plugin.
 - **A login redirect is captured:** authenticated routes are outside this
   package's contract; use `@variance-authority/playwright-test` with a
   Playwright test that performs the login instead.
@@ -572,4 +573,4 @@ the collector.
 
 ---
 
-**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/route-collector) · MIT

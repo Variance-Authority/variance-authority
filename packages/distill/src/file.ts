@@ -90,7 +90,7 @@ export function withheldOf(file: string, code: number, unsettled: number, cases:
       return `the record keeps no cases for ${file}.`;
     case INCOMPLETE:
       return `the coverage row for ${file} is incomplete — a filtered, cancelled or stopped run, or source changed ` +
-        'since it was recorded — so it cannot say what the file did without. Run the file again.';
+        'since it was recorded — so it cannot say what the file did without.';
     case UNSETTLED:
       return `${unsettled} of ${cases} case(s) stopped or did not say whether they finished, ` +
         'so what they would have entered is unknown.';

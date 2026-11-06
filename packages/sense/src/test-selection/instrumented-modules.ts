@@ -77,6 +77,8 @@ export function insideRoot(root: string, file: string): boolean {
 /** What one test file's run counted, per module, under the ids the modules reported. */
 export interface ReadJournal {
   readonly testFile: string;
+  /** When the file finished collecting, by the worker's `Date.now()`; absent where nothing marked it. */
+  readonly collected?: number;
   readonly modules: ReadonlyArray<{
     readonly id: ModuleId;
     readonly hits: readonly number[];
@@ -144,10 +146,6 @@ export function loadedOf(
   journals: readonly ReadJournal[],
 ): ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>> {
   return crossingsOf(journals, (module) => module.loaded);
-}
-
-export function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

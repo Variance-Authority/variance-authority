@@ -11,9 +11,9 @@
  *
  * The first half is this spec's own: baselines, the render cache, builds,
  * per-subject verdicts, and decisions. The second half is
- * [spec 0002](../../../docs/specs/0002-history-store.md)'s, and it is a
+ * [spec 0002](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0002-history-store.md)'s, and it is a
  * deliberate transcription of
- * [`server/backend-sqlite.ts`](../../server/src/backend-sqlite.ts) — the same
+ * [`server/backend-sqlite.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/backend-sqlite.ts) — the same
  * columns, the same indexes, and above all the same append-only triggers with
  * the same wording. Two backends that disagree about what a row is are two
  * different records wearing one name, and the trigger messages are the part an
@@ -24,7 +24,7 @@
  * **The identity partition is the primary key.** `baselines` is keyed by
  * `(project, identity_digest, subject, label)`. A baseline written by one
  * machine is not reachable as this machine's, because it is a different row —
- * the same argument [ADR-0011](../../../docs/context/adr/0011-durable-and-ephemeral-retention.md)
+ * the same argument [ADR-0011](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0011-durable-and-ephemeral-retention.md)
  * makes about the directory store's layout, and with the same absence of a check
  * somebody could forget to write.
  *

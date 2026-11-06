@@ -82,7 +82,7 @@ line come from [`attribution`](../attribution/README.md).
   `comparePixels`, `maskOf`, `padTo`; the per-policy counts and the mask
 - `packages/png/src/difference.ts` — `diffImage`, `observePngDifference`; the
   human artifact, on its own path
-- `packages/png/src/size.ts`, `foreign.ts` — dimensions without decoding, and
+- `packages/png/src/header.ts`, `foreign.ts` — format and dimensions without decoding, and
   ingesting an image this system did not paint
 - `packages/core/src/attribute/mask.ts` — `subtractRegions`, `excludedBoxes`;
   the raster half of an ignore

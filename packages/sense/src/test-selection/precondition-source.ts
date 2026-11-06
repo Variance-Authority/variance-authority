@@ -3,7 +3,7 @@
  * describes are reached only through the API that registered them, as source.
  *
  * Rstest announces no hook and hands no runner class to replace — the reasons
- * [`caseGlobalsSource`](./worker-source.ts) wraps its case registrars — so the
+ * [`caseGlobalsSource`](./rstest-case-source.ts) wraps its case registrars — so the
  * describe and hook registrars are wrapped beside them. Each hook captures, at
  * registration, how deep the describe it was registered under is: a describe's
  * callback runs with its own path current, whenever the runner chooses to call

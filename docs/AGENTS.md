@@ -16,6 +16,16 @@ internal — repository history and specification notes — and is never publish
 and never linked from a public page. Package `README.md` files are public and
 may be linked.
 
+`site/` argues to a stranger and `docs/` speaks to somebody already reading, so a
+density or ordering decision on one does not travel to the other. Vocabulary
+does: every `docs/*.md` is published, so jargon a stranger cannot parse is banned
+on both. A page's first paragraph is also its meta description and its `llms.txt`
+line, so it defines that page's own subject, never the whole product
+(`tools/docs-identity.check.ts`). Two narrowings are both called selection and
+read different inputs: name the command before writing what one reads. Markdown
+here is hard-wrapped, so `grep` for a phrase misses it wherever it wraps; match on
+`flat(file)` from `tools/markdown.ts` across `git ls-files`.
+
 Run the rules from the repository root: `yarn check` runs all of them,
 `yarn check tools/docs-entrypoints.check.ts tools/docs-links.check.ts` runs the
 two that read the rules below. A failure names the file and the line:
@@ -92,6 +102,19 @@ more of the thought. Use the fewest objects and labels that can carry the idea.
 Follow [the visual guidelines](visual-guidelines.md) for the mark, palette,
 geometry and figure conventions every page shares.
 
+## What we ship is installed, never copied
+
+A reader gets variance from a package manager or by name: `npm install
+@variance-authority/cli`, `uses: Variance-Authority/action@v1`. No page
+asks them to copy or paste one of our files into their repository, and no
+public page links into `.github/`: the workflows there are this repository's
+own, and the action reaches readers as
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action),
+which every release publishes. A capability a reader can only get by copying is
+not shipped yet; ship it as a package or an input of the action, then document
+that. `tools/docs-installs.check.ts` enforces this over every markdown file and
+every workflow comment.
+
 ## `docs/` is not a work log
 
 A `docs/` page describes the product as it stands at the end of the cycle. It is
@@ -103,6 +126,13 @@ It **must not**:
 - **Mention a date.** Dates belong to the journal, the ADRs and the checkpoint.
   The exceptions are measurement provenance for an external fact (a competitor's
   published behaviour, a version number) and dates inside example data.
+- **Cite a competitor as the project's history.** A competitor is described
+  fairly and stays out of the project's own story, and the coiner of a format is
+  credited wherever it is used.
+- **Name the release state.** Install lines are plain, with no beta, dist-tag or
+  not-yet-published caveat: a page is written from the moment after release.
+- **Count the corpus.** Say the markdown corpus: adding a page must not move a
+  number on an unrelated page. Counts bound to source are fine.
 - **Narrate an absence.** No "nothing read this until…", "nobody had written
   this down", "said out loud for the first time", "this work did not make",
   "the first implementation reported eleven". A limitation is stated as a
@@ -180,6 +210,11 @@ to the project.
   reasoning, and technical detail that earn their place.
 - Let detail serve the purpose. Its placement and prominence depend on what the
   reader came for.
+- Lead a story, a page or a skill row with the passing test as the subject: a
+  pass is a claim about the code nobody can read today. Explaining a failure
+  follows from it and is not the pitch. Lead front-door copy with the one problem,
+  asking the record instead of re-running, and let the question map carry the
+  breadth.
 - Keep internal rationale internal. Public documentation does not link to
   `docs/context/`, name an ADR or journal entry, or depend on private project
   history. State any reasoning the reader needs in the public page itself.
@@ -409,6 +444,29 @@ is easy to miss while writing.
   fact, or nothing.
 - **A sentence that would be true of some other project's docs.** It says
   nothing about this one. Cut it.
+- **Advertising the expected.** CI exit codes, no false pass, cleaning up after a
+  run: had it been broken it would be a bug, and boasting about the baseline
+  lowers the page in a senior reader's eyes.
+- **Gaps without an argument.** A list of gaps states them and argues none. Each
+  gets its mechanism and its cost before any instruction.
+- **Arguing from another tool's implementation.** Argue from the contract its user
+  sees: automock stubs everything, so a test names files at any depth to opt out.
+- **A testing term inside-out.** Never glass box, white box or grey box for Eyes
+  and journeys: ISTQB defines glass-box as tests written with knowledge of
+  internals, and here the test stays black-box while the tool gains eyes.
+- **Blurring the three readings.** Sense is a parse, the baseline record is the
+  empirical link from a URL to a component, journeys refine. Never write that a
+  reading asks nothing of the build without naming what it does need.
+- **Painting the chain unbroken.** Claim only the joins that exist: no commit or
+  history link without the service the reader must host, and never "your code"
+  where the mechanism means your React.
+- **A generated number as a story.** Before publishing a figure, ask whether the
+  sentence describes a repository that exists. A generator's number is a fixture
+  parameter. A time or memory figure names the machine that measured it.
+- **Selling a saving per case.** A runner evaluates a test file's module graph
+  once, at collection. Never write that a load costs every case or present k of N
+  cases as a saving: only the import graph, laziness, file boundaries or mocks
+  change what a file loads.
 
 Two well-known rules of this kind are deliberately not ours. Em dashes stay;
 they are part of how this project sounds. And no word is cut for sounding

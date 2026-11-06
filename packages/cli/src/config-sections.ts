@@ -1,5 +1,6 @@
 import type { Viewport } from '@variance-authority/core/format';
 import {
+  type Credential,
   declaredSecret,
   fail,
   integer,
@@ -143,7 +144,7 @@ export interface RemoteRendererConfig {
 
 export interface HistoryConfig {
   readonly endpoint: string;
-  readonly token: string;
+  readonly token: string | Credential;
   /** Scopes queries. Defaults to {@link Config.project}. */
   readonly project?: string;
 }
@@ -176,7 +177,7 @@ export interface ReviewConfig {
    * parsed — see {@link declaredSecret}. A function because the value is not in
    * the config: what the config holds is where to find it.
    */
-  readonly token: () => string;
+  readonly token: Credential;
 }
 
 export function parseAlone(value: unknown, options: ParseOptions): AloneConfig {

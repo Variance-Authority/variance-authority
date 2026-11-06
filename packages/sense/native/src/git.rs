@@ -49,9 +49,11 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         // for the reason `working-tree-changes.ts` gives: they are what make this
         // call cheap, and overriding either way spends a user's configuration on
         // their behalf. The shape of the question is `untracked_question`'s.
+        // A reader never writes the index: its refresh would race the user's
+        // own git for `index.lock`, and move the stamp a held listing stands on.
         let status = scope.spawn(|| {
             let settings = untracked_settings(root);
-            let mut args = vec!["status", "--porcelain=v1", "-z"];
+            let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
             args.extend(untracked_question(prefix, settings));
             git(root, &args, None)
         });
@@ -441,42 +443,45 @@ const HEX: [char; 16] = [
 /// Identity is never inherited into the child beyond what the environment
 /// already holds: these are read-only queries and write no objects.
 pub(crate) fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<Vec<u8>> {
-    git_with(root, args, stdin, &[])
+    answer(root, args, stdin).ok()
 }
 
-/// [`git`], with variables set in the child's environment.
-pub(crate) fn git_with(root: &str, args: &[&str], stdin: Option<Vec<u8>>, env: &[(&str, &str)]) -> Option<Vec<u8>> {
+/// [`git`], or why git did not answer: what it wrote to stderr, or how it
+/// ended when it wrote nothing. For a caller whose answer is wrong without
+/// git's, which then fails with git's own reason rather than a softer answer.
+pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
     let mut command = Command::new("git");
     command
         .args(args)
-        .envs(env.iter().copied())
         .current_dir(root)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .stdin(if stdin.is_some() {
             Stdio::piped()
         } else {
             Stdio::null()
         });
 
-    let mut child = command.spawn().ok()?;
+    let mut child = command.spawn().map_err(|error| format!("git did not start: {error}"))?;
 
     if let Some(bytes) = stdin {
         // On its own thread: a list of two hundred thousand paths is larger than
         // a pipe buffer, and writing it from here while git waits for us to read
         // its output is a deadlock rather than a slow call.
-        let mut pipe = child.stdin.take()?;
+        let mut pipe = child.stdin.take().ok_or("git took no input")?;
         std::thread::spawn(move || {
             let _ = pipe.write_all(&bytes);
         });
     }
 
-    let output = child.wait_with_output().ok()?;
+    let output = child.wait_with_output().map_err(|error| format!("git did not finish: {error}"))?;
     if !output.status.success() {
-        return None;
+        let said = String::from_utf8_lossy(&output.stderr);
+        let said = said.trim();
+        return Err(if said.is_empty() { format!("git {} ended with {}", args.join(" "), output.status) } else { said.to_owned() });
     }
 
-    Some(output.stdout)
+    Ok(output.stdout)
 }
 
 #[cfg(all(test, unix))]

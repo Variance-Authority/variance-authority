@@ -16,13 +16,15 @@ import { statSync } from 'node:fs';
 import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf, sharedRecord } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
-import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
+import type { IndexLock } from './index-lock.js';
+import { layFetchedMainline, lastFetchedMainline, mainlineHanded, type LastFetched } from './mainline-layer.js';
 import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
 
@@ -34,6 +36,8 @@ export interface RecordLocationOptions {
   readonly suite?: string | undefined;
   /** The cache directory, when the caller already knows it. */
   readonly cacheRoot?: string | undefined;
+  /** The name of the mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by; `null` when it could not read the selection. */
+  readonly selected?: string | null | undefined;
 }
 
 /**
@@ -168,31 +172,33 @@ export type Seeded =
  * ask.
  */
 export async function seedTestCoverage(
-  file: string,
+  lock: IndexLock,
   root: string,
   instrumentation: string | undefined,
   cacheRoot?: string,
+  selected?: string | null,
 ): Promise<Seeded | undefined> {
+  const { file } = lock;
   const layers = repositoryLayers(root, cacheRoot);
-  // A caller that named its own file owns it, and it is not a layer of
-  // anything: there is no base beneath a path somebody passed in.
-  const inside = relative(layers.top, file).split(sep).join('/');
-  if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return undefined;
-  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
+  const inside = cachedRecord(file, root, cacheRoot);
+  if (inside === undefined) return undefined;
+  const suite = cachedSuite(inside);
   const shared = suite === undefined ? undefined : declaredSuite(root, suite)?.carry === 'share' ? suite : undefined;
   // A checkout with a record of its own has its base, and no other is asked.
+  // The lock makes this and the copy one step: a run landing between them would
+  // be copied over.
   if (present(file)) return undefined;
   let mainline: PassedOver | undefined;
   if (shared !== undefined) {
-    const record = lastFetchedMainline(root, shared, cacheRoot);
+    const record = lastFetchedMainline(root, shared, cacheRoot, selected);
     if (record !== undefined) {
       mainline = passedOver(record.coverage, await readFile(record.coverage).catch(() => undefined), instrumentation);
-      if (mainline === undefined && (await layFetchedMainline(record, file))) return { from: 'mainline', record };
+      if (mainline === undefined && (await layFetchedMainline(record, lock))) return { from: 'mainline', record };
     }
   }
   const passed = mainline === undefined ? undefined : ([mainline] as const);
   const nothing = (): Seeded | undefined => (passed === undefined ? undefined : { from: 'nothing', passed });
-  if (layers.top === layers.base) return nothing();
+  if (layers.top === layers.base || mainlineHanded(root, shared, cacheRoot)) return nothing();
   let snapshot: TestCoverageView | undefined;
   let primary: PassedOver | undefined;
   // The cases come in the record, and the run folds into whatever it finds
@@ -227,6 +233,21 @@ export async function seedTestCoverage(
     ...(shared === undefined ? {} : { shared }),
     ...(passed === undefined ? {} : { passed }),
   };
+}
+
+/**
+ * Where `file` sits in this checkout's layer, when it is the checkout's cached
+ * record. Nothing for any other path: a caller that named its own file owns it,
+ * and it is not a layer of anything.
+ */
+export function cachedRecord(file: string, root: string, cacheRoot?: string): string | undefined {
+  const inside = relative(repositoryLayers(root, cacheRoot).top, file).split(sep).join('/');
+  return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
+}
+
+/** The suite a record's path inside a layer names, as {@link cachedRecord} says it: none for the repository's one record. */
+export function cachedSuite(inside: string): string | undefined {
+  return /^suites\/([^/]+)\//u.exec(inside)?.[1];
 }
 
 /**
@@ -304,11 +325,10 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  * The primary checkout's record is the recording of `main` as of its last run,
  * and it is what every worktree starts from, so a test the worktree has not run
  * last ran where that record says it did. The runs record beside it says that
- * per test, and it is carried rather than worked out again: `commit`, `over`,
- * `files` and `standing` as the base wrote them. Without it the worktree's first
- * partial run finds no record to carry `standing` forward from, and until a run
- * observes every test, a test it did not run is read from the worktree's own
- * first commit — which skips it after a change it never ran against.
+ * per test, and it is carried as the base wrote it, not worked out again.
+ * Without it the worktree's first partial run has no `standing` to carry, and
+ * until a run observes every test, a test it did not run is read from the
+ * worktree's first commit — which skips it after a change it never ran against.
  *
  * A copy, and nothing added to it: an entry the base marked assumed stays
  * marked, and a test the base's record does not place is read from the base's
@@ -323,12 +343,12 @@ export function noteSeeded(seeded: Seeded | undefined): void {
  * it could not place and where it read them from.
  *
  * `runs` is 0, so the worktree's first run at the same commit is not counted
- * as another run of the base's — see `landRun` — and a review still finds that
- * no run of this checkout has listed itself.
+ * as another run of the base's (see `landRun`), and a review still finds no
+ * run of this checkout listed. `latest` and the landings, each with the time
+ * it landed, stay the base's, as {@link readCommitRuns} reads them.
  *
  * The record is linked into place rather than renamed over it, so a runs record
- * already beside the snapshot when the link is made is kept. That protects this
- * file only: the snapshot and its case index are copied by {@link seedFrom}.
+ * already beside the snapshot when the link is made is kept.
  */
 async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
   const commit = snapshot.commit;
@@ -341,9 +361,7 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
     return;
   }
   if (held?.commit !== commit) return;
-  const at = new Date().toISOString();
-  const record: CommitRuns = { ...held, first: at, latest: at, runs: 0 };
-  await writeCoverageOnce(commitRunsFile(file), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
+  await writeCoverageOnce(commitRunsFile(file), Buffer.from(commitRunsText({ ...held, runs: 0 })));
 }
 
 /**
@@ -358,9 +376,6 @@ async function seedFrom(
   target: string,
   opens: (bytes: Uint8Array) => Uint8Array | undefined,
 ): Promise<boolean> {
-  // FIXME: the check and the copy are two steps, so two first writes in one
-  // worktree can both find `target` missing, and the later copy replaces a
-  // snapshot the earlier one already landed a run on.
   try {
     await stat(target);
     return false;
@@ -414,17 +429,27 @@ export async function readableTestCoverage(
  * asked.
  */
 export function nearestTestCoverage(root: string, options: RecordLocationOptions = {}): string {
+  return nearestRecord(root, options).file;
+}
+
+/** Whose record answered: this checkout's, the mainline's as fetched, or the primary checkout's under a worktree. */
+export type RecordOrigin = 'own' | 'mainline' | 'primary';
+
+/** {@link nearestTestCoverage} for a reader that says whose record it read. With no layer holding one, this checkout's. */
+export function nearestRecord(
+  root: string,
+  options: RecordLocationOptions = {},
+): { readonly file: string; readonly origin: RecordOrigin } {
   const inside = recordPath(root, options.suite);
   const [own, ...under] = layeredFiles(repositoryLayers(root, options.cacheRoot), inside);
-  if (present(own!)) return own!;
+  if (present(own!)) return { file: own!, origin: 'own' };
   // The fetched record is the base only when the first run here would lay it:
   // one this build does not read is passed over, as seeding passes it over.
-  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
-  const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot);
-  if (fetched !== undefined) return fetched.coverage;
-  for (const file of under) if (present(file)) return file;
-
-  return own!;
+  const suite = cachedSuite(inside);
+  const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot, options.selected);
+  if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
+  if (!mainlineHanded(root, suite, options.cacheRoot)) for (const file of under) if (present(file)) return { file, origin: 'primary' };
+  return { file: own!, origin: 'own' };
 }
 
 function present(file: string): boolean {

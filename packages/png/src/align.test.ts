@@ -215,6 +215,31 @@ describe('content that moved down the page', () => {
     expect([comparison.width, comparison.height]).toEqual([WIDTH, depth + 3000]);
   });
 
+  it('pairs rows whose only difference is the colour under a fully transparent pixel', () => {
+    // A kept WebP drops that colour (libwebp without `exact`), and no
+    // comparison sees it, so a fresh capture that still carries it is the same row.
+    const before = column([1, 2, 3, 4, 5]);
+    const after = column([1, 9, 2, 3, 4, 5]);
+    for (let y = 0; y < before.height; y += 1) before.data.set([0, 0, 0, 0], y * WIDTH * 4);
+    for (let y = 0; y < after.height; y += 1) after.data.set([7, 7, 7, 0], y * WIDTH * 4);
+
+    const difference = differencePixels(before, after, undefined, { diffMask: true });
+
+    expect(changedRows(difference.data, difference.width)).toEqual([1]);
+    expect(difference.changed).toBe(WIDTH);
+  });
+
+  it('leaves the colour under a fully transparent pixel in the caller\'s image', () => {
+    const before = column([1, 2, 3]);
+    const after = column([1, 2, 3]);
+    for (let y = 0; y < after.height; y += 1) after.data.set([7, 7, 7, 0], y * WIDTH * 4);
+    const kept = after.data.slice();
+
+    comparePixels(before, after);
+
+    expect(after.data).toEqual(kept);
+  });
+
   it('compares position by position when the widths differ', () => {
     const narrow = column([1, 2, 3]);
     const wide = { width: WIDTH + 1, height: 3, data: new Uint8Array((WIDTH + 1) * 3 * 4).fill(255) };
@@ -271,3 +296,35 @@ function changedRows(mask: Uint8Array, width: number): number[] {
   }
   return [...rows].sort((a, b) => a - b);
 }
+
+describe('two equal captures', () => {
+  it('pair every row with itself, and move none', () => {
+    const before = column([1, 1, 2, 3, 3, 3]);
+    const after = column([1, 1, 2, 3, 3, 3]);
+
+    const rows = alignRows(before, after);
+
+    expect(rows && { ...rows, source: [...rows.source] }).toEqual({
+      source: [0, 1, 2, 3, 4, 5],
+      inserted: [],
+      removed: [],
+      shifted: [],
+      grown: [],
+      shrunk: [],
+    });
+  });
+
+  it('compare as the comparison of nothing', () => {
+    const before = column([1, 1, 2, 3, 3, 3]);
+    const after = column([1, 1, 2, 3, 3, 3]);
+
+    const comparison = comparePixels(before, after);
+
+    expect([comparison.changed, comparison.dimensionsChanged, comparison.mask.changed]).toEqual([
+      { default: 0, strict: 0 },
+      false,
+      0,
+    ]);
+    expect(comparison.alignment).toEqual({ inserted: [], removed: [], shifted: [] });
+  });
+});

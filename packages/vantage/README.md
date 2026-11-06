@@ -7,6 +7,7 @@
 > Kept in a process that outlives the test, so a suite in flight is something to look at rather than something to wait for.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -47,7 +48,7 @@ npm install --save-dev @variance-authority/cli @variance-authority/playwright-te
 | --- | --- |
 | `@variance-authority/cli` | `npx variance watch` starts a watcher; `npx variance ask` reads one |
 | `@variance-authority/playwright-test` | `varianceFixtures`, which report your run to the watcher |
-| `@playwright/test` | the runner those fixtures extend (`>=1.49 <2`) |
+| `@playwright/test` | the runner those fixtures extend (`>=1.55 <2`) |
 | `@variance-authority/event` | only if your application code announces — see *Announcements*, below |
 
 Install `@variance-authority/vantage` directly when you are writing your own
@@ -485,4 +486,4 @@ above.
 
 ---
 
-**[@variance-authority/vantage](https://variance-authority.dev/reference/packages/vantage)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/vantage](https://variance-authority.dev/reference/packages/vantage)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/vantage) · MIT

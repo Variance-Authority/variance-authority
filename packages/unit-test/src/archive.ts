@@ -107,7 +107,7 @@ export async function readCapture(path: string): Promise<CaptureArtifact> {
  * A directory that is not there is refused, not read as empty: an empty list is
  * a suite that captured nothing, and a missing directory is a run that came
  * before the tests that write it. That is the operator's to fix, so the refusal
- * carries the operator marker and names the step.
+ * carries the operator marker and names the step that writes it.
  */
 export async function captureFiles(directory: string): Promise<readonly string[]> {
   let entries: readonly string[];
@@ -117,8 +117,7 @@ export async function captureFiles(directory: string): Promise<readonly string[]
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       throw operatorError(
         `capture directory ${directory} does not exist, so there is no capture to compare. ` +
-          'Your unit tests write it through `writeCapture`: run them first, then run variance again. ' +
-          'If they have run, none of them wrote a capture to this directory.',
+          'Your unit tests write it through `writeCapture`, and none has written a capture to this directory.',
         { cause: error },
       );
     }

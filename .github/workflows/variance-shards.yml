@@ -1,9 +1,8 @@
 name: variance shards
 
-# The sharded recipe: split a suite across CI jobs, and answer about the suite.
+# The sharded gate: split a suite across CI jobs, and answer about the suite.
 #
-# An example workflow, meant to be copied and edited rather than read as the only
-# way to wire this up. Everything in it that is a decision is commented as one.
+# This repository's own. Everything in it that is a decision is commented as one.
 #
 # ## How the suite is split
 #
@@ -41,7 +40,7 @@ name: variance shards
 
 # ## On demand here
 #
-# It observes the same fourteen subjects `variance.yml` does, through the same
+# It observes the same thirteen subjects `variance.yml` does, through the same
 # config, and the marker is the config's project — so run on the same event the
 # two would fight over one comment, each rewriting the other. A repository picks
 # one gate. This one is kept on demand because the suite it would shard is five
@@ -116,13 +115,13 @@ jobs:
     # the merge refuses them naming both files (ADR-0011). A matrix that varied
     # the image would produce reports that cannot be added up.
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
       options: --ipc=host
 
     steps:
       # Every commit, so the mainline's costs are read at a distance this clone
       # can count from its merge base. No trees: the count walks commits only.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
@@ -131,6 +130,11 @@ jobs:
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Node 24, for the reason written at the same step in `variance.yml`.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -192,7 +196,7 @@ jobs:
         run: echo "path=${REPORT%.json}.suite-part.json" >> "$GITHUB_OUTPUT"
 
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.shard.name }}
           path: |
@@ -233,14 +237,14 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - shell: bash
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: variance-shard-*
           path: shards
@@ -358,6 +362,7 @@ jobs:
 
           marker=$(node packages/cli/dist/bin.js comment --config cases/storybook-case/variance.config.json --marker)
           echo "marker=$marker" >> "$GITHUB_OUTPUT"
+          node packages/cli/dist/bin.js comment --config cases/storybook-case/variance.config.json --cleared > "$RUNNER_TEMP/variance-cleared.md"
 
           reports=()
           while IFS= read -r line; do
@@ -376,6 +381,7 @@ jobs:
             "${reports[@]}"
 
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
+        id: post
         name: post the docket
         shell: bash
         env:
@@ -385,6 +391,7 @@ jobs:
           # This gate posted the docket before the marker named its project.
           node .github/actions/variance/post-comment.mjs \
             --body-file "$RUNNER_TEMP/variance-comment.md" \
+            --cleared-file "$RUNNER_TEMP/variance-cleared.md" \
             --marker "$VARIANCE_MARKER" \
             --adopt-unkeyed true
 
@@ -393,7 +400,15 @@ jobs:
         shell: bash
         env:
           CODE: ${{ steps.report.outputs.exit-code }}
+          DOCKET_URL: ${{ steps.post.outputs.comment-url }}
         run: |
+          # An address comes only with a comment GitHub took.
+          if [ -n "${DOCKET_URL:-}" ]; then
+            WHERE="the docket is in the pull request comment at $DOCKET_URL"
+          else
+            WHERE="the report is in the variance report step above"
+          fi
+
           case "${CODE:-}" in
             0)
               echo "nothing needs review, across every shard."
@@ -403,7 +418,7 @@ jobs:
               # another: the shards placed the suite differently, which is not a
               # change in the product. The docket
               # lists it; packages/cli/README.md explains it.
-              echo "::error::variance found changes that need review; the docket is in the pull request comment."
+              echo "::error::variance found changes that need review; $WHERE"
               exit 1
               ;;
             2)

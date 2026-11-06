@@ -85,20 +85,19 @@ async function runWith(env: Readonly<Record<string, string>>): Promise<Run> {
 }
 
 describe.runIf(BROWSER_AVAILABLE)('a Playwright spec cut statement by statement', () => {
-  it('charges each region to the statement that first reached it, unless the run turns the cut off', async () => {
+  it("charges each region to the statement that first reached it, a hook's as a hook's, unless the run turns the cut off", async () => {
     const spec = (await readFile(resolve(fixture, 'tests/shop.spec.ts'), 'utf8')).split('\n');
-    const line = (statement: string) => ({ line: spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1, ambient: false });
+    const line = (statement: string, ambient = false) => ({ line: spec.findIndex((text) => text.endsWith(`// ${statement}`)) + 1, ambient });
 
     const cut = await runWith({});
     const uncut = await runWith({ VARIANCE_AUTHORITY_CADENCE: 'off' });
 
-    expect(cut.reached).toEqual({ open: line('opens'), choose: line('chooses'), pay: line('pays') });
+    // `opens` is the beforeEach's statement.
+    expect(cut.reached).toEqual({ open: line('opens', true), choose: line('chooses'), pay: line('pays') });
     expect(uncut.reached).toEqual({ open: undefined, choose: undefined, pay: undefined });
     // The drains are the recording's, not the test's: none shows as a step, in
     // the report, the trace or the inspector.
     expect(cut.steps).toEqual(uncut.steps);
     expect(cut.steps.filter((title) => /evaluate/i.test(title))).toEqual([]);
   }, 120_000);
-
-  it.todo('flags a region a beforeEach or afterEach statement reached first as a hook’s — needs the cut to say which body it is in');
 });

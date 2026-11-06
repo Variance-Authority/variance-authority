@@ -91,7 +91,8 @@ pub struct Reading {
     sources: BTreeSet<String>,
     /// Every specifier an import with no braces or binding names, `import './x'`, loaded for its effect.
     effects: BTreeSet<String>,
-    /// A `require`, an `import()` or an `import x = require()`: a binding no name reaches.
+    /// A `require`, an `import()`, an `import x = require()` or a specifier no
+    /// text holds: a binding no name reaches.
     pub untraced: bool,
 }
 
@@ -109,7 +110,8 @@ pub struct Readers {
 
 /// Every name the module exports, to what it is bound: a local name, or the
 /// source and name a re-export takes. `export *` has no names and is keyed by
-/// its source.
+/// its source. A source here is only ever compared, so it keeps `Debug`'s
+/// spelling, which `display()`'s is not: two strings never share it.
 pub fn interface_of(program: &Program, lines: &Lines) -> BTreeMap<String, String> {
     let reading = reading_of(program, lines);
     let mut interface = BTreeMap::new();
@@ -121,13 +123,13 @@ pub fn interface_of(program: &Program, lines: &Lines) -> BTreeMap<String, String
     for statement in &program.body {
         match statement {
             Statement::ExportAllDeclaration(it) => {
-                let from = &it.source.value;
+                let from = format!("{:?}", it.source.value);
                 let key = it.exported.as_ref().map_or_else(|| format!("* {from}"), |name| name.name().to_string());
                 interface.insert(key, format!("from {from} *"));
             }
             Statement::ExportFromDeclaration(it) => {
                 for specifier in &it.specifiers {
-                    let bound = format!("from {} {}", it.source.value, specifier.local.name());
+                    let bound = format!("from {:?} {}", it.source.value, specifier.local.name());
                     interface.insert(specifier.exported.name().to_string(), bound);
                 }
             }
@@ -209,35 +211,7 @@ pub fn imported_as(reading: &Reading, exported: &[String]) -> Vec<(String, Strin
     seeds
 }
 
-/// The names a declaration binds at top level, through any destructuring.
-pub fn declared(declaration: &Declaration) -> Vec<String> {
-    let mut names = Vec::new();
-    match declaration {
-        Declaration::VariableDeclaration(it) => it.declarations.iter().for_each(|it| bound(&it.id, &mut names)),
-        Declaration::FunctionDeclaration(it) => names.extend(it.id.as_ref().map(|id| id.name.to_string())),
-        Declaration::ClassDeclaration(it) => names.extend(it.id.as_ref().map(|id| id.name.to_string())),
-        Declaration::TSEnumDeclaration(it) => names.push(it.id.name.to_string()),
-        Declaration::TSNamespaceDeclaration(it) => names.push(it.id.name.to_string()),
-        Declaration::TSImportEqualsDeclaration(it) => names.push(it.id.name.to_string()),
-        _ => {}
-    }
-    names
-}
-
-pub fn bound(pattern: &BindingPattern, names: &mut Vec<String>) {
-    match pattern {
-        BindingPattern::BindingIdentifier(it) => names.push(it.name.to_string()),
-        BindingPattern::ObjectPattern(it) => {
-            it.properties.iter().for_each(|property| bound(&property.value, names));
-            it.rest.iter().for_each(|rest| bound(&rest.argument, names));
-        }
-        BindingPattern::ArrayPattern(it) => {
-            it.elements.iter().flatten().for_each(|element| bound(element, names));
-            it.rest.iter().for_each(|rest| bound(&rest.argument, names));
-        }
-        BindingPattern::AssignmentPattern(it) => bound(&it.left, names),
-    }
-}
+pub use variance_sense_instrument::native::{bound, declared, Erased};
 
 /// One read of a changed value inside a function.
 #[napi(object)]

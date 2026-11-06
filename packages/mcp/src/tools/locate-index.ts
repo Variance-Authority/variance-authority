@@ -156,10 +156,10 @@ function entriesHolding(index: LocateIndex, part: string): readonly number[] {
   const lists: (readonly number[])[] = [];
   const exact = index.postings.get(part);
   if (exact !== undefined) lists.push(exact);
-  if (part.length >= 3) {
+  if (part.length >= PREFIX) {
     for (let at = lowerBound(index.tokens, part); at < index.tokens.length; at += 1) {
       const token = index.tokens[at]!;
-      if (!token.startsWith(part)) break;
+      if (!meets(token, part)) break;
       if (token !== part) lists.push(index.postings.get(token)!);
     }
   }
@@ -212,19 +212,73 @@ export function partsOf(term: string): readonly string[] {
 export function tokensOf(value: string): readonly string[] {
   if (/^v\d+:[0-9a-f]+$/.test(value)) return [];
   const out = new Set<string>();
-  for (const piece of value.split(/[\s/\-_.#:@,()[\]"'`]+/)) {
+  for (const piece of value.split(SEPARATORS)) {
     if (piece === '') continue;
     const whole = stem(lower(piece));
     if (whole !== '') out.add(whole);
-    const camel = piece
-      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-      .split(' ');
+    const camel = camelParts(piece);
     if (camel.length > 1) for (const part of camel) out.add(stem(lower(part)));
   }
   out.delete('');
   return [...out];
 }
+
+/** What splits a name into words, on both sides. */
+const SEPARATORS = /[\s/\-_.#:@,()[\]"'`]+/;
+
+/**
+ * Whether `words` stand in `value` one after another, in that order, each a
+ * word of the value or a prefix of one by the rule a part meets a token by,
+ * read along the value instead of across it. The value is cut into words as
+ * `tokensOf` cuts it: a word meets one camel-case part, or a whole compound,
+ * and the words in `skip` are passed over, as they are in the question the
+ * pair came from. A pair of a question's words is held where they are
+ * adjacent, because holding both somewhere in one paragraph is no nearer to
+ * the question than holding them in two labels.
+ */
+export function adjacent(value: string, words: readonly string[], skip: ReadonlySet<string>): boolean {
+  const pieces = value
+    .split(SEPARATORS)
+    .map((piece) => camelParts(piece).map(lower).filter((part) => part !== '' && !skip.has(part)))
+    .filter((parts) => parts.length > 0);
+  const along = pieces.flatMap((parts) => parts.map((part, at) => ({ part, whole: at === 0 ? parts : undefined })));
+  const wanted = words.flatMap(wordsAlong).filter((part) => !skip.has(part)).map(stem);
+  if (wanted.length === 0) return false;
+  const from = (at: number, index: number): boolean => {
+    if (index === wanted.length) return true;
+    const here = along[at];
+    if (here === undefined) return false;
+    const word = wanted[index]!;
+    if (meets(stem(here.part), word) && from(at + 1, index + 1)) return true;
+    return here.whole !== undefined && here.whole.length > 1 &&
+      meets(stem(here.whole.join('')), word) && from(at + here.whole.length, index + 1);
+  };
+  return along.some((_, at) => from(at, 0));
+}
+
+/** The words of `value` in order, lowercased and split at separators and camel case. */
+function wordsAlong(value: string): string[] {
+  return value
+    .split(SEPARATORS)
+    .flatMap(camelParts)
+    .map(lower)
+    .filter((word) => word !== '');
+}
+
+function camelParts(piece: string): string[] {
+  return piece
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(' ');
+}
+
+/** A part meets a token it equals, or one it begins at `PREFIX` characters or more. */
+function meets(token: string, part: string): boolean {
+  return token === part || (part.length >= PREFIX && token.startsWith(part));
+}
+
+/** The shortest part that matches the tokens it begins. */
+const PREFIX = 3;
 
 /** The tokeniser's one concession to English, shared so a place match stems alike. */
 export function stem(word: string): string {

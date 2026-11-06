@@ -41,6 +41,7 @@ function tokenChange(subjects: number): CliRunReport {
       verdict: 'changed' as const,
       because: '1530 pixel(s) differ across 3 region(s)',
       changedPixels: 1530,
+      images: { after: `story_s${index}.after.png` },
       regions: [
         {
           x: 4,
@@ -225,11 +226,11 @@ describe('renderComment', () => {
 
     expect(exitFor(onlyNew)).toBe(EXIT_CLEAN);
     const body = render({ report: onlyNew });
-    expect(body).toContain('## Visual variance — 2 subject(s) NEW, nothing to review');
+    expect(body).toContain(`## Visual variance in project \`${PROJECT}\` — 2 subject(s) NEW, nothing to review`);
     expect(body).not.toContain('need review');
 
     const both = render({ report: reportOf([...tokenChange(1).observations, fresh('story:a')]) });
-    expect(both).toContain('## Visual variance — 1 subject(s) need review, 1 subject(s) NEW');
+    expect(both).toContain(`## Visual variance in project \`${PROJECT}\` — 1 subject(s) need review, 1 subject(s) NEW`);
   });
 
   it('says coverage is unknown when the report never stated what it skipped', () => {

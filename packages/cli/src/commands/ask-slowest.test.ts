@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeExecutionIndex, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /**
@@ -16,12 +16,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-slowest-cache-'));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-slowest-cache-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
 });
 
 function checkout(): string {
@@ -58,12 +58,13 @@ describe('variance ask slowest-tests', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Slowest recorded test files, as their runner reported them, from ${at}:`,
+        `Read this checkout's record, which names no commit, ${at}.`,
+        '',
+        'Slowest recorded test files, as their runner timed them:',
         '  2.4 s  test/slow.test.ts',
         '1 of 2 timed file(s) shown; 1 recorded file(s) have no duration.',
         '',
-        `Slowest recorded test cases: none read from ${at}, no run kept its cases there. ` +
-          'A recorded test run writes it.',
+        `Slowest recorded test cases: none read from ${at}, no run kept its cases there.`,
         '',
       ].join('\n'),
     });
@@ -76,10 +77,8 @@ describe('variance ask slowest-tests', () => {
 
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toBe(
-      `Slowest recorded test files: none read from ${testCoverageFile(root)}, nothing is recorded there. ` +
-        'A recorded test run writes it.\n\n' +
-        `Slowest recorded test cases: none read from ${testCoverageFile(root)}, no run kept its cases there. ` +
-        'A recorded test run writes it.\n',
+      `Slowest recorded test files: none read from ${testCoverageFile(root)}, nothing is recorded there.\n\n` +
+        `Slowest recorded test cases: none read from ${testCoverageFile(root)}, no run kept its cases there.\n`,
     );
   });
 
@@ -123,8 +122,8 @@ async function twoModules(root: string): Promise<string> {
   });
   writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeExecutionIndex({
     tests: [
-      { id: 'a1', file: 'test/a.test.ts', name: 'writes', duration: 250 },
-      { id: 'b1', file: 'test/b.test.ts', name: 'reads > twice', duration: 1400 },
+      { id: 'a1', file: 'test/a.test.ts', name: 'writes', duration: 250, limit: 300 },
+      { id: 'b1', file: 'test/b.test.ts', name: 'reads > twice', duration: 1400, limit: 60_000 },
     ],
     modules: [crossed('src/format.ts', [0]), crossed('src/other/read.ts', [1])],
   }) }));
@@ -140,11 +139,17 @@ describe('variance ask slowest-tests, somewhere', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Slowest recorded test files, that entered src/format.ts, as their runner reported them, from ${at}:`,
+        `Read this checkout's record, which names no commit, ${at}.`,
+        '',
+        'Closest to their limit, that entered src/format.ts, each as run and limit:',
+        '  250 ms of 300 ms  test/a.test.ts  writes',
+        '1 of 1 limited case(s) shown.',
+        '',
+        'Slowest recorded test files, that entered src/format.ts, as their runner timed them:',
         '  300 ms  test/a.test.ts',
         '1 of 1 timed file(s) shown.',
         '',
-        `Slowest recorded test cases, that entered src/format.ts, as their runner reported them, from ${at}:`,
+        'Slowest recorded test cases, that entered src/format.ts, as their runner timed them:',
         '  250 ms  test/a.test.ts  writes',
         '1 of 1 timed case(s) shown.',
         '',
@@ -159,16 +164,36 @@ describe('variance ask slowest-tests, somewhere', () => {
 
     const answered = await run(['ask', 'slowest-tests', '--from', 'test/a.test.ts', '--to', 'src/other,src/format.ts']);
 
-    expect(answered.out.split('\n').slice(0, 2)).toEqual([
-      `Slowest recorded test files, under test/a.test.ts, that entered src/other or src/format.ts, ` +
-        `as their runner reported them, from ${at}:`,
+    expect(answered.out).toContain([
+      'Slowest recorded test files, under test/a.test.ts, that entered src/other or src/format.ts, as their runner timed them:',
       '  300 ms  test/a.test.ts',
-    ]);
+    ].join('\n'));
     const empty = await run(['ask', 'slowest-tests', '--from', 'test/b.test.ts', '--to', 'src/format.ts']);
-    expect(empty.out.split('\n')[0]).toBe(
+    expect(empty.out).toContain(
       'Slowest recorded test files, under test/b.test.ts, that entered src/format.ts: ' +
         `no recorded file under test/b.test.ts entered src/format.ts, in ${at}.`,
     );
+  });
+
+  it('keeps the cases of a folder that ran at least the time given with `--over`, and leaves the files out', async () => {
+    const root = checkout();
+    await twoModules(root);
+
+    const answered = await run(['ask', 'slowest-tests', '--over', '1s', '--from', 'test']);
+
+    expect(answered.code).toBe(EXIT_CLEAN);
+    expect(answered.out).toContain('  1.4 s  test/b.test.ts  reads > twice\n1 of 1 timed case(s) shown; 1 ran faster.\n');
+    expect(answered.out).not.toContain('test files');
+  });
+
+  it('refuses an `--over` that is not a time', async () => {
+    const root = checkout();
+    await twoModules(root);
+
+    const refused = await run(['ask', 'slowest-tests', '--over', 'soon']);
+
+    expect(refused.code).toBe(EXIT_OPERATOR);
+    expect(refused.err).toContain('`--over` takes a time such as `3s` or `500ms`; it was given `soon`.');
   });
 
   it('refuses a path in neither the recording nor the checkout, and names no other path', async () => {

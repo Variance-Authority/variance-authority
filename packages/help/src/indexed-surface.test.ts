@@ -38,7 +38,7 @@ async function publishedBy(
     declared: {},
     entrypoints: [{ subpath: '.', source: entry }],
   };
-  const names = await indexedNames(root, [offering], sources, async () => new Map());
+  const names = await indexedNames(root, [offering], sources);
   return Object.fromEntries(
     [...names(entry)].map(([name, kinds]) => [
       name,
@@ -68,8 +68,22 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'entry.ts' }],
     };
 
-    const names = await indexedNames(root, [offering], sources, async () => new Map());
+    const names = await indexedNames(root, [offering], sources);
     expect([...names('entry.ts').get('default')!.keys()]).toEqual(['function']);
+  });
+
+  it('binds a handed-out function to its own declaration, not an earlier one spelled the same', async () => {
+    const text = 'function same() {}\nmodule.exports = function same(value) { return value; };\n';
+    await writeFile(join(root, 'handed.js'), text);
+    const offering: Offering = {
+      name: 'handed',
+      manifest: 'package.json',
+      declared: {},
+      entrypoints: [{ subpath: '.', source: 'handed.js' }],
+    };
+
+    const names = await indexedNames(root, [offering], new Map([['handed.js', { parsed: parsed('handed.js', text), targets: [] }]]));
+    expect(names('handed.js').get('default')?.get('function')).toMatchObject({ line: 2, signature: 'function same(value)' });
   });
 
   it('keeps an anonymous default value without inventing a signature', async () => {
@@ -85,7 +99,7 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'literal.ts' }],
     };
 
-    const names = await indexedNames(root, [offering], source, async () => new Map());
+    const names = await indexedNames(root, [offering], source);
     expect(names('literal.ts').get('default')?.get('const')).toMatchObject({
       kind: 'const',
       at: 'literal.ts',

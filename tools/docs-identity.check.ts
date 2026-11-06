@@ -22,7 +22,7 @@ import { MARKDOWN, flat } from './markdown.js';
 /** Published prose. A contributor note or a generated changelog answers to nobody. */
 const PAGES = MARKDOWN.filter(
   (file) =>
-    !/^docs\/context\/|^backlog\/|(^|\/)CHANGELOG\.md$/.test(file) &&
+    !/^docs\/context\/|(^|\/)CHANGELOG\.md$/.test(file) &&
     file !== 'docs/AGENTS.md' &&
     file !== 'docs/visual-guidelines.md',
 );

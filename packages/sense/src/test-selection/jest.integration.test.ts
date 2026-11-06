@@ -9,13 +9,14 @@ import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { lineAt, linesOf } from './case-lines.js';
-import { recordedCases } from './case-record.js';
+import { caseSectionsOf, recordedCases } from './case-record.js';
 import { journeyGaps, openSetColumns } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
 // The story format is a CommonJS sandbox module whose own requires resolve only
 // once built, so it is read from `dist/` as the jest seam itself loads it.
 const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+const { readRoute } = (await import('../../dist/story/read.js')) as typeof import('../story/read.js');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -30,6 +31,37 @@ afterEach(async () => {
 });
 
 describe('the Jest integration', () => {
+  it('records which files each test loaded under the loads recipe, with one bucket per file and no case index', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    const env = {
+      ...process.env,
+      VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+      VARIANCE_AUTHORITY_CACHE: directory,
+      FIXTURE_MODE: 'loads',
+    };
+    for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts', 'test/delta.case.ts']) {
+      await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', testFile], { cwd: fixture, env });
+    }
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.modules.filter((module) => module.file === at('src/decide.ts')).map((module) => [module.file, module.instrumented, module.blocks])).toEqual([
+      [at('src/decide.ts'), false, []],
+    ]);
+    const { index, before, last } = caseSectionsOf(await readFile(coverageFile));
+    expect({ index, before, last }).toEqual({ index: undefined, before: undefined, last: undefined });
+    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
+    const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
+    // Every file that loaded the module, whichever line it reached.
+    await expect(selectTestFiles(coverageFile, `--- a/${at('src/decide.ts')}
++++ b/${at('src/decide.ts')}
+@@ -${line},1 +${line},1 @@
+-    return 'A';
++    return 'Alpha';`)).resolves.toEqual([at('test/alpha.case.ts'), at('test/beta.case.ts'), at('test/delta.case.ts')]);
+  }, 60_000);
+
   it('records tests transformed by @swc/jest beside the project\'s own setup file and reporter, and selects the one that covered a changed line', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));
     temporary.push(directory);
@@ -52,6 +84,12 @@ describe('the Jest integration', () => {
     await run('test/alpha.case.ts');
     await run('test/beta.case.ts');
     await run('test/gamma.case.ts');
+
+    // The case's own timeout where it gave one, and the run's otherwise.
+    const recorded = decodeExecutionIndex(await readFile(coverageFile)).tests;
+    const limitOf = (name: string): number | undefined => recorded.find((test) => test.name === name)?.limit;
+    expect(limitOf('takes the alpha path')).toBe(3210);
+    expect(limitOf('takes the beta path')).toBe(4321);
 
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
@@ -86,7 +124,7 @@ describe('the Jest integration', () => {
     expect(onB).not.toContain(at('test/alpha.case.ts'));
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.modules.map((module) => module.file)).toEqual([at('src/decide.ts')]);
+    expect(coverage.modules.filter((module) => module.instrumented).map((module) => module.file)).toEqual([at('src/decide.ts')]);
     // Whole, skipped test and all — see `usableOutcome` in `vitest.ts` for why a
     // skip leaves the record usable as evidence where a failure does not.
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
@@ -94,18 +132,28 @@ describe('the Jest integration', () => {
       [at('test/beta.case.ts'), true],
       [at('test/gamma.case.ts'), true],
     ]);
+    // Jest times the environment and the setup files; the setup module marks
+    // where collecting ended, when jest-circus started the file's run.
+    expect(coverage.tests.map((test) => [test.file, Object.keys(test.phases ?? {}).sort()])).toEqual([
+      [at('test/alpha.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+      [at('test/beta.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+      [at('test/gamma.case.ts'), ['cases', 'collect', 'environment', 'setup']],
+    ]);
+    // The project's setup file holds a 150 ms `beforeAll` and freezes the
+    // test's clock: the hook is in the cases, and the frozen clock moves no mark.
+    expect(coverage.tests.every((test) => (test.phases?.cases ?? 0) >= 150)).toBe(true);
     // The project's setup files stayed configured and are preconditions of
     // every observation. `src/decide.ts` is not one: a precondition is a file
     // the answer depended on that the instrument could not see inside, and an
     // instrumented module is one it could — its digest is on its own row and a
     // change to its text is caught by re-cutting its regions.
-    expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
+    expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual(expect.arrayContaining([
       at('jest.config.mjs'),
       at('test/alpha.case.ts'),
       at('test/environment.ts'),
       at('test/polyfill.cjs'),
       at('test/setup.cjs'),
-    ]);
+    ]));
     // The project's reporter stayed configured and ran.
     await expect(readFile(resolve(directory, 'user-reporter.txt'), 'utf8')).resolves.toBe('ran\n');
 
@@ -272,23 +320,69 @@ describe('the Jest integration', () => {
       stories.decodeStory(await readFile(resolve(taped, path))).name));
     // The `it.skip` in alpha runs nothing, so it tapes nothing.
     expect(names.sort()).toEqual(['ran after the project\'s own setup file', 'takes the alpha path']);
+    // Each region the case went through is named by its coordinate in the record beside the story.
+    const alpha = (await written(taped)).map((path) => resolve(taped, path))
+      .find((path) => readRoute(repository, path).name === 'takes the alpha path');
+    const route = readRoute(repository, alpha!);
+    expect(route.unresolved).toEqual([]);
+    // The hook's statement opens the case as a hook's line, and the test's as a test's.
+    expect(route.opening.before).toContain('hook line 4');
+    expect(route.opening.route[0]).toBe('test line 8');
+    expect(route.route.map((step) => ('token' in step ? step.token : undefined))
+      .find((token) => token !== undefined && 'place' in token && token.place.name === 'decide')).toMatchObject({
+      place: { file: at('src/decide.ts'), at: `${at('src/decide.ts')}#decide/entry` },
+      arms: [{ path: 'if#0/then', at: `${at('src/decide.ts')}#decide/if#0/then` }],
+    });
     // Each run records the duration its runner reported, which two runs never
     // share; every file and every case has one, and the rest of the two
     // recordings is the same.
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
-      expect(tests.every((test) => test.duration !== undefined)).toBe(true);
+      expect(tests.every((test) => test.duration !== undefined && test.phases !== undefined)).toBe(true);
       const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin')));
       expect(cases.tests.length).toBeGreaterThan(0);
       expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
       return {
         ...rest,
-        tests: tests.map(({ duration: _, ...test }) => test),
+        tests: tests.map(({ duration: _, phases: __, ...test }) => test),
         cases: { ...cases, tests: cases.tests.map(({ duration: _, ...test }) => test) },
       };
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
   }, 120_000);
+  it('names the test\'s own line where a case printed under `VARIANCE_AUTHORITY_STORY=1`, and notes the line on its story', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-prints-'));
+    temporary.push(directory);
+    // Jest buffers what a case prints when it reports quietly and prints it at once when verbose.
+    for (const verbose of ['--verbose=false', '--verbose']) {
+      const into = resolve(directory, verbose);
+      const { stdout, stderr } = await execute(
+        process.execPath,
+        [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', verbose, '--testMatch', '<rootDir>/test/prints.console.ts'],
+        {
+          cwd: fixture,
+          env: {
+            ...process.env,
+            VARIANCE_AUTHORITY_COVERAGE: resolve(into, 'coverage.bin'),
+            VARIANCE_AUTHORITY_JEST_CACHE: resolve(into, 'cache'),
+            VARIANCE_AUTHORITY_CACHE: into,
+            VARIANCE_AUTHORITY_STORY: '1',
+          },
+        },
+      );
+      // Each printed line is followed by where it was printed, a warning's by the frames above it too.
+      const lines = `${stdout}\n${stderr}`.split('\n');
+      const origins = lines.flatMap((line, at) => (/^\s+console\.(log|warn)$/.test(line) ? [lines.slice(at).find((next) => /^\s+at /.test(next))!.trim()] : []));
+      expect(origins, verbose).toEqual([
+        expect.stringMatching(/\(test\/prints\.console\.ts:4:\d+\)$/),
+        expect.stringMatching(/\(test\/prints\.console\.ts:5:\d+\)$/),
+      ]);
+      const [story] = (await readdir(into, { recursive: true })).filter((path) => path.endsWith('.story'));
+      expect(stories.decodeStory(await readFile(resolve(into, story!))).notes.map(([, text]) => text).filter((text) => text.startsWith('console.')), verbose)
+        .toEqual(['console.log decided A', 'console.warn warned']);
+    }
+  }, 120_000);
+
   it('records what a test file loaded before its first case apart from what each case called, and that every case finished', async () => {
     const loads = resolve(repository, 'packages/sense/test/fixtures/jest-loads');
     const inLoads = (path: string): string => `${relative(repository, loads)}/${path}`;

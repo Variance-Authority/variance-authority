@@ -10,6 +10,7 @@
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { realPath } from './resolve.js';
@@ -117,12 +118,12 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     },
     set(key, parsed) {
       const layer = nativeParses.get(cache);
-      // A cold native graph already encoded this row into its parse layer. Help
-      // still receives the transient object through the scan callback, but the
-      // cache does not need a second JavaScript copy of every repository parse.
-      if (layer?.keys.has(key) && parsed.harvested !== true) return;
+      // A cold native graph already encoded this row, declarations included,
+      // into its parse layer. Help still receives the transient object through
+      // the scan callback, but the cache does not need a second JavaScript copy
+      // of every repository parse.
+      if (layer?.keys.has(key)) return;
       if (!isDeepStrictEqual(stored.parses.get(key), parsed)) dirty = true;
-      if (parsed.harvested === true) layer?.keys.delete(key);
       parses.set(key, parsed);
     },
     keep(key) {
@@ -197,5 +198,5 @@ export async function readSourceRecords(path: string): Promise<readonly FileReco
   const stored = (await openSourceIndexFile(path)).stored;
   return [...stored.records.values()]
     .map((held) => held.record)
-    .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0);
+    .sort((left, right) => codeUnitOrder(left.file, right.file));
 }

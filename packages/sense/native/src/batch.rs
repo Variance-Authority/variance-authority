@@ -256,7 +256,14 @@ pub(crate) fn walk_beyond(
         // The wave's OIDs already name every tracked file's content, so the blobs
         // come out of the pack rather than off the disk. `read_git` falls back to
         // opening the file whenever a blob is missing or unreadable, which is what
-        // answers for the dirty and untracked members of the wave.
+        // answers for the dirty and untracked members of the wave. Declarations
+        // come out of the same parse: `ask symbol` reads them from the rows this
+        // walk publishes, and a walk that left them out answered a checkout of
+        // ten thousand modules as if it declared nothing.
+        // FIXME: every wave's answers, declarations included, are held until the
+        // parse segment is encoded after the walk, so a cold index of 288k paths
+        // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
+        // it is read would bound it.
         let opened = read_git(
             root.clone(),
             wave.clone(),
@@ -264,7 +271,7 @@ pub(crate) fn walk_beyond(
             largest_file,
             Some(true),
             Some(readers.unwrap_or(6).max(1)),
-            false,
+            true,
         );
         let resolved = resolve_all(root_path, &wave, &opened, &resolvers, Some(at));
         for target in resolved.iter().flatten() {

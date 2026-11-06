@@ -32,15 +32,31 @@ export function unloadedFile(file: string, from: string, count: number): Operato
 /**
  * Refuse `file`, which the record at `from` does not hold because the commit
  * it was made at, `commit`, did not hold the file. That is a record older than
- * the file, not a run that never loaded it, so it is `older`, not `unloaded`:
- * the next run of the suite is what answers it.
+ * the file, not a run that never loaded it, so it is `older`, not `unloaded`.
+ * The sentence names no run: `covering` ends the refusal with its Record gap,
+ * which names the run and counts what it costs (`evidence-gap.ts`), so a
+ * reader for whom the run is out of reach sees that before starting it.
  */
-export function addedSince(file: string, from: string, commit: string): OperatorError {
-  return new OperatorError(
+export function addedSince(file: string, from: string, commit: string): RecordOlder {
+  return new RecordOlder(
     `\`${file}\` did not exist at ${commit.slice(0, 12)}, the commit the record at \`${from}\` was made at, ` +
-      'so that record has no answer for it: run the suite and ask again.',
-    { kind: 'older' },
+      'so that record has no answer for it.',
+    commit,
+    from,
   );
+}
+
+/** The `older` refusal, with the commit its record was made at: the base the diff of files added since is taken from. */
+export class RecordOlder extends OperatorError {
+  readonly commit: string;
+  /** The record that predates the file, which the gap asks selection about. */
+  readonly from: string;
+
+  constructor(message: string, commit: string, from: string) {
+    super(message, { kind: 'older' });
+    this.commit = commit;
+    this.from = from;
+  }
 }
 
 /**
@@ -71,16 +87,40 @@ export function unreadPreconditions(file: string, from: string): OperatorError {
   );
 }
 
-/** The test files that hold `file` as a precondition (`heldAsPrecondition`), said for a person, one to a line. */
-export function preconditionText(file: string, tests: readonly string[]): string {
+/**
+ * The test files that hold `file` as a precondition (`heldAsPrecondition`),
+ * said for a person, one to a line, and why no line of it has a case: the run
+ * loaded it uninstrumented, or the suite declares it and nothing measured it.
+ * A declaration every test file holds is said as that, not as a list of the
+ * suite.
+ */
+export function preconditionText(
+  file: string,
+  tests: readonly string[],
+  held: 'loaded' | 'declared' = 'loaded',
+  among = tests.length,
+): string {
+  if (held === 'declared') {
+    const why = 'so no case is recorded entering any line of it';
+    if (tests.length === 0) return `No test file of these cases holds ${file} as a precondition: it is not instrumented, and the suite declares it for other test files, ${why}.`;
+    if (tests.length === among) {
+      return `${file} is not instrumented: the suite declares it a precondition of ${
+        among === 1 ? 'the one test file' : `every one of the ${among} test files`
+      } these cases come from, ${why}, and a change to it selects all of them.`;
+    }
+    return [
+      `${file} is not instrumented: the suite declares it a precondition of ${tests.length} of the ${among} test files ` +
+        `these cases come from, ${why}, and a change to it selects every one.`,
+      ...tests.map((test) => `  ${test}`),
+    ].join('\n');
+  }
   if (tests.length === 0) {
     return `No test file of these cases holds ${file} as a precondition: the run loaded it without instrumenting it, ` +
-      'or the suite declares it, so no line of it has a recorded case.';
+      'so no line of it has a recorded case.';
   }
   return [
     `${file} is a precondition of ${tests.length} test file${tests.length === 1 ? '' : 's'}, and a change to it ` +
-      'selects every one: the run loaded it without instrumenting it, or the suite declares it, so no line of it ' +
-      'has a recorded case.',
+      'selects every one: the run loaded it without instrumenting it, so no line of it has a recorded case.',
     ...tests.map((test) => `  ${test}`),
   ].join('\n');
 }

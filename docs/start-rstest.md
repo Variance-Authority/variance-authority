@@ -202,10 +202,11 @@ export default defineConfig({
 });
 ```
 
-`CHROMIUM_RASTER_ARGS` are the flags that make Chromium's text rasterization
-deterministic. Pass them here *and* to the observation below: the browser has to
-be launched with them, and the run has to declare that it was, because renderer
-identity is what decides whether a difference between two images is the code's.
+`CHROMIUM_RASTER_ARGS` are the flags that make Chromium's rasterization
+deterministic: its text, and a shot that does not depend on what the page
+painted before it. Pass them here *and* to the observation below: the browser
+has to be launched with them, and the run has to declare that it was, because
+renderer identity is what decides whether a difference between two images is the code's.
 
 `colorScheme` and `deviceScaleFactor` are read off this config by the adapter
 and become part of the renderer identity a baseline records. Changing either

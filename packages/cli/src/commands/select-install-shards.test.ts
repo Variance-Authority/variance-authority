@@ -7,6 +7,7 @@ import {
   landRun,
   readCommitRuns,
   testCoverageFile,
+  whatLanded,
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
@@ -28,13 +29,13 @@ describe('the install a landing of shards ran on', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-install-shards-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-install-shards-cache-')));
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   const SPLIT = [['test/alpha.test.ts', 'test/beta.test.ts'], ['test/gamma.test.ts']];
@@ -111,7 +112,7 @@ describe('the install a landing of shards ran on', () => {
       shards.push(empty);
     });
 
-    expect(await readCommitRuns(testCoverageFile(root))).toHaveProperty('installed');
+    expect(whatLanded((await readCommitRuns(testCoverageFile(root)))!.landings)).toHaveProperty('installed');
   });
 
   it('keeps no install, and compares from the commit, when the shards ran on two', async () => {

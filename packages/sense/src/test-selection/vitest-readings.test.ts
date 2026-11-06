@@ -12,6 +12,8 @@ import type { TestCoverage } from './index.js';
  * the same code through its manifest as `dist/cart.js`, whose map leads back to
  * the source. Both are recorded under `src/cart.ts`, and the two readings cut
  * different regions: the build is what `tsc` made of the text, not the text.
+ * The record is cut as the text is, whichever of them a run loaded: shards of
+ * one build load different ones, and their records fold only if they agree.
  */
 const SOURCE = [
   'export function total(items) {',
@@ -170,39 +172,18 @@ describe('a module two transforms both name', () => {
     expect(buildFirst).toEqual(sourceFirst);
   });
 
-  it('is recorded at the regions both readings cut, each where both readings put it', async () => {
-    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
-      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
-    const [joined] = await recorded(['source', 'build']);
-    const [source] = await recorded(['source']);
-    const [build] = await recorded(['build']);
-    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
+  it('is recorded at the regions its source cuts, whichever readings of it the run loaded', async () => {
+    const source = await recorded(['source']);
 
-    expect(joined!.blocks.length).toBeGreaterThan(1);
-    for (const block of joined!.blocks) {
-      expect([cut(source).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
+    expect(source[0]!.blocks.length).toBeGreaterThan(1);
+    for (const loaded of [['build'], ['legacy'], ['source', 'build'], ['legacy', 'build'], ['build', 'legacy']] as const) {
+      expect(await recorded(loaded)).toEqual(source);
     }
-    expect(joined!.blocks.map((block) => block.ordinal)).toEqual(joined!.blocks.map((_, at) => at));
   });
 
   it('is recorded the same when each reading came through another project\'s plugin', async () => {
     expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source', 'build']));
     expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source', 'build']));
-  });
-
-  it('is recorded at the regions two builds both cut when the run loaded no source', async () => {
-    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
-      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
-    const [joined] = await recorded(['legacy', 'build']);
-    const [legacy] = await recorded(['legacy']);
-    const [build] = await recorded(['build']);
-    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
-
-    expect(await recorded(['build', 'legacy'])).toEqual([joined]);
-    expect(joined!.blocks.length).toBeGreaterThan(1);
-    for (const block of joined!.blocks) {
-      expect([cut(legacy).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
-    }
   });
 
   it('is recorded from the readings a rerun made of the text on disk, not one a run before it made', async () => {
@@ -374,11 +355,7 @@ describe('a module tsc built from TypeScript', () => {
     expect(build).toEqual(await recordedTyped('source'));
   });
 
-  it('opens its module where its source does when the build cut a region its source has not', async () => {
-    const [helped] = await recordedTyped('helped');
-    const [source] = await recordedTyped('source');
-
-    expect(helped!.blocks.length).toBeGreaterThan(source!.blocks.length);
-    expect(helped!.blocks[0]).toEqual(source!.blocks[0]);
+  it('is recorded at the regions its source has when the build cut a region its source has not', async () => {
+    expect(await recordedTyped('helped')).toEqual(await recordedTyped('source'));
   });
 });

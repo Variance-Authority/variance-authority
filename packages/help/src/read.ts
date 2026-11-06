@@ -1,7 +1,7 @@
 /**
  * What the repository imports and exports, read from the index the scan keeps.
  *
- * [`use.ts`](../../package/src/use.ts) can answer this by itself: walk every
+ * [`use.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/use.ts) can answer this by itself: walk every
  * directory, parse every module, collect every specifier. On this repository
  * that is 1336 files and about half a second, and the half second is paid again
  * on the next question about the same unchanged checkout. A repository ten times
@@ -9,7 +9,7 @@
  * to re-learn a tree where almost nothing moved.
  *
  * Nothing about the reading justifies the cost, because the reading is already
- * done. [`sense`](../../sense) keeps a durable, content-keyed index of exactly
+ * done. [`sense`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense) keeps a durable, content-keyed index of exactly
  * these bytes: git names each file's content without opening it, the digest
  * names what parsing that content produced, and a scan of an unchanged tree
  * costs a map lookup per file. What was missing was not a cache but a door —
@@ -35,9 +35,9 @@ import { relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
-  enrichSources,
   openSourceIndex,
   placesOf,
+  forwardsDigest,
   scanRelations,
   sourceIndexPath,
   stepped,
@@ -47,14 +47,16 @@ import {
 import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
+  everyEntry,
   ownership,
+  passedOn,
+  reachedFrom,
   readWorkspaceManifests,
   type Help,
   type HelpOptions,
   type ImportTargets,
   type Offering,
   type Usage,
-  type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
 import { collectingUsage } from './collect-usage.js';
@@ -65,7 +67,9 @@ import {
   readWorkspaceSnapshot,
   republishWorkspaceSnapshot,
   tryPublishWorkspaceSnapshot,
+  workspaceForwardsDigest,
   workspaceGeneration,
+  workspaceReadStarted,
 } from './snapshot.js';
 
 export { publishedGeneration, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
@@ -78,6 +82,22 @@ export interface AnsweringOptions extends ReadingOptions {
   readonly justAnswer?: boolean;
   /** Refresh a published generation older than this. Defaults to one hour. */
   readonly refreshAfterMs?: number;
+}
+
+/**
+ * A read whose source index could not be saved. A tool reads lines out of the
+ * index on disk and names out of the value it was given, so a value of this
+ * read would answer with the last read's lines: it is thrown away, and the
+ * generation before it stays whole, its value, index and times together.
+ */
+export class UnsavedRead extends Error {
+  /** The reader's to fix, as {@link operatorError} says of any other refusal. */
+  readonly varianceOperatorError = true;
+
+  constructor(refused: string) {
+    super(`the source index could not be saved: ${refused}`);
+    this.name = 'UnsavedRead';
+  }
 }
 
 /**
@@ -111,7 +131,10 @@ export async function readWorkspaceForAnswer(
         { cause: error },
       );
     }
-    return readWorkspace(root, reading);
+    // With nothing to refresh a list is no read: the files it leaves out would come
+    // from the index, under a time that says they were read now.
+    const { changed: _, ...whole } = reading;
+    return readWorkspace(root, whole);
   }
 
   const at = workspaceGeneration(recorded);
@@ -123,10 +146,13 @@ export async function readWorkspaceForAnswer(
     await republishWorkspaceSnapshot(recorded, reading.index ?? sourceIndexPath(resolve(root)));
     return recorded;
   }
-  if (reading.changed !== undefined || reading.taints !== undefined) {
-    return refreshWorkspace(root, recorded, reading);
+  try {
+    return await (reading.changed !== undefined || reading.taints !== undefined ? refreshWorkspace(root, recorded, reading) : readWorkspace(root, reading));
+  } catch (error) {
+    // The read is lost and the generation is whole: the look says what it did not compare. A read asked for now, or for edges only a taint adds, has no such answer.
+    if (error instanceof UnsavedRead && refreshAfterMs !== 0 && reading.taints === undefined) return recorded;
+    throw error;
   }
-  return readWorkspace(root, reading);
 }
 
 export interface IndexedUsageOptions {
@@ -196,13 +222,15 @@ async function scanIndexed(
   readonly cache: ParseCache;
   /** Whether the index is the one the reading keeps for itself, beside its root's, which nobody else saves. */
   readonly ownIndex: boolean;
-  /** What the file system refused when the index was written, or `undefined`. */
-  save(): Promise<string | undefined>;
+  /** The digest of every `export … from` this scan read, as `forwardsDigest` states it. */
+  readonly forwards: string;
+  /** Save what this scan read, or throw {@link UnsavedRead}. */
+  save(): Promise<void>;
 }> {
   const where = resolve(root);
   const index = await openSourceIndex(at);
   const owner = ownership(where);
-  const usage = collectingUsage(opened, targets);
+  const usage = collectingUsage(where, opened, targets);
   const sources = new Map<string, IndexedSource>();
 
   const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(where, dirs)}`, () => scanRelations({
@@ -247,14 +275,19 @@ async function scanIndexed(
     // A save keeps only the records this scan touched, and the index at `at`
     // covers exactly what this scan reads: the root's own, or the scope's.
     ownIndex: !coversWhole(dirs),
-    save: () => index.save(),
+    forwards: forwardsDigest(usage.forwards()),
+    save: async () => {
+      const refused = await index.save();
+      // An index that is not there, or does not open, holds no lines to pair with.
+      if (refused !== undefined && index.state !== 'missing' && index.state !== 'damaged') throw new UnsavedRead(refused);
+    },
   };
 }
 
 /**
  * A workspace, read with the index doing the expensive third of the work.
  *
- * The same value [`readHelp`](../../package/src/help.ts) returns and the same
+ * The same value [`readHelp`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/help.ts) returns and the same
  * reading behind it — the manifests say which doors exist, the source behind
  * them says what is on the other side, and the repository says what it reaches
  * for. Only the third one changes: it comes from the source index rather than
@@ -272,8 +305,8 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
 }
 
 /** `readWorkspace` over the manifests a caller read from `root` a moment before. */
-export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, options: ReadingOptions = {}): Promise<Help> {
-  const read = await scanWorkspace(root, options, manifests);
+export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, readStartedAt: string, options: ReadingOptions = {}): Promise<Help> {
+  const read = await scanWorkspace(root, options, { manifests, readStartedAt });
   return documentWorkspace(read, options);
 }
 
@@ -281,22 +314,26 @@ export async function readWorkspaceOver(root: string, manifests: WorkspaceManife
  * Refresh volatile source facts while retaining a previously documented surface.
  *
  * Usage, exported names, unreadable files and the graph are always taken from
- * the new Sense scan. Signatures, comments and README mentions stay on the
- * supplied reading until its published or exported name set changes; a new or
- * removed symbol therefore rebuilds documentation immediately rather than
- * waiting for the caller's slower documentation cadence.
+ * the new Sense scan. The entries — their lines, signatures, comments and README
+ * mentions — stay on the supplied reading until what they were cut from changes:
+ * the exported name set, an `export … from`, or the line or the text of a row an
+ * entry prints. Any of those rebuilds documentation immediately rather than
+ * waiting for the caller's slower documentation cadence. A refresh of `changed`
+ * files keeps the time the supplied reading began, as `readStartedAt` says.
  */
 export async function refreshWorkspace(
   root: string,
   documented: Help,
   options: ReadingOptions = {},
 ): Promise<Help> {
-  const read = await scanWorkspace(root, options);
-  if (!sameSurface(read, read.scanned.usage.exported, documented)) return documentWorkspace(read, options);
+  // A listed refresh read those files and nothing else, so every other file is as old as `documented` read it.
+  const kept = options.changed === undefined ? undefined : workspaceReadStarted(documented);
+  const read = await scanWorkspace(root, options, kept === undefined ? undefined : { readStartedAt: new Date(kept).toISOString() });
+  if (!sameSurface(read, documented)) return documentWorkspace(read, options);
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
     if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, options.index);
+    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, read.readStartedAt, read.scanned.forwards, options.index);
   }
   return help;
 }
@@ -309,11 +346,18 @@ interface WorkspaceScan {
   readonly offerings: readonly Offering[];
   readonly scanned: Awaited<ReturnType<typeof scanIndexed>>;
   readonly changed?: readonly string[];
+  /** When this read began, before it read anything: what a caller who read first says, or now. */
+  readonly readStartedAt: string;
 }
 
-async function scanWorkspace(root: string, options: ReadingOptions, read?: WorkspaceManifests): Promise<WorkspaceScan> {
+async function scanWorkspace(
+  root: string,
+  options: ReadingOptions,
+  over?: { readonly manifests?: WorkspaceManifests; readonly readStartedAt: string },
+): Promise<WorkspaceScan> {
+  const readStartedAt = over?.readStartedAt ?? new Date().toISOString();
   const where = resolve(root);
-  const { offerings, targets } = read ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
+  const { offerings, targets } = over?.manifests ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
   const opened = new Set(
@@ -331,38 +375,33 @@ async function scanWorkspace(root: string, options: ReadingOptions, read?: Works
     offerings,
     scanned,
     ...(options.changed === undefined ? {} : { changed: options.changed }),
+    readStartedAt,
   };
 }
 
 async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): Promise<Help> {
   const { root, offerings, scanned } = read;
-  const byFile = new Map(scanned.records.map((record) => [record.file, record]));
   const help = await stepped(options.progress, 'reading the signatures and comments of the exported names', async () => {
-    const names = await indexedNames(root, offerings, scanned.sources, async (files) => {
-      const subjects = files.flatMap((file) => {
-        const digest = byFile.get(file)?.digest;
-        return digest === undefined ? [] : [{ file, digest }];
-      });
-      return enrichSources(root, subjects, scanned.cache);
-    });
+    const names = await indexedNames(root, offerings, scanned.sources);
     return assembleHelp(root, offerings, scanned.usage, names);
   });
   // `assembleHelp` has consumed the lazy name reader. Keeping every transient
   // parse alive while two large artifacts are encoded turns a cold publication
   // into garbage-collection work proportional to the repository.
   scanned.sources.clear();
-  byFile.clear();
   if (options.save !== false) {
     await stepped(options.progress, 'publishing the questions', async () => {
       if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
-      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
+      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, read.readStartedAt, scanned.forwards, options.index);
     });
   }
   return help;
 }
 
-export function sameSurface(read: Pick<WorkspaceScan, 'root' | 'offerings' | 'changed'>, exported: Usage['exported'], documented: Help): boolean {
-  return samePackages(read, documented) && sameExportedSurface(read, exported, documented);
+function sameSurface(read: WorkspaceScan, documented: Help): boolean {
+  if (!samePackages(read, documented)) return false;
+  if (read.changed?.length === 0) return true;
+  return read.scanned.forwards === workspaceForwardsDigest(documented) && sameExportedSurface(read.changed, read.scanned.usage.exported, documented);
 }
 
 /** The offerings as `documented` published them: names, declarations, whether each declares an entry, and openings. */
@@ -385,30 +424,25 @@ export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, do
   return isDeepStrictEqual(shape, previous);
 }
 
-function sameExportedSurface(read: Pick<WorkspaceScan, 'changed'>, exported: Usage['exported'], documented: Help): boolean {
-  if (read.changed?.length === 0) return true;
-  const changed = read.changed === undefined ? undefined : new Set(read.changed);
+/**
+ * Whether the rows of `files`, every file when absent, say what `documented`'s
+ * do: which names they export, and for a name an entry prints, the lines and
+ * the text the entry was cut from. A row nothing publishes moves freely.
+ */
+export function sameExportedSurface(files: readonly string[] | undefined, exported: Usage['exported'], documented: Help): boolean {
+  const changed = files === undefined ? undefined : new Set(files);
+  const shown = new Set([...everyEntry(documented)].map(([, , entry]) => `${entry.at}\0${entry.declared}`));
   const keys = (values: Help['exported']): Set<string> => new Set(
     values
       .filter((value) => changed === undefined || changed.has(value.at))
-      .map((value) => `${value.at}\0${value.name}\0${value.kind}\0${Number(value.type)}`),
+      .map((value) => {
+        const key = `${value.at}\0${value.name}\0${value.kind}\0${Number(value.type)}`;
+        return shown.has(`${value.at}\0${value.name}`) ? `${key}\0${value.line}\0${value.boundLine ?? ''}\0${value.doc ?? ''}\0${value.signature ?? ''}` : key;
+      }),
   );
   const before = keys(documented.exported);
   const after = keys(exported);
   return before.size === after.size && [...before].every((key) => after.has(key));
-}
-
-function reachedFrom(usage: Usage, key: string, name: string, owner: string): {
-  readonly usedBy: readonly string[];
-  readonly uses: number;
-  readonly sites: readonly Use[];
-} {
-  const sites = usage.names.get(key)?.get(name) ?? [];
-  const usedBy: string[] = [];
-  for (const use of sites) {
-    if (use.by !== owner && !usedBy.includes(use.by)) usedBy.push(use.by);
-  }
-  return { usedBy, uses: sites.length, sites };
 }
 
 export function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usage): Help {
@@ -416,6 +450,7 @@ export function joinUsage(documented: Help, offerings: readonly Offering[], usag
     ...published,
     openings: published.openings.map((opening) => ({
       ...opening,
+      whole: passedOn(usage, `${published.name} ${opening.subpath}`),
       entries: opening.entries
         .map((entry) => ({
           ...entry,

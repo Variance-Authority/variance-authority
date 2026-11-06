@@ -124,7 +124,7 @@ async function decide(
   const code = await new Promise<number | null>((done) => child.on('close', done));
   const outputs: Record<string, string> = {};
   for (const [, key, value] of (await readFile(outputPath, 'utf8')).matchAll(
-    /^(\w+)<<__variance__\n([\s\S]*?)\n__variance__$/gm,
+    /^([\w-]+)<<__variance__\n([\s\S]*?)\n__variance__$/gm,
   )) {
     outputs[key] = value;
   }
@@ -153,13 +153,19 @@ describe('variance-accept', () => {
     expect(outputs['because']).toContain('`trunk`');
   });
 
-  it.each(['git', 'tribunal'])('promotes nothing on a push when the baselines are kept by %s', async (review) => {
+  it.each([
+    ['git', 'true'],
+    ['tribunal', 'false'],
+  ])('promotes nothing on a push when the baselines are kept by %s', async (review, exitZeroOnChanges) => {
     const api = await github({ merged: pull });
 
     const { code, out, outputs } = await decide(api, 'push', pusher, review);
 
     expect(code, out).toBe(0);
     expect(outputs['promote']).toBe('false');
+    // Under `git` the merge was the accept, and `main` has no branch to commit
+    // what it renders to: a change it finds is a warning, not a red `main`.
+    expect(outputs['exit-zero-on-changes']).toBe(exitZeroOnChanges);
   });
 
   it('compares only on a pull request event that is not the accept label', async () => {

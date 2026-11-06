@@ -320,9 +320,13 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   does not exist is a caller: `variance run` records nothing, so every one of those
   is exercised only by its own unit tests. The README's third answer is still half
   built, and the missing half moved from "write it" to "wire it".
-- **The README makes claims about deployment nothing has exercised.** Linux CI,
-  git-LFS artifacts, a CI bot committing images back — all stated as intent and
-  marked as such, none run once.
+- **The commit-back runs on this repository's pull requests, through
+  git-LFS.** The `lfs` job of `variance.yml` commits the case's baselines to
+  the contributor's branch when its label is added, and once a branch holds
+  them, every run asserts that a checkout without git-lfs is refused with
+  exit 2. What has not run is the
+  commit-back's three refusals
+  ([spec 0016](../specs/0016-ci-that-has-run.md)).
 - **Inspection has run against nothing anybody else wrote.** Nine rules, each
   with a non-firing case, and `cases/storybook-case` reports 0 findings across 8
   subjects — a real answer about that design system, not a measurement of the

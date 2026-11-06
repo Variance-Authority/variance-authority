@@ -9,7 +9,8 @@
 use tree_sitter::Node;
 
 use super::shape::{Binding, Export, Exports, Kind, Read, Requests, NAMESPACE_NAME};
-use super::{children_for_field, line_of, named_children, text_of};
+use super::{children_for_field, head, kind_of, line_of, named_children, span_of, text_of};
+use crate::harvest::{SourceSymbol, TextSpan};
 
 /// Everything a Python file's bytes say, without touching a disk.
 pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
@@ -49,6 +50,76 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
         },
         ..Read::default()
     }
+}
+
+/// Every definition and simple assignment at the top of the module, the
+/// underscored ones too: a leading underscore keeps a name out of
+/// `from x import *`, not out of the module. A definition's doc is its
+/// docstring, spanned inside the quotes.
+pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol> {
+    let mut found = Vec::new();
+    let mut narrowed = false;
+    for child in named_children(tree.root_node()) {
+        let node = match child.kind() {
+            "decorated_definition" => match child.child_by_field_name("definition") {
+                Some(definition) => definition,
+                None => continue,
+            },
+            _ => child,
+        };
+        match node.kind() {
+            "function_definition" | "class_definition" => {
+                let (Some(name), Some(kind)) = (node.child_by_field_name("name"), kind_of(node.kind())) else { continue };
+                found.push(SourceSymbol {
+                    name: text_of(name, source).to_string(),
+                    kind,
+                    line: line_of(node),
+                    signature: Some(head(node, source)),
+                    doc: docstring(node, source),
+                    reach: None,
+                });
+            }
+            "expression_statement" => {
+                for assignment in named_children(node).into_iter().filter(|part| part.kind() == "assignment") {
+                    let Some(left) = assignment.child_by_field_name("left") else { continue };
+                    if left.kind() != "identifier" {
+                        continue;
+                    }
+                    if text_of(left, source) == "__all__" {
+                        // Read as `read_assignment` reads it: a computed one narrows nothing.
+                        narrowed = assignment.child_by_field_name("right").is_some_and(|right| !strings_in(right, source).is_empty());
+                        continue;
+                    }
+                    found.push(SourceSymbol {
+                        name: text_of(left, source).to_string(),
+                        kind: "variable",
+                        line: line_of(assignment),
+                        signature: Some(head(assignment, source)),
+                        doc: None,
+                        reach: None,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    // Any module can import a name by spelling it; what keeps one out of
+    // `from … import *` is `__all__` when it is written, else the underscore.
+    for symbol in &mut found {
+        symbol.reach = if narrowed { Some("all") } else if symbol.name.starts_with('_') { Some("underscore") } else { None };
+    }
+    found
+}
+
+/// The string a definition's body opens with, inside its quotes.
+fn docstring(node: Node, source: &str) -> Option<TextSpan> {
+    let first = named_children(node.child_by_field_name("body")?).into_iter().next()?;
+    if first.kind() != "expression_statement" {
+        return None;
+    }
+    let string = named_children(first).into_iter().next().filter(|part| part.kind() == "string")?;
+    let content = named_children(string).into_iter().find(|part| part.kind() == "string_content")?;
+    Some(span_of(source, content.start_byte(), content.end_byte()))
 }
 
 #[derive(Default)]

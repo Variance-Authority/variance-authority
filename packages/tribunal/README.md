@@ -5,6 +5,7 @@
 > A self-hosted review service for Variance Authority baselines, history and per-subject decisions.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Install this package when you want a place — yours, on your infrastructure — where
 a finished run lands, a person looks at what changed, and approves or rejects it
@@ -27,27 +28,25 @@ npm install @variance-authority/tribunal
 ```bash
 VARIANCE_TRIBUNAL_PROJECT=todomvc \
 VARIANCE_TRIBUNAL_INGEST_TOKEN=ingest-token-0123456789 \
-VARIANCE_TRIBUNAL_REVIEW_TOKEN=review-token-0123456789 \
 npx variance-authority-tribunal
 ```
 
 ```
 variance-authority tribunal listening on http://127.0.0.1:7789
   project:  todomvc
-  database: /home/you/variance-tribunal.db (schema version 19)
+  database: /home/you/variance-tribunal.db (schema version 21)
   objects:  /home/you/variance-tribunal-objects
-  review:   served at http://127.0.0.1:7789 — this bind is reachable only from this machine
-  auth:     bearer tokens from VARIANCE_TRIBUNAL_INGEST_TOKEN and VARIANCE_TRIBUNAL_REVIEW_TOKEN
+  review:   served at http://127.0.0.1:7789 to loopback
+  ingest:   token
 ```
 
 Open `http://127.0.0.1:7789` and you are on the review page. The SQLite file and
-the image directory are created and migrated on start; the two tokens are
-invented above and both are long enough — the service refuses a token under 16
-characters and refuses two identical ones.
+the image directory are created and migrated on start; the token is invented
+above and is long enough — the service refuses a token under 16 characters.
 
 Then point a suite at it. In your `variance.config.json`, `review.endpoint` is
 where `variance push` sends a finished run, and the token it presents is the
-**ingest** token, never the review one:
+**ingest** token:
 
 ```jsonc
 // variance.config.json — `review` is the part this page is about; the rest is
@@ -103,35 +102,46 @@ add `baselines` beside it:
 
 `variance-authority-tribunal` takes no flags and reads no arguments; passing
 `--port` is refused by name rather than ignored; `--help` names every variable.
+Every name a [declared mechanism](#deploy-it-on-cloudflare) reads is read here
+under this prefix, as `VARIANCE_TRIBUNAL_GITHUB_REPOSITORY`.
 
 | variable | default | what it decides |
 |---|---|---|
 | `VARIANCE_TRIBUNAL_PROJECT` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
-| `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
-| `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
-| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and neither of the other two. Unset, only the ingest token opens the share |
+| `VARIANCE_TRIBUNAL_INGEST_CREDENTIALS` | `token` | what may write a run: `token`, `github-actions`, or both, separated by a comma |
+| `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required with `token` | written into CI. Writes builds, baselines and history. 16 characters or more |
+| `VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS` | `loopback` on a loopback bind, otherwise unset | who may decide: `loopback`, `github`, `access`, or several, separated by a comma. `loopback` refuses to start on a network bind |
+| `VARIANCE_TRIBUNAL_VIEW` | unset | `public` opens reading to anybody, who cannot decide. It takes no other value |
+| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and not the ingest token. Unset, only an ingest credential opens the share |
 | `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number from 0 to 65535, or the process refuses to start |
 | `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Any address other machines can connect to also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
 | `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
 | `VARIANCE_TRIBUNAL_STORAGE` | `variance-tribunal-objects` | the directory that stores baseline and candidate bytes |
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | `30` | days of builds `POST /review/sweep` keeps |
-| `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name written on decisions made through the served page |
+| `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name `loopback` writes on decisions |
 | `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind; what that costs is below |
+| `VARIANCE_TRIBUNAL_ORIGIN` | the request's `Host` | the address people reach this at, such as `https://review.example.com`. Set it behind a proxy that terminates TLS, because sign-in hands this address to GitHub, and behind any proxy in front of `loopback`, which recognizes no other name |
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review page,
-and a caller with no token is treated as having sent the review token: anything that
-can open `127.0.0.1:7789` is already running as the person who started it.
+and a caller with no bearer decides as `VARIANCE_TRIBUNAL_REVIEWER`: anything that
+can open `127.0.0.1:7789` is already running as the person who started it. That
+holds for a caller who came by a name for this machine: `127.0.0.1`, `localhost`,
+`::1`, or the host of `VARIANCE_TRIBUNAL_ORIGIN`. Any other name in `Host` decides
+nothing, because a site can point its own name here and call this service its own
+origin. A bearer is read as a machine here too, so a wrong one is refused.
 
-**On a network bind the review page is not served at all**, and no call is
-authorized without a token — there is no TLS here, no accounts and no rate limit,
-so there would be nothing between an approve button and the internet. For a
-reviewer who is not at the machine, mount the Next.js adapter behind your own
-sign-in, or leave the process on loopback behind a proxy that authenticates.
+**On a network bind nobody decides until you declare who**, and the review page
+is served only once `VARIANCE_TRIBUNAL_REVIEW_CREDENTIALS` names somebody. There
+is no TLS here and no rate limit, so there would be nothing between an approve
+button and the internet. For a reviewer who is not at the machine, declare
+`github` or `access` behind a proxy that terminates TLS, with
+`VARIANCE_TRIBUNAL_ORIGIN` naming its address, mount the Next.js adapter
+behind your own sign-in, or leave the process on loopback behind a proxy that
+authenticates, with `VARIANCE_TRIBUNAL_ORIGIN` naming its address.
 
 The tokens are never printed and never rendered. The startup line names the
-variables, not their values, and the served page shows the endpoint and the
-reviewer name and nothing else — the browser calls the service, which owns the
-token.
+mechanisms, not their values, and the served page has no credential in it: the
+browser calls the service, and `GET /auth/me` says who it is.
 
 ## Words this page uses
 
@@ -153,118 +163,263 @@ routes, the refusals and the status codes are one module serving both
 deployments. What differs is underneath them — see
 [Operational boundaries](#operational-boundaries).
 
-The package ships the deployable Worker module. **The two files you edit are
-yours and live in your repository, not in `node_modules`** — a project of your
-own, with the package installed into it.
+The package ships the deployable Worker, its review page and its migrations.
+**The one file you edit is yours and lives in your repository, not in
+`node_modules`** — a project of your own, with the package installed into it.
 
 ```bash
 npm install @variance-authority/tribunal wrangler
+npx variance-authority-tribunal-provision --config wrangler.jsonc
 ```
 
-```ts
-// worker.ts — yours, in your git
-export { default } from '@variance-authority/tribunal/worker-entry';
-```
+When `wrangler.jsonc` is absent the command writes it, named for the repository:
 
 ```jsonc
 // wrangler.jsonc — yours, in your git
 {
   "$schema": "https://developers.cloudflare.com/schemas/wrangler.json",
-  "name": "variance-tribunal",
-  "main": "worker.ts",
+  "name": "todomvc-tribunal",
+  "main": "node_modules/@variance-authority/tribunal/dist/worker-entry.js",
   "compatibility_date": "2026-08-05",
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "variance-tribunal",
-      "database_id": "PLACEHOLDER — replace with the id `wrangler d1 create` prints",
+      "database_name": "todomvc-tribunal",
+      "database_id": "",  // provisioning writes it
       // The package's generated migrations, read where they are installed. Never
       // copied: a database migrated by a copy that drifted is a second schema
       // history wearing the same name.
       "migrations_dir": "node_modules/@variance-authority/tribunal/migrations"
     }
   ],
-  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "variance-tribunal" }],
-  "vars": { "PROJECT": "todomvc" }
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "todomvc-tribunal" }],
+  "assets": { "directory": "node_modules/@variance-authority/tribunal/dist/public" },
+  "vars": { "PROJECT": "todomvc" },
+  "observability": { "enabled": true }
 }
 ```
 
-```bash
-wrangler d1 create variance-tribunal        # put the printed id in your wrangler.jsonc
-wrangler r2 bucket create variance-tribunal
-wrangler d1 migrations apply variance-tribunal --remote
-wrangler secret put INGEST_TOKEN            # 16 characters or more
-wrangler secret put REVIEW_TOKEN            # 16 characters or more, and not the other one
-wrangler secret put SHARE_TOKEN             # optional: 16 characters or more, and neither of the others
-wrangler deploy
+`main` and `assets.directory` point into the installed package, so there is no
+Worker module of yours to write, and an upgrade is an install, the migrations
+below and a deploy.
+
+`variance-authority-tribunal-provision` makes what the config names and writes
+back what it learns, so nothing is copied out of a dashboard. It creates the D1
+database and the R2 bucket, writes the database's id into `database_id`, and
+applies the migrations. It declares `INGEST_CREDENTIALS=github-actions` and
+`REVIEW_CREDENTIALS=github` in `vars`, keeping any you wrote there, and fills in
+what those two need for the repository, read from `gh` or named with `--repository
+owner/name`; a run for a second repository adds it to
+`GITHUB_ACTIONS_REPOSITORIES`. For `github` it registers a public GitHub App with
+`metadata: read` from a manifest: you confirm one page in the browser and install
+the App on the repository. It mints `GITHUB_SESSION_SECRET`, deploys, and prints
+what a suite adds:
+
+```jsonc
+"baselines": {
+  "kind": "remote",
+  "endpoint": "https://todomvc-tribunal.you.workers.dev",
+  "token": { "github-actions": { "audience": "https://todomvc-tribunal.you.workers.dev" } }
+}
 ```
 
+```yaml
+permissions:
+  id-token: write
+```
+
+Every run prints these, so you can run it again to read them. A second run changes
+nothing else and says so. `--skip-deploy` leaves publishing to a deployment with
+its own build, and `--mount /api` names where such a deployment serves the API.
+`--rotate` replaces the session key, and the ingest token where `token` is
+declared.
+
+A run refuses a repository the deployment does not already name, rather than
+widening who may push: add it to `GITHUB_ACTIONS_REPOSITORIES` in `vars` yourself.
+
+The ingest token exists only when you declare `token`. The command then mints
+`INGEST_TOKEN` into the Worker and the same value into the repository's
+`VARIANCE_INGEST_TOKEN` secret, without printing it. When one side fails, the run
+says which, and `--rotate` replaces both.
+
+When your Cloudflare login is missing, the command runs `wrangler login`. When the
+login sees several accounts, it lists them and stops until `account_id` picks one.
+When R2 is off on the account, it prints the dashboard address where you enable
+it; run the command again afterwards. A deployment that declares `access` gets no
+App, and its two values come from [your company's SSO](#your-companys-sso).
+`SHARE_TOKEN` is optional and set by hand: `wrangler secret put SHARE_TOKEN`,
+16 characters or more and not the ingest token.
+
 `wrangler d1 migrations apply` is what puts the schema into your database, and
-Wrangler records which steps it has applied — so run that same command again
-after you upgrade the package. A release that adds a step applies that step
-alone; one that adds none applies nothing. `GET /version` reports the schema
-version the deployed build expects.
+Wrangler records which steps it has applied — so run it again after you upgrade
+the package, as `npx wrangler d1 migrations apply todomvc-tribunal --remote`. A
+release that adds a step applies that step alone; one that adds none applies
+nothing. `GET /version` reports the schema version the deployed build expects.
 
-The tokens are secrets rather than `vars`: they are the deployment's
-capabilities, and `wrangler.jsonc` is in your repository.
+`INGEST_TOKEN`, `SHARE_TOKEN`, `GITHUB_CLIENT_SECRET` and `GITHUB_SESSION_SECRET`
+are secrets rather than `vars`: they are the deployment's capabilities, and
+`wrangler.jsonc` is in your repository.
 
-`worker-entry` is the only file in the package that reads an environment, and it
-reads four names plus three optional ones:
+`worker-entry` reads two bindings, two settings and what you declared. A
+mechanism's name in the kind column means the value is read only with that
+mechanism declared:
 
 | name | kind | what it decides |
 |---|---|---|
 | `DB` | binding | D1. Rows: builds, verdicts, decisions, baseline metadata, history observations |
 | `BUCKET` | binding | R2. Baseline and candidate bytes, and the share; never a row |
-| `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
-| `REVIEW_TOKEN` | secret | given to people. Reads the review surface and decides. 16 characters or more |
-| `SHARE_TOKEN` | secret, optional | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
+| `INGEST_CREDENTIALS` | var | what may write a run: `github-actions`, `token`, or both, separated by a comma |
+| `REVIEW_CREDENTIALS` | var | who may decide: `github`, `access`, or both, separated by a comma. Behind [your company's SSO](#your-companys-sso) it is `access` alone, because a second way in undoes the list of approvers. `loopback` is the Node service's alone |
+| `VIEW` | var, optional | `public` opens reading to anybody, who cannot decide. It takes no other value |
+| `GITHUB_ACTIONS_REPOSITORIES` | var, `github-actions` | whose workflows may push: `owner/name` separated by commas, any case, or `owner/*` |
+| `GITHUB_ACTIONS_AUDIENCE` | var, `github-actions` | the audience a workflow's token must name |
+| `GITHUB_ACTIONS_BASELINE_REF` | var, `github-actions` | the one ref whose workflows move baselines, such as `refs/heads/main`. Any other ref still pushes builds and reads |
+| `GITHUB_ACTIONS_ISSUER` | var, optional, `github-actions` | the token's issuer. Default `https://token.actions.githubusercontent.com` |
+| `GITHUB_REPOSITORY` | var, `github` | `owner/name`: whoever can write to it decides |
+| `GITHUB_CLIENT_ID` | var, `github` | the GitHub App's client id |
+| `GITHUB_CLIENT_SECRET` | secret, `github` | the GitHub App's client secret. 16 characters or more |
+| `GITHUB_SESSION_SECRET` | secret, `github` | signs the session cookie. 16 characters or more. Replacing it signs everybody out |
+| `ACCESS_TEAM_DOMAIN` | var, `access` | e.g. `your-team.cloudflareaccess.com`, where the signing keys are published |
+| `ACCESS_AUD` | var, `access` | the audience tag of the Access application that names the reviewers |
+| `INGEST_TOKEN` | secret, `token` | written into CI. Writes builds, baselines and history. 16 characters or more |
+| `SHARE_TOKEN` | secret, optional | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more |
+
+**Nothing is discovered.** Only the two lists turn a mechanism on. A declared
+mechanism whose value is missing refuses by name, a committed value for a
+mechanism you did not declare refuses by name, and two empty lists refuse because
+they recognize nobody. An undeclared secret is logged and not read, so rotating
+one out does not take a deployment down.
+
+**With `github`, people sign in with GitHub** at `/auth/github/login`, and those
+with write access to `GITHUB_REPOSITORY` decide, under their login. The session is
+a signed cookie holding the login and an expiry, one hour out, and GitHub's token
+is discarded after the sign-in, so somebody who loses write access stops deciding
+within the hour.
+
+**With `github-actions`, a workflow pushes with the token its runner signs**, so
+no secret is stored anywhere. The job needs `id-token: write`, and a `token` of
+`{ "github-actions": { "audience": "…" } }` in the suite's configuration asks for
+it on use.
+
+**With `access`, your company's SSO names the person**, through
+[Cloudflare Access](#your-companys-sso). The service verifies the JWT against the
+team's published keys and writes the decision under its email. A service token has
+no email, so it decides nothing.
 
 A bad environment answers **500 with a sentence**, not a deployment-wide platform
-error: construction happens inside `fetch`, so *your token is too short* and *your
-two tokens are the same* come back to you as the response body.
+error: construction happens inside `fetch`, so *github is declared and needs
+GITHUB_CLIENT_SECRET, which is not set* and *REVIEW_CREDENTIALS declares loopback
+and this deployment is reachable from elsewhere* come back to you as the response
+body.
 
 `PROJECT` is a deployment setting, so one deployment serves one project; a second
 tenant needs a second deployment.
 
-There is no review page on this deployment unless you serve one. `worker-entry`
-answers the API; the React surface is mounted by a host — the Next.js adapter
-below, behind your own sign-in.
+`worker-entry` serves the review page as well as the API. With `github` declared,
+a person who is not recognized goes to the sign-in. With `VIEW=public` they read
+the same page with nothing to decide with, and a link to sign in.
+
+### Your company's SSO
+
+Cloudflare Access can sign people in through the provider your company already
+runs, so tribunal needs no sign-in of its own for them: Okta, Microsoft Entra ID,
+Google Workspace, or anything that speaks SAML or OIDC. Setting it up takes an
+admin of that provider and an admin of the Cloudflare account, once:
+
+1. Serve the deployment from a hostname in your Cloudflare zone, as a route with
+   `custom_domain: true`, with `workers_dev` and `preview_urls` both set to `false`:
+   Access guards a hostname, and any other address that reaches the Worker walks
+   around it. Wrangler keeps an existing `preview_urls` when the key is absent, so
+   write it down, and check that no other route or custom domain points at the
+   Worker. `GITHUB_ACTIONS_AUDIENCE`, and the suite's `endpoint` and `audience`, name
+   the new hostname.
+2. In Cloudflare Zero Trust, add your company's provider as a login method. Its
+   admin registers Cloudflare on their side.
+3. Add a self-hosted Access application on the deployment's hostname, with a policy
+   naming the people or groups who review. Everybody it lets in can decide, so this
+   policy is your list of approvers. Give the same application the paths
+   `review/builds/*` and `review/concerns/*`, under the mount if the API has one:
+   step 4 opens their parents, and these are where a decision is recorded and a
+   concern is raised or moved. In its cookie settings, set `SameSite` to `Lax`, so a browser
+   holds the cookie back from another site's write before the service has to refuse
+   it, and leave the cookie's path attribute off, because the page reads step 4's
+   paths with that cookie.
+4. Add a second application on the same hostname, with a Bypass policy for everyone,
+   on the paths `auth/me`, `version`, `baseline`, `cache`, `v1`, `share`,
+   `review/builds`, `review/have`, `review/changelog`, `review/decisions` and
+   `review/concerns`, under the mount if the API has one. A workflow, a developer's
+   CLI and the provisioner cannot sign in, and these are the paths they call. The service guards them instead of Access: it asks
+   every request for its credential, a reviewer's browser still carries its Access
+   cookie there, and Access logs nothing that bypasses it.
+5. Set `ACCESS_TEAM_DOMAIN` to the team domain and `ACCESS_AUD` to the first
+   application's audience tag, set `REVIEW_CREDENTIALS` to `access`, replacing
+   `github`, and delete `GITHUB_CLIENT_ID` and `GITHUB_REPOSITORY` from `vars`.
+6. Check that Access holds the paths from step 3, with a POST that has no cookie,
+   with the mount in the address if the API has one:
+
+   ```bash
+   curl -si -X POST https://your-hostname/review/builds/any/subjects/any/decision
+   curl -si -X POST https://your-hostname/review/concerns/raise
+   ```
+
+   Access answers with a redirect to sign in. An answer with
+   `www-authenticate: Bearer` came from the service, so the request went past Access
+   and step 4 won. The service still asks for a credential, but removing a reviewer
+   then waits for their session to run out, so shorten the session.
+
+Leave `VIEW` unset. Access keeps the page behind a sign-in, but with `VIEW=public`
+the paths in step 4 answer anybody. An open project that wants public reading
+declares `github` and `VIEW=public`.
+
+To remove a reviewer, take them out of the policy and revoke their session in Zero
+Trust, which ends everything they can write: every reviewer write sits on a path
+from step 3. The paths in step 4 check only that their token is signed and
+unexpired, so until the session runs out, that token still reads the evidence there. How long that is
+comes from the application's session duration, or from the policy's if it sets one.
+A shorter session closes that sooner.
 
 ## The HTTP API
 
-Authentication happens before routing. A caller sending no token the deployment
-accepts gets the same response for a wrong token, a missing token, and a path
-that does not exist. Every path takes `Authorization: Bearer <token>`; none may
-be requested anonymously.
+Recognition happens before routing. A caller this deployment does not recognize
+gets the same response for a wrong credential, a missing one, and a path that does
+not exist. A machine sends `Authorization: Bearer <token>`: the ingest token, the
+share token, or the token a workflow's runner signed. A bearer is read as a machine
+and nothing else, so a wrong one is refused even with `VIEW=public`. A person sends
+no bearer, and is recognized by the mechanism `REVIEW_CREDENTIALS` declares. A
+write a browser sent from another origin, a sibling subdomain included, is not
+recognized, whatever cookie it carries, under any policy. A bearer is the way to
+write across origins on purpose. Only `GET /auth/me` and the sign-in answer a caller nobody recognized.
 
-| method and path | token | what it does |
+| method and path | capability | what it does |
 |---|---|---|
-| `GET /version` | any | `{"service":"variance-authority-tribunal","api":6,"schema":21}` |
+| `GET /auth/me` | none needed | `{"capability":"review","name":"…","signIn":"…"}`: who this request is, and where a person signs in. Each key is absent when it has no value |
+| `GET /auth/github/login[?return]`, `GET /auth/github/callback` | none needed | the sign-in, with `github` declared. `return` is a path on this deployment to come back to |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":8,"schema":21}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
-| `POST /baseline/put` | ingest | store an approved image |
+| `POST /baseline/put` | ingest, from `GITHUB_ACTIONS_BASELINE_REF` under `github-actions` | store an approved image |
 | `POST /cache/find`, `POST /cache/put` | ingest | the render cache the same store backs |
 | `POST /v1/observations` | ingest | append a run: its observations, its resolved token values, its instability reports. 204 |
-| `POST /v1/approvals` | ingest | append which subjects were signed off in which run. 204 |
+| `POST /v1/approvals` | ingest, from `GITHUB_ACTIONS_BASELINE_REF` under `github-actions` | append which subjects were signed off in which run. 204 |
 | `POST /v1/current` | ingest | a run asking what is currently recorded for a list of subject ids. A POST because three hundred ids in a query string is a 414 from a proxy nobody configured |
-| `GET /v1/last-changed?subject&component[&band]` | ingest or review | the last observation in which that component's hash changed for that subject |
-| `GET /v1/churn?component` | ingest or review | how often that component's own hashes changed, as a rate |
-| `GET /v1/flakiness?subject` | ingest or review | how often that subject read differently from itself |
-| `GET /v1/reach?component` | ingest or review | which subjects that component appears in now that it did not before |
-| `GET /v1/value-journey?token` | ingest or review | how one design token's resolved values drifted across approved runs |
+| `GET /v1/last-changed?subject&component[&band]` | ingest, review or view | the last observation in which that component's hash changed for that subject |
+| `GET /v1/churn?component` | ingest, review or view | how often that component's own hashes changed, as a rate |
+| `GET /v1/flakiness?subject` | ingest, review or view | how often that subject read differently from itself |
+| `GET /v1/reach?component` | ingest, review or view | which subjects that component appears in now that it did not before |
+| `GET /v1/value-journey?token` | ingest, review or view | how one design token's resolved values drifted across approved runs |
 | `POST /review/builds` | ingest | file a finished run as a build. What `variance push` calls |
 | `POST /review/have` | ingest | given image digests, which of them this deployment already has, so a push uploads only the rest |
-| `GET /review/builds[?limit]` | review | recent builds |
-| `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
+| `GET /review/builds[?limit]` | review or view | recent builds |
+| `GET /review/builds/{id}` | review or view | one build: its subjects, their verdicts, their regions, the docket |
 | `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…","baselineVersion":"…"}`. 409 when an approval's baseline moved since `baselineVersion` where this build changed it too, below |
-| `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
-| `GET /review/changelog[?component&subject&since&limit]` | review or share | every approval, grouped by shape |
-| `GET /review/decisions[?build&subject&limit]` | review or share | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
+| `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review or view | one image, immutable and cacheable |
+| `GET /review/changelog[?component&subject&since&limit]` | review, share or view | every approval, grouped by shape |
+| `GET /review/decisions[?build&subject&limit]` | review, share or view | every decision, newest first, reversals included: `{"decisions":[{"build","subject","decision","by","at","note"}]}`. Names `build`, `subject` or both; `limit` defaults to 200 and goes no higher |
 | `POST /review/sweep[?days=N]` | review | retention, below |
-| `GET /review/concerns[?build&subject&state]` | review or share | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
-| `POST /review/concerns` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
+| `GET /review/concerns[?build&subject&state]` | review, share or view | the concerns on a subject, or on every subject a build showed, with the build's `tally` per state |
+| `POST /review/concerns/raise` | review | `{"build","subject","title","by","note","hypothesis","region":{x,y,width,height,component},"evidence":["…"],"state"}`. 201 |
 | `POST /review/concerns/{id}` | review | `{"state":"open"\|"investigating"\|"resolved","by","note","hypothesis"}`: the next step of its trail |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
 | `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
@@ -275,13 +430,15 @@ be requested anonymously.
 The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 `project` where one deployment is queried for another's rows.
 
-**The review token reads what runs recorded and never writes it.** The five
-reads answer the ingest and review tokens because they derive from rows already
-recorded, and the browser drawing a review page sends the review token. Concerns
-are not derived: a person wrote them, so raising and moving them is the review
-token's, and reading them is the review and share tokens'. `/v1/observations` and
-`/v1/approvals` are the ingest token's because they write; `/v1/current` is the
-ingest token's because its caller is a run deciding what to write.
+A decision and a concern are written under the name the request proved. `by` is
+optional, and a `by` naming anybody else answers 403.
+
+**A reviewer reads what runs recorded and never writes it.** The five reads answer
+ingest, review and view because they derive from rows already recorded, and the
+review page draws them. Concerns are not derived: a person wrote them, so raising
+and moving them takes review, and reading them takes review, share or view.
+`/v1/observations` and `/v1/approvals` take ingest because they write;
+`/v1/current` takes ingest because its caller is a run deciding what to write.
 
 **The share is for runs, not for reviewers.** `/share/` is the store an `http`
 share reads and writes when its endpoint is this deployment:
@@ -299,30 +456,32 @@ share reads and writes when its endpoint is this deployment:
 `token` names the environment variable the CLI reads the token from, so one
 configuration serves every machine and only the variable's value differs:
 
-- **In CI, where a run publishes**, set `VARIANCE_SHARE_TOKEN` to the ingest
-  token. The ingest token publishes and reads the share, so the job that runs
-  the suite needs no new secret.
+- **In CI, where a run publishes**, an ingest credential publishes and reads the
+  share, so the job that runs the suite needs no new secret. Where `token` is
+  declared, set `VARIANCE_SHARE_TOKEN` to the ingest token. Where `github-actions`
+  is declared, `token` is `{ "github-actions": { "audience": "…" } }` instead, and
+  the job needs `id-token: write`.
 - **On a machine that only reads what CI published**, such as a laptop running
   `variance ask` or `variance serve`, set it to the share token: the value of
   `VARIANCE_TRIBUNAL_SHARE_TOKEN` on the Node deployment, or of `SHARE_TOKEN`
   on Cloudflare. With the share token a machine reads `/share/`,
   `GET /review/changelog`, `GET /review/decisions` and `GET /review/concerns`,
-  and `GET /version` answers it as it answers every token. Every other route
+  and `GET /version` answers it as it answers every credential. Every other route
   answers 403 before it checks the method, so the machine cannot push a build,
   decide one or raise a concern. A path this deployment does not serve answers
   404, as it does for every token. A path under `/share/` that is not a line's
   manifest, one of its entries or an image answers 400 and names the three it
   could be.
 
-The review token is refused under `/share/`, because it is held by people and by
-the browser drawing the review page.
+A person is refused under `/share/`, reviewer or viewer: the share is what runs
+read and write, and the review page never asks it.
 
-**What review settled is read with the review or the share token, never the
-ingest token.** The changelog and the decision history are what an agent or a
-developer's machine asks after the fact: was this subject approved, by whom, and
-why. Give that reader the share token, which reads them and cannot decide. The
-ingest token is refused both, because CI holds it, and a build log has no reason
-to read reviews.
+**What review settled is read by a reviewer, a viewer or the share token, never
+an ingest credential.** The changelog and the decision history are what an agent
+or a developer's machine asks after the fact: was this subject approved, by whom,
+and why. Give that reader the share token, which reads them and cannot decide. An
+ingest credential is refused both, because CI holds it, and a build log has no
+reason to read reviews.
 
 Two writers publishing to one line do not lose each other's entries. Each writes
 the manifest against the version it read, the one that lost answers 412, and
@@ -367,7 +526,7 @@ than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
 A render you decide on, whose candidate is the same image an earlier build kept,
-says so in its Decision card. A candidate is stored under the SHA-256 of its
+says so under its name. A candidate is stored under the SHA-256 of its
 bytes, so two builds that kept one key for a subject kept one picture. Only
 builds rendered by the same identity count: a baseline is kept per identity, so
 a decision made on another engine or platform says nothing about this one. The
@@ -388,9 +547,13 @@ compared to, so it is named without the warning. Only builds this deployment
 still keeps are counted, so a build removed by `POST /review/sweep` is not named.
 A render that is `unchanged` or `ignored`, or kept no candidate, has no line.
 
-Every move on a subject sits in one bar under the picture, beside what it acts
-on: the subject, the component it names as the cause, its regions, and where it
-stands in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
+*Approve* and *Reject* sit at the top right of the render, beside its name, and
+stay there while the picture scrolls. A decided render shows who decided it,
+when and why, and both stay live. A render whose image the run did not keep
+offers neither, and the page says why beside them. An image on screen with no
+document behind it can be rejected, not approved: it cannot become a baseline.
+Everything else sits in one bar under the picture, with where the render stands
+in the rail — *2 of 5*, or *not in the queue* for one opened by a link.
 Single keys reach the moves that cost nothing to undo: <kbd>J</kbd> and
 <kbd>K</kbd> walk the rail in the order it is drawn, <kbd>F</kbd> opens a
 concern and <kbd>I</kbd> opens one already under investigation, as
@@ -407,7 +570,7 @@ every single-letter key off, for speech input and screen readers that take
 letters as their own commands; the browser remembers the choice.
 
 A render you would not approve and cannot yet call wrong has a third answer.
-*Looks suspicious*, in the bar or under the subject's concerns, raises a **concern**: a
+*Looks suspicious*, in the bar, raises a **concern**: a
 title, the region you mean or the whole render, the components, files or the
 baseline you are pointing at, a note and your hypothesis. It moves between
 open, investigating and resolved, each step with a name on it. It stays on the
@@ -511,8 +674,8 @@ changes[0]?.builds;    // where the approvals came from
 
 `changelog` takes `component` (substring, case-insensitive), `subject` (exact),
 `since` (ISO 8601) and `limit` (default 500). The route takes the same four as
-query parameters, refuses a `limit` above 500 with 400, and answers the review
-token and the share token.
+query parameters, refuses a `limit` above 500 with 400, and answers a reviewer, a
+viewer and the share token.
 
 `decisions` is the history under the approvals: every decision recorded,
 rejections and reversals included, newest first. It takes `build`, `subject` and
@@ -541,8 +704,8 @@ that no shape could group are returned as `ungrouped`, not dropped.
 | `@variance-authority/tribunal/store` | D1 and R2 | `createBucketStore` — baselines |
 | `@variance-authority/tribunal/history` | D1 | `createD1Backend` — the record |
 | `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
-| `@variance-authority/tribunal/worker` | D1, R2, two tokens and an optional third | `createTribunal` — one `fetch` handler |
-| `@variance-authority/tribunal/worker-entry` | the bindings, as an `env` | the deployable module: `export default { fetch }` |
+| `@variance-authority/tribunal/worker` | D1, R2 and a `Policy` | `createTribunal` — one `fetch` handler; `declaredPolicy` — a `Policy` from what you declared |
+| `@variance-authority/tribunal/worker-entry` | the bindings and the declared names, as an `env` | the deployable module: `export default { fetch, scheduled }` |
 | `@variance-authority/tribunal/node` | Node 22, a writable file and directory | `openDatabase`, `createDirectoryBucket`, `serveTribunal`, and the `variance-authority-tribunal` executable |
 | `@variance-authority/tribunal/ui` | React 19 | the review surface, its JSON client, its stylesheet |
 | `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` |
@@ -560,24 +723,25 @@ Copy this when you want your own module rather than the one that ships.
 ```ts
 // worker.ts — yours, not ours
 import type { D1Like, R2Like } from '@variance-authority/tribunal';
-import { createTribunal } from '@variance-authority/tribunal/worker';
+import { createTribunal, declaredPolicy, type Tribunal } from '@variance-authority/tribunal/worker';
 
 interface Env {
   readonly DB: D1Like;
   readonly BUCKET: R2Like;
-  readonly VARIANCE_INGEST_TOKEN: string;
-  readonly VARIANCE_REVIEW_TOKEN: string;
+  readonly [declared: string]: unknown;
 }
+
+let tribunal: Tribunal | undefined;
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
-    return createTribunal({
+    tribunal ??= createTribunal({
       db: env.DB,
       bucket: env.BUCKET,
       project: 'todomvc',
-      ingestToken: env.VARIANCE_INGEST_TOKEN,
-      reviewToken: env.VARIANCE_REVIEW_TOKEN,
-    }).fetch(request);
+      policy: declaredPolicy(env),
+    });
+    return tribunal.fetch(request);
   },
 };
 ```
@@ -587,10 +751,8 @@ export default {
 | `db` | required | the D1 binding |
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
-| `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
-| `reviewToken` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
-| `shareToken` | unset | given to machines that read and never decide: the share, the changelog and the decision history. 16 characters or more, and neither of the other two. Unset, only `ingestToken` opens `/share/` |
-| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer — a Worker has no timer, and this package will not invent a cron you did not ask for. Wire it to a scheduled trigger, call it from a CI job, or never |
+| `policy` | required | who this deployment recognizes. `declaredPolicy(values, options)` builds one from the [names above](#deploy-it-on-cloudflare), and its options are `loopback`, `origin`, `log`, `fetch` and `now`. A host with its own session [writes its own](#mounting-the-review-surface-in-nextjs) |
+| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied by the packaged Worker's `scheduled` handler and by `POST /review/sweep` |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
 `env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket`,
@@ -617,46 +779,44 @@ something else:
 
 ```ts
 import { createDirectoryBucket, openDatabase, serveTribunal } from '@variance-authority/tribunal/node';
-import { createTribunal } from '@variance-authority/tribunal/worker';
-
-const ingest = process.env.INGEST_TOKEN ?? '';
-const review = process.env.REVIEW_TOKEN ?? '';
+import { createTribunal, declaredPolicy } from '@variance-authority/tribunal/worker';
 
 const service = await serveTribunal({
   tribunal: createTribunal({
     db: await openDatabase('variance-tribunal.db'),
     bucket: createDirectoryBucket('variance-tribunal-objects'),
     project: 'todomvc',
-    ingestToken: ingest,
-    reviewToken: review,
+    policy: declaredPolicy(
+      {
+        INGEST_CREDENTIALS: 'token',
+        INGEST_TOKEN: process.env.INGEST_TOKEN,
+        REVIEW_CREDENTIALS: 'loopback',
+        REVIEWER: 'marina',
+      },
+      { loopback: true },
+    ),
   }),
   host: '127.0.0.1',
   port: 7789,
-  authorize: (request) =>
-    request.headers.get('authorization') === `Bearer ${ingest}` ? 'ingest' : 'review',
-  tokens: { ingest, review },
   ui: true,
-  reviewer: 'marina',
 });
 
 service.url;  // http://127.0.0.1:7789
 await service.close();
 ```
 
-`serveTribunal` takes the `tribunal` to serve, an `authorize` and `tokens` that
-mean exactly what they mean for `createTribunalRoutes` (add `tokens.share` when
-`authorize` can return `'share'`) — it is the same function
-underneath — plus `host`, `port`, and two that only a served page needs: `ui`,
-which decides whether the review surface and its bundle are served at all, and
-`reviewer`, the name written on decisions made through it. `openDatabase` opens,
-creates or migrates the file and reports the `version` it settled on;
-`createDirectoryBucket` writes each object through a staging file and renames it,
-so a reader never sees half of one.
+`serveTribunal` takes the `tribunal` to serve, `host`, `port`, `origin`, which
+names the address behind a proxy, and `ui`, which
+decides whether the review surface and its bundle are served at all and defaults
+to `true`. `openDatabase` opens, creates or migrates the file and reports the
+`version` it settled on; `createDirectoryBucket` writes each object through a
+staging file and renames it, so a reader never sees half of one.
 
-The `authorize` above grants review to any caller. That is right for a loopback
-bind and wrong for anything else — the executable's own rule is the one to copy:
-a bearer gets what its token is for, and a caller with no bearer reviews only
-when the bind is loopback.
+`{ loopback: true }` is what admits `loopback`, which makes every caller with no
+bearer who came by a name for this machine the reviewer. `origin` adds the address
+of a proxy in front of it. That is right for a loopback bind and wrong for anything
+else, so state it only there: the executable derives it from the bind address, and
+without it `declaredPolicy` refuses `loopback`.
 
 ## Mounting the review surface in Next.js
 
@@ -681,32 +841,30 @@ export default async function VariancePage(): Promise<React.ReactElement> {
 
 ```ts
 // app/variance/[[...path]]/route.ts — excerpt: `env` is your platform's bindings,
-// `isSignedIn` your session check
+// `sessionName` your session lookup
 import type { D1Like, R2Like } from '@variance-authority/tribunal';
 import { createTribunalRoutes } from '@variance-authority/tribunal/next';
-import { createTribunal } from '@variance-authority/tribunal/worker';
+import { createTribunal, declaredPolicy, type Policy } from '@variance-authority/tribunal/worker';
 
 declare const env: {
   readonly DB: D1Like;
   readonly BUCKET: R2Like;
-  readonly VARIANCE_INGEST_TOKEN: string;
-  readonly VARIANCE_REVIEW_TOKEN: string;
+  readonly [declared: string]: unknown;
 };
-declare function isSignedIn(request: Request): Promise<boolean>;
+declare function sessionName(request: Request): Promise<string | null>;
 
-const worker = createTribunal({
-  db: env.DB,
-  bucket: env.BUCKET,
-  project: 'todomvc',
-  ingestToken: env.VARIANCE_INGEST_TOKEN,
-  reviewToken: env.VARIANCE_REVIEW_TOKEN,
-});
+// What may write a run is declared; who decides is whoever your session proved.
+const machines = declaredPolicy(env);
+const policy: Policy = {
+  async principal(request) {
+    const name = await sessionName(request);
+    return name === null ? machines.principal(request) : { capability: 'review', name };
+  },
+};
 
-export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, {
-  basePath: '/variance',
-  authorize: async (request: Request) => ((await isSignedIn(request)) ? 'review' : null),
-  tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
-});
+const worker = createTribunal({ db: env.DB, bucket: env.BUCKET, project: 'todomvc', policy });
+
+export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, { basePath: '/variance' });
 ```
 
 `REVIEW_STYLES` is text, and text cannot carry a font file, so the faces it is
@@ -716,22 +874,23 @@ resolves next to the sheet. Leave the import out and the surface falls back to
 the system sans and monospace stacks.
 
 `createReviewClient` takes `endpoint` — where the Worker is mounted — and an
-optional `token` for a caller supplying the review token directly. Omit `token`
-behind the adapter above: the server route keeps it and the browser never sees
-it.
+optional `token` for a machine calling with a bearer of its own. Omit `token`
+behind the adapter above: the browser's session says who it is. `ReviewApp` without
+a `reviewer` is a reader, with nothing to decide with.
 
-`createTribunalRoutes` takes `basePath`, `authorize` and `tokens`. `basePath` is
-stripped before the request reaches the Worker. `tokens` is passed explicitly
-because the `Tribunal` object exposes only `fetch`, not the tokens it was created
-with.
+`createTribunalRoutes` takes `basePath`, which is stripped before the request
+reaches the Worker. `PUT` is what an `http` share writes with, so export it when
+the share is mounted too.
 
-`authorize` has **no default**. It returns `'ingest'`, `'review'`, `'share'`, or
-`null`; a refused caller gets a 401 before the Worker sees the request, and a
-caller returned `'review'` has the review token attached on their behalf.
-Return `'share'` only with `tokens.share` set: without it the route answers 500,
-because the mistake is in your configuration and not in the request. `PUT` is
-what an `http` share writes with, so export it when the share is mounted too. A default that
-returned `'review'` would be a published approve button.
+`policy` has **no default**: a default that made a caller a reviewer would be a
+published approve button. `principal` returns `null` for a request it does not
+recognize, which answers 401, or `{ capability: 'ingest' | 'share' | 'view' }`, or
+`{ capability: 'review', name }`, whose `name` is written on the decision.
+Optional `serve` answers routes the mechanism owns, such as a sign-in, and optional
+`signIn` is the path a person goes to. When the declared mechanisms are the ones you
+want, pass `declaredPolicy(env)` itself. With `github` declared under a `basePath`,
+also mount the routes at the root of the host, because GitHub returns to
+`/auth/github/callback` unmounted.
 
 ## Review invariants
 
@@ -779,18 +938,22 @@ object still exists rather than answering from the D1 row alone.
 `[]` are stored, returned, and drawn as different values: absent means nothing
 looked, `[]` means inspected and clean. The same distinction applies to findings.
 
-**Two tokens, and they may not be equal.** The ingest token lives in CI
-configuration and writes builds, baselines, history and the share; the review
-token belongs to people and decides. An optional share token reads the share,
-the changelog and the decision history, and never decides. Construction refuses a token under 16 characters and refuses any two that
-are identical.
+**Nothing is recognized that was not declared.** `INGEST_CREDENTIALS` and
+`REVIEW_CREDENTIALS` say who a deployment recognizes, and construction refuses a
+declaration it cannot honour. It refuses a token under 16 characters and a share
+token equal to the ingest token.
 
-**Which token a route requires is only revealed to a caller who already has
-one.** Authentication happens before routing.
+**A decision has a name on it.** Only a person the policy proved decides. An
+ingest credential writes builds, baselines, history and the share; the optional
+share token reads the share, the changelog and the decision history; `VIEW=public`
+reads what a reviewer reads. None of them decides.
 
-**The service makes no outbound request.** Not a status check, not a PR comment,
-not a webhook, not telemetry — the pipeline reports to the service, and the
-service reports to nobody.
+**Which capability a route requires is only revealed to a caller already
+recognized.** Recognition happens before routing.
+
+**The service reports to nobody.** It asks an issuer for its public keys and GitHub
+during a sign-in, and nothing else: not a status check, not a PR comment, not a
+webhook, not telemetry. The pipeline reports to the service.
 
 **The record is append-only, and the database enforces it.** Runs, observations,
 token values, decisions and concerns all have `UPDATE` and `DELETE` triggers, so a direct
@@ -807,8 +970,10 @@ against), **decisions**, **concerns**, and the **changelog**. The fourth count,
 `decisionsKept`, is how many approvals outlived the builds this call removed, not
 a fourth removal.
 
-It runs on request only, never on a timer — wire it to a scheduled trigger or
-call it from CI.
+The packaged Worker sweeps nightly: the provisioned `wrangler.jsonc` carries a
+`triggers.crons` entry, and a config written before it needs the entry added. The
+Node service and a host of your own sweep on request, so call the route from a
+timer you already run.
 
 ## Testing your own wiring
 
@@ -871,4 +1036,4 @@ deployment's platform limits are yours.
 
 ---
 
-**[@variance-authority/tribunal](https://variance-authority.dev/reference/packages/tribunal)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/tribunal](https://variance-authority.dev/reference/packages/tribunal)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/tribunal) · MIT

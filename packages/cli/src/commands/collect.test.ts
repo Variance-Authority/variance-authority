@@ -4,7 +4,8 @@ import { collecting, onEngine, planOf, rendered, type Opened } from './evidence-
 import { recipeOf, type EvidencePart } from './evidence-part.js';
 import { configOf } from './run-fixture.js';
 import { assign } from './shard.js';
-import type { Collected } from './collector.js';
+import type { Collected, Visit } from './collector.js';
+import { mergeEvidence } from './collect-merge.js';
 
 const PLAN = planOf([
   ['button--primary', 'src/Button.stories.tsx'],
@@ -105,6 +106,78 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
       'page--home',
     ]);
     expect(part.subjects).toHaveLength(2);
+  });
+
+  it('holds every width a visit read at the position the plan gave its story, and says its warning once', async () => {
+    const story = PLAN.subjects[2]!;
+    const atWidth = (width: number) => ({
+      planned: { ...story, subject: { ...story.subject, id: `${story.subject.id}@${String(width)}` } },
+      collected: answer(`${story.subject.id}@${String(width)}`),
+    });
+    const visit: Visit = { subjects: [atWidth(375), atWidth(800)], warnings: ['widths read from a guess'] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === story.subject.id ? visit : answer(id)))));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2)).toEqual([
+      { position: 2, subject: 'card--default@375', of: 'card--default', outcome: 'collected', snapshot: true },
+      { position: 2, subject: 'card--default@800', of: 'card--default', outcome: 'collected', snapshot: true },
+    ]);
+    expect(part.subjects.filter((row) => row.position === 2).map((row) => row.subject)).toEqual([
+      'card--default@375',
+      'card--default@800',
+    ]);
+    expect(part.diagnostics.filter((diagnostic) => diagnostic.message === 'widths read from a guess')).toHaveLength(1);
+    expect(mergeEvidence([{ path: 'evidence.json', part }]).kind).not.toBe('refused');
+  });
+
+  // The plan names the story and `--subjects` may name one of its widths: the
+  // glob decides on what the visit realized, so the width it names is read and
+  // the other is left out by the same filter that leaves out a story.
+  it('reads only the width a scope names out of a visit that read two', async () => {
+    const story = PLAN.subjects[2]!;
+    const atWidth = (width: number) => ({
+      planned: { ...story, subject: { ...story.subject, id: `${story.subject.id}@${String(width)}` } },
+      collected: answer(`${story.subject.id}@${String(width)}`),
+    });
+    const visit: Visit = { subjects: [atWidth(375), atWidth(800)] };
+    const opened = collecting(PLAN, (id) => (id === story.subject.id ? visit : answer(id)));
+    const part = await collectEvidence(inputOf(opened, { scope: '*@375' }));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2).map((outcome) => [outcome.subject, outcome.outcome])).toEqual([
+      ['card--default@375', 'collected'],
+      ['card--default@800', 'excluded'],
+    ]);
+    expect(part.subjects.map((row) => row.subject)).toEqual(['card--default@375']);
+  });
+
+  // A visit that realized nothing read nothing, and the story the plan holds
+  // must still be accounted for: it failed, at its own position.
+  it('says a story failed when its visit realized no subject', async () => {
+    const story = PLAN.subjects[2]!;
+    const empty: Visit = { subjects: [] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === story.subject.id ? empty : answer(id)))));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2)).toEqual([
+      { position: 2, subject: story.subject.id, outcome: 'failed', because: 'the collector visited it and realized no subject' },
+    ]);
+  });
+
+  // A visit realizes its story or the story at a width. A story whose id merely
+  // begins with the planned one is another story, and filing it at this
+  // position would be a reading the plan never asked for.
+  it('fails a story whose visit realized a subject that is not it or one of its widths', async () => {
+    const story = PLAN.subjects[2]!;
+    const as = (id: string) => ({ planned: { ...story, subject: { ...story.subject, id } }, collected: answer(id) });
+    const stray: Visit = { subjects: [as(`${story.subject.id}@375`), as(`${story.subject.id}-large`)] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => (id === story.subject.id ? stray : answer(id)))));
+
+    expect(part.outcomes.filter((outcome) => outcome.position === 2)).toEqual([
+      {
+        position: 2,
+        subject: story.subject.id,
+        outcome: 'failed',
+        because: `the collector realized \`${story.subject.id}-large\`, which is neither \`${story.subject.id}\` nor one of its widths`,
+      },
+    ]);
   });
 
   it('keeps a collected subject with no snapshot as collected, with no row', async () => {

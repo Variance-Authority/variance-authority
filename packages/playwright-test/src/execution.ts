@@ -3,7 +3,7 @@
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
  * transport differs, which is the rule
- * [spec 0028](../../../docs/specs/0028-the-instrument.md) states. The adopter's
+ * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The adopter's
  * application build carries `testSelectionProbes()`, the page counts block
  * crossings, and this drains those counters around each observation.
  *
@@ -25,6 +25,7 @@ import {
   modulesEntered,
   preconditionOf,
   recordExecution,
+  saidAcross,
   stageExecution,
   stagingDirectory,
   type CasePrecondition,
@@ -35,7 +36,8 @@ import {
   type PreconditionStanding,
 } from '@variance-authority/sense/journal';
 import { stitchJourneys } from '@variance-authority/sense/journey';
-import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
+import { limitAcross, recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import type { Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
 import { absorb, accumulation, type Accumulated } from './accumulated.js';
@@ -51,19 +53,32 @@ export type { ExecutionRecording } from './execution-recording.js';
 export interface ExecutionRecorder {
   /**
    * Take everything one document has entered since the last drain — a page's,
-   * or any frame's, since the application is not always the top document.
-   *
-   * `subject` names the individual test the window belongs to, for a run
-   * recording cases. Without it the crossings join the file and nothing finer,
-   * which is what selection reads either way.
-   *
-   * `line` is the test line whose statement ran since the drain before, for a
-   * case whose file was cut: each region the window holds that the case has
-   * not reached under an earlier line is charged to it. A case drained without
-   * one carries no lines, and a region drained without one before its first is
-   * ambient.
+   * or any frame's. `subject` names the test it belongs to, for a run recording
+   * cases; without it the crossings join the file only. `line` is the test line
+   * whose statement ran since the drain before: each region the case has not
+   * reached under an earlier line is charged to it. A region drained before
+   * the first line, or under a `hook` line, is ambient. Resolves to how many
+   * documents the frame replaced whose journals the drain carried.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<number>;
+  /**
+   * The script that makes a page tape the case's story, where the run asked
+   * for stories under `VARIANCE_AUTHORITY_STORY`: put on a context before its
+   * pages load. Absent where it did not.
+   */
+  readonly storyPage?: string;
+  /**
+   * Say that what the case's pages do next is the statement at test line
+   * `line`, a hook's where `hook` says so; present beside {@link storyPage}.
+   */
+  readonly cut?: (owner: string, subject: ObservedTest, line: number, hook: boolean) => void;
+  /** Say what the case printed in the runner's own process, where the case is now; present beside {@link storyPage}. */
+  readonly say?: (owner: string, subject: ObservedTest, text: string) => void;
+  /**
+   * Say that a document the case ran in was gone before what it ran there was
+   * drained, so the case's story is missing it; present beside {@link storyPage}.
+   */
+  readonly lose?: (owner: string, subject: ObservedTest) => void;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -99,9 +114,11 @@ export interface ExecutionRecorder {
    *
    * `duration` is the milliseconds Playwright counted for the attempt, as
    * `testInfo.duration` holds them when the test's fixtures tear down. The file
-   * and the case each sum their attempts; nothing here reads a clock.
+   * and the case each sum their attempts; nothing here reads a clock. `limit`
+   * is `testInfo.timeout` at the same moment, after any `test.setTimeout`, and
+   * the case keeps its longest attempt's.
    */
-  readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number) => void;
+  readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number, limit?: number) => void;
   /**
    * Keep one attempt's Eyes journal for its case, counted from 1, or without
    * one, that the attempt opened a journal. The record joins it to the case by
@@ -134,7 +151,12 @@ export function createExecutionRecorder(
   // What each case said it arranged, where a runner says where a call stands:
   // taken when the case is marked, which is after its `afterEach` ran.
   const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
+  const stories = storiesFor(start, root, recording);
+  const storyCase = (owner: string, subject: ObservedTest): StoryCase => ({ file: owner, ...subject });
   const heard = new Map<string, NonNullable<ObservedCase['said']>>();
+  // Cases that drove a page carrying no execution collector: what that page
+  // read went unheard, so an empty facet would claim it read nothing.
+  const unheard = new Set<string>();
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
   // inside a file's window, and both are wanted whole. The key carries all
@@ -154,6 +176,8 @@ export function createExecutionRecorder(
   const stopped = new Map<string, boolean>();
   // What the runner counted, per owner and per case key, summed over attempts.
   const spent = new Map<string, number>();
+  // The longest limit an attempt of each case ran under, by the key `cases` uses.
+  const limits = new Map<string, number>();
   // Each case's Eyes journals, one per attempt that handed one over.
   const looked = new Map<string, ObservedEyes[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
@@ -162,12 +186,22 @@ export function createExecutionRecorder(
   // another process, and a listener nobody can find is a port for nothing.
   const journeys = driveJourneys(wire);
   const reports = journeys.reports;
+  // The cases whose story is missing a document, until it is written.
+  const lostCases = new Set<string>();
   let seen = false;
   let announced = false;
   let instrumentation: string | undefined;
 
   return {
     root,
+    ...(stories === undefined
+      ? {}
+      : {
+          storyPage: storyPageSource(),
+          cut: (owner: string, subject: ObservedTest, line: number, hook: boolean) => stories.line(storyCase(owner, subject), line, hook),
+          say: (owner: string, subject: ObservedTest, text: string) => stories.note(storyCase(owner, subject), text),
+          lose: (owner: string, subject: ObservedTest) => void lostCases.add(caseKey(owner, subject.id)),
+        }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
     eyes: (owner, subject, attempt, journal) => {
@@ -175,18 +209,26 @@ export function createExecutionRecorder(
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
-    note: async (page, owner, subject, line) => {
+    note: async (page, owner, subject, line, hook) => {
       const journal = await quietly(page, () => drainExecution(page));
-      if (journal === undefined) return;
+      if (journal === undefined) {
+        if (subject !== undefined) unheard.add(caseKey(owner, subject.id));
+        return 0;
+      }
       seen = true;
       instrumentation = journal.instrumentation;
       const accumulated = owners.get(owner) ?? accumulation();
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
-      if (subject === undefined) return;
-      const held = caseOf(owner, subject);
-      if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line);
-      absorb(held, journal);
+      if (journal.read !== undefined) listener?.laid(subject && caseKey(owner, subject.id), journal.read);
+      if (subject !== undefined) {
+        const held = caseOf(owner, subject);
+        if (line !== undefined) reached.charge(caseKey(owner, subject.id), held, journal.modules, line, hook === true);
+        absorb(held, journal);
+        // The frame stays one object across its documents, so the story can say which frame each part ran in.
+        if (journal.story !== undefined) stories?.add(storyCase(owner, subject), journal.story, page);
+      }
+      return journal.replaced ?? 0;
     },
 
     join: async (page, owner, origin, subject) => {
@@ -210,21 +252,20 @@ export function createExecutionRecorder(
       return journey;
     },
 
-    mark: (owner, complete, subject, duration) => {
+    mark: (owner, complete, subject, duration, limit) => {
       if (duration !== undefined) add(owner, duration);
       if (subject !== undefined) {
         const key = caseKey(owner, subject.id);
+        // A case the page had nothing to drain for is still a case: it stopped,
+        // said something, or drove no page and spent its time all the same.
+        caseOf(owner, subject);
         if (duration !== undefined) add(key, duration);
-        const said = listener?.take(key) ?? [];
-        if (said.length > 0) {
-          heard.set(key, [...(heard.get(key) ?? []), ...said]);
-          // A case that only said something is still a case.
-          caseOf(owner, subject);
-        }
+        if (limit !== undefined) limits.set(key, limitAcross(limit, limits.get(key)).limit!);
+        const said = listener?.take(key);
+        if (said !== undefined) heard.set(key, saidAcross(heard.get(key), said).said!);
         stopped.set(key, stopped.get(key) === false ? false : !complete);
-        // A case that stopped before the page had anything to drain is still a
-        // case, and the one a reader most needs to hear about.
-        if (!complete) caseOf(owner, subject);
+        // One reading per attempt: a retry is a second run of the case.
+        stories?.write(storyCase(owner, subject), !complete, lostCases.delete(key));
       }
       // Conservative on purpose: one failed test in a file retires the whole
       // file's claim, because the crossings it did not reach are unknowable and
@@ -277,14 +318,17 @@ export function createExecutionRecorder(
     return [...cases].map(([key, held]) => {
       const settled = stopped.get(key);
       const duration = spent.get(key);
+      const limit = limits.get(key);
       const eyes = looked.get(key);
-      const said = listener === undefined ? undefined : (heard.get(key) ?? []);
+      const listened = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
+      const said = listened !== undefined && unheard.has(key) ? withoutEmptyReads(listened) : listened;
       const lines = reached.of(key);
       return {
         ...held.of,
         ...(said === undefined ? {} : { said }),
         ...(settled === undefined ? {} : { stopped: settled }),
         ...(duration === undefined ? {} : { duration }),
+        ...(limit === undefined ? {} : { limit }),
         ...(eyes === undefined ? {} : { eyes }),
         ...(lines === undefined ? {} : { lines }),
         journal: journalOf(held.hits),
@@ -407,4 +451,20 @@ export function createExecutionRecorder(
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);
     }
   }
+}
+
+/** A case's said with its empty `read` and `misused` dropped: a page it drove was not listened to. */
+function withoutEmptyReads(said: NonNullable<ObservedCase['said']>): NonNullable<ObservedCase['said']> {
+  const facets = JSON.parse(said) as Record<string, readonly unknown[]>;
+  for (const facet of ['read', 'misused']) if (facets[facet]?.length === 0) delete facets[facet];
+  return JSON.stringify(facets);
+}
+
+/**
+ * Where this worker writes its cases' stories: beside the record it writes,
+ * when the run asked for them.
+ */
+function storiesFor(start: string, root: string, recording: ExecutionRecording) {
+  const directory = askedForStories(() => recordFileFor(root, start, recording));
+  return directory === undefined ? undefined : pageStories(directory);
 }

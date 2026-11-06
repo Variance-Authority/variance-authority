@@ -5,6 +5,7 @@
 > Measure a difference that was never zero, watch it drift, and refuse to photograph a subject that will not hold still.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -448,4 +449,4 @@ need — `/difference` alone pulls in none of the store, renderer or plan code.
 
 ---
 
-**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/raster) · MIT

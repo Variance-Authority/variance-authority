@@ -4,15 +4,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import { parseCoveringArgs } from '../covering-args.js';
+import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
-import { refold } from './covering-reach.js';
+import { covering, formatCovering, type Covering } from './covering.js';
+import { coveringAnswer } from './covering-suites.js';
 import { indexOutput } from './index-command.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
+const asRecorded = (file: string) => `The record does not say which text of ${file} its lines are numbered in, so they are given as recorded.\n`;
+const unheld = (file: string) => `${file} is not on disk, so no text of it is held.\n`;
 const INDEX = {
   tests: [
     { id: 'near', file: 'total.test.ts', name: 'discounts' },
@@ -58,7 +61,7 @@ async function recordFile(): Promise<string> {
   const held = (name: string) => ({ name, digest: digestString(name) });
   await writeTestCoverage(file, {
     version: 3,
-    instrumentation: 'fixture-instrumentation',
+    instrumentation: INSTRUMENTATION_ID,
     tests: [
       { file: 'total.test.ts', complete: true, preconditions: [held('total.test.ts'), held('src/stabilize.ts')] },
       { file: 'flow.test.tsx', complete: true, preconditions: [held('flow.test.tsx')] },
@@ -76,6 +79,9 @@ async function unreadRecordFile(): Promise<string> {
   return file;
 }
 
+/** A `--since` question, which reaches a record with its change read. */
+const changeAnswer = (question: ParsedCovering) => coveringAnswer(question) as Promise<Covering>;
+
 function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
 }
@@ -87,7 +93,7 @@ describe('asking which tests entered a line', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', execution]));
 
     expect(answer.tests?.map((test) => [test.id, test.distance])).toEqual([['near', 1], ['far', 6]]);
-    expect(formatCovering(answer, 'text')).toContain('2 named tests covered line 12 of src/total.ts');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('2 named tests covered line 12 of src/total.ts');
   });
 
   it('answers a function by name and carries the same reading into JSON', async () => {
@@ -96,7 +102,7 @@ describe('asking which tests entered a line', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--function', 'round', '--execution', execution]));
 
     expect(answer.tests?.map((test) => test.id)).toEqual(['far']);
-    expect(JSON.parse(formatCovering(answer, 'json')).target).toEqual({ function: 'round' });
+    expect(JSON.parse(formatCovering(answer, 'json', Date.now())).target).toEqual({ function: 'round' });
   });
 
   it('answers a bare file as ranges, so an unclaimed region shows up as one', async () => {
@@ -105,20 +111,20 @@ describe('asking which tests entered a line', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--execution', execution]));
 
     expect(answer.ranges?.map((range) => [range.startLine, range.endLine])).toEqual([[10, 20], [30, 34]]);
-    expect(formatCovering(answer, 'text')).toContain('2 recorded ranges, 2 named tests');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('2 recorded ranges, 2 named tests');
   });
 
   it('calls a region no case entered unwalked only when every case finished', () => {
     const answer = { file: 'src/total.ts', from: 'cases.bin', target: { line: 40 }, tests: [] };
     const stopped = [{ id: 'far', file: 'flow.test.tsx', name: 'checks out', stopped: true }];
 
-    expect(formatCovering({ ...answer, stopped: [] }, 'text'))
+    expect(formatCovering({ ...answer, stopped: [] }, 'text', Date.now()))
       .toContain('every case that could have reached it finished: unwalked.');
-    expect(formatCovering({ ...answer, stopped }, 'text')).toContain(
+    expect(formatCovering({ ...answer, stopped }, 'text', Date.now())).toContain(
       'a hole: a case that could have reached it stopped first, so the record cannot see it.\n' +
         '  stopped: flow.test.tsx > checks out [far]',
     );
-    expect(formatCovering(answer, 'text')).toBe('No named test covered line 40 of src/total.ts.\n');
+    expect(formatCovering(answer, 'text', Date.now())).toBe(`No named test covered line 40 of src/total.ts.\n${asRecorded('src/total.ts')}`);
   });
 
   it('reads a recorded index as columns and a foreign one as JSON', async () => {
@@ -166,12 +172,11 @@ describe('asking which tests entered a line', () => {
 
     const answer = await covering(parse(['--file', 'src/stabilize.ts', '--execution', execution]));
 
-    expect(answer.preconditionOf).toEqual(['total.test.ts']);
-    expect(formatCovering(answer, 'text')).toBe(
-      'src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
-        'without instrumenting it, or the suite declares it, so no line of it has a recorded case.\n  total.test.ts\n',
-    );
-    expect(formatCovering(answer, 'refs')).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
+    expect(answer).toMatchObject({ preconditionOf: ['total.test.ts'], unheld: true });
+    expect(formatCovering(answer, 'text', Date.now())).toBe('src/stabilize.ts is a precondition of 1 test file, and a change to it selects every one: the run loaded it ' +
+      'without instrumenting it, so no line of it has a recorded case.\n  total.test.ts\n' + unheld('src/stabilize.ts') +
+      'Where and when the test file named here last ran is not known: the record names no commit.\n');
+    expect(formatCovering(answer, 'refs', Date.now())).toBe('src/stabilize.ts precondition of: total.test.ts; no recorded line\n');
   });
 
   it('names only the test files of the cases asked about as holding a precondition', async () => {
@@ -182,12 +187,13 @@ describe('asking which tests entered a line', () => {
 
     expect(asked.preconditionOf).toEqual(['total.test.ts']);
     expect(other.preconditionOf).toEqual([]);
-    expect(formatCovering(other, 'text')).toBe(
+    expect(formatCovering(other, 'text', Date.now())).toBe(
       'Read from the 1 case of flow.test.tsx, not the whole suite.\n' +
         'No test file of these cases holds src/stabilize.ts as a precondition: the run loaded it without instrumenting ' +
-        'it, or the suite declares it, so no line of it has a recorded case.\n',
+        'it, so no line of it has a recorded case.\n' + unheld('src/stabilize.ts') +
+        'Where and when the test file read here last ran is not known: the record names no commit.\n',
     );
-    expect(formatCovering(other, 'refs')).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
+    expect(formatCovering(other, 'refs', Date.now())).toContain('src/stabilize.ts precondition of: no test file of these cases; no recorded line\n');
   });
 
   it('still refuses a file the run never loaded, where the same record holds one it loaded uninstrumented', async () => {
@@ -215,11 +221,12 @@ describe('asking which tests entered a line', () => {
     await expect(asked).rejects.toHaveProperty('kind', 'unloaded');
   });
 
-  it('separates a line nothing recorded from a line nothing covered', async () => {
+  it('separates a line nothing recorded from a line nothing covered, and answers it', async () => {
     const execution = await indexFile();
+    const answer = await covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution]));
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution])))
-      .rejects.toThrow(/outside every recorded region/);
+    expect(answer).toMatchObject({ tests: [], outside: [{ startLine: 2, endLine: 2 }] });
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Line 2 is outside every recorded region, so no case can be said to have run it.');
   });
 
   it('refuses a line and a function together, and a line that is not one', () => {
@@ -274,12 +281,12 @@ describe('asking which cases a change covered', () => {
     await edit(root, 'src/total.ts', 12);
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--execution', execution]));
 
     expect(answer.changed?.map((file) => file.file)).toEqual(['src/total.ts']);
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length]))
       .toEqual([['applyDiscount', 2]]);
-    expect(formatCovering(answer, 'text')).toContain(
+    expect(formatCovering(answer, 'text', Date.now())).toContain(
       '1 changed file since main, 1 changed region: 0 nothing covered, 0 covered by one case.',
     );
   });
@@ -289,9 +296,9 @@ describe('asking which cases a change covered', () => {
     await edit(root, 'src/total.ts', 31);
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--execution', execution]));
 
-    expect(formatCovering(answer, 'text')).toContain('30-34 function round — 1 case, and it is the only witness');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('30-34 function round — 1 case, and it is the only witness');
   });
 
   it('answers a changed test file with the cases it declares, rather than with no row', async () => {
@@ -299,22 +306,17 @@ describe('asking which cases a change covered', () => {
     await edit(root, 'total.test.ts', 1);
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--execution', execution]));
 
     expect(answer.changed?.[0]?.cases.map((test) => test.id)).toEqual(['near']);
-    expect(formatCovering(answer, 'text')).toContain('a test file — 1 named case declared here');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('a test file — 1 named case declared here');
   });
 
   it('refuses a ref with no change behind it rather than reporting a clean one', async () => {
     const { execution } = await checkout();
 
-    await expect(covering(parse(['--since', 'main', '--execution', execution])))
+    await expect(changeAnswer(parse(['--since', 'main', '--execution', execution])))
       .rejects.toThrow(/nothing has changed since/);
-  });
-
-  it('refuses a diff and a place together', () => {
-    expect(() => parse(['--since', 'main', '--file', 'src/total.ts'])).toThrow(OperatorError);
-    expect(() => parse(['--since', 'main', '--line', '3'])).toThrow(/alternatives/);
   });
 });
 
@@ -371,8 +373,7 @@ describe('narrowing the witnesses to what is nearby', () => {
 
     expect(answer.tests?.map((test) => test.id)).toEqual(['here']);
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
-    expect(formatCovering(answer, 'text'))
-      .toContain('1 of 2 named tests kept.');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('1 of 2 named tests kept.');
   });
 
   it('joins two neighbouring ranges a narrowing made agree, and counts the cases of the file', async () => {
@@ -403,22 +404,12 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
   });
 
-  it('keeps apart two neighbours whose stopped cases differ', () => {
-    const range = (startLine: number, endLine: number, stopped?: readonly string[]) => ({
-      startLine, endLine, tests: [],
-      ...(stopped === undefined ? {} : { stopped: stopped.map((id) => ({ id, file: 'a.test.ts', name: id })) }),
-    });
-
-    expect(refold([range(1, 2, ['a']), range(3, 4, ['a']), range(5, 6, ['b']), range(7, 8)]).map((one) => [one.startLine, one.endLine]))
-      .toEqual([[1, 4], [5, 6], [7, 8]]);
-  });
-
   it('prints no depth beside a witness', async () => {
     const execution = await indexFile();
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', execution]));
 
-    expect(formatCovering(answer, 'text')).not.toContain('depth');
+    expect(formatCovering(answer, 'text', Date.now())).not.toContain('depth');
   });
 });
 
@@ -480,7 +471,17 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
     const answer = await covering(parse(['--file', 'src/total.ts', '--line', '3', '--root', root, '--execution', execution]));
 
     expect(answer.tests?.map((test) => [test.id, test.loaded])).toEqual([['near', true]]);
-    expect(formatCovering(answer, 'text')).toContain('* ran only while the module evaluated (its file imports it)');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('* ran only while the module evaluated (its file imports it)');
+  });
+
+  it('reads a region as loaded when it ran while its module evaluated and the graph names nobody who loaded it', async () => {
+    const { root, execution } = await checkout();
+    execFileSync('git', ['rm', '--quiet', 'total.test.ts'], { cwd: root, stdio: 'pipe' });
+    await indexOutput({ cwd: root });
+    const asked = (...flags: string[]) => covering(parse(['--file', 'src/total.ts', ...flags, '--root', root, '--execution', execution]));
+    const [answer, whole] = [await asked('--line', '3'), await asked()];
+    expect(answer.tests).toEqual([]);
+    expect([answer.state, whole.ranges?.find((range) => range.startLine === 3)?.state]).toEqual(['loaded', 'loaded']);
   });
 
   it('carries the same loaders into a change', async () => {
@@ -490,7 +491,7 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
     await writeFile(join(root, 'src/total.ts'), text.join('\n'));
 
     await indexOutput({ cwd: root });
-    const answer = await covering(parse(['--since', 'main', '--root', root, '--execution', execution]));
+    const answer = await changeAnswer(parse(['--since', 'main', '--root', root, '--execution', execution]));
 
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length, region.passengers?.map((test) => test.id)]))
       .toEqual([['line3', 0, ['near']]]);

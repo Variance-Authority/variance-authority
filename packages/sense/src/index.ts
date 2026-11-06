@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense` — the file graph, read off a disk.
  *
- * [`core/relate`](../../core/src/relate) holds the structure and answers the
+ * [`core/relate`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/core/src/relate) holds the structure and answers the
  * questions; it performs no I/O and depends on nothing (ADR-0006). This is the
  * half that opens files: an `oxc` parse for the module record, a resolver for
  * turning a specifier into a path, and a walk that follows what it finds.
@@ -24,7 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
-export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, wordStemsNative } from './dependency-lexicon.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, phraseOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
@@ -34,7 +34,7 @@ export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependenc
  * alternative is a caller carrying its own extension list that drifts from this
  * one the first time a language is added.
  */
-export { LANGUAGES, READABLE, languageOf, grainOf, type LanguageId } from './language.js';
+export { LANGUAGES, READABLE, languageOf, grainOf, readsMembers, type LanguageId } from './language.js';
 
 /**
  * One module's component index, read off its tree: where each component it
@@ -50,10 +50,10 @@ export {
   type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
-export type { SourceSymbol, SourceSymbolKind, TextSpan } from './harvest.js';
-export { enrichSources, type HarvestSubject } from './enrich.js';
+export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
 
 export {
+  decidesResolution,
   treeShapeOf,
   memoryRecordCache,
   openRecordCache,
@@ -81,6 +81,7 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
@@ -113,6 +114,7 @@ export {
   type RecordedCaseDurations,
   type ScopeCounts,
   type RecordedDurations,
+  type RecordOrigin,
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
@@ -158,7 +160,7 @@ export {
   type PreparedCodeMap,
   type ShippedFiles,
 } from './code-map.js';
-export { checkoutListing, checkoutPath, existedAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { checkoutListing, checkoutPath, existedAt, existingAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,
@@ -203,16 +205,33 @@ export {
 } from './journeys.js';
 
 export { gitDigests } from './tree.js';
+export { seedPaths } from './files.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  aliasesOf,
+  declarationExported,
+  declaredDescribedOf,
+  declaredLooseOf,
+  declaredOf,
+  declaredTermsOf,
   encodeSearch,
   exportedDigest,
+  forwardsDigest,
   importersOf,
   memberDeclarationsOf,
+  membersOn,
+  outsideSourcesOf,
   readHelp,
+  type Alias,
+  type ContainerMember,
+  type DeclaredName,
+  type DeclaredNames,
+  type DescribedFile,
   type EncodedSearch,
+  type ExportedDeclaration,
   type HelpPublish,
   type HelpReading,
+  type MemberDeclarations,
   type MemberSite,
   type PublishedRows,
   type SearchGeneration,
@@ -231,5 +250,6 @@ export {
 } from './taint/index.js';
 export { moduleCallsTaint, type ModuleCallsTaintOptions } from './taint/calls.js';
 export { mayMock, mockTaint, type MockTaintOptions } from './taint/mocks.js';
+export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';

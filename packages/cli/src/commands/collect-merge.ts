@@ -1,5 +1,5 @@
 // compass: variance-authority.report.shard-merge
-import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
+import { canonicalize, realizes, type CanonicalValue } from '@variance-authority/core/format';
 import type { SubjectCoverage, SuiteIndex } from '@variance-authority/report/suite-index';
 import type { EvidenceDiagnostic, EvidenceEnvironment, EvidencePart } from './evidence-part.js';
 import { differing } from './merge.js';
@@ -103,7 +103,9 @@ function ownershipRefusal(parts: readonly Named[]): string | undefined {
     const owned = new Set(assignment.queue.flat());
     for (const outcome of part.outcomes) {
       const expected = entries[outcome.position]?.id;
-      if (outcome.subject !== expected) {
+      // A visit realizes its story or the story at a width, and nothing else.
+      const of = outcome.of ?? outcome.subject;
+      if (of !== expected || !realizes(of, outcome.subject)) {
         return `${path} names ${outcome.subject} at position ${String(outcome.position)}, where the plan has ${expected ?? 'nothing'}`;
       }
       if (!owned.has(outcome.position)) {

@@ -21,13 +21,16 @@ use variance_sense_instrument::digest;
 
 mod acquire;
 mod append_index;
+mod assigned_object;
 mod batch;
 mod case_fold;
 mod case_id;
 mod case_lines;
 mod case_owner;
-mod case_preconditions;
+mod case_said;
+mod case_said_napi;
 mod case_shard;
+mod commit_text;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod large_alloc;
@@ -37,6 +40,7 @@ mod large_alloc;
 static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
 mod conditions;
 mod coverage_rows;
+mod crossing_sets;
 mod declarations;
 mod declared_role;
 mod declared_roles_check;
@@ -57,8 +61,17 @@ mod grammar;
 mod graph_dominators;
 mod graph_index;
 mod harvest;
+mod change_tree;
 mod held;
+#[cfg(unix)]
+mod held_listing;
+mod help_aliases;
+mod help_declared;
+mod help_in_file;
+mod help_member_uses;
 mod help_members;
+mod help_origin;
+mod help_own_uses;
 mod help_publish;
 mod help_search;
 mod help_usage;
@@ -97,6 +110,7 @@ mod journeys_steps;
 mod journeys_walk;
 #[cfg(feature = "grammars")]
 mod languages;
+mod lfs;
 mod loads;
 mod log;
 mod louvain;
@@ -106,6 +120,7 @@ mod module_moved;
 mod module_readers;
 mod module_shape;
 mod module_verdict;
+mod nested;
 mod off_thread;
 mod order;
 mod orient_map;
@@ -129,6 +144,7 @@ mod ready_index;
 mod record;
 mod record_combine;
 mod record_coverage;
+mod record_coverage_address;
 mod record_coverage_columns;
 mod record_coverage_dictionary;
 mod record_coverage_fold;
@@ -140,6 +156,7 @@ mod record_layout;
 mod record_parts;
 mod record_start;
 mod resolve;
+mod resolve_export;
 mod seed;
 mod segment;
 mod side_effects;
@@ -148,8 +165,11 @@ mod source_tree;
 mod source_update;
 mod specifier;
 mod stored;
+mod text_digests;
 mod top_level;
 mod tree;
+#[cfg(unix)]
+mod watchman;
 mod witness;
 mod witness_aliases;
 
@@ -226,6 +246,9 @@ pub struct GitTree {
     /// The package manifests and `tsconfig*.json` files in each directory, made
     /// the first time a scan asks where built output comes from.
     listing: OnceLock<Arc<emitted::Listing>>,
+    /// How the tree was come by, when a change source other than git had a say.
+    #[cfg(unix)]
+    change: Option<held_listing::Change>,
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -276,6 +299,8 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         unhashed: snapshot.unhashed,
         seeds,
         listing: OnceLock::new(),
+        #[cfg(unix)]
+        change: None,
     }
 }
 
@@ -398,6 +423,8 @@ impl GitTree {
     /// side, or `null` when the JavaScript update has to (`source_update.rs`).
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        #[cfg(unix)]
+        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
         source_update::update(
             options,
             source_update::Tree {
@@ -406,6 +433,10 @@ impl GitTree {
                 oids: &self.oids,
                 seeds: &self.seeds,
                 listing: self.listing(),
+                regular: &self.regular,
+                unhashed: &self.unhashed,
+                #[cfg(unix)]
+                carry,
             },
         )
     }

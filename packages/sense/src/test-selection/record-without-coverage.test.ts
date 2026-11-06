@@ -112,7 +112,7 @@ describe('an uninstrumented run that keeps cases', () => {
     // One build reads what it wrote: a record it cannot read is another build's.
     await writeFile(record, 'not a record');
 
-    await expect(landRun(record, uninstrumented, root, undefined, fresh())).rejects.toThrow(new RegExp(`${record}.*delete it and run again`, 'su'));
+    await expect(landRun(record, uninstrumented, root, undefined, fresh())).rejects.toThrow(new RegExp(`${record}.*It was written by another build, so it is left as it was and this run lays nothing over it; deleting it is the operator's\\.$`, 'su'));
     expect(readFileSync(record, 'utf8')).toBe('not a record');
   });
 
@@ -128,9 +128,13 @@ describe('a record without coverage', () => {
     expect(() => openTestCoverage(readFileSync(record))).toThrow(RecordWithoutCoverage);
   });
 
-  it('is laid over by a covered run as nothing to lay over, and keeps the cases', async () => {
+  it('is laid over by a covered run as nothing to lay over, and keeps the cases the run in part kept none of', async () => {
     await landRun(record, uninstrumented, root, undefined, fresh());
-    const covered: TestCoverage = { ...uninstrumented, modules: [{ file: 'src/a.ts', sourceDigest: 'd', instrumented: false, blocks: [] }] };
+    const covered: TestCoverage = {
+      ...uninstrumented,
+      tests: [{ file: 'a.test.ts', complete: false, preconditions: [] }],
+      modules: [{ file: 'src/a.ts', sourceDigest: 'd', instrumented: false, blocks: [] }],
+    };
 
     await landRun(record, covered, root);
 

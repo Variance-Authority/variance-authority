@@ -1,5 +1,5 @@
 import { askCoverageFile } from './coverage-file.js';
-import { diffPath } from './diff-lines.js';
+import { changedLines, diffPath, gapAfter, type LineRange } from './diff-lines.js';
 import { frameOf } from './frame.js';
 import { keptTexts } from './kept-texts.js';
 import { findModules } from './lookup.js';
@@ -27,6 +27,8 @@ export interface Placement {
   readonly frame: 'recorded' | 'mapped' | 'stale';
   /** The commit the record stands at, when it says. */
   readonly at?: string;
+  /** The text the record's lines are numbered in: the held one under `recorded`, the one found under `mapped`. */
+  readonly recorded?: string;
   /**
    * A recorded range in the held text. `moved` when an edit touched it, with
    * the lines it spans now; absent when the edit removed every line of it.
@@ -37,41 +39,64 @@ export interface Placement {
 }
 
 /**
- * Frame one file's text against the snapshot that recorded it.
- *
- * The recorder wrote a digest of every module's text beside its rows, so the
- * snapshot answers whether a text is the one it measured; `frameOf` asks it,
- * once for the held text and once for the text at the recorded commit — or,
- * for a run recorded over an edit, the text its landing kept. The
- * line map between the recorded text and the held one is git's: `diff
- * --no-index` over the two, which is the same hunk arithmetic every other
- * reading of a change here takes from git.
- *
- * Absent when the snapshot holds no instrumented row for the file, so there is
- * no digest to hold the text against — which is not a frame, and not `stale`.
+ * Frame each held text against the snapshot that recorded its file, by the
+ * digest the recorder wrote beside its rows (`frameOf`), and map its lines from
+ * the recorded text, the one at the recorded commit or the one its landing
+ * kept, by git's `diff --no-index`. A file with no instrumented row is absent.
  */
-export function placeInText(snapshot: string, root: string, file: string, text: string): Placement | undefined {
+export function placeInTexts(snapshot: string, root: string, texts: ReadonlyMap<string, string>): ReadonlyMap<string, Placement> {
+  // The snapshot is opened once, and the recorded texts are read together.
   const asked = askCoverageFile(snapshot, (coverage) => {
-    const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
-    if (rows.length === 0) return undefined;
-    const rowsOf = new Map([[file, rows]]);
-    const held = frameOf(coverage, [file], rowsOf, () => text);
-    if (held !== 'stale') return { frame: 'recorded' as const, commit: coverage.commit };
-    const recorded = frameOf(coverage, [file], rowsOf, textAtRecording(root, [file]), keptTexts(root));
-    return typeof recorded === 'string'
-      ? { frame: 'stale' as const, commit: coverage.commit }
-      : { frame: 'mapped' as const, commit: coverage.commit, text: recorded.text };
+    const sourceAt = textAtRecording(root, texts.keys());
+    const kept = keptTexts(root);
+    const frames = new Map<string, { readonly frame: 'recorded' } | { readonly frame: 'stale' } | { readonly frame: 'mapped'; readonly text: string }>();
+    for (const [file, text] of texts) {
+      const rows = findModules(coverage, file).filter((module) => coverage.moduleInstrumented.at(module) === 1);
+      // No digest to hold the text against, which is not a frame, and not `stale`.
+      if (rows.length === 0) continue;
+      const rowsOf = new Map([[file, rows]]);
+      if (frameOf(coverage, [file], rowsOf, () => text) !== 'stale') {
+        frames.set(file, { frame: 'recorded' });
+        continue;
+      }
+      const recorded = frameOf(coverage, [file], rowsOf, sourceAt, kept);
+      frames.set(file, typeof recorded === 'string' ? { frame: 'stale' } : { frame: 'mapped', text: recorded.text });
+    }
+    return { commit: coverage.commit, frames };
   });
-  if (asked === undefined) return undefined;
   const at = asked.commit === undefined ? {} : { at: asked.commit };
-  if (asked.frame === 'recorded') {
-    return { frame: 'recorded', ...at, place: (lines) => ({ lines, moved: false }), recordedLine: (line) => line };
+  const placements = new Map<string, Placement>();
+  for (const [file, framed] of asked.frames) {
+    const text = texts.get(file)!;
+    if (framed.frame === 'stale') {
+      placements.set(file, { frame: 'stale', ...at, place: () => undefined, recordedLine: () => undefined });
+    } else if (framed.frame === 'recorded') {
+      placements.set(file, { frame: 'recorded', ...at, recorded: text, place: (lines) => ({ lines, moved: false }), recordedLine: (line) => line });
+    } else {
+      const hunks = hunksBetween(framed.text, text);
+      placements.set(file, {
+        frame: 'mapped', ...at, recorded: framed.text, place: (lines) => placeThrough(hunks, lines), recordedLine: (line) => backThrough(hunks, line),
+      });
+    }
   }
-  if (asked.frame === 'stale') {
-    return { frame: 'stale', ...at, place: () => undefined, recordedLine: () => undefined };
-  }
-  const hunks = hunksBetween(asked.text, text);
-  return { frame: 'mapped', ...at, place: (lines) => placeThrough(hunks, lines), recordedLine: (line) => backThrough(hunks, line) };
+  return placements;
+}
+
+/** {@link placeInTexts} for one file. */
+export function placeInText(snapshot: string, root: string, file: string, text: string): Placement | undefined {
+  return placeInTexts(snapshot, root, new Map([[file, text]])).get(file);
+}
+
+/**
+ * A range of the text `from` placed in the text `to`, through git's line map
+ * between the two: whole and unmoved when no hunk touched it, `moved` when one
+ * did, absent when the edit removed every line of it. `covering` reads it with
+ * the held text as `from` and the text a test file ran over as `to`, so a line
+ * or a function an edit elsewhere in the file left alone is the same in both.
+ */
+export function placeAcross(from: string, to: string): Placement['place'] {
+  const hunks = hunksBetween(from, to);
+  return (range) => placeThrough(hunks, range);
 }
 
 /** One `-U0` hunk: old lines `oldStart..+oldCount` became new `newStart..+newCount`. */
@@ -107,14 +132,109 @@ export function hunksOf(diff: string): readonly Hunk[] {
  * a reader takes its lines where they were.
  */
 export function hunksByFile(diff: string): ReadonlyMap<string, readonly Hunk[]> {
-  const byFile = new Map<string, readonly Hunk[]>();
+  return new Map(fileParts(diff).map(([file, part]) => [file, hunksOf(part)]));
+}
+
+/** A diff cut by file, under the name {@link hunksByFile} gives each. */
+function fileParts(diff: string): readonly (readonly [string, string])[] {
+  const parts: (readonly [string, string])[] = [];
   for (const part of diff.split(/^(?=diff --git )/mu)) {
     const old = /^--- (.*)$/mu.exec(part);
     const added = /^\+\+\+ (.*)$/mu.exec(part);
     const file = (old === null ? undefined : diffPath(old[1]!)) ?? (added === null ? undefined : diffPath(added[1]!));
-    if (file !== undefined) byFile.set(file, hunksOf(part));
+    if (file !== undefined) parts.push([file, part]);
   }
-  return byFile;
+  return parts;
+}
+
+/** A `-U0` diff read for its lines and for the hunks that say where they stand on the new side. */
+export interface ChangeRead {
+  readonly lines: ReadonlyMap<string, readonly LineRange[]>;
+  readonly hunks: ReadonlyMap<string, readonly Hunk[]>;
+}
+
+/** A hunk, with the lines `changedLines` charged to it alone. */
+interface ChargedHunk {
+  readonly hunk: Hunk;
+  readonly lines: readonly LineRange[];
+}
+
+/** One file's part of a diff, hunk by hunk: `changedLines` reads each under the file's header. */
+function chargedHunks(part: string): readonly ChargedHunk[] {
+  const [header = '', ...bodies] = part.split(/^(?=@@ )/mu);
+  return bodies.map((body) => ({ hunk: hunksOf(body)[0]!, lines: [...changedLines(header + body).values()].flat() }));
+}
+
+/**
+ * A change listed from one commit, read in the numbers of another: `diff` runs
+ * from that other commit to the same tree. Every file listed stays. A line
+ * cannot be carried by {@link placeThrough} here: a line the record's side wrote
+ * has no place to go, and a hunk both sides wrote is read at its own grain.
+ */
+export function changeInRecord(diff: string, listed: ChangeRead): ReadonlyMap<string, readonly LineRange[]> {
+  const read = listedParts(diff, listed);
+  const lines = changedLines(read);
+  const hunks = new Map(fileParts(read).map(([file, part]) => [file, chargedHunks(part)]));
+  return new Map([...listed.lines].map(([file, whole]) => [file, inRecord(lines.get(file), hunks.get(file) ?? [], listed.hunks.get(file), whole)]));
+}
+
+/**
+ * The parts of `diff` that name a listed file, on either side, so what is parsed
+ * follows the change rather than how far the record stands from the tree. Each
+ * part's names are `changedLines`' own, read from its header alone: a part with
+ * no hunk, a binary, names its file there too.
+ */
+function listedParts(diff: string, listed: ChangeRead): string {
+  const named = (part: string): boolean => {
+    const body = part.search(/^@@ /mu);
+    return [...changedLines(body === -1 ? part : part.slice(0, body)).keys()].some((file) => listed.lines.has(file));
+  };
+  return diff.split(/^(?=diff --git )/mu).filter(named).join('');
+}
+
+/**
+ * One listed file in the record's numbers. The record's own hunks that meet the
+ * change stay whole, as hunks are the grain where both sides wrote, and every
+ * other line of the change is carried back to the line the record holds it on.
+ * A file either diff shows no lines of, a binary, is held at file grain.
+ */
+function inRecord(ranges: readonly LineRange[] | undefined, hunks: readonly ChargedHunk[], change: readonly Hunk[] | undefined, whole: readonly LineRange[]): readonly LineRange[] {
+  if (change === undefined || change.length === 0) return ranges ?? whole;
+  if (ranges !== undefined && hunks.length === 0) return ranges;
+  const written = hunks.filter(({ hunk }) => change.some((other) => meet(hunk, other))).flatMap(({ lines }) => lines);
+  const held = hunks.map(({ hunk }) => hunk);
+  return [...written, ...change.flatMap((hunk) => carried(hunk, held))].sort((one, other) => one.start - other.start || one.end - other.end);
+}
+
+/** The lines the record holds that a hunk of the change stands on: a line a hunk from the record wrote has none, and a removal no such hunk met opens a gap there. */
+function carried(change: Hunk, hunks: readonly Hunk[]): readonly LineRange[] {
+  if (change.newCount === 0) {
+    if (hunks.some((hunk) => meet(hunk, change))) return [];
+    const line = backThrough(hunks, change.newStart);
+    return line === undefined ? [] : [gapAfter(line)];
+  }
+  const runs: { start: number; end: number }[] = [];
+  for (let at = change.newStart; at < change.newStart + change.newCount; at++) {
+    const line = backThrough(hunks, at);
+    if (line === undefined) continue;
+    const run = runs.at(-1);
+    if (run?.end === line - 1) run.end = line;
+    else runs.push({ start: line, end: line });
+  }
+  return runs;
+}
+
+/** Whether two hunks' new sides share a line of the tree. A pure removal has no line, so its position meets what touches it. */
+function meet(one: Hunk, other: Hunk): boolean {
+  const [from, to] = [treeSpan(one), treeSpan(other)];
+  if (one.newCount === 0 || other.newCount === 0) return from.start <= to.end && to.start <= from.end;
+  return from.start < to.end && to.start < from.end;
+}
+
+/** A hunk's new side as offsets between the tree's lines. Git names the line a pure removal follows, so its offset is that line's end. */
+function treeSpan(hunk: Hunk): { readonly start: number; readonly end: number } {
+  const start = hunk.newCount === 0 ? hunk.newStart : hunk.newStart - 1;
+  return { start, end: start + hunk.newCount };
 }
 
 /**

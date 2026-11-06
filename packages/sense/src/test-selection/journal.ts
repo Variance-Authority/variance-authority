@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/sense/journal` — the same instrument, over a wire.
  *
- * [Spec 0028](../../../../docs/specs/0028-the-instrument.md) states the rule this
+ * [Spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states the rule this
  * file discharges: *a browser needs a different transport, not a different
  * instrument.* A browser is the case that exists, and not the boundary this
  * draws. What the Vitest seam has and this does not is a recorder that ran the
@@ -37,13 +37,14 @@
  * that also read it are not selected. So every region entered while a module
  * was evaluating — its root, a helper the top level called — is attributed to
  * **every subject the run drained**, over-including in the direction
- * [`selecting.md`](../../../../docs/selecting.md) already argues for. The page
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) already argues for. The page
  * marks those regions itself ([`instrument`](../instrument/index.ts)); the
  * join only reads the mark.
  */
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
@@ -57,21 +58,19 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
-  codeUnitOrder,
   isMissing,
   projectPath,
 } from './instrumented-modules.js';
 import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
+import { prepareRecord } from './replaced-record.js';
 import {
-  noteSeeded,
-  seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -98,6 +97,9 @@ export {
 export type { ModuleId };
 export { moduleId } from './captured-modules.js';
 
+/** Replacing one hook of a resolved Vite plugin, keeping its `order` and `filter`. */
+export { afterHook, type AfterHook, type HookedPlugin } from './plugin-hooks.js';
+
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
 
@@ -118,7 +120,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
-export { preconditionText, type CasePrecondition } from './case-precondition-column.js';
+export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
   STAGE_VARIABLE,
   closeStage,
@@ -375,6 +377,7 @@ export async function recordExecution(
         complete: whole,
         preconditions: [...held].map(([name, digest]) => ({ name, digest })),
         ...(subject.duration === undefined ? {} : { duration: subject.duration }),
+        ...(subject.phases === undefined ? {} : { phases: subject.phases }),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));
@@ -396,14 +399,6 @@ export async function recordExecution(
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
   };
 
-  // Read-modify-write, and more than one process does it. A Playwright suite
-  // runs its workers as separate processes over one index, so the exclusion is
-  // between processes or it is nothing: two unlocked workers would each merge
-  // against the index they read at the start and the later rename would drop the
-  // earlier worker's whole contribution — silently, and in the unsafe direction.
-  // A worktree layers onto the repository's months of recording rather than
-  // onto nothing. A no-op here and after the first run.
-  noteSeeded(await seedTestCoverage(coverageFile, root, current.instrumentation, options.cacheRoot));
   // In the record, never beside it, and only for a driver that asked. A file the
   // coverage says ran to the end has its cases replaced, and the rest of the
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are
@@ -419,7 +414,15 @@ export async function recordExecution(
           run: { tests, ...(commit === undefined ? {} : { commit }) },
           ...(eyes === undefined ? {} : { eyes }),
         };
-  const merged = await withIndexLock(coverageFile, async () => {
+  // Read-modify-write, and more than one process does it. A Playwright suite
+  // runs its workers as separate processes over one index, so the exclusion is
+  // between processes or it is nothing: two unlocked workers would each merge
+  // against the index they read at the start and the later rename would drop the
+  // earlier worker's whole contribution — silently, and in the unsafe direction.
+  const merged = await withIndexLock(coverageFile, async (lock) => {
+    // A worktree layers onto the repository's months of recording rather than
+    // onto nothing. A no-op here and after the first run.
+    await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
     await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });

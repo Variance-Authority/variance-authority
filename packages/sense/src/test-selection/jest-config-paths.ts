@@ -25,11 +25,6 @@ export function setupPaths(config: JestConfig, rootDir: string): readonly string
     .flatMap((file) => configuredPath(file, rootDir));
 }
 
-/** A custom environment runs before `setupFiles`, so it is an input and never probed source. */
-export function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
-  return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
-}
-
 /** Resolve one configuration entry only when it names a file rather than a package. */
 export function configuredPath(file: string, rootDir: string): readonly string[] {
   return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')

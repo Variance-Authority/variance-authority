@@ -7,8 +7,13 @@ declaring files, roles, custom properties, and the regions a journey covered. It
 does not read the repository and it is not code search; for a name in the
 source, ask `search` in the [workspace API](workspace-api.md).
 
-Hits are ranked by how many of your words matched and how rare each word is.
-Past a trailing plural there is no stemming. The rule for expanding a query is
+Hits are ranked by how many of your words matched, then by how many pairs of
+adjacent words a hit says side by side in one value, then by how rare each word
+is. Type a label's words in the label's order. A match on a word more than half
+the searched subjects have prints `(in N of M)`: it found the hit and does not
+distinguish it. When every word is that common, the answer says so above the
+list; add a word only the subject you mean would show. Past a trailing plural
+there is no stemming. The rule for expanding a query is
 in `SKILL.md` under *Matching is lexical*.
 
 ## Ask in a different kind of name
@@ -80,9 +85,10 @@ the anchor has to pick the surface as well. One relation per question; two is
 refused.
 
 **`--inside` is the only relation a run without layout can answer.** The other
-five are decided from the rectangles the run resolved. A run that resolved no
-layout refuses them rather than falling back to document order, and prints that.
-Containment needs no rectangle.
+five are decided from the rectangles the run resolved. On a run that resolved
+no layout, they answer where the anchor is and say the run cannot tell what sits
+in that relation to it, rather than falling back to document order. Containment
+needs no rectangle.
 
 On a relation answer, read three things before acting:
 

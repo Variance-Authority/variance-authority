@@ -80,10 +80,10 @@ function line(name: string, evidence: unknown, detail: string | undefined): stri
 function producerGuidance(subject: ObservabilitySubject): readonly string[] {
   const missing = [
     subject.report === undefined
-      ? '  visual/report — run `variance run` with a configured `report` path and supply that RunReport; https://variance-authority.dev/start-cli'
+      ? '  visual/report — run `variance run` with a configured `report` path and supply that RunReport; https://variance-authority.dev/start/cli'
       : undefined,
     subject.presentations === undefined
-      ? '  presentation readings — acquire PresentationReport values with `@variance-authority/presentation/playwright`; https://variance-authority.dev/presentation'
+      ? '  presentation readings — acquire PresentationReport values with `@variance-authority/presentation/playwright`; https://variance-authority.dev/docs/presentation'
       : undefined,
     subject.execution === undefined
       ? '  runtime journey — supply an ExecutionIndex from a producer holding stable per-test crossings; Sense ships the query, not that producer; https://variance-authority.dev/reference/packages/sense'

@@ -66,7 +66,10 @@ outperformed method-level in practice**, because tracking finer dependencies
 costs more than the extra selection saves. Our selection output is test-file
 paths and the runner executes every test inside a selected file; Ekstazi says
 that is likely the right engineering answer rather than a limitation, and puts
-the burden on a measurement to say otherwise.
+the burden on a measurement to say otherwise. Our `loads` recipe records at
+its grain without its smart checksums: a change to a comment or to whitespace
+selects every test file that loaded the module, where Ekstazi's checksum
+leaves debug information out and selects nothing.
 
 **STARTS** (Legunsen, Shi, Marinov) is the static class-firewall counterpart,
 evaluated head to head against Ekstazi, and found static selection competitive
@@ -83,6 +86,33 @@ predicts.
 its interesting move is not selection. It **schedules** by a cost/benefit model,
 and it carries a per-target flakiness rate as a property of the test rather than
 of the run — which is what [`history.md`](../history.md) does per subject.
+
+### Safety, and the world it assumes
+
+**Rothermel and Harrold** (*Analyzing Regression Test Selection Techniques*,
+TSE 1996) set the terms selectors are still judged by: inclusiveness,
+precision, efficiency and generality. A selector is **safe** when it keeps
+every test whose outcome a change could alter, and safe only under assumptions
+it states. **Legunsen et al.** (FSE 2016) ran static selection against Ekstazi
+and found it unsafe on real projects, with reflection as the main cause; **Shi
+et al.** (OOPSLA 2019) followed with reflection-aware static selection. A breach of the stated assumption is a **safety violation**.
+
+**Livshits et al.** (*In Defense of Soundiness*, CACM 2015) gave the honest
+alternative for analyses that cannot be sound: name the language features they
+treat unsoundly instead of claiming soundness. **Reiter** (1978) named the
+assumption underneath both: under the **closed world** what is not recorded is
+false, under the open world it is unknown.
+
+Static analysers that cannot be sound on an existing codebase accept what they
+report once as a **baseline** and report only what departs from it: PHPStan's
+`--generate-baseline`, Psalm's `--set-baseline`, detekt's baseline file.
+
+**What it means here.**
+[Spec 0105](../specs/0105-a-run-records-where-its-loads-drift-from-the-walk.md)
+does not ask a suite which world it is in. A record's **drift** is the loads
+its imports do not reach, and the mainline's record at a pull request's merge
+base carries the baseline. The review reports where the shape changed against
+it, the soundiness way, and a baseline explains every load its record holds.
 
 ### Dominators, and where a region begins
 
@@ -163,6 +193,35 @@ correlation over who broke what. That is the AAA boundary, and this project
 addresses it only for its own naming needs — the dragon rule, and the Act and
 Assert vocabulary in [`scenarios.md`](../scenarios.md). Neither of those reaches
 source. Nothing here joins an authored Act to the regions executed under it.
+
+### Selection in continuous integration, and the record's age
+
+A selector reads a record made at some earlier commit, and in continuous
+integration the mainline moves while the record is made. **Elbaum, Rothermel
+and Penix** (FSE 2014) measured selection and prioritization on Google's
+pre-submit and post-submit streams, and selected by recent failure history
+rather than by coverage. **Shi, Zhao and Marinov** (*Understanding and
+Improving Regression Test Selection in Continuous Integration*, ISSRE 2019) ran
+Ekstazi and STARTS over real CI histories: the failures selection missed were
+almost all flaky tests, not unsafe skips.
+
+The mainline itself is kept green by queues. The **not rocket science rule**,
+as Graydon Hoare stated it for bors, tests the merge result before it lands.
+**Uber's SubmitQueue** (Ananthanarayanan et al., *Keeping Master Green at
+Scale*, EuroSys 2019) builds speculative combinations of pending changes and
+reports thousands of commits a day; **Shopify**'s merge queue posts describe
+about 400 commits a day to master. **Chromium**'s last known good revision
+(LKGR) published the newest commit that passed, for blame and for syncing to.
+A queue tests the merge, not whether two changes interfere in meaning, which
+**Horwitz, Prins and Reps** (*Integrating Noninterfering Versions of Programs*,
+TOPLAS 1989) defined.
+
+**What it means here.** A mainline record that refreshes only the traces of
+the tests a landed change selects is Ekstazi's invariant (Gligoric et al.,
+above) applied per commit; we found no work that publishes a record that way.
+[Journal 0078](journal/0078-a-record-behind-the-merge-base-narrows-best-effort.md)
+models a record behind the merge base, what selection over it can promise,
+and measures its lag here.
 
 ## Flake detection without a rerun
 
@@ -303,6 +362,20 @@ per-test coverage as an interchange artifact at method granularity — the close
 published thing to our record's rows, and the evidence that a per-test format is
 a thing somebody already needed.
 
+**Combinatorial coverage measurement** (Kuhn et al., NIST IR 7878, 2012, and
+NIST's CCM tool) measures the share of t-way combinations of configuration
+values a test set arranged. It is the field's reading of *was anonymous ×
+timeout ever tested*, taken over the inputs alone: it cannot say whether the
+combination reached the code it was arranged for. **QuickCheck's `classify`,
+`label` and `cover`** (and Hypothesis's `event`) report which labelled
+scenarios the passing cases held, and `cover` fails a run whose scenario is
+under-represented: the closest existing form of *why did the others pass*,
+over generated inputs and without the code they reached. **Trace queries**
+(TraceQL, Honeycomb) filter spans by attribute with conjunction and negation,
+over production traces rather than a suite's cases. A witness in
+[spec 0103](../specs/0103-a-behaviour-names-the-cases-that-witnessed-it.md)
+joins the arranged state, the case's name and the region on one case.
+
 **Per-test coverage exists as a feature and not as a metric.** JetBrains IDEs
 track it and answer *show tests covering line*; **Parasoft Jtest** records
 covered code per test case; **Wallaby.js** puts per-line covered / not-covered /
@@ -381,6 +454,27 @@ generated per task, and wired to code by coordinates. Codemaps' risk was cost
 per question; Compass's is staleness, which its own `growth-and-drift.md` says
 no structural comparison sees. The rule for both: **derive what an owner knows;
 declare only what no owner knows.**
+
+**TDAD** (Alonso, Yovine & Braberman, arXiv 2603.17973, 2026) measures what
+an agent should be told before it edits. Built from an AST code-to-test graph
+with weighted impact analysis, it hands the agent the tests a change is most
+likely to break, and the agent reads them with `grep` and runs them with
+`pytest`. In a 100-instance SWE-bench Verified experiment using a quantized
+Qwen3-Coder 30B, the test-first prompt produced a 9.94% test-level regression
+rate against 6.08% for the plain prompt. The increase was concentrated in
+catastrophic failures, a few patches that broke every test they were checked
+against, and the arms differed in more than the prompt: they ran one after
+another, and which skill file and test map the third arm used is not clear.
+The result does not establish that genuine test-first development increases
+regressions. The more defensible finding is that generic workflow instructions
+were not enough to prevent destructive patches, while targeted test-impact
+information was associated with much lower aggregate breakage, 1.82%, in this
+experiment. The samples are small, no significance test is run, a second model
+on 25 instances regressed nothing in either arm, and it is a preprint. Its map
+is static and file-level, and says nothing of when it was built; ours is
+recorded per case. For us, it means an answer names the facts and the
+questions they open, and a workflow instruction is no substitute for them
+([spec 0106](../specs/0106-a-need-names-its-next-move.md)).
 
 **Crossing facts about files** is a query language's job, and the field has
 two ends of it. Code search — Sourcegraph's `file:`, `content:` and
@@ -482,6 +576,7 @@ naive count.
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
 | Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
 | An index saves the agent's exploration | SWE-grep: trained parallel grep matches frontier retrieval in about four turns, with no index | The claim needs an agent benchmark in tool calls and tokens before a product page quotes it |
+| A model trained on the history routes a question better than counting | Our own run: a small model on this repository's commits beat random and the prior, and lost to BM25 at the parent commit and to time-decayed kNN | Not enough labelled material; retry only with about ten times more, or a question direct algorithms cannot answer |
 | Structure is the import graph, rolled up | Oliva & Gerosa: 91% of co-change links have no structural dependency | Spec 0096's first definition of an edge; a structure reading names which signal it read |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a

@@ -1,0 +1,239 @@
+{
+  "documentDigest": "v1:89ba66112cef446840d24d3e4f12849e",
+  "identity": {
+    "renderer": "playwright-chromium",
+    "engine": "chromium@151.0.7922.34",
+    "platform": "linux/x64",
+    "deviceScaleFactor": 1,
+    "fonts": [
+      "ui-sans-serif/400/normal/sha256-case-system-stack"
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
+  },
+  "width": 292,
+  "height": 119,
+  "missingFonts": [
+    "ui-sans-serif"
+  ],
+  "components": [
+    {
+      "component": "(unattributed)",
+      "instances": 1,
+      "structure": "v1:ca088530d135b5702186139590b08e71",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:acd65fc5569f99f628b4be39286c3328",
+      "geometry": "v1:d47f41e7025066ade52344d905a37f74",
+      "boxes": [
+        {
+          "x": 366,
+          "y": 324.5,
+          "width": 292,
+          "height": 119
+        }
+      ],
+      "values": {
+        "box-sizing": [
+          "border-box"
+        ],
+        "margin-bottom": [
+          "324.5px"
+        ],
+        "margin-left": [
+          "366px"
+        ],
+        "margin-right": [
+          "366px"
+        ],
+        "margin-top": [
+          "324.5px"
+        ],
+        "padding-bottom": [
+          "16px"
+        ],
+        "padding-left": [
+          "16px"
+        ],
+        "padding-right": [
+          "16px"
+        ],
+        "padding-top": [
+          "16px"
+        ]
+      }
+    },
+    {
+      "component": "ErrorBoundary",
+      "instances": 1,
+      "structure": "v1:39a7998628dccb1003f8d042935f2b77",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Rows",
+      "instances": 1,
+      "structure": "v1:d24770d0e24c1024bafbbb2d5ebff3bc",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:0c5b92873d210e025ebf95847b60869c",
+      "geometry": "v1:f166d7b39d65cac3e8a40f801c7223a0",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Stack",
+      "instances": 1,
+      "structure": "v1:5df7e2c89558e0791cacb2230201b52f",
+      "semantics": "v1:ec51f53f1faeadd124b46fa3726ee064",
+      "text": "v1:3199f490bc05536e131c3a3892738fe8",
+      "style": "v1:da9b2f1d8d38c3901e6c0533bbb67a70",
+      "geometry": "v1:a934d6ae5d6d82ad88b9292d817a0117",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {
+        "--case-text": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "color": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "column-gap": [
+          "12px"
+        ],
+        "display": [
+          "flex"
+        ],
+        "flex-direction": [
+          "column"
+        ],
+        "row-gap": [
+          "12px"
+        ]
+      }
+    },
+    {
+      "component": "SuspendedRoster",
+      "instances": 1,
+      "structure": "v1:36a32e97002459b0dffbae56000284b7",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Tokens",
+      "instances": 1,
+      "structure": "v1:de2a3bbd56c11e3ed047b74123590220",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:0c5b92873d210e025ebf95847b60869c",
+      "geometry": "v1:da748ee1e8a91a38cf8d9ceaf2857084",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {
+        "font-family": [
+          "ui-sans-serif, system-ui, sans-serif"
+        ]
+      }
+    },
+    {
+      "component": "WithCallback",
+      "instances": 1,
+      "structure": "v1:64c6434098cd784de8f8ad3d970611df",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "hookified",
+      "instances": 1,
+      "structure": "v1:6c01e572e11bd0d02ba6e9f04c84cbff",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "unboundStoryFn",
+      "instances": 1,
+      "structure": "v1:32b90a7bdbad2e00dd3044e4d00ea8dd",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 382,
+          "y": 340.5,
+          "width": 260,
+          "height": 87
+        }
+      ],
+      "values": {}
+    }
+  ],
+  "snapshot": "v1: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",
+  "findingMarks": [],
+  "placedFor": {
+    "subject": "story:case-surface--suspense-settles"
+  }
+}

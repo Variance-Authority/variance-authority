@@ -13,13 +13,13 @@ const thrown = (call: () => void): string => {
   return 'nothing thrown';
 };
 
-const atTop = thrown(() => variancePrecondition({ top: true })); // at the top
+const atTop = thrown(() => variancePrecondition('fixture', { top: true })); // at the top
 
 describe('outside', () => {
-  const inDescribe = thrown(() => variancePrecondition({ described: true })); // in a describe
+  const inDescribe = thrown(() => variancePrecondition('fixture', { described: true })); // in a describe
   let inBeforeAll = 'never ran';
   beforeAll(() => {
-    inBeforeAll = thrown(() => variancePrecondition({ 'before all': true })); // in a beforeAll
+    inBeforeAll = thrown(() => variancePrecondition('fixture', { 'before all': true })); // in a beforeAll
   });
 
   it('throws at the top level, in a describe callback and in a beforeAll', () => {
@@ -32,5 +32,5 @@ describe('outside', () => {
 
 // Printed rather than thrown, so the file's recording is still written.
 afterAll(() => {
-  console.log(thrown(() => variancePrecondition({ 'after all': true }))); // in an afterAll
+  console.log(thrown(() => variancePrecondition('fixture', { 'after all': true }))); // in an afterAll
 });

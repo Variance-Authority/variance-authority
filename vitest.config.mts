@@ -1,10 +1,11 @@
 import { mkdtempSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
+import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { nativeSources } from './tools/native-sources.mjs';
 import { marked, probeable } from './tools/page-side.mjs';
+import { MARKERS, PLACES, excludeOf, includeOf } from './tools/slices.mjs';
 
 /** This file's directory, so the exclusions read the same from any cwd. */
 const ROOT = import.meta.dirname;
@@ -125,14 +126,12 @@ const shared = defineConfig({
     // machine held seven thousand of them. The recording is folded in the main
     // process, which does not read `env`, so it still lands in the real cache.
     env: { VARIANCE_AUTHORITY_CACHE: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
-    // A temporary directory of each test's own, so the machine's index turn a
-    // test takes is its own and no other test's or developer's index waits on
-    // it, or it on them. The file says why a turn made the recording depend on
-    // scheduling. Each of the others says what it keeps from a test.
-    setupFiles: ['tools/temporary-per-test.ts', 'tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts'],
+    // Each file says what it keeps from a test or a file. `process-per-file`
+    // comes before every one that registers a hook, so its `afterAll` runs last.
+    setupFiles: ['tools/no-selection-in-tests.ts', 'tools/no-ci-run-in-tests.ts', 'tools/process-per-file.ts', 'tools/temporary-per-test.ts'],
   },
-  esbuild: {
-    jsx: 'automatic',
+  oxc: {
+    jsx: { runtime: 'automatic' },
     // Vite's own list is `m?ts` and leaves `.cts` out, which makes a CommonJS
     // TypeScript source the one kind of module in this repository that cannot
     // be unit tested — it reaches the runner untransformed and fails to parse.
@@ -141,18 +140,6 @@ const shared = defineConfig({
     include: /\.([cm]?ts|[jt]sx)$/,
   },
 });
-
-/**
- * Where tests live. A slice is these places narrowed by a marker in the file
- * name, so a file says which slice it is in and no list has to.
- */
-const PLACES = [
-  'site/app/**/*.test.{ts,tsx}',
-  'packages/*/src/**/*.test.{ts,tsx}',
-  'packages/*/test/**/*.test.ts',
-  'examples/*/src/**/*.test.{ts,tsx}',
-  'cases/*/src/**/*.test.{js,ts,tsx}',
-];
 
 /** The cores this machine offers, which every worker count below is a share of. */
 const CORES = availableParallelism();
@@ -182,25 +169,23 @@ const CORES = availableParallelism();
  *   Playwright. A file with no Chromium installed reports itself skipped.
  */
 export const SLICES = {
-  unit: { marker: undefined, workers: undefined },
+  unit: { workers: undefined },
   // A file here is two processes at least, and a runner it starts is more.
-  integration: { marker: 'integration', workers: Math.max(1, Math.floor(CORES / 4)) },
+  integration: { workers: Math.max(1, Math.floor(CORES / 4)) },
   // A browser is a handful of processes, each busy while a page renders.
-  chromium: { marker: 'chromium', workers: Math.max(1, Math.floor(CORES / 8)) },
+  chromium: { workers: Math.max(1, Math.floor(CORES / 8)) },
 } as const;
 
 export type SliceName = keyof typeof SLICES;
 
-const MARKERS = Object.values(SLICES).flatMap((slice) => (slice.marker === undefined ? [] : [slice.marker]));
-
 /** One slice as a Vitest config, without the recording. */
 export function slice(name: SliceName) {
-  const { marker, workers } = SLICES[name];
+  const { workers } = SLICES[name];
   return mergeConfig(shared, {
     test: {
-      include: marker === undefined ? PLACES : PLACES.map((place) => place.replace('*.test.', `*.${marker}.test.`)),
-      exclude: [...configDefaults.exclude, ...(marker === undefined ? MARKERS.map((other) => `**/*.${other}.test.*`) : [])],
-      ...(marker === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
+      include: includeOf(name),
+      exclude: excludeOf(name),
+      ...(MARKERS[name] === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
       ...(workers === undefined ? {} : { maxWorkers: workers, minWorkers: 1 }),
     },
   });

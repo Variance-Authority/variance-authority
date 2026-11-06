@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::case_id;
-use crate::case_preconditions;
+use crate::case_said;
+use crate::crossing_sets::SetPool;
 use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
 use crate::journey_record::{Module, NO_OWNER};
@@ -14,115 +15,16 @@ use crate::record_layout::LAYOUT;
 // module first, so the set named an import order and not a test; the import
 // graph answers that question, and the flag says when to ask it.
 
-pub struct SetPool {
-    test_count: usize,
-    bytes: Vec<u8>,
-    offsets: Vec<u32>,
-    hashes: HashMap<u32, Vec<u32>>,
-}
-
-impl SetPool {
-    pub fn new(test_count: usize) -> Self {
-        Self {
-            test_count,
-            bytes: Vec::new(),
-            offsets: vec![0],
-            hashes: HashMap::new(),
-        }
-    }
-
-    pub fn intern(&mut self, members: &[u32]) -> u32 {
-        let encoded = encode_set(members, self.test_count);
-        let hash = encoded.iter().fold(2_166_136_261_u32, |held, byte| {
-            (held ^ u32::from(*byte)).wrapping_mul(16_777_619)
-        });
-        if let Some(candidates) = self.hashes.get(&hash) {
-            for id in candidates {
-                let from = self.offsets[*id as usize] as usize;
-                let to = self.offsets[*id as usize + 1] as usize;
-                if self.bytes[from..to] == encoded {
-                    return *id;
-                }
-            }
-        }
-        let id = self.offsets.len() as u32 - 1;
-        self.bytes.extend_from_slice(&encoded);
-        self.offsets.push(self.bytes.len() as u32);
-        self.hashes.entry(hash).or_default().push(id);
-        id
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub fn offsets(&self) -> &[u32] {
-        &self.offsets
-    }
-}
-
-fn encode_set(members: &[u32], test_count: usize) -> Vec<u8> {
-    let sets = &LAYOUT.sets;
-    let width = sets.width(test_count);
-    let words = (test_count + 31) >> 5;
-    let mut runs = 0;
-    for at in 0..members.len() {
-        if at == 0 || members[at] != members[at - 1] + 1 {
-            runs += 1;
-        }
-    }
-    let list_size = 1 + members.len() * width;
-    let bits_size = 1 + words * 4;
-    let runs_size = 1 + runs * width * 2;
-    let smallest = list_size.min(bits_size).min(runs_size);
-    if smallest == bits_size {
-        let mut out = vec![0; bits_size];
-        out[0] = sets.bits;
-        for test in members {
-            let at = 1 + ((*test as usize >> 5) * 4);
-            let mut word = u32::from_le_bytes(out[at..at + 4].try_into().unwrap_or_default());
-            word |= 1 << (*test & 31);
-            out[at..at + 4].copy_from_slice(&word.to_le_bytes());
-        }
-        return out;
-    }
-    if smallest == runs_size {
-        let mut out = Vec::with_capacity(runs_size);
-        out.push(sets.runs);
-        let mut at = 0;
-        while at < members.len() {
-            let first = members[at];
-            let mut end = at + 1;
-            while end < members.len() && members[end] == members[end - 1] + 1 {
-                end += 1;
-            }
-            number(&mut out, first, width);
-            number(&mut out, (end - at) as u32, width);
-            at = end;
-        }
-        return out;
-    }
-    let mut out = Vec::with_capacity(list_size);
-    out.push(sets.list);
-    for member in members {
-        number(&mut out, *member, width);
-    }
-    out
-}
-
-fn number(out: &mut Vec<u8>, value: u32, width: usize) {
-    if width == 2 {
-        out.extend_from_slice(&(value as u16).to_le_bytes());
-    } else {
-        out.extend_from_slice(&value.to_le_bytes());
-    }
-}
-
 pub struct EncodedModule<'a> {
     pub module: &'a Module,
     pub called: &'a [u32],
     /// Whether the region ran while its module evaluated, in any test file.
     pub loaded: &'a [bool],
+    /// Each region's overwritten cases as a set, none of them in `called`: a
+    /// layering cut the index to a text an edit wrote over the region they ran
+    /// (`landedThrough` in `region-edit.ts`). Empty where the module holds none,
+    /// as in a run, which measures the text it ran.
+    pub overwritten: &'a [u32],
 }
 
 /// What a finalize could not charge to a case, carried in the artifact it
@@ -145,6 +47,10 @@ pub struct Gaps {
 
 /// Each region's owner among its module's regions, as `encodeSetExecutionIndex` writes it.
 pub const OWNER: &str = "blocks.owner";
+
+/// Each region's overwritten cases, the section `OVERWRITTEN_SECTION` in
+/// `execution-set-columns.ts` names; written where some region holds one.
+pub const OVERWRITTEN: &str = "blocks.overwrittenSet";
 
 const UNRECORDED: &str = "gaps.unrecorded";
 const UNCLAIMED: &str = "gaps.unclaimed";
@@ -177,13 +83,15 @@ pub fn read_gaps(decoded: &journey_columns::Decoded, strings: &[String]) -> Resu
 pub struct CaseExtras {
     /// Each case's duration in whole milliseconds; empty where no case was timed.
     pub durations: Vec<Option<u32>>,
+    /// Each case's limit in milliseconds; empty where no case named one.
+    pub limits: Vec<Option<u32>>,
     /// Each case's lines as stored, empty for a case that recorded none; no
     /// rows where no case recorded any.
     pub lines: Vec<Vec<u8>>,
-    /// Whether `tests.duration` is written even where no case was timed. A
-    /// record's case index always carries it, so `combine` sets it; a journey
-    /// artifact carries it only where a case was timed, so `journeys stitch`
-    /// does not.
+    /// Whether `tests.duration` and `tests.limit` are written even where no
+    /// case has one. A record's case index always carries them, so `combine`
+    /// sets it; a journey artifact carries them only where a case has one, so
+    /// `journeys stitch` does not.
     pub always_timed: bool,
 }
 
@@ -191,19 +99,18 @@ pub fn encode(
     tests: &[Test],
     extras: &CaseExtras,
     modules: &[EncodedModule<'_>],
-    sets: &SetPool,
+    sets: &mut SetPool,
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
     let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
+    let limited = extras.always_timed || extras.limits.iter().any(Option::is_some);
     let lined = extras.lines.iter().any(|lines| !lines.is_empty());
-    if (timed && extras.durations.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
+    if (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
-    let said: Vec<Option<String>> = tests
-        .iter()
-        .map(|test| test.preconditions.as_deref().map(case_preconditions::spelled))
-        .collect();
+    let heard: Vec<Option<&case_said::Heard>> = tests.iter().map(|test| test.heard.as_ref()).collect();
+    let heard = case_said::lay(&heard, sets);
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
@@ -213,7 +120,6 @@ pub fn encode(
     // Carried when any case has one: a case no named project ran is `UNNAMED`.
     let named = tests.iter().any(|test| test.project.is_some());
     strings.extend(tests.iter().filter_map(|test| test.project.clone()));
-    strings.extend(said.iter().flatten().cloned());
     for held in modules {
         strings.push(held.module.file.clone());
         for block in &held.module.blocks {
@@ -253,6 +159,10 @@ pub fn encode(
     let mut block_loaded = Vec::new();
     // Written when any module knows its owners; a module that does not names none.
     let mut block_owner = modules.iter().any(|held| held.module.owners.is_some()).then(Vec::new);
+    // Written when any module holds an overwritten case; a module that does
+    // not holds the empty set on every region.
+    let mut block_overwritten = modules.iter().any(|held| !held.overwritten.is_empty()).then(Vec::new);
+    let none_overwritten = block_overwritten.is_some().then(|| sets.intern(&[]));
     for held in modules {
         module_file.push(id(&held.module.file));
         module_blocks.push(block_kind.len() as u32);
@@ -269,6 +179,14 @@ pub fn encode(
                     column.extend_from_slice(owners);
                 }
                 None => column.extend(std::iter::repeat_n(NO_OWNER, count)),
+            }
+        }
+        if let (Some(column), Some(none)) = (block_overwritten.as_mut(), none_overwritten) {
+            let count = held.module.blocks.len();
+            match held.overwritten.len() {
+                0 => column.extend(std::iter::repeat_n(none, count)),
+                written if written == count => column.extend_from_slice(held.overwritten),
+                written => return Err(format!("{} names {written} overwritten sets for {count} regions", held.module.file)),
             }
         }
         for (at, block) in held.module.blocks.iter().enumerate() {
@@ -301,9 +219,14 @@ pub fn encode(
         let words = extras.durations.iter().map(|duration| duration.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.duration.as_str(), words));
     }
-    if said.iter().any(Option::is_some) {
-        let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
-        columns.push(Column::Words(case_preconditions::COLUMN, words));
+    if limited {
+        let words = extras.limits.iter().map(|limit| limit.unwrap_or(LAYOUT.coverage.no_duration)).collect();
+        columns.push(Column::Words(cases.limit.as_str(), words));
+    }
+    for (section, laid) in case_said::SECTIONS.into_iter().zip(heard) {
+        if let Some(laid) = laid {
+            columns.push(Column::Bytes(section, laid));
+        }
     }
     if lined {
         let mut blob = Vec::new();
@@ -329,6 +252,9 @@ pub fn encode(
     ]);
     if let Some(owners) = block_owner {
         columns.push(Column::Words(OWNER, owners));
+    }
+    if let Some(overwritten) = block_overwritten {
+        columns.push(Column::Words(OVERWRITTEN, overwritten));
     }
     columns.push(Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()));
     columns.push(Column::Words("sets.off", sets.offsets().to_vec()));

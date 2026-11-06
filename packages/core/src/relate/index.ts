@@ -7,7 +7,7 @@
  * to whoever owns the disk, and this is the half that has to be fast and has to
  * be provable without one.
  *
- * See [`docs/selecting.md`](../../../../docs/selecting.md) for what it is for.
+ * See [`docs/selecting.md`](https://variance-authority.dev/docs/selecting) for what it is for.
  */
 
 export {

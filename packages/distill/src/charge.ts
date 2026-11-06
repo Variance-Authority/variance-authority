@@ -4,7 +4,6 @@ import {
   type FileReferences,
   type NativeDistillRegion,
 } from '@variance-authority/sense/test-selection';
-import { posix } from 'node:path';
 import type { ImportReach } from './own.js';
 
 /**
@@ -116,15 +115,17 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
 
 /**
  * One line that says what the test file `file` can do about an import, by its
- * reach. A mock is proposed with a factory: an automock requires the module to
- * read its shape, which is the load it is there to stop. The factory stands a
- * function in for every value `exports` names, since the mock replaces the
- * module for every file the test loads; a function can be called, constructed,
- * extended and read. One is proposed only where the importer reads none of
- * the import, or reads it only in functions no case of the test file ran: a
- * stand-in read at load is used at load or kept for a case, and one a case
- * runs, or the importer hands on, changes what the case does. None is proposed
- * where what the module exports is not known. Absent when nothing is.
+ * reach. A mock is proposed by the module it replaces and the importer it stops
+ * loading it, in no runner's words: how to write it is the file's runner's, and
+ * the reader's. It names every value `exports` holds for a stand-in, since the
+ * mock replaces the module for every file the test loads; a function can be
+ * called, constructed, extended and read. An automock requires the module to
+ * read its shape, which is the load the mock is there to stop. One is proposed
+ * only where the importer reads none of the import, or reads it only in
+ * functions no case of the test file ran: a stand-in read at load is used at
+ * load or kept for a case, and one a case runs, or the importer hands on,
+ * changes what the case does. None is proposed where what the module exports
+ * is not known. Absent when nothing is.
  */
 export function reachLine(
   file: string,
@@ -141,23 +142,16 @@ export function reachLine(
       // Deleting is the fix only when the file reads nothing it imports; otherwise the line under it says where it does.
       return `error: ${file} imports ${imported}, and none of its cases enters what that loads` +
         (charge?.kind === 'never' ? ': delete the import.' : '.');
-    case 'subject': {
+    case 'subject':
       if (exports === undefined) return undefined;
       if (charge?.kind !== 'never' && charge?.kind !== 'functions') return undefined;
-      const specifier = posix.relative(posix.dirname(file), imported).replace(/\.[cm]?[jt]sx?$/, '');
-      return `Or mock it in this file, so ${importer} does not load it: ` +
-        `jest.mock('${specifier.startsWith('.') ? specifier : `./${specifier}`}', () => (${factoryOf(exports)}));`;
-    }
+      return `Or mock ${imported} in this file, so ${importer} does not load it: ` +
+        `stand a function in for each value it exports (${exports.join(', ')}); ` +
+        'an automock loads the module to read its shape.';
     case 'beyond':
       return `warning: this file does not import ${importer}; mocking ${imported} here would tie it to code it does not know: ` +
         `fix it in ${importer}.`;
   }
-}
-
-/** The object a mock's factory returns: a function for each value the module exports, `default` as an ES module's. */
-function factoryOf(exports: readonly string[]): string {
-  const names = exports.map((name) => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: jest.fn()`);
-  return `{ ${exports.includes('default') ? '__esModule: true, ' : ''}${names.join(', ')} }`;
 }
 
 /** One line that says where the importer references the import, and what to change. */

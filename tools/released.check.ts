@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error -- a plain script, run by the workflow and by hand; no types to import.
-import { lockstep, publishable } from './released.mjs';
+import { lockstep, missing, onRegistry, publishable, unborn, waiting } from './released.mjs';
 
 /**
  * A release is checked against the registry, and stays checked.
@@ -20,6 +21,15 @@ import { lockstep, publishable } from './released.mjs';
  */
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = readFileSync(join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+
+/** One job of `release.yml`, from its key to the next job's. */
+function job(name: string): string {
+  const from = WORKFLOW.indexOf(`\n  ${name}:\n`);
+  expect(from, `no job \`${name}\``).toBeGreaterThan(-1);
+  const rest = WORKFLOW.slice(from + 1);
+  const next = rest.slice(1).search(/\n {2}[a-z-]+:\n/);
+  return next === -1 ? rest : rest.slice(0, next + 1);
+}
 
 interface Entry {
   readonly name: string;
@@ -51,6 +61,91 @@ describe('what a release publishes', () => {
     expect(lockstep(packages)).toMatch(/^\d+\.\d+\.\d+/);
   });
 
+  // A changeset that names no package releases nothing, so `changeset version`
+  // has nothing to raise for it. Counting it would hold the button for a
+  // version pull request with no version in it.
+  it('waits for a changeset that names a package, and not for an empty one', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'changesets-'));
+    const dir = join(root, '.changeset');
+    try {
+      mkdirSync(dir);
+      writeFileSync(join(dir, 'README.md'), '# Changesets\n');
+      writeFileSync(join(dir, 'config.json'), '{}\n');
+      writeFileSync(join(dir, 'all-pugs-flow.md'), '---\n---\n\n');
+      expect(await waiting(root)).toEqual([]);
+      writeFileSync(join(dir, 'tired-apples-obey.md'), "---\n'@variance-authority/core': patch\n---\n\nA fix.\n");
+      expect(await waiting(root)).toEqual(['tired-apples-obey.md']);
+      // What changesets cannot read holds the release, as it would hold `version`.
+      writeFileSync(join(dir, 'some-kiwis-drum.md'), 'Notes\n---\nmore\n---\n');
+      await expect(waiting(root)).rejects.toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // One 503 in a wait that spans npm's scan would end a release the next poll
+  // would have counted.
+  it('asks again a registry that did not answer, and refuses one that never does', async () => {
+    const entries = [{ name: 'a' }, { name: 'b' }];
+    const asked: string[] = [];
+    const flaky = async (name: string) => {
+      asked.push(name);
+      if (name === 'a' && asked.filter((one) => one === 'a').length === 1) throw new Error('a answered 503');
+      return true;
+    };
+    expect(await missing(entries, '1.2.3', 60, { ask: flaky, everyMs: 0 })).toEqual([]);
+    expect(asked).toEqual(['a', 'b', 'a']);
+    const down = async () => {
+      throw new Error('answered 503');
+    };
+    await expect(missing(entries, '1.2.3', 0, { ask: down, everyMs: 0 })).rejects.toThrow(/answered 503/);
+  });
+
+  // npm adds a trusted publisher to a package that exists, so a name it has
+  // never held cannot be created by the workflow: 0.20.0 reached the first ten
+  // names and stopped at `jest-transformer` with ENEEDAUTH. Asked before the
+  // first publish, the release refuses whole instead of in part.
+  it('names every package the registry has never held', async () => {
+    const entries = [{ name: 'held' }, { name: 'new' }, { name: 'also-new' }];
+    const ask = async (name: string) => name === 'held';
+    expect(await unborn(entries, { ask })).toEqual([{ name: 'new' }, { name: 'also-new' }]);
+    const down = async () => {
+      throw new Error('answered 503');
+    };
+    await expect(unborn(entries, { ask: down })).rejects.toThrow(/answered 503/);
+  });
+
+  describe('asking the registry', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const answering = (status: number) => {
+      const asked: string[] = [];
+      vi.stubGlobal('fetch', async (at: string) => {
+        asked.push(at);
+        return new Response(null, { status });
+      });
+      return asked;
+    };
+
+    it('asks for one version, or for the name at all', async () => {
+      const asked = answering(200);
+      expect(await onRegistry('@variance-authority/core', '1.2.3')).toBe(true);
+      expect(await onRegistry('@variance-authority/core')).toBe(true);
+      expect(asked).toEqual([
+        'https://registry.npmjs.org/@variance-authority%2fcore/1.2.3',
+        'https://registry.npmjs.org/@variance-authority%2fcore',
+      ]);
+    });
+
+    it('reads a 404 as not held, and refuses any other answer', async () => {
+      answering(404);
+      expect(await onRegistry('brand-new')).toBe(false);
+      answering(503);
+      await expect(onRegistry('brand-new')).rejects.toThrow(/answered 503/);
+    });
+  });
+
   it('refuses a version the packages disagree on', () => {
     expect(() =>
       lockstep([
@@ -66,15 +161,112 @@ describe('the release workflow', () => {
     expect(WORKFLOW).toContain('tools/released.mjs --lockstep');
   });
 
-  // The retry is the repair: `changeset publish` skips versions the registry
-  // already has, so the command that truncated a release is the command that
-  // finishes it. Without a second attempt this check turns a partial release
-  // into a red job somebody has to fix by hand, which is better than green and
-  // worse than done.
-  it('asks the registry what published, and finishes what did not', () => {
-    const publish = WORKFLOW.slice(WORKFLOW.indexOf('yarn release:publish'));
-    expect(publish).toContain('tools/released.mjs --registry');
-    expect(publish.match(/yarn release:publish/g)?.length).toBe(2);
+  // npm answers a publish when it has accepted the version, not when it shows
+  // it: 0.19.0 accepted `core` and showed it minutes later, after a scan. A
+  // second publish of a version npm holds is refused with 409 "previously
+  // staged" forever, so a retry cannot finish anything; it only stopped the
+  // round behind it. One publish, then the registry, given the scan's time,
+  // is the verdict, and nothing may excuse it.
+  it('publishes once, and asks the registry what published', () => {
+    const publish = job('publish');
+    const attempts = publish.match(/^ *node tools\/publish\.mjs.*$/gm) ?? [];
+    expect(attempts).toEqual([expect.stringMatching(/^ *node tools\/publish\.mjs "\$PACKED"$/)]);
+    expect(publish).not.toMatch(/\bwhile\b|\bfor round\b|--count/);
+    const verdict = /^ *node tools\/publish\.mjs "\$PACKED"\n(?: *#.*\n| *\n)* *node tools\/released\.mjs --registry --wait (\d+)$/m.exec(publish);
+    expect(verdict, 'the registry check follows the publish').not.toBeNull();
+    expect(Number(verdict?.[1])).toBeGreaterThanOrEqual(1200);
+  });
+
+  // Yarn packs, because `yarn pack` rewrites `workspace:^` and runs each
+  // `prepack`; npm publishes, because Yarn's signing client gives the
+  // transparency log five seconds and reads its own retry's conflict as a
+  // failure (ADR-0060).
+  it('packs with changesets and publishes with npm, never with Yarn', () => {
+    const publish = job('publish');
+    expect(publish).toMatch(/yarn changeset pack --out-dir "\$PACKED"/);
+    expect(publish.indexOf('changeset pack')).toBeLessThan(publish.indexOf('node tools/publish.mjs'));
+    expect(WORKFLOW).not.toMatch(/^\s*(yarn )?changeset publish\b|yarn npm publish|release:publish/m);
+  });
+
+  // `check` ran every file on this commit when it reached `main`, so a press
+  // asks it rather than running the suite again in one worker: ten minutes
+  // that could only agree with it, spent before the first name reached npm.
+  // Nothing publishes without that answer, and nothing waits for it to start
+  // compiling either.
+  it("publishes a commit main's CI passed, and does not run the suite itself", () => {
+    const green = job('green');
+    expect(green).toMatch(/gh run list [^\n]*--workflow check\.yml[^\n]*--event push/);
+    expect(green).toMatch(/gh run watch [^\n]*--exit-status/);
+    // `released.mjs` imports changesets' reader, so it runs after an install,
+    // and before the wait, so a version still owed refuses in seconds.
+    const steps = ['yarn install --immutable', 'tools/released.mjs --lockstep', 'tools/released.mjs --named', 'gh run watch'];
+    const at = steps.map((step) => green.indexOf(step));
+    expect(at.every((index) => index > -1), `green runs ${steps.join(', then ')}`).toBe(true);
+    expect([...at].sort((one, other) => one - other)).toEqual(at);
+    expect(green).toMatch(/timeout-minutes: \d+/);
+    expect(job('publish')).toMatch(/needs: \[green, native, editors\]/);
+    expect(WORKFLOW).not.toMatch(/yarn verify\s*$/m);
+  });
+
+  // npm no longer issues a token that publishes without a second factor, so a
+  // token in this job cannot publish: it is refused, or 404s once it expires.
+  // The run's OIDC token is the credential, and npm trades it only when no
+  // other is set (ADR-0060).
+  it('publishes through the trusted publisher, with no npm token to set', () => {
+    expect(job('publish')).toMatch(/id-token: write/);
+    expect(WORKFLOW).not.toMatch(/YARN_NPM_AUTH_TOKEN|NPM_TOKEN/);
+  });
+
+  // The `native` matrix built every platform's scanner. `yarn build` would
+  // compile the runner's own again, minutes of cargo for a binary the download
+  // overwrites.
+  it('builds the TypeScript for a publish, and takes the scanners from the matrix', () => {
+    expect(job('publish')).toMatch(/- run: yarn build:js\s*$/m);
+    expect(job('publish')).not.toMatch(/- run: yarn build\s*$/m);
+  });
+
+  // An adopter names the action the way every action is named: by its own
+  // repository and the major of its inputs, `uses: Variance-Authority/action@v1`.
+  // The action calls whatever CLI the adopter installed, so no release pairs the
+  // two and a CLI version names nothing there. A path into this repository is
+  // not an install.
+  it('publishes the action to its own repository, under the major of its inputs', () => {
+    const publish = job('publish');
+    const action = publish.slice(publish.indexOf('tools/released.mjs --registry'));
+    expect(action).toContain('Variance-Authority/action');
+    expect(action).toContain('+refs/tags/$ACTION_MAJOR:refs/tags/$ACTION_MAJOR');
+    expect(action).not.toContain('cli-version');
+    expect(action).not.toContain('"v$version"');
+  });
+
+  // npm cannot be taken back, so what the action's half needs is asked before
+  // the first name is sent: a key that reaches the repository, a `main` to push
+  // onto, and write access, which a dry-run push asks of GitHub.
+  it("asks the action's repository for everything its push needs before anything reaches npm", () => {
+    const publish = job('publish');
+    const ready = publish.indexOf("The action's repository takes a push");
+    expect(ready, 'a step that asks first').toBeGreaterThan(-1);
+    expect(ready).toBeLessThan(publish.indexOf('node tools/publish.mjs'));
+    const asks = publish.slice(ready, publish.indexOf('- name:', ready + 1));
+    expect(asks).toContain('ACTION_DEPLOY_KEY');
+    expect(asks).toMatch(/ls-remote --exit-code "\$remote" refs\/heads\/main/);
+    expect(asks).toMatch(/push --dry-run/);
+    expect(asks).toMatch(/ACTION_MAJOR=v\d+/);
+  });
+
+  // A pushed tag is not believed until it is read back: every file the action
+  // directory tracks is at the major tag, byte for byte.
+  it('reads the published action back at its major tag', () => {
+    const publish = job('publish');
+    const back = publish.slice(publish.indexOf('Variance-Authority/action is what an adopter installs'));
+    expect(back).toMatch(/clone --depth 1 --branch "\$ACTION_MAJOR"/);
+    expect(back).toMatch(/for file in \$\(git -C \.github\/actions\/variance ls-files\); do/);
+    expect(back).toMatch(/cmp -s/);
+  });
+
+  it('tags this repository by package only', () => {
+    const tagging = WORKFLOW.slice(WORKFLOW.indexOf('yarn changeset tag'), WORKFLOW.indexOf('git push origin --tags'));
+    expect(tagging).not.toMatch(/git tag\b/);
   });
 
   it('tags from a step that can fail, and checks the tags arrived', () => {

@@ -339,8 +339,8 @@ route through declarations.
 
 A story is taken only when asked for, and taking it leaves the journey it rides
 on exactly as it would have been. It is never folded into the record, never
-compared and never selected on. It claims order only — a visit is not a call,
-so no step is another's parent — and what it could not keep, a later visit past
+compared and never selected on. It claims order, and what each region was handed, as a ref for any object —
+a visit is not a call, so no step is another's parent — and what it could not keep, a later visit past
 its limit or another case's work inside this one, is said rather than dropped.
 
 ### Relationships

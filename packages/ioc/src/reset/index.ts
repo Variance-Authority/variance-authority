@@ -1,9 +1,29 @@
-import { realm, type ResetHandler } from './state.js';
+import { realm, type ResetHandler, type ResetRealm, type TestScope } from './state.js';
 
-export type { ResetHandler } from './state.js';
+export type { ResetHandler, TestScope } from './state.js';
 
 /** Returned when nothing was registered, so the caller's contract is uniform. */
 const nothingToUndo = (): void => {};
+
+/**
+ * Add `item` to the set `into` picks, once a driver exists; before that, count
+ * it and keep the first arrival's `named` for the driver's error.
+ */
+const gated = <T>(item: T, into: (state: ResetRealm) => Set<T>, named: ResetHandler): (() => void) => {
+  const state = realm();
+
+  if (!state.configured) {
+    state.earlyCount += 1;
+    state.early ??= named;
+    return nothingToUndo;
+  }
+
+  const set = into(state);
+  set.add(item);
+  return () => {
+    set.delete(item);
+  };
+};
 
 /**
  * Declare how to return a module's own state to its initial value.
@@ -46,17 +66,24 @@ const nothingToUndo = (): void => {};
  *
  * @returns a function that unregisters this handler.
  */
-export const registerResetHandler = (handler: ResetHandler): (() => void) => {
-  const state = realm();
+export const registerResetHandler = (handler: ResetHandler): (() => void) => gated(handler, (state) => state.handlers, handler);
 
-  if (!state.configured) {
-    state.earlyCount += 1;
-    state.early ??= handler;
-    return nothingToUndo;
-  }
+/**
+ * Enter and leave `scope` as the driver runs: a file starts, a test starts, a
+ * test ended. For state kept per test rather than reset — the isolator's
+ * sessions — where a test reads what its file's collection and once-per-scope
+ * hooks wrote, and its own writes are dropped when it ends.
+ *
+ * Gated as {@link registerResetHandler} is: before a driver exists it is
+ * counted, and the driver refuses to install.
+ *
+ * @returns a function that unregisters it.
+ */
+export const registerTestScope = (scope: TestScope): (() => void) => gated(scope, (state) => state.scopes, scope.enterTest);
 
-  state.handlers.add(handler);
-  return () => {
-    state.handlers.delete(handler);
-  };
-};
+/**
+ * Whether a test setup has installed a driver in this realm. A scope that
+ * registers once one exists joined a file the driver already entered, and
+ * hears nothing until the next test starts.
+ */
+export const driverInstalled = (): boolean => realm().configured;

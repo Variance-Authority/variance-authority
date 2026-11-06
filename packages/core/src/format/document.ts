@@ -315,7 +315,11 @@ export interface Raster {
    */
   readonly width?: number;
   readonly height?: number;
-  /** PNG, base64. Absent when the subject occupies no pixels. */
+  /**
+   * The image, base64, in the format its own header declares: a capture is a
+   * PNG, and a kept baseline is the lossless WebP it was kept as, or a PNG kept
+   * before. Absent when the subject occupies no pixels.
+   */
   readonly bytes?: string;
   /** Fonts the document declared that the renderer did not have. */
   readonly missingFonts: readonly string[];
@@ -335,7 +339,7 @@ export interface Raster {
    * change from the components the change merely moved needs both revisions, and
    * a stored baseline is an image: without this, a run has one document and ranks
    * by area — which
-   * [journal 0013](../../../../docs/context/journal/0013-observability.md)
+   * [journal 0013](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/journal/0013-observability.md)
    * measured as backwards.
    *
    * Text, and small: one line per component boundary. It rides in the sidecar

@@ -1,13 +1,7 @@
 # Spec 0094 — a run writes one record
 
-**Missing:** everything a test run records about its cases lives outside the
+**Missing:** part of what a test run records about its cases lives outside the
 record, on code paths of its own.
-- **The case index** is a second file, `coverage.bin.cases.bin`. It is landed
-  by `layCaseRun` under a second lock, after the snapshot's lock is released
-  (`FIXME` at `journal.ts` and `case-fold.ts`). It is seeded only when the
-  snapshot was, and its replaced-cases files are never seeded.
-  `mainline-layer.ts`, `milestone-repin.ts` and `landCaseIndexes` each handle
-  it by hand. It re-encodes the modules and blocks the snapshot already holds.
 - **Eyes journals** go to a path the caller chooses (`writeEyesArchive`). They
   are outside the cache, layered by nothing, and absent from a share. `distill`
   reads them only through `--eyes`.

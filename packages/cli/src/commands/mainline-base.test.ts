@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { review } from './review.js';
 import { formatReview } from './review-text.js';
 import { selectOutput } from './select-command.js';
@@ -31,12 +31,12 @@ const cwd = process.cwd();
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-mainline-base-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
 });
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -54,7 +54,7 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     );
 
     const clone = await cloneOf(home, ci.origin);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await writeFile(join(clone, 'src/total.ts'), change);
     const here = await selectedIn(clone);
 
@@ -71,7 +71,7 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     const ci = await published(home);
     const branch = await branchPublished(home, ci.dir);
     const clone = await cloneOf(home, ci.origin, 'feat/x');
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await writeFile(join(clone, 'src/total.ts'), BEFORE.replace('0.9', '0.8'));
 
     const here = await selectedIn(clone);
@@ -87,7 +87,7 @@ describe('`variance review` after runs laid over no recording', () => {
   it('starts where the mainline published its record, and compares the cases with the mainline\'s', async () => {
     const ci = await published(home);
     const clone = await cloneOf(home, ci.origin);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await ranHere(clone, ci.first);
 
     const answer = await review(parseReview(['--root', clone]));
@@ -103,7 +103,7 @@ describe('`variance review` after runs laid over no recording', () => {
     const ci = await published(home);
     const branch = await branchPublished(home, ci.dir);
     const clone = await cloneOf(home, ci.origin, 'feat/x');
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await ranHere(clone, branch);
 
     const answer = await review(parseReview(['--root', clone]));
@@ -120,7 +120,7 @@ describe('`variance review` after runs laid over no recording', () => {
     await recordIn(ci.dir, second, ['test/total.test.ts'], [DISCOUNTS, ROUNDS]);
     await publishTo(home, ci.dir, second, PUSH, 'mainline main');
     await git(clone, 'fetch', '--quiet', 'origin');
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'laptop-cache'));
     await ranHere(clone, ci.first);
 
     const answer = await review(parseReview(['--root', clone]));

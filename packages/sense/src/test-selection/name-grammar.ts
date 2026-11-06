@@ -4,9 +4,8 @@
  * `story:checkout--dark-ff-on` is not a string. It is a checkout, dark, with the
  * flag on — a stem and two axes, written in the order the suite always writes
  * them. The grammar is an ordered list of axes, each with the values it may
- * take, and everything that reads a name or a case through it reads it here:
- * `variance run` pairs a subject with its parent, and `variance covering` reads
- * what a case said on the same axes and finds its twin by the same step.
+ * take, and everything that reads a name through it reads it here:
+ * `variance run` pairs a subject with its parent.
  *
  * ## A grammar, and not a function
  *
@@ -327,28 +326,28 @@ export function structuralParent(id: string, index: NameIndex): StructuralLink |
 }
 
 /**
- * The walk toward the base on a coordinate's last axis, over whatever is
- * placed at each coordinate: a subject by its name, or a case by what it said.
+ * The walk toward the base on a subject name's last axis, over the subjects
+ * placed at each coordinate.
  *
  * From the value below the one held back to the base, the first coordinate
  * `at` names anybody at wins. The base is never in a coordinate — a name at
  * its base is a name without the axis — so the last step, `values[0]`, is the
  * axis dropped. Everyone at that coordinate is returned, and what several mean
- * is the caller's: a subject's parent must be one, a twin is read and may be
- * many. A walk that finds nobody ends at the base with `found` empty.
+ * is the caller's: a subject's parent must be one. A walk that finds nobody
+ * ends at the base with `found` empty.
  *
  * Nothing when the coordinate carries no axis: a stem is not a variation of
  * anything.
  */
-export function stepTowardBase<Placed>(
+function stepTowardBase<Placed>(
   coordinate: readonly NamedAxis[],
   grammar: NameGrammar,
   at: (coordinate: readonly NamedAxis[]) => readonly Placed[],
 ): (AxisStep & { readonly found: readonly Placed[] }) | undefined {
   const last = coordinate.at(-1);
   if (last === undefined) return undefined;
-  // Every coordinate is read off this grammar's own axes — a name by
-  // `readName`, a case by what it said on a declared axis — so its axis is here.
+  // Every coordinate is read off this grammar's own axes by `readName`, so its
+  // axis is here.
   const axis = axisOf(grammar, last.axis)!;
   const held = coordinate.slice(0, -1);
   for (let below = axis.values.indexOf(last.value) - 1; below >= 0; below--) {
@@ -360,12 +359,12 @@ export function stepTowardBase<Placed>(
 }
 
 /** The axis the grammar declares under this name, when it declares one. */
-export function axisOf(grammar: NameGrammar | undefined, name: string): GrammarAxis | undefined {
+function axisOf(grammar: NameGrammar | undefined, name: string): GrammarAxis | undefined {
   return grammar?.axes.find((entry) => entry.axis === name);
 }
 
 /** The key of a stem at a coordinate, which {@link NameIndex.at} is keyed by. */
-export function coordinateKey(stem: string, coordinate: readonly NamedAxis[]): string {
+function coordinateKey(stem: string, coordinate: readonly NamedAxis[]): string {
   return `${stem} ${coordinate.map((entry) => `${entry.axis}=${entry.value}`).join('|')}`;
 }
 

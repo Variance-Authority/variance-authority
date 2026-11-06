@@ -45,7 +45,7 @@ const POLL_BOUND = (4 * LOCK_WAIT_MS) / LOCK_POLL_MS;
 async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
   const nextTurn = setTimeout;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  variancePrecondition({ clock: 'faked' });
+  variancePrecondition('fixture', { clock: 'faked' });
   try {
     let settled = false;
     const running = work().finally(() => {
@@ -111,7 +111,7 @@ describe('who may grow the index', () => {
     await holding;
     const nextTurn = setTimeout;
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    variancePrecondition({ clock: 'faked' });
+    variancePrecondition('fixture', { clock: 'faked' });
     try {
       const next = withIndexLock(file, async () => {
         order.push('second in');
@@ -138,7 +138,7 @@ describe('who may grow the index', () => {
   }, TURNS_TEST_TIMEOUT_MS);
 
   it('gives up rather than merging over a holder that never lets go', async () => {
-    variancePrecondition({ lock: 'held' });
+    variancePrecondition('fixture', { lock: 'held' });
     const file = await index();
     let ran = false;
     // Held until this test says otherwise, which is what a hung or very slow

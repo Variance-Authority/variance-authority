@@ -137,10 +137,13 @@ export function NoBuilds({ endpoint }: { readonly endpoint?: string | undefined 
       <pre>
         <code>VARIANCE_INGEST_TOKEN=… variance push</code>
       </pre>
-      <p className="va-note">
-        That is the <strong>ingest</strong> token, the one a pipeline holds. The review token is what
-        a person decides a subject with, and recording a build is not a decision.
+      <p>
+        On GitHub Actions, a deployment that declares <code>github-actions</code> takes the job's own
+        token, and there is no secret to keep:
       </p>
+      <pre>
+        <code>{`"token": { "github-actions": { "audience": "${address}" } }`}</code>
+      </pre>
     </div>
   );
 }

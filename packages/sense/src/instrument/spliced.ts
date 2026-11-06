@@ -21,7 +21,7 @@
  * ## What is deliberately not a decision
  *
  * Ternaries, `&&`, `||`, `??` and `?.` belong to the region that contains them
- * ([spec 0028](../../../../docs/specs/0028-the-instrument.md)). For
+ * ([spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md)). For
  * `if (order.isPremium && order.total > 100)` the fact worth recording is which
  * branch ran, not which operand short-circuited, and a change to either operand
  * still reaches every test that evaluated the condition — through the region the
@@ -41,10 +41,26 @@ import type { NativeScanner } from '../native.js';
  * regions they keep the same way, so a function has the same address under
  * either; what differs is how many regions there are and how much a probe set
  * costs to carry.
+ *
+ * `loads` applies none of it: no module is cut or probed, and each one runs
+ * marked as loaded, with one line after its own text. A record made so says
+ * which files each test loaded, and nothing about what in them ran, so a
+ * change to a file selects every test that loaded it. Nothing walks under it:
+ * the walks below refuse it.
  */
-export type InstrumentMode = 'presence' | 'entries';
+export type InstrumentMode = 'presence' | 'entries' | 'loads';
 
-/** What kind of region a probe stands in front of. */
+/** The modes that cut a module into regions. */
+export type WalkMode = Exclude<InstrumentMode, 'loads'>;
+
+/**
+ * What kind of region a probe stands in front of, named for the construct that
+ * opens it: `module` a module's top level, `function` a function body, `branch`
+ * an if statement's then or else, `continuation` the statements after an if,
+ * switch, loop or try, `resume` where an await returns, `loop` a loop body,
+ * `case` a switch clause, default included, and `handler` a catch clause or a
+ * finally block.
+ */
 export type BlockKind =
   | 'module'
   | 'function'
@@ -162,7 +178,7 @@ type WellFormed = string & { isWellFormed(): boolean };
  * With a `module`, the text carries the header that reports under that id, at
  * `headerAt`; without one it carries the probes alone.
  */
-export function spliced(source: string, file: string, mode: InstrumentMode, module?: string): Spliced | undefined {
+export function spliced(source: string, file: string, mode: WalkMode, module?: string): Spliced | undefined {
   const addon = instrumenter();
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
@@ -199,7 +215,7 @@ export function placed(
   authored: string,
   transformed: string,
   map: { readonly file: string; readonly mappings: string; readonly source: number },
-  mode: InstrumentMode,
+  mode: WalkMode,
   module: string,
   carry = false,
 ): Placed | undefined {

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { storybookCollector } from '@variance-authority/storybook-collector';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * `collectAlone`, against the thing it exists to tell apart from a regression.
@@ -46,7 +47,7 @@ const BROWSER_AVAILABLE = (() => {
 const READY = existsSync(INDEX) && BROWSER_AVAILABLE;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (alone): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(INDEX)

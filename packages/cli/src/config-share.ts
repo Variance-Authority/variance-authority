@@ -1,4 +1,5 @@
 import {
+  type Credential,
   declaredSecret,
   fail,
   kindOf,
@@ -31,7 +32,7 @@ import {
  * was derived from a tree and can be derived again, so the default is *nowhere*,
  * turning it on costs a rebuild at worst, and an operator who misconfigures it
  * gets a slow run rather than a wrong one
- * ([`sharing.md`](../../../docs/sharing.md)).
+ * ([`sharing.md`](https://variance-authority.dev/docs/sharing)).
  *
  * Three kinds, one layout: the latest record of each mainline and each branch,
  * and every image once by digest. `directory` is a path, which is what
@@ -70,7 +71,7 @@ export interface HttpShare extends SharedFields {
    * every caller turns that into a share miss: a share never fails a run, so a
    * missing share secret must not refuse the whole config.
    */
-  readonly token?: () => string;
+  readonly token?: Credential;
   /** The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it. */
   readonly method?: 'PUT' | 'POST';
 }

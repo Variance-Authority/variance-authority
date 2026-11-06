@@ -28,6 +28,7 @@
 
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { extendedFile } from './conditions.js';
 import { parseConfig } from './witness.js';
 
@@ -128,7 +129,7 @@ function layoutsOf(directory: string): readonly Layout[] {
   if (real.split(sep).includes('node_modules')) return [];
   const configs = names
     .filter((name) => name.startsWith('tsconfig') && name.endsWith('.json'))
-    .sort((a, b) => Number(a !== 'tsconfig.json') - Number(b !== 'tsconfig.json') || (a < b ? -1 : a > b ? 1 : 0));
+    .sort((a, b) => Number(a !== 'tsconfig.json') - Number(b !== 'tsconfig.json') || codeUnitOrder(a, b));
   const layouts: Layout[] = [];
   for (const config of configs) {
     const path = join(real, config);

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
+import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
 import { coveringFiles } from './covering-files.js';
@@ -42,7 +43,7 @@ describe('gathering a line\'s cases by test file', () => {
       { file: 'total.test.ts', cases: 2, of: 3 },
       { file: 'flow.test.tsx', cases: 1, of: 1 },
     ]);
-    expect(formatCovering(answer, 'text')).toContain('  total.test.ts — 2/3\n    discounts\n    taxes\n');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('  total.test.ts — 2/3\n    discounts\n    taxes\n');
   });
 
   it('orders the files nearest first, and an unplaced file last', () => {
@@ -65,5 +66,10 @@ describe('gathering a line\'s cases by test file', () => {
     expect(parse(['--file', 'src/total.ts', '--line', '12', '--hops']).hops).toBe(true);
     expect(() => parse(['--file', 'src/total.ts', '--hops'])).toThrow(/takes `--line` or `--function`/);
     expect(() => parse(['--since', 'HEAD~1', '--hops'])).toThrow(/do not compose/);
+  });
+
+  it('refuses a diff and a place together', () => {
+    expect(() => parse(['--since', 'main', '--file', 'src/total.ts'])).toThrow(OperatorError);
+    expect(() => parse(['--since', 'main', '--line', '3'])).toThrow(/alternatives/);
   });
 });

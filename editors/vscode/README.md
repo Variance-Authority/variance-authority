@@ -4,6 +4,8 @@ See which test cases went through each line of the file you are editing,
 without leaving it. After your suite runs with the recorder on, the gutter
 beside every line it ran shows one of five marks, and hovering names the cases.
 
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
+
 | Mark | State | What it tells you |
 |---|---|---|
 | green bar | walked | Several cases went through these lines. |
@@ -16,11 +18,21 @@ A hole is not the same as untested. A case that failed, or a flake your CI
 suppressed, stopped before the end, so the record cannot tell whether it would
 have reached these lines. The hover names the case that stopped.
 
+When your repository declares several suites, each answers for itself, and the
+CLI answers nearest kind first: unit, integration, e2e, visual. A line carries
+one mark, which the CLI reads across every suite that ran it: two suites that
+each ran it with one case alone make it walked. The hover names every suite that
+ran the line, with its kind and its own state, and then every suite with no
+answer about the file, with the CLI's reason: one that never loaded it, and one
+with nothing recorded yet.
+**Variance: Cases through this line** lists the cases under the suite that ran
+them.
+
 The marks follow your edits. The extension sends the buffer you hold, saved or
 not, and the CLI places every recorded range in it. Add lines above a function
 and its marks move with it. If the file changed so much that the text the suite
 ran over cannot be found, the status bar says the record is stale and nothing
-is painted.
+is painted from it.
 
 In a workspace with no CLI to ask, or no run recorded, the extension shows
 nothing and stops asking. It asks again when the window comes back to the
@@ -55,3 +67,7 @@ code --install-extension variance-authority.vsix
 
 `variance.command` names a different CLI when the workspace's own
 `node_modules/.bin/variance` is not the one to ask.
+
+---
+
+**[Variance Authority for VS Code](https://variance-authority.dev/reference/packages/editors)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/editors/vscode) · MIT

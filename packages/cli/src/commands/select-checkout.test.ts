@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
@@ -31,12 +31,12 @@ describe('reading this checkout', () => {
   beforeEach(() => {
     // Every journal these cases write is addressed through this, so none of them
     // can read or overwrite the recording this repository keeps for itself.
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('skips nothing and names the file when nothing has been recorded here', async () => {
@@ -58,9 +58,11 @@ describe('reading this checkout', () => {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, 'this is not a snapshot');
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(
-      /could not be read/,
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(
+      /could not be read: .*\. A run that ignored it would look exactly like a run that never had one\./su,
     );
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run once|record a new one/);
   });
 
   it('refuses a readable snapshot that names no commit when no change is given', async () => {
@@ -70,7 +72,9 @@ describe('reading this checkout', () => {
     const { commit: _, ...uncommitted } = snapshot('c0ffee');
     await writeTestCoverage(testCoverageFile(root), uncommitted);
 
-    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+    await expect(refused).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+    await expect(refused).rejects.not.toThrow(/record the suite|run the suite/i);
   });
 
   it('skips the test files a real journal and a real diff rule out', async () => {

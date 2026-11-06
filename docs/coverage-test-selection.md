@@ -268,6 +268,15 @@ same suites. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
+When a test file is the grain you select at,
+[`mode: 'loads'`](../packages/sense/README.md#record-only-what-each-test-file-loaded)
+records at Ekstazi's grain: the modules each test file loaded, with one line
+added after each module and nothing inside it. It is coarser than Ekstazi in
+two ways. Ekstazi compares a class by a checksum that leaves out debug
+information, so an edit to a comment selects nothing; under `loads` any change
+to a file's text selects every test file that loaded it. Ekstazi also records
+the resource files a test opens, where `loads` sees only what the run transforms; a file
+read with `fs` is a [precondition](execution-record.md) you declare.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its
@@ -286,7 +295,7 @@ it. A changed value is charged to the tests that ran a function that reads it,
 in the same file or in a file that imports it, not to every test that loaded
 the file.
 
-**What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
+**A test file the record cannot answer for runs, and a change it cannot connect is printed.** A test file the
 record did not observe whole always runs. A changed file the record has no data for is
 parsed the same way; if parsing cannot decide, the tests of the recorded files
 that import it are selected. A file
@@ -296,7 +305,7 @@ modules that import it. A test that loaded a changed file through an edge the
 graph does not list is printed by name and is not selected: the missing edge is
 the thing to fix. Every run prints one line per changed file saying how it was
 read, or why it could not be.
-[Where selection widens](selecting.md#where-selection-widens) lists each case.
+[What a skipped test promises](selection-safety.md) lists each case.
 
 The record is columnar and stores each repeated set of tests once. In a
 checkout of around 400,000 files, close to the size of Chromium's, the
@@ -455,7 +464,7 @@ unmodified fork with one commit of setup:
 | Test files | 202 | 188 |
 | One-line edit, package graph | 201 files | 168 files, from `nx affected` |
 | One-line edit, test files that load the changed module | 197 files | 149 files |
-| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 10 files, 4.4 s instead of 12.7 s |
+| One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
 | Test file runs skipped over sixty commits | 57% | 93% |
 | Recording cost, at most | 1.02× | 1.08× |
 
@@ -494,9 +503,10 @@ A record describes the commit it was recorded at. A change is measured from
 that commit rather than from your branch point, so a record several commits old
 selects for every change made since. Record a run of the whole suite at every
 commit and the record is never more than one commit old. A run of some of the
-tests also stamps the record with its commit, and the tests it left out keep
-the rows they recorded on an older text. Each of those is measured from the
-commit it last ran at: what changed after that commit is read from both texts,
+tests also stamps the record with its commit, and the test files it left out
+keep the rows they recorded on an older text, as do the cases it did not run of
+a test file it ran only in part. Each of those test files is measured from the
+commit a run last finished it at: what changed after that commit is read from both texts,
 the way a change in your tree is, so a test runs for an edit to a region it
 entered and not for one elsewhere in the same file. The install is compared from
 that commit too. A patch you hand in with `--diff` is read as the whole change

@@ -22,7 +22,14 @@ pub(crate) fn text(source: &[u16], span: Option<TextSpan>) -> Option<String> {
 pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
     let raw = text(source, span)?;
     let body = raw.trim_start_matches("/**").trim_end_matches("*/");
-    let lines: Vec<_> = body.lines().map(|line| line.trim().trim_start_matches('*').trim()).collect();
+    // A JSDoc line's `*` margin, or a Rust or Swift `///` / `//!` one.
+    let lines: Vec<_> = body
+        .lines()
+        .map(|line| {
+            let line = line.trim();
+            line.strip_prefix("///").or_else(|| line.strip_prefix("//!")).unwrap_or(line).trim_start_matches('*').trim()
+        })
+        .collect();
     let cleaned = lines.join("\n").trim().to_owned();
     if cleaned.is_empty() { None } else { Some(cleaned) }
 }
@@ -32,11 +39,8 @@ pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
 /// scopes that name resolves in: the statements around it, then the file's.
 fn assigned<'p, 'a>(program: &'p Program<'a>) -> Option<(String, Vec<&'p [Statement<'a>]>)> {
     fn name(statements: &[Statement]) -> Option<String> {
-        statements.iter().find_map(|statement| match statement {
-            Statement::TSExportAssignment(it) => match &it.expression {
-                Expression::Identifier(name) => Some(name.name.to_string()),
-                _ => None,
-            },
+        statements.iter().find_map(|statement| match crate::assigned_object::handed_out(statement)? {
+            Expression::Identifier(name) => Some(name.name.to_string()),
             _ => None,
         })
     }
@@ -84,7 +88,7 @@ pub(crate) fn exported_import(program: &Program) -> Vec<String> {
     let Some((local, scopes)) = assigned(program) else { return Vec::new() };
     scopes.into_iter().flatten().filter_map(|statement| match statement {
         Statement::TSImportEqualsDeclaration(it) if it.id.name == local.as_str() => match &it.module_reference {
-            TSModuleReference::ExternalModuleReference(reference) => Some(reference.expression.value.to_string()),
+            TSModuleReference::ExternalModuleReference(reference) => reference.expression.value.as_str().map(str::to_owned),
             _ => None,
         },
         _ => None,
@@ -113,6 +117,11 @@ mod tests {
     fn an_import_assigned_to_the_export_is_read_from_code() {
         let source = "import globbing = require(\"./lib/globbing\");\nexport = globbing;\n";
         assert_eq!(imported(source), ["./lib/globbing"]);
+    }
+
+    #[test]
+    fn an_import_no_text_holds_names_nothing() {
+        assert!(imported("import held = require('\\uD800');\nexport = held;\n").is_empty());
     }
 
     #[test]

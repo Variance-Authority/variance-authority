@@ -3,11 +3,11 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LEXICON_CAP, type SubjectComposition } from '@variance-authority/core/attribute';
 import { readSuiteIndex } from '@variance-authority/report/file';
 import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/suite-index';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import type { Config } from '../config.js';
 import { EXIT_OPERATOR } from '../exit.js';
 import { composeReports } from './compose.js';
@@ -47,8 +47,8 @@ function whole(subjects: readonly SubjectComposition[]) {
 /** Each shard's part, where `owner` places plan position `i` on a shard. */
 function parts(subjects: readonly SubjectComposition[], total: number, owner: (i: number) => number): SuitePart[] {
   return Array.from({ length: total }, (_, k) => {
-    const slots = subjects.map((subject, i) => (owner(i) === k + 1 ? subject : null));
-    const { reading } = composeReports({ subjects: slots, observations: [], source: SOURCE });
+    const slots = subjects.map((subject, i) => (owner(i) === k + 1 ? [subject] : []));
+    const { reading } = composeReports({ subjects: slots.flat(), observations: [], source: SOURCE });
     return suitePartOf(slots, reading, COMMIT, { index: k + 1, total });
   });
 }
@@ -103,6 +103,27 @@ describe('a composed suite index', () => {
     expect(composeSuiteIndex([one!, { ...two!, subjects: one!.subjects }], COMMIT)).toMatch(/was composed by two shards/);
   });
 
+  it('holds every width of a story at the one position the plan gave the story', () => {
+    // The last two subjects as two widths of one planned story, read by shard 2.
+    const [a, b, ...widths] = SUITE;
+    const one = suitePartOf([[a!], [b!], []], composeReports({ subjects: [a!, b!], observations: [], source: SOURCE }).reading, COMMIT, { index: 1, total: 2 });
+    const two = suitePartOf([[], [], widths], composeReports({ subjects: widths, observations: [], source: SOURCE }).reading, COMMIT, { index: 2, total: 2 });
+
+    expect(two.subjects.map((row) => row.position)).toEqual(widths.map(() => 2));
+    expect(composeSuiteIndex([one, two], COMMIT)).toEqual(whole(SUITE));
+  });
+
+  // The reading is one value per composition, in order. One that holds fewer
+  // was not read over these compositions, and every position after the gap
+  // would carry another subject's names.
+  it('refuses a reading that is not one value per composition', () => {
+    const [a, b, ...widths] = SUITE;
+    const { reading } = composeReports({ subjects: [a!, b!], observations: [], source: SOURCE });
+
+    expect(() => suitePartOf([[a!], [b!], widths], reading, COMMIT)).toThrow(`2 lexicon values for ${String(SUITE.length)} compositions`);
+    expect(suitePartOf([[a!], [b!], widths], undefined, COMMIT).subjects).toEqual([]);
+  });
+
   it('refuses an unsharded part beside a shard, and two unsharded parts', () => {
     const [one] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
     const { shard: _, ...whole } = one!;
@@ -117,11 +138,11 @@ describe('share --publish over every shard', () => {
 
   beforeEach(async () => {
     home = await mkdtemp(join(tmpdir(), 'variance-suite-part-'));
-    process.env['VARIANCE_AUTHORITY_CACHE'] = home;
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', home);
   });
 
   afterEach(() => {
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   const configOf = (root?: string): Config =>

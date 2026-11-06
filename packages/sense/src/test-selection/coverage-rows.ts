@@ -8,11 +8,12 @@
  * that conversion happens.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import type { Block } from '../instrument/index.js';
-import { spliced, type InstrumentMode } from '../instrument/spliced.js';
+import { spliced, type WalkMode } from '../instrument/spliced.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
-import { codeUnitOrder, type CapturedModule } from './instrumented-modules.js';
+import type { CapturedModule } from './instrumented-modules.js';
 import { sourceLines, type ExtentOf, type RecordedFrame } from './source-lines.js';
 
 /** The coverage row a captured module makes once its crossings are known. */
@@ -120,7 +121,7 @@ export function recordedBlocks(
   blocks: readonly Block[],
   frame: Pick<RecordedFrame, 'extentOf' | 'text' | 'file'>,
   built: string,
-  mode: InstrumentMode,
+  mode: WalkMode,
 ): CoverageBlock[] {
   if (frame.text === built || built.trim() === '') return coverageBlocks(blocks, frame);
   const own = sourceCut(frame.text, frame.file, mode);
@@ -185,7 +186,7 @@ function ownsText(block: Block): Region {
 export function sourceCut(
   text: string,
   file: string,
-  mode: InstrumentMode,
+  mode: WalkMode,
 ): { readonly blocks: readonly Block[]; readonly rows: CoverageBlock[]; readonly sourceDigest: string } | undefined {
   const walked = spliced(text, file, mode);
   if (walked === undefined) return undefined;

@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="docs/visual-guidelines.md">
+  <a href="https://variance-authority.dev">
     <img src="assets/brand/variance-authority-logo.svg" alt="Variance Authority logo" width="800">
   </a>
 </p>
@@ -27,6 +27,7 @@ as the investigation grows.
 
 | What do you need to do? | Start here |
 | --- | --- |
+| Give your coding agent these answers | [Connect it](docs/agent-workspace-api.md#connect-your-agent): one install and one index, with no config and no test run, then a few lines in `AGENTS.md`. |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
@@ -48,6 +49,8 @@ source facts and observations it reads, through the interfaces it already has.
 - [**As guided workflows**](docs/agent-workflows.md) — source discovery, live
   investigation, UI review, test selection, and test reduction, each carried
   through an edit and a check.
+
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## One change, traced end to end
 
@@ -146,7 +149,7 @@ npx variance accept --config variance.config.json cart/empty
 npx variance run --config variance.config.json
 ```
 
-The first durable run exits `1` because its subjects are `new`. Accept the
+The first durable run exits `0` and reports its subjects as `new`. Accept the
 subject ids you meant, then rerun; an unchanged run exits `0`.
 
 ## What else the same evidence answers

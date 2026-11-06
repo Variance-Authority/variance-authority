@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { readHelp } from '@variance-authority/package/help';
-import { readDependencyLexicon, refreshDependencyLexicon, queryDependencyLexicon } from './dependency-lexicon.js';
+import { refreshDependencyLexicon, queryDependencyLexicon } from './dependency-lexicon.js';
 import { HELP_TOOLS } from './tools.js';
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -64,8 +64,8 @@ function ask(args: Record<string, unknown>, at = root): string {
 }
 
 it('records the README beside an unavailable package, and none beside one that ships none', () => {
-  const entries = readDependencyLexicon(root).lexicon?.entries ?? [];
-  const readmes = entries.map((entry) => [entry.api.runtime?.name, entry.api.readme?.at, entry.api.readme?.lines]);
+  const silent = queryDependencyLexicon(root, 'anything', undefined, true)?.silent ?? [];
+  const readmes = silent.map((one) => [one.package, one.readme?.at, one.readme?.lines]);
   expect(readmes).toContainEqual(['bare-kit', 'node_modules/bare-kit/README.md', 6]);
   expect(readmes).toContainEqual(['mute-kit', undefined, undefined]);
 });
@@ -132,17 +132,4 @@ it('keeps the README of another installed copy of the same version, whose declar
   expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
   expect(text).toContain('README: legacy/node_modules/door-kit/README.md');
   expect(text).toContain('legacy/node_modules/door-kit/README.md:3 names `wake`:');
-});
-
-it('answers a lexicon written before READMEs were recorded as it did, and says nothing about one', () => {
-  const path = readDependencyLexicon(root).path;
-  const old = JSON.parse(readFileSync(path, 'utf8')) as { version: number; entries: { api: Record<string, unknown> }[] };
-  old.version = 4;
-  for (const entry of old.entries) delete entry.api['readme'];
-  writeFileSync(path, JSON.stringify(old));
-
-  const answer = queryDependencyLexicon(root, 'spin', undefined, true);
-  expect(answer?.total).toBe(0);
-  expect(answer?.silent?.every((one) => one.readme === undefined)).toBe(true);
-  expect(() => ask({ name: 'spin' })).toThrow(/ask `search`/);
 });

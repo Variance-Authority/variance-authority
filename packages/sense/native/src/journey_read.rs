@@ -17,11 +17,13 @@ use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::fs;
 
-use crate::case_preconditions;
+use crate::case_said::{self, Heard};
 use crate::journey_lazy::{Handle, Lazy};
-use crate::case_shard::decode_set;
+use crate::crossing_sets::decode_set;
+use crate::journey_format::OVERWRITTEN;
 use crate::order;
 use crate::record_layout::LAYOUT;
+
 
 /// One region of a module, as the columns spell it.
 #[derive(Clone, Copy)]
@@ -36,6 +38,11 @@ pub(crate) struct Region {
     pub source: bool,
     pub loaded: bool,
     pub called: u32,
+    /// The set of cases whose crossing of the region is not known: the record
+    /// was cut to a text an edit wrote over the region they were measured at,
+    /// so they ran another text there (`landedThrough` in `region-edit.ts`).
+    /// None of them is in `called`. `None` in a file with no such case.
+    pub overwritten: Option<u32>,
 }
 
 struct Columns {
@@ -46,8 +53,12 @@ struct Columns {
     test_names: Handle,
     /// `tests.stopped`, absent in a file written before cases carried it.
     test_settled: Option<Handle>,
-    /// `tests.casePreconditions`, absent where no case was listened to.
-    test_said: Option<Handle>,
+    /// `tests.said`, absent where no case was listened to.
+    said: Option<Handle>,
+    /// `tests.read`, absent where no case was listened to, as in a record from before breadcrumbs.
+    read: Option<Handle>,
+    /// `tests.misused`, absent where no case was listened to for reads.
+    misused: Option<Handle>,
     module_files: Handle,
     module_blocks: Handle,
     kinds: Handle,
@@ -57,6 +68,8 @@ struct Columns {
     ends: Handle,
     sources: Handle,
     called: Handle,
+    /// `blocks.overwrittenSet`, absent where no region holds an overwritten case.
+    overwritten: Option<Handle>,
     loaded: Handle,
     sets: Handle,
     set_offsets: Handle,
@@ -91,7 +104,9 @@ impl Journey {
             test_files: lazy.column("tests.file", 4)?,
             test_names: lazy.column("tests.name", 4)?,
             test_settled: if lazy.has("tests.stopped") { Some(lazy.column("tests.stopped", 1)?) } else { None },
-            test_said: if lazy.has(case_preconditions::COLUMN) { Some(lazy.column(case_preconditions::COLUMN, 4)?) } else { None },
+            said: if lazy.has(case_said::SAID_SECTION) { Some(lazy.column(case_said::SAID_SECTION, 1)?) } else { None },
+            read: if lazy.has(case_said::READ_SECTION) { Some(lazy.column(case_said::READ_SECTION, 1)?) } else { None },
+            misused: if lazy.has(case_said::MISUSED_SECTION) { Some(lazy.column(case_said::MISUSED_SECTION, 1)?) } else { None },
             module_files: lazy.column("modules.file", 4)?,
             module_blocks: lazy.column("modules.blocks", 4)?,
             kinds: lazy.column("blocks.kind", 4)?,
@@ -101,6 +116,7 @@ impl Journey {
             ends: lazy.column("blocks.end", 4)?,
             sources: lazy.column("blocks.source", 1)?,
             called: lazy.column("blocks.calledSet", 4)?,
+            overwritten: if lazy.has(OVERWRITTEN) { Some(lazy.column(OVERWRITTEN, 4)?) } else { None },
             loaded: lazy.column("blocks.loaded", 1)?,
             sets: lazy.column("sets.blob", 1)?,
             set_offsets: lazy.column("sets.off", 4)?,
@@ -122,7 +138,6 @@ impl Journey {
         if rows(c.test_files) != self.tests
             || rows(c.test_names) != self.tests
             || c.test_settled.is_some_and(|column| rows(column) != self.tests)
-            || c.test_said.is_some_and(|column| rows(column) != self.tests)
         {
             return Err("test columns disagree".to_owned());
         }
@@ -131,7 +146,7 @@ impl Journey {
         }
         let blocks = rows(c.kinds);
         let lengths = [rows(c.names), rows(c.paths), rows(c.starts), rows(c.ends), rows(c.sources), rows(c.called), rows(c.loaded)];
-        if lengths.into_iter().any(|length| length != blocks) {
+        if lengths.into_iter().chain(c.overwritten.map(rows)).any(|length| length != blocks) {
             return Err("block columns disagree".to_owned());
         }
         let mut previous = 0;
@@ -183,12 +198,12 @@ impl Journey {
         self.columns.test_settled.map(|column| self.lazy.byte(column, test)).transpose()
     }
 
-    /// What the case said it arranged, as the column spells it, when it was listened to.
-    pub fn test_said(&self, test: usize) -> Result<Option<&str>, String> {
-        match self.columns.test_said.map(|column| self.lazy.word(column, test)).transpose()? {
-            None | Some(case_preconditions::UNHEARD) => Ok(None),
-            Some(word) => self.text(word).map(Some),
-        }
+    /// What each case said it arranged and the code read, `None` for a case
+    /// nobody listened to.
+    pub fn heard(&self) -> Result<Vec<Option<Heard>>, String> {
+        let bytes = |column: Option<Handle>| column.map(|column| self.lazy.all_bytes(column)).transpose();
+        let (said, read, misused) = (bytes(self.columns.said)?, bytes(self.columns.read)?, bytes(self.columns.misused)?);
+        case_said::read([said.as_deref(), read.as_deref(), misused.as_deref()], self.tests, |set| self.members(set))
     }
 
     /// Each test's file, by test index.
@@ -251,9 +266,16 @@ impl Journey {
                     source: self.lazy.byte(c.sources, at)? == 1,
                     loaded: self.lazy.byte(c.loaded, at)? == 1,
                     called: self.lazy.word(c.called, at)?,
+                    overwritten: c.overwritten.map(|column| self.lazy.word(column, at)).transpose()?,
                 })
             })
             .collect()
+    }
+
+    /// The cases whose crossing of `region` is not known, none of them among
+    /// the ones that entered it.
+    pub fn overwritten(&self, region: &Region) -> Result<Vec<u32>, String> {
+        region.overwritten.map_or_else(|| Ok(Vec::new()), |set| self.members(set))
     }
 
     /// The tests in set `set`: the ones that entered every region pointing at it.

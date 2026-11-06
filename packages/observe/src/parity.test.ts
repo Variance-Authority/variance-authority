@@ -29,6 +29,7 @@ import { createLfsStore, type CommandRunner } from '@variance-authority/store/lf
 import { createBucketStore } from '@variance-authority/tribunal/store';
 import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
 import { observeAgainstBaseline, type RasterVerdict } from './observe.js';
+import { keptRaster } from '@variance-authority/store/keep';
 
 /**
  * Acceptance 4: where a baseline is kept decides nothing about what it means.
@@ -217,14 +218,14 @@ const SCENARIOS: readonly Scenario[] = [
     name: 'a subject that did not move',
     verdict: 'unchanged',
     changed: 0,
-    prepare: (store) => store.put(at('s'), baseline(MAC)),
+    prepare: async (store) => store.put(at('s'), await keptRaster(baseline(MAC))),
     document: SAME,
   },
   {
     name: 'a subject that moved',
     verdict: 'changed',
     changed: 100,
-    prepare: (store) => store.put(at('s'), baseline(MAC)),
+    prepare: async (store) => store.put(at('s'), await keptRaster(baseline(MAC))),
     document: EDITED,
   },
   {
@@ -238,7 +239,7 @@ const SCENARIOS: readonly Scenario[] = [
     name: 'a baseline from another machine',
     verdict: 'unchanged',
     changed: 0,
-    prepare: (store) => store.put(at('s'), baseline(RUNNER)),
+    prepare: async (store) => store.put(at('s'), await keptRaster(baseline(RUNNER))),
     document: SAME,
   },
 ];
@@ -284,8 +285,8 @@ describe('switching where baselines are kept', () => {
 
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put(at('mine'), baseline(MAC));
-      await store.put(at('theirs'), baseline(RUNNER));
+      await store.put(at('mine'), await keptRaster(baseline(MAC)));
+      await store.put(at('theirs'), await keptRaster(baseline(RUNNER)));
 
       answers[implementation.name] = {
         mine: await store.describe(at('mine'), MAC),
@@ -379,7 +380,7 @@ describe('switching where baselines are kept', () => {
 
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put(at('substituted'), { ...baseline(MAC), missingFonts: ['Inter'] });
+      await store.put(at('substituted'), await keptRaster({ ...baseline(MAC), missingFonts: ['Inter'] }));
       answers[implementation.name] = (await store.describe(at('substituted'), MAC))
         ?.missingFonts;
     }
@@ -404,9 +405,9 @@ describe('switching where baselines are kept', () => {
 
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put(at('s'), baseline(MAC));
-      await store.put(at('s'), baseline(RUNNER));
-      await store.put(at('s'), baseline(WEBKIT));
+      await store.put(at('s'), await keptRaster(baseline(MAC)));
+      await store.put(at('s'), await keptRaster(baseline(RUNNER)));
+      await store.put(at('s'), await keptRaster(baseline(WEBKIT)));
 
       const found = await store.describe(at('s'), MAC);
       answers[implementation.name] = { comparable: found?.comparable, storedUnder: found?.storedUnder };
@@ -433,7 +434,7 @@ describe('switching where baselines are kept', () => {
     // attribute — which is the whole reason `find` looks under other identities.
     for (const implementation of IMPLEMENTATIONS) {
       const store = await implementation.open();
-      await store.put(at('s'), baseline(RUNNER));
+      await store.put(at('s'), await keptRaster(baseline(RUNNER)));
 
       const observation = await observeAgainstBaseline(SAME, at('s'), {
         renderer: renderer(MAC),

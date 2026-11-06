@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TRIBUNAL_API, createTribunal, type Tribunal } from './worker.js';
 import { ingest } from './__fixtures__/review.js';
-import { createMemoryR2, createSqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1 } from './testing.js';
 import { createReviewClient } from './ui/client.js';
 
 const INGEST = 'ingest-token-0123456789';
@@ -19,8 +19,7 @@ beforeEach(async () => {
     db: await createSqliteD1(),
     bucket: createMemoryR2(),
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW }),
   });
   expect((await call('/review/builds', { token: INGEST, body: ingest() })).status).toBe(201);
 });
@@ -42,7 +41,7 @@ const RAISE = { build: 'ci-1001', subject: SUBJECT, title: 'Total moved', by: 'm
 
 describe('the concern routes', () => {
   it('raises, moves and lists a concern for the review token', async () => {
-    const raised = await call('/review/concerns', {
+    const raised = await call('/review/concerns/raise', {
       token: REVIEW,
       body: { ...RAISE, region: { x: 0, y: 0, width: 1, height: 1 }, evidence: ['CartSummary.tsx:84'] },
     });
@@ -52,7 +51,7 @@ describe('the concern routes', () => {
 
     const moved = await call(`/review/concerns/${concern.id}`, {
       token: REVIEW,
-      body: { state: 'resolved', by: 'anton', note: 'Intended' },
+      body: { state: 'resolved', by: 'marina', note: 'Intended' },
     });
     expect(moved.status).toBe(200);
 
@@ -66,25 +65,25 @@ describe('the concern routes', () => {
     // A concern is what a person wrote on the review surface, and reading that
     // surface is the review token's: the ingest token lives in CI, where anything
     // that dumps its environment prints it.
-    await call('/review/concerns', { token: REVIEW, body: RAISE });
+    await call('/review/concerns/raise', { token: REVIEW, body: RAISE });
 
     const read = await call(`/review/concerns?subject=${encodeURIComponent(SUBJECT)}&state=open`, { token: REVIEW });
     expect(((await read.json()) as { concerns: unknown[] }).concerns).toHaveLength(1);
 
     expect((await call(`/review/concerns?subject=${encodeURIComponent(SUBJECT)}`, { token: INGEST })).status).toBe(403);
-    expect((await call('/review/concerns', { token: INGEST, body: RAISE })).status).toBe(403);
+    expect((await call('/review/concerns/raise', { token: INGEST, body: RAISE })).status).toBe(403);
     expect((await call('/review/concerns/1', { token: INGEST, body: { state: 'resolved', by: 'ci' } })).status).toBe(403);
   });
 
   it('keeps the component a region was raised on', async () => {
     const region = { x: 0, y: 0, width: 1, height: 1, component: 'CartSummary' };
-    const raised = await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region } });
+    const raised = await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, region } });
     expect(raised.status).toBe(201);
     expect(((await raised.json()) as { concern: { region: unknown } }).concern.region).toEqual(region);
   });
 
   it('reads a null region as the whole render', async () => {
-    const raised = await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: null } });
+    const raised = await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, region: null } });
     expect(raised.status).toBe(201);
     expect(((await raised.json()) as { concern: Record<string, unknown> }).concern).not.toHaveProperty('region');
   });
@@ -94,19 +93,19 @@ describe('the concern routes', () => {
   });
 
   it('refuses a body it cannot read as a concern', async () => {
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, title: '' } })).status).toBe(400);
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, title: '   ' } })).status).toBe(400);
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: { x: 0 } } })).status).toBe(400);
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: 'all' } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, title: '' } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, title: '   ' } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, region: { x: 0 } } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, region: 'all' } })).status).toBe(400);
     const unnamed = { x: 0, y: 0, width: 1, height: 1, component: 7 };
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, region: unnamed } })).status).toBe(400);
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, evidence: 'x' } })).status).toBe(400);
-    expect((await call('/review/concerns', { token: REVIEW, body: { ...RAISE, state: 'closed' } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, region: unnamed } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, evidence: 'x' } })).status).toBe(400);
+    expect((await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, state: 'closed' } })).status).toBe(400);
     expect((await call('/review/concerns/abc', { token: REVIEW, body: { state: 'open', by: 'm' } })).status).toBe(404);
   });
 
   it('answers a concern about a subject the build never showed as the caller’s problem', async () => {
-    const response = await call('/review/concerns', { token: REVIEW, body: { ...RAISE, subject: 'story:nope' } });
+    const response = await call('/review/concerns/raise', { token: REVIEW, body: { ...RAISE, subject: 'story:nope' } });
     expect(response.status).toBe(422);
   });
 
@@ -133,11 +132,27 @@ describe('the concern routes', () => {
     });
 
     const raised = await client.raise({ ...RAISE, region: { x: 1, y: 2, width: 3, height: 4 }, evidence: ['baseline'] });
-    const moved = await client.moveConcern(raised.id, { state: 'investigating', by: 'anton', note: 'Looking' });
+    const moved = await client.moveConcern(raised.id, { state: 'investigating', by: 'marina', note: 'Looking' });
     const listed = await client.concerns({ seenIn: 'ci-1001', state: 'investigating' });
 
     expect(moved.events.map((event) => event.state)).toEqual(['open', 'investigating']);
     expect(listed.concerns.map((concern) => concern.id)).toEqual([raised.id]);
     expect(listed.tally).toEqual({ open: 0, investigating: 1, resolved: 0 });
+  });
+});
+
+describe('where a concern is raised', () => {
+  // Access tells paths apart and not methods, so a machine's read and a reviewer's
+  // write cannot share one: the read sits outside Access and the write behind it.
+  it('is not the path the read sits on', async () => {
+    const raising = await call('/review/concerns', { token: REVIEW, body: RAISE });
+
+    expect(raising.status).toBe(405);
+    expect(raising.headers.get('allow')).toBe('GET');
+    expect(await raising.text()).toContain('/review/concerns/raise');
+  });
+
+  it('is refused anything but a POST', async () => {
+    expect((await call('/review/concerns/raise', { token: REVIEW })).status).toBe(405);
   });
 });

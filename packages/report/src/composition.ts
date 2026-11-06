@@ -171,7 +171,7 @@ export interface PartingRecord {
  *
  * The ladder is `edited` → `token` → `upstream` → `contradicted` → `unexplained`,
  * and the last one is the finding. See
- * [`flakiness.md`](../../../docs/flakiness.md) for what it is and is not allowed
+ * [`flakiness.md`](https://variance-authority.dev/docs/flakiness) for what it is and is not allowed
  * to conclude.
  */
 export interface MovementRecord {

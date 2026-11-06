@@ -3,13 +3,21 @@
 //! and its case parts as bytes. Nothing is turned into objects; a string is a
 //! slice of the record's own dictionary.
 //!
-//! The layouts read are the current one and the one before `tests.duration`,
-//! which the JVM agent writes and which reads as a run whose runner reported no
-//! durations. Every shard of a combine was written by one build, so a record
+//! The layouts read are the current one, the one before `modules.blob`, which
+//! reads as a record that named no text by its git blob, the ones before `tests.phases` and
+//! before the case parts, which read as a run whose runner reported no phases,
+//! and the one before `tests.duration`, which the JVM agent writes and which
+//! reads as a run whose runner reported no durations. Every shard of a combine was written by one build, so a record
 //! at any other version is refused by its version.
 
 use crate::journey_columns::{self, Decoded};
 use crate::record_layout::LAYOUT;
+
+/// How many phases a test file holds a word each of: `phaseNames` in `record-layout.json`.
+pub(crate) const PHASES: usize = 5;
+
+/// A test file's phases, `coverage.no_duration` for one its runner did not report.
+pub(crate) type Phases = [u32; PHASES];
 
 pub(crate) struct Coverage {
     blob: Vec<u8>,
@@ -21,10 +29,15 @@ pub(crate) struct Coverage {
     pub test_preconditions: Vec<u32>,
     /// `None` for the untimed layout, which holds no durations.
     pub test_duration: Option<Vec<u32>>,
+    /// `PHASES` words a test; `None` for a layout before `tests.phases`.
+    pub test_phases: Option<Vec<u32>>,
     pub precondition_name: Vec<u32>,
     pub precondition_digest: Vec<u32>,
     pub module_path: Vec<u32>,
     pub module_source: Vec<u32>,
+    /// The git blob name of each module's text, `coverage.no_blob` where the
+    /// row has none; `None` for a layout before `modules.blob`.
+    pub module_blob: Option<Vec<u32>>,
     pub module_instrumented: Vec<u8>,
     pub module_blocks: Vec<u32>,
     pub block_ordinal: Vec<u32>,
@@ -49,6 +62,7 @@ pub(crate) struct Parts {
     pub before: Option<Vec<u8>>,
     pub last: Option<Vec<u8>>,
     pub eyes: Option<Vec<u8>>,
+    pub readings: Option<Vec<u8>>,
     /// The record the run started from (`record_start::base`).
     pub base: Option<Vec<u8>>,
 }
@@ -76,7 +90,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
         }
         decoded.take_bytes(name).map(Some)
     };
-    let parts = Parts { index: part("index")?, before: part("before")?, last: part("last")?, eyes: part("eyes")?, base: part("base")? };
+    let parts = Parts { index: part("index")?, before: part("before")?, last: part("last")?, eyes: part("eyes")?, readings: part("readings")?, base: part("base")? };
     let coverage = if layout.sections.iter().any(|name| decoded.has(name)) { Some(coverage(decoded, version)?) } else { None };
     Ok(Record { coverage, parts })
 }
@@ -87,7 +101,7 @@ fn readable(version: u8) -> Result<(), String> {
     if layout.readable(version) {
         return Ok(());
     }
-    Err(format!("unsupported record version: {version}; this build reads versions {}, {} and {}", layout.untimed, layout.uncased, layout.format))
+    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.unkeyed, layout.format))
 }
 
 /// The test files a record's coverage holds, read off its header alone: the
@@ -112,6 +126,8 @@ pub(crate) struct Head {
 fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
     let decoded = &mut decoded;
     let timed = version != LAYOUT.coverage.untimed;
+    let keyed = version == LAYOUT.coverage.format;
+    let phased = keyed || version == LAYOUT.coverage.unkeyed;
     let one = |name: &str, values: Vec<u32>, empty: bool| -> Result<Option<u32>, String> {
         match values.as_slice() {
             [value] => Ok(Some(*value)),
@@ -128,10 +144,12 @@ fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
         test_complete: decoded.take_bytes("tests.complete")?,
         test_preconditions: decoded.take_words("tests.preconditions")?,
         test_duration: if timed { Some(decoded.take_words(&LAYOUT.coverage.duration)?) } else { None },
+        test_phases: if phased { Some(decoded.take_words(&LAYOUT.coverage.phases)?) } else { None },
         precondition_name: decoded.take_words("preconditions.name")?,
         precondition_digest: decoded.take_words("preconditions.digest")?,
         module_path: decoded.take_words("modules.path")?,
         module_source: decoded.take_words("modules.source")?,
+        module_blob: if keyed { Some(decoded.take_words(&LAYOUT.coverage.blob)?) } else { None },
         module_instrumented: decoded.take_bytes("modules.instrumented")?,
         module_blocks: decoded.take_words("modules.blocks")?,
         block_ordinal: decoded.take_words("blocks.ordinal")?,
@@ -230,6 +248,33 @@ impl Coverage {
         self.module_blocks[module] as usize..self.module_blocks[module + 1] as usize
     }
 
+    /// The duration of test `test`, `coverage.no_duration` where none was reported.
+    pub fn duration(&self, test: usize) -> u32 {
+        self.test_duration.as_ref().map_or(LAYOUT.coverage.no_duration, |duration| duration[test])
+    }
+
+    /// The phases of test `test`; each `coverage.no_duration` where none was reported.
+    pub fn phases(&self, test: usize) -> Phases {
+        let mut held = [LAYOUT.coverage.no_duration; PHASES];
+        if let Some(phases) = &self.test_phases {
+            held.copy_from_slice(&phases[test * PHASES..(test + 1) * PHASES]);
+        }
+        held
+    }
+
+    /// The git blob name id of module `module`'s text, `coverage.no_blob` where none was recorded.
+    pub fn blob(&self, module: usize) -> u32 {
+        self.module_blob.as_ref().map_or(LAYOUT.coverage.no_blob, |blob| blob[module])
+    }
+
+    /// The git blob name of module `module`'s text as `rank` numbers its strings, or `no_blob`.
+    pub fn blob_in(&self, module: usize, rank: impl FnOnce(u32) -> u32) -> u32 {
+        match self.blob(module) {
+            blob if blob == LAYOUT.coverage.no_blob => blob,
+            blob => rank(blob),
+        }
+    }
+
     /// The preconditions of test `test`, as a range of precondition rows.
     pub fn preconditions(&self, test: usize) -> std::ops::Range<usize> {
         self.test_preconditions[test] as usize..self.test_preconditions[test + 1] as usize
@@ -251,9 +296,18 @@ impl Coverage {
         if let Some(duration) = &self.test_duration {
             rows(&LAYOUT.coverage.duration, duration.len(), tests)?;
         }
+        if let Some(phases) = &self.test_phases {
+            rows(&LAYOUT.coverage.phases, phases.len(), tests * PHASES)?;
+        }
         bounds("tests.preconditions", &self.test_preconditions, preconditions)?;
         rows("preconditions.digest", self.precondition_digest.len(), preconditions)?;
         rows("modules.source", self.module_source.len(), modules)?;
+        if let Some(blob) = &self.module_blob {
+            rows(&LAYOUT.coverage.blob, blob.len(), modules)?;
+            if blob.iter().any(|id| *id != LAYOUT.coverage.no_blob && *id as usize >= strings) {
+                return Err(format!("record section {} names a string past the dictionary", LAYOUT.coverage.blob));
+            }
+        }
         rows("modules.instrumented", self.module_instrumented.len(), modules)?;
         rows("modules.blocks", self.module_blocks.len(), modules + 1)?;
         bounds("modules.blocks", &self.module_blocks, blocks)?;

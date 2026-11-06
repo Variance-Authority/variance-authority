@@ -29,7 +29,7 @@ run configured with a URL and a reviewer's browser reach one address.
 
 ## Depends on
 
-- [`capability`](../capability/README.md) — which secret was presented, and
+- [`capability`](../capability/README.md) — which credential was presented, and
   whether it may do what the path requires
 - [`build-store`](../build-store/README.md) — the build list, one build's
   **docket**, and the bytes behind an image address
@@ -43,7 +43,7 @@ run configured with a URL and a reviewer's browser reach one address.
 
 ## Boundary
 
-It does not decide who a caller is. It reads a credential and never a name, and
+It does not decide who a caller is. It reads the principal it is handed, and
 the mapping from a person or a session to a capability happens above it, in
 [`deployment-adapters`](../deployment-adapters/README.md), on
 [`identity`](../identity/README.md)'s answer.
@@ -53,7 +53,7 @@ It does not own the **baseline** or record protocols it answers on — those are
 drift from a client's, and asserted against the originals rather than hoped
 equal.
 
-It makes no outbound request of any kind, and it applies no schema.
+It makes no outbound request itself, and it applies no schema.
 
 The typed refusals above are what a caller who presented a valid credential gets.
 Before that check passes it never varies its answer at all — a wrong token, a

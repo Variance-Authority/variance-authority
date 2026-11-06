@@ -7,6 +7,7 @@
  * cuts that text again to learn what each ordinal means.
  */
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { probesRegions } from '../instrument/identity.js';
 import { readFileSync } from 'node:fs';
 import { captureAfter, heldOriginal, type ComposedMap, placeModule } from './captured-modules.js';
 import { cleanId, defaultInclude, fileOrNone, mayTake, type ProbePlacement } from './instrumented-modules.js';
@@ -15,6 +16,9 @@ import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import preconditions from './case-preconditions.cjs';
+import { PAGE_STORY, type PageStory } from '../story/page-story.js';
+import { CARRIED_SOURCE } from './carried.js';
 
 /**
  * Where a page hands its journal over.
@@ -46,10 +50,31 @@ export interface ExecutedModule {
   readonly again?: readonly number[];
 }
 
+/**
+ * One `varianceBreadcrumb` call a page made: `read` with the `dimension:key`,
+ * or `misused` with the argument that was wrong, the JSON text of the value —
+ * `null` where JSON cannot hold it — the call site as the page spelled it, and
+ * the case body's level.
+ */
+export type PageRead = readonly [facet: 'read' | 'misused', item: readonly [name: string, value: string | null, site: string, level: number]];
+
 /** Everything a page entered between two drains. */
 export interface ExecutionJournal {
   readonly instrumentation: string;
   readonly modules: readonly ExecutedModule[];
+  /**
+   * What the page's code read between two drains, each key and value once per
+   * document, at its first site, after what the documents it replaced read;
+   * absent where no collector listened, because each realm had its own recorder.
+   */
+  readonly read?: readonly PageRead[];
+  /** The tape since the drain before, on a page `storyPageSource` made tape. */
+  readonly story?: PageStory;
+  /**
+   * How many documents this frame held before this one whose journals this
+   * drain carries, the first drain after a navigation; absent where none.
+   */
+  readonly replaced?: number;
 }
 
 /** What the collector exposes on {@link EXECUTION_GLOBAL}. */
@@ -60,6 +85,12 @@ export interface ExecutionCollector {
   readonly drain: () => ExecutionJournal;
   /** Forget everything entered so far without reporting it. */
   readonly reset: () => void;
+  /**
+   * The tape since the drain before, leaving what the page entered for the next
+   * drain: a runner that tapes each case takes this between cases and drains
+   * the file once. Absent on a page that does not tape.
+   */
+  readonly story?: () => PageStory;
 }
 
 export interface TestSelectionProbeOptions {
@@ -167,7 +198,7 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
 const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
- * Instrument a build.
+ * The Vite plugin whose `transform` hook instruments each module of a build.
  *
  * ```js
  * // vite.config.ts
@@ -315,6 +346,38 @@ export function testSelectionProbes(
 }
 
 /**
+ * A reader of the page's `varianceBreadcrumb` calls, as an expression, or
+ * `undefined` where the page already has a recorder, which places its reads
+ * itself. A page runs for the case that drives it, so every read is at the
+ * case body's level, and each `take()` closes a window: what the page read
+ * since the last, each key and value once, at its first site.
+ */
+function pageReaderSource(): string {
+  const symbol = (name: symbol): string => `Symbol.for(${JSON.stringify(Symbol.keyFor(name))})`;
+  return `(() => {
+  const PRECONDITION = ${symbol(preconditions.PRECONDITION)};
+  const BREADCRUMB = ${symbol(preconditions.BREADCRUMB)};
+  const MISPLACED = ${symbol(preconditions.MISPLACED)};
+  const LOADING = Symbol('loading');
+  const CASE_LEVEL = ${preconditions.CASE_LEVEL};
+  ${preconditions.RECORDER_PARTS.map(String).join('\n')}
+  if (globalThis[BREADCRUMB] !== undefined) return undefined;
+  const said = globalThis[PRECONDITION];
+  const heard = recorder(globalThis, () => 'page');
+  heard.loaded();
+  // A page says no precondition: its case does, in the driver.
+  if (said === undefined) delete globalThis[PRECONDITION];
+  else globalThis[PRECONDITION] = said;
+  return {
+    take() {
+      const { read, misused } = heard.take('page');
+      return [...read.map((item) => ['read', item]), ...misused.map((item) => ['misused', item])];
+    },
+  };
+})()`;
+}
+
+/**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
  * The engine is `instrument/probe-log.cts`, sent as its own source with
@@ -333,6 +396,10 @@ const engine = (${probeLog.createEngine.toString()})(false);
 const lists = ${probeLists.lists.toString()};
 const bucket = engine.open('');
 engine.use(bucket);
+// Under \`loads\` the mark is the only signal, and a page reused between
+// subjects evaluates a module once: each drain leaves the modules the page
+// holds in the bucket, so the next subject is charged with them too.
+const carries = ${JSON.stringify(!probesRegions(mode))};
 // A realm that already has a root has a collector that knows more than this
 // one: a Node head keys its buckets by journey, and a page has nowhere to put a
 // caller. Deferring is what lets one instrumented build serve a page and a
@@ -340,18 +407,51 @@ engine.use(bucket);
 // bucket nothing writes to, so a second bundle on one page offering its own
 // would have the page report that it ran nothing.
 if (globalThis.__VA__ === undefined) {
-  globalThis.__VA__ = engine.root;
+  // A runner that asked for stories left a maker on the page before it
+  // loaded: the tape goes in front of the root, and every drain carries it.
+  const maker = globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})];
+  const story = typeof maker === 'function' ? maker(engine) : undefined;
+  globalThis.__VA__ = story === undefined ? engine.root : story.root;
+  const realm = globalThis;
+  // What the page's code reads goes out with what it entered, for the driver
+  // to lay on the case it drained.
+  const reader = ${pageReaderSource()};
+  const drain = () => {
+    // In the order the page first registered each module, drain after drain.
+    const own = lists(engine.take(bucket), true);
+    if (carries) engine.carry();
+    const before = carry.take();
+    const drained = { instrumentation: ${JSON.stringify(instrumentation)}, modules: before === undefined ? own : joined(before.modules, own) };
+    if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
+    if (reader !== undefined || before?.read !== undefined) drained.read = [...(before?.read ?? []), ...(reader?.take() ?? [])];
+    if (story !== undefined) {
+      drained.story = story.take();
+      if (before?.story !== undefined) drained.story.before = [before.story];
+    }
+    return drained;
+  };
+${CARRIED_SOURCE}
   globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
     version: 1,
     instrumentation: ${JSON.stringify(instrumentation)},
-    drain() {
-      // In the order the page first registered each module, drain after drain.
-      const modules = lists(engine.take(bucket), true);
-      return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
-    },
+    drain,
     reset() {
       engine.take(bucket);
+      reader?.take();
+      if (carries) engine.carry();
+      carry.forget();
+      story?.take();
     },
+    ...(story === undefined
+      ? {}
+      : {
+          story: () => {
+            const taken = story.take();
+            const before = carry.story();
+            if (before !== undefined) taken.before = [before];
+            return taken;
+          },
+        }),
   };
 }
 `;

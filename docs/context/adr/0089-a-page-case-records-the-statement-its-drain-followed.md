@@ -39,7 +39,8 @@ charged to the statement that ran just before the drain that first found it.**
    cuts the observed test file; a runner with its own transform calls
    `cutTestFile`. Nothing else differs from a seam.
 2. **A Playwright cut is awaited.** `withTestSelection` adds a Babel plugin
-   to the configuration's `babelPlugins`. It makes ADR-0088's cut, awaited:
+   to the compile every spec goes through: `babelPlugins` below Playwright 1.63,
+   and `PW_TEST_SOURCE_TRANSFORM` from 1.63. It makes ADR-0088's cut, awaited:
    each statement of an async test or hook body waits while the `context`
    fixture drains every frame of every page. The drain before statement
    *n + 1* charges what it found to statement *n*; the teardown drain charges
@@ -58,8 +59,12 @@ charged to the statement that ran just before the drain that first found it.**
    recording options of `withTestSelection` or `startRecording` compiles the
    tests as they were and records no lines.
 
-Not admitted, beyond ADR-0088's list: anything a page writes about order, and
-a drain on any event other than a statement. The page's own clock decides
+Not admitted, beyond ADR-0088's list: anything the record keeps about order,
+and a read on any event other than a statement. A story the run asks for tapes
+the order a page went, as ADR-0076 has it, and no selection or comparison
+reads it. A document a navigation replaces drains itself as it goes, into its
+frame's session storage, and the next read of that frame takes it: that is the
+statement's drain arriving late, not a read of its own. The page's own clock decides
 when it reaches a region; the line says which statement had just run when the
 test looked, and claims only that.
 
@@ -68,11 +73,12 @@ test looked, and claims only that.
 - A region the page reaches asynchronously is charged to the statement that
   was running when it arrived, not to the one that started it. A request a
   `click` sends and the page answers during the next `expect` is the
-  `expect`'s.
-- A `test.beforeEach` or `test.afterEach` statement is drained under the
-  case's own line, where every other seam flags a hook's line as a hook's. The
-  cut does not say which body it is in; a `FIXME` and an `it.todo` hold the
-  gap.
+  `expect`'s. A charge that moves with the outcome is read, not set aside:
+  across the runs the record keeps, a region charged to a later statement on
+  every failing run is timing that goes with the outcome. It is a lead to
+  open, not proof the page was not ready when the test acted.
+- An awaited cut in a hook body passes `__VA__.c(line, file, true)`, so a
+  hook's statement is flagged as a hook's, as every other seam flags it.
 - Each statement of a spec costs a round trip to every frame. Over the probed
   Storybook build in `cases/playwright-storybook-case` the lines added 2.4% to
   the record and the duration stayed inside its run-to-run spread; on a

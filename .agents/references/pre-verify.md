@@ -57,6 +57,33 @@ average above the core count means the run is contended. A browser
 suite under contention fails in teardown, and the failure moves between runs —
 the exact signature this project exists to tell apart from a real one.
 
+## The loop between waves
+
+`yarn test:loop` is what the edit loop runs after every edit, before any wave:
+`oxlint && tsc --build && VARIANCE_AUTHORITY_SINCE=
+VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run
+"$@" && node tools/needs.mjs`. That is the lint `verify:near` starts with, the
+compiler, then the unit tests at distance `0-1` (the tests that entered the
+change and those one import away; `VARIANCE_AUTHORITY_AT_DISTANCE` sets
+another), measured from the text each test last ran over. The compiler and the
+runner are the loop
+[`docs/test-an-edit.md`](../../docs/test-an-edit.md#the-loop-an-agent-runs-after-each-edit)
+publishes, with no script of ours in them. Lint adds about 0.15 s, and it stops
+the run before the compiler, as a type error stops it before any test. An edit
+that keeps no test exits 0, and the words tell that exit from a green run:
+`selected none of 1075, so none of them runs` is the verdict, the runner's `No
+test files found` under it is the same answer, and the seam's reading says why. `none (the record was taken over this text)` means the tests
+that entered the edit already ran it, and a test further than one import is left
+for `verify:near`. To see why a file was kept, ask `yarn variance
+select --suite unit --at-distance 0-1`. Integration and chromium tests never
+run in it. A green run ends with the needs list: for each function new on the
+branch in the package sources, the scripts a package ships and `tools/`, with
+five needs or more, the existing functions there that need what it needs.
+Tests, `site/` and `examples/` are not read. The list adds about half a second
+with its cache warm and never changes the exit code; a red run ends at the
+test, before it. The loop is not a wave: `verify:near` still runs every slice
+once the change is whole.
+
 ## The waves
 
 Verification runs in waves, nearest and cheapest first, and each wave starts
@@ -65,7 +92,6 @@ only when the one before it is green:
 ```bash
 yarn verify:near    # 1. lint, tsc --build, the selection within two imports
 yarn verify:rules   # 2. yarn check, once near is green
-yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
 
 The order is the order failures arrive in. Lint and an incremental
@@ -74,10 +100,13 @@ edit fails first and for the simplest reason, so the near wave answers in
 seconds and is the only wave the edit loop repeats. It type-checks with
 `tsc --build`, not `yarn typecheck`, whose `--force` rebuilds every project.
 The repository checks are minutes and cannot be selected, so they run once the
-change has stopped moving. The far wave is the
-rest of the selection — `0-2` and `3-` partition it, so together they run every
-selected file once, and a test file the recording never saw in both — and it
-runs once, as the last thing before the pull request.
+change has stopped moving.
+
+**The far wave is CI's.** `yarn verify:far` is the rest of the selection — `0-2`
+and `3-` partition it, so together they run every selected file once, and a test
+file the recording never saw in both. An agent runs near and rules, then opens
+the pull request: a local far run costs many minutes and repeats what CI runs. A
+failure CI reports is reproduced per file, never by re-running the wave.
 
 **A red wave sends you back to the edit, then to wave 1**, not to the wave that
 failed: the fix is a new edit, and its nearest tests are wave 1's. **A green
@@ -121,6 +150,33 @@ The cost of a false red is never the red line. It is the change somebody makes
 to satisfy it — correct documentation deleted, working code rewritten. Reconcile
 the checkout before believing a failure, and re-run before reporting one.
 
+## Measuring and batching
+
+**One before many.** Run one item end to end before any batch, with the exact
+binary, config and installed version the batch uses, and read its answer. A
+refusal, a version mismatch or an implausible number shows in seconds on one
+item and costs the whole run on many. A paid batch reads one session first: tool
+calls, turns, and input, cache and output tokens, reported per lane beside
+correctness.
+
+**A speed measurement takes at most five minutes** end to end, a Storybook one a
+minute: reuse a built worktree per ref, a bounded corpus slice, or a timer the
+seam already emits. A long task is wrong to be long, so stop it and find why; if
+no ready benchmark exists, the missing tool is the finding. A page's figure
+names the machine that measured it.
+
+**A startup idea is A/B-tested** with five runs each before it is named, because
+a profile share is not a measurement. A nested `yarn x` in a `package.json`
+script pays Yarn's startup once per hop.
+
+**Many agents, one machine.** Run two or three worktree agents at once, not
+eight: parallel builds and suites turn minutes into hours, and agents then sit
+in load-average loops. No agent watches CI for another. Finding out is a
+subagent's job and deciding is the main thread's, so raw output stays out of the
+thread that holds the argument. Never message an agent of a running workflow,
+which resumes a second writer on the same files. An agent's own rejected, saved
+edits are reverted without asking anyone.
+
 ## How `test:since` selects
 
 `yarn test` records which test file executed which region of which module.
@@ -143,7 +199,8 @@ hand Vitest a flag, run one slice with the variable set:
 `test:since` is `yarn test` with `VARIANCE_AUTHORITY_SINCE` set. The seam
 each slice's config is wrapped in reads the selection, the runner drops the
 files it skips before it starts any, and one line says what happened:
-`selected 12 of 676`, `selected none of 676`, or `declined: <why>`. The `read`
+`selected 12 of 676`, `selected none of 676, so none of them runs`, or
+`declined: <why>`. The `read`
 lines, one per changed file, are `variance select`'s; the run prints only its
 count and notes. Set to a ref, the variable also names the base for a recording
 that names no commit of its own.
@@ -217,3 +274,8 @@ run into it, and that is the whole of the invalidation. Nothing expires and
 nothing is checked for age, so an answer the snapshot gets wrong stays wrong
 until a run replaces it. To force a cold recording, delete that directory and
 run `yarn test`.
+
+**A record is verified reality.** Tests run against the real checkout, so a
+test's regions can differ between runs when the checkout differed; that drift is
+the record being right. Explain it by what the run met, and never fake git or
+build a throwaway repository to make reach deterministic.

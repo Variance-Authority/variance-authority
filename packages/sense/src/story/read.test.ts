@@ -32,6 +32,8 @@ function story(visits: number[], before: number[] = []) {
     interleaved: 0,
     notes: [] as [number, string][],
     beforeNotes: [] as [number, string][],
+    lines: [] as [number, number, number, 1?][],
+    beforeLines: [] as [number, number, number, 1?][],
     unnoted: 0,
   };
 }
@@ -56,11 +58,11 @@ describe('a route', () => {
       repeat: [
         {
           token: {
-            place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 },
+            place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 },
             entered: 1,
             arms: [
-              { path: 'for#0/body', startLine: 18, endLine: 20, times: 3 },
-              { path: 'for#0/body/if#0/then', startLine: 19, endLine: 19, times: 2 },
+              { path: 'for#0/body', at: 'src/cart.ts#removeItem/for#0/body', startLine: 18, endLine: 20, times: 3 },
+              { path: 'for#0/body/if#0/then', at: 'src/cart.ts#removeItem/for#0/body/if#0/then', startLine: 19, endLine: 19, times: 2 },
             ],
           },
         },
@@ -99,12 +101,12 @@ describe('a route', () => {
 
   it('names the arms of each declaration it stopped at that the case never went into, leaving out one inside an arm it lists', () => {
     const files = ['src/cart.ts', 'src/format.ts'];
-    const removeItem = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 };
+    const removeItem = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 };
     expect(drawRoute(ROOT, story([1, 4]), files, [CART, undefined]).untaken).toEqual([
-      { place: removeItem, arms: [{ path: 'for#0/body', startLine: 18, endLine: 20 }] },
+      { place: removeItem, arms: [{ path: 'for#0/body', at: 'src/cart.ts#removeItem/for#0/body', startLine: 18, endLine: 20 }] },
     ]);
     expect(drawRoute(ROOT, story([1, 2]), files, [CART, undefined]).untaken).toEqual([
-      { place: removeItem, arms: [{ path: 'for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
+      { place: removeItem, arms: [{ path: 'for#0/body/if#0/then', at: 'src/cart.ts#removeItem/for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
     ]);
   });
 
@@ -116,8 +118,65 @@ describe('a route', () => {
     expect(route.route).toMatchObject([{ times: 2, repeat: [{ token: { place: { name: 'removeItem' }, said: ['price 1', 'price 2'] } }, { token: { place: { name: 'price' }, said: ['done'] } }] }]);
   });
 
+  it('says each test line where the case was, in the order it came in with what was said there, a hook\'s as a hook\'s', () => {
+    const lined = {
+      ...story([1, 4], [4]),
+      beforeLines: [[0, 2, 0, 1]] as [number, number, number, 1?][],
+      notes: [[1, 'price 1'], [1, 'price 2']] as [number, string][],
+      lines: [[0, 5, 0], [1, 6, 0], [1, 7, 1]] as [number, number, number, 1?][],
+    };
+    const route = drawRoute(ROOT, lined, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.opening).toEqual({ before: ['hook line 2'], route: ['test line 5'] });
+    expect(route.route).toMatchObject([
+      { token: { place: { name: 'removeItem' }, said: ['test line 6', 'price 1', 'test line 7', 'price 2'] } },
+      { token: { place: { name: 'price' } } },
+    ]);
+  });
+
   it('counts an arm taken before the case as taken, and names nothing in a file the recording holds no regions for', () => {
     const files = ['src/cart.ts', 'src/format.ts'];
     expect(drawRoute(ROOT, story([1, 2, 6], [3]), files, [CART, undefined]).untaken).toEqual([]);
+  });
+
+  it('keeps two declarations of one name as two stops, each with its own arms', () => {
+    // Two `handle`s, as two methods of one name in two object literals are.
+    const twins: Region[] = [
+      { kind: 'module', name: '', path: 'module', startLine: 1, endLine: 20 },
+      { kind: 'function', name: 'handle', path: 'entry', startLine: 2, endLine: 6 },
+      { kind: 'branch', name: 'handle', path: 'if#0/then', startLine: 3, endLine: 3 },
+      { kind: 'function', name: 'handle', path: 'entry', startLine: 10, endLine: 14 },
+      { kind: 'branch', name: 'handle', path: 'if#0/then', startLine: 11, endLine: 11 },
+    ];
+    const route = drawRoute(ROOT, story([1, 2, 3]), ['src/cart.ts', 'src/format.ts'], [twins, undefined]);
+    expect(route.route).toMatchObject([
+      { token: { place: { at: 'src/cart.ts#handle/entry', startLine: 2 }, arms: [{ at: 'src/cart.ts#handle/if#0/then' }] } },
+      { token: { place: { at: 'src/cart.ts#handle~2/entry', startLine: 10 }, arms: [] } },
+    ]);
+    expect(route.untaken).toEqual([
+      { place: expect.objectContaining({ at: 'src/cart.ts#handle~2/entry' }), arms: [{ path: 'if#0/then', at: 'src/cart.ts#handle~2/if#0/then', startLine: 11, endLine: 11 }] },
+    ]);
+  });
+
+  it('says where the case moved into another document or the runner, and counts the documents', () => {
+    const paged = {
+      ...story([1, 4, 1]),
+      notes: [[2, 'clicked']] as [number, string][],
+      lines: [[0, 5, 0]] as [number, number, number, 1?][],
+      parts: [[0, 0, 1, 1], [1, 0, 1, 2], [2, 0, 0, 0], [2, 1, 1, 2]] as [number, number, number, number][],
+    };
+    const route = drawRoute(ROOT, paged, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.opening).toEqual({ route: ['test line 5', 'in document 1'] });
+    expect(route.route).toMatchObject([
+      { token: { place: { name: 'removeItem' }, said: ['in document 2'] } },
+      { token: { place: { name: 'price' }, said: ['in the runner', 'clicked', 'in document 2'] } },
+      { token: { place: { name: 'removeItem' } } },
+    ]);
+    expect(route.documents).toBe(2);
+  });
+
+  it('names the project the case ran under, and says a page was lost where the story says so', () => {
+    const route = drawRoute(ROOT, { ...story([1]), project: 'firefox', lost: true }, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route).toMatchObject({ project: 'firefox', lost: true });
+    expect(route.documents).toBeUndefined();
   });
 });

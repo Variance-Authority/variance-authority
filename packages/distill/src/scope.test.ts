@@ -16,13 +16,17 @@ interface Module {
 /** A record of test files with one finished case each, from its modules. */
 function record(
   modules: Readonly<Record<string, Module>>,
-  options: { readonly suite?: string; readonly incomplete?: readonly string[] } = {},
+  options: {
+    readonly suite?: string;
+    readonly incomplete?: readonly string[];
+    readonly times?: Readonly<Record<string, Pick<TestCoverage['tests'][number], 'duration' | 'phases'>>>;
+  } = {},
 ): ScopeRecord {
   const files = [...new Set(Object.values(modules).flatMap((module) => module.by))].sort();
   const coverage: TestCoverage = {
     version: 3,
     instrumentation: 'fixture-instrumentation',
-    tests: files.map((file) => ({ file, complete: !options.incomplete?.includes(file), preconditions: [] })),
+    tests: files.map((file) => ({ file, complete: !options.incomplete?.includes(file), preconditions: [], ...options.times?.[file] })),
     modules: Object.entries(modules).map(([file, module]) => {
       const root: Block = {
         ordinal: 0, kind: 'module', digest: `${file}#root`, name: '', path: '', source: true,
@@ -207,12 +211,162 @@ describe('distillScope', () => {
   });
 });
 
+// A loads for 60 ms and runs its cases in 4; B loads for 10 and runs for 30; C's runner timed nothing.
+const TIMES = {
+  [A]: { phases: { prepare: 2, environment: 0, setup: 1, collect: 60, cases: 4 } },
+  [B]: { phases: { prepare: 2, environment: 0, setup: 1, collect: 10, cases: 30 } },
+};
+
+describe('where the time of a scope went', () => {
+  it('sums each phase the runner timed before the cases, and the cases, over the test files that report them', () => {
+    expect(distillScope({ records: [record(MODULES, { times: TIMES })], relations }).time).toEqual({
+      timed: 2,
+      prepare: 4,
+      environment: 0,
+      setup: 2,
+      collect: 70,
+      cases: 34,
+      loadBound: [{ file: A, loading: 63, cases: 4 }],
+    });
+  });
+
+  it('counts only the test files under the directory it is given', () => {
+    const times = { ...TIMES, [C]: { phases: { prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5 } } };
+
+    expect(distillScope({ within: 'packages/lib', records: [record(MODULES, { times })], relations }).time)
+      .toEqual({ timed: 1, prepare: 1, environment: 0, setup: 0, collect: 5, cases: 5, loadBound: [{ file: C, loading: 6, cases: 5 }] });
+  });
+
+  it('names a test file load-bound once its loading outlasts its cases, and not at parity', () => {
+    const times = {
+      [A]: { phases: { collect: 8, cases: 2 } },
+      [B]: { phases: { collect: 5, cases: 5 } },
+    };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound)
+      .toEqual([{ file: A, loading: 8, cases: 2 }]);
+  });
+
+  it('counts as loading everything before the first case, the worker, the environment and the setup files with the import', () => {
+    const times = {
+      [A]: { phases: { prepare: 125, environment: 979, setup: 15, collect: 4258, cases: 33 } },
+      [B]: { phases: { prepare: 10, environment: 40, setup: 5, collect: 20, cases: 30 } },
+    };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound).toEqual([
+      { file: A, loading: 5377, cases: 33 },
+      { file: B, loading: 75, cases: 30 },
+    ]);
+  });
+
+  it('names the load-bound files longest loading first, and files that load alike by name', () => {
+    const times = {
+      [A]: { phases: { collect: 8, cases: 2 } },
+      [B]: { phases: { collect: 20, cases: 2 } },
+      [C]: { phases: { collect: 8, cases: 1 } },
+    };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time?.loadBound).toEqual([
+      { file: B, loading: 20, cases: 2 },
+      { file: A, loading: 8, cases: 2 },
+      { file: C, loading: 8, cases: 1 },
+    ]);
+  });
+
+  it('is absent over a record written before phases were recorded', () => {
+    const { record: bytes } = record(MODULES, { times: TIMES });
+    const length = Buffer.from(bytes).readUInt32LE(0);
+    const header = Buffer.from(bytes).toString('utf8', 4, 4 + length);
+    const version = (JSON.parse(header.replace(/\0+$/, '')) as { version: number }).version;
+    // The layout before phases is numbered two below, under the one before git blob names; its readers ignore both sections.
+    const older = Buffer.from(bytes);
+    older.write(header.replace(`"version":${version}`, `"version":${version - 2}`), 4, 'utf8');
+
+    expect(distillScope({ records: [{ record: older }], relations }).time).toBeUndefined();
+  });
+
+  it('leaves out a phase no timed test file reported, as Jest reports no prepare', () => {
+    const jest = {
+      [A]: { phases: { environment: 3, setup: 1, collect: 60, cases: 4 } },
+      [B]: { phases: { environment: 2, setup: 1, collect: 10, cases: 30 } },
+    };
+    const time = distillScope({ records: [record(MODULES, { times: jest })], relations }).time;
+
+    expect(time).toEqual({ timed: 2, environment: 5, setup: 2, collect: 70, cases: 34, loadBound: [{ file: A, loading: 64, cases: 4 }] });
+    expect(formatScopeDistillation(distillScope({ records: [record(MODULES, { times: jest })], relations })))
+      .not.toContain('prepare');
+  });
+
+  it('skips a test file whose runner timed its collect or its cases not at all', () => {
+    const times = { [A]: { phases: { collect: 60 } }, [B]: { phases: { cases: 30 } } };
+
+    expect(distillScope({ records: [record(MODULES, { times })], relations }).time).toBeUndefined();
+  });
+
+  it('is absent when no test file of the scope reported its phases', () => {
+    expect(distillScope({ records: [record(MODULES)], relations }).time).toBeUndefined();
+  });
+
+  it('shows each phase in the order the runner meets it, its share, and the files loading dwarfs', () => {
+    const text = formatScopeDistillation(distillScope({ records: [record(MODULES, { times: TIMES })], relations }));
+
+    expect(text.split('\n').slice(0, 11)).toEqual([
+      'every test file: 3 test file(s), each read.',
+      '',
+      'Where the time went, as the runner timed 2 of the 3 test file(s): 110 ms.',
+      '  prepare, the worker readying the file: 4 ms, 4%',
+      '  environment: 0 ms, 0%',
+      '  setup files: 2 ms, 2%',
+      '  collect, importing the test file and everything it loads: 70 ms, 64%',
+      '  cases: 34 ms, 31%',
+      'Loading took longer than the cases in 1 test file(s): 63 ms against 4 ms.',
+      `  ${A}: 63 ms loading, 4 ms in its cases`,
+      '',
+    ]);
+  });
+});
+
 describe('scopeRows', () => {
   it('gives each test file what it loaded and what of that no case of it entered', () => {
     expect([...scopeRows({ records: [record(MODULES, { suite: 'unit' })] })]).toEqual([
       { suite: 'unit', file: A, cases: 1, loaded: { modules: 4, lines: 160 }, unentered: { modules: 2, lines: 140 } },
       { suite: 'unit', file: B, cases: 1, loaded: { modules: 3, lines: 120 }, unentered: { modules: 1, lines: 100 } },
       { suite: 'unit', file: C, cases: 1, loaded: { modules: 3, lines: 120 }, unentered: { modules: 1, lines: 100 } },
+    ]);
+  });
+
+  it('reports each file\'s recorded phases, preserving zero and omitting unrecorded phases', () => {
+    const times = {
+      [A]: { phases: { environment: 0, setup: 1, collect: 60, cases: 4 } },
+      [B]: { phases: { collect: 0 } },
+      [C]: { duration: 7 },
+    };
+    const rows = [...scopeRows({ records: [record(MODULES, { times })] })];
+
+    expect(rows.map((row) => Object.hasOwn(row, 'time'))).toEqual([true, true, false]);
+    expect(rows.map((row) => row.time)).toEqual([
+      { environment: 0, setup: 1, collect: 60, cases: 4 },
+      { collect: 0 },
+      undefined,
+    ]);
+  });
+
+  it('reports phases even when the unused-module reading is withheld', () => {
+    const rows = [...scopeRows({ records: [record(MODULES, { times: TIMES, incomplete: [A] })] })];
+
+    expect(rows[0]).toMatchObject({ withheld: expect.stringContaining('incomplete'), time: TIMES[A].phases });
+    expect(rows[0]).not.toHaveProperty('unentered');
+  });
+
+  it('joins phases by record and the exact file path, within the requested directory', () => {
+    const rows = [...scopeRows({ within: 'packages/app', records: [
+      record(MODULES, { suite: 'unit', times: { [A]: { phases: { collect: 2, cases: 0 } } } }),
+      record(MODULES, { suite: 'e2e', times: { [A]: { phases: { collect: 9, cases: 1 } } } }),
+    ] })];
+
+    expect(rows.map((row) => [row.suite, row.file, row.time])).toEqual([
+      ['unit', A, { collect: 2, cases: 0 }], ['unit', B, undefined],
+      ['e2e', A, { collect: 9, cases: 1 }], ['e2e', B, undefined],
     ]);
   });
 

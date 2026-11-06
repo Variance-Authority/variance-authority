@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { caseSectionsAt, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { mainlineMissed } from './mainline-base.js';
 import { cloneOf, git, parseReview, publishRaw, published, ranHere, recordIn, selectedIn, BEFORE, DISCOUNTS } from './mainline-fixture.js';
@@ -23,12 +23,12 @@ const UNSET = 'VARIANCE_MAINLINE_BASE_TEST_TOKEN';
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-mainline-miss-'));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
 });
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   delete process.env[UNSET];
   await rm(home, { recursive: true, force: true });
 });
@@ -53,7 +53,7 @@ function unreadEyes(eyes: string): (dir: string) => Promise<void> {
 /** A clone with its own cache, and the change `select` is asked about. */
 async function laptop(origin: string, at = home): Promise<string> {
   const clone = await cloneOf(at, origin);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(at, 'laptop-cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(at, 'laptop-cache'));
   await writeFile(join(clone, 'src/total.ts'), BEFORE.replace('0.9', '0.8'));
   return clone;
 }
@@ -127,7 +127,7 @@ describe('`variance select` when the mainline\'s record is not read', () => {
 
   it('selects from the record, and keeps its cases without its Eyes, when only its Eyes section does not read', async () => {
     for (const [at, eyes] of [['newer', '{"version":2,"watched":[],"journals":[]}\n'], ['corrupt', 'not json']] as const) {
-      process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, `${at}-ci-cache`);
+      vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, `${at}-ci-cache`));
       await mkdir(join(home, at));
       const ci = await published(join(home, at), { publish: false, record: unreadEyes(eyes) });
       await publishRaw(join(home, at), ci.dir, ci.first);

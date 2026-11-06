@@ -10,7 +10,8 @@ decided inside the selector that answers it. No stage can be tested, replaced
 or reported on alone.
 **Built on:** `beforeReach` and `changedBefore`
 (`packages/core/src/relate/before.ts`), the install comparison
-(`packages/cli/src/commands/installed.ts`, `moved-packages.ts`),
+(`packages/cli/src/commands/installed.ts`, `select-beyond.ts`;
+`beyondReach` in `packages/core/src/relate/beyond.ts`),
 `narrowByExecution` and `answerByImporters`
 (`packages/sense/src/test-selection/`), `reach`
 (`packages/cli/src/commands/reach.ts`), and the suites in
@@ -90,8 +91,7 @@ to the relation stage, which hands coverage the first measured file it reaches.
 `suites.<name>.relations`, on by default. An e2e suite turns it off and names
 what it rests on in its own `before`: the app's directory and the services it
 drives. A directory entry claims every path under it, so any change to the app
-runs the suite. A Playwright component suite keeps relations, because a mounted
-component is imported by its test.
+runs the suite.
 
 **4. `before` holds files.** The package arm of `beforeReach` and
 `changedBefore` is deleted once Beyond hands bumps over as files.

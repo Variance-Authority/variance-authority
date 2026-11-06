@@ -11,6 +11,7 @@ describe('what a selector prints about each changed file', () => {
     { file: 'src/a.ts', unread: 'hunk' },
     { file: 'src/b.ts', unread: 'parse' },
     { file: 'native/src/lib.rs', unread: 'language' },
+    { file: 'src/twice.cjs', unread: 'exports' },
   ] as const;
 
   it('says which bindings changed, why a file was not read, and names a test the graph does not explain', () => {
@@ -21,6 +22,7 @@ describe('what a selector prints about each changed file', () => {
       'read src/a.ts: unread (the diff does not apply to the recorded text) — its changed lines are charged',
       'read src/b.ts: unread (one side does not parse)',
       'read native/src/lib.rs: unread (not a JavaScript or TypeScript module)',
+      'read src/twice.cjs: unread (it names no export to follow) — every test that loaded its nearest measured importers is charged',
     ]);
   });
 
@@ -46,6 +48,30 @@ describe('what a selector prints about each changed file', () => {
       'read src/kept.ts: none (the record was taken over this text) — a test recorded over an earlier text of an edited region is not skipped',
       'read src/equal.ts: none — the runtime text is equal',
       'read src/again.ts: none (the record was taken over this text)',
+    ]);
+  });
+
+  it('names every changed file no reader was asked of by why, each kind explained once', () => {
+    // The notes beside these count each kind and say its remedy; the lines
+    // name the files, and say what each kind costs on its first line.
+    expect(
+      readingLines([
+        { file: 'src/read.ts', verdict: 'bodies', names: [] },
+        { file: 'data/a.json', unread: 'nothing' },
+        { file: 'data/b.json', unread: 'nothing' },
+        { file: 'src/old.ts', unread: 'stale' },
+        { file: 'src/far.ts', unread: 'declined' },
+        { file: 'src/gen.ts', unread: 'ignored' },
+        { file: 'src/rules.ts', unread: 'answered' },
+      ]),
+    ).toEqual([
+      'read src/read.ts: bodies — the changed regions are charged, not the whole module',
+      'read data/a.json: unread (the record and the file graph hold nothing about it) — it keeps no test in the run',
+      'read data/b.json: unread (the record and the file graph hold nothing about it)',
+      'read src/old.ts: unread (recorded from a text nobody kept) — every region of it is charged',
+      'read src/far.ts: unread (the suite declines relations and its record did not measure it)',
+      "read src/gen.ts: unread (the suite's `ignore` matches it) — only a test that declares it runs for it",
+      'read src/rules.ts: unread (its rows, its preconditions, its importers or the install comparison answer for it)',
     ]);
   });
 });

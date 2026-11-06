@@ -1,32 +1,6 @@
 use super::*;
 
 #[test]
-fn a_seat_is_the_digits_after_the_last_hash_of_a_step() {
-    assert_eq!(seat("if#12"), Some(("if", 12_f64.to_bits())));
-    assert_eq!(seat("a#b#3"), Some(("a#b", 3_f64.to_bits())));
-    assert_eq!(seat("if#"), None);
-    assert_eq!(seat("if#1x"), None);
-    assert_eq!(seat("if#2#x"), None);
-    assert_eq!(seat("line\nbreak#1"), None);
-    assert_eq!(seat("then"), None);
-}
-
-#[test]
-fn seats_are_sited_by_the_name_then_the_path_they_pass_through() {
-    assert_eq!(seats_of("decide/map.arg#1", "if#0/then"), vec![("/decide/map.arg".to_owned(), 1_f64.to_bits()), ("/decide/map.arg#1\0/if".to_owned(), 0_f64.to_bits())]);
-    assert_eq!(seats_of("", "anon#2"), vec![("\0/anon".to_owned(), 2_f64.to_bits())]);
-}
-
-#[test]
-fn a_cut_that_renumbered_a_site_both_hold_is_not_the_same_numbering() {
-    let cut = |paths: &[&str]| paths.iter().map(|path| ("decide".to_owned(), (*path).to_owned())).collect::<Vec<_>>();
-    assert!(same_numbering(cut(&["if#0/then", "if#1/then"]).into_iter(), cut(&["if#0/then", "if#1/then"]).into_iter()));
-    assert!(!same_numbering(cut(&["if#0/then", "if#1/then"]).into_iter(), cut(&["if#0/then"]).into_iter()));
-    // A site only one cut holds says nothing.
-    assert!(same_numbering(cut(&["if#0/then"]).into_iter(), cut(&["loop#0/body"]).into_iter()));
-}
-
-#[test]
 fn a_carried_test_keeps_every_precondition_its_ids_did_not_list_in_order() {
     use crate::record_fixture::{self as fixture, block, module, spec, test};
     // The fixture names strings as it meets them, so these ids descend and repeat.
@@ -71,4 +45,35 @@ fn lays_over_the_layout_before_the_record_held_cases() {
     let bytes = laid(&fixture::write(&uncased), &current, LayOptions::default()).unwrap().unwrap();
     let (tests, _) = fixture::read(&bytes);
     assert_eq!(tests.iter().map(|(file, ..)| file.as_str()).collect::<Vec<_>>(), ["a.test.ts", "b.test.ts"]);
+}
+
+#[test]
+fn pairs_no_callback_of_a_cut_that_lacks_its_sibling_and_owes_nobody_the_region_around_it_kept() {
+    use crate::record_fixture::{self as fixture, block, module, spec, test, Block};
+    let inside = |ordinal: u32, name: &str, owner: u32, called: &[u32]| Block { name: name.to_owned(), owner, ..block(ordinal, called) };
+    // One text: the previous run cut both callbacks, `a` entering the first and
+    // `b` the second; this run's writer cut only one of them.
+    let both = vec![block(0, &[0, 1]), inside(1, "outer", 0, &[0, 1]), inside(2, "cb", 1, &[0]), inside(3, "cb", 1, &[1])];
+    let lacking = vec![block(0, &[0]), inside(1, "outer", 0, &[]), inside(2, "cb", 1, &[])];
+    let previous = fixture::write(&spec(vec![test("a.test.ts"), test("b.test.ts")], vec![module("src/a.ts", both)]));
+    let current = fixture::write(&spec(vec![test("c.test.ts")], vec![module("src/a.ts", lacking)]));
+    let (tests, modules) = fixture::read(&laid(&previous, &current, LayOptions::default()).unwrap().unwrap());
+    // The one callback is neither: it takes the region around it, which holds both.
+    assert_eq!(modules[0].2[2].1, ["a.test.ts", "b.test.ts"]);
+    assert!(tests.iter().all(|(_, complete, _)| *complete), "{tests:?}");
+}
+
+#[test]
+fn owes_a_run_to_a_test_whose_region_has_no_place_when_the_region_around_it_does_not_hold_it() {
+    use crate::record_fixture::{self as fixture, block, module, spec, test, Block};
+    let inside = |ordinal: u32, name: &str, owner: u32, called: &[u32]| Block { name: name.to_owned(), owner, ..block(ordinal, called) };
+    // One text: `b` ran the callback from a handler it kept, never the function
+    // that passed it; this run's writer did not cut the callback.
+    let held = vec![block(0, &[0, 1]), inside(1, "outer", 0, &[0]), inside(2, "cb", 1, &[1])];
+    let lacking = vec![block(0, &[0]), inside(1, "outer", 0, &[])];
+    let previous = fixture::write(&spec(vec![test("a.test.ts"), test("b.test.ts")], vec![module("src/a.ts", held)]));
+    let current = fixture::write(&spec(vec![test("c.test.ts")], vec![module("src/a.ts", lacking)]));
+    let (tests, _) = fixture::read(&laid(&previous, &current, LayOptions::default()).unwrap().unwrap());
+    let complete: Vec<_> = tests.iter().map(|(file, complete, _)| (file.as_str(), *complete)).collect();
+    assert_eq!(complete, [("a.test.ts", true), ("b.test.ts", false), ("c.test.ts", true)]);
 }

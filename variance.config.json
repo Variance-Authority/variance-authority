@@ -101,6 +101,15 @@
       "src/reset/index.ts",
       "src/reset/setup.ts"
     ],
+    "packages/isolator": [
+      "src/jest.ts",
+      "src/node.ts",
+      "src/loader.ts",
+      "src/react.ts",
+      "src/runtime.ts",
+      "src/session.ts",
+      "src/transform.ts"
+    ],
     "packages/jsx-source": [
       "jest-resolver.cjs",
       "src/jsx-dev-runtime.ts",

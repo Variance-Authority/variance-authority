@@ -43,7 +43,15 @@ const MAC: RenderIdentity = {
 
 const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
-function rasterOf(identity: RenderIdentity, bytes = 'QUJD'): Raster {
+/**
+ * A one-pixel PNG, and the lossless WebP an accept keeps it as. The client
+ * encodes before `put`, so the wire carries the WebP and the backing store only
+ * checks it; a capture in the render cache stays the PNG.
+ */
+const PICTURE = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4AWP4z8DwHwAFAAH/e+m+7wAAAABJRU5ErkJggg==';
+const KEPT = 'UklGRhwAAABXRUJQVlA4TA8AAAAvAAAAAAcQ/Y/+ByKi/wEA';
+
+function rasterOf(identity: RenderIdentity, bytes = KEPT): Raster {
   return { documentDigest: 'v1:doc', identity, width: 10, height: 20, bytes, missingFonts: ['Inter'] };
 }
 
@@ -68,16 +76,16 @@ async function deadEndpoint(): Promise<string> {
 }
 
 describe('a baseline store somewhere else', () => {
-  beforeEach(() => variancePrecondition({ network: 'loopback', remote: 'accepts' }));
+  beforeEach(() => variancePrecondition('fixture', { network: 'loopback', remote: 'accepts' }));
   it('carries a baseline across the wire byte for byte', async () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
-    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'SGVsbG8='));
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     const found = await store.find({ subject: 'todo--empty' }, MAC);
 
     expect(found?.comparable).toBe(true);
-    expect(found?.raster).toEqual(rasterOf(MAC, 'SGVsbG8='));
+    expect(found?.raster).toEqual(rasterOf(MAC));
   });
 
   it('carries the identity partition across the hop', async () => {
@@ -98,14 +106,14 @@ describe('a baseline store somewhere else', () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
-    await store.renderCache.put(rasterOf(MAC, 'QQ=='));
+    await store.renderCache.put(rasterOf(MAC, PICTURE));
 
-    expect((await store.renderCache.get('v1:doc', MAC))?.bytes).toBe('QQ==');
+    expect((await store.renderCache.get('v1:doc', MAC))?.bytes).toBe(PICTURE);
     expect(await store.renderCache.get('v1:other', MAC)).toBeNull();
   });
 
   it('reports a subject nobody has rendered as a miss, and only then', async () => {
-    variancePrecondition({ store: 'empty' });
+    variancePrecondition('fixture', { store: 'empty' });
     // The one case allowed to be `null`: a server that positively said so.
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -128,7 +136,7 @@ describe('a baseline store somewhere else', () => {
     // them" are different claims and only the second one saves anything.
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
-    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'SGVsbG8='));
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
     const described = await store.describe({ subject: 'todo--empty' }, MAC);
     const body = await (
@@ -151,7 +159,7 @@ describe('a baseline store somewhere else', () => {
       // dropped it would be caught here and nowhere else.
       missingFonts: ['Inter'],
     });
-    expect(body).not.toContain('SGVsbG8=');
+    expect(body).not.toContain(KEPT);
   });
 
   it('carries the identity partition on the cheap lookup too', async () => {
@@ -173,7 +181,7 @@ describe('a baseline store somewhere else', () => {
     // settle on its digest and stay at the old path behind every remote run.
     const partition = join(root, digestFileName(identityDigest(MAC)));
     await mkdir(partition, { recursive: true });
-    await writeFile(join(partition, 'button.png'), Buffer.from('QUJD', 'base64'));
+    await writeFile(join(partition, 'button.png'), Buffer.from(PICTURE, 'base64'));
     await writeFile(join(partition, 'button.json'), JSON.stringify({ ...rasterOf(MAC), bytes: undefined }));
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -184,7 +192,7 @@ describe('a baseline store somewhere else', () => {
   });
 
   it('reports a described subject nobody has rendered as a miss, and only then', async () => {
-    variancePrecondition({ store: 'empty' });
+    variancePrecondition('fixture', { store: 'empty' });
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
@@ -193,9 +201,9 @@ describe('a baseline store somewhere else', () => {
 });
 
 describe('a store that cannot answer', () => {
-  beforeEach(() => variancePrecondition({ network: 'stubbed', remote: 'garbled' }));
+  beforeEach(() => variancePrecondition('fixture', { network: 'stubbed', remote: 'garbled' }));
   it('reports an unreachable endpoint as an error rather than as a missing baseline', async () => {
-    variancePrecondition({ network: 'loopback', remote: 'unreachable' });
+    variancePrecondition('fixture', { network: 'loopback', remote: 'unreachable' });
     const store = createRemoteStore({ endpoint: await deadEndpoint() });
 
     await expect(store.find({ subject: 's' }, MAC)).rejects.toBeInstanceOf(RasterStoreError);
@@ -203,7 +211,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('reports a refused token as an error rather than as a missing baseline', async () => {
-    variancePrecondition({ network: 'loopback', remote: 'refuses' });
+    variancePrecondition('fixture', { network: 'loopback', remote: 'refuses' });
     // A 401 is the most plausible misconfiguration of all, and the one whose
     // "answer" — nothing — reads exactly like an empty store.
     server = await serveRasterStore(createDurableStore(root), { token: 'sekrit' });
@@ -213,7 +221,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('reports a failing backing store as an error rather than as a missing baseline', async () => {
-    variancePrecondition({ network: 'loopback', remote: 'fails' });
+    variancePrecondition('fixture', { network: 'loopback', remote: 'fails' });
     const broken: RasterStore = {
       retention: 'durable',
       find: () => Promise.reject(new Error('disk went away')),
@@ -287,7 +295,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('fails a lookup that hangs rather than stalling the run', async () => {
-    variancePrecondition({ network: 'loopback', remote: 'hangs' });
+    variancePrecondition('fixture', { network: 'loopback', remote: 'hangs' });
     // A store that never answers is indistinguishable from one that is thinking,
     // and a run that waits forever is a CI job someone cancels and re-runs.
     server = await serveRasterStore({
@@ -313,7 +321,7 @@ describe('a store that cannot answer', () => {
  * count is the whole claim.
  */
 describe('a declared working set', () => {
-  beforeEach(() => variancePrecondition({ network: 'loopback', remote: 'accepts' }));
+  beforeEach(() => variancePrecondition('fixture', { network: 'loopback', remote: 'accepts' }));
   /** Counts by path, so "one request" is an assertion rather than a description. */
   function counting(): { fetch: typeof globalThis.fetch; paths: string[] } {
     const paths: string[] = [];
@@ -404,7 +412,7 @@ describe('a declared working set', () => {
   });
 
   it('refuses an unreachable endpoint rather than reading it as an empty set', async () => {
-    variancePrecondition({ remote: 'unreachable' });
+    variancePrecondition('fixture', { remote: 'unreachable' });
     // The failure this whole file is about, arriving one layer earlier. A
     // prefetch that answered "no baselines" to an outage would record the entire
     // suite as `new` and report success.

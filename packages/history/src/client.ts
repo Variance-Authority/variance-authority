@@ -65,7 +65,7 @@ export interface HttpHistoryOptions {
    * stores was produced by runs the operator owns, and the token is how it
    * refuses a write it cannot attribute to one.
    */
-  readonly token: string;
+  readonly token: string | (() => string | Promise<string>);
 
   /**
    * Scopes every query, and is checked against every row written.
@@ -258,10 +258,11 @@ function windowParams(window: Window): Readonly<Record<string, string | number |
 async function request(
   send: typeof globalThis.fetch,
   url: string,
-  token: string,
+  credential: string | (() => string | Promise<string>),
   body: unknown,
   timeoutMs: number,
 ): Promise<unknown> {
+  const token = typeof credential === 'function' ? await credential() : credential;
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {

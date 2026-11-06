@@ -7,18 +7,18 @@ import { BadRequest, count, json, optional, requireMethod, required } from './wo
 /**
  * The review routes that read what was decided, apart from the ones that decide.
  *
- * A build, its images and the act of deciding are the review surface, and the
- * review token holds them. What reviewers *settled* — the changelog of approved
+ * A build, its images and the act of deciding are the review surface, and a
+ * named reviewer holds them. What reviewers *settled* — the changelog of approved
  * baselines and the history of every decision — is the record a reader asks
  * about after the fact, and an agent or a developer's machine holding the share
  * token is such a reader. Every route here is a `GET`, every one is admitted by
  * {@link attested}, and a route that writes never belongs in this file: the
  * share token reads, and never decides.
  *
- * A route that both reads and writes on one path — concerns, listed with `GET`
- * and raised with `POST` — does not move here, because every path here refuses
- * any method but `GET`. Its own `GET` branch calls {@link attested} instead of
- * `requires(granted, 'review')`, and its write keeps the review token.
+ * Concerns do not move here, because their writes sit beside their read and every
+ * path here refuses any method but `GET`. Their own `GET` branch calls
+ * {@link attested} instead of `requires(granted, 'review')`, and their writes stay
+ * a reviewer's.
  */
 
 /** The changelog of approved baselines, grouped by the change each one settled; `?limit=` takes fewer than {@link CHANGELOG_LIMIT}. */

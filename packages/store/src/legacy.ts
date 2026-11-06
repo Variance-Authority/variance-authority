@@ -16,7 +16,7 @@ import type { BaselineKey } from '@variance-authority/raster';
  * record over it, which is a baseline lost and reported as success.
  *
  * Every function here answers *which path*, and none reads or writes one
- * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)).
+ * ([ADR-0016](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)).
  * The paths are computed from the key, never decoded from what is on disk: a
  * leaf the old layout truncated and digested is found by computing the same
  * truncation.

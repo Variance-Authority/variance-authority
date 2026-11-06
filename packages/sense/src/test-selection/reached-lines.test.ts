@@ -52,4 +52,29 @@ describe('a driver that cut its test file', () => {
       });
     }
   });
+
+  it("keeps a hook's line as a hook's, handed over or staged", async () => {
+    for (const staged of [false, true]) await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      // A beforeEach statement at line 3 reached every region the case entered.
+      const [entered] = run.premium.modules;
+      const lines = [{ id: entered!.id, hits: entered!.hits, lines: entered!.hits.map(() => 3), ambient: entered!.hits.map(() => true) }];
+      let cases: readonly ObservedCase[] = [{ file: 'e2e/price.spec.ts', name: 'charges twice above ten', id: 'a', journal: run.premium, lines }];
+      if (staged) {
+        const directory = resolve(root, '.stage');
+        await stageExecution(directory, { subjects: [], cases });
+        cases = (await foldStage(directory)).cases!;
+      }
+      await recordExecution({ root, cacheRoot, coverageFile, subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }], cases });
+
+      const bytes = (await caseIndexOf(coverageFile))!;
+      const index = decodeExecutionIndex(bytes);
+      const module = index.modules.findIndex((entry) => entry.file === 'price.js');
+      const premium = linesOf(openSetColumns(bytes)!.testLines, index.tests.findIndex((test) => test.name === 'charges twice above ten'));
+      expect(lineAt(premium!, module, 0), staged ? 'staged' : 'handed over').toEqual({ line: 3, ambient: true });
+    });
+  });
 });

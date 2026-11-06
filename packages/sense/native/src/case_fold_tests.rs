@@ -12,7 +12,7 @@ fn case(file: &str, name: &str, runner: &str, settled: u8) -> Test {
         project: None,
         runner: Some(runner.to_owned()),
         settled,
-        preconditions: None,
+        heard: None,
     }
 }
 
@@ -37,8 +37,33 @@ fn shard(tests: &[Test], extras: &CaseExtras, modules: &[(&str, Vec<Vec<u32>>)])
             (regions(file, called.len() as u32), ids, vec![false; called.len()])
         })
         .collect();
-    let encoded: Vec<EncodedModule<'_>> = held.iter().map(|(module, called, loaded)| EncodedModule { module, called, loaded }).collect();
-    journey_format::encode(tests, extras, &encoded, &sets, None).unwrap()
+    let encoded: Vec<EncodedModule<'_>> = held.iter().map(|(module, called, loaded)| EncodedModule { module, called, loaded, overwritten: &[] }).collect();
+    journey_format::encode(tests, extras, &encoded, &mut sets, None).unwrap()
+}
+
+/// One shard's index a layering cut to another text: `over[module][region]`
+/// names the cases, by position, whose run of the region is not known.
+fn layered(tests: &[Test], modules: &[(&str, Vec<Vec<u32>>, Vec<Vec<u32>>)]) -> Vec<u8> {
+    let mut sets = SetPool::new(tests.len());
+    let held: Vec<(Module, Vec<u32>, Vec<bool>, Vec<u32>)> = modules
+        .iter()
+        .map(|(file, called, over)| {
+            let called_ids = called.iter().map(|members| sets.intern(members)).collect();
+            let over_ids = over.iter().map(|members| sets.intern(members)).collect();
+            (regions(file, called.len() as u32), called_ids, vec![false; called.len()], over_ids)
+        })
+        .collect();
+    let encoded: Vec<EncodedModule<'_>> = held
+        .iter()
+        .map(|(module, called, loaded, overwritten)| EncodedModule { module, called, loaded, overwritten })
+        .collect();
+    journey_format::encode(tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap()
+}
+
+/// The names of the cases in set `set` of `shard`.
+fn named_in(shard: &Shard, set: u32) -> Vec<String> {
+    let held = crossing_sets::set_slice(&shard.set_bytes, &shard.set_offsets, set).unwrap();
+    crossing_sets::decode_set(held, shard.tests.len()).unwrap().into_iter().map(|at| shard.tests[at as usize].name.clone()).collect()
 }
 
 fn folded(files: &[&[u8]]) -> Result<Folded, String> {
@@ -96,6 +121,13 @@ fn carries_each_cases_duration_and_lines_on_the_rows_of_the_fold() {
 }
 
 #[test]
+fn joins_a_case_two_shards_ran_at_its_longest_limit_and_names_none_where_no_shard_did() {
+    let one = |limit| shard(&[case("a.test.ts", "adds", "1", FINISHED), case("a.test.ts", "drops", "2", FINISHED)], &CaseExtras { limits: vec![Some(limit), None], ..CaseExtras::default() }, &[]);
+    let joined = read(&folded(&[&one(5000), &one(8000)]).unwrap().bytes);
+    assert_eq!(joined.limits, [Some(8000), None]);
+}
+
+#[test]
 fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
     let one = |duration, settled| shard(&[case("a.test.ts", "adds", "1", settled)], &CaseExtras { durations: vec![Some(duration)], lines: Vec::new(), ..CaseExtras::default() }, &[]);
     let joined = read(&folded(&[&one(3, STOPPED), &one(8, FINISHED)]).unwrap().bytes);
@@ -128,6 +160,31 @@ fn unions_the_lines_of_the_parts_of_one_case_over_the_regions_each_crossed() {
         let at: Vec<Option<u64>> = (0..3).map(|block| case_lines::value_at(&held, 0, block)).collect();
         assert_eq!(at, [Some(2), Some(14), Some(18)]);
     }
+}
+
+#[test]
+fn carries_each_regions_overwritten_cases_but_the_ones_a_shard_saw_call_it() {
+    // A layering cut the first shard to a text an edit wrote over `f1`, which
+    // `adds` and `bends` ran; the second shard ran `bends` there and saw it call `f1`.
+    let first = layered(
+        &[case("a.test.ts", "adds", "1", FINISHED), case("b.test.ts", "bends", "1", FINISHED)],
+        &[("src/a.ts", vec![vec![0, 1], vec![]], vec![vec![], vec![0, 1]])],
+    );
+    let second = shard(&[case("b.test.ts", "bends", "1", FINISHED)], &CaseExtras::default(), &[("src/a.ts", vec![vec![0], vec![0]])]);
+    let forward = folded(&[&first, &second]).unwrap().bytes;
+    assert_eq!(forward, folded(&[&second, &first]).unwrap().bytes);
+    let joined = read(&forward);
+    let module = &joined.modules[0];
+    let over = |block: usize| module.overwritten.get(block).map_or_else(Vec::new, |set| named_in(&joined, *set));
+    assert_eq!([over(0), over(1)], [Vec::<String>::new(), vec!["adds".to_owned()]]);
+    assert_eq!(named_in(&joined, module.called[1]), ["bends"]);
+}
+
+#[test]
+fn writes_no_overwritten_column_where_no_shard_holds_an_overwritten_case() {
+    let (first, second) = two();
+    let (_, decoded) = journey_columns::decode_any(&folded(&[&first, &second]).unwrap().bytes).unwrap();
+    assert!(!decoded.has(journey_format::OVERWRITTEN));
 }
 
 #[test]

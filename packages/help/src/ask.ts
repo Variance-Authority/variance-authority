@@ -1,11 +1,15 @@
 import { HELP_TOOLS } from './tools.js';
-import type { Tool, Tree } from '@variance-authority/mcp/tools';
-import { startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import type { Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
+import { verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
+import { type SearchReading, unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
-import { answerSearch, search } from './tools/search.js';
+import type { SearchQuestion } from './tools/search-matches.js';
+import { answerSearch, search, searchQuestionOf } from './tools/search.js';
+import { importingOf, type ImportingOf, showsPublished } from './tools/published-match.js';
 import { wordsOf } from './words.js';
 
 /**
@@ -25,9 +29,12 @@ import { wordsOf } from './words.js';
  * reachable from this file.
  */
 
-/** What a tool is called from a shell: its wire name without the transport's prefix. */
-export function verbOf(tool: Tool<Help>): string {
-  return tool.name.replace(/^docs_/, '').replace(/_/g, '-');
+/** The command the verbs are asked through, which every hint in an answer is spelled for. */
+const SHELL = 'variance-authority-help';
+
+/** What a verb's tool is handed: what this host read, asked through its shell. */
+export function invocationOf<Subject>(read: Omit<ToolInvocation<Subject>, 'shell'>): ToolInvocation<Subject> {
+  return { ...read, shell: SHELL };
 }
 
 export function toolNamed(verb: string): Tool<Help> {
@@ -133,36 +140,58 @@ export function ask(
   args: readonly string[],
   walk?: () => Tree | undefined,
   root?: string,
+  unseen: boolean | string = false,
 ): string {
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
-  const answer = tool.run(help, input, { ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) });
+  const answer = tool.run(help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) }));
   const at = workspaceGeneration(help);
-  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+  return at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
 }
 
 /** The same answer as data: the generation is a field, and absent when unknown. */
-export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined): string {
+export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const from = startPointArg(input, 'from');
-  const to = startPointArg(input, 'to');
-  const answer = searchNames(index, { query: stringArg(input, 'query'), from, to }, tree);
+  const answer = searchNames(index, searchQuestionOf(input), tree, undefined, importing);
   const at = index.generation?.generatedAt;
-  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2);
+  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...(unopened === undefined ? {} : { unopened }) }, undefined, 2);
 }
 
 /** `search`, answered from its published index rather than the whole value. */
-export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined): string {
+export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const answer = answerSearch(index, input, tree);
+  const answer = answerSearch(index, input, tree, undefined, importing);
   const at = index.generation?.generatedAt;
-  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
+  const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
+  const said = unopenedLine(unopened, !unseen);
+  return said === undefined ? dated : `${dated}\n${said}`;
 }
 
 /** Every verb and what it answers, for the usage text and for `--help`. */
 export function verbs(): readonly (readonly [string, string])[] {
   return HELP_TOOLS.map((tool) => [verbOf(tool), tool.description] as const);
+}
+
+/** What the published rows a search shows are counted with, and every published file that did not open. */
+export interface ShownCounting {
+  readonly importing?: ImportingOf;
+  readonly unopened?: readonly Unopened[];
+}
+
+/**
+ * The counts for the rows `question` shows, as `uses` gives them, read from
+ * the value only when one of those rows is published: a question that prints
+ * none never opens it.
+ */
+export async function countingShown(reading: SearchReading, question: SearchQuestion, tree: Tree | undefined, root: string | undefined): Promise<ShownCounting> {
+  // Named no checkout: `root` adds declared names and other sections, never a published row.
+  const opened = showsPublished(searchNames(reading.index, question, tree)) ? await reading.value() : {};
+  const unopened = [...(reading.unopened ?? []), ...(opened.unopened === undefined ? [] : [opened.unopened])];
+  return {
+    ...(opened.help === undefined ? {} : { importing: importingOf(opened.help, root) }),
+    ...(unopened.length === 0 ? {} : { unopened }),
+  };
 }

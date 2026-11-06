@@ -1,0 +1,269 @@
+{
+  "documentDigest": "v1:a6e214c951d9e4fa75d2c2e33f3a577a",
+  "identity": {
+    "renderer": "playwright-chromium",
+    "engine": "chromium@151.0.7922.34",
+    "platform": "linux/x64",
+    "deviceScaleFactor": 1,
+    "fonts": [
+      "ui-sans-serif/400/normal/sha256-case-system-stack"
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
+  },
+  "width": 768,
+  "height": 97,
+  "missingFonts": [
+    "ui-sans-serif"
+  ],
+  "components": [
+    {
+      "component": "(unattributed)",
+      "instances": 1,
+      "structure": "v1:ca088530d135b5702186139590b08e71",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:dec08421f8618ae7e8e7118768eeddc6",
+      "geometry": "v1:6b33287eaf7baacf66b512a4aaf0b31c",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Card",
+      "instances": 1,
+      "structure": "v1:32caa90216ead3fcf5499318d2b3c3e7",
+      "semantics": "v1:f06a58cbe29f3b42fa8b040a0edeeb64",
+      "text": "v1:939ac8cdd8e07c5fdb07184555060ada",
+      "style": "v1:530d6cbaff3700e5c7381a2cd4d52d9a",
+      "geometry": "v1:a5babdf13133fb8391d5a34b2a2250b6",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {
+        "--case-space": [
+          "12px"
+        ],
+        "--case-text": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "border-bottom-color": [
+          "rgb(227 229 234 / 1)"
+        ],
+        "border-bottom-left-radius": [
+          "6px"
+        ],
+        "border-bottom-right-radius": [
+          "6px"
+        ],
+        "border-bottom-style": [
+          "solid"
+        ],
+        "border-bottom-width": [
+          "1px"
+        ],
+        "border-left-color": [
+          "rgb(227 229 234 / 1)"
+        ],
+        "border-left-style": [
+          "solid"
+        ],
+        "border-left-width": [
+          "1px"
+        ],
+        "border-right-color": [
+          "rgb(227 229 234 / 1)"
+        ],
+        "border-right-style": [
+          "solid"
+        ],
+        "border-right-width": [
+          "1px"
+        ],
+        "border-top-color": [
+          "rgb(227 229 234 / 1)"
+        ],
+        "border-top-left-radius": [
+          "6px"
+        ],
+        "border-top-right-radius": [
+          "6px"
+        ],
+        "border-top-style": [
+          "solid"
+        ],
+        "border-top-width": [
+          "1px"
+        ],
+        "color": [
+          "rgb(23 24 28 / 1)"
+        ],
+        "margin-bottom": [
+          "12px"
+        ],
+        "margin-left": [
+          "0"
+        ],
+        "margin-right": [
+          "0"
+        ],
+        "margin-top": [
+          "0"
+        ],
+        "padding-bottom": [
+          "18px"
+        ],
+        "padding-left": [
+          "18px"
+        ],
+        "padding-right": [
+          "18px"
+        ],
+        "padding-top": [
+          "18px"
+        ]
+      }
+    },
+    {
+      "component": "ErrorBoundary",
+      "instances": 1,
+      "structure": "v1:39a7998628dccb1003f8d042935f2b77",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "Stack",
+      "instances": 1,
+      "structure": "v1:567958271415578897bd9ccb0e5feaf8",
+      "semantics": "v1:3737ab48fa6922f4d9dff1ad7097844b",
+      "text": "v1:3c5c06fd9c0bca3144263e91cf9addc8",
+      "style": "v1:5206f291318435080dbabc7cb54cea44",
+      "geometry": "v1:3f7a323b6030c1ad775ddf34e436d1f9",
+      "boxes": [
+        {
+          "x": 35,
+          "y": 73,
+          "width": 730,
+          "height": 21
+        }
+      ],
+      "values": {
+        "column-gap": [
+          "12px"
+        ],
+        "display": [
+          "flex"
+        ],
+        "flex-direction": [
+          "column"
+        ],
+        "row-gap": [
+          "12px"
+        ]
+      }
+    },
+    {
+      "component": "Tokens",
+      "instances": 1,
+      "structure": "v1:78428425997c67181c21a9aeae0c5a87",
+      "semantics": "v1:248f59afcd90c6df14d0b37878538009",
+      "text": "v1:0b99263f4bec935e7fb92342d0093bd0",
+      "style": "v1:0c5b92873d210e025ebf95847b60869c",
+      "geometry": "v1:6b33287eaf7baacf66b512a4aaf0b31c",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {
+        "font-family": [
+          "ui-sans-serif, system-ui, sans-serif"
+        ]
+      }
+    },
+    {
+      "component": "WithCallback",
+      "instances": 1,
+      "structure": "v1:64c6434098cd784de8f8ad3d970611df",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "hookified",
+      "instances": 1,
+      "structure": "v1:6c01e572e11bd0d02ba6e9f04c84cbff",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {}
+    },
+    {
+      "component": "unboundStoryFn",
+      "instances": 1,
+      "structure": "v1:32b90a7bdbad2e00dd3044e4d00ea8dd",
+      "semantics": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "text": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "style": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "geometry": "v1:cf1cbb66a638b4860a516671fb74850e",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 16,
+          "width": 768,
+          "height": 97
+        }
+      ],
+      "values": {}
+    }
+  ],
+  "snapshot": "v1:H4sIAAAAAAAAA+1c3Y/cNg7/VwYqClwBe9ffH/NUXO6Ku5eiaNK7hzYPskTPKOuxDEmzM5tg//dCsj2WvZ50k7hBghh52CwpkRIpUvxRTt6hkosDVv8DIRmv0dZ3kDwWb4AotH2HGEVbJBUXD1uCJbjyKEpMwHUFEGCNcrFy1Ym7J0bVXv6YeR5y0B2rL9PQo4MawUtWwUUe2Qt+YMcDchAWDL8SAGirxBEcRIFUWAB9qR6qC5HwQ3NUE2KFH/hR9b8JLBWI9rdHB0F9zwSvD1CbXVC2A6nQFt37W8+DEpI0gsLLgwRDEPt5UYbY88M4DvISOUjCAdeKkX9Z0/wsyoIiCIKQUp8UZYEDGmGK0zzHcZYEyEGsbo5Kan2XDdtbhXrHapv2ox/7N95NmgfBTRghB90zODVcmCUbg6Jt5nkO2gPb7RXapkmmLXTPCLwkuIKfMFFcGJcRXnHxkuzhoDVUZvyjg0pe6xX9jo7MlbiWrgTBytvI825r7fbqVu5xECdu69wHqeDgSoXJHXqthdaUKcbrblNQgpCuAHokQN0DV+bAoJag1WEpwVjg0UFS4YJV7C3uRt372zKhXkFwgSH1oEihCEKaQ+jRMvSjKCyQgxQ7wFtew3/1Ofnt1QvkoIrrvaItgtr97SVykDhWIEH7RWiz46rip4oZR+EAPT46SEBNQfwHy32ruMBhgVM/yChNcOl7eZD7Ac3TNAn8tEhB+1yJI1FHAcMsL4wJSZMwTIKsTGhIgQYhjkhEMMlo1s56qKwZmAYpAT8Py9SD3A8yDLEXRTTEOMxyrGcIzo1/G6zdi3S4KLxDW0TZvdkMwxJt0XdYc7BSghVHBRebPrRhZNytDbAr/uFt9J/bjf8Dah3ulvjAqge0RX+gV+wAcvMznDa/8gOu/0D9GMneapv6SXPuSafumKHIRHE7rNWI2tPSU+912OrQmtClEqCI3pfved9r37Ea3P74DoMrUAqEKxtMWL2zOScuqEU35oGzcnHFdrXJKVionshqagJ8GKYErqVOaEZmrQ1+2jMFRiQ8UVQIwHc2ld+DKCt+ck8CNzbjnkmmj7PSZjW/VFo4ZQJId8ArJbRcwRSrd+6BU61vzwV7y2uFK1fp801wo4e7khm24g1yUMEFBeESXlW4kZouocECKxiYlk2MxzAhUCu3Pwj4qHh7fHa1S3itYOyelsEUHORTsoSqtGTIBohyhQ7cgVpgckcFb9ySVSbT9vbVjJ3gx5q6pGLaaN2KC36esGcOrffDeAw74B3MCueC7Zi2c4Mp1RZ+Ir/hknW+8DbemCegAWxSRvuXEbOLhX6n/fKV4ofZRZtIGw+roNQmo+wou/M45gsdAu8bMARaDU+Y3WVgTzMK/2pxZtC8ZMOakdsu9K8Et6PmJbe8GdGKN38pWI+5akvNvG5IzZ1fkeaM16Otanv87Mo9pvxkTz3rc9GGXBdQ3ZEjFWArAAivjofa3Y0TRj/lauKQTYU1rag4udMJdBJXZQVnt8CSyWGhhmbnHMFPPXknzPK9/ne5F6zWyc3vKZecZv6iiRyrQeFOMOpqRW67I0vvwNLJ8aJ3IAt+mg7vzAKmFJxhtJl8zBL8NDNBU+dGKzg0FVbgYgFYTjZyYQ6bmWV3K+94l6sqT02WfXOUipUPcxlVn9JhQQcsdqx2LyfLG2jdQIsiOiUWSV8EPeFs35hmWZrWH+CexOphmNcR7EN+YGe3qKCm/VU0XHKmundLpqeWrLJoVgqNve83sbnEub56zPnVR8mEVKeDH5W54a9GdT+Al2VbsdmzJsHak/tNhMYDlxv5PIqfC3kcVsPdYPmhJ1qO6Em2J3ra4ArLGlJhxYiu37oZnd/12ZxEvsJFBW4PT/qBpjyhQLi5V+vrJpsOrFrQ0Blpyu1tKHnF6Axf7Rm5q0HKyUp6++nkpm/tjjzNgq0t+olPi6sLabiewyxqzpsou4mN/+5BKEZwdangCizB7MnpMQ5Kk8yMfWsquvOg0T1BcceU265NCX4H1hk3hX4LU89o6ycOemh/dEMMXOpjJE8fHUT2rKICarT9fajAb5/U4J9YdY+wlrPpUNWROZuBvJbhaxm+luFrGb6W4WsZvpbhaxm+luFrGf7NlOGN4PdQ45qYqpqfahDSlOQ1Ns8Xr/gd1BKZgY20X2GiyA+TEodxXIRJmmHfjxJM/aRMIUuiXD9CXKTsOb9jJQM6J6hIQxqmMc6on6WkwB4JSZElaZCD7xcltQUd60LXJy/1c9ZP9adK+7cQXPxTC8TiYU5Y4ic0jgikqZ9FRYD9Ehc4xnEWEYAwKW1h/2dq/wJXla6iZu3lJVHqUy9LkzAmNIScAoWSUEJpSb0QPb52kORH0bqif7TCEuSteb4rOL8zj0O3UpBbKm/eyHMHKNA2yPprF21j/e5yYsLc1O+uY60Vba1o66PR1pUKNgjSTRDkmyCMZurYaW6eqUZ9W/rT0vu6/HEBPtEwrsBHOmZQzXUlE2gy0TLBJiM1T9DJdSUjjDJRMQIp/tQTY5yQTNkTpJDMmOEZQ+aUjCsFPxsR+wJhQr5UJBN6V5R0VLuIC5IV6f/dSH/FgSsOfC8OjPOvDwd+i7hvRWqfB6mF3peB1F5gMQuvcsiLNMQQkyCI8jKMC78sU0pDkiceJKmNYVa093WgvTT9GLRn4b19aOLfKN0D1jUFcvq9/dp+T2q+qdMYYPsOVXAPFdqGj88EiUG4CaJNkC2HE7ObNJiBiukKFb94qDhzkV+77AdMENhTrUJhrf0//yvfNJq/tIe+K+tb5K3viuxFnvuuyF5f/Fak9yUgvSD5UKT3db/TTcNxfap7DgCcWu2rx4BJ3Jw3fvgZEKBq4db2HXK7f/XTlX5d9dNR9fxZY/fV96uLnN4x9synxdVI2xiJhrFBovpHj0RD6589BcmKRFckaiHRLB6QaPr4fvRp4c/vupO5gskVTH4ImJxLmp+YHh9bE476HmuGWzPcczLc68fXep2jNOevH1Wsye0jO2UDItZgdQ7sdifRrt27YnEEwTva2ixbP4lfP4n/Mhpk722FPbvxtXa4Fu1w+V/ftwxfRq/s2/qm/Vv/LKJtiXmf+7OIrhmVhleaUf4zmlEv1TXU8AEoa8V73w7eS4MB7/ne8z+u8D+2vbVivxX7WV2oXzCjG1ZvyqO5stf8tua3T8tvBAt6o+kMJpnOHzJdPtPZav90WesX6xxO/8cGvQMQJpLs/OUguQdTD7K6Kw8kVND+R3nodyP2NZo20MbynqDChYW26XBhoW2xsqBQG28vLnZxE9jYfkGxo17L8nIXN8OoLbOgXKups7TUxW1gNZAWjjG7/7Ow6FH3aPkD8TeLX9owNmBeUl4LsZeU2LUDlhRpmglLCBz6Nh8n7Ym8oaG0qMBP8coVkR/klu599+e2Upp8qPIsdZ/gsqnED0myswvvHphnXggtLf2jz0eueSJt8mK0jND+sWkZadZL1TMFvtbADO9qLhUj0pSnfwKSVrH0LVsAAA==",
+  "findingMarks": [],
+  "placedFor": {
+    "subject": "story:case-surface--receipt-at-two-widths@800"
+  }
+}

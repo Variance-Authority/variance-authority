@@ -95,8 +95,8 @@ const QUOTE_LIMIT = 500;
 export interface RemoteStoreOptions {
   /** Base URL of a server started by {@link serveRasterStore}, e.g. `http://box:7788`. */
   readonly endpoint: string;
-  /** Bearer token the operator set on the service. */
-  readonly token?: string;
+  /** Bearer token the operator set on the service, or what fetches one when it is sent. */
+  readonly token?: string | (() => string | Promise<string>);
   /** Milliseconds. A store that hangs must fail, not stall the run. */
   readonly timeoutMs?: number;
   readonly fetch?: typeof globalThis.fetch;
@@ -282,6 +282,7 @@ async function call(
   const get = options.fetch ?? globalThis.fetch;
   const url = `${options.endpoint}${path}`;
   try {
+    const token = typeof options.token === 'function' ? await options.token() : options.token;
     const response = await fetchWithin(
       get,
       url,
@@ -289,7 +290,7 @@ async function call(
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          ...(options.token === undefined ? {} : { authorization: `Bearer ${options.token}` }),
+          ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify(body),
       },

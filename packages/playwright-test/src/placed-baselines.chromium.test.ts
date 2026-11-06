@@ -45,7 +45,7 @@ describe.runIf(BROWSER_AVAILABLE)('the baseline path a Playwright suite sets', (
       { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_BASELINES: baselines } },
     );
 
-    const written = (await readdir(baselines, { recursive: true })).filter((name) => name.endsWith('.png')).sort();
-    expect(written).toEqual(['dark/Greeting/says-hello-chromium.png', 'light/Greeting/says-hello-chromium.png']);
+    const written = (await readdir(baselines, { recursive: true })).filter((name) => name.endsWith('.webp')).sort();
+    expect(written).toEqual(['dark/Greeting/says-hello-chromium.webp', 'light/Greeting/says-hello-chromium.webp']);
   }, 120_000);
 });

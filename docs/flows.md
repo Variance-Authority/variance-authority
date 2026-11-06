@@ -117,9 +117,19 @@ Git LFS uses the same durable layout while its filter stores the image bytes:
 ```
 
 Install Git LFS on every machine that checks out or accepts baselines. The store
-maintains the `.gitattributes` tracking declaration beneath its root. A checkout
-that still contains LFS pointer text where an image belongs is refused by name,
-so an unfetched pointer reads as a setup failure rather than as a changed image.
+maintains the `.gitattributes` tracking declaration beneath its root; commit it
+with the first images. A checkout that still contains LFS pointer text where
+an image belongs is refused, naming the subject and `git lfs install && git lfs
+pull`, with exit 2, so an unfetched pointer reads as a setup failure rather than
+as a changed image. The refusal comes only at the first subject whose document
+changed since its baseline: an unchanged subject is settled from its `.json`
+sidecar without its image being read, so on such a checkout a run where nothing
+changed passes. `npx variance doctor --baselines` reads the head of every image
+in the root, opens no browser and, where git-lfs is not set up in the root's
+work tree, counts the pointers, names the first and exits 2.
+The composite action runs it before every run over a store in the checkout, so a
+job that uses the action fails on the checkout. Anywhere else, run it before the
+run.
 
 Choose this when the baseline and its reason belong in the same repository
 change as the code. Acceptance writes files into your working tree; reviewing and
@@ -150,7 +160,7 @@ An endpoint the run cannot call, a refused token, or an invalid response stops
 the run. None of them is reported as a missing baseline, so a network failure
 can never lead the next `accept` to overwrite the only approved copy. Run
 `serveRasterStore` from
-[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+[`@variance-authority/remote/store`](https://variance-authority.dev/reference/packages/remote)
 behind infrastructure you operate, or point the endpoint at the compatible
 baseline API of
 [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal).
@@ -175,18 +185,21 @@ other:
 
 A retention sweep, run when you call it, removes builds older than 30 days by
 default and keeps baselines, decisions and concerns. A deployment uses a
-database and object storage, plus two different secrets:
+database and object storage, and declares who it recognizes:
 
-- the ingest token lets CI post builds, baselines, and history rows;
-- the review token lets a person read the review pages and decide.
+- `INGEST_CREDENTIALS` says what may post builds, baselines, and history rows:
+  GitHub Actions' own identity, or an ingest token;
+- `REVIEW_CREDENTIALS` says who may read the review pages and decide: people
+  signed in with GitHub, or behind your identity provider.
 
-The two values must differ, and Tribunal refuses a deployment that gives one
-string both capabilities. Anything that can read an ordinary build log may be
-able to read the ingest token, and that capability must not be able to approve a
-regression. The review token stays server-side: your mounting adapter
-authenticates the person and attaches the capability to each request.
+Writing a run and deciding on one stay apart. Anything that can read an ordinary
+build log may be able to read the ingest token, and that capability must not be
+able to approve a regression. Every decision is recorded under the name of the
+person who made it.
 
-Point `npx variance push` at the deployment with the ingest token:
+Point `npx variance push` at the deployment with an ingest credential. Here that
+is a token; on GitHub Actions it can be the token the runner signs, which stores
+no secret:
 
 ```json
 {
@@ -275,7 +288,7 @@ A remote renderer is selected independently of baseline storage:
 ```
 
 `serveRenderer` from
-[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+[`@variance-authority/remote/renderer`](https://variance-authority.dev/reference/packages/remote)
 exposes no token setting, so keep it on a trusted network or put authentication
 in a proxy you operate. The remote machine must also be able to resolve the
 resources the captured document embeds or references. A resource the renderer

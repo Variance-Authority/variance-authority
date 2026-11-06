@@ -1,6 +1,5 @@
 import type { EyesArchive } from '@variance-authority/eyes';
 import type { PresentationReport } from '@variance-authority/presentation';
-import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { VantageState } from '@variance-authority/vantage';
 import type { ObservabilitySubject } from './observability-subject.js';
 import { adjudicate } from './tools/adjudicate.js';
@@ -20,8 +19,6 @@ import { decisions } from './tools/decisions.js';
 import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
-import { changedTests } from './tools/changed-tests.js';
-import { sourceTests } from './tools/source-tests.js';
 import { runSignals } from './tools/run-signals.js';
 import { self } from './tools/self.js';
 import { testSignals } from './tools/test-signals.js';
@@ -106,7 +103,7 @@ import { variations } from './tools/variations.js';
 export type { FileSet, Served, Tool, ToolInvocation } from './tools/tool.js';
 // The tree a start point is resolved against, exported for the hosts that have
 // a repository to read: a tool cannot walk one, so somebody outside has to.
-export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Tree, type TreeOptions } from './tools/tree.js';
+export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Chains, type Link, type Tree, type TreeOptions } from './tools/tree.js';
 export { namesOf, type DeclaredName, type FileNames, type ImportedName, type SourceNames } from './tools/names.js';
 export { decodeSourceTree, encodeSourceTree } from './tools/source-tree-format.js';
 // `treeOf` takes these, so a host that builds a tree out of a scan it already
@@ -134,22 +131,20 @@ export { NO_ARGS, stringArg };
 export { notObservedSentence } from './tools/subject.js';
 // A long part of an answer, capped and counted the same way in every server.
 export { cappedRows } from './tools/capped.js';
+// How many rows a listing shows, read and refused the same way in every server.
+export { limitOf, notShown } from './tools/limit.js';
+// How rare a word is in a population, the one integer every word ranking multiplies by a field weight.
+export { heldWeight, rarity } from './tools/rarity.js';
+// How an answer names an input, a tool or a question, on the surface it was asked on.
+export { flagOf, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
+export { conjoined } from './tools/locate-print.js';
 export { diffState };
-
-/** The source-to-named-test tool set for an MCP server over an execution index. */
-export const SOURCE_TEST_TOOLS = [sourceTests, changedTests, diff as Tool<ExecutionIndex>] as const;
-
-/** Look up one source-test tool without widening it to the visual-report subject. */
-export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undefined {
-  return SOURCE_TEST_TOOLS.find((tool) => tool.name === name);
-}
 
 /**
  * The tool set for a watcher attached to a suite that is still running.
  *
- * A third subject, and the first one that is not a thing somebody produced. The
- * report tools answer about a run that finished and the source-test tools answer
- * about an index that was written; these answer about a run *in flight*, held in
+ * The first subject that is not a thing somebody produced. The report tools
+ * answer about a run that finished; these answer about a run *in flight*, held in
  * the memory of the process answering, and gone when it exits.
  *
  * `variance_self` is first because it is the only one that answers before a run
@@ -273,8 +268,6 @@ export const OBSERVABILITY_TOOLS: readonly Tool<ObservabilitySubject>[] = [
     lift(tool, 'visual/report', (subject) => subject.report)),
   ...PRESENTATION_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
     lift(tool, 'presentation readings', (subject) => subject.presentations)),
-  ...SOURCE_TEST_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
-    lift(tool, 'runtime journey', (subject) => subject.execution)),
   ...VANTAGE_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
     lift(tool, 'live journey/events', (subject) => subject.vantage)),
   ...EYES_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
@@ -298,15 +291,16 @@ function lift<Subject>(
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
+    ...(tool.wants === undefined ? {} : { wants: tool.wants }),
     run(subject, input, invocation) {
       const evidence = read(subject);
       if (evidence === undefined) {
         throw new Error(`${domain} evidence is unavailable to this MCP connection`);
       }
-      const previous = invocation?.previous === undefined
-        ? undefined
-        : read(invocation.previous);
-      return tool.run(evidence, input, previous === undefined ? undefined : { previous });
+      // What the host read for the call travels with it; only the previous subject is projected.
+      const { previous: before, ...host } = invocation ?? {};
+      const previous = before === undefined ? undefined : read(before);
+      return tool.run(evidence, input, { ...host, ...(previous === undefined ? {} : { previous }) });
     },
   };
 }

@@ -309,7 +309,7 @@ sequenceDiagram
 
   Note over AGA,ALO: only now, and in this order
   CMP->>AGA: the verdict, and what this subject is asserted on
-  AGA->>COL: collect it again — same world, seconds later
+  AGA->>COL: collect it again — same world, right after
   COL-->>AGA: a second document
   alt the two documents disagree
     AGA->>INS: two snapshots that should have agreed
@@ -360,7 +360,7 @@ sequenceDiagram
   `packages/storybook-collector/src/index.ts` and
   `packages/playwright-test/src/fixture.ts`.
 - Collector to run. `Collector.collect(subject: PlannedSubject):
-  Promise<Collected>` in `packages/cli/src/commands/collector.ts`; `Collected`
+  Promise<Collected | Visit>` in `packages/cli/src/commands/collector.ts`; `Collected`
   is a discriminated union whose failure arm is `{ ok: false, because }` — a
   value, not an exception, so one unreachable subject costs the other subjects
   nothing and is still named. Every collection in this trace, including both
@@ -624,8 +624,8 @@ flowchart TB
   than an operator's decision.
 - Shard fold — `coverageOf` in `packages/cli/src/commands/merge.ts` returns `{}`
   — absent, not empty — when any shard omitted its coverage list; a **subject**
-  carrying only shard-filter exclusions and no observation anywhere is rewritten
-  to `{ kind: 'failed' }`, and a **subject** both observed and reported not
+  carrying only shard-filter exclusions and no observation anywhere, at any of
+  its widths, is rewritten to `{ kind: 'failed' }`, and a **subject** both observed and reported not
   observed raises `OperatorError` naming both shards.
 - Artifact to integer — `ReviewableReport` in `packages/cli/src/exit.ts`
   restates the fields structurally rather than importing `RunReport`, so the
@@ -774,12 +774,9 @@ flowchart TB
   default, and `createTribunalRoutes` **replaces** the `authorization` header
   with the token that answer implies rather than adding it — a caller may not
   choose its own capability, and the policy is binding rather than advisory. The
-  two shipped policies are `authorize` in
-  `tribunal-cloudflare/app/api/[[...path]]/route.ts` (a bearer is a machine, an
-  `identify` result is a person) and `authorizeFor` in
-  `packages/tribunal/src/node/bin.ts` (a token gets what the token is for; on a
-  loopback bind, no token reviews; on a network bind, no token is no capability
-  and the surface is not served).
+  one shipped policy is `declaredPolicy` in `packages/tribunal/src/policy.ts`:
+  every host reads the same `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, and a
+  host's only say is its defaults.
 - Assertion to name. `identify`, `tokenOf`, `verify` and `published` in
   `tribunal-cloudflare/app/access.ts` turn a signed token — from the header or
   the browser's cookie — into an `Identity`, with `alg` pinned to RS256, `aud`

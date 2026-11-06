@@ -5,6 +5,7 @@
 > Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -390,4 +391,4 @@ subject's pixels change.
 
 ---
 
-**[@variance-authority/session](https://variance-authority.dev/reference/packages/session)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/session](https://variance-authority.dev/reference/packages/session)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/session) · MIT

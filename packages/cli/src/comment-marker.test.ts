@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { main } from './bin.js';
+import { main } from './bin.fixture.js';
 import { commentMarker } from './commands/comment.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from './exit.js';
 
@@ -41,9 +41,13 @@ async function configFor(project: string): Promise<string> {
 }
 
 async function marker(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
+  return comment(['--marker', ...argv]);
+}
+
+async function comment(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
   let out = '';
   let err = '';
-  const code = await main(['comment', '--marker', ...argv], {
+  const code = await main(['comment', ...argv], {
     out: (text) => {
       out += text;
     },
@@ -53,6 +57,22 @@ async function marker(argv: readonly string[]): Promise<{ code: number; out: str
   });
   return { code, out, err };
 }
+
+describe('comment --cleared', () => {
+  it("prints what a clean run leaves in a docket's place, under the project's marker and heading", async () => {
+    const { code, out, err } = await comment(['--cleared', '--config', await configFor('tribunal')]);
+
+    expect({ code, err }).toEqual({ code: EXIT_CLEAN, err: '' });
+    expect(out.startsWith(`${commentMarker('tribunal')}\n`)).toBe(true);
+    expect(out).toContain('## Visual variance in project `tribunal` — nothing to review');
+  });
+
+  it('spells the project as the docket does, whatever the project holds', async () => {
+    const { out } = await comment(['--cleared', '--config', await configFor('a`b')]);
+
+    expect(out).toContain('## Visual variance in project ``a`b`` — nothing to review');
+  });
+});
 
 describe('comment --marker', () => {
   it("prints the marker of the config's project, one line and nothing else", async () => {

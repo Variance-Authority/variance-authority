@@ -1,6 +1,7 @@
 //! The walk `importers` takes through `export … from`, over a chain written the
 //! way the scan writes one: a barrel two re-exports deep, a type-only
-//! re-export, a namespace re-export, and two files that re-export each other.
+//! re-export in each of its three spellings, a namespace re-export, and two
+//! files that re-export each other.
 
 use std::path::PathBuf;
 
@@ -37,13 +38,23 @@ fn file(path: &str, targets: &[&str], requests: &[String], exports: &[String]) -
     (record, parse)
 }
 
-/// A request and its bindings, each `(imported, type, line)`.
+/// A request and its bindings, each `(imported, type, line)`. Every
+/// `reexports` request is an `export … from`; a `type` one is an `import type`.
 fn request(value: &str, kind: &str, line: u32, bindings: &[(&str, bool, u32)]) -> String {
+    held(value, kind, line, bindings, kind == "reexports")
+}
+
+/// `export type { … } from`: a request of kind `type` that republishes.
+fn republished_types(value: &str, line: u32, bindings: &[(&str, bool, u32)]) -> String {
+    held(value, "type", line, bindings, true)
+}
+
+fn held(value: &str, kind: &str, line: u32, bindings: &[(&str, bool, u32)], republishes: bool) -> String {
     let bindings: Vec<String> = bindings
         .iter()
         .map(|(name, typed, at)| format!(r#"{{"imported": "{name}", "local": "{name}", "type": {typed}, "line": {at}}}"#))
         .collect();
-    format!(r#"{{"value": "{value}", "kind": "{kind}", "line": {line}, "bindings": [{}]}}"#, bindings.join(", "))
+    format!(r#"{{"value": "{value}", "kind": "{kind}", "line": {line}, "bindings": [{}], "republishes": {republishes}}}"#, bindings.join(", "))
 }
 
 /// `export { imported as exported } from 'from'`; `export *` when `imported` is `*` and `exported` is `None`.
@@ -116,7 +127,7 @@ fn follows_a_renamed_re_export_under_the_name_it_passes() {
 }
 
 #[test]
-fn passes_nothing_on_through_a_type_only_re_export_or_a_namespace_and_lists_the_type_where_it_is_written() {
+fn passes_an_inline_type_re_export_on_as_a_type_and_a_namespace_on_only_as_its_members() {
     let root = fixture("typed");
     let bytes = chain(&[
         file("src/greet.ts", &[], &[], &[]),
@@ -135,8 +146,60 @@ fn passes_nothing_on_through_a_type_only_re_export_or_a_namespace_and_lists_the_
 
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
-    assert_eq!(uses(&read), ["src/typed.ts:1 greet via ./greet type"]);
-    assert!(read.through.is_empty());
+    // Whatever the importer wrote, a name that came through a type-only hop is a type.
+    assert_eq!(uses(&read), ["src/typeuse.ts:1 greet via ./typed type"]);
+    // `ns.ts` passes `greet` on as `ns.greet`, so a binding of `greet` out of it is no use.
+    assert_eq!(read.through, ["src/ns.ts", "src/typed.ts"]);
+}
+
+#[test]
+fn passes_on_what_export_type_re_exports_and_keeps_an_import_type_of_the_same_file_a_use() {
+    let root = fixture("export-type");
+    let bytes = chain(&[
+        file("src/greet.ts", &[], &[], &[]),
+        // `import type { greet } from './greet'; export type { greet as Greet } from './greet'`
+        file(
+            "src/types.ts",
+            &["src/greet.ts", "src/greet.ts"],
+            &[request("./greet", "type", 1, &[("greet", true, 1)]), republished_types("./greet", 2, &[("greet", true, 2)])],
+            &[passes("greet", Some("Greet"), "./greet", true)],
+        ),
+        // `export type * from './types'`
+        file("src/all.ts", &["src/types.ts"], &[republished_types("./types", 1, &[])], &[passes("*", None, "./types", true)]),
+        file("src/typeuse.ts", &["src/all.ts"], &[request("./all", "imports", 3, &[("Greet", false, 3)])], &[]),
+    ]);
+
+    let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
+
+    assert_eq!(uses(&read), ["src/types.ts:1 greet via ./greet type", "src/typeuse.ts:3 Greet via ./all type"]);
+    assert_eq!(read.through, ["src/all.ts", "src/types.ts"]);
+}
+
+#[test]
+fn a_name_a_type_only_path_reached_first_is_a_value_once_a_longer_value_path_reaches_it() {
+    let root = fixture("diamond");
+    let bytes = chain(&[
+        file("src/greet.ts", &[], &[], &[]),
+        // `export { type greet } from './greet'`
+        file("src/typed.ts", &["src/greet.ts"], &[request("./greet", "reexports", 1, &[("greet", true, 1)])], &[passes("greet", Some("greet"), "./greet", true)]),
+        // `export { greet } from './greet'`
+        file("src/value.ts", &["src/greet.ts"], &[request("./greet", "reexports", 1, &[("greet", false, 1)])], &[passes("greet", Some("greet"), "./greet", false)]),
+        // `export * from './value'`: one hop more, so the value path reaches the barrel a step later.
+        file("src/hop.ts", &["src/value.ts"], &[request("./value", "reexports", 1, &[])], &[passes("*", None, "./value", false)]),
+        // `export * from './typed'; export * from './hop'`
+        file(
+            "src/barrel.ts",
+            &["src/typed.ts", "src/hop.ts"],
+            &[request("./typed", "reexports", 1, &[]), request("./hop", "reexports", 2, &[])],
+            &[passes("*", None, "./typed", false), passes("*", None, "./hop", false)],
+        ),
+        file("src/use.ts", &["src/barrel.ts"], &[request("./barrel", "imports", 1, &[("greet", false, 1)])], &[]),
+    ]);
+
+    let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
+
+    assert_eq!(uses(&read), ["src/use.ts:1 greet via ./barrel"]);
+    assert_eq!(read.through, ["src/barrel.ts", "src/hop.ts", "src/typed.ts", "src/value.ts"]);
 }
 
 #[test]
@@ -160,4 +223,17 @@ fn ends_a_cycle_of_re_exports_and_follows_each_file_once() {
 
     assert_eq!(uses(&read), ["src/use_c2.ts:1 greet via ./c2"]);
     assert_eq!(read.through, ["src/c1.ts", "src/c2.ts"]);
+}
+
+#[test]
+fn orders_two_bindings_of_one_name_on_one_line_by_what_they_bind_it_to() {
+    let root = fixture("two-locals");
+    // `import { greet as quiet, greet as loud } from './greet'`
+    let both = r#"{"value": "./greet", "kind": "imports", "line": 1, "bindings": [{"imported": "greet", "local": "quiet", "type": false, "line": 1}, {"imported": "greet", "local": "loud", "type": false, "line": 1}]}"#;
+    let bytes = chain(&[file("src/greet.ts", &[], &[], &[]), file("src/both.ts", &["src/greet.ts"], &[both.to_owned()], &[])]);
+
+    let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
+
+    let locals: Vec<Option<&str>> = read.uses.iter().map(|one| one.local.as_deref()).collect();
+    assert_eq!(locals, [Some("loud"), Some("quiet")]);
 }

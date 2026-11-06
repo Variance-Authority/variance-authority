@@ -143,6 +143,18 @@ describe('recordedJourneys — the regions each subject entered', () => {
     expect(reading.entered).toBeUndefined();
     expect(reading.recorded).toBeUndefined();
   });
+
+  it('refuses a journal it cannot read, and says what reading past it would hide rather than asking for a run', async () => {
+    readTestCoverage.mockRejectedValue(new Error('not a snapshot'));
+
+    const refused = recordedJourneys('/repo');
+
+    await expect(refused).rejects.toThrow(
+      `the recorded execution journal at ${CACHED} could not be read: not a snapshot. ` +
+        'A reading that skipped it would look exactly like a repository that never recorded anything.',
+    );
+    await expect(refused).rejects.not.toThrow(/[Dd]elete it|run once|record a new one/);
+  });
 });
 
 describe('recordPerStand — the record asked once per stand, the answers folded', () => {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { unbuilt } from '../../unbuilt.mjs';
 
 /**
  * `variance run` as a process, against a Storybook this project did not author.
@@ -90,7 +91,7 @@ let tickingConfigPath = '';
  * story order rather than an edit. It is a cause the case runs — in
  * `alone.chromium.test.js` — and never a subject.
  *
- * `ticking` is the cycle's own exclusion. A reading of `Clock — ticking` agrees
+ * `ticking` matches it too. A reading of `Clock — ticking` agrees
  * with its baseline, another mount, only when both were taken the same 50 ms
  * step after mounting, so the cycle, which asserts `unchanged`, leaves it to the
  * sweep below.
@@ -159,7 +160,7 @@ function varianceWith(config, ...args) {
 const live = READY ? describe : describe.skip;
 
 if (!READY) {
-  console.warn(
+  unbuilt(
     '\ncases/storybook-case (cli): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(BIN) ? '' : '\n  the CLI is not built — yarn build') +

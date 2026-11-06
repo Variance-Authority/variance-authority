@@ -97,7 +97,7 @@ fn sent<'b, 'a>(call: &'b CallExpression<'a>) -> Option<&'b Expression<'a>> {
     let method = match bare(&call.callee) {
         Expression::StaticMemberExpression(it) => it.property.name.as_str(),
         Expression::ComputedMemberExpression(it) => match &it.expression {
-            Expression::StringLiteral(name) => name.value.as_str(),
+            Expression::StringLiteral(name) => name.value.as_str()?,
             _ => return None,
         },
         _ => return None,

@@ -1,0 +1,23 @@
+name: variance tick
+description: >-
+  Answers a tick in the docket. It decides whether the person may accept, leaves
+  their name in the comment and reruns the check, which accepts. Runs on
+  `issue_comment`, from the default branch, and never checks out the pull
+  request's code.
+
+inputs:
+  github-token:
+    description: >-
+      Token that reads the pull request, edits the comment and reruns the job.
+      It needs `actions: write` and `pull-requests: write`.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: answer the tick
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/tick.mjs" answer

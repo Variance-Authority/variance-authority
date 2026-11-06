@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/playwright",
-  "version": "0.15.0",
+  "version": "0.25.0",
   "description": "A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.",
   "keywords": [
     "variance-authority",
@@ -58,7 +58,7 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/raster": "workspace:^",
-    "playwright": "^1.49.0"
+    "playwright": "^1.55.0"
   },
   "devDependencies": {
     "@variance-authority/png": "workspace:^"

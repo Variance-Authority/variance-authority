@@ -99,6 +99,14 @@ impl<'a> Records<'a> {
         offsets.range(row).map(move |at| stored.text(directory.at(at)))
     }
 
+    /// The specifiers, as written, the file at `row` imports and the index
+    /// resolved to no file; `None` when the record holds no such list.
+    pub fn unresolved_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<impl Iterator<Item = &'s str> + use<'s, 'a>> {
+        if !flag(self.unresolved_present, row) { return None; }
+        let (offsets, value) = (self.unresolved, self.unresolved_value);
+        Some(offsets.range(row).map(move |at| stored.text(value.at(at))))
+    }
+
     /// Why the file at `row` could not be read, when it could not.
     pub fn unknown_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<&'s str> {
         stored.optional(self.unknown.at(row))

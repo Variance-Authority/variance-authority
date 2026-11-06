@@ -1,7 +1,6 @@
 import { intern } from '@variance-authority/core/segment';
 import { blob, column, framedHeader, sections, validSections, type Header, type Section } from './format-layout.js';
 import { recordedCases } from './case-record.js';
-import { PRECONDITIONS_COLUMN, preconditionColumn, preconditionStrings, preconditionsFrom } from './case-precondition-column.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import type {
   ExecutionBlock,
@@ -11,7 +10,8 @@ import type {
   ExecutionTest,
 } from './reverse.js';
 import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
-import { durationColumn, durationFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
+import { LAYOUT } from './record-layout.js';
+import { durationColumn, durationFrom, limitColumn, limitFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -87,6 +87,10 @@ const LOADED = 2;
  * the same bytes.
  */
 export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
+  // What a case said is items over crossing sets, and this spelling has no pool to lay them in.
+  if (index.tests.some((test) => test.said !== undefined)) {
+    throw new Error('the row spelling cannot hold what a case said; write the set spelling');
+  }
   const { strings, id } = intern(dictionary(index));
 
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
@@ -133,6 +137,10 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       blockLoaded[block] = held.loaded === true ? 1 : 0;
       blockCrossings[block] = crossing;
       for (const entered of held.crossings) {
+        // A case whose crossing is not known would read back as one that called in.
+        if (entered.overwritten === true) {
+          throw new Error(`${module.file} holds a case whose crossing is not known, and the row spelling cannot hold one; write the set spelling`);
+        }
         crossingTest[crossing] = entered.test;
         crossingDistance[crossing] = entered.distance;
         crossingLoaded[crossing] =
@@ -154,7 +162,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
       'tests.stopped': column(stoppedColumn(index.tests)),
       'tests.duration': column(durationColumn(index.tests)),
-      ...preconditionColumn(index.tests, id),
+      [LAYOUT.cases.limit]: column(limitColumn(index.tests)),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -299,11 +307,11 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testStopped = found.has('tests.stopped') ? flags('tests.stopped') : undefined;
   // Version 5 on; a file before it timed no case.
   const testDuration = found.has('tests.duration') ? words('tests.duration') : undefined;
+  // A file before cases carried a limit names none.
+  const testLimit = found.has(LAYOUT.cases.limit) ? words(LAYOUT.cases.limit) : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
-  // Written since a case carries the preconditions it named; a file without it listened to none.
-  const said = found.has(PRECONDITIONS_COLUMN) ? words(PRECONDITIONS_COLUMN) : undefined;
-  if (said !== undefined && said.length !== testId.length) throw invalid();
+  if (testLimit !== undefined && testLimit.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -312,7 +320,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
       ...durationFrom(testDuration, at),
-      ...preconditionsFrom(said, at, string),
+      ...limitFrom(testLimit, at),
     });
   }
 
@@ -386,7 +394,6 @@ function dictionary(index: ExecutionIndex): ReadonlySet<string> {
     held.add(test.file);
     held.add(test.name);
   }
-  for (const text of preconditionStrings(index.tests)) held.add(text);
   for (const module of index.modules) {
     held.add(module.file);
     for (const block of module.blocks) {

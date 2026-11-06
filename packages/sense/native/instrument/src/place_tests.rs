@@ -66,9 +66,9 @@ fn a_type_the_transform_erased_keeps_its_regions_on_the_authored_text() {
     let authored = "export function f(x: number): number {\n  if (x) return 1;\n  return 0;\n}\n";
     let transformed = "export function f(x) {\n  if (x) return 1;\n  return 0;\n}\n";
     let mut points = vec![(0, 0, 0, 0), (0, 21, 0, 37)];
-    for line in 1..4 {
-        for column in 0..20 {
-            points.push((line, column, line, column));
+    for (line, text) in authored.lines().enumerate().skip(1) {
+        for column in 0..text.len() as u32 {
+            points.push((line as u32, column, line as u32, column));
         }
     }
     let placed = place(authored, transformed, "f.ts", &map(&points), 0, "f.ts@00", false, false).expect("it parses");
@@ -140,6 +140,19 @@ fn a_region_with_only_a_sibling_in_front_of_it_is_module_code() {
     let placed = place(authored, authored, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
     assert!(placed.cut.code.contains("__vaB);__va(2);"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function f() {__va(1); return 1 }"), "{}", placed.cut.code);
+}
+
+#[test]
+fn a_position_past_the_end_of_its_line_names_nothing_on_the_line_below() {
+    // A step ahead of the map rewrote the import longer and answered no map, so
+    // the map carries the longer line and its columns run past the file's. Read
+    // as offsets they land in `helper`, which the module's load does not run.
+    let authored = "import { fn } from './lib.js';\nfunction helper() { return 1 }\nexport const a = fn(helper);\n";
+    let written = "const { fn } = globalThis.__A_GLOBAL_NAME_LONGER_THAN_THE_IMPORT_IT_REPLACES__;";
+    let transformed = authored.replacen("import { fn } from './lib.js';", written, 1);
+    let placed = place(authored, &transformed, "a.js", &identity(&transformed), 0, "a.js@00", false, false).expect("it parses");
+    assert!(!placed.cut.code.contains("__vaB);__va(1);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function helper() {__va(1); return 1 }"), "{}", placed.cut.code);
 }
 
 #[test]
@@ -258,7 +271,7 @@ fn a_branch_with_no_origin_fires_at_its_function_s_entry_not_a_compiler_s_branch
     let mut points: Vec<_> = (0..23).map(|column| (0, column, 0, column)).collect();
     points.extend((32..37).map(|column| (0, column, 0, column - 9)));
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3),__va(4); if ($) {void 0; g(v); } else{void 0;}"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3),__va(4);__vaL&&__vaL(1,\"v\",v); if ($) {void 0; g(v); } else{void 0;}"), "{}", placed.cut.code);
 }
 
 #[test]
@@ -270,7 +283,7 @@ fn code_a_compiler_s_branch_holds_fires_at_the_function_s_entry() {
     let transformed = "export function f(v) { if ($) { g(v) } }\n";
     let points: Vec<_> = (32..36).map(|column| (0, column, 0, column - 9)).collect();
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("function f(v) {__va(1); if ($) {void 0; g(v) }"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f(v) {__va(1);__vaL&&__vaL(1,\"v\",v); if ($) {void 0; g(v) }"), "{}", placed.cut.code);
 }
 
 #[test]
@@ -295,7 +308,7 @@ fn an_author_s_branch_inside_a_compiler_s_branch_fires_at_the_region_around_the_
     let mut points: Vec<_> = (0..23).map(|column| (0, column, 0, column)).collect();
     points.extend((32..47).map(|column| (0, column, 0, column - 9)));
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3); if ($) {void 0; if (v) {void 0; g(v) }"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3);__vaL&&__vaL(1,\"v\",v); if ($) {void 0; if (v) {void 0; g(v) }"), "{}", placed.cut.code);
 }
 
 #[test]
@@ -308,5 +321,5 @@ fn a_region_whose_origin_a_compiler_moved_into_a_closure_fires_at_the_function_s
     let mut points: Vec<_> = (0..23).map(|column| (0, column, 0, column)).collect();
     points.extend((41..46).map(|column| (0, column, 0, column - 18)));
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3); const k = () => {"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains("function f(v) {__va(1),__va(2),__va(3);__vaL&&__vaL(1,\"v\",v); const k = () => {"), "{}", placed.cut.code);
 }

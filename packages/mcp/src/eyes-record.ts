@@ -1,8 +1,6 @@
 // compass: variance-authority/runtime/attention
 import { readFile } from 'node:fs/promises';
-import { createEyesArchive, type EyesArchive } from '@variance-authority/eyes';
-import { parseEyesJournal } from '@variance-authority/eyes/archive';
-import { decodeExecutionIndex, recordedEyesOf } from '@variance-authority/sense/test-selection';
+import type { EyesArchive } from '@variance-authority/eyes';
 
 /**
  * A record that reads, written by a run that did not opt into Eyes. Distinct
@@ -22,9 +20,23 @@ export class RecordKeepsNoEyes extends Error {
  * A record whose run did not opt into Eyes keeps no section, and that is
  * refused with {@link RecordKeepsNoEyes} rather than read as a run with no
  * tests, which is what an empty archive says.
+ *
+ * Eyes and the record reader are imported here rather than at the top: this
+ * function is exported from the root entry beside pure functions, and a caller
+ * that never reads a record does not pay for either.
  */
 export async function readEyesRecord(record: string): Promise<EyesArchive> {
-  const bytes = await readFile(record);
+  const [
+    { createEyesArchive },
+    { parseEyesJournal },
+    { decodeExecutionIndex, recordedEyesOf },
+    bytes,
+  ] = await Promise.all([
+    import('@variance-authority/eyes'),
+    import('@variance-authority/eyes/archive'),
+    import('@variance-authority/sense/test-selection'),
+    readFile(record),
+  ]);
   // The index first: bytes that are no record at all are refused here, not
   // taken for a record that kept no Eyes.
   const cases = new Map(decodeExecutionIndex(bytes).tests.map((test) => [test.id, test]));

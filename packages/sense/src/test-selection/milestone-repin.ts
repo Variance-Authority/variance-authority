@@ -22,6 +22,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { carriedSources } from './carried-sources.js';
 import { followRowsIn } from './case-cuts.js';
 import { textsIn, textsOf, type ModuleTexts } from './case-landing.js';
@@ -37,10 +38,10 @@ import { openTestCoverage, wholeCoverage } from './format-view.js';
 import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
-import { installKey, type KeptInstall } from './kept-install.js';
-import type { LastFetched } from './mainline-layer.js';
-import { readOwnLayer, writeOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
+import { partlyIn, whatLanded, type Landing } from './landings.js';
+import { landedOf, ranOn, standKey } from './standing-after.js';
+import { opensFetched, type LastFetched } from './mainline-layer.js';
+import { readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /** What {@link repinOwnLayer} did, and why it left the pin when it did. */
@@ -100,10 +101,12 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   let milestone: Buffer;
   let instrumentation: string;
   let texts: ModuleTexts;
+  let published: CommitRuns | undefined;
   try {
     ownBytes = await readFile(coverageFile);
     own = decodeTestCoverage(ownBytes);
     milestone = await readFile(record.coverage);
+    published = opensFetched(milestone, record.runs === undefined ? undefined : await readFile(record.runs));
     // A milestone the layer cannot open whole would be laid as nothing, and
     // the record would lose every row this checkout did not run.
     const whole = wholeCoverage(milestone);
@@ -145,7 +148,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts, edits).index;
   const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
-  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
+  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, published, recorded, kept);
 
   // The snapshot first: its new rows beside the old runs record read the
   // milestone's tests from the old pin, which only widens, where the new runs
@@ -261,57 +264,81 @@ function repinnedEyes(
 
 /**
  * The runs record once the record stands on `record`: the runs at its commit
- * as they were, its change now starting at the new milestone, each kept test
- * standing where it last ran, on the install the record said it ran on there,
- * and every other test at the milestone, where the publishing run ran the
- * whole suite.
+ * as they were, for the tests it keeps, its change now starting at the new
+ * milestone, each kept test standing where the record placed it, beside the
+ * runs that ran it in part since, and every other test at the milestone, as
+ * the run that published it landed there (`published`, which a fetch keeps
+ * beside the snapshot). A kept test the record places nowhere stands where its
+ * runs started, assumed, and with no start either the record says nothing of
+ * where its tests stand.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
   commit: string | undefined,
   record: LastFetched,
-  states: readonly OwnState[],
+  published: CommitRuns | undefined,
   recorded: readonly string[],
   kept: ReadonlySet<string>,
 ): CommitRuns | undefined {
   if (held === undefined) return undefined;
-  const files = held.files.filter((file) => kept.has(file));
-  const here = new Set(files);
-  const milestone = recorded.filter((file) => !kept.has(file));
-  // The install each test ran on where it stands, as the runs record said it.
-  // A test the ledger places at a commit no entry names it at keeps none, and
-  // is compared from that commit.
-  const ranOn = new Map<string, KeptInstall>();
+  // The install and texts the record kept were measured at the commit it
+  // named; moved to another, which repairs a runs record a crash left naming
+  // another, they would be compared from the wrong one, so they are dropped
+  // and compared from the new commit.
+  const moved = commit !== undefined && commit !== held.commit;
+  const landings = held.landings.flatMap((landing): Landing[] => {
+    const files = landing.files.filter((file) => kept.has(file));
+    const part = partlyIn(landing, (file) => kept.has(file));
+    if (files.length === 0 && part.partly === undefined) return [];
+    const { partly: _part, cases: _cases, installed, texts, ...rest } = landing;
+    return [{
+      ...rest,
+      files,
+      ...part,
+      ...(moved || installed === undefined ? {} : { installed }),
+      ...(moved || texts === undefined ? {} : { texts }),
+    }];
+  });
+  const here = new Set(whatLanded(landings).files);
+  // One entry per stand; a stand's time is the one run's that put it there.
+  const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[] }>();
+  const standAt = (stand: StandingEntry, files: readonly string[]): void => {
+    const group = groups.get(standKey(stand)) ?? { stand, files: [] };
+    group.files.push(...files);
+    groups.set(standKey(stand), group);
+  };
+  // The ledger says which tests are this checkout's, and the runs record where
+  // each stands and what it ran on there: a run that ran one in part left it
+  // where it stood, and stays beside it.
+  const placed = new Set<string>();
   for (const entry of held.standing ?? []) {
-    if (entry.assumed || entry.installed === undefined) continue;
-    for (const file of entry.files) ranOn.set(`${entry.commit} ${file}`, entry.installed);
+    const { files: its, partly: _part, cases: _cases, ...stand } = entry;
+    const files = its.filter((file) => kept.has(file));
+    for (const file of files) placed.add(file);
+    standAt({ ...stand, files: [], ...partlyIn(entry, (file) => kept.has(file)) }, files);
   }
-  const keyOf = (installed: KeptInstall | undefined) => (installed === undefined ? '' : installKey(installed));
-  const standing: StandingEntry[] = [];
-  if (milestone.length > 0) standing.push({ commit: record.commit, files: milestone });
-  for (const state of states) {
-    const byInstall = new Map<string, { installed: KeptInstall | undefined; files: string[] }>();
-    for (const file of state.files.filter((one) => !here.has(one))) {
-      const installed = ranOn.get(`${state.commit} ${file}`);
-      const group = byInstall.get(keyOf(installed)) ?? { installed, files: [] };
-      group.files.push(file);
-      byInstall.set(keyOf(installed), group);
-    }
-    for (const { installed, files: rest } of byInstall.values()) {
-      const install = installed === undefined ? {} : { installed };
-      const same = standing.find((entry) =>
-        entry.commit === state.commit && entry.assumed === undefined && keyOf(entry.installed) === keyOf(installed));
-      if (same === undefined) standing.push({ commit: state.commit, files: rest, ...install });
-      else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder), ...install });
-    }
+  const milestone = new Set(recorded.filter((file) => !kept.has(file)));
+  for (const landing of published?.landings ?? []) {
+    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
   }
-  // At the snapshot's own commit, which repairs a runs record a crash left
-  // naming another. The install the record kept differed from the commit it
-  // named; moved to another commit, it would be compared from the wrong one,
-  // so it is dropped and the install is compared from the new commit.
-  if (commit === undefined || commit === held.commit) return { ...held, over: record.commit, files, standing };
-  const { installed: _measuredElsewhere, ...rest } = held;
-  return { ...rest, commit, over: record.commit, files, standing };
+  standAt({ commit: record.commit, files: [] }, [...milestone]);
+  // Where the record cannot place a kept test, it stands where the runs started,
+  // assumed, and with no start the record does not say (`commit-runs.ts`).
+  const unplaced = [...kept].filter((file) => !here.has(file) && !placed.has(file));
+  if (held.over !== undefined) standAt({ commit: held.over, files: [], assumed: true }, unplaced);
+  const known = unplaced.length === 0 || held.over !== undefined;
+  const standing = [...groups.values()]
+    .filter(({ stand, files: its }) => its.length > 0 || stand.partly !== undefined)
+    .map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
+  const at = commit ?? held.commit;
+  return {
+    ...(at === undefined ? {} : { commit: at }),
+    over: record.commit,
+    latest: held.latest,
+    runs: held.runs,
+    ...(known ? { standing } : {}),
+    landings,
+  };
 }
 
 /** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */

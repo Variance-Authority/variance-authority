@@ -3,46 +3,77 @@ import { isMissing } from './instrumented-modules.js';
 import { descriptor } from './coverage-file.js';
 import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { invalid } from './format-validation.js';
-import { DURATION, FORMAT, framedHeader, NAMES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
+import { BLOB, DURATION, FORMAT, framedHeader, NAMES, PHASES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
 import type { Bytes } from './columns.js';
 import { LAYOUT } from './record-layout.js';
 
 /**
- * What a run recorded about its cases, carried inside the record its coverage
- * is: one file, so every rule that moves a record — landing, layering, seeding,
- * repinning, a share, a carried cache — moves the cases with it (spec 0094).
+ * What a run recorded about its cases, one section a part inside the record its
+ * coverage is, so every rule that moves a record — landing, layering, seeding, a
+ * share — moves the cases with it (spec 0094). An absent part was not
+ * collected, and a reader answers *unmeasured* for it, never *none*.
  *
- * Each part is one section holding its own self-describing bytes:
- *
- * - `cases` is the case index, in the set spelling `execution-set-format.ts`
- *   writes;
- * - `cases.before` is what the index held for the last run's files before it
- *   landed, the base an edit to a test is compared against;
- * - `cases.last` names that run, as JSON;
- * - `eyes` holds the Eyes journals of the cases that kept one, by case and
- *   attempt (`eyes-record.ts`);
- * - `run.base` names the record the run started from (`record-base.ts`), so
- *   shards of one build that restored two records refuse to combine.
- *
- * FIXME: `cases` and `cases.before` each carry a module and block table of
- * their own, re-encoding the files and blocks the record's coverage sections
- * already hold; spec 0094 lays the crossings onto the record's blocks instead.
- *
- * An absent part was not collected. A record with no case sections kept no
- * cases, or was written before a record carried them, and a reader answers
- * *unmeasured* for it, never *none*.
+ * FIXME: `cases` and `cases.before` each re-encode the module and block table
+ * the coverage sections hold; spec 0094 lays the crossings onto those blocks.
  */
 export interface CaseSections {
+  /** `cases`: the case index, in the set spelling `execution-set-format.ts` writes. */
   readonly index?: Uint8Array;
+  /** `cases.before`: what the index held for the last run's files before it landed, the base an edit to a test is compared against. */
   readonly before?: Uint8Array;
+  /** `cases.last`: that run, named as JSON. */
   readonly last?: Uint8Array;
+  /** `eyes`: the Eyes journals of the cases that kept one, by case and attempt (`eyes-record.ts`). */
   readonly eyes?: Uint8Array;
+  /** `run.base`: the record the run started from (`record-base.ts`), so shards of one build that restored two records refuse to combine. */
   readonly base?: Uint8Array;
+  /** `cases.readings`: the earlier readings of cases run again over the code they read before, as JSON (`case-readings.ts`). */
+  readonly readings?: Uint8Array;
+}
+
+/** The bytes each section occupies, read from its directory without decoding its contents. */
+export interface RecordStorage {
+  readonly format: number;
+  readonly bytes: number;
+  /** The header and all bytes outside the named sections. */
+  readonly overheadBytes: number;
+  readonly sections: readonly {
+    readonly name: string;
+    readonly bytes: number;
+    /** Physical storage elements, not a count of tests or cases. */
+    readonly rows: number;
+    readonly width: number;
+    readonly packed: boolean;
+  }[];
+}
+
+/**
+ * A record's storage directory, without reading its columns or case payloads.
+ * Section sizes include any nested record: add only these top-level sizes.
+ */
+export function recordStorageAt(file: string): RecordStorage {
+  const fd = openSync(file, 'r');
+  try {
+    const bytes = descriptor(fd);
+    const { header } = directoryOf(bytes);
+    const sections = header.sections.map((section) => ({
+      name: section.name, bytes: section.length,
+      rows: section.rows ?? section.length / section.width,
+      width: section.width, packed: section.rows !== undefined,
+    }));
+    return {
+      format: header.version, bytes: bytes.length,
+      overheadBytes: bytes.length - sections.reduce((sum, section) => sum + section.bytes, 0),
+      sections,
+    };
+  } finally {
+    closeSync(fd);
+  }
 }
 
 const PARTS = Object.fromEntries(LAYOUT.coverage.parts) as Readonly<Record<keyof CaseSections, string>>;
 const ALL = Object.keys(PARTS) as readonly (keyof CaseSections)[];
-const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, ...Object.values(PARTS)]);
+const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, PHASES, BLOB, ...Object.values(PARTS)]);
 
 /**
  * The case sections of a record held in memory.
@@ -219,8 +250,8 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 }
 
 /**
- * `record` as another checkout takes it: the case index and its Eyes journals
- * kept, and the parts that name this checkout's last run and the record it
+ * `record` as another checkout takes it: the case index, its earlier readings
+ * and its Eyes journals kept, and the parts that name this checkout's last run and the record it
  * started from dropped, because that run is not the taker's. Every crossing — a seed, a fetch, a share — goes
  * through here.
  *
@@ -231,12 +262,13 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
  * so no run over the taken record meets it.
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last, eyes, base } = caseSectionsOf(record);
+  const { index, before, last, eyes, base, readings } = caseSectionsOf(record);
   const readable = eyes !== undefined && readableEyes(eyes) !== undefined;
   if (before === undefined && last === undefined && base === undefined && (eyes === undefined || readable)) return record;
   return withCaseSections(record, {
     ...(index === undefined ? {} : { index }),
     ...(readable ? { eyes } : {}),
+    ...(readings === undefined ? {} : { readings }),
   });
 }
 
@@ -254,15 +286,21 @@ interface Opened {
   read(section: Section): Uint8Array;
 }
 
-function opened(file: Bytes): Opened {
+/** The physical directory shared by case reads and storage inspection. */
+function directoryOf(file: Bytes): { readonly header: Header; readonly base: number } {
   if (file.length < 4) throw invalid();
   const head = file.read(0, 4);
   const headerLength = Buffer.from(head.buffer, head.byteOffset, head.byteLength).readUInt32LE(0);
   if (headerLength > file.length - 4) throw invalid();
-  const text = Buffer.from(file.read(4, 4 + headerLength)).toString('utf8').replace(/\0+$/u, '');
-  const header = JSON.parse(text) as Header;
+  const header = framedHeader(Buffer.concat([head, file.read(4, 4 + headerLength)]));
+  if (header === undefined) throw invalid();
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
+  return { header, base };
+}
+
+function opened(file: Bytes): Opened {
+  const { header, base } = directoryOf(file);
   const unknown = header.sections.find((section) => !KNOWN.has(section.name));
   if (unknown !== undefined) {
     throw new UnknownSection(unknown.name);

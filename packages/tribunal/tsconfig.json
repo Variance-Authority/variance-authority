@@ -9,13 +9,14 @@
     "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.measure.ts", "src/**/*.test.tsx"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.fixture.ts", "src/**/*.measure.ts", "src/**/*.test.tsx"],
   "references": [
     { "path": "../core" },
     { "path": "../raster" },
     { "path": "../report" },
     { "path": "../history" },
     { "path": "../png" },
+    { "path": "../png-sharp" },
     { "path": "../server" }
   ]
 }

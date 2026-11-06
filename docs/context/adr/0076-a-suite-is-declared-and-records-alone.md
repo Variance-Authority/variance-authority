@@ -4,8 +4,8 @@
 **Date:** 2026-09-26
 **Relates to:** [ADR-0069](0069-every-answer-has-an-owner.md) (the configuration
 owns what a setting means),
-[spec 0062](../../specs/0062-a-suite-says-which-files-reach-it.md) (a suite's
-declared nature decides which edges reach it),
+[what a suite ignores](../../changes-before-and-beyond.md#what-a-suite-ignores)
+(a suite's declared nature decides which changes reach it),
 [`packages/sense/src/test-selection/cache-layers.ts`](../../../packages/sense/src/test-selection/cache-layers.ts),
 [`packages/sense/src/test-selection/index.ts`](../../../packages/sense/src/test-selection/index.ts)
 

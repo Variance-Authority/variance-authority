@@ -127,6 +127,9 @@ describe('nothing grows into a monster', () => {
 
   const LIMIT = 500;
 
+  /** The collapse a breach triggers: well under the limit, so the next edit does not trip it. */
+  const SPLIT = 'split it by responsibility, each part near 300 lines';
+
   /**
    * Files over the limit, each held at the length it has.
    *
@@ -166,14 +169,16 @@ describe('nothing grows into a monster', () => {
   const refusal = (file: string, length: number, ceilings: ReadonlyMap<string, number>): string | undefined => {
     const ceiling = ceilings.get(file);
     if (ceiling === undefined) {
-      return length > LIMIT ? `${file} has ${length} lines, over the limit of ${LIMIT}` : undefined;
+      return length > LIMIT ? `${file} has ${length} lines, over the limit of ${LIMIT}: ${SPLIT}` : undefined;
     }
-    return length > ceiling ? `${file} has ${length} lines, and the debt list holds it at ${ceiling}` : undefined;
+    return length > ceiling
+      ? `${file} has ${length} lines, and the debt list holds it at ${ceiling}: ${SPLIT}, and take it off the list`
+      : undefined;
   };
 
   it(`refuses a Rust file over ${LIMIT} lines that is not on the debt list`, () => {
     expect(refusal('native/src/grown.rs', LIMIT + 1, new Map())).toBe(
-      `native/src/grown.rs has ${LIMIT + 1} lines, over the limit of ${LIMIT}`,
+      `native/src/grown.rs has ${LIMIT + 1} lines, over the limit of ${LIMIT}: ${SPLIT}`,
     );
     expect(refusal('native/src/kept.rs', LIMIT, new Map())).toBeUndefined();
   });
@@ -192,7 +197,7 @@ describe('nothing grows into a monster', () => {
     expect(refusal('native/src/listed.rs', 520, ceilings)).toBeUndefined();
     expect(refusal('native/src/listed.rs', 539, ceilings)).toBeUndefined();
     expect(refusal('native/src/listed.rs', 540, ceilings)).toBe(
-      'native/src/listed.rs has 540 lines, and the debt list holds it at 539',
+      `native/src/listed.rs has 540 lines, and the debt list holds it at 539: ${SPLIT}, and take it off the list`,
     );
   });
 

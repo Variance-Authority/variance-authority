@@ -3,7 +3,7 @@
  *
  * Every other module here takes a `D1Like` and an `R2Like` and never a
  * Cloudflare type. That is not portability theatre — it is the same rule
- * [ADR-0013](../../../docs/context/adr/0013-packages-are-named-for-their-requirements.md)
+ * [ADR-0013](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0013-packages-are-named-for-their-requirements.md)
  * applies everywhere else in this repository: a package requires what it says it
  * requires. Depending on `@cloudflare/workers-types` would put a global
  * `DOM`-shaped ambient declaration into the build of a package the CLI links
@@ -51,12 +51,12 @@ export interface D1Like {
    * The whole reason the history backend can satisfy its atomicity requirement
    * on a platform with no `BEGIN`. D1 wraps a batch in an implicit transaction
    * and rolls the whole thing back if any statement fails, which is what
-   * [spec 0002](../../../docs/specs/0002-history-store.md) needs: rows without
+   * [spec 0002](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0002-history-store.md) needs: rows without
    * their run leave a change with no denominator, and a run without its rows is
    * a quiet run that was not quiet.
    *
    * **Unverified against the platform.** See the known limits in
-   * [ADR-0023](../../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) — the
+   * [ADR-0023](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0023-a-service-is-named-for-what-it-is.md) — the
    * double used in tests is genuinely transactional, and the claim that D1 is
    * has never been measured here.
    *

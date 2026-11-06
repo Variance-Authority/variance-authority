@@ -1,13 +1,14 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
+import { limitAcross } from './execution-set-columns.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
-  codeUnitOrder,
   isMissing,
   projectPath,
   type CapturedModule,
@@ -23,11 +24,11 @@ import {
   unpackFrames,
   type CaseCoordinate,
 } from './cases.js';
-import { UNTIMED, type CaseDurations } from './case-durations.js';
+import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
-import { heardAcross, preconditionsHeard, type Said } from './case-precondition-column.js';
-import preconditions from './case-preconditions.cjs';
+import { saidJoined, type Said } from './case-said.js';
+import caseOwner from './case-owner.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { Reading } from './readings.js';
@@ -60,8 +61,10 @@ export interface CaseFold {
 interface Coordinate extends CaseCoordinate {
   /** How the case settled across its frames, by `settledAcross`. */
   stopped?: boolean;
-  /** What the case said it arranged, across its frames; absent where no frame listened. */
-  said?: Said;
+  /** The limit it ran under, by `limitAcross`. */
+  limit?: number;
+  /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
+  readonly said: (Said | undefined)[];
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
   /** Whether a module row of the case's own frames was cut at its statements. */
@@ -81,6 +84,7 @@ export async function inspectCaseRun(
   directory: string,
   root: string,
   durations: CaseDurations = UNTIMED,
+  limits: CaseLimits = UNLIMITED,
 ): Promise<CaseRun> {
   let names: readonly string[];
   try {
@@ -106,7 +110,7 @@ export async function inspectCaseRun(
         const located = { ...coordinate, file: projectPath(root, coordinate.file) };
         const key = caseKey(located);
         // A case that watched is a case, whether or not it crossed anything.
-        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), frames: [] });
+        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), said: [], frames: [] });
         const rows = looked.get(key) ?? [];
         if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
         looked.set(key, rows);
@@ -121,12 +125,13 @@ export async function inspectCaseRun(
             const located = { ...coordinate, file: projectPath(root, coordinate.file) };
             const key = caseKey(located);
             const held = coordinates.get(key);
-            const said = preconditions.saidOf(packed);
+            const said = caseOwner.heardField(packed);
             if (held === undefined) {
               scanning = {
                 ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
-                ...(said === undefined ? {} : { said }),
+                ...limitAcross(coordinate.limit, undefined),
+                said: [said],
                 frames: [frame],
               };
               coordinates.set(key, scanning);
@@ -135,8 +140,8 @@ export async function inspectCaseRun(
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
-              const heard = heardAcross(held.said, said);
-              if (heard !== undefined) held.said = heard;
+              Object.assign(held, limitAcross(held.limit, coordinate.limit));
+              held.said.push(said);
             }
             frame += 1;
           } else {
@@ -161,13 +166,15 @@ export async function inspectCaseRun(
   const tests = ordered.map((coordinate, at): ExecutionTest => {
     for (const written of coordinate.frames) frameTests[written] = at;
     const duration = durations(coordinate.file, coordinate.name, coordinate.id);
+    const said = coordinate.said.some((field) => field !== undefined) ? saidJoined(root, coordinate.said) : undefined;
     return {
       id: ids.get(caseKey(coordinate))!,
       file: coordinate.file,
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
-      ...preconditionsHeard(root, coordinate.said),
+      ...limitAcross(coordinate.limit, limits(coordinate.file, coordinate.name)),
+      ...(said === undefined ? {} : { said }),
     };
   });
   const testsByFile = new Map<string, readonly [number, number]>();
@@ -232,7 +239,7 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const inspected = await inspectCaseRun(directory, root, run.durations);
+  const inspected = await inspectCaseRun(directory, root, run.durations, run.limits);
   if (inspected.tests.length === 0 && !finished) return undefined;
   const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
   return {
@@ -246,6 +253,8 @@ export async function freshCases(
 export interface CaseRunTests extends LaidRun {
   /** Each case's duration as the runner reported it; absent, no case is timed. */
   readonly durations?: CaseDurations;
+  /** Each case's limit, where the runner reports it only outside the case. */
+  readonly limits?: CaseLimits;
 }
 
 /**

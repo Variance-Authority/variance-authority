@@ -1,9 +1,10 @@
 # Connect the producer that owns a missing reading
 
 Every command in this skill reads evidence and creates none of it. When a
-reading, a field or a domain is unavailable, wire the package that produces it
-and re-run the suite with the project's own runner. Treat the missing domain as
-unknown until then, never as an empty reading.
+reading, a field or a domain is unavailable, wire the package below that
+produces it, then fill the gap as
+[the skill](../SKILL.md#fill-a-gap-with-a-run-of-what-it-names) says. Treat the
+missing domain as unknown until then, never as an empty reading.
 
 ## Eyes attention
 
@@ -28,8 +29,7 @@ the installed `@variance-authority/eyes` before wiring either adapter.
 
 ## Runtime journey
 
-`variance covering`, `variance_source_tests`, `variance_changed_tests` and
-`variance_distill` need an `ExecutionIndex` with stable per-test ids. Every run wrapped in
+`variance covering` and `variance_distill` need an `ExecutionIndex` with stable per-test ids. Every run wrapped in
 `withTestSelection` writes one beside its snapshot, except a Vitest run whose
 files run in a page; the runners and their imports are in
 [test selection](test-selection.md#check-these-first-in-order). The test-selection snapshot is per test *file* and

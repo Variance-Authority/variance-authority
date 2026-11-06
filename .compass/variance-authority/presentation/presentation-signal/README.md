@@ -45,9 +45,10 @@ the evidence side that transition actually has — an introduced effect carries
 only the candidate's measurements, a resolved one only the baseline's.
 
 [Absent is not empty](../../DOMAIN.md#run-report), in both directions: a missing
-report, or a reading with no layout findings at all, is **incomparable** with the
-reason spelled out and carries no effects, while a present but empty effect list
-says both sides were measured and no relationship consequence moved. Information
+report, or a reading with no layout findings at all, is **changed** with the
+missing side named and carries no effects; neither side read for layout is no
+signal; and a present but empty effect list says both sides were measured and
+no relationship consequence moved. Information
 identity is kept separate from the effects rather than folded into them, so equal
 counts cannot hide substituted or deleted content, and a density change is never
 reported as an improvement.
@@ -56,7 +57,7 @@ reported as an improvement.
 
 - `packages/presentation/src/compare.ts` — `comparePresentation`; per-rule
   counts and the content identity
-- `packages/presentation/src/report.ts` — `presentationSignal`; the incomparable
+- `packages/presentation/src/report.ts` — `presentationSignal`; the one-sided
   branches, finding identity, the transition table
 - `packages/report/src/presentation-record.ts` — the record shape the run report carries
 

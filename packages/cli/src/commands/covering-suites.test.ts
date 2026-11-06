@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.js';
+import { updateSourceIndex } from '@variance-authority/sense';
+import { main } from '../bin.fixture.js';
 import { formatCoveringAnswer } from './covering-suites.js';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 
 const SUITES = {
   suites: { unit: { kind: 'unit' }, stories: { kind: 'visual' }, checkout: { kind: 'e2e' } },
@@ -48,12 +50,18 @@ beforeAll(async () => {
   await record('stories', indexOf('src/Button.tsx', { id: 's', file: 'src/Button.stories.tsx', name: 'Primary' }));
 });
 
-/** Lay one suite's record of a run, as the runner would have left it, made at `commit` when one is given. */
+/**
+ * Lay one suite's record of a run, as the runner would have left it, made at
+ * `commit` when one is given. Every test file of the index ran whole, so
+ * selection reads the record as a run it can answer from.
+ */
 async function recordIn(at: string, suite: string, index: unknown, commit?: string) {
   const file = testCoverageFile(at, { suite });
   await mkdir(dirname(file), { recursive: true });
   const made = commit === undefined ? {} : { commit };
-  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', ...made, tests: [], modules: [] }, {
+  const files = [...new Set((index as { tests: readonly { file: string }[] }).tests.map((test) => test.file))];
+  const tests = files.map((test) => ({ file: test, complete: true, preconditions: [] }));
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, ...made, tests, modules: [] }, {
     index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
   });
 }
@@ -70,6 +78,23 @@ async function ask(argv: readonly string[]) {
   const code = await main(argv, { out: (text) => (out += text), err: (text) => (err += text) });
   return { code, out, err };
 }
+
+describe('a file asked of a repository that declares suites', () => {
+  it('carries the one mark each run of lines takes, read across the suites that ran it', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--root', root, '--format', 'json']);
+
+    expect(answer.code).toBe(0);
+    const said = JSON.parse(answer.out) as { marks?: { startLine: number; endLine: number; suites: string[] }[] };
+    expect(said.marks?.length).toBeGreaterThan(0);
+    expect(said.marks?.every((mark) => mark.suites.join() === 'unit')).toBe(true);
+    expect(said.marks?.some((mark) => mark.startLine <= 12 && 12 <= mark.endLine)).toBe(true);
+  });
+
+  it('carries no marks under a question about one line', async () => {
+    const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '12', '--root', root, '--format', 'json']);
+    expect(JSON.parse(answer.out)).not.toHaveProperty('marks');
+  });
+});
 
 describe('a line asked of a repository that declares suites', () => {
   it('is answered by every suite, each by its role, with the one that never loaded it and the one that never ran said apart', async () => {
@@ -132,12 +157,12 @@ describe('a line asked of a repository that declares suites', () => {
     expect(answer.out.indexOf('checkout (e2e): nothing is recorded')).toBeLessThan(answer.out.indexOf('Not loaded by'));
   });
 
-  it('explains every suite in full when the only one holding the file refuses the line, since none answered', async () => {
+  it('answers a line the only suite holding the file has no region for, and gathers the rest', async () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--line', '3', '--root', root]);
 
-    expect(answer.out).toMatch(/^unit \(unit\): line 3 of `src\/pay\.ts` is outside every recorded region/mu);
-    expect(answer.out).toMatch(/^stories \(visual\): `src\/pay\.ts` is not in the index at/mu);
-    expect(answer.out).not.toContain('Not loaded by');
+    expect(answer.out.startsWith('unit (unit):\n  No named test covered line 3 of src/pay.ts.\n'
+      + '  Line 3 is outside every recorded region, so no case can be said to have run it.\n')).toBe(true);
+    expect(answer.out.endsWith(`\n${NOT_LOADED('stories (visual)')}\n`)).toBe(true);
   });
 
   it('explains every suite in full when none of them loaded the file, since that is the whole answer', async () => {
@@ -253,7 +278,7 @@ describe('several suites that never loaded the file', () => {
         unloaded('stories', 'visual'),
         { suite: 'unit', kind: 'unit', file: 'src/pay.ts', target: { line: 12 }, tests: [], from: '/cache/unit.bin' },
       ],
-    }, 'text');
+    }, 'text', Date.now());
 
     expect(said.startsWith('unit (unit):\n')).toBe(true);
     expect(said.endsWith(`\n${NOT_LOADED('checkout (e2e), stories (visual)')}\n`)).toBe(true);
@@ -282,18 +307,24 @@ describe('a file added after the commit a suite recorded at', () => {
     await writeFile(join(at, 'src/refund.ts'), 'export const refund = 1;\n');
     git('add', '.');
     git('commit', '--quiet', '-m', 'refund');
+    // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+    await updateSourceIndex(at);
     await recordIn(at, 'unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }), then);
     await recordIn(at, 'checkout', indexOf('src/pay.ts', { id: 'c', file: 'e2e/pay.spec.ts', name: 'pays' }), UNFETCHED);
     await recordIn(at, 'stories', indexOf('src/refund.ts', { id: 's', file: 'src/Refund.stories.tsx', name: 'Refunded' }), git('rev-parse', 'HEAD'));
   });
   afterAll(() => rm(at, { recursive: true, force: true }));
 
-  it('is said in full as a record older than the file, with the commit and the run that records it', async () => {
+  it('is said in full as a record older than the file, with the commit, and ends with a gap that names no run when selection names none, and reach takes the diff', async () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at]);
 
     expect(answer.out).toMatch(new RegExp(
       `^unit \\(unit\\): \`src/refund\\.ts\` did not exist at ${then.slice(0, 12)}, the commit the record at \`[^\`]+/suites/unit/[^\`]+\` was made at, ` +
-        'so that record has no answer for it: run the suite and ask again\\.$',
+        'so that record has no answer for it\\.\\n' +
+        '  Gap \\(stale\\) on line 12 of src/refund\\.ts: which tests run it\\. ' +
+        'Known: the record predates the file, and selection runs no recorded test file for it\\.\\n' +
+        '  Next, Record:\\n' +
+        `    variance reach --since ${then.slice(0, 12)}$`,
       'mu',
     ));
     expect(answer.out).not.toContain('Not loaded by');
@@ -303,7 +334,16 @@ describe('a file added after the commit a suite recorded at', () => {
     const answer = await ask(['covering', '--file', 'src/refund.ts', '--line', '12', '--root', at, '--format', 'json']);
 
     const said = JSON.parse(answer.out) as { suites: Record<string, unknown>[] };
-    expect(said.suites.find((one) => one['suite'] === 'unit')?.['refused']).toBe('older');
+    const unit = said.suites.find((one) => one['suite'] === 'unit');
+    expect(unit?.['refused']).toBe('older');
+    expect(unit?.['gap']).toEqual({
+      question: 'which tests run it',
+      scope: 'line 12 of src/refund.ts',
+      known: 'the record predates the file, and selection runs no recorded test file for it',
+      reason: 'stale',
+      remedy: 'record',
+      next: [`variance reach --since ${then.slice(0, 12)}`],
+    });
   });
 
   it('says the commit could not be read, not that no test loaded the file, when git cannot list it', async () => {
@@ -337,7 +377,20 @@ describe('a repository whose declared suites have none of them run', () => {
     const answer = await ask(['covering', '--file', 'src/pay.ts', '--root', bare, '--format', 'json']);
 
     expect(answer.code).toBe(2);
-    expect(JSON.parse(answer.out)).toEqual({ refused: 'unrecorded' });
+    expect(JSON.parse(answer.out)).toEqual({
+      refused: 'unrecorded',
+      gap: {
+        question: 'which tests ran it',
+        scope: 'src/pay.ts',
+        known: 'no run is recorded',
+        reason: 'absent',
+        remedy: 'record',
+        run: { suites: ['unit', 'checkout', 'stories'] },
+        next: [],
+      },
+    });
     expect(answer.err).toContain('none of the suites it declares, "checkout", "stories", "unit", has a per-case index');
+    // No record counts the suite, so the gap names no cost rather than a zero.
+    expect(answer.err).toContain('Gap (absent) on src/pay.ts: which tests ran it. Known: no run is recorded.\nNext, Record, at a cost no record counts:\n  Wire the producers of `unit`, `checkout` and `stories` and record one run of each: that first run is the record.');
   });
 });

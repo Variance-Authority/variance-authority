@@ -116,12 +116,13 @@ export interface RunDeps {
    * never recorded is answered by the files that import it. A bumped package
    * arrives in `diff` as the files that import it, changed whole, and only the
    * graph can say which those are, so a reading asked about one is always
-   * handed a graph.
+   * handed a graph. `probes` is the note a record cut under probes this build
+   * does not place carries beside its answer (`probes-gap.ts`).
    */
   readJourney?(
     diff: string,
     relations?: Relations,
-  ): Promise<ExecutionNarrowing | undefined>;
+  ): Promise<(ExecutionNarrowing & { readonly probes?: string }) | undefined>;
 
   /**
    * Where this run's subjects parted in the source, read off the same journal.
@@ -179,6 +180,13 @@ export interface RunOptions {
    * anything that shipped and it silently becomes a denominator.
    */
   readonly identity?: RunIdentity;
+
+  /**
+   * The selected suite's `ignore` globs. A changed file they match narrows as
+   * `variance select` reads it: it moves no subject and no `before`, but
+   * through a module that declares it with a `/// <depends>`.
+   */
+  readonly ignore?: readonly string[];
 
   /**
    * `--since <ref>`: observe only what this diff could have changed.
@@ -281,6 +289,12 @@ export interface ObserveContext {
    * no clock, and then nothing is timed: the same rule as `costMs`.
    */
   readonly steps?: StepClock;
+  /**
+   * Where a second visit to this subject says what it could not read on the
+   * way. The first visit's warnings are the run's already; a second may say
+   * more, and the run states each once.
+   */
+  readonly said?: (warning: string) => void;
 }
 
 export type Outcome =

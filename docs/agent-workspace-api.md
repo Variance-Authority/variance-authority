@@ -1,36 +1,185 @@
 # Find code through the workspace index
 
-`rg` tells you where text is written. This server tells you which exported name
-matches your words in the part of the import graph you are working in, then gives
-you its import line, declaration, signature, documentation, and existing import
-sites. It answers from a dated workspace generation — no build, run, generated
-API site, or `variance.config.json` in between.
+`rg` tells you where text is written. The workspace index tells you, or your
+coding agent, which name matches your words in the part of the import graph you
+are working in — an exported name first, then one a file keeps to itself — then
+gives you its declaration, signature and documentation, and for an exported name
+its import line and existing import sites. `variance index` reads your source
+into it once, outside your tracked files. Your code is not built or run, and no
+generated API site or `variance.config.json` is involved.
+
+## Connect your agent
+
+You need a git repository and Node 22.15 or newer. You do not need a
+`variance.config.json` or a run.
+
+Your agent asks the same questions by either of two routes: the shell, `npx
+variance ask`, for an agent that runs commands, and MCP, for a client that reaches
+tools only through a server. Both start here: `@variance-authority/cli` builds
+the index and `@variance-authority/help` is the server. Install them, build the
+index and ask about a name, with one your code exports in place of `price`, then
+read the code map:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/help
+npx variance index
+npx variance ask symbol --name price
+npx variance ask orient
+```
+
+The index lives in `node_modules/.cache`, so it adds no tracked file. `ask symbol`
+is the check: it answers with the name, the line that imports it, where it is
+declared and who uses it, above its signature.
+
+```text
+price [const]
+import { price } from '@shop/price';
+declared at packages/price/src/index.ts:1
+used by 1 package: @shop/cart — 1 import by published path
+```
+
+The last line waits for the map the index makes, then prints it. A repository of
+several packages gets them listed, here two:
+
+```text
+# shop: 2 packages in 2 dependency layers (1 takes nothing), 2 source files, 0 areas
+  packages: cart, price
+```
+
+The map is of packages, so a repository of one has none to draw and says so, with
+your own path. That is not a failure: every other question answers, as `ask
+symbol` just did.
+
+```text
+The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
+```
+
+A name the index does not hold is looked for again in the checkout as it is, so
+a function you just wrote is answered with no step from you. A name it does hold
+is answered from the index, which a question reuses for an hour, and read again
+when a file the answer rests on changed since. An edit anywhere else can leave
+that answer behind. Run `variance index` when the next answer has to match it:
+who imports a name, and which names exist, are then current. What `ask symbol`
+prints from the declaration of a name that stays exported — its kind, line,
+signature and comment — can stay old. A question reads them again once the index
+is over an hour old, and a `variance index` that read a changed file restarts
+that hour, so read the file itself for those. `ask search` answers from the last
+index at any age, and its last line says so.
+
+Your agent can now run any `npx variance ask` question, and one step is left:
+[point it at them](#point-an-agent-at-it). A client that reaches tools only
+through a server adds the server first.
+
+### Add the MCP server
+
+Add this entry to the file your client keeps its servers in, `.mcp.json` at the
+repository root for Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "workspace-api": {
+      "command": "npx",
+      "args": ["variance-authority-help", "."]
+    }
+  }
+}
+```
+
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so the entry goes through `npx`, which finds the binary in
+`node_modules/.bin` without asking the registry. Change `npx` to however your
+package manager runs a local binary. Both `npx` and `.` read the directory the
+client starts in. A client that starts outside the repository takes its absolute
+path twice: `"args": ["--prefix", "/path/to/repo", "variance-authority-help",
+"/path/to/repo"]`.
+
+A workspace that already has a `variance.config.json` can declare `variance serve`
+instead of this entry: it carries the same tools under the same names, beside the
+ones about a run. With no config it exits 2.
+
+Check the entry before you open the client. This launches it from the same
+file and asks for the tools. It starts the server in the directory you run it
+from, so run it where your client starts, naming that client's file after
+`--config`:
+
+```bash
+npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspace-api --method tools/list
+```
+
+Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
+runs on every Node these packages do. It prints a notice that version 1 is
+deprecated, then the answer, which lists these fourteen:
+
+```text
+docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
+docs_discover docs_intersection docs_orient docs_slowest_tests docs_journey_map
+docs_test_composition docs_stack docs_gaps
+```
+
+Then start the client, approve the server if it asks, and have your agent call
+`docs_orient` with no arguments. It returns the answer `ask orient` printed.
+
+### Point an agent at it
+
+This step finishes setup on either route. Your agent can use these questions
+now, and it reaches for them once something tells it to. It reads `AGENTS.md` at
+the start of every session, and a skill only when its description matches the
+task. Put these lines in `AGENTS.md`, with `npx` changed to however your package
+manager runs a local binary:
+
+```markdown
+## Finding your way in the code
+
+Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` prints what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+```
+
+The skill is `variance-authority`. It ships in `@variance-authority/cli` at
+`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
+rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
+agents read `.agents/skills`. Link the skill into both rather than copying it,
+so it follows every update, then list what the links reach:
+
+```bash
+mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
+ls .agents/skills/variance-authority/SKILL.md .claude/skills/variance-authority/SKILL.md
+```
+
+Both paths print when the links reach the skill; a broken one prints `No such
+file or directory`. To see the step work, start a new session and ask who imports
+a name: the answer should come from `ask uses`, not a text search.
+
+## Choose the cheapest entrance
 
 This is the source how-to and contract for
 [orientation](orientation.md). Start there when you need to choose between text
 search, indexed source search and observed-subject search.
 
-The difference matters when a checkout is too large to open again for every
+| You need | Start with |
+| --- | --- |
+| Text outside the source: prose, configuration, logs | `rg`; it needs no index and reads the working tree now. |
+| An exact string or a pattern in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; it matches only the files that path reaches, nearest first, and a top folder is the widest path it takes. |
+| An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
+| A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
+| Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
+| Files in hand, and the code around them unknown | `ask orient --files <path>`, or `docs_orient` with `files`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
+
+## Search finds the name; the graph finds the area
+
+An index matters when a checkout is too large to open again for every
 question. A [source index](source-index.md) parses and resolves a file once,
 stores its exported names and outgoing edges, and reuses that record while the
 file and its resolution inputs stay the same. A question with `from` or `to`
 then filters names through those stored edges instead of searching every file
 for another string.
 
-## Choose the cheapest entrance
-
-| You need | Start with |
-| --- | --- |
-| An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
-| An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
-| A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
-| Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
-| Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
-
-## Search finds the name; the graph finds the area
-
-The workspace generation combines two different answers. Names and documentation
-find a candidate such as `createStore`. Resolved import edges decide whether that
+Each run of `variance index` publishes a dated generation of the index, and a
+generation combines two different answers. Names and documentation find a
+candidate such as `createStore`. Resolved import edges decide whether that
 candidate belongs to the code in question.
 
 Carry a path into the first search whenever you have one:
@@ -71,10 +220,34 @@ imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It can answer what a file
 rests on, what rests on that file, and where an exported name is imported. A
 member of an interface, a type literal or a class is never imported: `uses`
-names where a member by that name is declared, after any imports, and `grep
---to` the declaring file finds its callers as text in the files that import it. The graph
-does not record that one function called another at runtime; open the named
-file or use a language server for that question.
+names where a member by that name is declared, after any imports, and under
+each declaration the lines that call, read, write or destructure it through a
+value whose type the line writes, joined to that declaration through the import that
+binds the type's name, and the members of the classes that write `implements`
+of that declaration. A line whose value's type a checker would infer, a JSX
+attribute, or an object that implements the member with no type on its line,
+such as one passed as `deps:`, is not in that list, and the answer ends by saying so and naming the
+declaration's `file:line`, or with several declarations the one you
+pick from its list, for
+find-references and go-to-implementation in that language's tooling, TypeScript's language
+service for JavaScript and TypeScript, which lists those uses and implementations. Members are read
+from JavaScript and TypeScript files only, so a Python class's methods and a
+Rust struct's fields and `impl` methods are not; top-level declarations are read in
+every language the index reads, Python, Rust, Java, Kotlin and Swift
+included, and a function or an arrow function declared inside another
+function's body is read in JavaScript and TypeScript and answered with the
+function that holds it. `ask symbol` answers a top-level declaration of the
+name first, in any of those languages, then each container that declares it as
+a member, with the member's `file:line`, and points to `uses`. A dotted name,
+`Tree.has`, asks for the member `has` of `Tree` alone. `ask search` finds a
+member by its name, by `Tree.has` or by the doc above it, and a function inside
+a function by its name; a row that only holds the words stays out of a search
+something else answered. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+files, `ask symbol` ends with a sentence that names those languages, whether or
+not it found a member, and `ask search` says it when nothing answered, and each
+sends you to their language server's workspace symbols. The graph does not record that one
+function called another at runtime; open the named file or use a language
+server for that question.
 
 No graph database service sits on the answer path. The producer publishes a
 compact graph beside the names and materializes both directions, so walking
@@ -88,7 +261,7 @@ The workspace producer pays for parsing and resolution, then publishes an
 answerable generation outside the checkout. The question path reads that value
 without scanning the repository again. Producing and answering are separate operations:
 a CI step can publish once, then every agent in that step can ask the same dated
-facts without making freshness checks part of query latency.
+facts.
 
 This path is measured on two public repositories. The first is seven copies of
 [Material UI](https://github.com/mui/material-ui) side by side in one checkout:
@@ -166,47 +339,74 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Pass `--just-answer` when the caller owns freshness: no Git status, generation,
-or regeneration is performed, and the answer prints the generation time. If no
-generation has been published, the command refuses instead of silently turning
-the question into production work.
+Without `--just-answer`, a source question that a reused generation refuses is
+asked again, whichever command or server you ask through, except the command
+line's `search`: the name is looked for again in a generation made from the checkout as it is,
+and in what your installed packages export, with that list built first when it
+is missing or behind. A function you wrote a minute ago, or a package you just
+installed, is answered rather than reported missing, and that holds when you
+name changed files too.
 
-`search` always answers as if `--just-answer` were given. It opens the
-published search at any age and never scans, because in CI the step before it
-already brought the index up to date and is the one that owns freshness. The
-flag is accepted and changes nothing. With no published generation, `search`
-refuses and names the command to run.
+A found `symbol` or `uses`, and a `docs_search` over either server, is read the
+same way when a file it rests on changed or went away after the generation: the
+rows `docs_search` prints with the entry and each barrel that publish them, and
+for the other two the files that declare the name or pass it on and the entry
+that publishes it, with each row `uses` lists. So an export you renamed is not
+given under its old name, a name a barrel stopped passing on is not called
+published, a declaration you moved is given at the line it holds today, and a use
+is given at its line. An edit anywhere
+else waits for the hour: `uses` does not see an import you just added to a file
+it does not list. The look is a stat of each file.
+
+When the checkout cannot be read again, or the new read cannot be saved, or a
+file the answer rests on is saved during the read that answers it, the answer or
+the refusal names the generation time,
+says the checkout was not compared with it, and says why. Of a file written
+after the generation's read the answer gives what the generation recorded, a
+declaration and its members by name, and none of the file's text: its lines are
+no longer the ones that were read. A read that cannot be saved is dropped whole,
+because its names would meet the last read's lines. The next question reads
+again. When the list
+of installed exports cannot be built, the refusal says the installed packages
+were not compared, and why.
+
+Pass `--just-answer` when the caller owns freshness: no Git status, generation,
+or regeneration is performed, and every answer and refusal names the generation
+time and says the checkout was not compared with it; as JSON, `search` carries
+`compared: false` beside `generatedAt`. Text comes from a file only while that
+file is as old as the generation's read, so a newer one gives its recorded names.
+If no generation has been published,
+the command refuses instead of silently turning the question into production
+work.
+
+When no changed files are named and a search is published, `search` opens it
+at any age, because in CI the step before it already brought the index up to
+date and is the one that owns freshness. The answer says, as one under
+`--just-answer` does, that the checkout was not compared. With no published
+generation, `search` reads the checkout and publishes the search, the way any
+other question does, and that answer is the checkout's. Under `--just-answer`
+it refuses instead, says the flag is why, and names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
 nothing changed. This is producer input: it replaces Git's changed-file
-discovery and cannot be combined with `--just-answer`. [Naming what
-changed](source-index.md#naming-what-changed) gives the file contract.
+discovery and cannot be combined with `--just-answer`. Such a refresh reads the
+files you listed and no others, so the generation keeps the time of the read it
+refreshed: an answer given with the list gives a listed file's names at the lines
+the file holds now, with none of its text, and the next question without one that
+rests on that file reads the checkout. A
+file you left off is unchanged for that request, and that next question is where
+it is looked at. With no generation to refresh, the read is whole and the list
+is not used.
+[Naming what changed](source-index.md#naming-what-changed) gives the file
+contract.
 
-## Point the server at the workspace
+## Ask from the shell
 
-Use Node 22 or newer. Install the package in the TypeScript workspace:
-
-```bash
-npm install --save-dev @variance-authority/help
-```
-
-The package installs a `variance-authority-help` binary, which answers the same
-questions on the command line, with no client and no server:
-
-```bash
-npx @variance-authority/help search viewport --root .
-```
-
-Pass the package name to `npx`, not the binary name: `variance-authority-help`
-is not a package name and the registry will report it missing. `--root` is the
-workspace to read; omit it when you are standing in that workspace.
-
-A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The same questions are on
-`variance ask`, beside the questions about a run, and read the checkout under
-the working directory:
+A workspace with `@variance-authority/cli` installed asks these questions on
+`variance ask`, beside the questions about a run, reading the checkout under the
+working directory:
 
 ```bash
 npx variance ask search --query viewport
@@ -216,31 +416,23 @@ npx variance ask search --query viewport --from packages/app/ --just-answer
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 `--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
-generation. [Ask about the code and its runs from the
+generation. An answer names a flag or a next question the same way —
+`--from`, `variance ask symbol` — where the tool over MCP says `from` and
+`docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.
 
-The source questions are also tools on `variance serve`, under the same names as below, so
-a workspace with the CLI declares one server for the run and the source
-together. The rest of this page is that contract, whichever of the two serves
-it.
+Without an install, `variance-authority-help` answers the same search on the
+command line, with no client and no server:
 
-Without the CLI, configure the MCP client to launch this package's server with
-the workspace root:
-
-```json
-{
-  "mcpServers": {
-    "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
-    }
-  }
-}
+```bash
+npx @variance-authority/help search viewport --root .
 ```
 
-Here `.` is the server process's working directory. Pass the workspace's
-absolute path when the MCP client launches outside it. The configured command
-must resolve the installed package binary.
+Pass the package name to `npx`, not the binary name: `variance-authority-help`
+is not a package name and the registry will report it missing. `--root` is the
+workspace to read; omit it when you are standing in that workspace.
+
+The rest of this page is the contract of those tools, whichever route asks them.
 
 ## Read from entrypoint to symbol
 
@@ -269,25 +461,162 @@ what it is. It returns the file and line of every import, with the
 stories and the tests — the files written to show the name in use — listed apart
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
+Each kind of site, and each list after the imports, shows twelve and counts the
+rest; pass `limit` to show more.
 
-`docs_uses` lists the imports within the name's own package too: every import
+`docs_uses` lists the imports within the name's own package too, counted and
+listed apart from the ones from other packages: every import
 that resolved to the file declaring it, or to a file that passes it on with
-`export … from`. That file is followed under the name it exports and is not
+`export … from`. Each import that binds a name ends with the lines its file uses it on. That file is followed under the name it exports and is not
 listed itself, in another package as well, so an import through a barrel is
-counted once. An import of a renamed re-export is marked with the name it
-takes, `(as salute)`.
+counted once. A site that knows the name by another one is marked with it,
+`(as salute)`: an import that renames it with `as`, or an import of a re-export
+that renamed it.
+
+A renamed import is followed in both directions by the binding the parser read,
+never by how the two names are spelled. `docs_symbol` for the original names
+every file and line that imports it under another name. `docs_symbol` for the
+local name, `hail` in `import { greet as hail } from './greet.js'`, answers
+with that import and then with `greet`: its declaration and import line when an
+entry publishes it, the file and line that export it when none does, or the
+installed declaration when the specifier names a dependency. An original the
+file only passes on with `export … from` is followed to the declaration it
+reaches, and an interface, a type alias or a class lists its members, as when
+you ask for the original by its own name.
 
 A name a file exports and no entry publishes, such as a helper exported for the
 file beside it, is answered too. `docs_symbol` gives the file and line that
 export it and how many imports reach that file, directly or through a file that
 passes it on; `docs_uses` lists those imports, from its own package as well as
-from others. A read through an `export * as` namespace and a call through a
-qualified path are not counted.
+from others. When that file only passes on another file's declaration with
+`export … from`, renamed, type-only or through `export *`, both name the
+declaration it reaches, through every file between, and `docs_symbol` shows its
+line as well. A name a file passes on inside `export * as ns`, or inside
+`export { ns }` after `import * as ns`, is counted where you read it off `ns`, `ns.name` or `const { name } = ns`, through a namespace
+inside a namespace, `lib.ns.name`, `const { ns } = lib` and then `ns.name`, or
+`const { ns: { name } } = lib`, and through a namespace passed on as
+`default`. An entry that publishes the name only inside such a namespace
+publishes it as `ns.name`, and the first line says so: `published as
+\`shout.greet\` by @acme/lib`. A namespace imported by name that goes
+somewhere whole and, outside Rust, a call through a qualified path are not
+counted.
 
-A name your code reads off `import * as` or off `import()` is a site too, and the
-site names the line that loads the module. An `import()` loads it when that call
+`docs_symbol` on an interface, a type alias or a class lists its members after
+the signature, one line each as the checkout holds it, so you see what a value
+of it holds without opening the file.
+
+A name a file declares and does not export, such as a helper only its own file
+calls, is answered from the source index. Not exported means no export of a
+JavaScript or TypeScript file names it, a Rust item at the top of the file is
+not `pub` or is `pub(self)`, a Rust item inside an inline module is not `pub`
+or sits in a module that is not, a Swift declaration is `private` or
+`fileprivate`, a Kotlin one is `private`, or a Python name has a leading
+underscore or is left out of `__all__`. A `pub` Rust item whose inline modules
+are all `pub` is not declared on its own: the file exports the outermost of
+them, and you ask for that module by name. `docs_symbol` gives its kind, the
+file and line that declare it, its signature, what is written above it, and who
+can reach it under the file's language, after any export of the same name in
+another file. A name
+in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
+and a Kotlin `private` one are that file's alone: no other file can import
+them. Another Python module can still import the name by spelling it. A Rust
+item is named only by its module and the modules inside it. A Rust item inside
+an inline module, such as a helper in `mod tests`, is declared on its module
+path inside the file, `tests::helper`, and answers to that path or to its own
+name. A `macro_rules!` inside one keeps its own name, because a macro has no
+module path. If it is not `pub`, the same rule names who can reach it: `tests` and the
+modules inside it. If it is `pub`, the modules around it decide how far it is
+seen, so the answer says who can reach it is not recorded. CommonJS is read on
+a best-effort basis: the static keys of an object literal that `export =` or
+`module.exports =` assigns at the top level are the file's exports, and naming
+a declaration there passes it on, which is no use of it. An object with a
+spread or a computed key with no literal name exports nothing, because its
+names cannot be spelled. A named function or class handed out once that way is
+declared, and is the module's default export bound to that name.
+A script or CommonJS file, a module that hands out any other value with
+`export =` and a `macro_rules!` hand a name out in ways their readers cannot tell, so the
+answer says who can reach it is not recorded. `docs_uses`
+answers with the same kind, file, line and rule in one sentence, before any member
+declared by that name, and after the imports of an export of that name elsewhere.
+The kind tells apart two declarations that share a spelling: a Rust `mod walk;`
+is answered as a `[module]`, and the imports listed above it belong to the
+`fn walk` the module exports.
+It lists the imports the source index resolved to the declaring file: for a
+Rust item the modules inside its own that name it, by a `use` or by a path
+written in a type or an expression, such as `super::flag()`, and for a Python
+name the modules that import it, with the `ask grep` that finds the ones
+spelling it some other way. Each answer names the files whose
+declarations were not read, such as one over the size a read opens, since the
+name may be declared there. `docs_search` lists the name after the exported ones, under a heading that
+says it is not exported, when the name or its documentation holds the query, and
+only when its file is in the area `from` or `to` names.
+
+The file that declares a name uses it without importing it, so `docs_uses` lists
+those lines too, after the imports, under `Used in <file>, which declares it`,
+one heading for each file that declares it:
+a call, a read, a type, a Rust `self::name` path or a test module's
+`use super::*`, in a TypeScript, JavaScript or Rust file, for a name it exports
+and for one it keeps. The lines follow the language's scope, so a parameter, a
+local or an inner item of the same name is another name and is not listed, and
+neither is the declaration. A Python, Swift, Java or Kotlin file is answered by
+its imports alone.
+
+Each file that declares a name declares another thing, so `docs_uses` answers
+for every one of them, each kept apart: under the line naming each file that
+exports the name without publishing it come that declaration's own imports, as
+the uses of a kept one come under its own heading. The lines under the
+headline name every other declaration by file and line, so the count the
+headline gives is read as one declaration's. Pass `file`, the file one of
+them is declared in, to answer for that declaration alone: `variance ask uses
+--name greet --file packages/lib/src/greet.ts`. A `file` that only passes the
+name on with `export … from` answers for the declaration it reaches, and a
+`file` that declares nothing by the name is answered with the files that do.
+
+A name your code reads off a namespace or default import, written with
+`import type` or without, or off `import()`, is a site too, and the site names the line that loads the module. In a
+type, `typeof ns.x` and `ns.T` read `x` and `T` off whatever holds the module. An `import()` loads it when that call
 runs, not when the file loads, so the file can run without the module ever
-loading.
+loading. An `import()` written in a type, `import('./x').T` or
+`typeof import('./x')`, loads nothing: TypeScript resolves it as it resolves
+`import type`, so its site is marked type only. `typeof import('./x')` names
+the module's type and reads no name of it. A value that type is written on — a
+cast, or an annotated variable or parameter, directly or through a top-level
+alias — holds the module, and a name read off that value is a type-only site,
+as `M['x']` off the module type `M` is. What a call returns is TypeScript's
+answer, and the reader does not work it out: a name read off the value
+`await importOriginal<typeof import('./x')>()` returns is not listed, because
+the reader cannot tell which module the value came from, not because the line
+reads no name. A name read off the module's
+`default` is marked "through `default`": `default` holds the name only when the
+module is CommonJS, so the line may read it and is counted apart from the
+imports. A module your code hands to a function the same file declares, as
+`count(lib)` with `function count(held)`, is followed into that function, and
+what it reads off the parameter is what the line reads, not a type-only read,
+whatever the parameter's type says. A parameter the function writes to is not
+followed. A module that goes on
+whole anywhere else — to a call the file does not declare, a property or a
+return — may read any name it exports, because what the receiver reads is out
+of the file's sight. It is listed as a site that may
+read the name, marked "passed on whole", and counted apart too. Neither is an
+import of the name, so neither makes a name look used, and a name with only
+these is unknown rather than unused: the catalogue says where it may be read.
+
+`docs_uses` answers who depends on a declaration of this workspace. For a name
+no file here declares that your code imports from a package outside the
+workspace or a runtime module, whether or not it is installed, such as
+`parseSync` from `oxc-parser`, it names each package or module the name is
+imported from and the next question to ask: `variance ask discover --imports
+oxc-parser#parseSync`, run in the checkout, lists every file that imports
+`parseSync` from `oxc-parser`, with the line of each import. The server holds
+no scan of the names your files import, so `docs_discover` refuses that
+question.
+
+An import whose specifier the source index resolved to no file, such as
+`./gone.js` after the file was moved, is not read, so a use behind it is not
+listed. When such an import could take the name, because it is relative or
+names the package that declares the name, the answer names each file that
+holds one, the first three and a count of the rest. Fix the specifier, or read
+those files for the name.
 
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.
@@ -295,12 +624,22 @@ serve the text, so what you read is the file as it is now.
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
 ranking. Several words also match a name written in those words, in any order,
-so `kept reading` finds `keptReading` in that answer. Where your words land on a
+so `kept reading` finds `keptReading` in that answer, and so does a doc that
+writes them as a phrase: in order by stem, each as many words after the last as
+in your question, a possessive or punctuation between them counting for none.
+So `page sink` finds the doc "installs the page's sink" and not "a page and its
+sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it. So do the names holding at least half of
-your words, matched by stem, each labelled with the words it holds; both come
+after that answer and never inside it. So do the names holding most of your
+words, matched by stem, a rare word counting for more than a common one, the
+ones holding the most first, each labelled with
+the words it holds; both come
 before any installed package.
+
+An answer from `docs_search` names candidates, so a row missing from it does not
+prove that no such name exists; `git grep -i <word>` prints every tracked line
+that writes the word.
 
 ## Bound a search to where you are working
 
@@ -338,14 +677,18 @@ variance-authority-help search order --from src/fulfilment/
 
 ## What the answer shows, and what it does not
 
-The server reads manifests and TypeScript source, not `dist`. It parses with
-`oxc-parser` and resolves with `oxc-resolver`; no TypeScript language service
-runs behind it. A types target under an output directory is mapped back to that
+The server reads manifests and source, not `dist`. It parses JavaScript and
+TypeScript with `oxc-parser` and resolves with `oxc-resolver`; no TypeScript
+language service runs behind it. Rust, Python, Swift, Java and Kotlin files are
+read with tree-sitter grammars, for their imports and their top-level
+declarations, and Rust files also for the declarations inside inline modules. A types target under an output directory is mapped back to that
 package's source. A consumer is a workspace package whose source imports the
-symbol; it is not a claim about runtime execution or external adoption. A site
-is an import of the name, or a read of it off a module the file holds whole, not
-a call to it — where a named import is used inside that file is a question for
-your editor's language server.
+symbol; it is not a claim about runtime execution or external adoption. For a
+top-level name, a site in another file is an import of the name, or a read of
+it off a module the file holds whole, not a call to it: where that file uses a
+named import is a question for your editor's language server. A member has no
+import, so its sites are the typed lines described
+[above](#search-finds-the-name-the-graph-finds-the-area).
 
 Missing documentation remains missing, and a search with no exact substring
 match reports that before it offers anything near it. Those absences are source
@@ -370,34 +713,6 @@ what it does:
 
 Neither is a distance. How many hops separate two modules, and what selecting on
 that distance costs, is [`@variance-authority/sense`](distance.md).
-
-## Point an agent at it
-
-Your agent reads `AGENTS.md` at the start of every session, and a skill only
-when its description matches the task. Put these lines in `AGENTS.md`, with
-`npx` changed to however your package manager runs a local binary:
-
-```markdown
-## Finding your way in the code
-
-Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
-```
-
-The skill is `variance-authority`. It ships in `@variance-authority/cli` at
-`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
-rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
-agents read `.agents/skills`. Link the skill into both rather than copying it,
-so it follows every update:
-
-```bash
-mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
-mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
-```
-
-`variance doctor` reports whether your agent can find it.
 
 The full tool and source-reading contract is in the
 [`@variance-authority/help` package

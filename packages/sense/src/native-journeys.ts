@@ -21,16 +21,8 @@ export interface NativeJourneysPrepared {
   readonly flows: number;
   /** Specifiers the index did not answer, which the walk resolved itself. */
   readonly fellBack: number;
-  /** Call sites the static resolution missed that the recording placed, on the one entered function exported under the imported name. */
-  readonly recorded: number;
-  /** Call sites the static resolution missed where several entered functions are exported under the imported name and nothing else placed the call. */
-  readonly ambiguous: number;
-  /** The cases those ambiguous call sites were in. */
-  readonly ambiguousCases: number;
   /** The commit the recording ran at, when it names one. */
   readonly commit?: string | null;
-  /** Why the call graph was parsed from the working tree rather than from the recorded commit. */
-  readonly tree?: string | null;
 }
 
 /** The recording's commit as the caller read it, or why there is none. */
@@ -140,8 +132,6 @@ export interface NativeJourneysAnswer {
   readonly notPrepared?: string | null;
   readonly cases: number;
   readonly commit?: string | null;
-  /** Why the call graph was parsed from the working tree rather than from the recorded commit. */
-  readonly tree?: string | null;
   readonly files: readonly NativeJourneysFile[];
 }
 
@@ -175,7 +165,6 @@ export interface NativeJourneysAmong {
   /** Asked cases the recording does not hold. */
   readonly outside: readonly number[];
   readonly commit?: string | null;
-  readonly tree?: string | null;
   readonly calls: readonly NativeJourneysPlaced[];
 }
 
@@ -368,8 +357,6 @@ export interface NativeJourneysListing {
     recording: string,
     at: NativeJourneysCommit,
     out: string,
-    /** The runtime's own modules, which no function of the checkout answers. */
-    builtins: readonly string[],
     /** The `tsconfig` the scan that built the index resolved under. */
     tsconfig?: string | false,
   ): NativeJourneysPrepared | null;
@@ -386,8 +373,6 @@ export interface NativeJourneys {
     recording: string,
     at: NativeJourneysCommit,
     out: string,
-    /** The runtime's own modules, which no function of the checkout answers. */
-    builtins: readonly string[],
     /** The `tsconfig` the scan that built the index resolved under. */
     tsconfig?: string | false,
   ): NativeJourneysPrepared | null;

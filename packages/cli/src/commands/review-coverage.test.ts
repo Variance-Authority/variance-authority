@@ -3,10 +3,10 @@ import type { SuiteChange } from '@variance-authority/sense/test-selection';
 import type { Coverage } from './coverage.js';
 import type { Review } from './review.js';
 import { formatCoverage } from './coverage-text.js';
-import { formatReview } from './review-text.js';
+import { formatReview, reviewPieces } from './review-text.js';
 
 const CHANGE: SuiteChange = {
-  gained: 2, lost: 0, hidden: 0, thinned: 0,
+  gained: 2, lost: 0, hidden: 0, unmeasured: 0, thinned: 0,
   written: { regions: 0, run: 0 }, deleted: { regions: 0, run: 0 },
   arrived: { regions: 0, run: 0, files: [] }, departed: { regions: 0, run: 0, files: [] }, testFiles: [],
 };
@@ -23,7 +23,7 @@ const INTEGRATION: Coverage = {
 };
 const REVIEW: Review = {
   from: 'cc25d6a6', base: 'since', record: 'ran', files: [], suite: 679, recordedSuite: 'unit',
-  runs: { first: '2026-10-01', latest: '2026-10-01', runs: 1, files: ['a.test.ts', 'b.test.ts', 'c.test.ts'] },
+  runs: { latest: '2026-10-01', runs: 1, files: ['a.test.ts', 'b.test.ts', 'c.test.ts'] },
   coverage: [UNIT, INTEGRATION],
 };
 
@@ -50,6 +50,13 @@ describe('one review summary with coverage available on demand', () => {
     expect(markdown).toContain('| `unit` | 85.1% | 85.1% previously; 2 regions newly run |');
     expect(markdown).toContain('| `integration` | 15.2% | No baseline available; change cannot be compared |');
     expect(markdown).toContain('their percentages cannot be added');
+  });
+
+  it('puts each suite in and out behind the coverage disclosure, not on the first screen', () => {
+    const earned = { regions: 20000, in: 12000, out: 15000, accidental: 6000, unmeasured: 10 };
+    const markdown = formatReview({ ...REVIEW, coverage: [{ ...UNIT, earned: { suites: [{ name: 'unit', kind: 'unit', ...earned }], total: earned } }, INTEGRATION] }, 'markdown');
+    expect(markdown).toContain('| `unit` | 20,000 | 60.0% | 75.0% | 6,000 (30.0%) |');
+    expect(closed(markdown)).not.toContain('20,000');
   });
 
   it('keeps missing recordings and unreadable coverage visible without replacing them with zero', () => {
@@ -80,6 +87,38 @@ describe('one review summary with coverage available on demand', () => {
     expect(markdown).not.toMatch(/hidden|written|thinned/u);
   });
 
+  it('names the regions each test file no longer runs, and counts the test files it does not name', () => {
+    const region = (file: string, kind: string, name: string, startLine: number, endLine: number) => ({ file, kind, name, startLine, endLine });
+    const top = region('src/jest.ts', 'module', '', 26, 500);
+    const filter = region('src/jest.ts', 'function', 'withFilter', 40, 60);
+    const left = (file: string, regions: readonly ReturnType<typeof region>[]) => ({ file, entered: [], left: regions });
+    const testFiles = [
+      left('test/a.test.ts', [top, filter, region('src/rstest.ts', 'module', '', 24, 399), region('src/rstest.ts', 'function', 'run', 30, 40)]),
+      left('test/b.test.ts', [top]),
+      left('test/c.test.ts', [top]),
+      left('test/d.test.ts', [top]),
+      left('test/e.test.ts', [top]),
+      { file: 'test/f.test.ts', entered: [filter], left: [] },
+    ];
+    const lost: Coverage = { ...UNIT, suites: [{ ...UNIT.suites[0]!, base: { ...UNIT.suites[0]!.base!, change: { ...CHANGE, gained: 0, lost: 4, testFiles } } }] };
+
+    const lines = formatCoverage(lost, 'text').split('\n');
+    expect(lines).toContain(
+      '  unit: test/a.test.ts no longer runs the top level, withFilter in src/jest.ts; the top level, run in src/rstest.ts (4 regions) at the base',
+    );
+    expect(lines).toContain('  unit: test/b.test.ts no longer runs the top level in src/jest.ts (1 region) at the base');
+    expect(lines).toContain('  unit: ... and 2 more test files that lost regions, not listed here; --format json lists every one.');
+    expect(lines).toContain('  unit: test/f.test.ts now runs withFilter in src/jest.ts (1 region) not run at the base');
+    expect(formatCoverage(lost, 'markdown')).toContain('- unit: ... and 2 more test files that lost regions, not listed here; --format json lists every one.');
+  });
+
+  it('counts the functions a test file moved past four, in one file', () => {
+    const regions = ['a', 'b', 'c', 'd', 'e'].map((name, index) => ({ file: 'src/jest.ts', kind: 'function', name, startLine: index * 10 + 1, endLine: index * 10 + 9 }));
+    const testFiles = [{ file: 'test/a.test.ts', entered: [], left: regions }];
+    const lost: Coverage = { ...UNIT, suites: [{ ...UNIT.suites[0]!, base: { ...UNIT.suites[0]!.base!, change: { ...CHANGE, gained: 0, lost: 5, testFiles } } }] };
+    expect(formatCoverage(lost, 'text').split('\n')).toContain('  unit: test/a.test.ts no longer runs 5 functions in 1 file (5 regions) at the base');
+  });
+
   it('says so when the parts do not add up to the suite\'s change', () => {
     const off: Coverage = { ...UNIT, suites: [{ ...UNIT.suites[0]!, base: { ...UNIT.suites[0]!.base!, change: { ...CHANGE, gained: 5 } } }] };
     expect(formatReview({ ...REVIEW, coverage: [off] }, 'markdown')).toContain(
@@ -107,7 +146,7 @@ describe('one review summary with coverage available on demand', () => {
   });
 
   it('carries the evidence through JSON without recomputing it from local recordings', () => {
-    const restored = JSON.parse(formatReview(REVIEW, 'json')) as Review;
+    const restored = JSON.parse([...reviewPieces(REVIEW, 'json')].join('')) as Review;
     expect(formatReview(restored, 'markdown')).toBe(formatReview(REVIEW, 'markdown'));
   });
 

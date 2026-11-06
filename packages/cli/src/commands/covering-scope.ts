@@ -91,8 +91,8 @@ function lastRun(from: string): LastCaseRun {
   }
   if (last !== undefined) return last;
   throw new OperatorError(
-    `\`--cases last\` reads the run that wrote the index last from the record \`${from}\`, and it names none. ` +
-      'A run of this checkout names itself in the record; run a test file and ask again.',
+    `\`--cases last\` reads the run that wrote the index last from the record \`${from}\`, and it names none, ` +
+      'so which of its cases the last run wrote is not recorded. Without `--cases`, the answer reads every case the record holds.',
   );
 }
 

@@ -40,6 +40,7 @@ import install = require('./jest-globals.cjs');
 import journalNames = require('./jest-journal-name.cjs');
 import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
+import registry = require('./jest-registry.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
 const { afterAll, beforeAll, beforeEach, expect } = globals;
@@ -64,9 +65,30 @@ let loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map();
 beforeAll(() => {
   const testFile = expect.getState().testPath;
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
+  install.environmentInputs();
   loaded = collector.seal(testFile);
 });
 
+/**
+ * Fail the file where Jest's registry holds a module whose probes registered
+ * and that the journal never entered, before the journal is written: see
+ * `jest-registry.cts`. `require` here is Jest's, and its `cache` the file's registry.
+ */
+function heldAgainstRegistry(testFile: string, modules: ReadonlyMap<ModuleId, Uint32Array>): void {
+  const root = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_ROOT'];
+  if (root === undefined) {
+    throw new Error('variance-authority has no checkout root: the reporter withTestSelection adds must be configured too');
+  }
+  const missing = registry.unentered(root, Object.keys(require.cache), collector.registered(), [...modules.keys(), ...loaded.keys()]);
+  if (missing.length === 0) return;
+  throw new Error(
+    `variance-authority recorded none of these modules for ${testFile}, though Jest evaluated them and their probes ` +
+      `registered:\n  ${missing.join('\n  ')}\nThe journal would select too little, so it is not written. ` +
+      'This is a defect in variance-authority: report it with this message.',
+  );
+}
+
+const collected = markCollected();
 if (collector.scoped) openCaseScopes();
 skipTheCut();
 
@@ -81,9 +103,11 @@ afterAll(() => {
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
 
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
+  install.environmentInputs();
   const { modules, frames } = collector.finish(testFile);
+  heldAgainstRegistry(testFile, modules);
   fs.mkdirSync(runDirectory, { recursive: true });
-  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded));
+  fs.writeFileSync(`${runDirectory}/${journalNames.journalName(stamp, project)}`, journals.encodeJournal(testFile, modules, loaded, collected.at));
 
   const outlived = collector.runaways();
   if (outlived.length > 0) {
@@ -167,15 +191,9 @@ interface CircusNode {
 function skipTheCut(): void {
   const cutFile = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CUT'];
   if (cutFile === undefined) return;
-  let circus: { addEventHandler?: unknown };
-  try {
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return;
-  (register as (handler: (event: CircusEvent, state: { rootDescribeBlock?: CircusNode }) => void) => void)(
+  const register = circusHandlers<{ rootDescribeBlock?: CircusNode }>();
+  if (register === undefined) return;
+  register(
     (event, state): void => {
       if (event.name !== 'run_start' || state.rootDescribeBlock === undefined) return;
       const testFile = expect.getState().testPath;
@@ -196,6 +214,26 @@ function skipTheCut(): void {
 }
 
 /**
+ * When collecting ended: jest-circus's `run_start`, after the file's tests are
+ * declared and before any hook runs, the project's own setup files' included.
+ * The reporter splits the file's time into its collect and its cases there.
+ * Read from the clock Jest's own `perfStats` stamps read: the `Date.now` Jest
+ * keeps under `jest-native-now` before anything can fake it, taken here, as
+ * jest-circus takes it, before the project's setup files run. Unmarked where
+ * the runner is not jest-circus.
+ */
+function markCollected(): { at?: number } {
+  const mark: { at?: number } = {};
+  const native = (globalThis as { [key: symbol]: unknown })[Symbol.for('jest-native-now')];
+  const now = typeof native === 'function' ? (native as () => number) : Date.now.bind(Date);
+  circusHandlers()?.((event): void => {
+    if (event.name !== 'run_start') return;
+    mark.at = now();
+  });
+  return mark;
+}
+
+/**
  * The cut at `file`, or none when it is gone: a Jest a test starts inherits the
  * variable, and the run that wrote the cut removes it when that run completes.
  */
@@ -211,8 +249,25 @@ function cutIn(file: string): Record<string, readonly string[]> {
 /** What jest-circus hands a handler: the case, with the body about to be called. */
 interface CircusEvent {
   readonly name: string;
-  readonly test?: { fn?: unknown; name?: unknown } | undefined;
+  readonly test?: { fn?: unknown; name?: unknown; timeout?: number } | undefined;
   readonly hook?: { readonly type: string; readonly parent: CircusBlock } | undefined;
+}
+
+/**
+ * jest-circus's way to add a handler, or undefined under another runner. It is
+ * resolved at run time, from the sandbox: jest-circus is the runner Jest has
+ * defaulted to since 27, but it is the project's to replace, and a project that
+ * replaced it must still get everything else in this file.
+ */
+function circusHandlers<State>(): ((handler: (event: CircusEvent, state: State) => void) => void) | undefined {
+  let circus: { addEventHandler?: unknown };
+  try {
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return undefined;
+  }
+  const register = circus.addEventHandler;
+  return typeof register === 'function' ? (register as (handler: (event: CircusEvent, state: State) => void) => void) : undefined;
 }
 
 /**
@@ -239,25 +294,18 @@ interface CircusEvent {
  * one of those.
  */
 function bracketEveryCase(nextId: () => string): void {
-  let circus: { addEventHandler?: unknown };
-  try {
-    // Resolved at run time, from the sandbox: jest-circus is the runner Jest
-    // has defaulted to since 27, but it is the project's to replace, and a
-    // project that replaced it must still get everything else in this file.
-    circus = require('jest-circus') as { addEventHandler?: unknown };
-  } catch {
-    return;
-  }
-  const register = circus.addEventHandler;
-  if (typeof register !== 'function') return;
+  const register = circusHandlers<{ testTimeout?: number }>();
+  if (register === undefined) return;
 
-  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+  register((event, state): void => {
     placeCalls(event);
     if (event.name === 'test_start') attempt('begin');
     if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
+    // As jest-circus resolves it, for which a timeout of 0 is no timeout given.
+    heldTo = held.timeout || state.testTimeout;
     const body = held.fn;
     if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
@@ -343,6 +391,10 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 // wrapper reached inside it is the same case, not concurrency.
 let enclosingCase = 0;
 
+// What the case about to run is held to. The declarer route encloses a body before
+// any limit is known, so it is read when the body runs; interleaved cases are not supported.
+let heldTo: number | undefined;
+
 /**
  * One case's body, run inside the scope its crossings belong to.
  *
@@ -373,7 +425,7 @@ function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): Cas
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project), () => body.apply(this, args));
+      return scope.enter(caseOwner.packCase(testPath ?? '', name, id, project, heldTo), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }

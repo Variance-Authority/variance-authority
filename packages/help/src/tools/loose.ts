@@ -1,3 +1,4 @@
+import { wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 
@@ -12,8 +13,8 @@ import { tokensOf } from '../search-index.js';
  * `prefix: true`, `fuzzy: 0.2` and `maxFuzzy: 1`. Each query term is satisfied
  * by any dictionary term equal to it, starting with it, or one edit from it
  * when the term is three characters or longer; a name is in the answer when
- * every query term is satisfied by its name or by the doc of a published row
- * the area admits.
+ * every query term is satisfied by its name or by the doc of a published or
+ * exported row the area admits.
  *
  * One edit, because the caller is an agent. An agent copies a name; it does
  * not mistype one. What it gets wrong is a letter of a name it recalled from
@@ -25,6 +26,9 @@ import { tokensOf } from '../search-index.js';
  * returns by its own rules — so scores are not reproduced. `loose.test.ts`
  * holds the two to the same sets.
  */
+
+/** Sorted terms, by their UTF-8 bytes: the search file's dictionary, or any other kept by the same rule. */
+export type Dictionary = Pick<SearchIndex, 'termCount' | 'term' | 'termBytes'>;
 
 /** The most edits a term may be from what was asked: one character. */
 const MAX_FUZZY = 1;
@@ -38,8 +42,11 @@ export function editsAllowed(term: string, fuzzy: number): number {
  * Names reached loosely, as name ids.
  *
  * `already` names are never reached: the substring answered them. `within`,
- * file ids when given, admits a name through a row whose file is in it, and a doc
- * through the published row that carries it.
+ * file ids when given, admits a name and a doc only through a row
+ * {@link rowWithin} the area.
+ *
+ * `through`, when given, receives the exported rows whose doc reached a name its
+ * own words never did: the rows to show it through.
  */
 export function looseNames(
   index: SearchIndex,
@@ -47,33 +54,58 @@ export function looseNames(
   fuzzy: number,
   within: ReadonlySet<number> | undefined,
   already: ReadonlySet<number>,
+  through?: Map<number, Set<number>>,
 ): ReadonlySet<number> {
   const terms = tokensOf(query);
   if (terms.length === 0) return new Set();
 
   const held = admittedBy(index, within, already);
+  const byName = new Set<number>();
 
   let answer: Set<number> | undefined;
   for (const term of terms) {
     const reached = new Set<number>();
     for (const id of matchingTerms(index, term, editsAllowed(term, fuzzy))) {
-      for (const name of index.termNames(id)) if (held(name)) reached.add(name);
+      for (const name of index.termNames(id)) {
+        if (!held(name)) continue;
+        reached.add(name);
+        byName.add(name);
+      }
       for (const row of index.termPublished(id)) {
         const name = index.publishedName(row);
         if (already.has(name) || reached.has(name)) continue;
-        if (within === undefined || within.has(index.publishedFile(row))) reached.add(name);
+        if (within === undefined || rowWithin(index, 'published', row, within)) reached.add(name);
+      }
+      for (const row of index.termExported(id)) {
+        const name = index.exportedName(row);
+        if (already.has(name) || (within !== undefined && !rowWithin(index, 'exported', row, within))) continue;
+        reached.add(name);
+        through?.set(name, (through.get(name) ?? new Set()).add(row));
       }
     }
     answer = answer === undefined ? reached : new Set([...answer].filter((name) => reached.has(name)));
     if (answer.size === 0) break;
   }
+  for (const name of byName) through?.delete(name);
   return answer ?? new Set();
 }
 
 /**
+ * Whether one row is the area's, `within` file ids: a published row when a file
+ * of the area imports it, an exported row when the file exporting it is in the
+ * area. A published name with no import site in an area is a name the area does
+ * not use, however well it matches the question, and an exported row has no
+ * import site to count. Every section asks this one question, so a name is
+ * admitted, weighed and shown through the same rows.
+ */
+export function rowWithin(index: SearchIndex, kind: 'published' | 'exported', row: number, within: ReadonlySet<number>): boolean {
+  return kind === 'published' ? index.siteFiles(row).some((file) => within.has(file)) : within.has(index.exportedFile(row));
+}
+
+/**
  * Whether a name may be reached through its own words: never when `already`
- * holds it, and inside `within` only through a published or exported row whose
- * file is in it. Remembered per name, because every matching term asks again.
+ * holds it, and inside `within` only through a row {@link rowWithin} it.
+ * Remembered per name, because every matching term asks again.
  */
 export function admittedBy(
   index: SearchIndex,
@@ -87,8 +119,8 @@ export function admittedBy(
     let admitted = known.get(name);
     if (admitted === undefined) {
       admitted =
-        index.publishedOf(name).some((row) => within.has(index.publishedFile(row))) ||
-        index.exportedOf(name).some((row) => within.has(index.exportedFile(row)));
+        index.publishedOf(name).some((row) => rowWithin(index, 'published', row, within)) ||
+        index.exportedOf(name).some((row) => rowWithin(index, 'exported', row, within));
       known.set(name, admitted);
     }
     return admitted;
@@ -96,7 +128,7 @@ export function admittedBy(
 }
 
 /** Dictionary terms equal to `term`, starting with it, or within `edits` of it. */
-export function matchingTerms(index: SearchIndex, term: string, edits: number): ReadonlySet<number> {
+export function matchingTerms(index: Dictionary, term: string, edits: number): ReadonlySet<number> {
   const found = new Set<number>();
   const wanted = Buffer.from(term, 'utf8');
   for (let id = lowerBound(index, wanted, 0); id < index.termCount; id += 1) {
@@ -108,6 +140,18 @@ export function matchingTerms(index: SearchIndex, term: string, edits: number): 
 }
 
 /**
+ * Per stem, the dictionary terms that reduce to it, by the dependency
+ * lexicon's stemmer: the terms under the stem are read once and kept only
+ * where they reduce to it, so `modul` admits `module` and not `modular`.
+ */
+export function termsOfStems(index: Dictionary, stems: readonly string[]): readonly (readonly number[])[] {
+  const under = stems.map((stem) => [...matchingTerms(index, stem, 0)]);
+  const reduced = wordStemsNative(under.flat().map((term) => index.term(term)));
+  let at = 0;
+  return under.map((terms, position) => terms.filter(() => reduced[at++] === stems[position]));
+}
+
+/**
  * Terms within `edits` Levenshtein edits of `term`, in UTF-16 code units.
  *
  * The dictionary is sorted, so neighbouring terms share their prefix and share
@@ -115,7 +159,7 @@ export function matchingTerms(index: SearchIndex, term: string, edits: number): 
  * already exceeds the budget cannot recover, so every term under it is skipped
  * with one binary search — the walk a trie would make, over a sorted array.
  */
-function withinEdits(index: SearchIndex, term: string, edits: number): readonly number[] {
+function withinEdits(index: Dictionary, term: string, edits: number): readonly number[] {
   const width = term.length + 1;
   const rows: Int32Array[] = [Int32Array.from({ length: width }, (_, j) => j)];
   const found: number[] = [];
@@ -173,7 +217,7 @@ function startsWith(bytes: Buffer, prefix: Buffer): boolean {
 }
 
 /** The first term at or after `from` whose bytes are not below `wanted`. */
-function lowerBound(index: SearchIndex, wanted: Buffer, from: number): number {
+function lowerBound(index: Dictionary, wanted: Buffer, from: number): number {
   let low = from;
   let high = index.termCount;
   while (low < high) {
@@ -185,7 +229,7 @@ function lowerBound(index: SearchIndex, wanted: Buffer, from: number): number {
 }
 
 /** The first term after `from` that does not start with `prefix`; `from` does. */
-function pastPrefix(index: SearchIndex, prefix: Buffer, from: number): number {
+function pastPrefix(index: Dictionary, prefix: Buffer, from: number): number {
   let low = from + 1;
   let high = index.termCount;
   while (low < high) {

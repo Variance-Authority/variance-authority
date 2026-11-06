@@ -143,7 +143,7 @@ test file, and the gate's grain stays the file. Asked for the case grain, it
 also names, within each file it keeps, the cases that entered none of the
 changed regions, and the runner marks them skipped through its own task modes;
 every doubt about which cases a change reached keeps the file whole, and a file
-run in part is recorded incomplete. Where the product owns the execution
+run in part is recorded incomplete and read from where a run last finished it. Where the product owns the execution
 surface, a single story is the unit of execution.
 
 ## Implementation coordinates

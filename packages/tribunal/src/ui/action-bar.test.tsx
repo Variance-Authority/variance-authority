@@ -6,11 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { queueOf } from './rail.js';
+import { Reading } from './reading.js';
 import { SubjectPanel, type Place } from './subject.js';
 
 /**
- * The bar under a subject: what is selected, where it sits in the queue, and
- * every move a reviewer can make from here, each with the key that makes it.
+ * The bar under a subject: where it sits in the queue and the moves that cost
+ * nothing to undo, each with the key that makes it.
  *
  * Mounted rather than rendered statically, because what the bar is for is the
  * second subject and the twentieth: the keys, the move to the next one, and the
@@ -112,17 +113,17 @@ function bar(): HTMLElement {
 }
 
 function button(name: string): HTMLButtonElement {
-  return [...bar().querySelectorAll('button')].find((each) => each.textContent?.startsWith(name))!;
+  return [...host.querySelectorAll('button')].find((each) => each.textContent?.startsWith(name))!;
 }
 
-describe('the bar says what is selected and where it sits', () => {
-  it('names the render, the component that moved, its regions and its place in the queue', async () => {
+describe('the bar says where the render sits', () => {
+  it('gives its place in the queue and repeats nothing the head of the page says', async () => {
     await show(subject('story:cart'), { at: 1, of: 5, previous: 'story:a', next: 'story:b' });
 
-    expect(bar().textContent).toContain('story:cart');
-    expect(bar().textContent).toContain('Button');
-    expect(bar().textContent).toContain('2 regions');
     expect(bar().textContent).toContain('2 of 5');
+    expect(bar().textContent).not.toContain('story:cart');
+    expect(bar().textContent).not.toContain('Selected');
+    expect(bar().textContent).not.toContain('2 regions');
   });
 
   it('says a render is outside the queue rather than numbering it', async () => {
@@ -346,7 +347,7 @@ describe('every move is a button and a key', () => {
     expect(host.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe('Pay moved left');
   });
 
-  it('decides from the bar, and from no key', async () => {
+  it('decides from the buttons, and from no key', async () => {
     // A key that promotes a baseline is a key a reviewer presses by accident;
     // moving between renders and opening a form are the moves that cost nothing.
     const client = clientThat();
@@ -373,5 +374,51 @@ describe('queueOf', () => {
     ]);
 
     expect(order.map((each) => each.subject)).toEqual(['large', 'small', 'fresh']);
+  });
+});
+
+describe('a reader decides nothing', () => {
+  it('draws no move that writes, and keeps the walk', async () => {
+    const client = clientThat();
+    await act(async () =>
+      root.render(
+        <Reading.Provider value={true}>
+          <SubjectPanel
+            client={client}
+            reviewer="nobody"
+            build="ci-1"
+            subject={subject('Card/Default')}
+            place={undefined}
+            onDecided={() => undefined}
+          />
+        </Reading.Provider>,
+      ),
+    );
+
+    const labels = [...host.querySelectorAll('button')].map((button) => button.textContent ?? '');
+    for (const word of ['Approve', 'Reject', 'Looks suspicious', 'Investigate']) {
+      expect(labels.filter((label) => label.includes(word))).toEqual([]);
+    }
+  });
+
+  it('still shows the decision somebody took', async () => {
+    await act(async () =>
+      root.render(
+        <Reading.Provider value={true}>
+          <SubjectPanel
+            client={clientThat()}
+            reviewer="nobody"
+            build="ci-1"
+            subject={subject('Card/Default', {
+              decision: { decision: 'approved', by: 'thearnica', at: '2026-06-01T12:00:00.000Z' },
+            })}
+            place={undefined}
+            onDecided={() => undefined}
+          />
+        </Reading.Provider>,
+      ),
+    );
+
+    expect(host.textContent).toContain('approved by thearnica');
   });
 });

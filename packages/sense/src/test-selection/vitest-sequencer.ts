@@ -24,7 +24,7 @@
  * when what it hands back is empty and the selection dropped any file. A shard
  * the selection's files all landed outside is the same answer. When nothing
  * was dropped, an empty run is the runner's, and the project's option stands.
- * The line before the run says `selected none of M`.
+ * The line before the run says `selected none of M, so none of them runs`.
  *
  * Under `--shard k/n` the files left are placed whole by the time the suite's
  * record holds for each, or by file count when it holds none, rather than by
@@ -43,7 +43,7 @@ import { pathToFileURL } from 'node:url';
 import { cutOf, type CaseCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
 import { shardOf, type ShardAsked } from './shard-placement.js';
-import { selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
+import { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 
 /** Marks a sequencer that already selects, so a second wrap is the first one. */
 const SELECTING = Symbol.for('variance-authority:selecting-sequencer');
@@ -225,11 +225,11 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
         for (const line of selectedLines(selection, discovered.map(name))) say(line);
       }
       said = true;
-      const kept = files.filter((file) => !selection.skip.has(name(moduleOf(file))));
-      if (kept.length < files.length) this.#dropped = true;
-      const cut = cutOf(selection, kept.map(moduleOf), options.root);
+      const runs = [...kept(selection, files, (file) => name(moduleOf(file)))];
+      if (runs.length < files.length) this.#dropped = true;
+      const cut = cutOf(selection, runs.map(moduleOf), options.root);
       if (cut.size > 0) options.cut?.(cut);
-      return kept;
+      return runs;
     }
   }
   return Selecting;

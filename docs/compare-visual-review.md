@@ -189,8 +189,9 @@ Choose it when the suite should own pixels but the vendor should own review and
 history.
 
 Its Chromium examples use both `--disable-lcd-text` and
-`--font-render-hinting=none`; Variance's Chromium renderer uses the same defaults
-and records the ordered launch recipe in renderer identity.
+`--font-render-hinting=none`; Variance's Chromium renderer uses the same two,
+adds `--disable-partial-raster` so a shot does not depend on what the page
+painted before it, and records the ordered launch recipe in renderer identity.
 
 Sources: [Playwright quickstart](https://argos-ci.com/docs/quickstart/playwright),
 [Vitest quickstart](https://argos-ci.com/docs/quickstart/vitest-quickstart),
@@ -410,15 +411,14 @@ the test suite, then `variance report shard-1.json shard-2.json …` merges the
 shard reports into one build for `variance push` to post. Wall clock is whatever
 your own capacity buys; there is no fleet to fan out onto.
 
-**Review by someone who does not run the suite means deploying `tribunal`.** It
-takes two secrets that must differ: an ingest token CI posts builds with, and a
-review token that reads the review surface and decides. It ships no accounts, no
-sign-in, and no permission model — the adapter you mount it behind authenticates
-the person and attaches the capability to each request. A designer clicking
-approve is a deployment you configure, not a seat you buy.
+**Review by someone who does not run the suite means deploying `tribunal`.** One
+command makes the deployment, and you declare who it recognizes: CI posts builds
+under GitHub Actions' identity, and reviewers sign in with GitHub or through your
+identity provider. It keeps no accounts of its own. A designer clicking approve
+is a deployment you configure, not a seat you buy.
 
 **Approved baselines from another tool are not imported into the store.** A
-baseline here is a PNG plus a sidecar of per-component, per-band hashes, filed
+baseline here is a lossless WebP plus a sidecar of per-component, per-band hashes, filed
 under the identity of the renderer that painted it. Images approved in a hosted
 service come with neither, so the store has nothing to file them under. Their
 pixels are still comparable: `observeRasters` compares any two images, and when

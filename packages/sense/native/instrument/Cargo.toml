@@ -15,25 +15,21 @@ license = "MIT"
 [dependencies]
 # The parser is pinned exactly: what it reads decides the regions, and a
 # pipeline's own lockfile must not resolve another one than the addon's.
-oxc_allocator = "=0.144.0"
-oxc_ast = "=0.144.0"
-oxc_ast_visit = "=0.144.0"
-oxc_parser = "=0.144.0"
+oxc_allocator = "=0.157.0"
+oxc_ast = "=0.157.0"
+oxc_ast_visit = "=0.157.0"
+oxc_parser = "=0.157.0"
 # Which binding an argument names, so a function handed over by name is found
 # by scope rather than by spelling.
-oxc_semantic = "=0.144.0"
-oxc_span = "=0.144.0"
-oxc_syntax = { version = "=0.144.0", features = ["to_js_string"] }
-sha2 = "0.10"
+oxc_semantic = "=0.157.0"
+oxc_span = "=0.157.0"
+oxc_syntax = { version = "=0.157.0", features = ["to_js_string"] }
+sha2 = "0.11"
 
 [build-dependencies]
-sha2 = "0.10"
+sha2 = "0.11"
 
 # The regions themselves and the walk over a parsed program, which the
 # package's addon reads and a pipeline does not.
 [features]
 addon = []
-
-# The ARMv8 SHA instructions, as `sense-native` takes them: see its manifest.
-[target.'cfg(target_arch = "aarch64")'.dependencies]
-sha2 = { version = "0.10", features = ["asm"] }

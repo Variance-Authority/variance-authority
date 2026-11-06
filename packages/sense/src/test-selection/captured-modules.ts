@@ -16,9 +16,11 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument, probeRuntime, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { instrumentTransformed } from '../instrument/transformed.js';
+import { carriesTheFile } from './carried-text.js';
 import { recordedBlocks } from './coverage-rows.js';
+import moduleIds from './module-id.cjs';
 import { fileOrNone, insideRoot, isMissing, mayTake, projectPath, type CapturedModule } from './instrumented-modules.js';
 import { handedTexts, rawFrame, type RawFrame } from './source-lines.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
@@ -139,6 +141,7 @@ export function placeModule(
   mode: InstrumentMode | undefined,
   original: (path: string) => string = readOriginal,
 ): Captured | undefined {
+  if (mode === 'loads') return placeModule(root, path, code, never, loadsAll(root, include, unprobed), undefined, original);
   const plan = planModule(root, path, code, include, original, unprobed);
   if (plan === undefined) return undefined;
   const { frame, file, id } = plan;
@@ -156,6 +159,17 @@ export function placeModule(
     ...changed,
     ...(done?.module === false ? { script: { at: done.headerAt } } : {}),
   };
+}
+
+const never = (): boolean => false;
+
+/**
+ * Under `loads`, every module `include` or `unprobed` accepts is marked as
+ * loaded and none is probed. A module outside `root` has no project path to
+ * be marked under, as {@link planModule} says, and is left as it is.
+ */
+function loadsAll(root: string, include: (file: string) => boolean, unprobed: ((file: string) => boolean) | undefined) {
+  return (file: string) => insideRoot(root, file) && (include(file) || unprobed?.(file) === true);
 }
 
 /** The map a transform at the end of a pipeline is handed back to every source it came from: Vite's `getCombinedSourcemap()`. */
@@ -210,11 +224,11 @@ export class MapRefusal extends Error {}
  * nowhere fires when the module loads, charged to every test that loaded it,
  * rather than recorded as never running. A rewrite with no map, one whose map
  * names no source that resolves to the file, one a plugin returned no map
- * for, one whose map carries a text for the file that is not the file, and
- * code a map with no mappings carries for a file with more than module code,
- * and text the instrumenter cannot parse written from a file it can, is an
- * error; a `variant` is marked instead. So is a file that is there and cannot
- * be read. Where `code` is the file, this is {@link placeModule}.
+ * for, one whose map carries a text that is not the file on a line a region
+ * sits on, code a map with no mappings carries for a file with more than
+ * module code, and text the instrumenter cannot parse written from a file it
+ * can, is an error; a `variant` is marked instead. So is a file that is there
+ * and cannot be read. Where `code` is the file, this is {@link placeModule}.
  */
 export function captureAfter(
   root: string,
@@ -225,6 +239,9 @@ export function captureAfter(
   map: (() => ComposedMap | undefined) | undefined,
   options: AfterOptions = {},
 ): CapturedAfter | undefined {
+  if (mode === 'loads') {
+    return captureAfter(root, path, code, never, undefined, map, { ...options, unprobed: loadsAll(root, include, options.unprobed) });
+  }
   const { unprobed, carry = false, original: read = readOriginal, unmapped = [], remedy = REMEDY, variant = false } = options;
   // Under `node_modules`, `include` is asked first: no map there is read.
   if (!mayTake(path, (file) => include(file) || (unprobed !== undefined && insideRoot(root, file) && unprobed(file)))) return undefined;
@@ -239,16 +256,20 @@ export function captureAfter(
   const { frame, file, id } = plan;
   const named = projectPath(root, path);
   const unread = { file, id, sourceDigest: frame.sourceDigest, instrumented: false, blocks: [] };
+  // The mark follows the last line, so no column moves: a map is composed only to carry.
+  if (plan.marked) {
+    const carried = carry ? map?.() : undefined;
+    return { module: unread, code: markLoaded(code, id), ...(carried ? { carried: carried.mappings } : {}) };
+  }
   const composed = map?.();
-  // The mark follows the last line, so no column the map names moves.
-  if (plan.marked) return { module: unread, code: markLoaded(code, id), ...(carry && composed ? { carried: composed.mappings } : {}) };
   const texts = handedTexts(disk);
   const rewrote = unmapped.filter((step) => step.loaded === undefined || !texts.includes(step.loaded));
   const source = mapsBack(path, code, composed);
+  const lost = source !== undefined && source >= 0 && !carriesTheFile(composed!.sourcesContent?.[source], texts, file, mode);
   // A module built from the file whose code no map leads back from, such as
   // the file's text as a string, holds none of the file's code to place a
   // region in, and depends on all of it: marked, as `unprobed` marks a module.
-  if (variant && (rewrote.length > 0 || source === undefined || source < 0 || !carriesTheFile(composed!, source, texts))) {
+  if (variant && (rewrote.length > 0 || source === undefined || source < 0 || lost)) {
     const marked = markedId(projectPath(root, path), disk);
     return { module: { ...unread, id: marked }, code: markLoaded(code, marked), ...(carry && composed ? { carried: composed.mappings } : {}) };
   }
@@ -269,10 +290,10 @@ export function captureAfter(
         `so no region of it can be placed in what they wrote. ${remedy}, or leave the file out of \`include\`.`,
     );
   }
-  if (source >= 0 && !carriesTheFile(composed!, source, texts)) {
+  if (lost) {
     throw new MapRefusal(
-      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk: a step ahead of the ` +
-        'transforms that wrote a map, such as a `load` hook, rewrote the file and returned no map or `map: null`, so the map names lines ' +
+      `\`${named}\`: the map back to the file carries a text for it that is not the file on disk, on a line a region sits on: ` +
+        'a step ahead of the probes, such as a `load` hook, rewrote that line and returned no map or `map: null`, so the map names lines ' +
         `the author never wrote. Have that step return the map of what it wrote, or leave the file out of \`include\`.`,
     );
   }
@@ -323,16 +344,6 @@ export function mapsBack(path: string, code: string, map: ComposedMap | undefine
   return source === -1 ? undefined : source;
 }
 
-/**
- * Whether the text `map` carries for its source `source`, if it carries one,
- * is one of `texts`, the file as a step can be handed it. A map is trusted on
- * its source's name only where it says nothing more.
- */
-export function carriesTheFile(map: ComposedMap, source: number, texts: readonly string[]): boolean {
-  const content = map.sourcesContent?.[source];
-  return typeof content !== 'string' || texts.includes(content);
-}
-
 function readOriginal(path: string): string {
   return readFileSync(path, 'utf8');
 }
@@ -372,10 +383,10 @@ const MARKED = '~';
  * For a module no probe may sit in: one whose functions cross into another
  * realm as text, where the first probe throws. The text is unchanged up to its
  * end, and the runtime follows it there, at module scope, which no function
- * carries with it when it crosses. It registers one region, the module's own,
- * and logs it as {@link instrument}'s header does, so every test that loaded
- * the module is in the record — which an edit to it then selects whole,
- * because nothing says what in it ran.
+ * carries with it when it crosses. It is one call, the root's `m`, nothing
+ * imported: it registers the module's own region and logs it as
+ * {@link instrument}'s header does, so every test that loaded the module is in
+ * the record — which an edit to it then selects whole, as nothing says what ran.
  *
  * Private to this module, beside {@link markedId}: the reader cuts a module
  * into regions unless its id says it was marked, so a mark placed under an id
@@ -383,7 +394,7 @@ const MARKED = '~';
  * region run.
  */
 function markLoaded(source: string, id: ModuleId): string {
-  return `${source}\n;${probeRuntime(id, 1)}__vaE();`;
+  return `${source}\n;globalThis.__VA__.m(${JSON.stringify(id)});`;
 }
 
 /**
@@ -446,12 +457,10 @@ export async function deriveModules(
 /** How many files {@link deriveModules} reads at once. */
 const READERS = 64;
 
-const ID = /^(.+)@(~?)([0-9a-f]+)$/;
+const { ID } = moduleIds;
 
 /** The repository-relative path an id names, or the whole id when it names no digest. */
-export function pathOf(id: ModuleId): string {
-  return ID.exec(id)?.[1] ?? id;
-}
+export const pathOf: (id: ModuleId) => string = moduleIds.pathOf;
 
 async function deriveModule(
   root: string,

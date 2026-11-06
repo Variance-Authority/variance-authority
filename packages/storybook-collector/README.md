@@ -5,6 +5,7 @@
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -232,6 +233,16 @@ One navigation serves the whole suite rather than one navigation per story, and
 addon chrome stays outside the selected story root, so it never covers the
 subject document.
 
+A parallel run starts one Chromium. Each worker is another page in it, in one
+browser context with the first, so its preview boots from the HTTP cache rather
+than fetching the bundle again; the pages share cookies and storage, as stories
+in one preview already share a document. Across workers, what a story finds left
+behind depends on scheduling: which worker read which story before it decides the
+cookies, storage and service workers, msw's among them, that it meets. When you
+let the collector serve the build, it answers with `cache-control: immutable` so
+every asset stays cached for the run. A story read again to rule out its
+neighbours gets a browser of its own.
+
 ## Readiness and loading
 
 Most stories are complete when Storybook emits `storyRendered`. Add a `ready`
@@ -388,6 +399,15 @@ config `@storybook/addon-vitest` loads your presets for, inside Vitest, gets
 nothing from the addon either: that run is a Vitest run, and the Vitest seam
 records it where you configured one.
 
+Each loader that rewrites a file must return a source map composed with its
+input map. Enabling `devtool` gives the probes a map only where that chain is
+intact. A refusal saying there is no map back to the file means that chain is
+missing; one saying the map carries text different from the file on disk means
+the map describes another transform's input. The refusal lists the loader chain
+when the bundler provides it. Check map composition in those upstream loaders
+while keeping the probes after the compilers. Removing a file through `include`
+also removes it from recorded coverage.
+
 Pass the probes' options as the addon's: `{ name:
 '@variance-authority/storybook-collector', options: { mode: 'entries' } }`.
 `include` decides which modules are your source, every file outside
@@ -418,6 +438,11 @@ from it, and every path the run records is relative to the repository that
 contains it. Without a collector in the page, the run prints that on stderr and
 records nothing.
 
+Set `VARIANCE_AUTHORITY_STORY=1` for the run and `tests` also writes each
+story's [test story](https://variance-authority.dev/docs/test-stories): the
+code the preview ran for it, in order, with what it printed. `variance story`
+reads it with `--file` set to the `.stories` file and `--name` to the story's title and name, `Cart/Empty`.
+
 `mode` is the probe recipe, and it has to be the one the preview was built
 under: a snapshot names the recipe its ordinals were cut by, and a merge
 discards a layer cut by another one, so a preview probing under `entries` and a
@@ -444,6 +469,23 @@ the index names each row by where the story is declared — its file, its
 `title/name` — which is the coordinate a person reads in the sidebar and the one
 a diff touches.
 
+Each story's row also says where the browser spent it, timed by the page on its
+own clock rather than by the test driving it, under the phase names a test
+file's row uses. `prepare` is the document's start until the preview is ready:
+the navigation, the runtime, the project annotations and the index. A document
+pays it once, so only the first story read on it carries it, and a story the
+preview switched to reads 0, as the second test in one file pays no worker
+start. `collect` is importing the story's file and everything it loads, and then
+unmounting the story shown before it: Storybook does that in between and signals
+nothing for it. No file is imported before its first story comes up — the
+story's parameters are read from the file the preview loads to show it — so the
+first story of each file carries that file's import, and the stories after it
+read only the unmount. `cases` is the render, from loaders through the play function to
+`afterEach`, or to the phase it ended on when it errored or was aborted. Each
+width a story is read at is its own row, with its own figures; the widths share
+one visit on one page, so the first carries the import and the others are the
+same story shown again at another size.
+
 ## When integration fails
 
 - **The index cannot be read:** build Storybook first and check
@@ -462,7 +504,8 @@ a diff touches.
   `jsx-source` only when the report must distinguish the exact element instance.
   Against a development Storybook nothing normally needs installing; missing
   lines there mean React is not its development build, the dev server emits no
-  source maps, or React 18 is still compiled to classic `createElement` calls.
+  source maps, or React 18 is compiled to classic `createElement` calls with no
+  `__source`.
 - **Images change without a document change:** leave `network` enabled so asset
   response bodies participate in the environment key. Disable it only when the
   URL already identifies the bytes.
@@ -482,4 +525,4 @@ navigation, mounting and readiness.
 
 ---
 
-**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/storybook-collector) · MIT

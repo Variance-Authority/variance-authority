@@ -263,6 +263,28 @@ describe('a change read from both of its texts', () => {
   });
 });
 
+describe('a top-level change at function use', () => {
+  // Function use widens each region the reading charges to the declaration
+  // that holds it; the reading itself is the same one, so a line outside
+  // every function is charged by what it does, not to every loader.
+  const atFunctionUse = async (diff: string) => narrowByExecution(coverageFile, diff, { relations, sourceAt, precision: 'function-use' });
+
+  it('charges a moved value to the functions that read it, and to nothing that only loaded it', async () => {
+    const narrowing = await atFunctionUse(await edit(limits, 'LIMIT = 10', 'LIMIT = 20'));
+    expect(narrowing.entered).toEqual(tests('clamp', 'count', 'fill', 'render', 'slide'));
+  });
+
+  it('selects nothing for a comment', async () => {
+    const narrowing = await atFunctionUse(await edit(limits, '// The bounds every control shares.', '// Shared bounds.'));
+    expect(narrowing.entered).toEqual([]);
+  });
+
+  it('charges every test that loaded the file when a call is added at load', async () => {
+    const narrowing = await atFunctionUse(await edit(limits, 'export const STEP = 2;', 'export const STEP = 2;\nconsole.log(STEP);'));
+    expect(narrowing.entered).toEqual(everyLoader);
+  });
+});
+
 it.todo(
   'a call that throws while binding a destructured first parameter is charged when a default is added to it — needs the probe in front of an object pattern, which runners that read fixture names from the source refuse',
 );

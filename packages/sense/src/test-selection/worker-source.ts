@@ -14,13 +14,9 @@
  */
 
 import { vitestCutSource } from './case-cut.js';
-import { CASE_SCOPE } from './cases.js';
-import { scopeGlobalsSource } from './precondition-source.js';
+import { runnerHelpersSource } from './runner-helpers-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
 import type { InstrumentMode } from '../instrument/index.js';
-
-/** The realm key {@link CASE_SCOPE} is, as the generated source has to spell it. */
-const CASE_SCOPE_KEY = Symbol.keyFor(CASE_SCOPE) ?? '';
 
 /**
  * This file, so the setup module can reach the collectors and the codec beside
@@ -73,6 +69,8 @@ export interface SetupShim {
   readonly story?: string | undefined;
   /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
   readonly root?: string;
+  /** `false` keeps one bucket for the file and no case scope or frame: a run under `loads`. */
+  readonly cases?: boolean;
 }
 
 export function setupSource(
@@ -85,18 +83,16 @@ import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vit
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
-    shim.continuations === true
-  }, ${
-    shim.story === undefined
-      ? 'undefined'
-      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)});
+const senseRequire = createRequire(${JSON.stringify(HERE)});
+const journalFormat = senseRequire('./journal-format.cjs');
+const collector = ${shim.cases === false ? `senseRequire('./collectors.cjs').flat(globalThis)` : `senseRequire('./collectors.cjs').scoped(
+  globalThis, ${shim.continuations === true}, ${shim.story === undefined
+    ? 'undefined'
+    : `senseRequire('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`}, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)})`};
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
-${shim.scope ?? ''}
+${shim.cases === false ? '' : shim.scope ?? ''}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
@@ -136,6 +132,12 @@ ${caseWriterSource(caseDirectory)}});`;
  */
 export const BROWSER_JOURNAL = 'varianceAuthority';
 
+/** What a page that tapes adds to the setup module: the tape's script, and the runner's hooks that hand each case's tape over. */
+export interface PageStorySource {
+  readonly tape: string;
+  readonly hooks: string;
+}
+
 /**
  * The setup module for a test file that runs in a page: the page collector, and
  * the handoff through the runner at the end.
@@ -147,18 +149,22 @@ export const BROWSER_JOURNAL = 'varianceAuthority';
  * The two drains are what {@link setupSource} reads as `loaded` and `modules`:
  * everything before the first test, then everything after it.
  *
- * The collector is the one a built preview carries, so a module a page ran is
- * counted by the code every other page counts with. It is evaluated in a block,
- * where a bundle's module scope would put it, and a realm that already has a
- * collector keeps it: the drain is always the realm's own.
+ * The collector is the one a built preview carries, evaluated in a block where
+ * a bundle's module scope would put it; a realm that already has one keeps it.
+ * With `story`, the page tapes too: its `tape` goes in before the collector
+ * and its `hooks`, the runner's, hand each case's tape over.
  */
-export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest', story?: PageStorySource): string {
+  // FIXME: Vitest is the default runner of a runner-neutral file; the caller names it (No runner is the default).
   return `
-import { afterAll, beforeAll } from ${JSON.stringify(runner)};
+import { afterAll, beforeAll${story === undefined ? '' : ', afterEach, beforeEach'} } from ${JSON.stringify(runner)};
+${story?.tape ?? ''}
 {${executionCollectorSource(mode)}}
 const execution = globalThis[${JSON.stringify(EXECUTION_GLOBAL)}];
 let loaded = [];
-beforeAll(() => { loaded = execution.drain().modules; });
+// FIXME: what the page read (each drain's \`read\`) is laid on no case, where
+// spec 0102 lays a Vitest or Rstest browser read on the case running it.
+beforeAll(() => { loaded = execution.drain().modules; });${story?.hooks ?? ''}
 // Vitest hands the hook the file task, first through Vitest 4 and second from
 // 5, where the first is a fixture context and a parameter the hook names has
 // to destructure it. So the hook names none. Rstest hands it the file's
@@ -215,11 +221,14 @@ export function caseWriterSource(caseDirectory: string): string {
  * through the serializer is credited with what it called.
  *
  * @param runner How this module should spell `@vitest/runner`, and its `utils`
- * entry. The runner is a file in the project root, and `@vitest/runner` is a
- * dependency of Vitest rather than of the project — under a node_modules layout
- * that does not hoist, a bare specifier there resolves to nothing and every
- * test file fails to load. The caller resolves it; see `runnerImport` in
- * [`vitest.ts`](./vitest.ts). `recording` is the engine the setup module's
+ * entry, on the Vitest lines that ship it: 2, 3 and 4. The runner is a file in
+ * the project root, and `@vitest/runner` is a dependency of Vitest rather than
+ * of the project — under a node_modules layout that does not hoist, a bare
+ * specifier there resolves to nothing and every test file fails to load. The
+ * caller resolves it; see `runnerImports` in [`vitest.ts`](./vitest.ts). Absent,
+ * the module imports nothing but `vitest`, as Vitest 5 needs: it ships neither
+ * `@vitest/runner` nor `vitest/runners`, and its `TestRunner` hands out the
+ * test's function and a suite's hooks itself. `recording` is the engine the setup module's
  * collector will ask for, which a realm decides once: the same `continuations`
  * and story answers the caller hands {@link setupSource}.
  */
@@ -239,21 +248,11 @@ export function caseRunnerSource(
     }, ${runner.recording.story});\n`;
   return `
 import * as vitest from 'vitest';
-import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
-import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+${runnerHelpersSource(runner.module, runner.utils)}
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-
-// The class this runner extends. Vitest 4.1 exports it from the package root as
-// \`TestRunner\` and deprecates \`vitest/runners\`, which prints a line saying so
-// in every worker that imports it; the root's \`VitestTestRunner\` there is a
-// type and nothing at run time. Vitest 2, 3 and 4.0 export the class only from
-// \`vitest/runners\`, so that entry is imported only where the root has none.
-// The root is read as a namespace because a named import it lacks fails to
-// link.
-const VitestTestRunner = vitest.TestRunner ?? (await import('vitest/runners')).VitestTestRunner;
 
 ${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
@@ -281,6 +280,16 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+// A file's phases, under the record's names, as the runner measured them; the
+// reader keeps the ones that are durations. Its cases are the file's own result.
+const phases = (file) => ({
+  prepare: file.prepareDuration,
+  environment: file.environmentLoad,
+  setup: file.setupDuration,
+  collect: file.collectDuration,
+  cases: file.result?.duration,
+});
+
 const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
 // The declaration path under the file, which is what a reader recognises a
 // case by. The runner's own \`test.id\` is unique and is carried beside it,
@@ -289,12 +298,11 @@ const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection
 // are two cases.
 let caseOwner;
 const caseKey = (test) => {
-  const names = getNames(test);
-  const file = test.file?.filepath ?? names[0] ?? '';
+  const file = test.file?.filepath ?? test.file?.name ?? '';
   // Required here, where a case is recorded, and not at the top: a runner that
   // records nothing never loads it.
   caseOwner ??= createRequire(${JSON.stringify(HERE)})('./case-owner.cjs');
-  return caseOwner.packCase(file, names.slice(1).join(' > '), test.id, test.file?.projectName);
+  return caseOwner.packCase(file, testName(test), test.id, test.file?.projectName, test.timeout);
 };
 
 // Where a \`variancePrecondition\` call stands. Hooks are wrapped when their
@@ -330,7 +338,7 @@ export default class extends VitestTestRunner {
     const scope = caseScope();
     const hooks = scope?.within === undefined ? undefined : getHooks(suite);
     if (hooks === undefined) return;
-    const depth = getNames(suite).length - 1;
+    const depth = depthOf(suite);
     for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll']) {
       const registered = hooks[kind] ?? [];
       const kept = [];
@@ -354,7 +362,7 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, phases: phases(file), ...tree(file) }))),
     );
   }
 
@@ -375,114 +383,6 @@ export default class extends VitestTestRunner {
     const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
     if (scope === undefined) return fn();
     return scope.enter(caseKey(test), fn);
-  }
-}
-`;
-}
-
-/**
- * The case scope for a runner that has no runner to replace, as source.
- *
- * Vitest loads a runner by module id, and `runTask` there *wraps* the test
- * function — see {@link caseRunnerSource}. Rstest has no such option, so the
- * enclosure has to come from the only other thing that holds the function
- * before the runner calls it: the API that registered it. Every registrar is
- * wrapped, its own properties with it, because `it.only`, `it.concurrent` and
- * `it.each(rows)` are each a separate callable that takes a test function and
- * none of them route through the bare one.
- *
- * The coordinate is read at call time rather than at registration: `each`
- * interpolates its row into the title, and a describe path is only assembled
- * once the suite has collected. `currentTestName` is the resolved answer to
- * both, spelled exactly as a reader recognises the case by.
- *
- * The wrap is applied to every object that *holds* a registrar, which is what
- * `holders` names. `globals: true` puts them on the realm; an import does not,
- * but under Rspack `@rstest/core` is an external of type `global`, so
- * `import { it } from '@rstest/core'` compiles to a property read of
- * `globalThis['@rstest/core']` — the object the runner assigns the API to
- * before any setup file runs. Wrapping that object's `it` and `test` in place
- * reaches the imported registrars for the same reason wrapping the realm
- * reaches the injected ones, and neither spelling has to be configured.
- *
- * @param holders Source for the objects to wrap the registrars on, in the
- * order they are wrapped. Defaults to the realm alone, which is every runner
- * whose API is a module rather than an injected object.
- */
-export function caseGlobalsSource(holders = 'globalThis'): string {
-  return `
-const caseScope = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
-let caseOrdinal = 0;
-// A registrar's properties are registrars too, and \`each\` answers with one
-// rather than taking the function itself. Both are followed, to the depth the
-// deepest of them nests — \`it.only.each(rows)(name, fn)\`.
-const wrapCase = (api, depth) => {
-  if (typeof api !== 'function' || depth > 4) return api;
-  const out = function (...args) {
-    // The body is second, or third behind an options object.
-    const at = typeof args[1] === 'function' ? 1 : typeof args[2] === 'function' ? 2 : -1;
-    if (at !== -1) {
-      const fn = args[at];
-      const ordinal = String((caseOrdinal += 1));
-      // The describe path it was registered under, from the describe wrap below.
-      const path = scopeCurrent;
-      args[at] = function (...given) {
-        const state = expect.getState();
-        // Concurrent cases share the one \`expect\`, which names whichever case
-        // set it last; the case's own context names the case, under the path
-        // it was registered at.
-        const own = given[0]?.task?.name;
-        const name = typeof own !== 'string' || state.currentTestName === own ||
-          state.currentTestName?.endsWith(' > ' + own) === true
-          ? state.currentTestName ?? ''
-          : [...path, own].join(' > ');
-        // FIXME: the key carries no project, so two Rstest projects' copies of
-        // one file are numbered as repeats (\`#1\`) rather than named. The case
-        // context names none, and a configuration with \`projects\` gets no setup
-        // file of ours to hand one in.
-        const key = (state.testPath ?? '') + '\\u0000' + name + '\\u0000' + ordinal;
-        // The context the runner hands the body is the one it handed the
-        // case's \`beforeEach\`es, so it joins what they said to this case
-        // when cases run concurrently.
-        return caseScope.enter(key, () => fn.apply(this, given), given[0]);
-      };
-    }
-    const answered = api.apply(this, args);
-    return typeof answered === 'function' ? wrapCase(answered, depth + 1) : answered;
-  };
-  for (const key of Object.keys(api)) out[key] = wrapCase(api[key], depth + 1);
-  return out;
-};
-for (const holder of [${holders}]) {
-  if (holder === undefined || holder === null) continue;
-  for (const name of ['it', 'test']) {
-    if (typeof holder[name] === 'function') holder[name] = wrapCase(holder[name], 0);
-  }
-}
-${scopeGlobalsSource(holders)}`;
-}
-
-/**
- * The attending bracket for a runner that has no runner to replace, as source:
- * the counterpart of `onBeforeTryTask` in {@link caseRunnerSource}.
- *
- * Rstest calls the root's `beforeEach` hooks at the start of every attempt,
- * retries included, and the setup module registers this one before any of the
- * project's, so a journal opened in the project's `beforeEach` is already
- * attended. The attempt's `onTestFinished` callbacks run once its `afterEach`
- * hooks are done, which is where the bracket closes.
- *
- * @param api Source for the object that holds `beforeEach`.
- */
-export function attendingSource(api: string): string {
-  return `
-{
-  const attended = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
-  if (typeof attended?.begin === 'function') {
-    ${api}.beforeEach((context) => {
-      attended.begin();
-      context.onTestFinished(() => attended.leave());
-    });
   }
 }
 `;

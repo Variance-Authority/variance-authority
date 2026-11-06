@@ -1,7 +1,7 @@
 # Validate and correct
 
 Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
-parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
+parties answer: CI, CodeRabbit and Codex. A PR is handed over only
 when every check except a running `site` is green and every finding is
 classified.
 
@@ -34,7 +34,7 @@ gh pr edit <n> --remove-label agent:debugging --add-label agent:done
 
 `agent:done` means what handing over means: every check except a running
 `site` green, and every finding classified. A cycle that stops short of that,
-because you are blocked or waiting on the person who asked, takes
+because you are blocked on something outside the repository, takes
 `agent:debugging` off and does not put `agent:done` on. A PR with neither label is one nobody is working on and nobody
 has finished, and the report says why.
 
@@ -54,11 +54,23 @@ while done=$(gh pr checks <n> --json name,bucket --jq 'all(.[]; .name == "site" 
 gh pr checks <n>
 ```
 
-CodeRabbit is one of those checks, so the watch ends only after its review is
-complete. Then read what it found, classify it, and either go round again or
-hand over. A cycle you had to start by fixing something ends the same way, after
+CodeRabbit is one of those checks, and an opportunity, never a blocker: its
+check passes when it skipped a push or ran out of reviews, and neither is waited
+for. Read what it found, classify it, and either go round again or hand over.
+A cycle you had to start by fixing something ends the same way, after
 the push. A cycle that stops blocked does not wait for the checks: it takes the
 label off and says why, and the next cycle watches them.
+
+Before any step here and before reporting a PR's status, run `gh pr view <n>
+--json state,mergedAt` right then: a state read earlier goes stale. If
+`mergedAt` is set, stop, confirm `main` holds the commits with `git merge-base
+--is-ancestor`, and put follow-up on a fresh branch.
+
+A pushed PR that needs `origin/main` merges it and is never rebased: a rebase
+needs a force push, which moves the head a reviewer read out of the branch. A
+draft is never `agent:done`, because a draft is not handed over. `site` is not a
+gate and no agent adds the label that accepts its report, but what the site says
+is still reviewed: the public pages are the project's face.
 
 ## 6. Validate
 
@@ -67,19 +79,46 @@ label off and says why, and the next cycle watches them.
 **Every check but `site`, until each has finished**, with the watch above.
 
 **CodeRabbit.** It reviews pull requests here and reports as the `CodeRabbit` check, which
-reads `Review completed` when it is done. The inline comments are where the
+reads `Review completed` when it reviewed, and something else, such as `Review
+skipped` or `Review rate limited`, when it did not. A review it did not make is
+named in the report, never waited for. The inline comments are where the
 findings are:
 
 ```bash
 gh api --paginate repos/{owner}/{repo}/pulls/<n>/comments --jq '.[] | select(.user.login == "coderabbitai[bot]") | "\(.path):\(.line)\n\(.body)\n"'
 ```
 
+Its walkthrough also carries the pre-merge checks `.coderabbit.yaml` declares.
+An **Alignment** check that reads failed asks the same questions as the
+`alignment` reviewer of the pushed diff. Its finding is classified like a
+comment; one that is real goes back to the inner loop.
+
+**Codex.** The reviewers before the push and the agent that wrote the change
+share a model family, and they share its blind spots. Codex reads the open PR
+from another family, knowing nothing but the PR:
+
+```bash
+yarn review:codex <n>
+```
+
+It runs once per PR, in the first cycle on it that has `codex`, whoever opened the
+PR. It prints the review and posts nothing, since the run holds no GitHub or git
+credentials. The script owns what makes the run count: it starts from empty
+directories with an environment of its own and the Codex login alone, and fails
+when the log names a checkout of this repository or no file of the PR. A leaked
+run is made once more. Reading `AGENTS.md` or `REVIEW.md` from the PR's own tree
+is the repository, not a leak, and neither is a path the PR's own text quotes,
+which fails the script all the same. The model and effort stay as
+`tools/codex-review.mjs` sets them until a miss justifies more. A run that could
+not happen, for a missing `codex`, an expired login, a spent quota or a second
+refusal, is named in the report as not made, never waited for.
+
 **What CI says the change does.** `check.yml` posts two comments: a coverage
 report, compared with the unit suite's base record when one was restored, and
 "What this change might do", which names the cases that stood on the changed
 lines. Read them as evidence about your change. A comment describing code you
 did not touch, a base older than your branch point, or tests you expected and it
-does not name, is a finding. Rebase and let CI post again; if the comment is
+does not name, is a finding. Merge `origin/main` and let CI post again; if the comment is
 still wrong, it is a defect in the report, and it gets its own change.
 
 ## 7. Correct
@@ -87,7 +126,8 @@ still wrong, it is a defect in the report, and it gets its own change.
 ### Look around
 
 The failing check's log, the same check on `main`'s latest run, and the code
-each CodeRabbit comment names — read before you decide anything.
+each CodeRabbit comment and Codex finding names — read before you decide
+anything.
 
 **A red check is yours.** Read its log:
 
@@ -107,7 +147,7 @@ link or that reproduction's output.
 
 A fix made in this phase is reviewed before it is pushed, by the reviewers in
 [pull request](pull-request.md) its change concerns: fidelity on the diff it
-adds, description when the body changed, and direction when what the PR does
+adds, description when the body changed, and occam when what the PR does
 changed.
 
 **A CodeRabbit comment is a signal, not an instruction.** Classify each one
@@ -115,7 +155,8 @@ against `AGENTS.md`, its references and the code. A real defect goes where
 [change](change.md) draws the line: in the task's diff or in work it needs, on
 this branch; otherwise on its own branch. A finding that contradicts a rule
 here, or misreads the code, is left as it is. Never reply to a thread, never
-resolve one, and never tick its autofix checkboxes.
+resolve one, and never tick its autofix checkboxes. A Codex finding is
+classified the same way.
 
 **A comment on a top-layer page may be about its structure.** A reviewer asking
 why something is said, asking for an example, or adding a caveat to the first
@@ -135,5 +176,6 @@ A `site` still running is named as running.
 
 The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit
-findings you acted on and the ones you set aside, and why. It ends with what you
-need from the person who asked, even when that is one line.
+and Codex findings you acted on and the ones you set aside, and why. It ends with
+the merge, which is the owner's, and nothing else asked of her: every other decision
+was the loop's, and is named where it was made.

@@ -13,10 +13,13 @@
   },
   "coverage": {
     "model": 3,
-    "format": 10,
+    "format": 12,
+    "unkeyed": 11,
+    "unphased": 10,
     "uncased": 9,
     "untimed": 8,
     "noOwner": 4294967295,
+    "noBlob": 4294967295,
     "noDuration": 4294967295,
     "noLine": 0,
     "sections": [
@@ -28,10 +31,12 @@
       "tests.complete",
       "tests.preconditions",
       "tests.duration",
+      "tests.phases",
       "preconditions.name",
       "preconditions.digest",
       "modules.path",
       "modules.source",
+      "modules.blob",
       "modules.instrumented",
       "modules.blocks",
       "blocks.ordinal",
@@ -49,6 +54,15 @@
       "sets.off"
     ],
     "duration": "tests.duration",
+    "phases": "tests.phases",
+    "blob": "modules.blob",
+    "phaseNames": [
+      "prepare",
+      "environment",
+      "setup",
+      "collect",
+      "cases"
+    ],
     "parts": [
       [
         "index",
@@ -69,6 +83,10 @@
       [
         "base",
         "run.base"
+      ],
+      [
+        "readings",
+        "cases.readings"
       ]
     ],
     "blockKinds": [
@@ -80,7 +98,22 @@
       "loop",
       "case",
       "handler"
-    ]
+    ],
+    "spared": {
+      "none": [
+        "module",
+        "function",
+        "branch",
+        "continuation",
+        "resume",
+        "loop",
+        "case",
+        "handler"
+      ],
+      "bodies": [
+        "module"
+      ]
+    }
   },
   "sets": {
     "list": 0,
@@ -92,6 +125,7 @@
     "format": 3,
     "loadedSets": 2,
     "duration": "tests.duration",
+    "limit": "tests.limit",
     "lines": "lines.blob",
     "linesOffsets": "lines.off"
   }

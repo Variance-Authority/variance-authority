@@ -5,6 +5,7 @@
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -208,7 +209,8 @@ elements, beside the document, pixel and accessibility boundaries. It does not
 change the verdict. A comparable presentation signal has the two digests,
 information counts, and `introduced`, `resolved` or `persisted` effects; an
 empty `effects` list means both sides were measured and no relationship changed.
-An `incomparable` one gives a reason and no effects.
+A side with no reading, or no layout findings, makes the signal `changed` with
+a `because` that names that side and no effects.
 
 The CLI passes the signal through both the pixel-compared path and the path
 where a subject's document digest matched the baseline's, so it was declared
@@ -418,4 +420,4 @@ than becoming an empty list.
 
 ---
 
-**[@variance-authority/report](https://variance-authority.dev/reference/packages/report)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/report](https://variance-authority.dev/reference/packages/report)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/report) · MIT

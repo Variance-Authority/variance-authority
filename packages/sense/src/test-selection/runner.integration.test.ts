@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CHECKOUT_MARKER } from './cache-layers.js';
 import { lineAt, linesOf } from './case-lines.js';
-import { caseIndexOf } from './case-record.js';
+import { caseIndexOf, caseSectionsOf } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { openSetColumns } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
@@ -18,6 +18,8 @@ import { selectTestFiles } from './index.js';
 // through the export a runner's author imports.
 const { cutTestFile, instrumentModule, observeTestFile, registerRecording, RECORDING_VARIABLE } =
   (await import('@variance-authority/sense/runner')) as typeof import('./runner.js');
+
+const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,18 +37,26 @@ afterEach(async () => {
 
 /** Runs the fixture's own runner: `startRecording`, one forked process per test file, then `finish`. */
 async function record(...flags: string[]): Promise<{ coverageFile: string; stderr: string }> {
+  return await recordInto(await cacheDirectory(), flags);
+}
+
+async function cacheDirectory(): Promise<string> {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-runner-'));
   temporary.push(directory);
-  return await recordInto(directory, ...flags);
+  return directory;
 }
 
 /** The same run, with `directory` as its cache, so a test can put something there first. */
-async function recordInto(directory: string, ...flags: string[]): Promise<{ coverageFile: string; stderr: string }> {
+async function recordInto(
+  directory: string,
+  flags: readonly string[] = [],
+  asked: Readonly<Record<string, string>> = {},
+): Promise<{ coverageFile: string; stderr: string }> {
   const coverageFile = resolve(directory, 'coverage.bin');
   const { [RECORDING_VARIABLE]: _open, ...environment } = process.env;
   const { stderr } = await execute(process.execPath, [resolve(fixture, 'run.mjs'), ...flags], {
     cwd: fixture,
-    env: { ...environment, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
+    env: { ...environment, ...asked, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   return { coverageFile, stderr };
 }
@@ -54,6 +64,19 @@ async function recordInto(directory: string, ...flags: string[]): Promise<{ cove
 const lineIn = (source: string, text: string): number => source.slice(0, source.indexOf(text)).split('\n').length;
 
 describe('a runner with no seam, through @variance-authority/sense/runner', () => {
+  it('records which files each test file loaded under the loads recipe, with no case index', async () => {
+    const { coverageFile } = await record('--loads');
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.modules.every((module) => !module.instrumented && module.blocks.length === 0)).toBe(true);
+    expect(caseSectionsOf(await readFile(coverageFile)).index).toBeUndefined();
+    const label = await readFile(resolve(fixture, 'src/label.cjs'), 'utf8');
+    const line = lineIn(label, "    return 'took A';");
+    // Both files loaded the module; nothing says which of them reached the line.
+    await expect(selectTestFiles(coverageFile, `--- a/${at('src/label.cjs')}\n+++ b/${at('src/label.cjs')}\n@@ -${line},1 +${line},1 @@\n-    return 'took A';\n+    return 'went A';`))
+      .resolves.toEqual([at('test/alpha.case.mjs'), at('test/beta.case.mjs')]);
+  });
+
   it('records ES modules, CommonJS and TypeScript across processes, and selects the file that covered a changed line', async () => {
     const { coverageFile } = await record();
 
@@ -161,6 +184,22 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     expect(await reaching(uncut.coverageFile, 'decide > takes the alpha path')).toBeUndefined();
   }, 60_000);
 
+  it('writes a story for each case it runs under `VARIANCE_AUTHORITY_STORY=1`, and none without it', async () => {
+    const written = async (asked: Record<string, string>): Promise<string[]> => {
+      const directory = await cacheDirectory();
+      await recordInto(directory, [], asked);
+      const paths = (await readdir(directory, { recursive: true })).filter((path) => path.endsWith('.story'));
+      return (await Promise.all(paths.map(async (path) => stories.decodeStory(await readFile(resolve(directory, path))).name))).sort();
+    };
+
+    expect(await written({})).toEqual([]);
+    expect(await written({ VARIANCE_AUTHORITY_STORY: '1' })).toEqual([
+      'decide > takes the alpha path',
+      'decide > takes the beta path',
+      'decide > waits, then takes the alpha path',
+    ]);
+  }, 60_000);
+
   it('keeps the duration the runner passed to `finish` for each file and for each case it named', async () => {
     const { coverageFile } = await record();
 
@@ -171,6 +210,13 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     // The case that waits five milliseconds on a timer is the one the worker timed at five or more.
     const waited = cases.find((test) => test.name.includes('waits'));
     expect(waited?.duration).toBeGreaterThanOrEqual(5);
+  }, 60_000);
+
+  it('keeps the limit the runner passed to `finish` for each case it named', async () => {
+    const { coverageFile } = await record();
+
+    const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
+    expect(cases.map((test) => test.limit)).toEqual([5_000, 5_000, 5_000]);
   }, 60_000);
 
   it('says so when no process instrumented anything, rather than writing a record that reaches nothing quietly', async () => {
@@ -185,7 +231,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
   it('names a precondition\'s call site from the checkout in what it warns, as the row would', async () => {
     const { stderr } = await record('--says-a-wrong-value');
 
-    expect(stderr).toMatch(new RegExp(`variancePrecondition at ${at('worker.mjs')}:\\d+ takes a record of names to a string`));
+    expect(stderr).toMatch(new RegExp(`variancePrecondition at ${at('worker.mjs')}:\\d+ takes a dimension and a record of keys to values`));
   }, 60_000);
 
   it('keeps a file incomplete when its probes fired and nothing the run reads says what they meant', async () => {
@@ -244,7 +290,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       const broken = 'export const = ;\n';
       const code = instrumentModule(broken, resolve(fixture, 'src/broken.mjs'));
       expect(code.startsWith(broken)).toBe(true);
-      expect(code.slice(broken.length)).toMatch(new RegExp(`${at('src/broken.mjs')}@[0-9a-f]+[\\s\\S]*__vaE\\(\\);$`));
+      expect(code.slice(broken.length)).toMatch(new RegExp(`^\\n;globalThis\\.__VA__\\.m\\("${at('src/broken.mjs')}@[0-9a-f]+"\\);$`));
     } finally {
       if (open === undefined) delete process.env[RECORDING_VARIABLE];
       else process.env[RECORDING_VARIABLE] = open;

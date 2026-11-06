@@ -61,10 +61,11 @@ It performs no I/O, opens no file and resolves no specifier. It distinguishes
 edge kinds — a value import, a re-export, a dynamic import with a literal
 specifier, a type-only import, a stylesheet or asset reference, a declaration, a
 dependency between two installed packages —
-because those explain a finding, and one of them also decides a walk: a
-type-only import is erased before anything runs, so the default traversal walks
-every kind but that one, and a caller whose question is about source rather
-than a runtime names the full list. Type-only is the statement written
+because those explain a finding, and one of them also decides a runtime walk:
+a type-only import is erased before anything runs. A traversal walks every
+kind, because a type-only import is still a dependency, and a caller whose
+question is what a run loads — test selection — names the runtime list, every
+kind but that one. Type-only is the statement written
 `import type` or `export type`; an import whose names are each marked `type`
 inline stays a runtime edge, because the emitted statement may still load the
 module.

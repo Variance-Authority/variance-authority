@@ -22,25 +22,49 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | What is each package imported for, and which packages are imported past their entry? | `variance ask packages` | `docs_packages` on the workspace API server |
 | current workspace source | What does this package publish, and what do other packages import from it? | `variance ask entrypoint --package <name>` | `docs_entrypoint` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
+| current workspace source | What rests on this file or this name through imports, at any depth, and by which chain? | `variance ask discover --to <path>` or `--to <file>#<name>` | `docs_discover` on the workspace API server |
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 | current workspace source | What are the parts of this repository, and which packages does each one put in front? | `variance ask orient [--area <id>]` | `docs_orient` with no `files` on the workspace API server |
 | current workspace source | Which packages are these files in, what crosses their edges, which tests ran them, and what calls into them? | `variance ask orient --files <path>[:<line>][,...]` | `docs_orient` on the workspace API server |
 | current workspace source | Which third-party packages can this file already use, does the code import them, and which [agent skills](tech-stack.md#read-the-skills-a-package-ships) do they ship? | `variance ask stack --from <path> [--limit <n>] [--offset <n>]` | `docs_stack` on the workspace API server |
-| a recorded test run | Which test files and test cases did the runner spend longest in, under these tests or in the tests that entered this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
+| a recorded test run | Which test cases are closest to their limit, and which test files and cases did the runner spend longest in, under these tests or in the tests that ran this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--over <time>] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 
 1. **`search`, with a path already supplied by the editor, ticket or stack
    trace.** The words find candidate names. `--from` keeps candidates used by
    files reachable from that path, while `--to` keeps candidates used by files
-   that reach it.
+   that reach it. Those candidates are not every match;
+   `git grep -i <word>` prints every tracked line that writes it.
 2. `symbol`.
 3. `uses`.
 
 Those relations are resolved module imports, not runtime function calls. A
 member of an interface, a type literal or a class is never imported: `uses`
-names where a member by that name is declared, after any imports, and `grep
---to` the declaring file finds its callers.
+names where a member by that name is declared, after any imports, and under
+each declaration the lines that call, read, write or destructure it through a
+value whose type the line writes, such as `props: Props` or `value as Props`. A line
+whose value's type a checker would infer, `const p = getProps(); p.size`, or
+a JSX attribute such as `<Box size={2} />`, is not in that list, and the answer
+says so in two lines after the members. Finding those uses needs the type
+checker of the declaration's language, so the answer names the declaration's
+`file:line`, or with several declarations the one you
+pick from its list, for find-references in that
+language's tooling: TypeScript's language service for JavaScript and
+TypeScript. Members are read from JavaScript and TypeScript files only, so a
+Python class's methods and a Rust struct's fields and `impl` methods are not;
+top-level declarations are read in every language the index reads:
+JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. `symbol` answers a top-level
+declaration of the name first, in any of those languages, then each container
+that declares it as a member, with the member's `file:line`, and points to
+`uses`. A dotted name, `Tree.has`, asks for the member `has` of `Tree` alone.
+When the workspace also holds Python, Rust, Java, Kotlin or Swift files,
+an answer of `symbol` or `uses` that looked for members ends with a sentence
+that names those languages, whether or not it found one: a member of theirs
+is found by their language server's workspace symbols, then its
+find-references. Use `variance` for
+declarations, imports, the module graph and the recording, and the language's
+type checker for anything that needs a value's type.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working

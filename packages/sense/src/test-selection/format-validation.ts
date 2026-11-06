@@ -15,6 +15,8 @@
  * than an error, and an empty list is what a selector reads as "nothing to run".
  */
 
+import { BLOB, PHASE_NAMES } from './format-layout.js';
+
 /** Rows per section, keyed by the section's own name. */
 export type CoverageRows = Readonly<Record<string, number>>;
 
@@ -45,8 +47,10 @@ export function validateCoverageShape(rows: CoverageRows): void {
     rows['tests.complete'] !== tests ||
     rows['tests.preconditions'] !== tests + 1 ||
     (rows['tests.duration'] ?? tests) !== tests ||
+    (rows['tests.phases'] ?? tests * PHASE_NAMES.length) !== tests * PHASE_NAMES.length ||
     rows['preconditions.name'] !== rows['preconditions.digest'] ||
     rows['modules.source'] !== modules ||
+    (rows[BLOB] ?? modules) !== modules ||
     rows['modules.instrumented'] !== modules ||
     rows['modules.blocks'] !== modules + 1 ||
     rows['blocks.set'] !== blocks ||
@@ -74,9 +78,9 @@ export function csr(offsets: Uint32Array, values: number): void {
   }
 }
 
-/** Every value names a row of a table `count` long. */
-export function ids(values: Uint32Array, count: number): void {
-  for (const value of values) if (value >= count) fail();
+/** Every value names a row of a table `count` long, or is `absent` where a row may name none. */
+export function ids(values: Uint32Array, count: number, absent?: number): void {
+  for (const value of values) if (value >= count && value !== absent) fail();
 }
 
 /** A column that carries one bit carries nothing else. */

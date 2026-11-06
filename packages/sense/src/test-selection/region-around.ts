@@ -1,13 +1,14 @@
 /**
- * What a region nothing was carried onto reads off the regions around it.
+ * What a region nothing was found for reads off the regions around it, up the
+ * owners its cut recorded.
  *
- * A run's two records — the snapshot's rows and the case index — each place
- * held evidence on the regions cut now by identity, and a region the held cut
- * never had has no identity to be placed by. Both answer it with the nearest
- * region around it that something was carried onto; `around` in
- * `record_coverage_layer.rs` says why. Both name that region by the owner the cut recorded: a row by its
- * owner's ordinal, a case index region by its owner's position among the
- * module's regions.
+ * The case index keeps a region's owner as its position among the regions a
+ * transform wrote, and a region whose owner was not written takes the nearest
+ * written one up its owners (`keptOwners` in `cases.ts`). The snapshot's rows
+ * hand a region born in a re-cut the tests of the region around it by the same
+ * owners (`around` in `record_coverage_layer.rs`). The case index's carry reads
+ * its owner's decision as it walks the cut in order (`landedThrough` in
+ * `region-edit.ts`), as the recut does, and needs no walk.
  */
 
 /**

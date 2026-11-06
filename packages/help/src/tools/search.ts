@@ -1,19 +1,30 @@
-import type { FileSet, Tool, Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
+import { workspaceReadStarted } from '../snapshot.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
-import type { ExportedMatch, PublishedMatch } from './search-answer.js';
+import type { PublishedMatch } from './published-match.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, Searched, SearchQuestion } from './search-matches.js';
+import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
+import { unreadStop } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
+import { type ImportingOf, importingOf } from './published-match.js';
+import { byPublishedPath, plural } from './format.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
  *
  * Substring, case-insensitive, over the name and over what was written about
- * it. A match there is a fact about the text, so it is reported first, whole,
- * and in the order it has always been in.
+ * it; and several words, over the words a name is written in, each word
+ * matching one that starts with it or shares its stem. A match there is a fact
+ * about the text, so it is reported first, ordered first by where it
+ * was found — the whole name, as written and then in another case, part of the
+ * name, the doc's opening paragraph, the rest of the doc — and then by who
+ * imports it: a name that is the word is what was asked for, a name holding it
+ * is that thing, and a doc saying it three paragraphs down only mentions it.
  *
  * ## Two halves, because most code is not published
  *
@@ -47,24 +58,36 @@ import { searched, searchedFiles } from './search-answer.js';
  * cannot be reached by a name they already returned. It appends names they did
  * not, under a heading that says how they were matched, and when it has nothing
  * to append it prints nothing at all. So an answer that used to be clean stays
- * clean, and *nothing matched* still means the substring matched nothing — now
- * said over a wider net, and saying so.
+ * clean, and the line above what it appends still says the substring matched
+ * nothing — as a miss of the text typed, since *nothing* over a list of names
+ * would read as a miss of the code.
  *
  * The order inside it is the order the sections above use, by consumers and
  * then by name. The index decides membership; it is never allowed to decide
  * position, because a caller who can see why a name is in a list can check it,
  * and a caller reading a rank has to trust it.
  *
- * ## A description, read the way a package's is
+ * ## A description, stemmed the way a package's is
  *
  * An agent that cannot name the thing describes it, and a description holds
  * words the name does not: `which tests entered a file`. Beside the loose pass
  * runs the reading the installed packages already get — the question cut into
- * stems, stopwords dropped, and a name answering when it holds half of them —
- * so the repository's own names answer before any package that says the same
- * words. Its order is counts, written next to each row as the words it holds:
+ * stems, stopwords dropped — with one difference: a package answers when it
+ * holds half of them, and the repository's own name when it holds any. So the
+ * repository's own names answer before any package that says the same
+ * words, and a name holding one word of three is answered rather than reported
+ * as nothing. A file answers beside them, by its own name and the doc it opens with,
+ * since what a file is for is said once at its top and by no one declaration
+ * in it. Its order is counts, written next to each row as the words it holds:
  * a caller can check `[holds: file, tests]`, and could not check a score.
- * It prints first, so a name it holds is not offered again by the loose pass.
+ * Between two that hold as many, the one whose name holds more of them comes
+ * first, then the one whose doc writes more of the question's adjacent word
+ * pairs adjacent. Every word one of them holds is held by a row shown, so a name
+ * holding the one rare word is shown however many holding a common one sort
+ * before it. It prints first, so a name holding at least half the stems
+ * is not offered again by the loose pass. A name holding fewer is the loose
+ * pass's when that pass reaches it, by every word, so on three words or more a
+ * long list of names holding one stem cannot sort it past the rows shown.
  *
  * ## Where the substring stops being enough
  *
@@ -84,21 +107,28 @@ import { searched, searchedFiles } from './search-answer.js';
  * did not type and can never reach a file they ruled out.
  */
 
-/** One published match, as the text answer has always written it. */
+/**
+ * Who imports a published match, each count saying what it counts: the places
+ * and the packages they sit in, as `uses` counts them; or, given without the
+ * Help value, the imports from other packages by a published specifier.
+ */
+function importedLine(match: PublishedMatch): string {
+  const { importedIn } = match;
+  if (importedIn !== undefined) {
+    return importedIn.places === 0 ? 'imported nowhere' : `imported in ${plural(importedIn.places, 'place')} in ${plural(importedIn.packages, 'package')}`;
+  }
+  return byPublishedPath(match.otherImports, match.otherPackages);
+}
+
+/** One published match: where it is published, what it is, who imports it, and the sentence of its doc that holds the question. */
 function publishedLine(match: PublishedMatch): string {
   const { inArea } = match;
   const said = match.summary ?? 'UNDOCUMENTED';
-  if (inArea === undefined) {
-    return `${match.specifier} · ${match.name} [${match.kind}] ${match.packages} packages, ${match.imports} imports — ${said}`;
-  }
+  if (inArea === undefined) return `${match.specifier} · ${match.name} [${match.kind}] ${importedLine(match)} — ${said}`;
   const distances = inArea.filesByDistance.map(([at, files]) => `${at}: ${files}`).join(', ');
-  const fileWord = inArea.files === 1 ? 'file' : 'files';
-  const importWord = inArea.imports === 1 ? 'import' : 'imports';
-  const packageWord = match.packages === 1 ? 'package' : 'packages';
-  const globalImportWord = match.imports === 1 ? 'import' : 'imports';
   return (
-    `${match.specifier} · ${match.name} [${match.kind}] ${inArea.files} ${fileWord}, ${inArea.imports} ${importWord} in this area ` +
-    `(files by distance: ${distances}); globally ${match.packages} ${packageWord}, ${match.imports} ${globalImportWord} — ${said}`
+    `${match.specifier} · ${match.name} [${match.kind}] ${plural(inArea.files, 'file')}, ${plural(inArea.imports, 'import')} in this area ` +
+    `(files by distance: ${distances}); across the repository ${importedLine(match)} — ${said}`
   );
 }
 
@@ -106,16 +136,27 @@ function publishedLine(match: PublishedMatch): string {
 function exportedLine(match: ExportedMatch): string {
   const rest = match.files - 1;
   const more = rest === 0 ? '' : ` (+${rest} more ${rest === 1 ? 'file' : 'files'})`;
-  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}`;
+  const said = match.summary === undefined ? '' : ` — ${match.summary}`;
+  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}${said}`;
 }
 
-const matchLine = (match: PublishedMatch | ExportedMatch): string =>
-  match.source === 'published' ? publishedLine(match) : exportedLine(match);
+/** One described file: the path, who holds it, and what the doc it opens with says first. */
+function fileLine(match: FileMatch): string {
+  return `${match.at} [file] — ${match.package ?? 'the repository'}${match.summary === undefined ? '' : ` — ${match.summary}`}`;
+}
+
+const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
+  match.source === 'published' ? publishedLine(match) : match.source === 'exported' ? exportedLine(match) : declaredLine(match);
+
+const describedRow = (match: DescribedMatch): string =>
+  `${match.source === 'file' ? fileLine(match) : matchLine(match)} [holds: ${match.words.join(', ')}]`;
 
 /*
  * The loose pass — names the words reach when they are allowed apart and
- * allowed one character off — is `looseNames` in `loose.ts`, and what it
- * found is the `loose` section of the answer `search-answer.ts` builds.
+ * allowed one character off — is `looseNames` in `loose.ts` for the names a
+ * row holds and `looseDeclarations` in `loose-declared.ts` for the ones a file
+ * keeps to itself, and what they found is the `loose` section of the answer
+ * `search-answer.ts` builds.
  */
 
 const encoded = new WeakMap<Help, SearchIndex>();
@@ -130,10 +171,24 @@ export function searchIndexOf(help: Help): SearchIndex {
   return index;
 }
 
+/** The question `search` is asked by `input`, as its schema accepted it. */
+export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {
+  return { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+}
+
 /** The search over an opened index — what `docs_search` answers, without the Help value. */
-export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string): string {
-  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
-  const { answer, area } = searched(index, question, tree, root);
+export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
+  return spoken(searched(index, searchQuestionOf(input), tree, root, importing), root);
+}
+
+/** A list under its head, cut at what `found` shows and saying so; nothing when it holds none. */
+function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => string): readonly string[] {
+  if (found.total === 0) return [];
+  return ['', head, '', ...found.shown.map(line), ...(found.total > found.shown.length ? [`\n${found.total - found.shown.length} more not shown.`] : [])];
+}
+
+/** What a search says of what it found. */
+function spoken({ answer, area }: Searched, root: string | undefined): string {
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
@@ -141,7 +196,10 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   const rest = answer.exported ?? { total: 0, shown: [] };
   const looser = answer.loose?.total ?? 0;
   const third = answer.thirdParty;
-  const missing = root !== undefined && third === undefined ? ['', 'Dependency lexicon not published; run `variance index` to prepare it.'] : [];
+  const lexicon = root !== undefined && third === undefined ? ['', 'Dependency lexicon not published; run `variance index` to prepare it.'] : [];
+  // Said once, as `uses` says it, below the rows it leaves short.
+  const unreadImports = answer.importsUnread === undefined ? [] : ['', `Imports that do not name a package path are not counted: ${answer.importsUnread}.`];
+  const missing = [...unreadImports, ...lexicon];
   const thirdSection = third === undefined ? [] : third.total === 0 ? ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`] : [
     '',
     `${third.total} third-party ${third.total === 1 ? 'name' : 'names'} match \`${query}\`, ` +
@@ -152,7 +210,9 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   ];
   const described = third?.described ?? [];
   const describedSection =
-    described.length === 0
+    third?.describedUnread !== undefined
+      ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
+      : described.length === 0
       ? []
       : [
           '',
@@ -179,10 +239,10 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name in this repository holds' : 'names in this repository hold'} at least half the words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words in the name, then the words held at all.',
+          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} most of \`${query}\`, ` +
+            'the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.',
           '',
-          ...held.shown.map((match) => `${matchLine(match)} [holds: ${match.words.join(', ')}]`),
+          ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
         ];
   // This repository's own names before any installed package's: the question
@@ -195,12 +255,38 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   // where the tool looked has been handed a fact they cannot place.
   const where = area === undefined ? [] : [areaLine(area), ''];
 
-  if (found.total === 0 && rest.total === 0 && (third?.total ?? 0) === 0) {
+  // Below the exports, since none of these is a name its file hands out.
+  const place = area === undefined ? 'somewhere in the repository' : 'in that area';
+  const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
+  const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
+  const inside = answer.held ?? { total: 0, shown: [] };
+  const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine);
+  const aliases = answer.aliases ?? { total: 0, shown: [] };
+  const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
+  const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
+  const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
+
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
+    // It names what the substring read, and no more: a local that is no function
+    // is in no index, a closure's doc is its holder's, and the doc a file opens
+    // with is read only for the words, so a file may still write the phrase.
+    const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
+    const read = answer.declared === undefined
+      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
+      : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
+    // A miss of the text is not a miss of the code: with names to offer, the line
+    // says only that the text was not written. Inside an area the text may be
+    // written outside it, so the way to widen stays.
     const nowhere =
-      area === undefined
-        ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
-        : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+      own.length > 0
+        ? area === undefined
+          ? `${read}. The nearest follow.`
+          : `${read} — ask again without \`from\`/\`to\` to search the whole workspace. The nearest in reach follow.`
+        : area === undefined
+        ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
+        : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
+    const stop = unreadStop(answer.membersUnread ?? []);
+    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -218,7 +304,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
           ...more,
         ];
 
-  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
 
   const hidden = rest.total > rest.shown.length ? [`\n${rest.total - rest.shown.length} more not shown.`] : [];
 
@@ -232,6 +318,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     ...hidden,
     '',
     `From a file above to what surrounds it: \`variance ask orient --files ${rest.shown[0]!.at}\`.`,
+    ...declaredSection,
     ...own,
     ...thirdSection,
     ...describedSection,
@@ -253,17 +340,24 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find names whose name or documentation contains a string, case-insensitive. Published names ' +
-    'come first, ordered by how many packages import them, each carrying the import specifier it ' +
+    'Find candidate names, not every match; `git grep -i <word>` prints every tracked line that writes a word. ' +
+    'A name matches when its name or documentation contains a string, case-insensitive, or when its words ' +
+    'start with or share the stem of every word you typed. Published names come first, a name holding ' +
+    'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
+    'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +
+    'that import them, each labelled with those places and packages as docs_uses counts them, and carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
-    'but does not publish follow, with the file and line that exports them. Installed third-party ' +
+    'but does not publish follow, with the file and line that exports them, then names a file ' +
+    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
+    'functions inside a function under what holds them, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
-    'repository holds the query as written, its own names holding at least half of your words, read by ' +
-    'stem, come before any installed package, best first by the words in the name, each labelled with ' +
-    'the words it holds; names that match loosely — your words apart, or within a character of the ' +
-    'ones written — follow them. Neither is mixed into the sections above. On a large ' +
+    'repository holds the query as written, its own names and files holding any of your words, ' +
+    'read by stem, come before any installed package, a file by its name and the doc it opens with, best ' +
+    'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
+    'each labelled with the words it holds; names that match loosely — your words apart, or within a ' +
+    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
     'answers with published names imported by the files that path reaches; `to` does the same ' +
@@ -305,9 +399,35 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree, invocation?.root),
+  run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root),
 
   files: (help, input, invocation): FileSet => ({
-    files: searchedFiles(searchIndexOf(help), { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') }, invocation?.tree),
+    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
 };
+
+/** The last search of each generation, and what it was asked. */
+const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: Tree | undefined; readonly found: Searched }>();
+
+/** One search for an answer and the look at its files, which asks the same of the same generation just after it. */
+function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Searched {
+  const question = searchQuestionOf(input);
+  const asked = JSON.stringify([question, invocation?.root]);
+  const last = lastSearched.get(help);
+  if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
+  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), workspaceReadStarted(help));
+  lastSearched.set(help, { asked, tree: invocation?.tree, found });
+  return found;
+}
+
+/**
+ * The files of the rows `run` prints, and the entries and barrels that make a
+ * row published, which the count of that row walked already. `search.files` is
+ * every match, a set another question crosses; a row past the cap is no part of
+ * this answer, so the count printed above the rows stays the generation's.
+ */
+export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
+  const { answer, publishing = [] } = searchedOnce(help, input, invocation);
+  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
+  return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
+}

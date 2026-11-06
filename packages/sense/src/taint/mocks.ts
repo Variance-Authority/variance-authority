@@ -7,24 +7,28 @@
  * `api.ts` is one no execution follows, and a change to `api.ts` selects that
  * test for nothing. This reads those calls off the tree and subtracts them.
  *
- * ## The real module, loaded by name, is an import
+ * ## A factory replaces an import; it does not request one
  *
- * `jest.requireActual('./api')` and `vi.importActual('./api')` load the real
- * module wherever they are written — in the factory, in a `beforeEach` that
- * hands a mock the original implementation, anywhere in the file. Each is a
- * plus: the file imports `./api`, and a mock of `./api` in the same file cuts
- * nothing, because the run enters the real module through that call. A factory
- * taking vitest's `importOriginal` argument does the same for the module it
- * mocks, and so does a `{ spy: true }` option. A factory that loads a
- * different module (`jest.mock('./a', () => jest.requireActual('./b'))`) cuts
- * `./a` and adds `./b`, which is what runs.
+ * A factory loading its own target cancels the replacement: `jest.mock('./api',
+ * () => jest.requireActual('./api'))` preserves an existing import and adds
+ * nothing when the file never imports `./api`. The same holds for vitest's
+ * `importOriginal` callback, `{ spy: true }`, and an opaque factory.
+ *
+ * Loading a different target in the factory cuts the mocked module and adds
+ * the loaded one: `jest.mock('./api', () => require('./other'))` is minus
+ * `./api`, plus `./other`. Literal `require`, `module.require`, `requireActual`
+ * and `importActual` follow this rule. A `requireActual` or `importActual`
+ * outside the factory is an independent real load, including a `beforeEach`
+ * that restores an implementation: it remains a plus and prevents a mock of
+ * that target from cutting it.
  *
  * ## What is not subtracted
  *
  * A factory that is not written inside the call — an identifier, a member,
  * anything but a function literal — has a body this cannot read, and a body
- * this cannot read is assumed to reach the original; so is a factory loading
- * the real thing by a specifier that is not a string literal. `vi.doMock` and
+ * this cannot read preserves existing imports of the original without adding
+ * one; so does a factory loading the real thing by a specifier that is not a
+ * string literal. `vi.doMock` and
  * `jest.doMock` replace only what is imported after they run, and the static
  * imports above them ran the real module: they are not read. `vi.unmock` and
  * `jest.unmock` restore an edge the file wrote, and the file's own row already
@@ -41,9 +45,10 @@
  *
  * The module reader already holds the tree, so it reads the default callers'
  * mocks while it is there and the parse carries them ({@link mockDiff}). This
- * taint answers from that parse and opens nothing. The scan records what the
- * file writes and never applies it: records keep every edge, and only a caller
- * that passes this taint sees the cut. A taint with its own `callers` asks a
+ * taint answers from that parse and opens nothing. The scan keeps written
+ * imports, except a factory's same-target `require`: that forwarding call is
+ * part of the replacement, not an independent request. Only a caller that
+ * passes this taint sees the remaining mock cuts. A taint with its own `callers` asks a
  * question the scan did not, and reads the file.
  */
 
@@ -110,32 +115,49 @@ export function mockDiff(
   // A file that neither mocks nor loads an original has nothing to say. The parse is the cost this skips.
   if (!mayMock(source)) return undefined;
 
-  const mocked: string[] = [];
+  const mocked = new Set<string>();
   const actual = new Set<string>();
-  each(program(), (node) => {
+  const preserved = new Set<string>();
+  const read = (node: Node, factory?: string): boolean | undefined => {
     const method = methodOf(node, callers);
-    if (method === undefined) return;
+    const required = factory !== undefined && requires(node);
+    if (method === undefined && !required) return;
     const [subjectArgument, ...rest] = node.arguments as readonly Node[];
     const specifier = specifierOf(subjectArgument);
     if (specifier === undefined) return;
-    if (ACTUAL.has(method)) {
-      actual.add(specifier);
+    if (required || (method !== undefined && ACTUAL.has(method))) {
+      if (factory === specifier) preserved.add(specifier);
+      else actual.add(specifier);
       return;
     }
-    if (!MOCKING.has(method)) return;
-    if (rest.some((argument) => opaque(argument) || spies(argument) || original(argument, callers))) {
-      actual.add(specifier);
-      return;
+    if (method === undefined || !MOCKING.has(method)) return;
+    if (rest.some((argument) => opaque(argument) || spies(argument) || original(argument, callers))) preserved.add(specifier);
+    else mocked.add(specifier);
+    for (const [index, argument] of rest.entries()) {
+      const deferred = index === 0 && ['ArrowFunctionExpression', 'FunctionExpression'].includes(argument.type);
+      each(argument, (inner) => read(inner, deferred ? specifier : factory));
     }
-    mocked.push(specifier);
-  });
+    return false;
+  };
+  each(program(), read);
 
   // Sets, sorted by code unit: a diff is compared across the two readers that
   // write it, and neither's walk order is part of the answer.
-  const minus = [...new Set(mocked)].filter((specifier) => !actual.has(specifier)).sort(codeUnitOrder);
+  const minus = [...mocked].filter((specifier) => !actual.has(specifier) && !preserved.has(specifier)).sort(codeUnitOrder);
   const plus = [...actual].sort(codeUnitOrder);
   if (minus.length === 0 && plus.length === 0) return undefined;
   return { ...(minus.length === 0 ? {} : { minus }), ...(plus.length === 0 ? {} : { plus }) };
+}
+
+/** The native loader's two CommonJS spellings, only deferred under a mock factory. */
+function requires(node: Node): boolean {
+  if (node.type !== 'CallExpression') return false;
+  const callee = node.callee as Node;
+  if (callee.type === 'Identifier') return callee.name === 'require';
+  if (callee.type !== 'MemberExpression' || callee.computed === true) return false;
+  const object = callee.object as Node;
+  const property = callee.property as Node;
+  return object.type === 'Identifier' && object.name === 'module' && property.type === 'Identifier' && property.name === 'require';
 }
 
 /** `mock` in `vi.mock(…)`, when `vi` is one of the callers. */
@@ -174,18 +196,178 @@ function opaque(node: Node): boolean {
 }
 
 /**
- * A factory that reaches the module it mocks: vitest's `importOriginal`, or an
- * original loaded by a specifier this cannot read. An original loaded by a
- * literal is read as its own plus wherever it is written.
+ * A factory that reaches the module it mocks: one that refers to the loader
+ * vitest passes as its first argument, whatever the parameter is named, or
+ * that loads an original by a specifier this cannot read. An original loaded
+ * by a literal is normalized against the target of its own factory.
+ *
+ * A reference counts, called or not: an alias or a helper handed the loader
+ * reaches the original as surely as a call. A destructured first parameter
+ * takes the loader apart and keeps no way to call it; a factory with no
+ * parameter reaches the original only through `importActual` or
+ * `requireActual`, or through `arguments` in a `function` factory.
  */
 function original(node: Node, callers: ReadonlySet<string>): boolean {
+  if (loads(node)) return true;
   let found = false;
   each(node, (inner) => {
-    if (inner.type === 'Identifier' && String(inner.name) === 'importOriginal') found = true;
     const method = methodOf(inner, callers);
     if (method !== undefined && ACTUAL.has(method) && specifierOf((inner.arguments as readonly Node[])[0]) === undefined) found = true;
   });
   return found;
+}
+
+/** Whether a factory literal refers to the loader it is called with. */
+function loads(node: Node): boolean {
+  if (node.type !== 'ArrowFunctionExpression' && node.type !== 'FunctionExpression') return false;
+  // A `this` parameter is a type, and the loader is the parameter after it.
+  const parameters = (node.params as readonly Node[]).filter((parameter) => parameter.type !== 'Identifier' || parameter.name !== 'this');
+  const names = new Set(loadersOf(parameters[0]));
+  if (node.type === 'FunctionExpression') names.add('arguments');
+  return names.size > 0 && (parameters.some((parameter) => pattern(parameter, names)) || refers(node.body as Node, names));
+}
+
+/**
+ * The names a first parameter holds the loader by: `load`, `load = fallback`,
+ * and every name a rest parameter binds, `...given` or `...[load]`. A
+ * destructured plain parameter takes the loader apart and holds none.
+ */
+function loadersOf(parameter: Node | undefined): readonly string[] {
+  if (parameter?.type === 'Identifier') return [String(parameter.name)];
+  if (parameter?.type === 'AssignmentPattern') return loadersOf(parameter.left as Node);
+  return parameter?.type === 'RestElement' ? bound(parameter.argument as Node) : [];
+}
+
+/** Every name a binding pattern binds. */
+function bound(node: Node | null): readonly string[] {
+  switch (node?.type) {
+    case 'Identifier':
+      return [String(node.name)];
+    case 'AssignmentPattern':
+      return bound(node.left as Node);
+    case 'RestElement':
+      return bound(node.argument as Node);
+    case 'ArrayPattern':
+      return (node.elements as readonly (Node | null)[]).flatMap(bound);
+    case 'ObjectPattern':
+      return (node.properties as readonly Node[]).flatMap((property) => bound((property.type === 'Property' ? property.value : property) as Node));
+    default:
+      return [];
+  }
+}
+
+/** Keys and labels spell a name; only these node kinds read one. */
+const KEYED = new Set(['MethodDefinition', 'PropertyDefinition', 'AccessorProperty', 'TSPropertySignature', 'TSMethodSignature', 'TSAbstractMethodDefinition', 'TSAbstractPropertyDefinition', 'TSAbstractAccessorProperty']);
+
+/**
+ * Whether `node` reads one of `names` where oxc reads an `IdentifierReference`:
+ * not as a key, a member name, a label or a meta property, and not where a
+ * pattern binds it.
+ */
+function refers(node: Node, names: ReadonlySet<string>): boolean {
+  let found = false;
+  const read = (inner: Node | undefined): void => {
+    if (inner !== undefined && inner !== null && !found) found = refers(inner, names);
+  };
+  each(node, (inner) => {
+    if (found) return false;
+    switch (inner.type) {
+      case 'Identifier':
+        found = names.has(String(inner.name));
+        return false;
+      case 'JSXIdentifier':
+        return false;
+      case 'JSXOpeningElement':
+        found = jsxReads(inner.name as Node, names);
+        for (const attribute of inner.attributes as readonly Node[]) read(attribute);
+        return false;
+      case 'JSXAttribute':
+        read(inner.value as Node);
+        return false;
+      case 'MetaProperty':
+      case 'BreakStatement':
+      case 'ContinueStatement':
+        return false;
+      case 'LabeledStatement':
+        read(inner.body as Node);
+        return false;
+      case 'MemberExpression':
+        read(inner.object as Node);
+        if (inner.computed === true) read(inner.property as Node);
+        return false;
+      case 'Property':
+        if (inner.computed === true) read(inner.key as Node);
+        read(inner.value as Node);
+        return false;
+      case 'VariableDeclarator':
+        found = pattern(inner.id as Node, names);
+        read(inner.init as Node);
+        return false;
+      case 'CatchClause':
+        if (inner.param) found = pattern(inner.param as Node, names);
+        read(inner.body as Node);
+        return false;
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression':
+        found = (inner.params as readonly Node[]).some((parameter) => pattern(parameter, names));
+        read(inner.returnType as Node);
+        read(inner.body as Node);
+        return false;
+      case 'ClassDeclaration':
+      case 'ClassExpression':
+        for (const decorator of (inner.decorators ?? []) as readonly Node[]) read(decorator);
+        read(inner.superClass as Node);
+        read(inner.body as Node);
+        return false;
+      case 'TSTypeParameter':
+        read(inner.constraint as Node);
+        read(inner.default as Node);
+        return false;
+    }
+    if (KEYED.has(inner.type)) {
+      if (inner.computed === true) read(inner.key as Node);
+      for (const key of ['decorators', 'value', 'typeAnnotation', 'params', 'returnType'] as const) {
+        for (const child of [inner[key]].flat() as Node[]) read(child);
+      }
+      return false;
+    }
+    return undefined;
+  });
+  return found;
+}
+
+/** Whether a binding pattern reads one of `names`: in a default, a computed key or a type. */
+function pattern(node: Node, names: ReadonlySet<string>): boolean {
+  switch (node.type) {
+    case 'Identifier':
+      return node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false;
+    case 'AssignmentPattern':
+      return pattern(node.left as Node, names) || refers(node.right as Node, names);
+    case 'RestElement':
+      return pattern(node.argument as Node, names) || (node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false);
+    case 'ArrayPattern':
+      return (node.elements as readonly (Node | null)[]).some((element) => element !== null && pattern(element, names)) || (node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false);
+    case 'ObjectPattern':
+      return (
+        (node.properties as readonly Node[]).some((property) =>
+          property.type === 'RestElement'
+            ? pattern(property, names)
+            : (property.computed === true && refers(property.key as Node, names)) || pattern(property.value as Node, names),
+        ) || (node.typeAnnotation ? refers(node.typeAnnotation as Node, names) : false)
+      );
+    case 'TSParameterProperty':
+      return pattern(node.parameter as Node, names);
+    default:
+      return refers(node, names);
+  }
+}
+
+/** A JSX element name reads a binding when oxc reads it as one: a tag that does not start in lower case, or the root of a member tag. */
+function jsxReads(name: Node, names: ReadonlySet<string>): boolean {
+  let root = name;
+  while (root.type === 'JSXMemberExpression') root = root.object as Node;
+  return root.type === 'JSXIdentifier' && (root !== name || !/^[a-z]/u.test(String(root.name))) && names.has(String(root.name));
 }
 
 /** `{ spy: true }` — the original runs, wrapped. */
@@ -198,8 +380,8 @@ function spies(node: Node): boolean {
   });
 }
 
-function each(node: Node, visit: (node: Node) => void): void {
-  visit(node);
+function each(node: Node, visit: (node: Node) => boolean | undefined | void): void {
+  if (visit(node) === false) return;
   for (const key of Object.keys(node)) {
     const value = node[key];
     if (value === null || typeof value !== 'object') continue;

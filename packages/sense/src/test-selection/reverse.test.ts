@@ -373,6 +373,17 @@ describe('a region that ran while its module evaluated', () => {
     expect(coveringTests(loadedIndex, at, { relations }).map((test) => test.id)).toEqual(['staff', 'guest']);
   });
 
+  it('leaves out a case whose file imports the module for its types alone', () => {
+    // Nothing behind `import type` runs, so `other.test.ts` never evaluated the module.
+    const relations = relationsOfFiles([
+      { file: 'src/cart/total.ts' },
+      { file: 'test/cart.test.ts', edges: [{ to: 'src/cart/total.ts', kind: 'imports' }] },
+      { file: 'test/other.test.ts', edges: [{ to: 'src/cart/total.ts', kind: 'type' }] },
+    ]);
+
+    expect(coveringTests(loadedIndex, at, { relations }).map((test) => test.id)).toEqual(['staff', 'guest']);
+  });
+
   it('has no answer when the graph names none of the recorded cases', () => {
     // A browser spec reaches a page-side module through the page, never an
     // import: somebody loaded it, and the graph cannot say who.

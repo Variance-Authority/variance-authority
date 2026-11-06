@@ -23,38 +23,28 @@ export interface PresentationSignalOptions {
 /**
  * Project presentation evidence into the durable regression-report signal.
  *
- * Missing reports or layout findings are incomparable, never clean. The result
- * records consequences without changing the regression verdict or prescribing
- * a design response.
+ * A side with no reading or no layout findings is `changed`, naming that side,
+ * and never clean. A reading without layout findings has not measured the
+ * layout, so neither side measured is no signal at all: the member is
+ * absent, as it is when no producer looked. The result records consequences
+ * without changing the regression verdict or prescribing a design response.
  */
 export function presentationSignal(
   before: PresentationReport | undefined,
   after: PresentationReport | undefined,
   options: PresentationSignalOptions = {},
-): PresentationSignalRecord {
-  if (before === undefined || after === undefined) {
+): PresentationSignalRecord | undefined {
+  const beforeFindings = before === undefined ? undefined : findingsOf(before, options.beforeHierarchy ?? []);
+  const afterFindings = after === undefined ? undefined : findingsOf(after, options.afterHierarchy ?? []);
+  if (beforeFindings === undefined && afterFindings === undefined) return undefined;
+  if (before === undefined || after === undefined || beforeFindings === undefined || afterFindings === undefined) {
+    const side = beforeFindings === undefined ? 'the baseline' : 'the candidate';
+    const report = beforeFindings === undefined ? before : after;
     return {
-      verdict: 'incomparable',
-      because:
-        before === undefined && after === undefined
-          ? 'neither side supplied a presentation reading'
-          : `${before === undefined ? 'the baseline' : 'the candidate'} supplied no presentation reading`,
+      verdict: 'changed',
+      because: `${side} ${report === undefined ? 'supplied no presentation reading' : 'contained no layout findings'}`,
       ...(before === undefined ? {} : { before: before.digest }),
       ...(after === undefined ? {} : { after: after.digest }),
-    };
-  }
-
-  const beforeFindings = findingsOf(before, options.beforeHierarchy ?? []);
-  const afterFindings = findingsOf(after, options.afterHierarchy ?? []);
-  if (beforeFindings === undefined || afterFindings === undefined) {
-    return {
-      verdict: 'incomparable',
-      because:
-        beforeFindings === undefined && afterFindings === undefined
-          ? 'neither presentation reading contained layout findings'
-          : `${beforeFindings === undefined ? 'the baseline' : 'the candidate'} contained no layout findings`,
-      before: before.digest,
-      after: after.digest,
     };
   }
 

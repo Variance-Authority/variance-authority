@@ -35,7 +35,8 @@ export const BY_PATH: Help = {
         {
           subpath: '.',
           source: 'packages/lib/src/index.ts',
-          entries: [{ name: 'greet', kind: 'function', at: 'packages/lib/src/greet.ts', line: 1, usedBy: ['@acme/app'], uses: 1, sites: [] }],
+          entries: [{ name: 'greet', kind: 'function', at: 'packages/lib/src/greet.ts', line: 1, usedBy: ['@acme/app'], uses: 1, sites: [], throughDefault: [] }],
+          whole: [],
         },
       ],
     },
@@ -99,7 +100,8 @@ export const SUBPATHS_ONLY: Help = {
         {
           subpath: './server',
           source: 'packages/srv/src/server.ts',
-          entries: [{ name: 'listen', kind: 'function', at: 'packages/srv/src/server.ts', line: 1, usedBy: ['@acme/app'], uses: 1, sites: [] }],
+          entries: [{ name: 'listen', kind: 'function', at: 'packages/srv/src/server.ts', line: 1, usedBy: ['@acme/app'], uses: 1, sites: [], throughDefault: [] }],
+          whole: [],
         },
       ],
     },

@@ -63,6 +63,10 @@ interface ConsumedLocatorBase {
   readonly before?: readonly TargetSnapshot[];
 }
 
+/**
+ * One call a test made on a Playwright Locator, once it ran: an action, a read
+ * or an `expect` assertion, and whether it resolved or threw.
+ */
 export type ConsumedLocatorAttention =
   | (ConsumedLocatorBase & {
       readonly outcome: 'resolved';

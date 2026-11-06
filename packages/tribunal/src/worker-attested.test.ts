@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { RunReport } from '@variance-authority/report';
 import { createTribunal, type Tribunal } from './worker.js';
-import { createMemoryR2, createSqliteD1 } from './testing.js';
+import { bearerPolicy, createMemoryR2, createSqliteD1 } from './testing.js';
 
 /**
  * What a machine holding the share token may read about review: what was
@@ -59,14 +59,12 @@ function buildOf(build: string, subjects: readonly string[]): unknown {
 let worker: Tribunal;
 
 beforeEach(async () => {
-  variancePrecondition({ network: 'stubbed' });
+  variancePrecondition('fixture', { network: 'stubbed' });
   worker = createTribunal({
     db: await createSqliteD1(),
     bucket: createMemoryR2(),
     project: 'todomvc',
-    ingestToken: INGEST,
-    reviewToken: REVIEW,
-    shareToken: SHARE,
+    policy: bearerPolicy({ ingest: INGEST, review: REVIEW, share: SHARE }),
   });
 });
 
@@ -99,7 +97,7 @@ async function decided(): Promise<void> {
 
 describe('the share token reads what review settled', () => {
   it('reads the changelog of approvals', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
     const response = await call('/review/changelog?subject=story:a', SHARE);
     expect(response.status).toBe(200);
@@ -115,7 +113,7 @@ describe('the share token reads what review settled', () => {
   });
 
   it('reads the decision history of a subject, newest first, with every reversal', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
     const response = await call('/review/decisions?subject=story:a', SHARE);
     expect(response.status).toBe(200);
@@ -131,7 +129,7 @@ describe('the share token reads what review settled', () => {
   });
 
   it('narrows the history to a build, and to a count', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
     const read = async (query: string) =>
       ((await (await call(`/review/decisions?${query}`, SHARE)).json()) as { decisions: { build: string; subject: string }[] })
@@ -143,7 +141,7 @@ describe('the share token reads what review settled', () => {
   });
 
   it('refuses a history that names neither a build nor a subject, and a count past the most it reads', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
     const unnarrowed = await call('/review/decisions?limit=2', SHARE);
     expect(unnarrowed.status).toBe(400);
@@ -154,7 +152,7 @@ describe('the share token reads what review settled', () => {
   });
 
   it('refuses a changelog count past the 500 it reads at once', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
     expect((await call('/review/changelog?limit=500', SHARE)).status).toBe(200);
     const unbounded = await call('/review/changelog?limit=501', SHARE);
@@ -163,7 +161,7 @@ describe('the share token reads what review settled', () => {
   });
 
   it('is served the same history the review token reads', async () => {
-    variancePrecondition({ token: 'review' });
+    variancePrecondition('fixture', { token: 'review' });
     await decided();
     const shared = await (await call('/review/decisions?subject=story:a', SHARE)).json();
     const reviewed = await call('/review/decisions?subject=story:a', REVIEW);
@@ -172,7 +170,7 @@ describe('the share token reads what review settled', () => {
   });
 
   it('cannot decide', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
     const response = await call('/review/builds/ci-2/subjects/story:a/decision', SHARE, {
       decision: 'approved',
@@ -185,15 +183,15 @@ describe('the share token reads what review settled', () => {
   });
 
   it('refuses a write on a read route', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     expect((await call('/review/decisions', SHARE, {})).status).toBe(405);
     expect((await call('/review/changelog', SHARE, {})).status).toBe(405);
   });
 
   it('reads the concerns raised on a build, and cannot raise or move one', async () => {
-    variancePrecondition({ token: 'share' });
+    variancePrecondition('fixture', { token: 'share' });
     await decided();
-    const raised = await call('/review/concerns', REVIEW, {
+    const raised = await call('/review/concerns/raise', REVIEW, {
       build: 'ci-2',
       subject: 'story:a',
       title: 'Total moved below the fold',
@@ -208,7 +206,7 @@ describe('the share token reads what review settled', () => {
     expect(shared.concerns.map((each) => each.title)).toEqual(['Total moved below the fold']);
     expect(shared).toEqual(await (await call('/review/concerns?build=ci-2', REVIEW)).json());
 
-    const raising = await call('/review/concerns', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
+    const raising = await call('/review/concerns/raise', SHARE, { build: 'ci-2', subject: 'story:a', title: 'x', by: 'agent' });
     expect(raising.status).toBe(403);
     const moving = await call(`/review/concerns/${concern.id}`, SHARE, { state: 'resolved', by: 'agent' });
     expect(moving.status).toBe(403);
@@ -217,12 +215,12 @@ describe('the share token reads what review settled', () => {
 
 describe('the ingest token reads none of it', () => {
   it('is refused the changelog, the decision history and the concerns, and is told why', async () => {
-    variancePrecondition({ token: 'ingest' });
+    variancePrecondition('fixture', { token: 'ingest' });
     for (const path of ['/review/changelog', '/review/decisions', '/review/concerns']) {
       const response = await call(path, INGEST);
       expect([path, response.status]).toEqual([path, 403]);
       const text = await response.text();
-      expect(text).toMatch(/CI holds the ingest token/);
+      expect(text).toMatch(/presented an ingest credential/);
       expect(text).toMatch(/the share token/);
     }
   });

@@ -28,32 +28,41 @@ same server over the same functions; it needs `variance.config.json`, as every
 
 ## Writing the client config
 
-In an MCP client's `command` field, write the installed binary, its resolved
-path or a package script. A package runner there costs a registry check on
-every client start.
+A client launches `command` from its own `PATH`, where a local install puts
+nothing, so write `npx` there and the binary first in `args`, or the same through
+another package manager's runner. `npx` finds the binary in `node_modules/.bin`
+without asking the registry.
 
 ```json
 {
   "mcpServers": {
     "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
+      "command": "npx",
+      "args": ["variance-authority-help", "."]
     }
   }
 }
 ```
 
-`command` must resolve the installed binary. `args` is a bare root and no verb,
-which is the form that starts a stdio server. `.` is the directory the client
-starts the process in, so pass the workspace's absolute path if that is not the
-workspace. The server key, `workspace-api` here, is yours to name.
+After the binary, `args` is a bare root and no verb, which is the form that starts
+a stdio server. `npx` and `.` both read the directory the client starts the
+process in. A client that starts outside the workspace takes its absolute path
+twice: `"args": ["--prefix", "<workspace>", "variance-authority-help",
+"<workspace>"]`. The server key, `workspace-api` here, is yours to name.
+`docs_orient` with no files reads the code map `variance index` makes, which needs
+`@variance-authority/cli` beside this package and no config.
+
+`npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server
+workspace-api --method tools/list` launches the entry and lists its tools, with
+no client open. Version 2 needs Node 22.19, above what these packages declare. It starts the server in the directory it runs from, so run it
+where the client starts.
 
 ## Tool names and arguments
 
 | Name | What it is | Where it appears |
 | --- | --- | --- |
 | `@variance-authority/help` | the npm package | a manifest, a package runner |
-| `variance-authority-help` | the binary that package installs | a shell, an MCP `command` |
+| `variance-authority-help` | the binary that package installs | a shell, the first of an MCP entry's `args` |
 | `docs_packages`, `docs_search`, … | the MCP tool names | an MCP client's tool list |
 
 Drop the `docs_` prefix and turn `_` into `-`, and you have the `variance ask`
@@ -64,11 +73,12 @@ verb: `docs_slowest_tests` is `slowest-tests`, `docs_journey_map` is
 
 ## Tools no binary serves
 
-`variance_distill`, `variance_test_attention`, `variance_source_tests`,
-`variance_changed_tests` and `variance_observability` belong to the
-`OBSERVABILITY` tool set that `@variance-authority/mcp/protocol` exports. None
-of the servers above serves them. A host serves them by passing that set to
-`serve` from `@variance-authority/mcp` with its own `ObservabilitySubject`, as
-the package README shows. On such a connection, ask `variance_observability`
-first to see which domains are present; [distill](distill.md) and
-[covering](covering.md) own the questions behind the others.
+`variance_distill`, `variance_test_attention` and `variance_observability`
+belong to the `OBSERVABILITY` tool set that `@variance-authority/mcp/protocol`
+exports. None of the servers above serves them. A host serves them by passing
+that set to `serve` from `@variance-authority/mcp` with its own
+`ObservabilitySubject`, as the package README shows. On such a connection, ask
+`variance_observability` first to see which domains are present;
+[distill](distill.md) owns the question behind the others. Which cases covered a
+place, and which a change reached, is `variance covering`'s, on the command line
+([covering](covering.md)); no MCP tool answers it.

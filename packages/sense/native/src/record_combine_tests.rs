@@ -1,5 +1,6 @@
 use super::*;
-use crate::journey_format::{self, CaseExtras, EncodedModule, SetPool};
+use crate::crossing_sets::SetPool;
+use crate::journey_format::{self, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_record::{Block, Module};
 use crate::record_fixture::{self as fixture, block, module, spec, test, Spec};
@@ -134,10 +135,22 @@ fn reads_the_untimed_layout_the_jvm_agent_writes() {
 }
 
 #[test]
+fn carries_each_test_files_phases_and_reads_the_layout_before_them_as_none_reported() {
+    let none = LAYOUT.coverage.no_duration;
+    let mut unphased = spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    unphased.version = LAYOUT.coverage.unphased;
+    let mut phased = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    phased.tests[0].phases = Some([4, none, 21, 530, 12]);
+    let folded = combined(&[&fixture::write(&unphased), &fixture::write(&phased)]).unwrap();
+    assert_eq!(fixture::phases(&folded.bytes), [("a.test.ts".to_owned(), [none; 5]), ("b.test.ts".to_owned(), [4, none, 21, 530, 12])]);
+    assert_eq!(journey_columns::decode_any(&folded.bytes).unwrap().0, LAYOUT.coverage.format);
+}
+
+#[test]
 fn refuses_a_version_or_a_section_this_build_does_not_read() {
     for version in [7, LAYOUT.coverage.format + 1] {
         let refused_version = refused(&[&journey_columns::encode(Vec::new(), version).unwrap()]);
-        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9 and 10")), "{refused_version}");
+        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9, 10, 11 and 12")), "{refused_version}");
     }
     let mut held = spec(vec![test("a.test.ts")], Vec::new());
     held.parts.push(("index", Vec::new()));
@@ -219,22 +232,27 @@ fn index(file: &str, runner: &str, regions: u32, lines: Vec<u8>) -> Vec<u8> {
         project: None,
         runner: Some(runner.to_owned()),
         settled: FINISHED,
-        preconditions: None,
+        heard: None,
     }];
-    let regions_of = Module {
+    let regions_of = regions_in(regions);
+    let mut sets = SetPool::new(1);
+    let called: Vec<u32> = (0..regions).map(|at| if at == 0 { sets.intern(&[0]) } else { sets.intern(&[]) }).collect();
+    let loaded = vec![false; regions as usize];
+    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded, overwritten: &[] }];
+    let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
+    journey_format::encode(&tests, &extras, &modules, &mut sets, None).unwrap()
+}
+
+/// `src/a.ts` cut into `regions` functions, `f0` first.
+fn regions_in(regions: u32) -> Module {
+    Module {
         id: "src/a.ts".to_owned(),
         file: "src/a.ts".to_owned(),
         blocks: (0..regions)
             .map(|at| Block { kind: "function".to_owned(), name: format!("f{at}"), path: format!("f{at}"), start_line: at + 1, end_line: at + 1, source: true })
             .collect(),
         owners: None,
-    };
-    let mut sets = SetPool::new(1);
-    let called: Vec<u32> = (0..regions).map(|at| if at == 0 { sets.intern(&[0]) } else { sets.intern(&[]) }).collect();
-    let loaded = vec![false; regions as usize];
-    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &loaded }];
-    let extras = CaseExtras { durations: Vec::new(), lines: if lines.is_empty() { Vec::new() } else { vec![lines] }, ..CaseExtras::default() };
-    journey_format::encode(&tests, &extras, &modules, &sets, None).unwrap()
+    }
 }
 
 fn last(commit: &str, files: &[&str], cases: &[&str]) -> Vec<u8> {
@@ -257,9 +275,9 @@ fn folds_the_cases_beside_the_coverage_through_the_one_case_fold() {
     let record = record_coverage::read(&folded.bytes).unwrap();
     let last: serde_json::Value = serde_json::from_slice(record.parts.last.as_deref().unwrap()).unwrap();
     assert_eq!(last["files"], serde_json::json!(["a.test.ts", "b.test.ts"]));
-    assert_eq!(last["cases"], serde_json::json!(["a.test.ts > adds", "b.test.ts > adds"]));
+    assert_eq!(last["cases"], serde_json::json!({"references": [0, 1]}));
     let index = case_shard::read_shard(record.parts.index.as_deref().unwrap(), &mut HashMap::new()).unwrap();
-    assert_eq!(index.tests.len(), 2);
+    assert_eq!(index.tests.iter().map(|test| test.id.as_str()).collect::<Vec<_>>(), vec!["a.test.ts > adds", "b.test.ts > adds"]);
 }
 
 #[test]
@@ -298,7 +316,8 @@ fn refuses_shards_of_which_only_some_kept_cases() {
     let bare = fixture::write(&spec(vec![test("b.test.ts")], Vec::new()));
     let message = refused(&[&fixture::write(&cased("a.test.ts", "1")), &bare]);
     assert!(message.contains("shard-0.bin kept cases and shard-1.bin kept none"), "{message}");
-    assert!(message.contains("Record shard-1.bin again with cases kept"), "{message}");
+    assert!(message.contains("so the combined record could answer for the cases of only some of its files, and the shards are not combined. Shards combine when every one kept cases, or none did."), "{message}");
+    assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "again"), "{message}");
 }
 
 #[test]
@@ -307,6 +326,28 @@ fn refuses_a_case_file_two_shards_ran_by_both_names_whatever_their_order() {
     for message in [refused(&[&one, &other]), refused(&[&other, &one])] {
         assert!(message.contains("`a.test.ts` has cases in shard-"), "{message}");
         assert!(message.contains("shard-0.bin") && message.contains("shard-1.bin"), "{message}");
+        assert!(message.contains("combine only one of the two"), "{message}");
+    }
+}
+
+#[test]
+fn refuses_a_laid_shard_that_carries_a_case_another_shard_ran_whatever_their_order() {
+    // A shard laid over a record carries the cases it did not run: here
+    // `a.test.ts`'s, flagged at the region its edit wrote over. The shard that
+    // ran that case saw it miss the region, which the fold cannot tell from
+    // the carried flag, so a test file two shards hold is refused before it.
+    let tests: Vec<Test> = ["a.test.ts", "b.test.ts"]
+        .iter()
+        .map(|file| Test { id: format!("{file} > adds"), file: (*file).to_owned(), name: "adds".to_owned(), project: None, runner: Some("1".to_owned()), settled: FINISHED, heard: None })
+        .collect();
+    let regions_of = regions_in(2);
+    let mut sets = SetPool::new(2);
+    let (called, overwritten) = ([sets.intern(&[1]), sets.intern(&[])], [sets.intern(&[]), sets.intern(&[0])]);
+    let modules = [EncodedModule { module: &regions_of, called: &called, loaded: &[false, false], overwritten: &overwritten }];
+    let laid = cases_alone(journey_format::encode(&tests, &CaseExtras::default(), &modules, &mut sets, None).unwrap(), "b.test.ts");
+    let ran = cases_alone(index("a.test.ts", "1", 2, Vec::new()), "a.test.ts");
+    for message in [refused(&[&laid, &ran]), refused(&[&ran, &laid])] {
+        assert!(message.contains("`a.test.ts` has cases in shard-"), "{message}");
         assert!(message.contains("combine only one of the two"), "{message}");
     }
 }
@@ -326,7 +367,8 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
     let other = cases_alone(index("b.test.ts", "1", 3, Vec::new()), "b.test.ts");
     let message = refused(&[&one, &other]);
     assert!(message.starts_with("shard-0.bin: case \"a.test.ts > adds\": its lines stand on `src/a.ts`"), "{message}");
-    assert!(message.contains("Record every shard with one build"), "{message}");
+    assert!(message.ends_with("so they name regions the combined record does not hold, and the shards are not combined. Shards combine when one build recorded every one, so each cuts the file the same way."), "{message}");
+    assert!(!message.split(|letter: char| !letter.is_alphabetic()).any(|word| word == "Record"), "{message}");
 }
 
 #[test]

@@ -38,10 +38,10 @@
  * promise, a timer, a streamed response — is outside every bracket by then. Its
  * crossings are charged to whichever case happens to be open, and to no case at
  * all when none is. That direction is the one
- * [`selecting.md`](../../../../docs/selecting.md) forbids: a case credited with
+ * [`selecting.md`](https://variance-authority.dev/docs/selecting) forbids: a case credited with
  * less than it reached is a case a change can skip.
  *
- * This is the wall [ADR-0056](../../../../docs/context/adr/0056-a-journey-is-the-places-visited.md)
+ * This is the wall [ADR-0056](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0056-a-journey-is-the-places-visited.md)
  * already hit — *a bracket that opens at entry and closes at exit closes around
  * somebody else's work* — and the same wall
  * [`journey.ts`](./journey.ts) climbed for services, whose answer is reused here
@@ -77,10 +77,10 @@
  * It holds until a case's work outlives the case. A test that is synchronous to
  * the runner and asynchronous underneath returns before its work does; two
  * cases open at once is the same fault seen from the other end. The variable
- * cannot hold two, so a second `enter` while one is open is an error naming
- * both, and a continuation that arrives after its case closed is charged to the
- * ambient bucket, which every case in the file is given — over-inclusive, which
- * is the direction [`selecting.md`](../../../../docs/selecting.md) permits, and
+ * cannot hold two, so a second `enter` while one is open warns, naming both, and
+ * the file is recorded whole; a continuation that arrives after its case closed
+ * is charged to the ambient bucket, which every case in the file is given —
+ * over-inclusive, which is the direction [`selecting.md`](https://variance-authority.dev/docs/selecting) permits, and
  * silent.
  *
  * `continuations` is the mode that stops it being silent. The variable becomes
@@ -105,7 +105,7 @@
  * `beforeAll`, `beforeEach`, `afterEach` and whatever a floating promise does
  * after its case settled run outside any case scope. Their crossings go to the
  * **ambient** bucket and are given to *every* case in the file, which is the
- * over-inclusion [`selecting.md`](../../../../docs/selecting.md) already argues
+ * over-inclusion [`selecting.md`](https://variance-authority.dev/docs/selecting) already argues
  * for. A case is never credited with less than it reached; it is sometimes
  * credited with more.
  *
@@ -116,16 +116,16 @@
  * ({@link ExecutionBlock.loaded}).
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ModuleId } from '../instrument/index.js';
 import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { limitAcross } from './execution-set-columns.js';
 import { NO_OWNER } from './format-layout.js';
 import { heldAround } from './region-around.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { heardAcross, heardOf, type Said } from './case-precondition-column.js';
-import preconditions from './case-preconditions.cjs';
+import { saidAcross, type Said } from './case-said.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 import type { CaseLines } from './case-lines.js';
@@ -160,7 +160,7 @@ export const AMBIENT = '';
  */
 export const packCase = caseOwner.packCase;
 
-export interface UnpackedCase {
+export interface UnpackedCase extends Pick<ExecutionTest, 'limit'> {
   readonly file: string;
   /** The declaration path the runner reports, or empty for the ambient bucket. */
   readonly name: string;
@@ -200,6 +200,8 @@ export interface CaseJournal {
    * carried them on the case itself rather than in a report at the run's end.
    */
   readonly duration?: number;
+  /** The milliseconds the case ran under; see {@link ExecutionTest.limit}. */
+  readonly limit?: number;
   /**
    * What the case said it arranged, each site named from the checkout; absent
    * where the frame's writer never listened.
@@ -344,7 +346,8 @@ export function ownedExecutionIndexFrom(
       modules: [...first.modules, ...journal.modules],
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
-      ...heardOf(heardAcross(first.said, journal.said)),
+      ...limitAcross(first.limit, journal.limit),
+      ...saidAcross(first.said, journal.said),
       ...linesAcross(first.lines, journal.lines),
     });
   }
@@ -363,7 +366,8 @@ export function ownedExecutionIndexFrom(
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
       ...(duration === undefined ? {} : { duration }),
-      ...(journal.said === undefined ? {} : { preconditions: preconditions.resolve(journal.said) }),
+      ...(journal.limit === undefined ? {} : { limit: journal.limit }),
+      ...(journal.said === undefined ? {} : { said: journal.said }),
     };
   });
 

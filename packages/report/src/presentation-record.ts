@@ -41,13 +41,16 @@ export interface PresentationInformationRecord {
 /**
  * Presentation evidence carried by a general regression report.
  *
- * `incomparable` has no effects: inventing a transition from one reading would
- * turn absence into evidence. Comparable readings always carry `effects`, where
- * an empty array means the presentation consequence was measured and unchanged.
+ * A side with no reading, or with no layout findings, is `changed`: one side has
+ * evidence and the other does not. Its `because` names that side, and it has no
+ * effects, because inventing a transition from one reading would turn absence
+ * into evidence. Compared readings always carry `effects`, where an empty array
+ * means the presentation consequence was measured and unchanged.
  */
 export type PresentationSignalRecord =
   | {
-      readonly verdict: 'incomparable';
+      readonly verdict: 'changed';
+      /** Names the side that supplied no reading or no layout findings. */
       readonly because: string;
       readonly before?: Digest;
       readonly after?: Digest;

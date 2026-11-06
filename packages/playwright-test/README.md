@@ -5,6 +5,7 @@
 > Add a source-aware visual observation to a Playwright test that already gets the app into the state.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Your Playwright test already navigates, authenticates, mounts data and
 waits for the application. This package adds one call to that test. The call
@@ -216,7 +217,7 @@ render cache. The adapter preserves the acquisition base URL but does not archiv
 resource bytes, so a remote renderer must be able to load equivalent resources.
 
 For a browser the suite already pins, capture the caller-owned locator in place.
-Configure Chromium with the exported text-rendering arguments, then declare the
+Configure Chromium with the exported rasterization arguments, then declare the
 same launch recipe to the session:
 
 ```ts
@@ -441,7 +442,7 @@ snapshots that have none yet, which is an absence and not an approval.
 
 An Rstest test that runs in `node` or `jsdom` and starts no browser is the other
 adoption: it writes a capture with
-[`@variance-authority/unit-test`](../unit-test/README.md) and a later CLI run
+[`@variance-authority/unit-test`](https://variance-authority.dev/reference/packages/unit-test) and a later CLI run
 paints it. Nothing in this package is on that path.
 
 `materialization` selects how pixels are produced; its `kind` field picks the
@@ -490,17 +491,20 @@ destructures only `page` is recorded the same way, because recording reads the
 test's browser context rather than a fixture. It reads after every `afterEach`
 and before the context closes, from every frame of every page the test opened.
 That covers a story running inside Storybook's `#storybook-preview-iframe` and a
-second tab opened with `context.newPage()`. A document the test replaced is
-gone by then: a second `goto`, a `reload()`, a frame the application removed,
-or a page that closed or crashed. What it executed after its last read is lost,
-so the spec is recorded as incomplete and the next selection runs it. A spec
+second tab opened with `context.newPage()`. A document the test replaced by a
+second `goto`, a `reload()` or a link hands what it executed to the next
+document of the same origin in its frame, through that frame's session storage,
+and the next read takes it. A document no later one took over is lost: one
+replaced by another origin's, a frame the application removed, or a page that
+closed or crashed. What it executed after its last read is lost with it, so the
+spec is recorded as incomplete and the next selection runs it. A spec
 [cut statement by statement](#record-which-spec-line-reached-each-region) is
 also read before each statement, so what is lost is only what the document did
 during the statement that replaced it.
 `pushState` and hash changes keep the same document and lose nothing. A context
 the spec creates for itself with `browser.newContext()` is not read: open pages
 from the test's own `context`, or hand one to `createVariance`.
-[`cases/playwright-storybook-case`](../../cases/playwright-storybook-case/README.md)
+[`cases/playwright-storybook-case`](https://github.com/Variance-Authority/variance-authority/blob/main/cases/playwright-storybook-case/README.md)
 runs each of these shapes against a built Storybook.
 
 ### Fold what the workers recorded
@@ -578,6 +582,38 @@ Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
 
+### Leave out the specs a change did not reach
+
+Set `VARIANCE_AUTHORITY_SINCE` and the run drops every spec file the record
+shows never executed the code the change touched, before Playwright loads one
+or places a shard:
+
+```bash
+VARIANCE_AUTHORITY_SINCE= npx playwright test
+```
+
+```text
+variance-authority: selected 4 of 31
+```
+
+Set at all, even empty, it selects, and each spec is measured from the commit the
+record names. A ref names the base only for a record taken outside a git
+checkout. `VARIANCE_AUTHORITY_AT_DISTANCE`
+narrows it the same way it does under Vitest and Jest. A spec the selection
+keeps runs whole, every test in it, in every project that runs it.
+
+The files are dropped by a pattern `withTestSelection` adds to `testIgnore`,
+after your own, and to each project that sets its own `testIgnore`, because
+a project's replaces the top level's. Playwright asks it about each file it
+finds, so the drop costs one lookup a file. The selection is read in a
+`globalSetup` the wrapper puts ahead of yours, so a record it cannot read fails
+the run with the reason before any test starts. A selection that drops every
+file prints `selected none of M, so none of them runs`, and the run passes
+rather than failing on Playwright's "No tests found".
+
+Three runs do not select, and say so on stderr: watch and UI mode, and
+`--list`, which runs no global setup.
+
 ### Place a shard by whole files
 
 Under `--shard k/n`, the reporter places the shard by whole spec files, and
@@ -587,7 +623,7 @@ shards and each shard would record part of the file. Each file goes to one
 shard, by the time it took on the last recorded run. When the record has no
 times, every file is priced the same, so the shards are balanced by file count.
 Every shard computes the same placement from
-the same record, as [sharding](../../docs/sharding.md) shows for Vitest and Jest,
+the same record, as [sharding](https://variance-authority.dev/docs/sharding) shows for Vitest and Jest,
 and prints one line on stderr before the first test:
 
 ```text
@@ -638,11 +674,17 @@ Playwright 1.62, and Playwright splits its shards test by test.
 A case's crossings name the regions its test reached, not the statement that
 reached each one. Under `withTestSelection` every case also records, for each
 region, the line of the spec whose statement first reached it: the
-[lines Sense records](../sense/README.md#record-which-test-line-reached-a-region)
+[lines Sense records](https://variance-authority.dev/reference/packages/sense#record-which-test-line-reached-a-region)
 under every other runner, read by the same answers.
 
-`withTestSelection` adds a Babel plugin to the `babelPlugins` Playwright
-compiles every spec with. The plugin puts an awaited call in front of each
+`withTestSelection` adds a Babel plugin to the compile every spec goes through:
+under `babelPlugins` below Playwright 1.63, and through the
+`PW_TEST_SOURCE_TRANSFORM` and `PW_TEST_SOURCE_TRANSFORM_SCOPE` environment
+variables from 1.63, which it sets for the run. Playwright takes one transform
+there, so a value of your own stops the run with an error: unset it, or pass
+`cadence: false` to keep it and record no spec lines.
+
+The plugin puts an awaited call in front of each
 statement of an async test or hook body, and the call drains every frame of
 every page the test opened before the statement runs. What a drain finds is
 charged to the statement before it, and what the teardown drain finds to the
@@ -651,7 +693,7 @@ statement runs is charged to that later statement: a request `click` started
 and the page answered during the next `expect` lands on the `expect`. A body
 declared in another file, such as a page object's method, is not waited on, and
 what it reached is charged to the spec statement that called it. A statement
-in `beforeEach` or `afterEach` is recorded as the case's own line. Lines keep
+in a hook is recorded as a hook's line, as the Node runners record it. Lines keep
 their numbers and Babel's map names the file as you wrote it, so an inline
 aria snapshot lands where you wrote it.
 
@@ -678,12 +720,17 @@ tests of 20 statements each, every click entering five of 88 regions, they add
 but lines-dense cases, so the share is the high end. Over three runs with one
 worker, it took 18.6–18.7 s with the cut and 18.7–19.9 s without it.
 
-Because a document is drained before the statement that replaces it, what it
-reached is in the case's crossings; with `cadence: false` only the teardown
-drain reads the page, and a document a `goto` replaced is gone by then.
+What a document reached before a statement replaced it is charged to that
+statement, as what the next document did is: the next read takes both.
 
 Pass `cadence: false` to compile your specs as Playwright would and write no
 lines.
+
+With `VARIANCE_AUTHORITY_STORY=1`, each case also writes a [test
+story](https://variance-authority.dev/docs/test-stories): the code its pages
+ran, in order, each stretch opened by the spec line whose statement ran it.
+It needs nothing beyond what this section sets up. Name one spec and `-g` the
+test, as you would record any story.
 
 ### Keep what each test looked at
 
@@ -701,7 +748,7 @@ its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 A snapshot taken with `variance(locator)` names the case it was taken in: the
 spec file, the declaration path and `testInfo.testId`, the case id the record
 keeps. It also carries the preconditions the case had recorded with
-[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) by then,
+[`variancePrecondition`](https://variance-authority.dev/reference/packages/sense#record-the-state-each-test-ran-under) by then,
 each with the `file:line` of the call that recorded it. A call after the
 snapshot is on the case's row and not on the snapshot.
 
@@ -1082,4 +1129,4 @@ followed by a later renderer, use `@variance-authority/unit-test`.
 
 ---
 
-**[@variance-authority/playwright-test](https://variance-authority.dev/reference/packages/playwright-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/playwright-test](https://variance-authority.dev/reference/packages/playwright-test)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/playwright-test) · MIT

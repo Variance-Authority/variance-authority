@@ -10,6 +10,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::collections::HashSet;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -19,9 +20,12 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
+use crate::help_aliases::{aliases, Alias};
+use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
-use crate::help_members::{member_declarations, MemberSite};
+use crate::help_search::{encode, exported_digest, set_digest, PublishedRows, SearchGeneration};
+use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
+use crate::help_origin::{declaration_exported, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
@@ -55,9 +59,13 @@ pub struct HelpPublish {
     pub root: String,
     pub graph_root: String,
     pub generated_at: String,
+    /// When the read behind the value began, before any of it was read.
+    pub read_started_at: String,
     /// The digest of the index manifest the reading was made from, which a
     /// later refresh over the same manifest keeps the value by.
     pub index_digest: String,
+    /// What `digest_forwards` states of the reading's `export … from` rows.
+    pub forwards_digest: String,
     /// JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`.
     pub packages: String,
     pub deep: String,
@@ -101,11 +109,88 @@ pub fn importers_of(root: String, index: String, files: Vec<String>, name: Strin
     opened_chain(&index, |layers| importers(&root, layers, &files, &name))
 }
 
-/// Every declaration of a member named `name` the chain at `index` records,
-/// ordered by file in code units, then by line; `None` when there is no index.
+/// Every specifier on the chain at `index` that names a package or a runtime
+/// module no file answers, out of which an import takes `name`, in code-unit
+/// order; `None` when there is no index.
 #[napi]
-pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<MemberSite>>> {
-    opened_chain(&index, |layers| member_declarations(&root, layers, &name))
+pub fn outside_sources_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(&index, |layers| crate::help_usage::sources(&root, layers, &name))
+}
+
+/// Every import on the chain at `index` that binds `local` to an export of
+/// another name, ordered by the importing file in code units, then by line;
+/// `None` when there is no index.
+#[napi]
+pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Option<Vec<Alias>>> {
+    opened_chain(&index, |layers| aliases(&root, layers, &local))
+}
+
+/// Every declaration of a member named `name` the chain at `index` records,
+/// ordered by file in code units, then by line, beside the extensions of the
+/// files the chain holds; `None` when there is no index.
+#[napi]
+pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<MemberDeclarations>> {
+    opened_chain(&index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
+}
+
+/// Every member the interface, type alias or class named `on` declares in
+/// `file`, repo-relative, by line; `None` when there is no index.
+#[napi]
+pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Option<Vec<ContainerMember>>> {
+    opened_chain(&index, |layers| members_on(layers, &file, &on))
+}
+
+/// What the index reads of the declaration an export binds.
+#[napi(object)]
+pub struct ExportedReading {
+    /// `None` when the walk ends short of a declaration.
+    pub declaration: Option<ExportedDeclaration>,
+}
+
+/// The declaration the export `name` of `file`, repo-relative, binds, as
+/// [`declaration_exported`] walks to it; `None` when there is no index.
+#[napi]
+pub fn declaration_exported_of(index: String, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
+    opened_chain(&index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
+}
+
+/// Every top-level declaration on the chain at `index` that no export of its
+/// file binds, named `query` or, with `containing`, whose lowercased name or doc
+/// comment holds `query`, which the caller lowercased; only in `files` when they
+/// are named.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_of(root: String, index: String, query: String, containing: bool, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = if containing { Matching::Containing } else { Matching::Exact };
+    opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
+}
+
+/// The declarations no export binds whose name and doc hold any of `stems` —
+/// `describedWords`' stems of `query` — in `files` when they are named, each
+/// with the positions of the stems it holds and how near its doc writes
+/// `query`; and the files whose name and module doc hold any, the same way.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    let matching = Matching::Described { stems, query };
+    opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+}
+
+/// The distinct search terms of the top-level names the chain at `index`
+/// harvested, in `files` when they are named, sorted by their UTF-8 bytes: the
+/// dictionary the loose pass reads for names no export list holds.
+/// `None` when there is no index.
+#[napi]
+pub fn declared_terms_of(index: String, files: Option<Vec<String>>) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(&index, |layers| declared_terms(layers, files.as_deref()))
+}
+
+/// The declarations no export binds whose name's terms hold one of every
+/// group of `groups`, in `files` when they are named: the names the loose pass
+/// reaches among them. `None` when there is no index.
+#[napi]
+pub fn declared_loose_of(root: String, index: String, groups: Vec<Vec<String>>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    opened_chain(&index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
 }
 
 /// The chain at `index`, each segment opened in place, handed to `read`;
@@ -127,6 +212,13 @@ pub fn digest_exported(exported: Vec<NamedExport>) -> String {
     exported_digest(&exported)
 }
 
+/// The `export … from` rows of a reading as a set, which the export list does
+/// not hold: `export *` names nothing, and a named row does not say where it leads.
+#[napi(catch_unwind)]
+pub fn digest_forwards(forwards: Vec<String>) -> String {
+    set_digest(forwards)
+}
+
 #[napi]
 impl HelpReading {
     /// The export list as a set, as `EncodedSearch.exported` states it.
@@ -135,12 +227,20 @@ impl HelpReading {
         self.held.digest.clone()
     }
 
+    /// The rows of the export list that `files` write, for the few a caller
+    /// compares: the list itself stays here.
+    #[napi]
+    pub fn exported_of(&self, files: Vec<String>) -> Vec<NamedExport> {
+        let files: HashSet<String> = files.into_iter().collect();
+        self.held.exported.iter().filter(|named| files.contains(&named.at)).cloned().collect()
+    }
+
     /// The uses, imports by path and unreadable files, handed over once: the
     /// export list is left empty, and stays here.
     #[napi]
     pub fn usage(&mut self) -> IndexedUsage {
         self.usage.take().unwrap_or_else(|| IndexedUsage {
-            exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
+            exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
         })
     }
 
@@ -187,8 +287,8 @@ fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported:
     let mut out = Vec::with_capacity(exported.len() * 200);
     write!(
         out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
-        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(digest), json(&o.index_digest),
+        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"readStartedAt\":{},\"exportedDigest\":{},\"forwardsDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
+        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(&o.read_started_at), json(digest), json(&o.forwards_digest), json(&o.index_digest),
         o.packages, o.deep, o.by_path, o.unfollowed,
     )?;
     serde_json::to_writer(&mut out, exported)?;

@@ -1,4 +1,4 @@
-import { entryPoints, pathsOf, refusalFor, type Tree } from '@variance-authority/mcp/tools';
+import { entryPoints, pathsOf, refusalFor, spellingOf, type ToolInvocation, type Tree } from '@variance-authority/mcp/tools';
 
 /**
  * Which part of the repository an answer is allowed to come from.
@@ -34,7 +34,7 @@ import { entryPoints, pathsOf, refusalFor, type Tree } from '@variance-authority
  * how the callers of a thing are found when the thing is what you have.
  *
  * Said together they are two start points and not one, unioned rather than
- * crossed, for the same reason [`scope.ts`](../../../mcp/src/tools/scope.ts)
+ * crossed, for the same reason [`scope.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/mcp/src/tools/scope.ts)
  * gives: two entry points of one application share almost no file, so an
  * intersection answers nothing at exactly the moment the caller was most
  * specific.
@@ -43,7 +43,7 @@ import { entryPoints, pathsOf, refusalFor, type Tree } from '@variance-authority
  *
  * What a path means — three widths, anchored at the root, compared segment for
  * whole segment, not found rather than guessed at — belongs to
- * [`start-point.ts`](../../../mcp/src/tools/start-point.ts) and is imported
+ * [`start-point.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/mcp/src/tools/start-point.ts) and is imported
  * from there. A second server that wrote its own would drift, and the drift
  * lands on the reader as `src/billing/` meaning one thing in one tool and
  * something else in the next.
@@ -105,7 +105,7 @@ export function areaOf(
   const down = entryPoints(fromTerms, tree);
   const up = entryPoints(toTerms, tree);
 
-  const refused = refusalFor([...down.unmatched, ...up.unmatched]);
+  const refused = refusalFor([...down.unmatched, ...up.unmatched], tree.root);
   if (refused !== undefined) return { ...NOWHERE, from: down.found, to: up.found, refused };
 
   const distance = new Map(tree.distanceFrom(down.files));
@@ -166,4 +166,10 @@ export function areaLine(area: Area): string {
     `In ${area.files.size} file(s) ${[along, against].filter((half) => half !== '').join(' or ')} ` +
     `along the imports, at any depth — ${area.entries} named by the path itself.${holes}`
   );
+}
+
+/** What to say when a start point is missing, in the spelling of the surface that asked. */
+export function startPointNeeded(invocation: Pick<ToolInvocation<unknown>, 'shell'> | undefined): string {
+  const spell = spellingOf(invocation);
+  return `Pass \`${spell.input('from')}\` or \`${spell.input('to')}\` with the file or folder you are working in, or a top folder at the widest.`;
 }

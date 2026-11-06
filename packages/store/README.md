@@ -5,6 +5,7 @@
 > Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 This package is where those approved images sit. It gives you two backends —
 a plain directory, and a directory whose images are tracked by git-LFS — plus
@@ -14,8 +15,8 @@ one runner's own directory, or a repository a team checks out.
 
 Throughout, a **subject** is one named UI state you asked for and can ask for
 again — a story, a route, a component in a particular state. A stored baseline
-for one subject is two files: a PNG, and a JSON **sidecar** written beside it
-recording how that image was painted.
+for one subject is two files: the image, kept as a lossless WebP, and a JSON
+**sidecar** written beside it recording how that image was painted.
 
 ## Requirements
 
@@ -31,13 +32,15 @@ npm install --save-dev @variance-authority/store
 
 Complete and runnable as written — save it as `baselines.mjs` and run
 `node baselines.mjs`. The PNG below is a real one-pixel image, so nothing has to
-be rendered first.
+be rendered first. `keptRaster` encodes it as the lossless WebP a store keeps,
+and `put` writes that.
 
 ```js
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDurableStore } from '@variance-authority/store/durable';
+import { keptRaster } from '@variance-authority/store/keep';
 
 const root = await mkdtemp(join(tmpdir(), 'baselines-'));
 const store = createDurableStore(root);
@@ -55,7 +58,7 @@ const identity = {
 // `label` distinguishes several images of one subject — a viewport, a state.
 const key = { subject: 'components/Button/primary', label: 'wide' };
 
-await store.put(key, {
+await store.put(key, await keptRaster({
   // A hash of the rendered document, computed by whatever produced the image.
   // The store keeps it and hands it back; it never computes one itself.
   documentDigest: 'v1:9f2a41c7d0b85e36a14c7e2f8b06d735',
@@ -65,7 +68,7 @@ await store.put(key, {
   bytes:
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   missingFonts: [],
-});
+}));
 
 // The lookup that needs no image: does a baseline exist, and may this machine
 // compare against it?
@@ -83,7 +86,7 @@ Two files under the root, at a path you can read back to the subject, its label
 and the engine that painted it:
 
 ```
-<root>/components/Button/primary__wide-chromium.png
+<root>/components/Button/primary__wide-chromium.webp
 <root>/components/Button/primary__wide-chromium.json
 ```
 
@@ -92,7 +95,7 @@ The path comes from a template, `{title}/{name}-{engine}` unless you pass
 or a story's title; `{name}` is the rest, or a story's name. `{file}` and
 `{dir}` place the baseline beside the file that declares its subject,
 so `{dir}/__baselines__/{file}/{name}-{engine}` keeps
-`src/ui/__baselines__/Button.stories.tsx/Primary-chromium.png` next to the
+`src/ui/__baselines__/Button.stories.tsx/Primary-chromium.webp` next to the
 story. Two subjects that would share a path are refused before anything is
 written, and the refusal names both.
 
@@ -110,7 +113,8 @@ The sidecar, verbatim:
   },
   "width": 1,
   "height": 1,
-  "missingFonts": []
+  "missingFonts": [],
+  "image": "webp"
 }
 ```
 
@@ -161,7 +165,7 @@ platform that *was* found, rather than a suite-wide failure with no stated
 cause.
 
 `describe` reads a few hundred bytes of text and stats the image. `find` is the
-same lookup with the PNG, base64-encoded, attached.
+same lookup with the image, base64-encoded, attached.
 
 ## Approve a change
 
@@ -230,9 +234,23 @@ Both store backends implement one contract, `RasterStore`, which is defined in
 ## Where the files go
 
 ```
-<root>/<path>.png
+<root>/<path>.webp
 <root>/<path>.json
 ```
+
+The image is encoded once, on the accept, by `keptRaster` from
+`@variance-authority/store/keep`, before `put`: sharp writes a lossless WebP and
+decodes it back to check that every pixel survived, the alpha of a fully
+transparent one and all four channels of every other. The colour under a fully
+transparent pixel is not kept; no comparison sees it. `put` only checks that it
+was handed a lossless WebP and refuses anything else, so a remote store
+receives the WebP and runs no codec, and a comparison only ever decodes. A read
+checks the image's header against the sidecar and refuses a mismatch as
+damage. The sidecar's `image` field names the kept
+format, so a lookup reads the one file it names. A baseline kept as a `.png` before stays readable
+— its sidecar has no `image` field — until its next accept replaces it with the
+WebP. A WebP holds at most 16,383 pixels on a side, so `keptRaster` refuses a
+taller or wider image and nothing is written.
 
 `<path>` is the `path` template rendered for the key and the engine family. The
 template's tokens:
@@ -274,8 +292,8 @@ directory named for a hash of its identity. Those are still read: a lookup
 falls back to them, reports `relocated` with the old and new paths, and `put` from this machine's own identity or line
 writes the new path and removes the old pair, so the commit shows a rename.
 
-`createDurableStore(root, options)` takes four options, and `createLfsStore`
-passes all four through:
+`createDurableStore(root, options)` takes five options, and `createLfsStore`
+passes the first four through:
 
 | option | default | what it decides |
 |---|---|---|
@@ -283,6 +301,7 @@ passes all four through:
 | `projects` | none | the Playwright projects the config runs, for a template with `{project}`. A record accepted for a project not in the list is a renamed project's, and the first key that renders its path takes it over; a project still in the list keeps its path and the run stops. Unset, every record is held to the project that accepted it. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
 | `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
+| `readImage` | `readFile` | how `find` reads a baseline's image, given its path. An `ENOENT` means no image; anything else it throws reaches the caller. `describe` and the render cache never call it. The LFS store passes one that fetches a pointer's image first. |
 
 Splitting the roots moves the sidecar's directory; it does not make the sidecar
 optional. Both halves are still written and both are still read, so one half
@@ -294,7 +313,7 @@ and your `.gitignore`.
 
 ## Missing and corrupt baselines
 
-A missing pair — both `.png` and `.json` absent for a key — returns `null` and
+A missing pair — both the image and the `.json` absent for a key — returns `null` and
 is treated as a new baseline. Any other corruption throws:
 
 - one file without the other
@@ -325,7 +344,7 @@ In a fresh repository that prints:
 ```json
 {
   "attributesFile": ".variance/baselines/.gitattributes",
-  "pattern": "*.png",
+  "pattern": "*-*.webp",
   "added": true,
   "filter": "lfs",
   "diagnostics": []
@@ -335,7 +354,7 @@ In a fresh repository that prints:
 and leaves `.variance/baselines/.gitattributes` reading:
 
 ```
-*.png filter=lfs diff=lfs merge=lfs -text
+*-*.webp filter=lfs diff=lfs merge=lfs -text
 ```
 
 `filter` is what git resolves the `filter` attribute to for a matching path, and
@@ -345,19 +364,40 @@ un-smudged clone does not read as a passing run.
 
 That last case is the one worth naming. An un-smudged checkout — LFS not
 installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you about 130 bytes of text
-where a PNG should be, and comparing two of those reports `unchanged` for every
-subject in the suite. The store refuses a pointer file read as an image.
+where an image should be, and comparing two of those reports `unchanged` for every
+subject in the suite. When `find` reads a pointer, the store runs `git lfs pull
+--include=<that file>` and reads the image it fetched. The pull fetches that
+file and no other: the pattern is anchored at the work tree's root, a
+`lfs.fetchexclude` in your git config does not apply to it, and a path with a
+comma gets its own pull, since git-lfs cannot escape a comma. Pointers met while
+a pull runs go into the next one. If the image cannot be fetched, the lookup throws a
+`RasterStoreError` rather than reporting a missing baseline.
+
+So a CI job can check out with `GIT_LFS_SKIP_SMUDGE=1`, run `git lfs install
+--local --skip-smudge`, and download only the baselines of the subjects whose
+documents changed. Without that install, git never runs git-lfs: the pull leaves
+the pointer, which the lookup refuses naming the install, and
+`tracking.diagnostics` says so at open. `describe` reads the `.json`
+sidecar and fetches nothing. A sidecar is a pointer only where `.gitattributes`
+sends the store's `.json` files to LFS too, and then the lookup refuses it as one, so on such a checkout a
+subject whose document did not move passes. `npx variance doctor --baselines`
+reads the head of every image in the root and, where git-lfs is not set up in
+its work tree, counts the pointers, names the first and exits 2 before any run;
+the composite action asks it before every run. `isLfsPointer(head)`, from
+`@variance-authority/core`, is the test both use, `LFS_POINTER_HEAD_BYTES` is how
+many leading bytes it needs, and `lfsSetup(cwd, run)` names what keeps git from
+running git-lfs.
 
 `createLfsStore` takes:
 
 | option | default | what it decides |
 |---|---|---|
 | `root` | required | baseline root, laid out exactly as the durable store lays it out |
-| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
+| `pattern` | `*-*.webp` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS. A pattern that does not end in `.webp` or `*` is refused, since it would track none of the kept images |
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |
-| `verify` | `true` | `false` skips consulting git entirely, and records that in `tracking.diagnostics` rather than silently |
+| `verify` | `true` | `false` skips consulting git entirely, fetches included, and records that in `tracking.diagnostics` rather than silently |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 
 Because `git` is injected, all of this is testable without a git repository.
@@ -532,4 +572,4 @@ commit with no parent, so what the line replaced is the remote's to collect.
 
 ---
 
-**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/store) · MIT

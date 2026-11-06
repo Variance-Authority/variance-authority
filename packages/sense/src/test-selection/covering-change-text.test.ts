@@ -38,13 +38,13 @@ describe('formatCoveringChange', () => {
     );
   });
 
-  it('says where it read, and says nothing when the caller cannot honestly say', () => {
+  it('says where it read and the commit the record names, or that it names none, and nothing when the caller cannot honestly say', () => {
     const changed = [file()];
 
     expect(formatCoveringChange(changed, { since: 'main', from: '.variance/index', at: 'abc1234' }))
       .toContain('Read from .variance/index, recorded at abc1234.');
     expect(formatCoveringChange(changed, { from: '.variance/index' }))
-      .not.toContain('recorded at');
+      .toContain('Read from .variance/index; the record names no commit.');
     expect(formatCoveringChange(changed)).not.toContain('Read from');
   });
 
@@ -53,6 +53,13 @@ describe('formatCoveringChange', () => {
       .toContain('no row — the recorded run never loaded this file');
     expect(formatCoveringChange([file()]))
       .toContain('in the index, and the change landed on no recorded region of it');
+  });
+
+  it('says a path the record\'s commit did not hold is no statement about the run', () => {
+    const said = formatCoveringChange([file({ recorded: false, absentAt: 'abc1234567890def' })]);
+
+    expect(said).toContain('no row — abc123456789, the commit the record was made at, held no file by this name.');
+    expect(said).not.toContain('never loaded');
   });
 
   it('calls a single witness what it is, rather than reporting a count of one', () => {
@@ -145,14 +152,34 @@ describe('formatCoveringChange', () => {
     );
   });
 
-  it('carries what the caller knows about each listed case, on its line and under it', () => {
+  it('says a region a case ran in another text is neither covered nor unwalked, and its one case not alone', () => {
+    const other = { id: 'refund', file: 'test/cart.test.ts', name: 'refunds' };
+    const text = formatCoveringChange([file({
+      regions: [
+        region({ stopped: [], overwritten: [other] }),
+        region({ startLine: 8, endLine: 10, tests: [witness('guest')], stopped: [], overwritten: [other] }),
+      ],
+    })]);
+
+    expect(text.split('\n')[0]).toBe(
+      '1 changed file, 2 changed regions: 0 nothing covered, 1 covered only in another text, 0 covered by one case.',
+    );
+    expect(text).toContain(
+      "1-6 function priceOf — in a text a case ran over, but a run over another text has landed there since, so which case ran it is not known\n",
+    );
+    expect(text).toContain(
+      "8-10 function priceOf — 1 case; it is also in a text a case ran over, but a run over another text has landed there since, so which other case ran it is not known\n",
+    );
+    expect(text).not.toMatch(/no case covered|finished|only witness/);
+  });
+
+  it('carries what each listed case said on its line, and nothing under it', () => {
+    const said = (name: string): CoveringTest => ({ ...witness(name), said: JSON.stringify({ said: [['fixture:flag', '"ff-on"', 'test/cart.test.ts:3', 1]] }) });
     const text = formatCoveringChange(
-      [file({ regions: [region({ tests: [witness('guest')] })] }), file({ file: 'test/cart.test.ts', cases: [witness('member')] })],
-      {},
-      (test, indent) => ({ tail: ` — said by ${test.name}`, under: [`${indent}under ${test.name}`] }),
+      [file({ regions: [region({ tests: [said('guest')] })] }), file({ file: 'test/cart.test.ts', cases: [said('member')] })],
     );
 
-    expect(text).toContain('    test/cart.test.ts > guest — said by guest\n      under guest');
-    expect(text).toContain('    test/cart.test.ts > member — said by member\n      under member');
+    expect(text).toContain('    test/cart.test.ts > guest — fixture:flag=ff-on (test/cart.test.ts:3)\n\n');
+    expect(text).toContain('    test/cart.test.ts > member — fixture:flag=ff-on (test/cart.test.ts:3)\n');
   });
 });

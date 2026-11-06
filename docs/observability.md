@@ -147,7 +147,7 @@ fields: `root` (a directory in the repository, defaults to the current directory
 recorded paths are relative to the checkout that contains it), `include`
 (which transformed modules count as product source), `mode` (`presence`,
 the default, probes every arrival region; `entries` probes modules and functions
-only), `placement` (`after-transforms`, the default, places the probes in what
+only; `loads` probes nothing and marks each module as loaded), `placement` (`after-transforms`, the default, places the probes in what
 your compilers wrote; `before-transforms` places them in each file as read),
 and `journeys` with `label` (install a journey head named `label`,
 `build` by default, before anything the build instrumented runs). The addon
@@ -385,7 +385,9 @@ tree:
 
 `<cache>` is [your cache](cache.md), and
 `<repository-digest>` is a digest of the checkout's absolute path, so two
-checkouts never write one another's bytes. At the default location `git status`
+checkouts never write one another's records. The only files both write are the
+lock that lets [one checkout of a repository index at a time](source-index.md) and the file that
+names its holder. At the default location `git status`
 never sees it and it can never land in a pull request. Nothing in a head or a page writes a file; the
 driver merges into this one snapshot at teardown. [The execution
 record](execution-record.md) gives the reader to import and the cost of a

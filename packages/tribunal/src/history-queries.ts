@@ -30,7 +30,7 @@ import {
  * a transcription of the append path.
  *
  * Transcribed, filter for filter, from
- * [`server/sqlite-queries.ts`](../../server/src/sqlite-queries.ts). The seam
+ * [`server/sqlite-queries.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/server/src/sqlite-queries.ts). The seam
  * exists so that replacing the engine changes what a query *is* and never what a
  * row *means*; the way to honour that is for the two files to be boringly alike.
  */

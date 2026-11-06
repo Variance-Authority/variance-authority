@@ -79,8 +79,8 @@ export function asDecision(value: unknown): Decision {
 }
 
 /**
- * A decision as posted: what was decided, by whom, an optional note, and the
- * baseline version the reviewer's page read.
+ * A decision as posted: what was decided, an optional note, and the baseline
+ * version the reviewer's page read. Who decided is not the body's to say.
  *
  * The version is kept apart by presence. A body without the key is a client
  * that predates it and is not checked; `null` is a page that read no baseline,
@@ -88,7 +88,6 @@ export function asDecision(value: unknown): Decision {
  */
 export function asDecisionBody(body: Readonly<Record<string, unknown>>): {
   decision: Decision;
-  by: string;
   note?: string;
   baselineVersion?: string | null;
 } {
@@ -101,7 +100,6 @@ export function asDecisionBody(body: Readonly<Record<string, unknown>>): {
   }
   return {
     decision: asDecision(body['decision']),
-    by: string(body, 'by', 'the decision'),
     ...(typeof body['note'] === 'string' && body['note'] !== '' ? { note: body['note'] } : {}),
     ...(version === undefined ? {} : { baselineVersion: version }),
   };

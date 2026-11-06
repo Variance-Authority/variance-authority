@@ -16,7 +16,7 @@ import { RasterStoreError, type BaselineKey } from '@variance-authority/raster';
  * ADR-0090 already reads it from.
  *
  * The template decides nothing about a verdict
- * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
+ * ([ADR-0016](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)):
  * every function here answers *which path*.
  */
 
@@ -51,7 +51,7 @@ export interface BaselinePathTemplate {
   /**
    * Whether a directory of the path is spelled out in the template, like
    * `__baselines__`, so that its glob takes baselines and nothing else. Without
-   * one, the default template's `.gitattributes` pattern is `*-*.png`, which under a root shared
+   * one, the default template's `.gitattributes` pattern is `*-*.webp`, which under a root shared
    * with the code also takes every hyphenated image in the repository.
    */
   readonly anchored: boolean;
@@ -79,6 +79,14 @@ export interface BaselinePathTemplate {
   engines(key: BaselineKey): { readonly directory: string; readonly name: RegExp; readonly rest: string } | undefined;
   /** Whether a root-relative path, without extension, is one this template renders for this engine. */
   matches(path: string, engine: string): boolean;
+  /**
+   * Every path a subject renders at any width, for this engine, as a pattern:
+   * `at` gives the subject's key at a width. Rendered at two widths, the paths
+   * differ exactly where the width is spelled, so the pattern is the template's
+   * own rendering with a number there and nothing guessed. `undefined` when the
+   * width is spelled nowhere in the path.
+   */
+  widths(at: (width: number) => BaselineKey, engine: string): RegExp | undefined;
 }
 
 /**
@@ -134,6 +142,23 @@ export function parseBaselinePath(source: string): BaselinePathTemplate {
       };
     },
     matches: (path, engine) => matcher(segments, engine).test(path),
+    widths(at, engine) {
+      const one = render(at(1), engine).join('/');
+      const two = render(at(2), engine).join('/');
+      if (one === two) return undefined;
+      // `1` and `2` sanitize alike and are one character each, so the two
+      // renderings are the same length and part only at the width.
+      let source = '';
+      let spelled = false;
+      for (let index = 0; index < one.length; index++) {
+        if (one[index] === two[index]) source += escaped(one[index]!);
+        else {
+          source += spelled ? '\\1' : '(\\d+)';
+          spelled = true;
+        }
+      }
+      return new RegExp(`^${source}$`, 'u');
+    },
   };
 }
 
@@ -148,7 +173,7 @@ function parse(source: string): readonly (readonly Part[])[] {
   if (source.startsWith('/') || source.includes('\\')) {
     refuse('is not a relative path with `/` separators; it is read under `baselines.root`');
   }
-  if (/\.(png|json)$/i.test(source)) refuse('ends in an extension; the store adds `.png` and `.json` itself');
+  if (/\.(png|webp|json)$/i.test(source)) refuse('ends in an extension; the store names the image and its `.json` itself');
 
   const segments = source.split('/').map((segment) => {
     if (segment === '' || segment === '.' || segment === '..') {

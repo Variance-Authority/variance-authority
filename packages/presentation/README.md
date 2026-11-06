@@ -5,6 +5,7 @@
 > Measure how a rendered interface groups, separates, aligns and emphasizes its content, and return those measurements as data a test or an agent can read.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## What this is for
 
@@ -41,7 +42,7 @@ Node 22 or newer. Every `@variance-authority/*` package is ESM-only.
 
 | Peer | Range | Required |
 | --- | --- | --- |
-| `@playwright/test` | `>=1.49 <2` | only for `@variance-authority/presentation/playwright` |
+| `@playwright/test` | `>=1.55 <2` | only for `@variance-authority/presentation/playwright` |
 
 The live entry point uses engine-neutral Playwright APIs and reads geometry from
 whichever browser you launched; the package's own browser suite runs on
@@ -494,7 +495,7 @@ const observation: ObservationRecord = {
   because: 'the candidate differs from its baseline',
   changedPixels: 320,
   regions: [],
-  signals: { presentation },
+  ...(presentation === undefined ? {} : { signals: { presentation } }),
 };
 
 console.log(observation.signals?.presentation);
@@ -506,10 +507,13 @@ effects were introduced, which were resolved, and which changed measurement.
 automatic findings are the complete evidence for the subject.
 
 A missing report, or a report with no layout findings to compare, produces
-`verdict: 'incomparable'` with a `because` naming which side was missing —
-never an empty clean list, because "we could not look" and "we looked and found
-nothing" are different answers. The content identity and information counts
-travel alongside the effects.
+`verdict: 'changed'` with a `because` naming which side was missing and no
+effects. It is never an empty clean list, because "we could not look" and "we
+looked and found nothing" are different answers. When neither side has a
+reading with layout findings, `presentationSignal` returns `undefined`, and the
+member stays absent.
+
+The content identity and information counts travel alongside the effects.
 
 The stored signal reports consequence, not severity. Project policy still
 decides whether any finding blocks a run.
@@ -520,4 +524,4 @@ and [Presentation evidence reference](https://variance-authority.dev/docs/presen
 
 ---
 
-**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/presentation) · MIT

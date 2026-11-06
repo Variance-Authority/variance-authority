@@ -37,6 +37,9 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { Parsed } from './cache.js';
+import { parsedOnce } from './record.js';
 import { EXCLUDE_DIRS } from './repo-path.js';
 
 /** What every language-specific resolver is allowed to ask about the tree. */
@@ -64,6 +67,15 @@ export interface TreeWorld {
    */
   text(path: string): string | undefined;
   /**
+   * What one file of the tree says, when this world is over a real directory.
+   *
+   * The scan's own parse, for a resolver whose answer stands on another file's
+   * declarations — a Rust `super` is the module whose `mod` line names this
+   * file, which no path says. Nothing for a world built from a bare list of
+   * paths, as {@link TreeWorld.text}.
+   */
+  parsed(path: string): Parsed | undefined;
+  /**
    * A language's own index over the tree, computed at most once per world.
    *
    * The key is the language's to choose and is never interpreted here. `make`
@@ -80,9 +92,9 @@ export interface TreeWorld {
  * {@link TreeWorld.text} answerable. Without it the paths are all this world
  * has, which is the shape a test builds and a scan never does.
  */
-export function worldIn(paths: Iterable<string>, root?: string): TreeWorld {
-  const sorted = [...new Set(paths)].sort(byCodeUnit);
-  return worldOver(() => sorted, root);
+export function worldIn(paths: Iterable<string>, root?: string, parse?: Parse): TreeWorld {
+  const sorted = [...new Set(paths)].sort(codeUnitOrder);
+  return worldOver(() => sorted, root, parse);
 }
 
 /**
@@ -92,12 +104,15 @@ export function worldIn(paths: Iterable<string>, root?: string): TreeWorld {
  * language that needs it — every JavaScript-only scan does — and the walk is
  * the whole tree.
  */
-export function worldOn(root: string): TreeWorld {
+export function worldOn(root: string, parse?: Parse): TreeWorld {
   let walked: readonly string[] | undefined;
-  return worldOver(() => (walked ??= walk(root)), root);
+  return worldOver(() => (walked ??= walk(root)), root, parse);
 }
 
-function worldOver(paths: () => readonly string[], root: string | undefined): TreeWorld {
+/** How a world reads a file's parse: the scan's, through its cache, or a parse of the file on disk. */
+type Parse = (path: string) => Parsed | undefined;
+
+function worldOver(paths: () => readonly string[], root: string | undefined, parse?: Parse): TreeWorld {
   let held: ReadonlySet<string> | undefined;
   const indexes = new Map<string, unknown>();
   const texts = new Map<string, string | undefined>();
@@ -109,6 +124,7 @@ function worldOver(paths: () => readonly string[], root: string | undefined): Tr
       if (!texts.has(path)) texts.set(path, readText(join(root, path)));
       return texts.get(path);
     },
+    parsed: (path) => (root === undefined ? undefined : (parse ?? ((file) => parsedOnce({ root, file })))(path)),
     below: (directory) => range(paths(), directory),
     under: (directory) => {
       const depth = directory === '' ? 0 : directory.split('/').length;
@@ -183,7 +199,7 @@ function walk(root: string): readonly string[] {
   };
 
   descend('');
-  return found.sort(byCodeUnit);
+  return found.sort(codeUnitOrder);
 }
 
 /** A repository-relative path, in the spelling a world is keyed by. */
@@ -191,8 +207,4 @@ export function repoPathOf(root: string, absolute: string): string {
   return absolute.startsWith(root + sep)
     ? absolute.slice(root.length + 1).split(sep).join('/')
     : absolute.split(sep).join('/');
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }

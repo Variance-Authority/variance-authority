@@ -8,7 +8,7 @@ import type {
   PackedSnapshot,
   RenderIdentity,
 } from '@variance-authority/core/format';
-import { pngSize } from '@variance-authority/png';
+import { imageSize } from '@variance-authority/png';
 import type { ReviewConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -21,7 +21,7 @@ import { type Reached, baselinesAt, reach, shareAt, versionNote } from '../versi
 /**
  * The caller the tribunal's write half never had.
  *
- * Rung 4 of [`flows.md`](../../../../docs/flows.md) is a review surface: builds,
+ * Rung 4 of [`flows.md`](https://variance-authority.dev/docs/flows) is a review surface: builds,
  * a docket, region overlays, decisions that are recorded. Every part of it
  * shipped except the one that puts a build in front of a reviewer. Nothing in
  * this package and nothing in the shipped action posted to the ingest route, so
@@ -73,10 +73,9 @@ import { type Reached, baselinesAt, reach, shareAt, versionNote } from '../versi
  * asks to see it. Builds pushed by earlier versions kept theirs and are still
  * served it.
  *
- * **The review token, ever.** {@link ReviewConfig} takes the ingest one, and a
- * deployment refuses two equal tokens at construction. Approving promotes a
- * baseline every later run is compared against; a value that could do that has
- * no business in a config a run reads.
+ * **A person's credential, ever.** {@link ReviewConfig} takes the ingest one.
+ * Approving promotes a baseline every later run is compared against; a value that
+ * could do that has no business in a config a run reads.
  *
  * **A candidate with no sidecar.** The `after` image is the only one that can be
  * promoted, and promoting it writes a baseline keyed on its document digest. The
@@ -253,7 +252,7 @@ export async function push(options: PushOptions): Promise<PushResult> {
   // the next forty seconds, and a sentence printed after the wait it describes
   // is a sentence nobody needed.
   const deployment = endpointOf(options.review);
-  const service = await reach(send, deployment, options.review.token());
+  const service = await reach(send, deployment, await options.review.token());
   const note = versionNote(service, {
     share: shareAt(options.share, deployment),
     baselines: baselinesAt(options.baselines, deployment),
@@ -297,7 +296,7 @@ export async function push(options: PushOptions): Promise<PushResult> {
       // Sent with the digest as well as with the bytes: it describes the
       // *reference to* the image, and a subject whose baseline is already in the
       // bucket still needs its viewer told how big it is.
-      const size = pngSize(bytes.value);
+      const size = imageSize(bytes.value);
       pending.push({ subject, kind, bytes: bytes.value, digest: digestOf(bytes.value), rest: { ...size } });
       encoded += bytes.value.byteLength;
       counted[kind] += 1;
@@ -349,13 +348,14 @@ export async function push(options: PushOptions): Promise<PushResult> {
   const endpoint = `${endpointOf(options.review)}/review/builds`;
   tell?.({ phase: 'sending', bytes: Buffer.byteLength(body, 'utf8') });
 
+  const token = await options.review.token();
   let response: Response;
   try {
     response = await send(endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${options.review.token()}`,
+        authorization: `Bearer ${token}`,
       },
       body,
     });

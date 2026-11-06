@@ -4,7 +4,8 @@ import { BOOLEAN } from './args.js';
 import { USAGE, main, parseArgs } from './bin.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from './exit.js';
-import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
+import { verbOf } from '@variance-authority/mcp/tools';
+import { QUESTIONS, argumentsOf } from './commands/asking.js';
 import { flagsFor, helpFor, isCommand } from './usage.js';
 
 describe('parseArgs', () => {
@@ -342,42 +343,9 @@ describe('parseArgs', () => {
       command: 'comment',
       config: resolve('variance.config.json'),
       marker: false,
+      cleared: false,
       reports: [resolve('a.json')],
     });
-  });
-
-  it('refuses a report beside --marker, which reads nothing', () => {
-    expect(attempt(['comment', '--marker', 'a.json']).message).toContain(
-      'prints the marker and nothing else',
-    );
-  });
-
-  it('takes the docket flags on comment, and drops an empty --run-url', () => {
-    expect(parseArgs(['comment', '--body-file', 'out.md', '--run-url', 'https://ci/1'])).toEqual({
-      command: 'comment',
-      config: resolve('variance.config.json'),
-      marker: false,
-      bodyFile: 'out.md',
-      runUrl: 'https://ci/1',
-      reports: [],
-    });
-
-    // A workflow that published nothing passes `--run-url ""`, and a comment
-    // linking to `''` is worse than one linking nowhere.
-    expect(parseArgs(['comment', '--run-url', ''])).toEqual({
-      command: 'comment',
-      config: resolve('variance.config.json'),
-      marker: false,
-      reports: [],
-    });
-  });
-
-  it('refuses --marker together with the flags that render a body', () => {
-    // Two different questions. Answering both at once would mean deciding which
-    // of them the exit code is about.
-    expect(attempt(['comment', '--marker', '--body-file', 'out.md']).message).toContain(
-      'prints the marker and nothing else',
-    );
   });
 
   it('registers every flag shown without a value as a boolean', () => {
@@ -429,11 +397,10 @@ describe('parseArgs', () => {
     // schemas, so the usage line advertises nothing the parser refuses.
     const refused: string[] = [];
     const accepted = flagsOf('ask');
-
     for (const question of QUESTIONS) {
       for (const argument of argumentsOf(question.tool)) {
         // Questions are typed as words after `intersection`, never behind a flag.
-        if (argument.kind !== 'questions' && !accepted.includes(argument.flag)) refused.push(`${questionOf(question.tool)}: ${argument.flag}`);
+        if (argument.kind !== 'questions' && !accepted.includes(argument.flag)) refused.push(`${verbOf(question.tool)}: ${argument.flag}`);
       }
     }
 

@@ -1,4 +1,4 @@
-import { identityDigest, totalsOf } from '@variance-authority/core/format';
+import { identityDigest, totalsOf, widenedFrom } from '@variance-authority/core/format';
 import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
@@ -279,9 +279,11 @@ function observationsOf(shards: readonly Shard[]): CliRunReport['observations'] 
 function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObserved[] } {
   if (shards.some((shard) => shard.report.notObserved === undefined)) return {};
 
-  const observed = new Set(
-    shards.flatMap((shard) => shard.report.observations.map((record) => record.subject)),
-  );
+  const observed = new Set(shards.flatMap((shard) => shard.report.observations.map(({ subject }) => subject)));
+  // A story splits into its widths only when it is visited, so a shard that left
+  // it to another names the planned id, and the owner's observations name the
+  // widths: a width answers for the story that was left, never for a decision.
+  const widened = new Set([...observed].flatMap((subject) => widenedFrom(subject) ?? []));
 
   const bySubject = new Map<string, { entries: NotObserved[]; paths: string[] }>();
   for (const shard of shards) {
@@ -310,6 +312,7 @@ function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObser
     }
 
     if (decisions.length === 0) {
+      if (widened.has(subject)) continue;
       notObserved.push({
         subject,
         kind: 'failed',
@@ -355,7 +358,7 @@ function warningsOf(
  * It cannot be recomputed here either. `variants` and `renderings` count
  * distinct digests, and the digests are in the snapshots rather than in the
  * artifact — which is the bargain
- * [`composition.ts`](../../../report/src/composition.ts) already states.
+ * [`composition.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/report/src/composition.ts) already states.
  *
  * So it is omitted, and the omission is a warning rather than a silence. The
  * rule this file is built on is that a merged report must not say anything a
@@ -371,9 +374,9 @@ function unmergeable(shards: readonly Shard[]): readonly string[] {
     `composition dropped: ${composed} of ${shards.length} shard(s) compared their subjects to ` +
       'each other, and that comparison does not survive a split — two subjects sharing a ' +
       'rendering are the finding, and a pair that landed in different shards is in neither ' +
-      'report. Each subject\'s structure rows go with it. Run the suite unsharded to ask ' +
-      'for the component graph or one subject\'s composition; the lexicon is per subject ' +
-      'and is carried.',
+      'report. Each subject\'s structure rows go with it. Each shard\'s own report still holds ' +
+      'its composition over the subjects it rendered; the component graph, or one subject\'s ' +
+      'composition across shards, is in none of them. The lexicon is per subject and is carried.',
   ];
 }
 

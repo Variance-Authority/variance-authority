@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CUT_VARIABLE } from './case-cut.js';
 import filter from './jest-filter.cjs';
-import { SELECTION_FILTER, selectingFilter } from './jest-selection.js';
+import { refuseUnfound, SELECTION_FILTER, selectingFilter } from './jest-selection.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { withTestSelection } from './jest.js';
 
@@ -36,7 +36,7 @@ describe('the Jest filter that drops what a selection may skip', () => {
       say: (line) => lines.push(line),
     });
 
-    expect(configured).toEqual({ filter: SELECTION_FILTER });
+    expect(configured).toEqual({ filter: SELECTION_FILTER, passWithNoTests: true });
     await expect(filter([at('a.test.ts'), at('b.test.ts'), at('c.test.ts'), at('new.test.ts')]))
       .resolves.toEqual({ filtered: [at('b.test.ts'), at('new.test.ts')] });
     expect(lines).toEqual(['variance-authority: selected 2 of 4', '  read from the record at 0123abcd']);
@@ -80,6 +80,18 @@ describe('the Jest filter that drops what a selection may skip', () => {
       if (before === undefined) delete process.env[CUT_VARIABLE];
       else process.env[CUT_VARIABLE] = before;
     }
+  });
+
+  it('fails a run the project\'s own filter left no file, as Jest does, and names the filter', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-own-filter-'));
+    temporary.push(directory);
+    await writeFile(resolve(directory, 'own.cjs'), 'module.exports = async () => ({ filtered: [] });');
+    await installed(directory, '30.0.0');
+    selectingFilter({ filter: '<rootDir>/own.cjs' }, { root: directory, rootDir: directory, selection: async () => selection([]), argv: [], say: () => {} });
+
+    await filter([resolve(directory, 'a.test.ts')]);
+
+    expect(() => refuseUnfound([], {})).toThrow('check testMatch, the working directory, the project configuration and its filter');
   });
 
   it('runs the project\'s own filter first, in either shape Jest has asked a filter to return', async () => {
@@ -163,10 +175,21 @@ module.exports.setup = async () => { ready = true; };
     const lines: string[] = [];
     const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
 
-    for (const flag of ['--watch=false', '--watchAll=false', '--skipFilter=false']) {
-      expect(selectingFilter({}, { ...options, argv: ['node', 'jest', flag] })).toEqual({ filter: SELECTION_FILTER });
+    for (const flag of ['--watch=false', '--watchAll=false', '--watch-all=false', '--skipFilter=false', '--skip-filter=false']) {
+      expect(selectingFilter({}, { ...options, argv: ['node', 'jest', flag] })).toEqual({ filter: SELECTION_FILTER, passWithNoTests: true });
     }
     expect(lines).toEqual([]);
+  });
+
+  it('turns passWithNoTests off when the command line replaces the sequencer that would refuse an unfound run', () => {
+    const lines: string[] = [];
+    const options = { root, rootDir, selection: async () => selection(['a.test.ts']), say: (line: string) => lines.push(line) };
+
+    const argv = ['node', 'jest', '--testSequencer=./mine.cjs'];
+
+    expect(selectingFilter({}, { ...options, argv })).toEqual({ filter: SELECTION_FILTER, passWithNoTests: false });
+    expect(selectingFilter({ passWithNoTests: true }, { ...options, argv }).passWithNoTests).toBe(true);
+    expect(lines[0]).toBe('variance-authority: --testSequencer replaces the sequencer that tells an empty selection from a run that found no file, so Jest fails both');
   });
 
   it('says that a filter named on the command line turns the selection off', () => {
@@ -189,6 +212,43 @@ module.exports.setup = async () => { ready = true; };
     expect(once.filter).toBe(SELECTION_FILTER);
     expect(twice.filter).toBe(SELECTION_FILTER);
     expect(withTestSelection({ rootDir }, { coverageFile: 'coverage.bin' }).filter).toBeUndefined();
+  });
+});
+
+describe('passWithNoTests on a configuration wrapped for selection', () => {
+  const handed = { coverageFile: 'coverage.bin', selection: async () => selection([]) };
+  const started = process.argv;
+
+  afterEach(() => {
+    process.argv = started;
+  });
+
+  it('is set when the filter is, so a selection that keeps no file passes', () => {
+    process.argv = ['node', 'jest'];
+
+    expect(withTestSelection({ rootDir }, handed).passWithNoTests).toBe(true);
+    expect(withTestSelection({ rootDir, projects: [{ displayName: 'unit' }] }, handed).passWithNoTests).toBe(true);
+    expect(withTestSelection({ rootDir, passWithNoTests: false }, handed).passWithNoTests).toBe(true);
+  });
+
+  it('stays unset on a run with no selection', () => {
+    process.argv = ['node', 'jest'];
+
+    expect(withTestSelection({ rootDir }, { coverageFile: 'coverage.bin' }).passWithNoTests).toBeUndefined();
+  });
+
+  it.each(['--watch', '--watchAll', '--watch-all', '--filter=./mine.cjs', '--skipFilter', '--skip-filter'])('stays unset under %s, where nothing is selected', (flag) => {
+    process.argv = ['node', 'jest', flag];
+    const say = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    expect(withTestSelection({ rootDir }, handed).passWithNoTests).toBeUndefined();
+    say.mockRestore();
+  });
+
+  it.each([true, false])('stays %s on a run with no selection when the configuration sets it', (set) => {
+    process.argv = ['node', 'jest'];
+
+    expect(withTestSelection({ rootDir, passWithNoTests: set }, { coverageFile: 'coverage.bin' }).passWithNoTests).toBe(set);
   });
 });
 

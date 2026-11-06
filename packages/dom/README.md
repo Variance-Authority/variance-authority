@@ -5,6 +5,7 @@
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
 
 Part of [Variance Authority](https://variance-authority.dev).
+Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 Point this package at an element that is already mounted and it reads back two
 things: a **capture** — the element's tree, its ARIA, and the CSS declarations
@@ -246,4 +247,4 @@ a modal is open or closed, and an opening dialog reads as unchanged.
 
 ---
 
-**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT
+**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/dom) · MIT

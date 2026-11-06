@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { deletedAt } from './reach-command.js';
 
@@ -360,6 +360,34 @@ describe('a file the diff deletes', () => {
 
     await expect(listing).rejects.toBeInstanceOf(OperatorError);
     await expect(listing).rejects.toThrow(/deleted since `no-such-base` in .*va-reach-[^:]*: fatal: /);
+  });
+});
+
+describe('a diff of files in no language this build reads', () => {
+  it('exits 2 and names the files it changed, not none', async () => {
+    const root = checkout({ 'src/app.ts': 'export const app = 1;\n', 'README.md': '# app\n', 'ci.yml': 'on: push\n' });
+    commit(root, { 'README.md': '# the app\n', 'ci.yml': 'on: pull_request\n' }, 'prose and a workflow');
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_OPERATOR);
+    expect(said.out).toBe('');
+    expect(said.err).toMatch(/none of the 2 changed files is in a language this build reads \(README\.md and ci\.yml\)/);
+    expect(said.err).not.toMatch(/0 changed files/);
+  });
+
+  it('counts the files it deletes among the files it changed, and names them apart', async () => {
+    const root = checkout({ 'src/app.ts': 'export const app = 1;\n', 'src/old.ts': 'export const old = 1;\n', 'README.md': '# app\n' });
+    git(root, ['rm', '--quiet', 'src/old.ts']);
+    commit(root, { 'README.md': '# the app\n' }, 'prose, and a file dropped');
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_OPERATOR);
+    expect(said.out).toBe('');
+    expect(said.err).toMatch(
+      /of the 2 changed files, 1 is deleted \(src\/old\.ts\) and the other 1 is in no language this build reads \(README\.md\)/,
+    );
   });
 });
 

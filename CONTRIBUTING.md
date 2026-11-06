@@ -7,7 +7,7 @@ claims, and what a change owes a release.
 
 ## Set up
 
-You need Node 22 or newer and Yarn 4 through Corepack (`corepack enable`); the
+You need Node 22.12 or newer and Yarn 4 through Corepack (`corepack enable`); the
 exact Yarn version is pinned as `packageManager` in the root
 [`package.json`](package.json). **Every command on this page runs from the
 repository root.**
@@ -87,8 +87,8 @@ The variable is read by `withTestSelection`, the seam each slice's config is
 wrapped in, which is the seam this repository ships. Set and empty, it selects
 from the commit the snapshot names. Set to a ref, it also names the base for a
 snapshot that names no commit of its own. The runner prints one line
-before it starts: `selected 12 of 676`, `selected none of 676`, or
-`declined: <why>` when the reading could not be made and the slice runs whole.
+before it starts: `selected 12 of 676`, `selected none of 676, so none of them
+runs`, or `declined: <why>` when the reading could not be made and the slice runs whole.
 Watch mode does not select.
 
 `yarn test:since` takes no arguments of its own: anything written after it
@@ -251,6 +251,32 @@ sends nothing to a registry. Publishing is the `release` workflow run by hand,
 from the Actions tab, on whatever `main` carries at that moment — it refuses to
 run while a changeset is still waiting to be versioned. The dist-tag is derived
 from the version rather than typed at release time.
+
+**A new package is created once by hand.** The workflow publishes through
+npm's trusted publisher, which npm adds only to a package that already exists,
+so the workflow cannot create a name. `release` refuses before it publishes
+anything while a package has never been on npm, and names it. Logged in to npm
+on your machine, run:
+
+```bash
+node tools/publish.mjs --placeholders
+```
+
+For each name npm has never held, it publishes a bare manifest at
+`0.0.0-placeholder.0` under the `placeholder` tag, then adds the trusted
+publisher for this repository, `release.yml` and the `npm` environment. npm may
+ask for your second factor at each step. Nothing is built, so a platform package
+is created from any machine. The real version stays the workflow's: run
+`release` again, and it publishes that version signed, after the packages it
+depends on. A name created minutes ago can still read as new to the registry;
+if `release` refuses it again, run it again.
+
+If a step fails, say a second factor timed out between the publish and the
+trust, the run stops and prints the command that finishes the names it left,
+such as `node tools/publish.mjs --placeholders @variance-authority/isolator`.
+Run that: a name npm already holds only gets its trusted publisher, never a
+placeholder. A release that
+stops on `ENEEDAUTH` names the same command for the package it stopped on.
 
 ## Where the rest lives
 

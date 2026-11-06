@@ -11,14 +11,16 @@
  * - `mcp/tools` — the answers, as pure functions from a report to text. Testable
  *   without speaking a protocol, which is the only way the question that matters
  *   ("does this help an agent fix it?") stays cheap to ask.
- * - `mcp/protocol` — MCP framing, as a pure function from a request to a
- *   response. Also pure, and separately exercisable, and generic in what it
- *   serves: a request, a subject, and a set of tools that read that subject.
- *   `REPORTS` is the set this package ships; a server over some other subject
- *   passes its own and reuses every line of the framing.
+ * - `mcp/protocol` — the sets this package serves (`REPORTS` and its siblings),
+ *   with the MCP framing re-exported beside them. The framing is a pure
+ *   function from a request to a response, generic in what it serves: a
+ *   request, a subject, and a set of tools that read that subject. A server
+ *   over some other subject passes its own set and reuses every line of it.
  *
  * `server.ts` is the stdio plumbing left over once those two are removed, and it
- * deliberately contains no decisions.
+ * deliberately contains no decisions. It reads only the framing until a server
+ * is started, so importing a pure function from this root does not evaluate the
+ * served sets or the readers behind them.
  *
  * What a producer *wrote* is not here. The report format is
  * `@variance-authority/report`, because the CLI writes it, a PR comment renders
@@ -33,4 +35,4 @@ export type { ObservabilitySubject } from './observability-subject.js';
 
 export { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
 export { serve, serveEyesRecord, serveReportFile, serveVantage } from './server.js';
-export type { ReportFileOptions, ServerOptions, ServedVantage } from './server.js';
+export type { AskedAgain, ReportFileOptions, ServerOptions, ServedVantage } from './server.js';

@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { declaredSuites, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, declaredSuites, mainlineReadRoot, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering, formatCovering } from './covering.js';
+import { writeMissedMainline } from './mainline-base.js';
 
 // A suite recorded through the real Vitest seam, into a cache of its own, so
 // the snapshot beside the index holds the digest the frame is checked against.
@@ -20,6 +21,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/cases-vitest');
 const source = 'packages/sense/test/fixtures/cases-vitest/src/decide.ts';
+const cases = 'packages/sense/test/fixtures/cases-vitest';
+const tests = `${cases}/test/branch.case.ts and ${cases}/test/concurrent.case.ts`;
 // The repository's root declares its suites, so the fixture records as the
 // first of them and every question names it.
 const suite = declaredSuites(repository)?.[0]?.name;
@@ -37,6 +40,13 @@ beforeAll(async () => {
     { cwd: repository, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: testCoverageFile(repository, { suite }) } },
   );
   await updateSourceIndex(repository);
+  // The root is this repository, whose share is its real remote. Its line is noted as having given nothing, as a
+  // read that asked it would leave it, so the suite's questions read the run above and the network plays no part.
+  await writeMissedMainline(mainlineReadRoot(cacheRootFor(repository), suite!), {
+    mainline: 'main',
+    at: new Date().toISOString(),
+    miss: { kind: 'unreadable', detail: 'not asked here' },
+  });
 }, 60_000);
 
 afterAll(async () => {
@@ -49,6 +59,18 @@ function parse(argv: readonly string[]) {
   return parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering')));
 }
 
+/** When the latest run an answer is dated by landed, in ms: a clock read then says it landed under a minute ago, however long the run took. */
+function landing(answer: Awaited<ReturnType<typeof covering>>): number {
+  return Date.parse((answer.ran as { readonly stands: readonly { readonly landed: { readonly latest: string } }[] }).stands[0]!.landed.latest);
+}
+
+/** The text under the line that says whose record answered, which the repository's suite opens with: it is given to a share. */
+function underTheRecord(text: string): string {
+  const [first, ...rest] = text.split('\n');
+  expect(first).toContain(`record of "${suite}"`);
+  return rest.join('\n');
+}
+
 /** The fixture's text with two lines written above it, as an editor would hold it unsaved. */
 async function edited(): Promise<string> {
   const held = join(cache, 'held.ts');
@@ -57,12 +79,16 @@ async function edited(): Promise<string> {
 }
 
 describe('a file answered in the text somebody holds', () => {
-  it('stands in the recorded frame when the file is the text the suite ran over', async () => {
+  it('stands in the recorded frame when the file is the text the suite ran over, and says when that run landed', async () => {
     const answer = await covering(parse(['--file', source, '--root', repository, ...named]));
 
     expect(answer.frame).toBe('recorded');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
       .toEqual([[1, 1, 'walked'], [2, 2, 'walked']]);
+    // The run wrote the runs record beside the snapshot, so the answer is dated by when that run landed.
+    expect(answer.ran).toMatchObject({ stands: [{ commit: answer.at, tests: [`${cases}/test/branch.case.ts`, `${cases}/test/concurrent.case.ts`], landed: { runs: 1 } }] });
+    expect(formatCovering(answer, 'text', landing(answer) + 3_600_000))
+      .toContain(`${source} is the text the 2 test files named here ran over, in a run that landed 1 hour ago.\n`);
   });
 
   it('carries every range to where it stands in an edited text', async () => {
@@ -71,17 +97,70 @@ describe('a file answered in the text somebody holds', () => {
     expect(answer.frame).toBe('mapped');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
       .toEqual([[3, 3, 'walked'], [4, 4, 'walked']]);
-    expect(formatCovering(answer, 'text')).toContain('placed in the text as it is now');
+    expect(formatCovering(answer, 'text', landing(answer))).toContain(`The recorded lines of ${source} are placed in its text as it is now.\n` +
+      `${tests} ran over another text of ${source}, in a run that landed under a minute ago.\n`);
   });
 
-  it('asks a held line as the line it was, and refuses one the edit wrote', async () => {
+  it('asks a held line as the line it was, answers that the edit wrote one, and names the run that answers it now', async () => {
     const held = await edited();
     const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '7']));
 
     // Held line 7 is `if (value === 'gamma') {`: the case that fell through evaluated it too.
     expect(answer.tests?.map((test) => test.name)).toEqual(['decide > falls through to B', 'decide > takes the gamma branch']);
     expect(answer.target).toEqual({ line: 7 });
-    await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1'])))
-      .rejects.toThrow(/written since the recording/);
+    const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1']));
+    expect(written).toMatchObject({ target: { line: 1 }, tests: [], written: [{ startLine: 1, endLine: 1 }] });
+    expect(underTheRecord(formatCovering(written, 'text', landing(written)))).toBe(`Line 1 of ${source} was written since the recording, so no case has run it.\n` +
+      `The recorded lines of ${source} are placed in its text as it is now.\n` +
+      `${tests} ran over another text of ${source}, in a run that landed under a minute ago; line 1 differs between the two.\n` +
+      `Gap (stale) on line 1 of ${source}: which tests run it now. Known: line 1 was written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
   });
+
+  it('answers a held run of lines from the lines it was, and names the lines the edit wrote', async () => {
+    const held = await edited();
+    const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-7']));
+
+    // Held lines 3-7 are recorded lines 1-5, which every case of `decide` walked into.
+    expect(answer.target).toEqual({ lines: { startLine: 1, endLine: 7 } });
+    expect(answer.written).toEqual([{ startLine: 1, endLine: 2 }]);
+    expect(answer.tests?.map((test) => test.name)).toEqual(
+      (await covering(parse(['--file', source, '--root', repository, ...named, '--line', '1-5']))).tests?.map((test) => test.name),
+    );
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Lines 1-2 were written since the recording, so no case has run them.');
+    expect(formatCovering(answer, 'refs', Date.now())).toContain('; written since 1-2');
+    const written = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1-2']));
+    expect(written).toMatchObject({ tests: [], written: [{ startLine: 1, endLine: 2 }] });
+    expect(underTheRecord(formatCovering(written, 'text', landing(written)))).toBe(`Lines 1-2 of ${source} were written since the recording, so no case has run them.\n` +
+      `The recorded lines of ${source} are placed in its text as it is now.\n` +
+      `${tests} ran over another text of ${source}, in a run that landed under a minute ago; lines 1-2 differ between the two.\n` +
+      `Gap (stale) on lines 1-2 of ${source}: which tests run it now. Known: lines 1-2 were written since the recording.\nNext, Record, 5 tests in 2 test files:\n  Run with the suite's own runner: ${cases}/test/branch.case.ts ${cases}/test/concurrent.case.ts\n`);
+    expect(formatCovering(written, 'refs', Date.now())).not.toMatch(/[Rr]un the suite/);
+  });
+});
+
+describe('import hops beside a run of lines or a scope', () => {
+  // Every case of `decide` entered its first line, so measuring from that line
+  // and measuring from the file give each test file the same hops.
+  const hopsOf = async (...argv: string[]) =>
+    (await covering(parse(['--file', source, '--root', repository, ...named, ...argv, '--hops']))).files?.map((file) => [file.file, file.hops]);
+
+  it('measures a run of lines from the file', async () => {
+    const hops = await hopsOf('--line', '1-5');
+
+    expect(hops?.length).toBeGreaterThan(0);
+    expect(hops?.every(([, distance]) => typeof distance === 'number')).toBe(true);
+    expect(hops).toEqual(await hopsOf('--line', '1'));
+  }, 60_000);
+
+  it('measures a scope from the file', async () => {
+    // Line 1 opens `decide`, so it also lists the file's loaders: the scope lists fewer files, at the same hops.
+    const scoped = await hopsOf('--function', 'decide');
+    const fromLine = new Map(await hopsOf('--line', '1'));
+
+    expect(scoped?.length).toBeGreaterThan(0);
+    for (const [file, distance] of scoped ?? []) {
+      expect(typeof distance).toBe('number');
+      expect(distance).toBe(fromLine.get(file));
+    }
+  }, 60_000);
 });

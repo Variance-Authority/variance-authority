@@ -25,11 +25,18 @@
 
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, parse, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
-import { shardArgument } from '@variance-authority/sense/test-selection';
-import { installedPlaywright, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
+import {
+  askedSelection,
+  recordFileFor,
+  repositoryRoot,
+  shardArgument,
+  type SuiteSelection,
+} from '@variance-authority/sense/test-selection';
+import { SELECTION_SETUP, SkippedFiles, selectFiles } from './file-selection.js';
+import { installedPlaywright, playwrightFrom, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
@@ -49,39 +56,50 @@ const SENSE_DIST = `**/${dirname(dirname(realpathSync(createRequire(import.meta.
   .join('/')
   .replace(/^\//u, '')}/**`;
 
+/** A `testIgnore` or `testMatch`, as Playwright takes one. */
+type FilePatterns = string | RegExp | ReadonlyArray<string | RegExp>;
+
 /** The subset of a Playwright configuration this reads and rewrites. */
 export interface PlaywrightSelectionConfig {
-  readonly use?: Record<string, unknown>;
+  readonly use?: object;
   readonly reporter?: string | ReadonlyArray<string | readonly [string, unknown?]>;
-  readonly projects?: ReadonlyArray<{ readonly use?: Record<string, unknown>; readonly [key: string]: unknown }>;
-  readonly [key: string]: unknown;
+  readonly projects?: ReadonlyArray<{ readonly name?: string; readonly use?: object; readonly testIgnore?: FilePatterns }>;
+  readonly testIgnore?: FilePatterns;
+  readonly globalSetup?: string | readonly string[];
+  readonly shard?: PlaywrightShard | null;
+  readonly build?: { readonly external?: readonly string[] };
+  readonly '@playwright/test'?: { readonly babelPlugins?: readonly unknown[] };
+}
+
+/** What `withTestSelection` is told: where the record goes, and what the run selects by. */
+export interface TestSelection extends ExecutionRecording {
+  /**
+   * The selection this run is handed, read once before Playwright collects a
+   * file. Each project's `testIgnore` drops what it skips, after the
+   * project's own patterns, and stderr says `selected N of M`. Absent,
+   * `VARIANCE_AUTHORITY_SINCE` asks for the one `variance select` reads, and
+   * with that unset every file runs.
+   */
+  readonly selection?: () => Promise<SuiteSelection>;
 }
 
 /**
- * Turn recording on for every project in a Playwright configuration, and add
- * the reporter that folds what the workers staged.
+ * Turn recording on for every project in a Playwright configuration, add the
+ * reporter that folds what the workers staged, and, given a since commit, run
+ * only the files the selection keeps (`selectingFiles`). Everything the
+ * configuration had stays: its reporters in their order, Playwright's default
+ * named when it had none, and its `babelPlugins` ahead of the cadence cut
+ * (`cutSpecs`).
  *
- * Everything the configuration already had stays, its own reporters included
- * and in their order; a configuration with none keeps Playwright's default by
- * naming it, because a `reporter` array of one entry replaces the default
- * rather than adding to it. Its own `babelPlugins` stay too, and the plugin
- * that cuts each spec statement by statement goes after them, unless
- * `cadence` is `false`.
- *
- * The suite still has to be built with `testSelectionProbes()` from
- * `@variance-authority/sense/journal` — this wires the runner, not the page —
- * and a run whose application has no collector says so on stderr and records
- * nothing.
- *
- * A run that asks for a shard, by `--shard` or the configuration's `shard`, is
- * refused here, before anything starts, when the project's Playwright is older
- * than 1.62 and would split it test by test, or when a `--reporter` on the
- * command line replaces the reporter that places it by whole files.
+ * The application still needs `testSelectionProbes()` from
+ * `@variance-authority/sense/journal`. A shard nothing would place by whole
+ * files is refused here, before anything starts (`refuseShard`).
  */
-export function withTestSelection<Config extends PlaywrightSelectionConfig>(
-  config: Config = {} as Config,
-  recording: ExecutionRecording = {},
+export function withTestSelection<Config extends object = PlaywrightSelectionConfig>(
+  config: Config & PlaywrightSelectionConfig = {} as Config & PlaywrightSelectionConfig,
+  options: TestSelection = {},
 ): Config {
+  const { selection, ...recording } = options;
   refuseShard(config.shard as PlaywrightShard | null | undefined);
   const reporters =
     config.reporter === undefined
@@ -91,12 +109,17 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
         : [...config.reporter];
   const compile = config['@playwright/test'] as { readonly babelPlugins?: readonly unknown[] } | undefined;
   const build = config['build'] as { readonly external?: readonly string[] } | undefined;
+  const drop = selectingFiles(config, recording, selection);
+  if (recording.cadence === false) uncutSpecs();
   return {
     ...config,
+    ...(drop === undefined
+      ? {}
+      : { globalSetup: [SELECTION_SETUP, ...listed(config.globalSetup)], testIgnore: [...listed(config.testIgnore), drop] }),
     ...(recording.cadence === false
       ? {}
       : {
-          '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] },
+          ...cutSpecs(compile),
           build: { ...build, external: [...(build?.external ?? []), SENSE_DIST] },
         }),
     use: { ...config.use, varianceExecution: recording },
@@ -106,10 +129,104 @@ export function withTestSelection<Config extends PlaywrightSelectionConfig>(
           projects: config.projects.map((project) => ({
             ...project,
             use: { ...project.use, varianceExecution: recording },
+            // A project's own `testIgnore` replaces the top level's rather than adding to it.
+            ...(drop === undefined || project.testIgnore === undefined ? {} : { testIgnore: [...listed(project.testIgnore), drop] }),
           })),
         }),
     reporter: [...reporters, [SELECTION_REPORTER, { ...recording }] as const],
   };
+}
+
+/** What decides whether a configuration selects, read from the process unless a test says otherwise. */
+export interface SelectingProcess {
+  readonly argv?: readonly string[];
+  readonly env?: NodeJS.ProcessEnv;
+  readonly say?: (line: string) => void;
+}
+
+/**
+ * The `testIgnore` pattern that drops what the selection skips, with the
+ * selection asked for in this process, or nothing when the run does not
+ * select: no since commit and no selection handed in, a process that is not
+ * the main one of a `playwright test`, watch and UI mode, `--list`, and a
+ * configuration already wrapped, which selects once.
+ */
+export function selectingFiles(
+  config: PlaywrightSelectionConfig,
+  recording: ExecutionRecording,
+  handed: (() => Promise<SuiteSelection>) | undefined,
+  { argv = process.argv, env = process.env, say = (line) => process.stderr.write(`${line}\n`) }: SelectingProcess = {},
+): SkippedFiles | undefined {
+  if (listed(config.testIgnore).some((pattern) => pattern instanceof SkippedFiles)) return undefined;
+  // A worker evaluates the configuration again; the main process has already
+  // dropped the files, and the reporter, `show-report` and `merge-reports`
+  // collect none. `argv[2]` is the command the `playwright` binary was given,
+  // the only process shape that collects files.
+  if (env['TEST_WORKER_INDEX'] !== undefined || argv[2] !== 'test') return undefined;
+  const start = resolve(recording.root ?? process.cwd());
+  const root = repositoryRoot(start);
+  const suite = recording.suite === undefined ? {} : { suite: recording.suite };
+  // Noted against the record the reporter folds into, which names it as the record this run started from.
+  const asked = askedSelection(handed, () => recordFileFor(root, start, recording), { root, from: start, ...suite }, env, say);
+  if (asked === undefined) return undefined;
+  const flag = (name: string) => argv.some((argument) => argument === name || argument.startsWith(`${name}=`));
+  if (env['PWTEST_WATCH'] !== undefined || flag('--ui') || flag('--ui-port') || flag('--ui-host')) {
+    say('variance-authority: watch mode does not select');
+    return undefined;
+  }
+  if (flag('--list')) {
+    say('variance-authority: --list runs no global setup, where the selection is read, so nothing is selected');
+    return undefined;
+  }
+  selectFiles(root, asked);
+  return new SkippedFiles();
+}
+
+/** A configuration value that is one or a list of them, as a list. */
+function listed<Value>(value: Value | readonly Value[] | undefined): readonly Value[] {
+  return value === undefined ? [] : Array.isArray(value) ? value : [value as Value];
+}
+
+/**
+ * Give Playwright the cadence cut, by the one route its version reads: what
+ * goes in the configuration, or nothing and the environment, whose pair its
+ * workers inherit. Both at once make Babel refuse two parser overrides, and the
+ * pair reaches no ES module spec on the oldest Playwright this package takes.
+ */
+function cutSpecs(compile: { readonly babelPlugins?: readonly unknown[] } | undefined): object {
+  // A worker's argv names no configuration, so it reads the main process's choice.
+  const inherited = process.env['TEST_WORKER_INDEX'] !== undefined;
+  const transformed = inherited
+    ? process.env['PW_TEST_SOURCE_TRANSFORM'] === CADENCE_PLUGIN
+    : playwrightFrom(63, installedPlaywright(configDirectory(process.argv)));
+  if (!transformed) {
+    return { '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] } };
+  }
+  // The variable holds one plugin, so a value of the project's own is refused rather than lost.
+  const own = process.env['PW_TEST_SOURCE_TRANSFORM'];
+  if (own !== undefined && own !== CADENCE_PLUGIN) {
+    throw new Error(
+      `variance-authority: refusing PW_TEST_SOURCE_TRANSFORM=${own}: Playwright takes one source transform and the cadence cut needs it; ` +
+        'unset it, or pass cadence: false to keep it and record no spec lines',
+    );
+  }
+  process.env['PW_TEST_SOURCE_TRANSFORM'] = CADENCE_PLUGIN;
+  // The whole disk, because the plugin decides for itself what it cuts.
+  process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = parse(process.cwd()).root;
+  return {};
+}
+
+/**
+ * Take back the pair `cutSpecs` set, when a later configuration in the same
+ * process turns cadence off: the environment outlives the configuration that
+ * wrote it. A value of the project's own stays, and so does what a worker
+ * inherited, which is the main process's choice and what `cutSpecs` reads there.
+ */
+function uncutSpecs(): void {
+  if (process.env['TEST_WORKER_INDEX'] !== undefined) return;
+  if (process.env['PW_TEST_SOURCE_TRANSFORM'] !== CADENCE_PLUGIN) return;
+  delete process.env['PW_TEST_SOURCE_TRANSFORM'];
+  delete process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'];
 }
 
 /**

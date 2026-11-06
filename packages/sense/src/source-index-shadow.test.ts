@@ -1,17 +1,41 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setFlagsFromString } from 'node:v8';
-import { runInNewContext } from 'node:vm';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { Parsed } from './cache.js';
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
 import { readPublishedSources } from './published.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { decodeSourceIndex, encodeSourceIndex, type StoredSourceIndex } from './source-index-format.js';
 
-/** One generation of `count` files, each parsed and resolved, every string in it its own to `layer`. */
+/** Every layer the chain reader decoded, in the order it decoded them: all a read can go on to hold. */
+const decodedLayers = vi.hoisted((): StoredSourceIndex[] => []);
+
+vi.mock('./source-index-format.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./source-index-format.js')>();
+  return {
+    ...actual,
+    decodeSourceIndex: (...args: Parameters<typeof actual.decodeSourceIndex>) => {
+      const layer = actual.decodeSourceIndex(...args);
+      decodedLayers.push(layer);
+      return layer;
+    },
+  };
+});
+
+/** How many rows one read of `file` decoded, by layer, newest first. */
+async function rowsDecoded(file: string): Promise<number[]> {
+  decodedLayers.length = 0;
+  await readPublishedSources(file);
+  return decodedLayers.map((layer) => layer.parses.size + layer.records.size + layer.directories.size);
+}
+
+/**
+ * One generation of `count` files, each parsed and resolved, every string in it its own to `layer`.
+ * A parse is keyed by the content it was read from, so a later layer puts one again only as a
+ * harvested read of what the earlier read without; the `new` layer's parses are harvested.
+ */
 function generation(layer: string, count: number): Uint8Array {
   const parses = new Map<Digest, Parsed>();
   const records = new Map<string, { record: { file: string; digest: Digest; edges: { to: string; kind: 'imports' }[] }; witnesses: string[] }>();
@@ -25,6 +49,7 @@ function generation(layer: string, count: number): Uint8Array {
         line: request + 1,
         bindings: [{ imported: `${layer}${at}`, local: `${layer}${at}`, type: false, line: request + 1 }],
       })),
+      ...(layer === 'new' && { harvested: true as const }),
     });
     records.set(file, {
       record: { file, digest, edges: [{ to: `src/${layer}-${at}.ts`, kind: 'imports' }] },
@@ -80,7 +105,8 @@ describe('a chain whose later layer puts every key again', () => {
 
   it('reads up to a damaged segment as though no layer above it decided anything', async () => {
     // Whole bytes the log reads, under their own digest, that are no source index.
-    const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index')], [generation('new', 2)]]);
+    // One save onto nothing writes them as they are; a save onto them would refuse its base.
+    const file = await chain([[generation('old', 2), new TextEncoder().encode('not a source index'), generation('new', 2)]]);
     expect((await openImmutableLog(file)).segments).toHaveLength(3);
 
     const read = await readPublishedSources(file);
@@ -93,32 +119,20 @@ describe('a chain whose later layer puts every key again', () => {
     ]);
   });
 
-  it('answers from the later layer, and holds no more of the heap than that layer alone', async () => {
-    setFlagsFromString('--expose-gc');
-    const gc = runInNewContext('gc') as () => void;
-    const count = 20_000;
+  it('answers from the later layer, and decodes no row of the layer it shadows', async () => {
+    // A row is held only once it is decoded, so the rows each layer decoded are what the read
+    // can hold: a count, where the heap around a collection moves with whatever else the worker did.
+    const count = 100;
     const later = generation('new', count);
     const alone = await chain([[later]]);
     const layered = await chain([[generation('old', count)], [later]]);
-    const held = async (file: string): Promise<number> => {
-      gc();
-      const before = process.memoryUsage().heapUsed;
-      const published = await readPublishedSources(file);
-      published.cache.get(`git:${'0'.repeat(40)}`);
-      gc();
-      const after = process.memoryUsage().heapUsed;
-      expect(published.records).toHaveLength(count);
-      return after - before;
-    };
 
     const read = await readPublishedSources(layered);
+    expect(read.records).toHaveLength(count);
     expect(read.cache.get(`git:${'0'.repeat(40)}`)?.requests[0]?.value).toBe('./new-0-0.js');
     expect(read.records[0]?.edges).toEqual([{ to: 'src/new-0.ts', kind: 'imports' }]);
-    // Whatever else the worker frees during one read moves that one measure, so
-    // the two are taken in turn and compared by their medians.
-    const rounds: { layered: number; alone: number }[] = [];
-    for (let round = 0; round < 3; round += 1) rounds.push({ layered: await held(layered), alone: await held(alone) });
-    const median = (values: number[]): number => values.sort((left, right) => left - right)[1]!;
-    expect(median(rounds.map((round) => round.layered))).toBeLessThan(median(rounds.map((round) => round.alone)) * 1.5);
+    // One parse and one record per file, and no directories.
+    expect(await rowsDecoded(alone)).toEqual([count * 2]);
+    expect(await rowsDecoded(layered)).toEqual([count * 2, 0]);
   });
 });

@@ -10,14 +10,15 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { inputsIn, layReadings } from './case-readings.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
-import { decodeExecutionIndex } from './execution-format.js';
+import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { editsBetween } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
-import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageModule, CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 
@@ -29,6 +30,8 @@ export interface LaidRun {
   readonly commit?: string;
   /** The text each module the run recorded was cut from, as its coverage names it; absent when the run measured nothing. */
   readonly modules?: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[];
+  /** What each test file the run recorded ran over, as `inputsOf` digests it; absent when the run measured nothing. */
+  readonly inputs?: ReadonlyMap<string, string>;
 }
 
 /** The text each module of a case index was cut from, by file, as the coverage beside the index names it. */
@@ -115,7 +118,7 @@ export interface LastCaseRun {
  * which is the text it was cut from. A module the run recorded from another
  * text lands its held cases through the edit between the two: the regions the
  * edit left alone keep them, at the lines it places them, and the regions it
- * touched keep none. A module whose text is not known on both sides, or not
+ * touched keep them only where the edit's reading spares their kind. A module whose text is not known on both sides, or not
  * found, is read as changed whole.
  *
  * `stands` is the commit the record's snapshot stands at. When `previous`
@@ -146,6 +149,7 @@ export function layCases(
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
+  const sameText = (file: string): boolean => recorded.has(file) && recorded.get(file) === held?.get(file);
   const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
@@ -154,7 +158,7 @@ export function layCases(
       const [from, to] = [held?.get(file), recorded.get(file)];
       return from === undefined || to === undefined ? undefined : edits(file, from, to);
     },
-    sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
+    sameText,
     ...(base === undefined ? {} : {
       base: base.index,
       sameBeforeText: new Set([...recorded.keys(), ...(base.recorded?.keys() ?? [])].filter((file) => {
@@ -201,12 +205,19 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
+  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases()), {
+    fresh,
+    announced: new Set(announced),
+    same: sameText,
+    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
+  });
   return {
     index: merged,
-    last: spelledLast(named),
+    last: spelledLast(named, merged),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
+    ...(readings === undefined ? {} : { readings }),
   };
 }
 
@@ -243,10 +254,41 @@ function textsOfBefore(
 export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
   if (sections.last === undefined) return undefined;
   try {
-    return JSON.parse(Buffer.from(sections.last).toString('utf8')) as LastCaseRun;
+    const run = JSON.parse(Buffer.from(sections.last).toString('utf8')) as Omit<LastCaseRun, 'cases'> & {
+      readonly cases: readonly string[] | { readonly references: readonly (number | string)[] };
+    };
+    if (run === null || !Array.isArray(run.files)) return undefined;
+    if (Array.isArray(run.cases)) return run.cases.every((id) => typeof id === 'string') ? { ...run, cases: run.cases } : undefined;
+    const references = (run.cases as { readonly references?: unknown } | undefined)?.references;
+    if (!Array.isArray(references)) return undefined;
+    const tests = references.some((id) => typeof id === 'number') ? decodeExecutionTests(sections.index!) : [];
+    const cases = references.map((id: unknown) => {
+      if (typeof id === 'string') return id;
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0 || tests[id] === undefined) throw new Error('unresolved last-run case row');
+      return tests[id]!.id;
+    });
+    return { ...run, cases };
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The cases the run that wrote `sections` last executed, by test file, each
+ * file's in code-unit order: the ones it laid, which the runs record names of
+ * the files that run finished only in part (`landings.ts`). The sections are
+ * what `layCases` or `landCases` wrote, whose last-run layer names only cases
+ * its index holds.
+ */
+export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> {
+  const last = new Set(lastCaseRunOf(sections)!.cases);
+  const ran = new Map<string, string[]>();
+  if (last.size === 0) return ran;
+  for (const test of decodeExecutionTests(sections.index!)) {
+    if (last.has(test.id)) ran.set(test.file, [...(ran.get(test.file) ?? []), test.id]);
+  }
+  for (const ids of ran.values()) ids.sort(codeUnitOrder);
+  return ran;
 }
 
 /**
@@ -268,50 +310,60 @@ export type CaseLanding =
    * the record at `unanswered` can answer for none of those files' cases.
    * `removed` says whether it held any to drop.
    */
-  | { readonly unanswered: string; readonly shards: readonly string[]; readonly removed: boolean };
+  | { readonly unanswered: string; readonly shards: readonly string[]; readonly removed: boolean }
+  /**
+   * `shards` shards kept cases the record at `unlaid` did not take: it held no
+   * case index, and they did not finish `unfinished`, test files its snapshot
+   * holds, so their cases alone would answer for those files too
+   * ({@link unansweredOver}). The record still holds no index.
+   */
+  | { readonly unlaid: string; readonly shards: number; readonly unfinished: readonly string[] };
+
+/**
+ * Whether a run that kept no cases leaves the record none: it does once the
+ * run finished a test file. The cases the record holds of that file are an
+ * earlier run's, so the index cannot say which of them run a line now, and
+ * dating them by this run would say it ran them. Every case section goes, not
+ * that file's alone: an index is read as every case of the snapshot beside it,
+ * by this build and by an older one, so an index holding no case of a file the
+ * snapshot holds says that file's cases run no line. With no index a reader
+ * says nothing is recorded. A run that finished no file changes nothing: a seam
+ * keeps no cases for it either.
+ */
+export function dropsCasesWithoutAny(run: Pick<LaidRun, 'tests'>): boolean {
+  return run.tests.some((test) => test.complete);
+}
+
+/**
+ * The test files of `snapshot` that cases laid over `previous`, by runs of
+ * `tests`, would answer for without having run them; empty when they answer
+ * for none they did not run.
+ *
+ * An index is read as every case of the snapshot beside it. Laid over one, a
+ * file the runs did not finish keeps the cases the index holds of it. Laid
+ * over none, it would have none, and the runs' own cases would stand for the
+ * whole suite. So over no index they are laid only once the runs finished
+ * every test file `snapshot` holds that the checkout still has. With no
+ * snapshot there is no other file to answer for.
+ */
+export function unansweredOver(
+  previous: CaseSections,
+  snapshot: readonly { readonly file: string }[] | undefined,
+  tests: readonly Pick<CoverageTest, 'file' | 'complete'>[],
+  root: string,
+): readonly string[] {
+  if (previous.index !== undefined || snapshot === undefined) return [];
+  const finished = new Set(tests.flatMap((test) => (test.complete ? [test.file] : [])));
+  return snapshot
+    .flatMap(({ file }) => (finished.has(file) || !existsSync(resolve(root, file)) ? [] : [file]))
+    .sort(codeUnitOrder);
+}
 
 /**
  * The case sections of `record` once a landing lays its shards' cases into it,
- * and what that did.
- *
- * Each shard's seam kept its cases in the shard's own record, as it does in any
- * record it writes. They are laid over `previous`, the sections the record held,
- * in the order the shards were named, each as the run it was. An index in the
- * row spelling is laid the same way, once it is spelled as sets. The last-run
- * layer the landing leaves names every case the shards recorded, since together
- * they are the one run that landed.
- *
- * A shard that finished a test file and kept no cases recorded none, which is
- * what a seam does when it was not asked for them. The record cannot say which
- * cases of that file walk a line, and the cases it still has for that file are
- * an earlier run's. So every case section is dropped, and a reader says nothing
- * is recorded rather than answer from cases the coverage beside them replaced.
- * A shard that finished no file is skipped: its seam keeps no cases for such a
- * run either, and laying it would change nothing.
- *
- * A shard whose run instrumented nothing has no coverage to name its files, and
- * its cases are laid as the run its own last-run section names: the files it
- * ran, each finished, at its commit. Such a run finished every file it was
- * handed, since one that could not finish a file records that file's row as
- * coverage. One that names no last run, as a record that crossed a checkout
- * does, is laid as a run of the files its cases are of, at no commit: those
- * are the files its index answers for, and each case it holds replaces that
- * file's. A shard with neither coverage nor an index this build reads holds
- * nothing to lay.
- *
- * `held` is the text each module of `previous`'s index was cut from, which the
- * coverage beside it names. Each shard laid moves the modules it recorded to
- * its own text, and the next shard is laid over that. Its before layer is not:
- * every shard's is cut from `previous`'s index, at `held`, which is what the
- * cases stood on before any shard ran.
- *
- * `stands` is the commit the record's snapshot stands at, which names the
- * before layer when `previous` names no last run — see {@link layCases}. It
- * is also where a text the landing did not keep is looked for, with `cacheRoot`
- * the layer the kept texts are in.
- *
- * Nothing is written here. The landing writes the sections into the record it
- * writes, under that record's lock.
+ * and what that did. Each shard is laid over `previous`, the sections the record
+ * held, as the run it was, in the order the shards were named. Nothing is
+ * written here: the landing writes the sections under the record's lock.
  */
 export function landCases(
   record: string,
@@ -321,33 +373,53 @@ export function landCases(
   held?: ModuleTexts,
   stands?: string,
   cacheRoot?: string,
+  snapshot?: readonly { readonly file: string }[],
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
+  // `held` is the text each module of `previous`'s index was cut from. A shard
+  // laid moves the modules it recorded to its own text; the next is laid over that.
   const texts = new Map(held ?? []);
   const recorded = new Map<string, string>();
-  // Every shard's before is cut from the index the landing began with.
+  // Every shard's before is cut from the index the landing began with, at
+  // `held`: what the cases stood on before any shard ran.
   const base = previous.index === undefined ? undefined : { index: previous.index, ...(held === undefined ? {} : { texts: held }) };
   let laid = 0;
   const ran = new Set<string>();
+  const tests: Pick<CoverageTest, 'file' | 'complete'>[] = [];
   for (const shard of shards) {
+    // A shard's seam kept its cases in the shard's own record. One whose run
+    // instrumented nothing is laid as the run its last-run section names, or
+    // its index's files; one with neither holds nothing to lay.
     const kept = caseSectionsAt(shard.path);
     const fresh = layableIndex(kept.index);
-    const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
-    if (run === undefined) continue;
+    const named = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
+    if (named === undefined) continue;
+    // The shard's own landing named what each of its files ran over, off the coverage it measured.
+    const inputs = named.modules === undefined ? undefined : inputsIn(kept.readings);
+    const run = inputs === undefined || named.inputs !== undefined ? named : { ...named, inputs };
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
+      // `stands`, the commit the snapshot stands at, names the before layer when
+      // `previous` names no last run, and is where a text not kept is looked for.
       sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
       for (const [file, text] of textsOf(run)) {
         texts.set(file, text);
         recorded.set(file, text);
       }
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
+      tests.push(...run.tests);
       laid += 1;
-    } else if (run.tests.some((test) => test.complete)) {
+    } else if (dropsCasesWithoutAny(run)) {
+      // It finished a file and kept no cases, as a seam not asked for them does.
+      // A shard that finished none is skipped: laying it would change nothing.
       const removed = Object.values(previous).some((part) => part !== undefined);
       return { landing: { unanswered: record, shards: [shard.path], removed }, sections: {} };
     }
   }
+  // Over no index, the cases land only once the shards finished every test file
+  // of `snapshot`, the record's snapshot; otherwise the landing names the rest.
+  const unfinished = laid === 0 ? [] : unansweredOver(previous, snapshot, tests, root);
+  if (unfinished.length > 0) return { landing: { unlaid: record, shards: laid, unfinished }, sections: previous };
   return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };
 }
 
@@ -362,15 +434,24 @@ function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): Cas
   const last = lastCaseRunOf(sections)!;
   const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
-  return { ...sections, last: spelledLast({ ...last, cases }) };
+  return { ...sections, last: spelledLast({ ...last, cases }, sections.index!) };
 }
 
-/** The last-run section's bytes. */
-function spelledLast(named: LastCaseRun): Buffer {
-  return Buffer.from(`${JSON.stringify(named, null, 2)}\n`);
+/** The last-run section: references into its index, with an exact identity for a case the index no longer holds. */
+function spelledLast(named: LastCaseRun, index: Uint8Array): Buffer {
+  const rows = new Map(decodeExecutionTests(index).map((test, at) => [test.id, at]));
+  // References name this index's case rows, never files inferred from them.
+  // An identity the index retired remains exact rather than disappearing.
+  const references = named.cases.map((id) => rows.get(id) ?? id);
+  return Buffer.from(`${JSON.stringify({ ...named, cases: { references } }, null, 2)}\n`);
 }
 
-/** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */
+/**
+ * The run a shard's own last-run section names, every file of it finished;
+ * `undefined` when it names none. A shard whose run instrumented nothing
+ * finished every file it was handed: one it could not finish records that
+ * file's row as coverage.
+ */
 function lastRunOf(kept: CaseSections): LaidRun | undefined {
   const last = lastCaseRunOf(kept);
   if (last === undefined) return undefined;
@@ -380,7 +461,11 @@ function lastRunOf(kept: CaseSections): LaidRun | undefined {
   };
 }
 
-/** A run of the files an index's cases are of, each finished. */
+/**
+ * A run of the files an index's cases are of, each finished, at no commit: a
+ * shard's that names no last run, as a record that crossed a checkout does.
+ * Those are the files its index answers for, and each case replaces its file's.
+ */
 function indexRunOf(tests: readonly ExecutionTest[]): LaidRun {
   return { tests: [...new Set(tests.map((test) => test.file))].sort(codeUnitOrder).map((file) => ({ file, complete: true })) };
 }

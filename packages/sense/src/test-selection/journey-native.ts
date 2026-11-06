@@ -19,13 +19,14 @@
 
 import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
-import { preconditionsSpelled } from './case-precondition-column.js';
 import type { LineRange } from './diff-lines.js';
-import type { JourneySelectionOptions } from './execution-select.js';
+import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
-import type { ExecutionIndex } from './reverse.js';
-import type { ExecutionNarrowing } from './select.js';
+import type { ExecutionCrossing, ExecutionIndex } from './reverse.js';
+import { ignoredBy, withoutPaths } from './route.js';
+import type { ExecutionNarrowing } from './narrowing.js';
 
 /**
  * `narrowByJourneys` over the journey file at `file`, answered by the addon.
@@ -45,16 +46,25 @@ export async function selectJourneyFile(
   if (select === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
   const declines = options.unmeasured === 'nothing';
-  const selected = select(file, nativeChange(changed, options.read), graph, declines);
+  // What the suite ignores never reaches the addon, as it never reaches `narrowByJourneys`'s loop.
+  const ignored = ignoredBy(options.ignore, changed.keys());
+  const selected = select(file, nativeChange(withoutPaths(changed, ignored), options.read), graph, declines);
   // An addon that cannot decline walked the graph anyway, and its answer is not this suite's.
   if (declines && selected.declined === undefined) return undefined;
+  // What a module declared of an ignored file is the record's, read off the part of it that holds the module.
+  const readers = dependsReaders(options.relations, ignored);
+  const projected = readers.length === 0 ? undefined : await projectJourneyFile(file, new Map(readers.map((reader) => [reader, []])));
+  if (readers.length > 0 && projected === undefined) return undefined;
+  const index: ExecutionIndex = projected?.index ?? { tests: selected.whole.map((test) => ({ id: test, file: test, name: test })), modules: [] };
+  const declared = declaredReach(index, options.relations, ignored, options.unmeasured);
+  const unread = declines ? selected.unread : [...selected.unread, ...declared.unread];
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
-    entered: [...selected.entered].sort(codeUnitOrder),
-    unread: [...selected.unread].sort(codeUnitOrder),
-    ...(declines ? { declined: [...selected.declined!].sort(codeUnitOrder) } : {}),
+    entered: [...new Set([...selected.entered, ...declared.entered])].sort(codeUnitOrder),
+    unread: [...unread].sort(codeUnitOrder),
+    ...(declines ? { declined: [...selected.declined!, ...declared.unread].sort(codeUnitOrder) } : {}),
+    ...(options.ignore === undefined ? {} : { ignored }),
     stale: [],
-    because: [],
   };
 }
 
@@ -105,7 +115,7 @@ export async function projectJourneyFile(
       file: test.file,
       name: test.name,
       ...(test.stopped == null ? {} : { stopped: test.stopped }),
-      ...(test.preconditions == null ? {} : preconditionsSpelled(test.preconditions)),
+      ...(test.said == null ? {} : { said: test.said }),
     })),
     modules: projected.modules.map((module) => ({
       file: module.file,
@@ -117,7 +127,10 @@ export async function projectJourneyFile(
         endLine: block.endLine,
         source: block.source,
         ...(block.loaded ? { loaded: true as const } : {}),
-        crossings: block.tests.map((test) => ({ test, distance: 0 })),
+        crossings: [
+          ...block.tests.map((test): ExecutionCrossing => ({ test, distance: 0 })),
+          ...(block.overwritten ?? []).map((test): ExecutionCrossing => ({ test, distance: 0, overwritten: true })),
+        ],
       })),
     })),
   };
@@ -128,10 +141,6 @@ export interface JourneyProjection {
   readonly index: ExecutionIndex;
   /** Every file the journey holds a row for, which `index.modules` no longer is. */
   readonly files: readonly string[];
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /**

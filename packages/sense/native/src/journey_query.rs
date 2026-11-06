@@ -14,12 +14,15 @@
 //! overlapped region ran while its module evaluated: both are answered by
 //! everyone who entered the module, when the file graph cannot answer them. Any
 //! other region keeps its place and position, so the innermost one is still
-//! found, and carries no cases.
+//! found, and carries no cases. A region's overwritten cases — the ones whose
+//! crossing of it is not known — are expanded with its cases, and apart from
+//! them.
 
 use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
+use crate::case_said;
 use crate::journey_journal;
 use crate::journey_read::{overlaps, pairs, Journey};
 
@@ -42,9 +45,9 @@ pub struct JourneyTest {
     pub name: String,
     /// `ExecutionTest.stopped`: absent when the file does not say how the case settled.
     pub stopped: Option<bool>,
-    /// `ExecutionTest.preconditions` as `tests.casePreconditions` spells them:
-    /// absent for a case nobody listened to.
-    pub preconditions: Option<String>,
+    /// Everything the case said it arranged and the code read, as a frame
+    /// spells it (`case_said::spell`): absent for a case nobody listened to.
+    pub said: Option<String>,
 }
 
 #[napi(object)]
@@ -58,6 +61,9 @@ pub struct JourneyRegion {
     pub loaded: bool,
     /// Indices into `tests`, and nothing for a region the change did not ask about.
     pub tests: Vec<u32>,
+    /// Indices into `tests` of the cases whose crossing of the region is not
+    /// known, none of them in `tests`; nothing where `tests` is nothing.
+    pub overwritten: Vec<u32>,
 }
 
 #[napi(object)]
@@ -77,6 +83,7 @@ pub struct JourneyProjection {
 
 fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, String> {
     let journey = Journey::open(file)?;
+    let heard = journey.heard()?;
     let tests = (0..journey.tests())
         .map(|at| Ok(JourneyTest {
             id: journey.test_id(at)?.to_owned(),
@@ -87,7 +94,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
                 Some(journey_journal::FINISHED) => Some(false),
                 _ => None,
             },
-            preconditions: journey.test_said(at)?.map(str::to_owned),
+            said: heard[at].as_ref().map(case_said::spell),
         }))
         .collect::<Result<Vec<_>, String>>()?;
 
@@ -102,16 +109,20 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
         let every = ranges.is_empty() || regions.iter().any(|region| overlaps(region, &ranges) && region.loaded);
         let blocks = regions
             .iter()
-            .map(|region| Ok(JourneyRegion {
-                kind: journey.text(region.kind)?.to_owned(),
-                name: journey.text(region.name)?.to_owned(),
-                path: journey.text(region.path)?.to_owned(),
-                start_line: region.start,
-                end_line: region.end,
-                source: region.source,
-                loaded: region.loaded,
-                tests: if every || overlaps(region, &ranges) { journey.members(region.called)? } else { Vec::new() },
-            }))
+            .map(|region| {
+                let asked = every || overlaps(region, &ranges);
+                Ok(JourneyRegion {
+                    kind: journey.text(region.kind)?.to_owned(),
+                    name: journey.text(region.name)?.to_owned(),
+                    path: journey.text(region.path)?.to_owned(),
+                    start_line: region.start,
+                    end_line: region.end,
+                    source: region.source,
+                    loaded: region.loaded,
+                    tests: if asked { journey.members(region.called)? } else { Vec::new() },
+                    overwritten: if asked { journey.overwritten(region)? } else { Vec::new() },
+                })
+            })
             .collect::<Result<_, String>>()?;
         modules.push(JourneyModule { file: change.file.clone(), blocks });
     }

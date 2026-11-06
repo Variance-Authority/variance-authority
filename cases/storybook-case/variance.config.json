@@ -7,7 +7,7 @@
     "kind": "storybook",
     "index": "storybook-static/index.json",
     "collector": "collector/index.mjs",
-    "excludeTags": ["no-variance"]
+    "excludeTags": ["no-variance", "ticking"]
   },
   "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
   "fonts": ["ui-sans-serif/400/normal/sha256-case-system-stack"],

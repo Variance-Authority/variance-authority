@@ -115,6 +115,22 @@ describe('placing by recorded cost', () => {
     expect(assign(subjects, undefined, costs).queue).toEqual([[2], [1], [3], [0]]);
   });
 
+  // A report records each width a visit read under its own id, and the plan
+  // holds the story once; the story costs what its widths cost together.
+  it('prices a story at the sum of the widths its last visit read', () => {
+    const subjects = [subject('story:wide--a', 'wide.tsx'), subject('story:plain--a', 'plain.tsx'), subject('story:other--a', 'other.tsx')];
+    const costs = new Map([
+      ['story:wide--a@375', 300],
+      ['story:wide--a@1280', 400],
+      ['story:plain--a', 500],
+      ['story:other--a', 100],
+      ['story:wide--a-large@375', 9000],
+    ]);
+
+    expect(assign(subjects, undefined, costs).queue).toEqual([[0], [1], [2]]);
+    expect(assign([subjects[1]!, subjects[0]!, subjects[2]!], undefined, costs).queue).toEqual([[1], [0], [2]]);
+  });
+
   it('keeps plan order when nothing was ever timed', () => {
     const subjects = suite(3, 1);
     expect(assign(subjects, undefined, undefined).queue).toEqual([[0], [1], [2]]);
@@ -150,5 +166,22 @@ describe('what a shard reports about subjects it did not observe', () => {
     expect(declinedBy('story:a', skipped, 'story:*')?.kind).toBe('unreached');
     expect(declinedBy('story:b', skipped, 'route:*')?.kind).toBe('excluded');
     expect(declinedBy('story:b', skipped, 'story:*')).toBeUndefined();
+  });
+
+  it('reaches a subject a glob names one width of, since only the visit knows its widths', () => {
+    expect(declinedBy('story:card--receipt', undefined, 'story:card--receipt@375')).toBeUndefined();
+    expect(declinedBy('story:card--receipt', undefined, '*@375')).toBeUndefined();
+    expect(declinedBy('story:card--receipt', undefined, 'story:card--plain@375')?.kind).toBe('excluded');
+  });
+
+  // A visit extends an id by a width and nothing else, so a glob naming another
+  // story that shares this one's prefix does not reach it.
+  it('declines a subject when the glob names a different story that begins with its id', () => {
+    expect(declinedBy('story:button--primary', undefined, 'story:button--primary-large')?.kind).toBe('excluded');
+    expect(declinedBy('story:button--primary', undefined, 'story:button--primary-*')?.kind).toBe('excluded');
+    expect(declinedBy('story:button--primary', undefined, 'story:button--primary@')?.kind).toBe('excluded');
+    expect(declinedBy('story:button--primary', undefined, 'story:button--primary@x')?.kind).toBe('excluded');
+    expect(declinedBy('story:button--primary', undefined, 'story:button--primary@3?5')).toBeUndefined();
+    expect(declinedBy('story:button--primary', undefined, 'story:button--primary*')).toBeUndefined();
   });
 });

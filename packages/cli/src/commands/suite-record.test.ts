@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
@@ -25,6 +25,15 @@ describe('the record a one-runner command reads', () => {
 
     expect(at.endsWith('/coverage.bin')).toBe(true);
     expect(at).not.toContain('/suites/');
+  });
+
+  test('is refused as unreachable when its path cannot be asked, never read as no record', async () => {
+    const root = await repository({ suites: { stories: { kind: 'visual' } } });
+    const own = testCoverageFile(root, { suite: 'stories' });
+    await mkdir(dirname(own), { recursive: true });
+    await symlink(own, own);
+
+    await expect(suiteRecord(root)).rejects.toThrow(/could not be reached/u);
   });
 
   test('is the only declared suite when none is named', async () => {
@@ -72,6 +81,13 @@ describe('the record `run --since` selects from', () => {
 
     expect(selecting.file.endsWith('/suites/e2e/coverage.bin')).toBe(true);
     expect(selecting.unmeasured).toBe('nothing');
+  });
+
+  test('carries the precision a suite declares', async () => {
+    const root = await repository({ suites: { unit: { kind: 'unit', precision: 'file-use' }, e2e: { kind: 'e2e' } } });
+
+    expect((await selectingRecord(root, 'unit')).precision).toBe('file-use');
+    expect(await selectingRecord(root, 'e2e')).not.toHaveProperty('precision');
   });
 });
 
@@ -121,8 +137,8 @@ describe('the record a one-runner command reads in a worktree that has not run',
     await writeTestCoverage(base, { version: 3, instrumentation: 'probe-recipe', tests: [], modules: [] });
 
     expect(await suiteRecord(path)).toBe(base);
-    expect(await landingRecord(path)).toBe(testCoverageFile(path, { suite: 'unit' }));
-    expect(await landingRecord(path)).not.toBe(base);
+    expect((await landingRecord(path)).file).toBe(testCoverageFile(path, { suite: 'unit' }));
+    expect((await landingRecord(path)).file).not.toBe(base);
   });
 
   test('is what `variance select` reads, rather than reporting nothing recorded', async () => {

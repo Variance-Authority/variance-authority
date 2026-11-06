@@ -1,5 +1,435 @@
 # @variance-authority/mcp
 
+## 0.25.0
+
+### Minor Changes
+
+- ea70ad3: `ask symbol` and `ask uses`, on `variance ask`, `variance serve`, `variance-authority-help` and its server, and `docs_search` over either server, look at the files their answer rests on: when one changed or went away after the generation, the question is read again before it is answered, so a renamed export is no longer given under its old name and a declaration, its members and each use `uses` lists are given at the lines the file holds today. The files are those that declare the name or pass it on, the entry that publishes it and each row `uses` lists, and for `docs_search` each row it prints with the entry and barrels that publish it, so a name a barrel stopped passing on is no longer called published. An answer whose files are unchanged keeps its `Snapshot <T>.`. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on is saved during the read that answers it, the answer or the refusal stands and says it was not compared, and why, on its one date line. `serve` from `@variance-authority/mcp` takes `outlived`, which sends an answered call to `again`; `again` is given the call's arguments and may return `unseen`, which reaches the tool on `ToolInvocation`. `@variance-authority/help` exports `outlived` and `refusalFooter`, which gives a refusal the reason a look found. `variance-authority-help`'s server keeps no copy of a reading after a call, so a found answer's re-read fits the default heap. A generation now says when its read began, on `readStartedAt` beside `generatedAt`, and that is the time the files are compared with, so a file saved during the read counts as changed. `updateSourceIndex` answers it, `publishWorkspaceFromIndex` takes it, a refresh of `--changed-file` keeps the time of the read it refreshed and gives a listed file's names at the lines it holds now, with no generation to refresh the read is whole and the list is not used, and a value published before it is refused and read again once. A file written after the read gives no text of today's: a declaration and its members are listed by the names recorded, on every path including `--just-answer`. A read whose source index cannot be saved is dropped whole, so a value never pairs with the lines of the read before it. `refreshWorkspace` and `variance index` now keep a published name's entry only while what it was cut from is unchanged, so a declaration that moved or was rewritten, or an `export … from` that changed, the binding it imports included, is documented again; a generation records that on `forwardsDigest`, and `@variance-authority/sense` exports `forwardsDigest` and `HelpReading.exportedOf`. `Named` from `@variance-authority/package/help` gains `boundLine`.
+
+### Patch Changes
+
+- 43fd313: The docs print one way to connect an agent in a git repository with no config: install, `variance index`, an MCP entry that launches through `npx`, and a line that lists the tools. MCP entries no longer name a bare binary, which a client cannot find on its own `PATH`, and `variance serve` and `variance doctor` are named with the config they need.
+
+## 0.24.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.24.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.23.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.22.0
+
+### Minor Changes
+
+- f606d7d: A hint names what you can type where you asked
+
+  An answer's hints were spelled for one surface and printed on both. Each is
+  now spelled for the surface that asked:
+
+  - From a shell, `variance ask` and `variance-authority-help` name an input as
+    its flag (`--limit`, `--query`, `--from`), a tool as the command that runs it
+    (`variance ask symbol`), and a whole question, such as the `grep` that finds
+    an underscored name, as the command line that asks it.
+  - Over MCP, the same hints use the wire's names: the input `limit`, the tool
+    `docs_symbol`, and a question as the tool with its inputs. This covers the
+    `search` and `grep` hints, the `--package` refusal, the operands an
+    `intersection` names, and the line every listing (`costs`, `run_signals`
+    among them) adds for the rows it left out. A `limit` refused from a shell
+    names `--limit`, and over MCP names `limit`.
+
+  The lexicon line of `symbol` names `variance index` as the command that
+  publishes the dependency lexicon, on both surfaces.
+
+  A tool invocation carries the shell it was asked from as `shell`.
+  `@variance-authority/mcp/tools` exports the one spelling every surface uses:
+  `spellingOf`, `verbOf`, `flagOf` and the `Spelling` type. `limitOf` and
+  `notShown` take a `Spelling`. The CLI's `questionOf` is removed; `verbOf`
+  replaces it.
+
+  `Spelling` and `verbOf` take a declared tool — its name, description and input
+  schema — so a hint cannot be spelled from a tool name written as a string, and
+  renaming a tool fails the build of every hint that names it.
+- 9e1e684: Which tests covered a place is asked one way
+
+  `@variance-authority/mcp` no longer serves `variance_source_tests` and
+  `variance_changed_tests`. It no longer exports the `SOURCE_TEST_TOOLS` set,
+  `sourceTestToolByName` or the `SOURCE_TESTS` served set, `OBSERVABILITY` no
+  longer carries the two tools, and `Tree` no longer holds `relations`, which only
+  `variance_changed_tests` read. The pair answered `variance covering`'s question
+  with a copy of their own that read the record without the commit it was written
+  at and without asking whether each test file ran over the file as it is now, so
+  one place could be answered two ways. `variance covering` is the answer, with
+  `--file`, `--line`, `--function` and `--since`. `variance_distill` still reads
+  the execution index over MCP. The skill's MCP, covering and producers
+  references, and the `mcp` and `sense` READMEs, send a reader to `variance
+  covering`.
+- 1c40704: `ask uses` names the files whose imports the source index resolved to no file when one could take the name, since a use there is not listed. For a name no file here declares but a file imports from a package outside the workspace or a runtime module, the answer names each source and the `discover --imports <source>#<name>` question that lists the files; over MCP it names the command to run in the checkout, since `docs_discover` there refuses the question. A path alias such as `@/lib`, a `paths` or `baseUrl` mapping a `tsconfig` or `jsconfig` declares, and a package of this workspace are never named as outside sources; an unresolved one of them, or a `#` subpath import, is named among the files that could take the name. `@variance-authority/sense` publishes `outsideSourcesOf(root, name, index?)`, and `importersOf` carries `unresolved`. `@variance-authority/mcp/tools` publishes `conjoined`, which joins words as `a, b and c`.
+
+### Patch Changes
+
+- 76db46b: The whole-file answer names the region no case entered
+
+  `variance covering --file <path>` painted a function's cases over every line of
+  it, so a one-line branch no case took read as walked: its only line also charges
+  the function, and the range folded into its neighbours. The range now stands on
+  its own and says no case entered the branch, with its state — `unwalked`, or a
+  hole naming the stopped case. `--format json` carries the regions under the
+  range's `unentered`, `--format refs` adds `; unentered <kind> <lines>` to the
+  range's line, and the MCP file answer says the same sentence, with the state.
+  The opening line of a longer branch no case entered says it too.
+
+  It holds in an answer `--in-package` or `--at-distance` narrowed, and on a file
+  edited since the run, where the region is named at the line it stands on now
+  and left out when the edit removed it. `coveringTestsInFile` takes `keep`, the
+  cases it names, and folds its ranges over what is left.
+  `@variance-authority/sense/test-selection` exports `unenteredSentence`,
+  `whyUnentered` and the `Unentered` type, the sentence both surfaces print.
+- 84f98e4: `@variance-authority/mcp/tools` exports `rarity(population, holders)`, the integer from 0 to 1000 that `locate`, `orient` and the place line already ranked words by, so another word search ranks by the same count. `heldWeight(held, rarityOf, fieldOf)` sums each held word's rarity times the weight of the field it is held in, the weight `locate` ranks subjects by.
+- 9e1e684: The source tree reads the mocks, as `variance covering --since` does
+
+  The source tree `readTree` reads, which `variance ask`, the `docs_*` tools and
+  an MCP host walk, now reads `vi.mock`, `jest.mock` and `sb.mock` calls off what
+  the parse recorded: a mock subtracts its target from the test file's edges, and
+  a real module its factory loads adds one. `@variance-authority/sense` exports
+  `runGraphOf`, the one fold that graph and `variance covering --since` are both
+  built by: the mocks, then the taints you pass, and the records folded with
+  their shadows.
+
+## 0.21.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.20.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.19.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.18.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.17.0
+
+### Minor Changes
+
+- 616287b: `variance_locate` marks a word most of the searched subjects have, and ranks two words said side by side
+
+  A match on a word that more than half the searched subjects have in that field
+  prints `(in N of M)`, and the answer names such words above the list. When every
+  word of the question is that common, and so is every pair said side by side, the
+  headline says that no subject is distinguished and that the order is no answer.
+
+  Two adjacent words of the question found adjacent, in that order, in one
+  recorded value rank a subject above one that has the same words apart; the
+  value is cut into words as the index cuts it, so `ClearCompleted` says
+  `clear completed`. The
+  answer prints each such pair under its hit. `LocateHit` gains `pairs` and
+  `together`, `LocateMatch` gains `holders` and `common`, and `Located` gains
+  `searched`, `common` and `distinguished`.
+
+## 0.16.0
+
+### Minor Changes
+
+- 7768493: `variance covering` answers a run of lines and a scope, and says when an answer is at file grain
+
+  `--line 40-60` asks which cases entered a run of lines. It lands on the
+  regions an edit to those lines charges, the same ones `variance select` reads.
+  `--function Cart` asks about a class or any other scope: every case that entered
+  a recorded function under it, such as `Cart/total`. The `variance_source_tests`
+  MCP tool takes a scope the same way.
+
+  An exact `--function X` now also answers the callbacks recorded under it, as
+  `X/…`, since they run inside `X`.
+
+  A line whose edit charges the module's own region is answered with the cases
+  that loaded the file, and the answer now says it is at file grain: `At file
+  grain` in text, `grain: "file"` in JSON. That is a module-level statement, and
+  also the first or last line of a top-level function, which selection charges to
+  the module as well. In a run of lines, the lines at file grain are listed in
+  `fileGrain`, and the lines no recorded region holds, such as imports or types,
+  in `outside`. In a run asked against edited text, the lines written since the
+  recording are listed in `written` and left out.
+
+  `--hops` measures a run of lines and every `--function`, exact name or scope,
+  from the file: a hop runs from the file to a test file.
+- 58cae6d: `discover --to` says how each file reaches the path, and takes a name out of a file
+
+  A file two or more imports away from a `--to` path now carries one shortest
+  chain of imports to it, `src/Page.ts → src/Model.ts (type import) →
+  src/store/selectors.ts`, with each step that is not a plain import marked. The
+  chain is built only for the files shown.
+
+  `--to src/store/selectors.ts#selectBalance` answers what rests on one name: the
+  walk starts at the files that import `selectBalance`, as `uses` lists them,
+  through every barrel that passes it on, so a file that imports another name
+  through the same barrel is not reached. The files that import the name show the
+  line that does; a file further out has its chain end at that line.
+
+  The `--to` header names the files the walk did not reach that import something
+  the scan could not resolve, since they may reach the path through it. It used
+  to count the unresolved files among those it reached, which says nothing about
+  what reaches the path.
+
+  `@variance-authority/mcp`'s `Tree` has `chainsTo(seeds)`: each file's import
+  distance to the seeds, and one shortest chain per file, asked per file.
+- 41ea367: A name nothing declares is an answer over MCP, and in `intersection`
+
+  `variance-authority-help` and `variance serve` answer `docs_symbol` and
+  `docs_uses` about a name nothing declares with the text `variance ask` prints,
+  as a result rather than an error, after reading a reused generation again.
+  `variance ask intersection` with a question about such a name answers that no
+  file is in all of them, naming beside that question what was read and declares
+  nothing, instead of refusing. `serve` takes `answered`, which turns what a tool
+  threw into a result, and `foundNothingAnswer` is the answer every surface gives.
+
+### Patch Changes
+
+- 5080f93: A cold index of a large checkout declares its symbols
+
+  A checkout of ten thousand modules or more is indexed by the native graph in one
+  call, and every later change by the native update. Both parsed each module
+  without its declarations, so `ask symbol` and `ask search` answered as if the
+  checkout declared nothing, and kept answering that way: on seven copies of MUI,
+  `ask symbol --name useUtilityClasses` said the dependency lexicon was not
+  published. Both now read the declarations out of the same parse, and the answer
+  lists them.
+
+  Source index format version 24. An index written by an earlier release is
+  rebuilt by the next `variance index`.
+
+  When `symbol` finds nothing, its answer, or its refusal, names the files whose
+  declarations were not read, such as one over the largest-file limit, so a name
+  declared there is not reported as declared nowhere.
+
+  **Breaking:** `enrichSources` and `HarvestSubject` are removed from
+  `@variance-authority/sense`. They re-read a parse that held no declarations,
+  and no parse the index writes is one.
+- 8d1bcc1: A link in a doc comment opens from `node_modules`
+
+  Doc comments linked to documentation by repository paths such as
+  `../../../../docs/flakiness.md`, which resolve to nothing in an installed
+  package. They now link to the page on variance-authority.dev, or to the file on
+  GitHub when the site does not publish it, so the link works on hover in your
+  editor and in what `variance ask symbol` prints.
+
+  The MCP server's instructions and its observability answer linked to
+  `/start-cli` and `/presentation`, which the site does not serve. They now link
+  to `/start/cli` and `/docs/presentation`, and the `@variance-authority/cli`,
+  `@variance-authority/help`, `@variance-authority/mcp` and
+  `@variance-authority/vitest-browser` READMEs link to the guides where the site
+  publishes them.
+
+  `variancePrecondition`, `wiringOf`, `tapCommits` and `provenanceOf` carry an
+  `@see` link to the section of the guide that documents them.
+- 009b089: A presentation signal with one side missing is `changed`, not `incomparable`.
+
+  A side with no presentation reading, or a reading with no layout findings, now
+  gives `verdict: 'changed'` with a `because` that names that side and no effects.
+  This is the rule ADR-0090 already applies to one-sided accessibility evidence.
+  The signal still changes no subject's verdict.
+
+  `presentationSignal` returns `undefined` when neither side was measured, with
+  no reading or no layout findings on both sides, so the member stays absent
+  rather than holding a signal about nothing.
+  `PresentationSignalRecord` no longer has an `incomparable` variant: tell a
+  one-sided record from a compared one by `'because' in signal`. A run-report
+  file whose presentation signal says `incomparable` is refused when read.
+- bd27740: Importing a pure function from `@variance-authority/mcp` no longer loads the servers beside it
+
+  The root entry exports `locateSubjects` and `readEyesRecord` beside `serve` and
+  the `serve*` functions, and Node evaluates every static import of an entry. So
+  `import { locateSubjects } from '@variance-authority/mcp'` used to evaluate
+  every served tool set, the run report reader, Eyes, the execution-index reader
+  and the live-run listener: about 400 modules, where `locateSubjects` needs 11.
+  Each of those is now imported by the function that reads it, when it is called:
+  `serveReportFile`, `serveEyesRecord`, `serveVantage` and `readEyesRecord`. The
+  root entry evaluates 15 modules, and `@variance-authority/help`, which serves
+  through `serve`, evaluates about 65 fewer.
+
+  Nothing you call changes: every name is where it was, and each `serve*`
+  function was already async. `serve` still starts synchronously; it reads only
+  the framing, which `@variance-authority/mcp/protocol` exports as before.
+- 8bab581: A refusal names what is missing instead of asking you to run the suite again
+
+  Running a whole suite again to refresh a record is rarely yours to do, so no
+  message tells you to. Where something can still be answered, it is:
+
+  - `variance_composition {subject}` against a report with no per-subject
+    structure lists the components the census holds in that subject and the
+    renderings it shares, and says the report holds no order, depth, mount or
+    count within it.
+  - `variance_locate` with `under`, `above` or another spatial relation, against
+    a run that resolved no layout, prints where the anchor is on each surface that
+    says it, and says the run cannot tell what sits in that relation to it.
+  - `variance_composition` against a report merged from shards says each shard's
+    report still holds its composition, and the suite index the build composes
+    from every shard's part holds the census across them.
+
+  Where nothing can be answered, the refusal stays and names the condition, not a
+  rerun: shards that started from, or chose their tests from, different records
+  are not combined, and the record before the build stands; shards written by
+  another version, or of which only some kept cases, are not combined;
+  `variance shards --unrecorded 0` says a matrix of none starts no job; a Vitest
+  run whose `--reporter` replaced the recording reporter says the record is as it
+  was; a distill reading withheld for an incomplete coverage row, and a missing
+  unit-test capture directory, name what is missing.
+- 2cc4e43: A refusal reads the checkout as it is
+
+  `variance ask`, `variance serve`, `variance-authority-help` and its server
+  reused a published source generation for an hour, and the dependency lexicon
+  was built only under `variance index`, so a function written since the last
+  index was refused as not published, and a fresh checkout refused an installed
+  package's export with *the dependency lexicon is not published*. Both read as
+  real absences. A refused question is now asked again of a generation made from
+  the checkout now, with the dependency lexicon built when it is missing or
+  behind, and only that answer is given, under `--changed-file` and
+  `--taint-file` too; an answer that found its name still comes from the reused
+  generation, so only a refusal pays for the reading. When that reading or the
+  lexicon fails, the refusal says which was not compared with the checkout, and
+  why.
+  Under `--just-answer` or `justAnswer`, and on `search` when no changed files are
+  named, every answer and refusal says the checkout was not compared with the
+  generation, and `search --format json` carries `compared: false`. The help
+  package exports `caughtUp` and `snapshotLine` for hosts of their own, and
+  `serve` from `@variance-authority/mcp` takes an `again` hook that asks a
+  refused call to a known tool, with its required arguments, again with a fresher
+  subject, or ends the refusal with the host's footer.
+- 0b6af81: A changed region is joined against the baseline's nodes as well as this render's
+
+  A change that replaces an element paints over the old element's box and the new
+  one's, and `attributeRegions` read only one snapshot. On todomvc's broken toggle,
+  71% of the changed region is inside the checkbox that left and 88.75% inside the
+  div that arrived. Neither reaches the 0.9 containment, so the region named the
+  row around both.
+
+  `AttributionOptions.before` is now required: the snapshot of the revision the
+  pixels are compared against, or `undefined`. Each node is joined against the
+  area its own box and the box of the node the differ's matcher pairs it with in
+  `before` cover together: the two places, not the rectangle that holds both.
+  A box that left is placed by where it was in its own image, whose corner is the
+  new `AttributionOptions.beforeOrigin`: by default the before snapshot's root, so
+  a subject the page moved between two clipped shots joins where its pixels are.
+  A call that states `origin` with a `before` snapshot and no `beforeOrigin`
+  throws, since a corner guessed from the other image is right only when the page
+  did not move.
+
+  A baseline keeps that snapshot. `Raster.snapshot` is a `PackedSnapshot`, the
+  tree gzipped and in base64, written by the Playwright fixture, its promotion,
+  the Vitest browser provider and the CLI's image sidecars. `packSnapshot` and
+  `unpackSnapshot` are exported from `@variance-authority/observe`. Every store
+  carries it as text: `sidecarFrom` keeps it, `variance push` forwards it, and
+  tribunal stores it in new `baselines.snapshot` and
+  `build_subjects.candidate_snapshot` columns (schema 21, migration
+  `0019_baseline-snapshot.sql`) and promotes it on approval. On
+  `cases/storybook-case` it adds 3.2–5.4 KB to each sidecar.
+
+  A baseline without a snapshot says so. When a changed verdict has regions and
+  its baseline kept no snapshot, or one that will not unpack, the reason ends
+  *the baseline records no snapshot of its nodes, so regions were joined against
+  this render's boxes alone: an accepting run records one on a revision where
+  this subject is unchanged*. An accepting run — `--update-snapshots`, Vitest's
+  `--update`, `variance accept` — now re-stamps an unchanged baseline that kept no
+  snapshot, as it re-stamps one painted under another identity, and the
+  observation marks it `signals.snapshot: 'unrecorded'`; `restamps` in
+  `@variance-authority/core/judge` is the one rule all three ask. Every other
+  verdict the mark is on ends *the baseline records no snapshot of its nodes, and
+  an accepting run records this one*. Two images
+  compared directly get the same clause, naming the before image, without the
+  remedy, and are never marked.
+
+  A subject whose document has not moved settles on its digest and builds no
+  observation to mark, so `settle` now renders a pictured baseline that kept no
+  snapshot when this run collected one, with the reason *the baseline records no
+  snapshot of its nodes, so this run renders it for an accepting run to record
+  one*. A suite of baselines accepted before this release renders them on every
+  run until an accepting run re-stamps them. Tribunal records one on ingest
+  instead: a pushed candidate's snapshot is written onto a baseline that has an
+  image and kept none, when it was painted from the same document under the same
+  identity, and never over one it kept, so such a subject renders once. The
+  snapshot's runtime fields (`provenance` and its `createdBy`, `wiring`, `holding`,
+  `styleProvenance`, `styleTokens`, `ignoredBy`) are then the recording run's: the
+  first push, from a build on any branch, that drew that document, as they are the
+  accepting run's on a re-stamp. `Described.keepsSnapshot`
+  is the new required field it reads:
+  the durable, LFS and tribunal stores derive it from the sidecar with
+  `keepsSnapshot` from `@variance-authority/core/format`, and the remote store
+  refuses a description without it. A packed snapshot now opens with a `v1:`
+  header naming its format version, `PACKED_SNAPSHOT_HEADER`, and a snapshot
+  without it counts as not kept. `unpackSnapshot` reads one as not recorded
+  unless every node in it is one, with `isSemanticSnapshot`, new in
+  `@variance-authority/core/format` beside `isRenderDocument` and
+  `isSubjectRef`: the checks `@variance-authority/unit-test` already made of a
+  capture file's snapshot, document and subject, which it now asks. Tribunal serves API 6, which describes a
+  baseline with `keepsSnapshot`; `variance push` against an older deployment names
+  the refused descriptions when the project's `remote` baselines are stored there,
+  and the remote store's refusal names tribunal before API 6 and a
+  `serveRasterStore` from an earlier `@variance-authority/remote`: upgrade the
+  server, tribunal or your own, before the client. `settle` takes this run's snapshot as a
+  fifth argument. `variance accept` and the MCP changelog call these subjects
+  *unchanged and re-stamped* rather than re-stamped under this run's identity,
+  which was untrue of them. The render cache no longer hands on a snapshot an
+  entry kept.
+- b1a5160: An excluded subject is reported as excluded on purpose
+
+  The pull request comment, the MCP summary and the tribunal's coverage line
+  said "excluded by configuration". A subject is also excluded by a story's tags
+  or by a page's own `data-variance-exclude`, so they now say "excluded on
+  purpose", and the run report keeps each exclusion's reason.
+- a15af35: `ask symbol` lists a container's members, and `ask uses` takes `--limit` and follows a passed-on name
+
+  `ask symbol` on an interface, a type alias or a class now lists the members it
+  declares after its signature, one line each as the checkout writes it, with its
+  file and line. A nested type literal's members are not listed, and an alias that
+  fits on its line lists nothing more.
+
+  `ask uses --limit <n>` shows that many rows of each list: each kind of site,
+  the lines of the declaring file, and the members by the name. Without it the
+  answer shows twelve of each and counts the rest, as before. A `limit` that is not a whole
+  number of at least 1 is now refused by `uses`, `grep`, `discover`,
+  `intersection`, `slowest-tests` and `variance_costs` alike, rather than read as
+  the default, and `variance_costs` now also takes the digits a shell passes.
+
+  A name a file only passes on, as in `export { taxOf as levy } from './tax.js'`,
+  is now followed to the declaration it reaches, through every file between them,
+  every rename, a type-only `export type { … } from`, a bare `export *`, an
+  import the file exports again, and `export { default as x } from`. `ask uses`
+  names that declaration after the export line, and `ask symbol` shows its line
+  and its members too. Files that only pass a name to each other name no
+  declaration, and neither does a namespace or a star asked for `default`.
+
+  Journeys resolve a call through a barrel the same way. A name two `export *`
+  reach in different files, and `default` behind an `export *`, used to land in
+  the first star's declaration; the call now names no function, as ECMAScript
+  resolves neither. Neither does a name behind a star whose request resolved
+  to no file of the checkout, or to a file the journeys could not parse, since
+  that star may export it too.
+
+  `ask symbol` for a name an import binds with `as` answers its original the
+  same way: followed to the declaration a file passes on, with its members.
+
+  Yarn 2 and later have no `-s` flag, so `yarn -s variance` fails before the CLI
+  starts. The skill now says that `yarn variance` already prints only the CLI's
+  output.
+- b7be5b1: An unstable subject is described as read twice in a row, not seconds apart
+
+  The second reading is taken as soon as the first has finished, each one once
+  the page says it is ready. Nothing waits between them. The `[unstable]` reasons
+  and the `UNSTABLE:` summary line used to say "seconds apart" and "seconds
+  later", which read as a deliberate delay.
+
 ## 0.15.0
 
 ### Minor Changes

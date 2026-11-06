@@ -60,8 +60,8 @@ final class Status extends EditorBasedWidget implements StatusBarWidget.TextPres
     // A project with no CLI or no recording is not one of ours; the bar stays as it was.
     if (answer == null || answer.quiet()) return "";
     if (answer.refusal() != null) return "variance: not painted";
-    if ("stale".equals(answer.frame())) return "variance: record is stale";
-    long holes = answer.ranges().stream().filter((range) -> "hole".equals(range.state())).count();
+    if (answer.stale()) return "variance: record is stale";
+    long holes = answer.marks().stream().filter((mark) -> "hole".equals(mark.state())).count();
     return holes == 0 ? "variance" : "variance: " + holes + (holes == 1 ? " hole" : " holes");
   }
 
@@ -70,13 +70,12 @@ final class Status extends EditorBasedWidget implements StatusBarWidget.TextPres
     Record.Answer answer = shown();
     if (answer == null || answer.quiet()) return null;
     if (answer.refusal() != null) return answer.refusal();
-    if ("stale".equals(answer.frame())) {
-      return "This file changed since the suite ran, and the text it ran over could not be found. "
-          + "Run the suite to record it again.";
+    StringBuilder text = new StringBuilder();
+    for (Record.Suite suite : answer.suites()) {
+      if (text.length() > 0) text.append('\n');
+      text.append(Painter.named(suite)).append(Painter.said(suite));
     }
-    return "mapped".equals(answer.frame())
-        ? "Placed in the text as it is now: the file changed since the suite ran."
-        : "Painted from the recording of the last run.";
+    return text.toString();
   }
 
   @Override

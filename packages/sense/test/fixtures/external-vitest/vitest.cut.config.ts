@@ -18,7 +18,6 @@ export default withTestSelection(
       include: ['test/*.cut.ts'],
       environment: 'node',
       setupFiles: ['test/setup.ts'],
-      minWorkers: 2,
       maxWorkers: 2,
     },
   }),

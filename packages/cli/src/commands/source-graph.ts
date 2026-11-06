@@ -12,18 +12,21 @@
 
 import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, relative } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import { relationsOfFiles, type Relations, type Uses } from '@variance-authority/core/relate';
+import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
-  mockTaint,
+  publishedNames,
   publishedSources,
+  runGraphOf,
   SourceIndexUnpublished,
+  sourceIndexPath,
   sourcesWithin,
   taintFile,
-  taintRecords,
+  updateSourceIndex,
 } from '@variance-authority/sense';
 import { isCI } from 'ci-info';
+import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
@@ -81,19 +84,92 @@ export async function relationsFor(
   before: readonly string[] = [],
   noGit = false,
 ): Promise<Relations> {
+  return (await sourceGraphFor(root, dirs, taints, before, noGit)).relations;
+}
+
+/** The graph {@link relationsFor} reads, and the files the index read source in to build it: a node the graph holds is not one, since an import of a file nothing reads is a node too. */
+export interface SourceGraph {
+  readonly relations: Relations;
+  readonly sources: ReadonlySet<string>;
+  /** The name the index gives the text each file it holds holds now ({@link indexNames}). */
+  readonly names: IndexNames;
+}
+
+/** The source index's name for the text each file it holds holds now: its git blob name. A file it does not hold has none. */
+export type IndexNames = ReadonlyMap<string, string>;
+
+/** The name `records`, the source index, gives the text each file it holds holds now; a file it holds no name for is in none. */
+export function indexNames(records: readonly FileRecord[]): IndexNames {
+  return new Map(records.flatMap((record) => record.digest === undefined ? [] : [[record.file, record.digest] as const]));
+}
+
+/**
+ * Bring the source index at `root` up to the checkout, paying only for what
+ * differs, for a reader that names the checkout's texts or measures its hops.
+ * `packs` false reads no installed package, as `variance index --no-git`
+ * does. Why it could not, said on stderr; nothing when it did.
+ */
+export async function indexUpToCheckout(root: string, ci = isCI, packs = true): Promise<string | undefined> {
+  // A published index may be another commit's, so CI updates it too; one CI
+  // never published is not built here, and the reader refuses it.
+  if (ci && !(await isPublished(root))) return undefined;
+  const path = sourceIndexPath(resolve(root));
+  let refused: string | undefined;
+  try {
+    refused = (await updateSourceIndex(root, packs ? {} : { packs: false })).refused;
+  } catch (error) {
+    refused = messageOf(error);
+  }
+  if (refused === undefined) return undefined;
+  // Never refused: the index is read as it stands, and the caller weighs that.
+  const reason = `the source index at ${path} could not be updated to the checkout: ${refused}`;
+  process.stderr.write(`variance: ${reason}; reading it as it stands.\n`);
+  return reason;
+}
+
+/** Whether CI published a whole source index at `root`, read off none of its rows. */
+async function isPublished(root: string): Promise<boolean> {
+  try {
+    await publishedNames(root, [], { ci: true, step: 'variance index', announce: () => {} });
+    return true;
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) return false;
+    throw error;
+  }
+}
+
+/**
+ * The source index's names for the texts `files` hold on disk now, read off its
+ * rows of those files alone ({@link publishedNames}), brought up to the checkout
+ * first ({@link indexUpToCheckout}); or why they have no names: the update
+ * failed, or CI published no index. A file the index holds no name for is in
+ * none.
+ */
+export async function checkoutNames(root: string, files: readonly string[], ci = isCI): Promise<IndexNames | { readonly missed: string }> {
+  const notUpdated = await indexUpToCheckout(root, ci);
+  if (notUpdated !== undefined) return { missed: notUpdated };
+  try {
+    return (await publishedNames(root, files, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`) })).names;
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) return { missed: error.message };
+    throw error;
+  }
+}
+
+/** {@link relationsFor}, with the files the source index read, from the one read of it. */
+export async function sourceGraphFor(
+  root: string,
+  dirs: readonly string[],
+  taints: readonly string[] = [],
+  before: readonly string[] = [],
+  noGit = false,
+): Promise<SourceGraph> {
   const read = await publishedWithin(root, dirs, before, noGit);
 
-  // The mocks are read unasked. A graph that believes `vi.mock('./api')`
-  // imports `./api` selects that test for every change behind the mock, and
-  // an operator who has to know to switch the reader on is one who finds out
-  // from the suite that ran. The scan recorded what each file mocks in its
-  // parse, so the mock taint opens nothing; a table named in the config is
-  // answered here too, and what it adds is never saved.
+  // The mocks are read unasked, as every reader of the checkout's graph reads
+  // them; a table named in the config is answered here too, and what it adds
+  // is never saved.
   const tables = await Promise.all(taints.map((file) => taintFile(join(root, file))));
-  const tainted = await taintRecords(read.records, [mockTaint(), ...tables], {
-    root,
-    cache: read.cache,
-  });
 
   // Read from the lockfile at this revision, never from `package.json`: a range
   // is a request and the lockfile is the answer to it. Empty when there is no
@@ -102,12 +178,11 @@ export async function relationsFor(
   // the same unreadable file rather than narrowing.
   const depends = await installedDepends(root);
 
-  // A taint's addition joins the edge the parse recorded, and the names the
-  // parse bound on it no longer say everything the file reaches through it.
-  const uses: Uses = (importer, target) =>
-    tainted.additions.get(importer)?.includes(target) ? undefined : read.uses(importer, target);
-
-  return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses });
+  return {
+    relations: await runGraphOf(read.records, { root, cache: read.cache, taints: tables, depends, uses: read.uses }),
+    sources: new Set(read.records.map((record) => record.file)),
+    names: indexNames(read.all),
+  };
 }
 
 /**
@@ -141,6 +216,7 @@ async function publishedWithin(
   }
   return {
     records: sourcesWithin(published.records, root, dirs, before),
+    all: published.records,
     cache: published.cache,
     uses: published.uses,
   };

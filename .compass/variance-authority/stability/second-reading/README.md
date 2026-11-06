@@ -4,7 +4,7 @@
 
 ## Responsibility
 
-Reads a **subject** twice in the world it is already in, seconds apart with
+Reads a **subject** twice in a row in the world it is already in, with
 nothing changed in between, and reports whether it agreed with itself.
 
 ## Bounded context

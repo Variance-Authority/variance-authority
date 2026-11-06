@@ -59,6 +59,8 @@ interface Collector {
    * that closed, so a late crossing lands in the ambient bucket unnamed.
    */
   runaways(): readonly string[];
+  /** Every module whose probes registered in the realm, whichever bucket they wrote into. */
+  registered(): readonly ModuleId[];
 }
 
 /** What a case frame calls the bucket no case owns; mirrors `AMBIENT` in `cases.ts`. */
@@ -75,7 +77,7 @@ interface Holder {
 /** Where the runner half of the seam finds the scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
-/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-trace-environment.cts`. */
+/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-runtime.cts`. */
 const TRACE = Symbol.for('variance-authority.test-selection.trace');
 
 /** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
@@ -207,16 +209,22 @@ const twoAtOnce = (open: string, opening: string): string =>
   '{ continuations: true } to follow every case through the async context and name the ' +
   'ones whose work outlived them.';
 
-/** One bucket for the file. */
+/**
+ * One bucket for the file, holding every module the realm had loaded before it
+ * as well as what it loads: a realm shared with an earlier file evaluates
+ * nothing twice, so whatever is already in it is the file's to read.
+ */
 function flat(holder: Holder): Collector {
   const engine = attach(holder, false);
   const bucket = taken(holder) ?? engine.open(AMBIENT);
   engine.use(bucket);
+  engine.carry();
   return {
     scoped: false,
     seal: () => presenceOf(engine.read(bucket)),
     finish: () => ({ modules: presenceOf(engine.close(bucket)), frames: undefined }),
     runaways: () => [],
+    registered: () => engine.registered(),
   };
 }
 
@@ -229,8 +237,17 @@ function flat(holder: Holder): Collector {
  * asked for stories.
  * @param root The checkout the record names files against. Given, the scope
  * also keeps what Eyes hands each case, as `eyes-frame.cts` describes.
+ * @param siteNamed How a warning names a precondition's call site, given by a
+ * host that can load the addon; a sandboxed realm prints the site as it was
+ * spelled.
  */
-function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, root?: string): Collector {
+function scoped(
+  holder: Holder,
+  continuations: boolean,
+  story?: StoryWriter,
+  root?: string,
+  siteNamed?: (site: string) => string,
+): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
   if (tap !== undefined) storyTap.listen(tap, holder);
@@ -286,22 +303,24 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
       return bucket.key;
     },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
-    root,
+    siteNamed,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
-    // What the case said it arranged; the file's own bucket is no case.
-    const said = bucket.key === AMBIENT ? undefined : recorder.take(bucket.key);
+    // What the case said it arranged and what the code read in it; the file's
+    // own bucket is no case.
+    const heard = bucket.key === AMBIENT ? undefined : recorder.take(bucket.key);
+    const spoke = heard !== undefined && (heard.said.length > 0 || (heard.read?.length ?? 0) > 0);
     // A case that crossed nothing is still a case that ran: its frame names it
     // in the case index, and says how it settled. Only the file's own bucket
     // has nothing to write when it entered nothing.
-    if (view.rows.length === 0 && settled === undefined && journey === undefined && !said?.length) return undefined;
+    if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
     const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
-    frames.push(journals.encodeLog(said === undefined ? owner : preconditions.packSaid(owner, said), view));
+    frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);
     return view;
   };
@@ -355,11 +374,23 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     }
     if (!bucket.closed) close(bucket, bucket.key);
     if (tap === undefined || bucket.key === AMBIENT) return;
-    story!(bucket.key, stories.encodeStory(tap.read(), bucket.key, stopped.get(bucket.key)));
+    // A case's story is its attempt, the hooks after its body with it: where
+    // the runner said an attempt began, the story waits for it to end.
+    if (owed !== undefined) owed.push(bucket.key);
+    else tell([bucket.key]);
+  };
+  const tell = (keys: readonly string[]): void => {
+    for (const key of keys) story!(key, stories.encodeStory(tap!.read(), key, stopped.get(key)));
     // The tape starts again once no case is running, so it holds one case at a
     // time where cases run one at a time, and never cuts one that is running.
     for (const [key, open] of buckets) if (key !== AMBIENT && open.open) return;
-    tap.reset();
+    tap!.reset();
+  };
+  // The cases settled in the attempt the runner said is on, while one is.
+  let owed: string[] | undefined;
+  const ended = (): void => {
+    if (owed !== undefined && owed.length > 0) tell(owed);
+    owed = undefined;
   };
   // A case is over when its body settles, not when it returns: an async case
   // returns a promise at its first await and everything past that await is
@@ -416,12 +447,15 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
     : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
   const { phase, within, where } = recorder;
   // One edge starts an attempt for both: what a `beforeEach` said for a case
-  // that never ran is forgotten, and Eyes attends the attempt from here.
+  // that never ran is forgotten, and Eyes attends the attempt from here. One
+  // the runner never said was over ends as the next begins.
   const begin = (token?: unknown): void => {
+    ended();
+    owed = [];
     recorder.begin(token);
     attention?.scope.begin();
   };
-  const leave = (): void => attention?.scope.leave();
+  const leave = (): void => { ended(); attention?.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
     enter, journey, phase, within, where, ...attention?.scope, begin, leave,
   };
@@ -439,11 +473,14 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
         if (scopes === undefined) engine.use(ambient);
       }
       const view = close(before, ambientKey(testFile));
+      // What the code reads from now on is a case's, or nobody's.
+      recorder.loaded();
       // Loading the file is no case's story.
       tap?.reset();
       return view === undefined ? new Map() : presenceOf(view);
     },
     finish(testFile) {
+      ended();
       for (const [key, bucket] of buckets) {
         // A body still running when its file ends never settled: the runner
         // timed it out and moved on, and its journey stopped where it stood.
@@ -455,6 +492,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
       return { modules: union, frames: tangled ? undefined : frames };
     },
     runaways: () => [...late].map(nameOf),
+    registered: () => engine.registered(),
   };
 }
 

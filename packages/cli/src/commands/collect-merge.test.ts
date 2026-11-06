@@ -221,6 +221,22 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
       expect(refusal([swapped, second!])).toMatch(/nobody--here at position/);
     });
 
+    // A visit extends its story's id by a width and nothing else, so an outcome
+    // that says it is of the planned story and names another one is not of it.
+    it('with a subject that says it is of the planned story and is not one of its widths', async () => {
+      const [first, second] = await partsOf(2);
+      const claimed = (subject: string) =>
+        edit(first!, (part) => ({
+          ...part,
+          outcomes: part.outcomes.map((outcome, i) => (i === 0 ? { ...outcome, subject, of: outcome.subject } : outcome)),
+        }));
+      const planned = first!.part.outcomes[0]!.subject;
+
+      expect(refusal([claimed('nobody--here'), second!])).toMatch(/nobody--here at position/);
+      expect(refusal([claimed(`${planned}-large`), second!])).toMatch(/-large at position/);
+      expect(mergeEvidence([claimed(`${planned}@375`), second!]).kind).not.toBe('refused');
+    });
+
     it('holding a field in a row it does not say it read', async () => {
       const [first, second] = await partsOf(2);
       const stray = edit(first!, (part) => ({

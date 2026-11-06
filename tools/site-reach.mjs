@@ -50,7 +50,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
 import { publishedSources } from '@variance-authority/sense';
 import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
@@ -68,6 +68,19 @@ const MACHINERY = [
   'variance.config.json',
   'tools/site-reach.mjs',
 ];
+
+/**
+ * The words a root script runs, with each `yarn <script>` it calls read in its
+ * place, so a build split into named halves is still every step of the build.
+ */
+function words(scripts, name, seen = new Set([name])) {
+  const said = (scripts[name] ?? '').split(/\s+/);
+  return said.flatMap((word, at) =>
+    said[at - 1] === 'yarn' && Object.hasOwn(scripts, word) && !seen.has(word)
+      ? words(scripts, word, new Set([...seen, word]))
+      : [word],
+  );
+}
 
 /** The root's checkout and install. Its build is read from `scripts.build`. */
 const INSTALL = [
@@ -169,7 +182,7 @@ export async function siteReach(root, changed, runner) {
   const { subjects } = JSON.parse(readFileSync(resolve(root, 'site/variance.config.json'), 'utf8'));
   const collector = idOf(relations, 'file', `site/${subjects?.collector ?? ''}`);
   if (collector === undefined) throw new Error('the source index holds no collector for `site/variance.config.json`');
-  const sited = dependenciesOf(relations, [collector]);
+  const sited = dependenciesOf(relations, [collector], { through: RUNTIME_EDGES });
   const seeds = new Set([...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name));
   for (const id of sited.nodes) {
     const node = nodeAt(relations, id);
@@ -189,12 +202,12 @@ export async function siteReach(root, changed, runner) {
     changedFilePatterns.filter((pattern) => !pattern.startsWith('!')),
     { dot: true, ignore: changedFilePatterns.filter((pattern) => pattern.startsWith('!')).map((p) => p.slice(1)) },
   );
-  const build = (JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts?.build ?? '').split(/\s+/);
+  const build = words(JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).scripts ?? {}, 'build');
   const job = picomatch([...MACHINERY, ...INSTALL], { dot: true });
 
   for (const file of changed) {
     if (file.startsWith('site/')) return { observe: true, because: `\`${file}\` is the site's own.` };
-    const reached = affectedBy(relations, [file]).files;
+    const reached = affectedBy(relations, [file], { through: RUNTIME_EDGES }).files;
     // Markdown is text a page shows, and the pages that show it whole leave the
     // photographed set by excluding themselves.
     const page = file.endsWith('.md') ? undefined : reached.filter((path) => path.startsWith('site/')).sort()[0];

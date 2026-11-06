@@ -41,7 +41,7 @@ import type { TribunalChangelog } from './changelog.js';
 import { createBucketStore } from './store.js';
 
 /**
- * The half [ADR-0019](../../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) put out of
+ * The half [ADR-0019](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0019-one-comment-that-leads-with-causes.md) put out of
  * scope: somewhere a change can be looked at, and somewhere a decision about it
  * survives.
  *

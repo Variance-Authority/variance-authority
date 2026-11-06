@@ -23,23 +23,28 @@ const observer = observeTestFile(file);
 const cases = [];
 globalThis.test = (name, body) => cases.push({ name, body });
 await import(file);
-// `--says-a-wrong-value` adds a case that says a value no row can hold, for the
+// `--says-a-wrong-value` adds a case that names a dimension and no record, for the
 // test that reads the warning the run prints about it.
 if (flag === '--says-a-wrong-value') {
-  cases.push({ name: ['says a wrong value'], body: () => variancePrecondition({ when: new Date() }) });
+  cases.push({ name: ['says a wrong value'], body: () => variancePrecondition('fixture') });
 }
 
 let failed = false;
 const timed = [];
 for (const { name, body } of cases) {
   const started = performance.now();
-  try {
-    await (observer ? observer.case(name, body) : body());
-  } catch (error) {
-    failed = true;
-    console.error(name, error);
+  // A retry is the same case run again: `--retry` gives a failed case one more attempt.
+  for (let attempt = flag === '--retry' ? 2 : 1; attempt > 0; attempt -= 1) {
+    try {
+      await (observer ? observer.case(name, body) : body());
+      break;
+    } catch (error) {
+      if (attempt > 1) continue;
+      failed = true;
+      console.error(name, error);
+    }
   }
-  timed.push({ name, duration: performance.now() - started });
+  timed.push({ name, duration: performance.now() - started, limit: 5_000 });
 }
 observer?.finish();
 console.log(JSON.stringify(timed));

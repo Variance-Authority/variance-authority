@@ -14,6 +14,7 @@ export function coverageParts(change: SuiteChange): readonly string[] {
   if (change.gained > 0) said.push(`+${grouped(change.gained)} newly run`);
   if (change.lost > 0) said.push(`−${grouped(change.lost)} no longer run`);
   if (change.hidden > 0) said.push(`−${grouped(change.hidden)} no longer run after a case stopped`);
+  if (change.unmeasured > 0) said.push(`−${grouped(change.unmeasured)} unmeasured: their cases last ran before their file changed`);
   if (change.thinned > 0) said.push(`${grouped(change.thinned)} run by fewer cases`);
   if (change.written.regions > 0) said.push(`+${grouped(change.written.run)} run in ${regions(change.written.regions, 'added region')}`);
   if (change.deleted.regions > 0) said.push(`−${grouped(change.deleted.run)} had run in ${regions(change.deleted.regions, 'removed region')}`);
@@ -24,7 +25,7 @@ export function coverageParts(change: SuiteChange): readonly string[] {
 
 /** What the signed parts of `change` add to: the change in regions run they account for. */
 export function coverageSum(change: SuiteChange): number {
-  return change.gained - change.lost - change.hidden + change.written.run - change.deleted.run + change.arrived.run - change.departed.run;
+  return change.gained - change.lost - change.hidden - change.unmeasured + change.written.run - change.deleted.run + change.arrived.run - change.departed.run;
 }
 
 /** `+2`, `−3`, `0`. */
@@ -37,12 +38,18 @@ function executionChange(change: SuiteChange): string {
   const regions = (count: number) => `${grouped(count)} region${count === 1 ? '' : 's'}`;
   if (change.lost > 0) said.push(`${regions(change.lost)} no longer run`);
   if (change.hidden > 0) said.push(`${regions(change.hidden)} no longer run after a case stopped`);
+  if (change.unmeasured > 0) said.push(`${regions(change.unmeasured)} unmeasured since their file changed`);
   if (change.gained > 0) said.push(`${regions(change.gained)} newly run`);
   if (change.thinned > 0) said.push(`${regions(change.thinned)} run by fewer cases`);
   if (change.written.regions > 0 || change.deleted.regions > 0 || change.arrived.files.length > 0 || change.departed.files.length > 0) {
     said.push('Code changed; see coverage details');
   }
   return said.length === 0 ? 'No change in recorded case execution' : said.join(' · ');
+}
+
+/** The summary table's head: its figure is what ran over this text where the count parts what ran by text. */
+export function coverageHead(answer: Coverage): readonly string[] {
+  return [`| Suite | ${answer.count.over === undefined ? 'Regions executed by cases' : 'Regions run over this text'} | Compared with baseline |`, '|---|--:|---|'];
 }
 
 /** One row per suite; an absent record or baseline never becomes a zero. */
@@ -57,11 +64,13 @@ export function coverageRows(answer: Coverage, percentages: boolean): readonly s
     const change = suite.base === undefined
       ? 'No baseline available; change cannot be compared'
       : executionChange(suite.base.change);
+    // Parted, the figure is what ran over this text, and the comparison is of what ran over any.
+    const ran = now.over === undefined ? '' : `${ratio(now.run, answer.count.regions)} ran in any text${was === undefined ? '' : ', '}`;
     const comparison = percentages && was !== undefined
-      ? `${ratio(was.run, answer.base!.regions)} previously; ${change}`
-      : change;
+      ? `${ran}${ratio(was.run, answer.base!.regions)} previously; ${change}`
+      : percentages && ran !== '' ? `${ran}; ${change}` : change;
     return percentages
-      ? `| ${name} | ${ratio(now.run, answer.count.regions)} | ${comparison} |`
+      ? `| ${name} | ${ratio(now.over?.this ?? now.run, answer.count.regions)} | ${comparison} |`
       : `| ${name} | ${change} |`;
   });
 }
@@ -76,4 +85,11 @@ export function grouped(value: number): string {
 
 function files(count: number): string {
   return `${grouped(count)} file${count === 1 ? '' : 's'}`;
+}
+
+/** Columns padded to the widest cell, with no trailing space. */
+export function table(rows: readonly (readonly string[])[]): readonly string[] {
+  const widths: number[] = [];
+  for (const row of rows) row.forEach((cell, at) => (widths[at] = Math.max(widths[at] ?? 0, cell.length)));
+  return rows.map((row) => row.map((cell, at) => cell.padEnd(widths[at]!)).join('  ').trimEnd());
 }

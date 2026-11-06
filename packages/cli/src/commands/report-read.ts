@@ -3,7 +3,7 @@ import type { Config } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { mergeReports } from './merge.js';
 import { locatePictures, type Picture, type Pictures } from './report-html-pictures.js';
-import { readCliRunReport, type CliRunReport } from './run.js';
+import { readCliRunReport, type CliRunReport } from './run-report.js';
 
 /**
  * The configured report is not on disk: no run has written it in this checkout.

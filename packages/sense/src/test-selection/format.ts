@@ -1,4 +1,6 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type {
+  FilePhases,
   CoverageBlock,
   CoverageModule,
   CoveragePrecondition,
@@ -6,10 +8,13 @@ import type {
   TestCoverage,
 } from './index.js';
 import {
+  BLOB,
   BLOCK_KINDS,
   MODEL,
+  NO_BLOB,
   NO_DURATION,
   NO_OWNER,
+  PHASE_NAMES,
   blob,
   column,
   durationWord,
@@ -70,6 +75,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const testPaths = Uint32Array.from(normalized.tests, (test) => stringId(test.file));
   const testComplete = Uint8Array.from(normalized.tests, (test) => test.complete ? 1 : 0);
   const testDuration = Uint32Array.from(normalized.tests, (test) => durationWord(test.duration));
+  const testPhases = phaseWords(normalized.tests.map((test) => test.phases));
   const testPreconditions = new Uint32Array(normalized.tests.length + 1);
   const preconditionName = new Uint32Array(preconditionCount);
   const preconditionDigest = new Uint32Array(preconditionCount);
@@ -86,6 +92,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
 
   const modulePaths = new Uint32Array(normalized.modules.length);
   const moduleSource = new Uint32Array(normalized.modules.length);
+  const moduleBlob = new Uint32Array(normalized.modules.length);
   const moduleInstrumented = new Uint8Array(normalized.modules.length);
   const moduleBlocks = new Uint32Array(normalized.modules.length + 1);
   const blockOrdinal = new Uint32Array(blockCount);
@@ -122,6 +129,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   for (const [moduleIndex, module] of normalized.modules.entries()) {
     modulePaths[moduleIndex] = stringId(module.file);
     moduleSource[moduleIndex] = stringId(module.sourceDigest);
+    moduleBlob[moduleIndex] = module.sourceBlob === undefined ? NO_BLOB : stringId(module.sourceBlob);
     moduleInstrumented[moduleIndex] = module.instrumented ? 1 : 0;
     moduleBlocks[moduleIndex] = blockIndex;
     for (const block of module.blocks) {
@@ -160,10 +168,12 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'tests.complete': column(testComplete),
     'tests.preconditions': column(testPreconditions),
     'tests.duration': column(testDuration),
+    'tests.phases': column(testPhases),
     'preconditions.name': column(preconditionName),
     'preconditions.digest': column(preconditionDigest),
     'modules.path': column(modulePaths),
     'modules.source': column(moduleSource),
+    [BLOB]: column(moduleBlob),
     'modules.instrumented': column(moduleInstrumented),
     'modules.blocks': column(moduleBlocks),
     'blocks.ordinal': column(blockOrdinal),
@@ -182,6 +192,29 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   });
 }
 
+
+/** `tests.phases` for these tests: {@link PHASE_NAMES} words each, a phase nobody reported as {@link NO_DURATION}. */
+export function phaseWords(phases: readonly (FilePhases | undefined)[]): Uint32Array {
+  const words = new Uint32Array(phases.length * PHASE_NAMES.length);
+  for (const [test, held] of phases.entries()) {
+    for (const [at, name] of PHASE_NAMES.entries()) words[test * PHASE_NAMES.length + at] = durationWord(held?.[name]);
+  }
+  return words;
+}
+
+/** The phases test `test` holds in a `tests.phases` column, as a field to spread: absent where none was reported. */
+export function phasesAt(words: Uint32Array | undefined, test: number): { readonly phases?: FilePhases } {
+  if (words === undefined) return {};
+  const phases: Partial<Record<keyof FilePhases, number>> = {};
+  let reported = false;
+  for (const [at, name] of PHASE_NAMES.entries()) {
+    const word = words[test * PHASE_NAMES.length + at] ?? NO_DURATION;
+    if (word === NO_DURATION) continue;
+    phases[name] = word;
+    reported = true;
+  }
+  return reported ? { phases } : {};
+}
 
 /** Decode the snapshot for callers that explicitly ask for the logical model. */
 export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
@@ -210,6 +243,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const testComplete = view.testComplete.all();
   const testPreconditions = view.testPreconditions.all();
   const testDuration = view.testDuration?.all();
+  const testPhases = view.testPhases?.all();
   const preconditionName = view.preconditionName.all();
   const preconditionDigest = view.preconditionDigest.all();
   const tests: CoverageTest[] = [];
@@ -227,10 +261,12 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       complete: testComplete[test] === 1,
       preconditions,
       ...(duration === NO_DURATION ? {} : { duration }),
+      ...phasesAt(testPhases, test),
     });
   }
   const modulePath = view.modulePath.all();
   const moduleSource = view.moduleSource.all();
+  const moduleBlob = view.moduleBlob?.all();
   const moduleInstrumented = view.moduleInstrumented.all();
   const moduleBlocks = view.moduleBlocks.all();
   const blockOrdinal = view.blockOrdinal.all();
@@ -275,6 +311,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
     modules.push({
       file: string(modulePath[module]!),
       sourceDigest: string(moduleSource[module]!),
+      ...(moduleBlob === undefined || moduleBlob[module] === NO_BLOB ? {} : { sourceBlob: string(moduleBlob[module]!) }),
       instrumented: moduleInstrumented[module] === 1,
       blocks,
     });
@@ -302,6 +339,7 @@ function dictionary(coverage: TestCoverage): readonly string[] {
   for (const module of coverage.modules) {
     values.add(module.file);
     values.add(module.sourceDigest);
+    if (module.sourceBlob !== undefined) values.add(module.sourceBlob);
     for (const block of module.blocks) {
       values.add(block.name);
       values.add(block.path);
@@ -414,8 +452,4 @@ function uniquePreconditions(
   if (standing) return preconditions;
   const keyed = new Map(preconditions.map((value) => [`${value.name}\0${value.digest}`, value]));
   return [...keyed.values()].sort(order);
-}
-
-function codeUnitOrder(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

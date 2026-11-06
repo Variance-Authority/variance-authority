@@ -4,7 +4,6 @@ import {
   fail,
   integer,
   nonEmpty,
-  object,
   optionalText,
   path,
   quote,
@@ -12,6 +11,7 @@ import {
   text,
   type ParseOptions,
 } from './config-values.js';
+import { knownSettings, type RenderSetting } from './config-settings.js';
 import { parseBaselines, type BaselinesConfig } from './config-baselines.js';
 import {
   parseAlone,
@@ -142,7 +142,7 @@ export interface Config extends RestsOn, PageRegion {
    * scan understands, so a change it finds no component in forces a whole run; a
    * changed file outside them is one nobody claimed could move a render, and
    * narrowing past it is the operator's own statement of where their components
-   * are ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * are ([`docs/selecting.md`](https://variance-authority.dev/docs/selecting)).
    */
   readonly source?: SourceConfig;
 
@@ -334,50 +334,6 @@ const BROWSERS = ['chromium', 'firefox', 'webkit'] as const;
 
 export type BrowserEngine = (typeof BROWSERS)[number];
 
-const TOP_LEVEL = [
-  'project',
-  'profile',
-  'viewport',
-  'retention',
-  'subjects',
-  'baselines',
-  'share',
-  'source',
-  'fonts',
-  'browser',
-  'renderer',
-  'history',
-  'review',
-  'report',
-  'images',
-  'intent',
-  'alone',
-  'ignore',
-  'blank',
-  'sensitivity',
-  'names',
-  'decoder',
-  'concurrency',
-  'workers',
-  'cacheRoot',
-  'suites',
-  'entrypoints', 'tiers', 'typescript', 'before', 'timezoneId', 'locale',
-] as const;
-
-/**
- * Keys the file may carry that configure nothing.
- *
- * `$schema` is a note to the editor, pointing at
- * `schema/variance.config.schema.json` in this package — what gives an operator
- * completion and an agent a static answer to *what may this file say* without
- * running anything, and what the closed-object rule above would otherwise refuse
- * the one line of. Accepted and then dropped: it is not on {@link Config}
- * because nothing in a run may read it, a setting the run can see being a
- * setting somebody will make the run depend on. Nor is the value checked — a
- * wrong path costs completion in one editor and cannot move a pixel.
- */
-const NOTES = ['$schema'] as const;
-
 /**
  * Validate a parsed config value. Pure: no filesystem, no clock, no network.
  *
@@ -385,7 +341,7 @@ const NOTES = ['$schema'] as const;
  * an object, which is the only reason the rules are as detailed as they are.
  */
 export function parseConfig(value: unknown, options: ParseOptions): Config {
-  const root = object(value, 'the config', [...TOP_LEVEL, ...NOTES], options);
+  const root = knownSettings(value, options);
 
   const profile = text(root, 'profile', options);
   // Checked against `core`'s own table rather than a literal list here, so this
@@ -402,9 +358,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     fail('retention', `must be "durable" or "ephemeral", not ${quote(retention)}`, options);
   }
 
-  const baselines = root['baselines'] === undefined
-    ? undefined
-    : parseBaselines(root['baselines'], options);
+  const optional = parseOptionalSettings(root, options);
+  const { baselines } = optional;
 
   if (retention === 'durable' && baselines === undefined) {
     fail(
@@ -425,6 +380,30 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
       options,
     );
   }
+
+  return {
+    project: nonEmpty(root, 'project', options),
+    profile: profile as ProfileId,
+    viewport: parseViewport(root['viewport'], options),
+    retention,
+    subjects: parseSubjects(root['subjects'], options),
+    ...optional,
+  };
+}
+
+/**
+ * Every setting but the five that render, each by its own rules alone.
+ *
+ * Its own function because a file naming none of the five is valid, and what such
+ * a file does name is held to the same rules as in a file that renders.
+ */
+export function parseOptionalSettings(
+  root: Record<string, unknown>,
+  options: ParseOptions,
+): Omit<Config, RenderSetting> {
+  const baselines = root['baselines'] === undefined
+    ? undefined
+    : parseBaselines(root['baselines'], options);
 
   const share = root['share'] === undefined ? undefined : parseShare(root['share'], options);
 
@@ -468,13 +447,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   }
 
   return {
-    project: nonEmpty(root, 'project', options),
     ...(browser === undefined ? {} : { browser: browser as BrowserEngine }),
     ...(renderer === undefined ? {} : { renderer }),
-    profile: profile as ProfileId,
-    viewport: parseViewport(root['viewport'], options),
-    retention,
-    subjects: parseSubjects(root['subjects'], options),
     ...(baselines !== undefined ? { baselines } : {}),
     ...(share !== undefined ? { share } : {}),
     fonts: parseFonts(root['fonts'], options),

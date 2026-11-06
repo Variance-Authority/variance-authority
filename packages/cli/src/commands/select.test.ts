@@ -59,25 +59,31 @@ describe('what a foreign runner may skip', () => {
       commit: 'c0ffee',
       ground: {
         kind: 'read',
-        narrowing: reading({ entered: ['test/beta.test.ts'], unread: ['docs/selecting.md'] }),
+        narrowing: reading({
+          entered: ['test/beta.test.ts'],
+          unread: ['docs/selecting.md'],
+          readings: [{ file: 'docs/selecting.md', unread: 'nothing' }],
+        }),
       },
     });
 
     expect(selection.skip).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
     expect(selection.widened).toBeUndefined();
     expect(selection.unread).toEqual(['docs/selecting.md']);
-    expect(selection.notes.join('\n')).toContain('docs/selecting.md');
+    expect(selection.notes.join('\n')).toContain('the journal records nothing about 1 changed file');
+    expect(selectionNotes(selection)).toContain('read docs/selecting.md: unread (the record and the file graph hold nothing about it)');
     expect(selectionNotes(selection)).not.toContain('skipping nothing');
   });
 
-  it('names the first three unread paths and says there are more', () => {
+  it('counts the unread paths, leaving each to name itself on its own line', () => {
     const { notes } = skippableTests({
       at: '/cache/coverage.bin',
       commit: 'c0ffee',
       ground: { kind: 'read', narrowing: reading({ unread: ['a.md', 'b.md', 'c.md', 'd.md'] }) },
     });
 
-    expect(notes.join('\n')).toContain('4 changed files (a.md, b.md, c.md, …)');
+    expect(notes.join('\n')).toContain('4 changed files, so');
+    expect(notes.join('\n')).not.toContain('a.md');
   });
 
   it('narrows past a file a suite declining relations did not measure, and names it declined, not unread', () => {
@@ -88,14 +94,18 @@ describe('what a foreign runner may skip', () => {
       commit: 'c0ffee',
       ground: {
         kind: 'read',
-        narrowing: reading({ entered: ['test/beta.test.ts'], declined: ['src/added.ts'] }),
+        narrowing: reading({
+          entered: ['test/beta.test.ts'],
+          declined: ['src/added.ts'],
+          readings: [{ file: 'src/added.ts', unread: 'declined' }],
+        }),
       },
     });
 
     expect(selection.skip).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
     expect(selection.declined).toEqual(['src/added.ts']);
     expect(selection.notes.join('\n')).toContain('the suite declines relations');
-    expect(selection.notes.join('\n')).toContain('src/added.ts');
+    expect(selectionNotes(selection)).toContain('read src/added.ts: unread (the suite declines relations and its record did not measure it)');
     expect(selection.notes.join('\n')).not.toContain('records nothing');
     expect(JSON.parse(formatSelection(selection, 'json', '/repo'))).toMatchObject({ unread: [], declined: ['src/added.ts'] });
   });
@@ -166,13 +176,17 @@ describe('what a foreign runner may skip', () => {
       commit: 'c0ffee',
       ground: {
         kind: 'read',
-        narrowing: reading({ entered: WHOLE, stale: ['src/widget.ts', 'src/other.ts'] }),
+        narrowing: reading({
+          entered: WHOLE,
+          stale: ['src/other.ts', 'src/widget.ts'],
+          readings: [{ file: 'src/other.ts', unread: 'stale' }, { file: 'src/widget.ts', unread: 'stale' }],
+        }),
       },
     });
 
     expect(selection.skip).toEqual([]);
     expect(selection.notes.join('\n')).toContain('2 changed modules were recorded');
-    expect(selectionNotes(selection)).toContain('src/widget.ts');
+    expect(selectionNotes(selection)).toContain('read src/widget.ts: unread (recorded from a text nobody kept)');
   });
 
   it('says a journal with no commit checked none of its line ranges', () => {

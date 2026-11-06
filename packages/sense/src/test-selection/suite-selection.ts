@@ -53,24 +53,42 @@ export type SuiteTimes =
   | { readonly recording?: string; readonly unread: string };
 
 /**
+ * The test files a seam runs: those the runner discovered, less those the
+ * selection skips. `name` says each file as `skip` names it, so a seam keeps
+ * its runner's own handles; without it the files are those names. A file the
+ * record never saw, or never held whole because it failed, is kept. A declined
+ * reading skips nothing, so it keeps every file.
+ */
+export function kept<File = string>(
+  selection: SuiteSelection,
+  discovered: readonly File[],
+  name: (file: File) => string = String,
+): readonly File[] {
+  return [...new Set(discovered)].filter((file) => !selection.skip.has(name(file)));
+}
+
+/**
  * What a seam prints before the run: the count, or which reading declined,
  * then the notes.
  *
  * `discovered` is every test file the runner found, named as `skip` names
  * them. The count is of those, so a file the record never saw counts as
  * selected, which is what it is: it runs.
+ *
+ * A selection that keeps none of the files says none runs. That is all it can
+ * say: Jest asks once per project, so what the runner does next is not known here.
  */
 export function selectedLines(selection: SuiteSelection, discovered: readonly string[]): readonly string[] {
   const all = new Set(discovered);
-  const kept = [...all].filter((file) => !selection.skip.has(file));
-  const cut = kept.flatMap((file) => selection.cases?.get(file) ?? []).length;
-  const inPart = kept.filter((file) => (selection.cases?.get(file)?.length ?? 0) > 0).length;
+  const runs = kept(selection, discovered);
+  const cut = runs.flatMap((file) => selection.cases?.get(file) ?? []).length;
+  const inPart = runs.filter((file) => (selection.cases?.get(file)?.length ?? 0) > 0).length;
   const headline =
     selection.declined !== undefined
       ? `declined: ${selection.declined}`
-      : kept.length === 0
-        ? `selected none of ${all.size}`
-        : `selected ${kept.length} of ${all.size}`;
+      : runs.length === 0
+        ? `selected none of ${all.size}, so none of them runs`
+        : `selected ${runs.length} of ${all.size}`;
   const part = cut === 0 ? '' : `, skipping ${count(cut, 'case')} in ${inPart} of them`;
   return [`variance-authority: ${headline}${part}`, ...selection.notes.map((note) => `  ${note}`)];
 }

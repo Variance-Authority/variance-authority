@@ -121,8 +121,8 @@ chromium_('the additive Playwright path', () => {
       baselinePath: '__baselines__/{id}-{engine}',
     });
 
-    const written = (await readdir(placed, { recursive: true })).filter((name) => name.endsWith('.png'));
-    expect(written).toEqual(['__baselines__/cart-chromium.png']);
+    const written = (await readdir(placed, { recursive: true })).filter((name) => name.endsWith('.webp'));
+    expect(written).toEqual(['__baselines__/cart-chromium.webp']);
   }, 60_000);
 
   it('captures in place without calling an injected renderer', async () => {

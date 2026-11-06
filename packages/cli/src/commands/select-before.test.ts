@@ -2,11 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { selectOutput } from './select-command.js';
 import { indexOutput } from './index-command.js';
+import { suiteIgnore } from './select-before.js';
 
 /**
  * `variance select` over a diff that moved what a suite rests on.
@@ -17,16 +18,42 @@ import { indexOutput } from './index-command.js';
  * change anywhere in that closure runs the whole suite. Undeclared, nothing
  * says the suite rests on it, and the record answers as it would for any file.
  */
+/** The `ignore` list `variance run` reads: the named suite's, or the only one declared. */
+describe('the ignore list of the suite a run is for', () => {
+  const configured = (suites: object): string => {
+    const root = mkdtempSync(join(tmpdir(), 'va-suite-ignore-'));
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites }));
+    return root;
+  };
+
+  it("is the named suite's, not another suite's", async () => {
+    const root = configured({ unit: { kind: 'unit', ignore: ['**/*.css'] }, stories: { kind: 'visual' } });
+
+    expect(await suiteIgnore(root, 'unit')).toEqual(['**/*.css']);
+    expect(await suiteIgnore(root, 'stories')).toBeUndefined();
+  });
+
+  it("is the only declared suite's when none is named", async () => {
+    expect(await suiteIgnore(configured({ unit: { kind: 'unit', ignore: ['**/*.png'] } }), undefined)).toEqual(['**/*.png']);
+  });
+
+  it('is nothing when several suites are declared and none is named', async () => {
+    const root = configured({ unit: { kind: 'unit', ignore: ['**/*.css'] }, stories: { kind: 'visual' } });
+
+    expect(await suiteIgnore(root, undefined)).toBeUndefined();
+  });
+});
+
 describe('a diff that moved what the suite rests on', () => {
   const cwd = process.cwd();
 
   beforeEach(() => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-before-cache-'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-select-before-cache-')));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    vi.unstubAllEnvs();
   });
 
   it('runs every test when the declared setup changed', async () => {
@@ -104,6 +131,29 @@ describe('a diff that moved what the suite rests on', () => {
 
     expect(said.out).toBe('test/alpha.test.ts\n');
     expect(said.err).not.toContain('rests on');
+  });
+
+  it('names under json the files that moved what the suite rests on', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } } });
+
+    write(root, 'test/setup.ts', "import 'left-pad';\nexport const ready = 2;\n");
+    const said = JSON.parse((await selectOutput({ cwd: root, format: 'json', suite: 'unit' })).out) as Record<string, unknown>;
+
+    expect(said).toMatchObject({ ground: 'before', rests: ['test/setup.ts'], skip: [] });
+  });
+
+  it('says under json which changed region selected each test', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } } });
+
+    write(root, 'src/pad.ts', PAD.replace('padStart(4', 'padStart(5'));
+    const said = JSON.parse((await selectOutput({ cwd: root, format: 'json', suite: 'unit' })).out) as {
+      readonly reasons: readonly { readonly kind: string; readonly file?: string; readonly name?: string }[];
+      readonly selected: readonly { readonly test: string; readonly reasons: readonly number[] }[];
+    };
+
+    expect(said.selected.map(({ test }) => test)).toEqual(['test/beta.test.ts']);
+    const named = said.selected[0]!.reasons.map((index) => said.reasons[index]);
+    expect(named).toContainEqual(expect.objectContaining({ kind: 'region', file: 'src/pad.ts', name: 'pad' }));
   });
 });
 

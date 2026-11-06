@@ -40,7 +40,7 @@ import { withTestSelection } from ${JSON.stringify(seamModule)};
 const configured = withTestSelection(
   {
     root: ${JSON.stringify(fixture)},
-    test: { include: ['test/*.case.ts'], environment: 'node', setupFiles: ['test/setup.ts'] },
+    test: { include: ['test/*.case.ts'], environment: 'node', setupFiles: ['test/setup.ts'], testTimeout: 4321 },
   },
   {
     root: ${JSON.stringify(fixture)},
@@ -52,21 +52,22 @@ const configured = withTestSelection(
 const reporters = configured.test.reporters;
 const seam = reporters[reporters.length - 1];
 
-const cases = (task, names) => (task.tasks ?? []).flatMap((child) => child.tasks === undefined
-  ? [{ name: [...names, child.name].join(' > '), duration: child.result?.duration }]
-  : cases(child, [...names, child.name]));
-
 reporters[reporters.length - 1] = {
-  onFinished: (files, ...rest) => {
-    for (const file of files) {
+  onTestRunEnd: (modules, ...rest) => {
+    for (const module of modules) {
+      const run = module.diagnostic();
       appendFileSync(
         ${JSON.stringify(log)},
-        JSON.stringify({ file: file.filepath, duration: file.result?.duration, cases: cases(file, []) }) + '\\n',
+        JSON.stringify({
+          file: module.moduleId,
+          duration: run.duration,
+          phases: { prepare: run.prepareDuration, environment: run.environmentSetupDuration, setup: run.setupDuration, collect: run.collectDuration, cases: run.duration },
+          cases: [...module.children.allTests()].map((test) => ({ name: test.fullName, duration: test.diagnostic()?.duration, limit: test.options.timeout })),
+        }) + '\\n',
       );
     }
-    return seam.onFinished(files, ...rest);
+    return seam.onTestRunEnd(modules, ...rest);
   },
-  onTestRunEnd: (...args) => seam.onTestRunEnd(...args),
 };
 
 export default configured;
@@ -75,7 +76,8 @@ export default configured;
 interface Reported {
   readonly file: string;
   readonly duration?: number;
-  readonly cases: readonly { readonly name: string; readonly duration?: number }[];
+  readonly phases: Readonly<Record<string, number | undefined>>;
+  readonly cases: readonly { readonly name: string; readonly duration?: number; readonly limit?: number }[];
 }
 
 /** Run the fixture's suite through the seam once, and read what the runner said beside what was recorded. */
@@ -103,7 +105,7 @@ async function recorded(): Promise<{ coverageFile: string; reported: Map<string,
 }
 
 describe('the duration a recording keeps', () => {
-  it('for each test file and each case, is the one vitest reported for it, to the whole millisecond', async () => {
+  it('for each test file, each of its phases and each case, is the one vitest reported for it, to the whole millisecond', async () => {
     const { coverageFile, reported } = await recorded();
 
     const files = decodeTestCoverage(await readFile(coverageFile)).tests;
@@ -113,6 +115,9 @@ describe('the duration a recording keeps', () => {
       const duration = reported.get(test.file)?.duration;
       expect(typeof duration).toBe('number');
       expect(test.duration).toBe(Math.round(duration!));
+      const phases = reported.get(test.file)!.phases;
+      expect(Object.values(phases).every((phase) => typeof phase === 'number')).toBe(true);
+      expect(test.phases, test.file).toEqual(Object.fromEntries(Object.entries(phases).map(([name, phase]) => [name, Math.round(phase!)])));
     }
 
     const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
@@ -122,7 +127,9 @@ describe('the duration a recording keeps', () => {
       expect(said, `${test.file} > ${test.name}`).toHaveLength(1);
       expect(typeof said[0]!.duration).toBe('number');
       expect(test.duration, `${test.file} > ${test.name}`).toBe(Math.round(said[0]!.duration!));
+      expect(test.limit, `${test.file} > ${test.name}`).toBe(said[0]!.limit);
     }
+    expect(new Set(cases.map((test) => test.limit))).toEqual(new Set([3210, 4321]));
   }, 20_000);
 
   it('is scoped by the readers `variance covering` asks, and the two records agree on who entered a module', async () => {

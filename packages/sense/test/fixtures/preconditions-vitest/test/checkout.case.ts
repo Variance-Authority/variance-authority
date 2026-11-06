@@ -6,16 +6,16 @@ import { total } from '../src/cart.js';
 // records this file finds the line each row should cite.
 
 beforeEach(() => {
-  variancePrecondition({ network: 'live' }); // file default
+  variancePrecondition('fixture', { network: 'live' }); // file default
 });
 
 afterEach(() => {
-  variancePrecondition({ cleaned: true }); // after each
+  variancePrecondition('fixture', { cleaned: true }); // after each
 });
 
 describe('mocked', () => {
   beforeEach(() => {
-    variancePrecondition({ network: 'mocked' }); // mocked each
+    variancePrecondition('fixture', { network: 'mocked' }); // mocked each
   });
 
   it('pays', () => {
@@ -23,7 +23,7 @@ describe('mocked', () => {
   });
 
   it('refunds behind a flag', () => {
-    variancePrecondition({ flag: 'ff-on' }); // case flag
+    variancePrecondition('fixture', { flag: 'ff-on' }); // case flag
     expect(total([])).toBe(0);
   });
 });
@@ -41,7 +41,7 @@ it('mocked refunds', () => {
 
 describe('live', () => {
   beforeEach(() => {
-    variancePrecondition({ region: 'eu' }); // live each
+    variancePrecondition('fixture', { region: 'eu' }); // live each
   });
 
   it('pays', () => {
@@ -49,15 +49,15 @@ describe('live', () => {
   });
 
   it('replays a recording', () => {
-    variancePrecondition({ network: 'recorded' }); // case network
+    variancePrecondition('fixture', { network: 'recorded' }); // case network
     expect(total([5])).toBe(5);
   });
 });
 
 describe('contradicted', () => {
   beforeEach(() => {
-    variancePrecondition({ flag: 'ff-on' }); // contradicted on
-    variancePrecondition({ flag: 'ff-off' }); // contradicted off
+    variancePrecondition('fixture', { flag: 'ff-on' }); // contradicted on
+    variancePrecondition('fixture', { flag: 'ff-off' }); // contradicted off
   });
 
   it('pays', () => {
@@ -69,7 +69,7 @@ describe('contradicted', () => {
 // the next case, in a sibling describe, never hears it.
 describe('doomed', () => {
   beforeEach(() => {
-    variancePrecondition({ doomed: true }); // doomed each
+    variancePrecondition('fixture', { doomed: true }); // doomed each
     throw new Error('the arrangement failed, so the case never runs');
   });
 
@@ -85,24 +85,24 @@ describe('after doomed', () => {
 });
 
 it('crosses nothing', () => {
-  variancePrecondition({ seeded: true }); // seeded
+  variancePrecondition('fixture', { seeded: true }); // seeded
 });
 
 describe.concurrent('lanes', () => {
   beforeEach(async ({ task }) => {
     await new Promise((settle) => setTimeout(settle, task.name === 'left' ? 20 : 1));
-    variancePrecondition({ lane: task.name }); // lane each
+    variancePrecondition('fixture', { lane: task.name }); // lane each
   });
 
   it('left', async () => {
     await new Promise((settle) => setTimeout(settle, 1));
-    variancePrecondition({ side: 'left' }); // left side
+    variancePrecondition('fixture', { side: 'left' }); // left side
     expect(total([7])).toBe(7);
   });
 
   it('right', async () => {
     await new Promise((settle) => setTimeout(settle, 20));
-    variancePrecondition({ side: 'right' }); // right side
+    variancePrecondition('fixture', { side: 'right' }); // right side
     expect(total([8])).toBe(8);
   });
 });
@@ -110,6 +110,6 @@ describe.concurrent('lanes', () => {
 let attempts = 0;
 it('retries', { retry: 1 }, () => {
   attempts += 1;
-  variancePrecondition({ attempt: attempts }); // retried
+  variancePrecondition('fixture', { attempt: attempts }); // retried
   expect(attempts).toBe(2);
 });

@@ -19,6 +19,7 @@
 
 // compass: variance-authority.reach.relations
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { NativeOrientPackageLayer as PackageLayer } from './native-orient.js';
 import { tierOf, type TierPlace, type Tiers } from './tiers.js';
 
@@ -47,10 +48,6 @@ export interface TierMoves {
   readonly causes: readonly TierCause[];
   /** The sum of every cause's `carried`. */
   readonly carried: number;
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function without(names: readonly string[], others: readonly string[]): string[] {
@@ -87,7 +84,7 @@ export function tierMoves(base: readonly PackageLayer[], head: readonly PackageL
     if (!own(name) && !walking.has(name)) {
       walking.add(name);
       let chosen = false;
-      for (const dependency of [...pairs.get(name)!.to.takes].filter(grew).sort(byCodeUnit)) {
+      for (const dependency of [...pairs.get(name)!.to.takes].filter(grew).sort(codeUnitOrder)) {
         const below = ownerOf(dependency);
         if (!chosen || below.steps + 1 < found.steps) {
           found = { cause: below.cause, steps: below.steps + 1 };
@@ -120,9 +117,9 @@ export function tierMoves(base: readonly PackageLayer[], head: readonly PackageL
       ownTo: to.own,
       added: without(to.takes, from.takes),
       removed: without(from.takes, to.takes),
-      carried: (carriedBy.get(name) ?? []).sort(byCodeUnit),
+      carried: (carriedBy.get(name) ?? []).sort(codeUnitOrder),
     };
   });
-  told.sort((a, b) => b.carried.length - a.carried.length || byCodeUnit(a.package, b.package));
+  told.sort((a, b) => b.carried.length - a.carried.length || codeUnitOrder(a.package, b.package));
   return { causes: told, carried: told.reduce((sum, cause) => sum + cause.carried.length, 0) };
 }

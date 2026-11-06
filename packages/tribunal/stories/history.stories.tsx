@@ -243,7 +243,7 @@ const settled = (subjects: readonly SubjectView[]) => (
 );
 const absorbed = changed.subjects.map((subject): SubjectView => {
   // Two of the nine unchanged subjects turned green by a declaration instead.
-  if (subject.subject.endsWith('--ticking')) {
+  if (subject.subject.endsWith('--deferred')) {
     return { ...subject, verdict: 'ignored', ignored: { pixels: 412, boxes: 1, inert: 0, byRule: { 'clock-face': 412 } } };
   }
   if (subject.subject.endsWith('--loading')) return { ...subject, verdict: 'ignored' };

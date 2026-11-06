@@ -58,7 +58,7 @@ use oxc_span::ContentEq;
 use napi_derive::napi;
 
 use crate::module_moved::{exported, Top};
-use crate::module_readers::{bound, declared, interface_of};
+use crate::module_readers::{bound, declared, interface_of, Erased};
 use crate::module_shape::{parse, plain_class, pure, Lines};
 
 pub enum Verdict {
@@ -80,9 +80,9 @@ pub enum Verdict {
 /// One step of the module's evaluation, compared by the parser's own equality.
 enum Step<'s, 'a> {
     /// An import that binds nothing: `import './x'`, `import {} from './x'`.
-    Import(&'s str),
+    Import(String),
     /// A re-export loads its source.
-    From(&'s str),
+    From(String),
     Declaration(&'s Declaration<'a>),
     Statement(&'s Statement<'a>),
     Declarator(VariableDeclarationKind, &'s VariableDeclarator<'a>),
@@ -105,7 +105,8 @@ impl PartialEq for Step<'_, '_> {
 
 /// What a pure binding is bound to.
 enum Bound<'s, 'a> {
-    Import(String),
+    /// The module and the name taken from it, none for its namespace.
+    Import(String, Option<String>),
     Function,
     /// The kind is part of the value: `let` to `const` makes every function
     /// that assigns it throw.
@@ -120,7 +121,7 @@ enum Bound<'s, 'a> {
 impl Bound<'_, '_> {
     fn same(&self, other: &Self) -> bool {
         match (self, other) {
-            (Bound::Import(a), Bound::Import(b)) => a == b,
+            (Bound::Import(a, x), Bound::Import(b, y)) => a == b && x == y,
             (Bound::Function, Bound::Function) | (Bound::Evaluated, Bound::Evaluated) => true,
             (Bound::Value(k, a), Bound::Value(l, b)) => k == l && same_value(*a, *b),
             (Bound::Class(a), Bound::Class(b)) => a.content_eq(b),
@@ -142,7 +143,7 @@ struct View<'s, 'a> {
     /// Each non-hoisted binding and each step, as written: `None` is a step.
     order: Vec<Option<String>>,
     /// The sources an import binds names from.
-    imports: BTreeSet<&'s str>,
+    imports: BTreeSet<String>,
 }
 
 impl<'s, 'a> View<'s, 'a> {
@@ -153,7 +154,7 @@ impl<'s, 'a> View<'s, 'a> {
 
     fn bind(&mut self, name: String, bound: Bound<'s, 'a>) {
         // A function and an import exist before the first statement runs.
-        if !matches!(bound, Bound::Function | Bound::Import(_)) {
+        if !matches!(bound, Bound::Function | Bound::Import(..)) {
             self.order.push(Some(name.clone()));
         }
         self.bindings.insert(name, bound);
@@ -184,7 +185,7 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     if !old.directives.content_eq(&now.directives) {
         return Some(Verdict::Load);
     }
-    let (was, is) = (view_of(&old), view_of(&now));
+    let (Some(was), Some(is)) = (view_of(&old), view_of(&now)) else { return Some(Verdict::Load) };
     if was.sequence != is.sequence || was.order_over(&is) != is.order_over(&was) {
         return Some(Verdict::Load);
     }
@@ -229,30 +230,35 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     Some(Verdict::Values { names, exports, gone, imported, moved })
 }
 
-fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
+/// What the module does when it loads, and nothing when a specifier holds no
+/// text: a lone surrogate names no module anything here can compare, and
+/// `display()` spells it like a string that names another, so the texts differ
+/// and no view says the difference is harmless.
+fn view_of<'s, 'a>(program: &'s Program<'a>) -> Option<View<'s, 'a>> {
     let mut view = View { sequence: Vec::new(), bindings: BTreeMap::new(), order: Vec::new(), imports: BTreeSet::new() };
     for statement in &program.body {
         match statement {
             Statement::ImportDeclaration(it) => {
+                let source = it.source.value.as_str()?;
                 if it.specifiers.as_ref().is_none_or(|specifiers| specifiers.is_empty()) {
-                    view.step(Step::Import(it.source.value.as_str()));
+                    view.step(Step::Import(source.to_string()));
                 } else if !it.import_kind.is_type() {
-                    view.imports.insert(it.source.value.as_str());
+                    view.imports.insert(source.to_string());
                 }
                 for specifier in it.specifiers.iter().flatten() {
                     let (local, imported) = match specifier {
-                        ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, it.imported.name().to_string()),
-                        ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, "default".to_string()),
-                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, "*".to_string()),
+                        ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, Some(it.imported.name().to_string())),
+                        ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, Some("default".to_string())),
+                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, None),
                     };
-                    view.bind(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value)));
+                    view.bind(local.name.to_string(), Bound::Import(source.to_string(), imported));
                 }
             }
             // FIXME: a re-export that binds names is a use by whoever imports
             // them, as an import that binds names is; adding or removing one of
             // an undeclared module charges every test that loaded this file.
-            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
-            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
+            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.as_str()?.to_string())),
+            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.as_str()?.to_string())),
             // An export list without a source runs nothing.
             Statement::ExportNamedDeclaration(_) => {}
             Statement::ExportDeclaration(it) => declaration(&mut view, &it.declaration),
@@ -288,7 +294,7 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
             },
         }
     }
-    view
+    Some(view)
 }
 
 fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {
@@ -323,7 +329,7 @@ fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {
         }
         it => {
             view.step(Step::Declaration(it));
-            for name in declared(it) {
+            for name in declared(it, Erased::Kept) {
                 view.bind(name, Bound::Evaluated);
             }
         }

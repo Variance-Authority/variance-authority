@@ -23,6 +23,8 @@ export async function orAbsent<T>(read: () => Promise<T>, path: string): Promise
     return await read();
   } catch (error) {
     if (isMissing(error)) return null;
+    // A refusal already names its file and its cause; wrapping it would say both twice.
+    if (error instanceof RasterStoreError) throw error;
     throw new RasterStoreError(
       `the baseline store could not read ${path}: ${messageOf(error)}. ${REFUSAL}.`,
       { cause: error },
