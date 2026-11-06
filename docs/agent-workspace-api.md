@@ -161,7 +161,8 @@ search, indexed source search and observed-subject search.
 
 | You need | Start with |
 | --- | --- |
-| An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
+| Text outside the source: prose, configuration, logs | `rg`; it needs no index and reads the working tree now. |
+| An exact string or a pattern in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; it matches only the files that path reaches, nearest first, and a top folder is the widest path it takes. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |

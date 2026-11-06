@@ -20,8 +20,8 @@ import type { Tree } from './tree.js';
  *
  * ## A path exists or it does not
  *
- * That is the entire rule, and there is deliberately nothing under it. A start
- * point is read from its root down and compared segment for whole segment:
+ * That is the entire rule, and the root is its one exception. A start point is
+ * read from its root down and compared segment for whole segment:
  * `apps/web/Badge.tsx` is that file, `apps/web/` is that directory. Nothing is
  * looked for *inside* a path. `Badge.tsx` names a file at the root, and where
  * no file is at the root there is nothing there and the answer is not found —
@@ -198,16 +198,25 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
   return { found, unmatched, files };
 }
 
+/** Whether a path says the root itself, in any spelling of it. */
+function isRoot(term: string, root: string): boolean {
+  const said = underRoot(term, root);
+  return said !== undefined && segmentsOf(said).every((segment) => segment === '.');
+}
+
 /**
  * Why a set of paths cannot be answered from, or nothing when it can.
  *
- * Not found is a rejection, not an empty result, and it is the only failure
- * there is. The caller handed over a coordinate; the tree does not have it.
- * Saying so is a different fact from saying the place exists and holds nothing,
- * and it is the difference between fixing a typo and looking somewhere else.
+ * Not found is a rejection, not an empty result. The caller handed over a
+ * coordinate; the tree does not have it. Saying so is a different fact from
+ * saying the place exists and holds nothing, and it is the difference between
+ * fixing a typo and looking somewhere else. The root is the one other failure:
+ * the tree has it, and it is no place to start from.
  */
-export function refusalFor(unmatched: readonly string[]): string | undefined {
+export function refusalFor(unmatched: readonly string[], root: string): string | undefined {
   if (unmatched.length === 0) return undefined;
+  const whole = unmatched.find((term) => isRoot(term, root));
+  if (whole !== undefined) return `\`${whole}\` is the root, and a start point is a place in it: name a file or folder, or a top folder at the widest`;
   const named = unmatched.map((term) => `\`${term}\``).join(', ');
   return `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — the source tree holds no file at that path`;
 }
@@ -241,8 +250,8 @@ export function startPointArg(
  * argument for it. A path is read from the root down, whole segment for whole
  * segment, case included, against the files the repository holds; nothing is
  * looked for inside it, so `Badge.tsx` is a file at the root and not the one
- * under `apps/web`, and a path that is not there is rejected as not found
- * (`refusalFor`). A `*` anywhere but the last segment is a pattern and is
+ * under `apps/web`, a path that is not there is rejected as not found, and the
+ * root is rejected as the root (`refusalFor`). A `*` anywhere but the last segment is a pattern and is
  * refused. One string is one path, spaces and all; an array is several entry
  * points taken together. Nothing outside the closure is answered from.
  */

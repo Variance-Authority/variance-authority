@@ -1,4 +1,4 @@
-import { entryPoints, pathsOf, refusalFor, type Tree } from '@variance-authority/mcp/tools';
+import { entryPoints, pathsOf, refusalFor, spellingOf, type ToolInvocation, type Tree } from '@variance-authority/mcp/tools';
 
 /**
  * Which part of the repository an answer is allowed to come from.
@@ -105,7 +105,7 @@ export function areaOf(
   const down = entryPoints(fromTerms, tree);
   const up = entryPoints(toTerms, tree);
 
-  const refused = refusalFor([...down.unmatched, ...up.unmatched]);
+  const refused = refusalFor([...down.unmatched, ...up.unmatched], tree.root);
   if (refused !== undefined) return { ...NOWHERE, from: down.found, to: up.found, refused };
 
   const distance = new Map(tree.distanceFrom(down.files));
@@ -166,4 +166,10 @@ export function areaLine(area: Area): string {
     `In ${area.files.size} file(s) ${[along, against].filter((half) => half !== '').join(' or ')} ` +
     `along the imports, at any depth — ${area.entries} named by the path itself.${holes}`
   );
+}
+
+/** What to say when a start point is missing, in the spelling of the surface that asked. */
+export function startPointNeeded(invocation: Pick<ToolInvocation<unknown>, 'shell'> | undefined): string {
+  const spell = spellingOf(invocation);
+  return `Pass \`${spell.input('from')}\` or \`${spell.input('to')}\` with the file or folder you are working in, or a top folder at the widest.`;
 }

@@ -101,6 +101,15 @@ one subdirectory, and there `search` is the only verb worth asking, because
 
 ## Names, then relations
 
+Ask by what you hold:
+
+| You hold | Ask |
+|---|---|
+| A name | `symbol`, then `uses` |
+| A meaning, in words | `search`, with each likely spelling |
+| A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
+| Text outside the source: prose, configuration, logs | `rg` |
+
 `search` turns the words you have into candidate names. When the editor, ticket
 or stack trace already gives you a path, pass it on that first search as a start
 point (`--from`, `--to`; see `SKILL.md`). Then ask `symbol` for the chosen
@@ -507,9 +516,10 @@ counts.
 
 ### `grep`
 
-Use it when there is no name to ask for: a string literal, an error message, a
-comment. It needs `--from` or `--to`, and searches the files that start point
-reaches; for the whole checkout, run `rg`, which must be on `PATH` either way. Lines come grouped by how many imports away from the start point their
+Use it when there is no name to ask for: a local variable, a string literal, an
+error message, a comment. It needs `--from` or `--to`, and searches the files
+that start point reaches, so say the file or folder you are working in, or a top
+folder at the widest. The root is no start point. `rg` must be on `PATH`. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
 ### `discover`
