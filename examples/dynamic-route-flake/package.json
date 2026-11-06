@@ -12,13 +12,13 @@
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/png": "workspace:^",
     "@variance-authority/react": "workspace:^",
-    "react": "^19",
-    "react-dom": "^19"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@variance-authority/sense": "workspace:^",
-    "esbuild": "^0.25.0",
-    "playwright": "^1.49.0",
-    "vitest": "^5.0.5"
+    "esbuild": "^0.28.2",
+    "playwright": "^1.64.1",
+    "vitest": "^5.1.0"
   }
 }

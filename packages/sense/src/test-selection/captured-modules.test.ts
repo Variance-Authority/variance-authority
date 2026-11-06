@@ -132,6 +132,35 @@ describe('a module whose probes go in after the transforms', () => {
     expect(captureAfter(root, file, `${SOURCE}\n`, defaultInclude, undefined, own)!.module.instrumented).toBe(true);
   });
 
+  it('believes a carried text that is the file on every line a region sits on, and only there', async () => {
+    const { root, file } = await checkout(`const rate = 1;\n${SOURCE}`);
+    const map = (carried: string) => () => ({ sources: ['src-cart.js'], sourcesContent: [carried], mappings: 'AAAA;AACA;AACA;AACA' });
+    const code = `const rate = 2;\n${SOURCE}\n`;
+
+    expect(captureAfter(root, file, code, defaultInclude, undefined, map(`const rate = 2;\n${SOURCE}`))!.module.instrumented).toBe(true);
+    const onARegion = `const rate = 1;\n${SOURCE.replace('> 0', '> 1')}`;
+    expect(() => captureAfter(root, file, code, defaultInclude, undefined, map(onARegion))).toThrow(/carries a text for it that is not the file on disk/);
+  });
+
+  it('holds a region on the line of a blanked map comment to the file as a step is handed it', async () => {
+    const text = 'const rate = 1;\nexport const total = () => rate; //# sourceMappingURL=cart.js.map\n';
+    const { root, file } = await checkout(text);
+    const blanked = text.replace('//# sourceMappingURL=cart.js.map', ' '.repeat('//# sourceMappingURL=cart.js.map'.length));
+    const carried = blanked.replace('rate = 1', 'rate = 2');
+    const map = () => ({ sources: ['src-cart.js'], sourcesContent: [carried], mappings: 'AAAA;AACA' });
+
+    expect(captureAfter(root, file, `${carried}\n`, defaultInclude, undefined, map)!.module.instrumented).toBe(true);
+  });
+
+  it('believes a carried text for a file of module code alone, which has no line a region sits on but its own', async () => {
+    const text = 'export const rate = 1;\n';
+    const { root, file } = await checkout(text);
+    const carried = `/* banner */\n${text}`;
+    const map = () => ({ sources: ['src-cart.js'], sourcesContent: [carried], mappings: 'AAAA;AACA' });
+
+    expect(captureAfter(root, file, carried, defaultInclude, undefined, map)!.module.instrumented).toBe(true);
+  });
+
   it('is refused where the map names no source that resolves to the file', async () => {
     const { root, file } = await checkout(SOURCE);
     const map = () => ({ sources: ['elsewhere.js'], mappings: 'AAAA;AACA;AACA' });
@@ -159,6 +188,9 @@ describe('a module whose probes go in after the transforms', () => {
     const after = captureAfter(root, file, `${UNPARSED}\n`, defaultInclude, undefined, map)!;
 
     expect(after.module).toEqual(captureModule(root, file, UNPARSED, defaultInclude, undefined)!.module);
+    // It has no region to compare, so a text the map carries for it does not refuse it either.
+    const carrying = () => ({ ...map(), sourcesContent: [`/* banner */\n${UNPARSED}`] });
+    expect(captureAfter(root, file, `${UNPARSED}\n`, defaultInclude, undefined, carrying)!.module).toEqual(after.module);
   });
 
   it('is marked as loaded where the import asked for a variant of the file no map leads back from', async () => {

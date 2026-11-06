@@ -278,7 +278,7 @@ runs:
     # accept made on it outranks what the base painted since.
     - if: ${{ steps.carry.outputs.baselines-key != '' }}
       name: restore the newest accepted baselines
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v6
       with:
         path: ${{ steps.carry.outputs.baselines-path }}
         key: ${{ steps.carry.outputs.baselines-key }}
@@ -705,7 +705,7 @@ runs:
     - id: saved
       if: ${{ !cancelled() && steps.keep.outputs.baselines-key != '' }}
       name: keep the accepted baselines for every run after this one
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v6
       with:
         path: ${{ steps.keep.outputs.baselines-path }}
         key: ${{ steps.keep.outputs.baselines-key }}

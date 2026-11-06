@@ -16,6 +16,6 @@ export default {
     // Storybook reads a story file's exports once for the page, and every one
     // is an object handed to Storybook, which the isolator would warn of.
     plugins: [...(config.plugins ?? []), isolator({ exclude: ['.storybook-isolated/**', stories] })],
-    esbuild: { ...config.esbuild, jsx: 'automatic' },
+    oxc: { ...config.oxc, jsx: { runtime: 'automatic' } },
   }),
 };

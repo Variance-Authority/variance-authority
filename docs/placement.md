@@ -387,7 +387,7 @@ jobs:
       queue: max # every run waits, and none replaces a label's
     runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: take the label off
         if: "github.event.label.name == 'variance: accept'"
@@ -397,7 +397,7 @@ jobs:
           PULL_REQUEST: ${{ github.event.pull_request.number }}
         run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST/labels/variance%3A%20accept"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm

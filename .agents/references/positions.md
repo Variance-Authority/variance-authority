@@ -119,6 +119,11 @@ pull request, with the new reason.
 - **A deployed service may depend on what it needs.** The
   package-per-requirement rule of ADR-0013 governs tools a user installs; a
   service has no consumer who pays for its dependencies.
+- **A version is supported while its projects would adopt.** The latest of a
+  core package always; an old one only while it is actively used and those
+  projects are likely to take variance up. Use alone is not enough: a two-year-old
+  jest is in use and out; React 18 and 19 are both in. A route that fails this
+  is deleted with its floor.
 - **Read a dependency's peers before taking it.** A test must not pull in a
   bundler we do not run: `react-server-dom-parcel` gives the real RSC `cache`
   with no Webpack peer.

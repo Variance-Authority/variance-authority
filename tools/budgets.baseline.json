@@ -66,10 +66,6 @@
   "cases/storybook-case/.storybook-a11y/main.js docblock": [
     17
   ],
-  "cases/storybook-case/.storybook/main.js docblock": [
-    14,
-    13
-  ],
   "cases/storybook-case/collector/index.mjs overview": [
     27
   ],
@@ -2326,7 +2322,7 @@
     7
   ],
   "packages/route-collector/src/zero-config.chromium.test.ts block": [
-    11,
+    10,
     9,
     7,
     7

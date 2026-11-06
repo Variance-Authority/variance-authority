@@ -81,17 +81,18 @@ pub(crate) fn named<'p, 'a>(property: &'p ObjectProperty<'a>) -> Option<&'p Iden
     }
 }
 
-/// Whether a reader can spell every key of `object`: a spread or a computed
-/// key hands out names no reader knows, so the object's exports are not known.
+/// Whether a reader can spell every key of `object`: a spread, a computed key or
+/// a key holding a lone surrogate hands out names no reader knows, so the
+/// object's exports are not known.
 pub(crate) fn spelled(object: &ObjectExpression) -> bool {
-    object.properties.iter().all(|property| matches!(property, ObjectPropertyKind::ObjectProperty(it) if it.key.static_name().is_some()))
+    object.properties.iter().all(|property| matches!(property, ObjectPropertyKind::ObjectProperty(it) if it.key.static_name().is_some_and(|name| name.as_str().is_some())))
 }
 
 /// The keys of `object` a reader can spell.
 pub(crate) fn keys<'p, 'a>(object: &'p ObjectExpression<'a>) -> impl Iterator<Item = Key<'p, 'a>> {
     object.properties.iter().filter_map(|property| {
         let ObjectPropertyKind::ObjectProperty(property) = property else { return None };
-        let name = property.key.static_name()?.into_owned();
+        let name = property.key.static_name()?.into_cow_str()?.into_owned();
         Some(Key { name, span: property.span, local: named(property) })
     })
 }
@@ -102,7 +103,7 @@ mod tests {
     use oxc_parser::Parser;
     use oxc_span::SourceType;
 
-    use super::{assigned, keys};
+    use super::{assigned, keys, spelled};
 
     fn handed_out(source: &str) -> Vec<(String, Option<String>)> {
         let allocator = Allocator::default();
@@ -121,5 +122,12 @@ mod tests {
         assert_eq!(handed_out("module.exports = { a };\n"), [("a".to_owned(), Some("a".to_owned()))]);
         assert!(handed_out("exports.a = { b };\nmodule.exports.a = { c };\nother.exports = { d };\nexport default { e };\n").is_empty());
         assert!(handed_out("function f() { module.exports = { a }; }\n").is_empty());
+    }
+
+    #[test]
+    fn a_key_holding_a_lone_surrogate_leaves_the_exports_unknown() {
+        let allocator = Allocator::default();
+        let program = Parser::new(&allocator, "module.exports = { a, '\\uD800': 1 };\n", SourceType::ts()).parse().program;
+        assert!(!spelled(assigned(&program.body[0]).unwrap()));
     }
 }

@@ -43,10 +43,10 @@ export interface JsxSourcePlugin {
  * ```js
  * import { jsxSource } from '@variance-authority/jsx-source/vite';
  *
- * export default { plugins: [jsxSource()], esbuild: { jsxDev: true } };
+ * export default { plugins: [jsxSource()], oxc: { jsx: { development: true } } };
  * ```
  *
- * `jsxDev` is the setting that matters and is not implied by this plugin: it is
+ * `development` is the setting that matters and is not implied by this plugin: it is
  * what makes the transform compute a location in the first place. It is worth
  * turning on for a production build too, because a location is data the compiler
  * emitted rather than a name minification could rename.
