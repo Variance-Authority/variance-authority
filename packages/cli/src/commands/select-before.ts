@@ -129,8 +129,7 @@ export async function restingOf(
 export async function journeySuite(root: string, named: string | undefined): Promise<string | undefined> {
   if (named !== undefined) return named;
   const selection = await import('@variance-authority/sense/test-selection');
-  const declared = selection.declaredSuites(root);
-  return declared?.length === 1 ? declared[0]!.name : undefined;
+  return selection.onlySuite(selection.declaredSuites(root));
 }
 
 /** The `ignore` globs of the suite {@link journeySuite} names; absent ignores nothing. */

@@ -15,7 +15,7 @@ export interface ParsedReview {
   readonly against?: string;
   /** A directory to write `review.json` and `review.md` into, beside what is printed. */
   readonly out?: string;
-  /** The declared suite whose record is read. Required once the root config declares any. */
+  /** The declared suite whose record is read. Required once the root config declares several. */
   readonly suite?: string;
   /** A CI run whose uploaded review is printed instead of one read from this checkout. */
   readonly fromRun?: string;

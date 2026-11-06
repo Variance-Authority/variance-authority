@@ -218,8 +218,8 @@ Three things in your repository change what you write:
   [the Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) shows.
 - **Declared suites.** Once `variance.config.json` declares
   [`suites`](../packages/sense/README.md#where-the-snapshot-lives-and-when-it-is-rebuilt), a wrap that names none
-  stops before the run starts, so name one:
-  `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
+  records into the only one, and among several stops before the run starts, so
+  name one: `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
   inside this directory, and the workflow does not change. For a suite that
   declares `"carry": "actions-cache"`,
   [`variance carry`](../packages/cli/README.md#what-the-next-job-reads) can name

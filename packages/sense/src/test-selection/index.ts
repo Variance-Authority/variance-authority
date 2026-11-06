@@ -135,6 +135,7 @@ export {
   beforeIn,
   beforeOf,
   declaredSuites,
+  onlySuite,
   parseBefore,
   parseSuites,
   type Carrier,

@@ -165,8 +165,8 @@ export interface RecordExecutionOptions {
   readonly coverageFile?: string;
   /**
    * The suite this run is, as the root `variance.config.json` declares it under
-   * `suites`. Required once any suite is declared, and refused beside
-   * `coverageFile`.
+   * `suites`. Required once several are declared, the only one when one is,
+   * and refused beside `coverageFile`.
    */
   readonly suite?: string;
   /**

@@ -3426,6 +3426,7 @@
         "narrowByExecutionFromView": "function",
         "narrowByJourneys": "function",
         "nearestFirst": "function",
+        "onlySuite": "function",
         "openCoverageFile": "function",
         "openSetColumns": "function",
         "openTestCoverage": "function",

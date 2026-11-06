@@ -170,6 +170,12 @@ describe('where a suite records', () => {
     expect(() => testCoverageFile(at)).toThrow('declares the suites "stories", "unit", and none is named');
   });
 
+  test('the only declared suite is the one a run that names none records into', async () => {
+    const at = await repository({ suites: { unit: { kind: 'unit' } } });
+
+    expect(testCoverageFile(at)).toBe(testCoverageFile(at, { suite: 'unit' }));
+  });
+
   test('naming a suite in a repository that declares none is refused', async () => {
     const at = await repository({ project: 'p' });
 

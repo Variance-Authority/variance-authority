@@ -86,7 +86,7 @@ run. A worktree seeds each suite's record from the same suite in the primary
 checkout, never from another suite's.
 
 Once `suites` is declared, a run stops before it starts when its integration
-names no suite, names one the file does not declare, or names a suite and a
+names no suite among several, names one the file does not declare, or names a suite and a
 `coverageFile` together. A repository that declares no suites keeps the one
 `coverage.bin` described above.
 
