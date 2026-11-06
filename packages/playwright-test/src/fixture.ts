@@ -84,6 +84,7 @@ import { keptRaster } from '@variance-authority/store/keep';
  * two networks away.
  */
 
+/** The fixtures a test holds: `base.extend`'s first type, beside {@link VarianceWorkerFixtures}. */
 export interface VarianceFixtures
   extends VarianceEventFixtures,
     VarianceVantageFixtures,
