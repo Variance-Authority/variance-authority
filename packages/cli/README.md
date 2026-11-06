@@ -2488,7 +2488,7 @@ plan:
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
         shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
         echo "shards=$shards" >> "$GITHUB_OUTPUT"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: variance-base
         path: ${{ runner.temp }}/base
@@ -2501,7 +2501,7 @@ test:
     matrix:
       shard: ${{ fromJSON(needs.plan.outputs.shards) }}
   steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       with:
         name: variance-base
         path: ${{ runner.temp }}/base
@@ -3109,7 +3109,7 @@ permissions:
   pull-requests: write # the comment
 
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v7
   - run: npm ci
   - uses: Variance-Authority/action@v1
     with:
@@ -3166,7 +3166,7 @@ no path the config already names:
 - id: carry
   run: npx variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
 - if: steps.carry.outputs.baselines-key != ''
-  uses: actions/cache/restore@v4
+  uses: actions/cache/restore@v6
   with:
     path: ${{ steps.carry.outputs.baselines-path }}
     key: ${{ steps.carry.outputs.baselines-key }}
@@ -3231,7 +3231,7 @@ ran, red or green:
   run: npx variance carry restore --format github >> "$GITHUB_OUTPUT"
 # … restore the suites' caches, or read the share, as above …
 - if: steps.carry.outputs.pushed-key != ''
-  uses: actions/cache/restore@v4
+  uses: actions/cache/restore@v6
   with:
     path: ${{ steps.carry.outputs.pushed-path }}
     key: ${{ steps.carry.outputs.pushed-key }}
@@ -3250,7 +3250,7 @@ ran, red or green:
 - if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
   run: npx variance carry keep
 - if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
-  uses: actions/cache/save@v4
+  uses: actions/cache/save@v6
   with:
     path: ${{ steps.keep.outputs.pushed-path }}
     key: ${{ steps.keep.outputs.pushed-key }}
@@ -3318,7 +3318,7 @@ the body with `variance comment` and post it with your platform's API:
 
 ```yaml
 # bitbucket-pipelines.yml
-image: mcr.microsoft.com/playwright:v1.62.1-noble
+image: mcr.microsoft.com/playwright:v1.64.1-noble
 
 pipelines:
   pull-requests:
@@ -3326,7 +3326,8 @@ pipelines:
       - step:
           name: variance
           script:
-            - corepack enable && yarn install --immutable
+            # The image's Node carries no Corepack, and `--force` replaces its Yarn 1.
+            - npm install --global --force corepack && corepack enable && yarn install --immutable
             - yarn build
             # The gate. Nothing parses this output; the exit code is the verdict,
             # and `set -e` is what turns 1 into a failed step.

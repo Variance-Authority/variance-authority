@@ -25,7 +25,7 @@
 
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, parse, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExecutionRecording } from './execution.js';
 import {
@@ -36,7 +36,7 @@ import {
   type SuiteSelection,
 } from '@variance-authority/sense/test-selection';
 import { SELECTION_SETUP, SkippedFiles, selectFiles } from './file-selection.js';
-import { installedPlaywright, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
+import { installedPlaywright, playwrightFrom, reporterArgument, shardRefusal, type PlaywrightShard } from './whole-file-shard.js';
 
 /** The reporter entry, by the specifier a configuration names it with. */
 export const SELECTION_REPORTER = '@variance-authority/playwright-test/reporter';
@@ -88,7 +88,8 @@ export interface TestSelection extends ExecutionRecording {
  * reporter that folds what the workers staged, and, given a since commit, run
  * only the files the selection keeps (`selectingFiles`). Everything the
  * configuration had stays: its reporters in their order, Playwright's default
- * named when it had none, and its `babelPlugins` ahead of the cadence cut.
+ * named when it had none, and its `babelPlugins` ahead of the cadence cut
+ * (`cutSpecs`).
  *
  * The application still needs `testSelectionProbes()` from
  * `@variance-authority/sense/journal`. A shard nothing would place by whole
@@ -109,6 +110,7 @@ export function withTestSelection<Config extends object = PlaywrightSelectionCon
   const compile = config['@playwright/test'] as { readonly babelPlugins?: readonly unknown[] } | undefined;
   const build = config['build'] as { readonly external?: readonly string[] } | undefined;
   const drop = selectingFiles(config, recording, selection);
+  if (recording.cadence === false) uncutSpecs();
   return {
     ...config,
     ...(drop === undefined
@@ -117,7 +119,7 @@ export function withTestSelection<Config extends object = PlaywrightSelectionCon
     ...(recording.cadence === false
       ? {}
       : {
-          '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] },
+          ...cutSpecs(compile),
           build: { ...build, external: [...(build?.external ?? []), SENSE_DIST] },
         }),
     use: { ...config.use, varianceExecution: recording },
@@ -183,6 +185,48 @@ export function selectingFiles(
 /** A configuration value that is one or a list of them, as a list. */
 function listed<Value>(value: Value | readonly Value[] | undefined): readonly Value[] {
   return value === undefined ? [] : Array.isArray(value) ? value : [value as Value];
+}
+
+/**
+ * Give Playwright the cadence cut, by the one route its version reads: what
+ * goes in the configuration, or nothing and the environment, whose pair its
+ * workers inherit. Both at once make Babel refuse two parser overrides, and the
+ * pair reaches no ES module spec on the oldest Playwright this package takes.
+ */
+function cutSpecs(compile: { readonly babelPlugins?: readonly unknown[] } | undefined): object {
+  // A worker's argv names no configuration, so it reads the main process's choice.
+  const inherited = process.env['TEST_WORKER_INDEX'] !== undefined;
+  const transformed = inherited
+    ? process.env['PW_TEST_SOURCE_TRANSFORM'] === CADENCE_PLUGIN
+    : playwrightFrom(63, installedPlaywright(configDirectory(process.argv)));
+  if (!transformed) {
+    return { '@playwright/test': { ...compile, babelPlugins: [...(compile?.babelPlugins ?? []), [CADENCE_PLUGIN]] } };
+  }
+  // The variable holds one plugin, so a value of the project's own is refused rather than lost.
+  const own = process.env['PW_TEST_SOURCE_TRANSFORM'];
+  if (own !== undefined && own !== CADENCE_PLUGIN) {
+    throw new Error(
+      `variance-authority: refusing PW_TEST_SOURCE_TRANSFORM=${own}: Playwright takes one source transform and the cadence cut needs it; ` +
+        'unset it, or pass cadence: false to keep it and record no spec lines',
+    );
+  }
+  process.env['PW_TEST_SOURCE_TRANSFORM'] = CADENCE_PLUGIN;
+  // The whole disk, because the plugin decides for itself what it cuts.
+  process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = parse(process.cwd()).root;
+  return {};
+}
+
+/**
+ * Take back the pair `cutSpecs` set, when a later configuration in the same
+ * process turns cadence off: the environment outlives the configuration that
+ * wrote it. A value of the project's own stays, and so does what a worker
+ * inherited, which is the main process's choice and what `cutSpecs` reads there.
+ */
+function uncutSpecs(): void {
+  if (process.env['TEST_WORKER_INDEX'] !== undefined) return;
+  if (process.env['PW_TEST_SOURCE_TRANSFORM'] !== CADENCE_PLUGIN) return;
+  delete process.env['PW_TEST_SOURCE_TRANSFORM'];
+  delete process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'];
 }
 
 /**

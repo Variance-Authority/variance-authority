@@ -39,7 +39,7 @@ Linux, and two Macs can differ by a glyph-edge pixel the default policy counts.
 ```json
 {
   "generatedBy": "examples/readme-case/scripts/generate.mjs",
-  "engine": "chromium@151.0.7922.34",
+  "engine": "chromium@156.0.8078.4",
   "raster": "darwin",
   "change": {
     "kind": "style-changed",
@@ -48,7 +48,7 @@ Linux, and two Macs can differ by a glyph-edge pixel the default policy counts.
     "to": "rgb(130 80 223 / 1)",
     "impact": "paint"
   },
-  "changedPixels": 9237
+  "changedPixels": 9238
 }
 ```
 

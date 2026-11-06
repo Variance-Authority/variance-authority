@@ -272,7 +272,7 @@ directory, `node_modules/.cache/variance-authority` unless your repository names
 (see [the cache](cache.md#in-ci)):
 
 ```yaml
-- uses: actions/cache@v4
+- uses: actions/cache@v6
   with:
     path: node_modules/.cache/variance-authority
     key: variance-index-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}

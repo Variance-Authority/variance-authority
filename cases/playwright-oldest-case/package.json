@@ -1,0 +1,14 @@
+{
+  "name": "@variance-authority/case-playwright-oldest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@playwright/test": "1.55.0",
+    "@variance-authority/playwright-test": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
+  },
+  "devDependencies": {
+    "vitest": "^5.1.0"
+  }
+}

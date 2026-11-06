@@ -56,7 +56,7 @@ fn cut_in(allocator: &Allocator, source: &str, file: &str, entries: bool) -> Opt
     // The JavaScript parser falls back the same way for an extension it does not know.
     let source_type = dialect(file).unwrap_or_default();
     let parsed = Parser::new(allocator, source, source_type).parse();
-    if parsed.panicked || !parsed.diagnostics.is_empty() {
+    if parsed.fatal_error || !parsed.diagnostics.is_empty() {
         return None;
     }
     let program = &parsed.program;

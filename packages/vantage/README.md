@@ -48,7 +48,7 @@ npm install --save-dev @variance-authority/cli @variance-authority/playwright-te
 | --- | --- |
 | `@variance-authority/cli` | `npx variance watch` starts a watcher; `npx variance ask` reads one |
 | `@variance-authority/playwright-test` | `varianceFixtures`, which report your run to the watcher |
-| `@playwright/test` | the runner those fixtures extend (`>=1.49 <2`) |
+| `@playwright/test` | the runner those fixtures extend (`>=1.55 <2`) |
 | `@variance-authority/event` | only if your application code announces — see *Announcements*, below |
 
 Install `@variance-authority/vantage` directly when you are writing your own

@@ -45,7 +45,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "oxc-parser": "^0.144.0",
+    "oxc-parser": "^0.157.0",
     "oxc-resolver": "^11.24.2",
     "tinyglobby": "^0.2.17",
     "yaml": "^2.9.0"

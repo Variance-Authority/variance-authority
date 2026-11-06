@@ -276,7 +276,11 @@ export interface Read {
   /** Every name read off a binding a named import takes. Absent when there are none. */
   readonly bindingMembers?: readonly BindingMember[];
 
-  /** Why this file's requests are not the whole set, when they are not. */
+  /**
+   * Why this file's requests are not the whole set, when they are not. An import
+   * or export whose specifier holds a lone surrogate is one such reason: no text
+   * holds it, and the module record leaves it out.
+   */
   readonly unknown?: string;
 
   /** How big the module is. */

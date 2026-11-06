@@ -38,13 +38,15 @@ pub(crate) struct Loads<'l> {
     pub(crate) unread_required: usize,
     /// The `import()` types, in the order the walk met them.
     pub(crate) typed: Vec<Request>,
+    /// The `import()` types whose specifier no text holds.
+    pub(crate) unread_typed: usize,
     /// Each `import()` met so far, by its start offset, and its index in `dynamic`.
     met: HashMap<u32, Option<u32>>,
 }
 
 impl<'l> Loads<'l> {
     pub(crate) fn new(lines: &'l Lines) -> Self {
-        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), met: HashMap::new() }
+        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), unread_typed: 0, met: HashMap::new() }
     }
 
     /// The index in `dynamic` of the request this call makes, read once however
@@ -81,19 +83,29 @@ impl<'l> Loads<'l> {
     }
 
     /// The index in `required` of the request this declaration makes, and none
-    /// when it aliases a namespace rather than requiring a module.
+    /// when it aliases a namespace rather than requiring a module, or requires
+    /// one no text holds.
     pub(crate) fn import_equals(&mut self, it: &TSImportEqualsDeclaration) -> Option<u32> {
         let TSModuleReference::ExternalModuleReference(reference) = &it.module_reference else { return None };
-        self.required.push(self.request(&reference.expression.value, Kind::Imports, reference.span.start));
+        let Some(value) = reference.expression.value.as_str() else {
+            self.unread_required += 1;
+            return None;
+        };
+        self.required.push(self.request(value, Kind::Imports, reference.span.start));
         Some(self.required.len() as u32 - 1)
     }
 
     /// The index in `typed` of the request an `import()` type makes. A factory's
     /// own target named in a type is still a request, unlike a `require` of it:
-    /// the type loads nothing, so it cancels no replacement.
-    pub(crate) fn import_type(&mut self, it: &TSImportType) -> u32 {
-        self.typed.push(self.request(&it.source.value, Kind::Type, it.span.start));
-        self.typed.len() as u32 - 1
+    /// the type loads nothing, so it cancels no replacement, and one no text
+    /// holds is no request and is counted unread.
+    pub(crate) fn import_type(&mut self, it: &TSImportType) -> Option<u32> {
+        let Some(value) = it.source.value.as_str() else {
+            self.unread_typed += 1;
+            return None;
+        };
+        self.typed.push(self.request(value, Kind::Type, it.span.start));
+        Some(self.typed.len() as u32 - 1)
     }
 
     fn request(&self, value: &str, kind: Kind, at: u32) -> Request {
@@ -118,9 +130,9 @@ pub(crate) fn requires(callee: &Expression) -> bool {
 /// expressions, as its cooked text.
 pub(crate) fn constant<'s>(expression: &'s Expression) -> Option<&'s str> {
     match expression {
-        Expression::StringLiteral(it) => Some(it.value.as_str()),
+        Expression::StringLiteral(it) => it.value.as_str(),
         Expression::TemplateLiteral(it) if it.expressions.is_empty() => {
-            it.quasis.first()?.value.cooked.as_ref().map(|cooked| cooked.as_str())
+            it.quasis.first()?.value.cooked.and_then(|cooked| cooked.as_str())
         }
         _ => None,
     }

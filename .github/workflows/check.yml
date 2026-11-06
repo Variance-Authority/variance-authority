@@ -70,12 +70,12 @@ jobs:
       # common ancestor once a branch has merged its base in. A diff fetches
       # the trees and blobs it reads, so the history costs megabytes where
       # `fetch-depth: 0` alone costs the repository.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
 
-      # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
+      # 24, and only 24.
       #
       # This was a `['22', '24']` matrix, added because a pin at 22 had hidden a
       # bug the image found: a remote call built its `AbortSignal` from whatever
@@ -91,8 +91,9 @@ jobs:
       # So the floor is now a claim and not a check: `sense` and its dependents
       # say `>=22.15` because that is where `zlib.zstdCompressSync` arrived, and
       # nothing here proves a 22.15 install works. Stating that is the point of
-      # this comment. What is tested is 24, and 24 is what the image ships.
-      - uses: actions/setup-node@v4
+      # this comment. What is tested is 24, which this step also holds in the
+      # container jobs, where the image's own Node is 26.
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -199,7 +200,7 @@ jobs:
 
       - name: keep the failed walks
         if: ${{ !cancelled() && steps.carry-contract.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: carry-contract-walks
           path: ${{ runner.temp }}/carry-contract
@@ -267,10 +268,10 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -318,14 +319,14 @@ jobs:
     steps:
       # Every commit, because the read says how far behind HEAD the record was
       # published. No trees, for the reason written at the checkout in `rules`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -364,7 +365,7 @@ jobs:
 
       - name: hand the read on
         id: hand
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -393,7 +394,7 @@ jobs:
 
       - name: what the last push ran
         if: steps.plan.outputs.pushed-key != ''
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.plan.outputs.pushed-path }}
           key: ${{ steps.plan.outputs.pushed-key }}
@@ -425,7 +426,7 @@ jobs:
       - name: hand the last push on
         id: carry
         if: steps.taken.outputs.taken != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-carried
           path: ${{ steps.plan.outputs.pushed-path }}
@@ -443,7 +444,7 @@ jobs:
         if: steps.merge.outputs.merged == 'true'
 
       - name: hand the native scanner on
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-native
           path: |
@@ -494,7 +495,7 @@ jobs:
         include: ${{ fromJSON(needs.base.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       # Chromium's renderers need more shared memory than a container's default.
       options: --ipc=host
 
@@ -509,13 +510,13 @@ jobs:
       # Every commit, because the reading diffs each test from the commit it
       # last ran at, which can be any number of commits back. No trees, for the
       # reason written at the checkout in `rules`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -558,7 +559,7 @@ jobs:
       # The mainline's records as `base` read them. A download that fails
       # fails the job: going on would ask the line on its own, the read `base`
       # is there to replace.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -573,7 +574,7 @@ jobs:
       # this checkout's own layer. The step below then keeps it rather than lay
       # the mainline's, and the selection diffs each test from the commit it
       # last ran at. A suite `base` handed on and this job cannot take stops it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
         with:
           name: variance-carried
@@ -669,7 +670,7 @@ jobs:
       # reads why. A shard job that stopped before the test uploads nothing.
       - name: hand the shard on
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'shard' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
           path: ${{ runner.temp }}/shard-record
@@ -679,7 +680,7 @@ jobs:
 
       - name: hand the slice on
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'slice' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-slice-${{ matrix.suite }}
           path: ${{ steps.base.outputs.record }}
@@ -710,7 +711,7 @@ jobs:
       # so the token is not left in the clone beside the install scripts and
       # the build; the comment step hands its own token to the script that
       # posts.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
@@ -726,7 +727,7 @@ jobs:
           expect: ${{ needs.base.outputs.checkout }}
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -755,14 +756,14 @@ jobs:
         run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
 
       # Each artifact in a directory named after it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: variance-s*-*
           path: ${{ runner.temp }}/ran
 
       # The mainline's records as `base` read them, for the reason written at
       # the same steps in `suite`.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -776,7 +777,7 @@ jobs:
       # `main`: the cases the fold replaces are the last push's, so the
       # mainline's cases `take` names, the record it set aside or the share's,
       # are passed to it.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
         with:
           name: variance-carried
@@ -883,7 +884,7 @@ jobs:
 
       - name: keep the review
         if: ${{ !cancelled() && steps.review.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-review
           path: ${{ steps.carry.outputs.review }}
@@ -928,7 +929,7 @@ jobs:
           node tools/bundle-carried.mjs bundle "$PUSHED" refs/remotes/origin/main
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ steps.save.outputs.pushed-path }}
           key: ${{ steps.save.outputs.pushed-key }}
@@ -940,7 +941,7 @@ jobs:
       - name: hand the records to publish
         id: hand
         if: ${{ !cancelled() && github.event_name == 'push' && steps.records.outputs.dir != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-records
           path: ${{ steps.records.outputs.dir }}
@@ -972,12 +973,12 @@ jobs:
       # the build would run beside it; the publish step hands it to git itself.
       # The trees come with the commits for the same reason: a clone that
       # fetches a tree when it reads one needs a credential to fetch it with.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1003,7 +1004,7 @@ jobs:
             process.stdout.write('dir=' + dirname(dirname(testCoverageFile(process.cwd(), { suite: process.env.SUITE }))) + '\\n');
           " >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: variance-records
           path: ${{ steps.records.outputs.dir }}
@@ -1094,7 +1095,7 @@ jobs:
     needs: rules
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       # See `variance.yml`: Chromium's renderers need more shared memory than a
       # container's default.
       options: --ipc=host
@@ -1111,9 +1112,9 @@ jobs:
         shell: bash
         run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1160,10 +1161,10 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1193,7 +1194,7 @@ jobs:
     if: github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     outputs:
       legs: ${{ steps.count.outputs.legs }}
@@ -1205,13 +1206,13 @@ jobs:
         shell: bash
         run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates jq
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1240,7 +1241,7 @@ jobs:
 
       - name: hand the read on
         id: hand
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-base
           path: ${{ steps.read.outputs.dir }}
@@ -1263,7 +1264,7 @@ jobs:
         run: node tools/plan-suites.mjs
 
       - name: hand the native scanner on
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: variance-native
           path: |
@@ -1303,7 +1304,7 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.legs) }}
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
 
     steps:
@@ -1313,14 +1314,14 @@ jobs:
         run: apt-get update && apt-get install -y --no-install-recommends git git-lfs build-essential curl ca-certificates
 
       # Every commit, for the reason written at the checkout in `suite`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           filter: tree:0
           persist-credentials: false
 
       # Node 24, for the reason written at the same step in `rules`.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -1363,7 +1364,7 @@ jobs:
 
       # The mainline's records as `plan` read them and counted from, for the
       # reasons written at the same steps in `suite`.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: matrix.part != 'rules'
         with:
           name: variance-base
@@ -1403,7 +1404,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: tools/idea.mjs
           sparse-checkout-cone-mode: false
@@ -1456,7 +1457,7 @@ jobs:
       - name: get timing reporter
         continue-on-error: true
         if: ${{ !cancelled() }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           sparse-checkout: |
             tools/ci-timing.mjs

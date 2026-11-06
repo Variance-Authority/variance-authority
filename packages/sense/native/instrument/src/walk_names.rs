@@ -52,11 +52,7 @@ impl Walker {
     pub(super) fn name_of(&mut self, expression: &Expression) -> Option<String> {
         match expression {
             Expression::Identifier(it) => Some(it.name.to_string()),
-            Expression::StringLiteral(it) => Some(if it.lone_surrogates {
-                spelled(&it.value)
-            } else {
-                it.value.to_string()
-            }),
+            Expression::StringLiteral(it) => Some(spelled(it)),
             Expression::NumericLiteral(it) => Some(it.value.to_js_string()),
             Expression::BigIntLiteral(it) => Some(it.value.to_string()),
             Expression::BooleanLiteral(it) => Some(it.value.to_string()),
@@ -103,26 +99,20 @@ impl Walker {
     }
 }
 
-/// A string holding a lone surrogate, with each one written `\uXXXX`.
+/// A string literal's value, with each lone surrogate written `\uXXXX`.
 ///
 /// No JavaScript string can come back from Rust holding a lone surrogate, so
 /// `String(value)` cannot be matched and the name is spelled as it would be
-/// escaped instead. oxc encodes a lone surrogate as U+FFFD followed by its code
-/// unit in hex, and U+FFFD itself as U+FFFD followed by `fffd`.
-fn spelled(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    let mut chars = value.chars();
-    while let Some(ch) = chars.next() {
-        if ch != '\u{FFFD}' {
-            out.push(ch);
-            continue;
-        }
-        let unit: String = chars.by_ref().take(4).collect();
-        if unit == "fffd" {
-            out.push('\u{FFFD}');
-        } else {
-            out.push_str("\\u");
-            out.push_str(&unit.to_ascii_uppercase());
+/// escaped instead.
+fn spelled(literal: &StringLiteral) -> String {
+    if let Some(value) = literal.value.as_str() {
+        return value.to_string();
+    }
+    let mut out = String::with_capacity(literal.value.as_bytes().len());
+    for unit in literal.value.chars() {
+        match unit.to_char() {
+            Some(ch) => out.push(ch),
+            None => out.push_str(&format!("\\u{:04X}", unit.to_u32())),
         }
     }
     out

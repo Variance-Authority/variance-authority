@@ -151,14 +151,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm ci
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: node_modules/.cache/variance-authority
           key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
@@ -171,7 +171,7 @@ jobs:
           fi
           npx vitest run
       - if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: node_modules/.cache/variance-authority
           key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}

@@ -98,6 +98,9 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
     ['a bare `require`', "export const late = () => require('./c');", true],
     ['`module.require`', "export const late = () => module.require('./c');", true],
     ['another object\'s `require`', "export const late = () => loader.require('./c');", false],
+    ['an import whose specifier no text holds', String.raw`import { a } from '\uD800';`, true],
+    ['a re-export whose specifier no text holds', String.raw`export { a } from '\uD800';`, true],
+    ['a star whose specifier no text holds', String.raw`export * from '\uD800';`, true],
   ])('says whether %s is a load no name traces', (_, line, untraced) => {
     expect(referencesOf('src/index.ts', `${line}\n`)?.untraced).toBe(untraced);
   });

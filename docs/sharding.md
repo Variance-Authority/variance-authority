@@ -126,12 +126,12 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: npm ci
       - run: npx variance carry hand "$RUNNER_TEMP/base"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -146,11 +146,11 @@ jobs:
       matrix:
         shard: [1/4, 2/4, 3/4, 4/4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -262,7 +262,7 @@ jobs:
     outputs:
       shards: ${{ steps.count.outputs.shards }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: npm ci
@@ -278,7 +278,7 @@ jobs:
           fi
           shards=$(npx variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
@@ -294,11 +294,11 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: variance-base
           path: ${{ runner.temp }}/base

@@ -82,12 +82,17 @@ export interface PlaywrightShard {
  * Playwright can place it.
  */
 export function shardRefusal(version: string, shard: PlaywrightShard): string | undefined {
-  const [major = 0, minor = 0] = version.split('.').map((part) => Number.parseInt(part, 10));
-  if (major > 1 || (major === 1 && minor >= 62)) return undefined;
+  if (playwrightFrom(62, version)) return undefined;
   return (
     `variance-authority: refusing shard ${shard.current}/${shard.total}: Playwright ${version} would split it test by test, ` +
     'so a file could run in two shards; placing whole files needs Playwright 1.62 or newer'
   );
+}
+
+/** Whether Playwright `version` is 1.`minor` or newer. */
+export function playwrightFrom(minor: number, version: string): boolean {
+  const [major = 0, at = 0] = version.split('.').map((part) => Number.parseInt(part, 10));
+  return major > 1 || (major === 1 && at >= minor);
 }
 
 /**

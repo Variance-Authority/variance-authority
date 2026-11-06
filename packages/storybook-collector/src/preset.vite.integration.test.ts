@@ -11,14 +11,16 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { afterAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 
 const run = promisify(execFile);
 const require = createRequire(import.meta.url);
 
 /** The addon, by the path Storybook loads a preset from. */
 const ADDON = resolve(import.meta.dirname, 'preset.ts');
-const STORYBOOK = resolve(dirname(require.resolve('storybook/package.json')), 'bin/index.cjs');
+const STORYBOOK = resolve(dirname(require.resolve('storybook/package.json')), 'dist/bin/dispatcher.js');
+/** The story `storybook init` writes a JavaScript project, in the version installed. */
+const INIT_STORY = resolve(dirname(require.resolve('@storybook/react/package.json')), 'template/cli/js/Page.stories.js');
 
 const temporary: string[] = [];
 
@@ -65,7 +67,7 @@ async function storybook(): Promise<string> {
   await writeFile(
     resolve(root, '.storybook/main.js'),
     `export default {\n` +
-      `  stories: ['../src/*.stories.jsx'],\n` +
+      `  stories: ['../src/*.stories.@(js|jsx)'],\n` +
       `  framework: { name: '@storybook/react-vite', options: {} },\n` +
       `  core: { disableTelemetry: true },\n` +
       `  addons: [{ name: ${JSON.stringify(ADDON)}, options: { root: ${JSON.stringify(root)} } }],\n` +
@@ -80,6 +82,8 @@ async function storybook(): Promise<string> {
     resolve(root, 'src/box.stories.jsx'),
     "import { Box } from './box.jsx';\nexport default { title: 'Box', component: Box };\nexport const One = { args: { children: 'one' } };\n",
   );
+  await writeFile(resolve(root, 'src/Page.jsx'), 'export function Page() {\n  return <button>Log in</button>;\n}\n');
+  await writeFile(resolve(root, 'src/Page.stories.js'), await readFile(INIT_STORY, 'utf8'));
   return root;
 }
 
@@ -89,15 +93,29 @@ async function emitted(directory: string): Promise<string> {
   return (await Promise.all(files.map((file) => readFile(resolve(directory, file), 'utf8')))).join('\n');
 }
 
-it('builds a preview file with a decorator under `storybook build --test`, its probes where its regions are', async () => {
+/** What `storybook build --test` wrote for the project above. */
+let page: string;
+
+beforeAll(async () => {
   const root = await storybook();
   const out = resolve(root, 'out');
   await run(process.execPath, [STORYBOOK, 'build', '--test', '--quiet', '-o', out], { cwd: root, env: { ...process.env, CI: 'true' } });
+  page = await emitted(out);
+}, 180_000);
 
-  const page = await emitted(out);
+it('builds a preview file with a decorator under `storybook build --test`, its probes where its regions are', () => {
   // Storybook's rewrite still ran: the module is named, not imported.
   expect(page).toMatch(/sb\.mock\(\s*["']\.\.\/src\/tone\.js["']\s*\)/);
   // The probes the file as written is cut into, by ordinal: the branch on line 11, and what follows it on line 12.
   expect(page).toMatch(/__va(?:\$\d+)?\(2\);\s*return Box\(/);
   expect(page).toMatch(/__va(?:\$\d+)?\(4\);\s*return Story\(\);/);
-}, 180_000);
+});
+
+it('builds the story `storybook init` writes a JavaScript project, the probes of its `play` on its statements', () => {
+  // The function's own probe, then each `await`'s, by ordinal, on the statement the file has it on.
+  expect(page).toMatch(/play: async \(\{ canvasElement \}\) => \{\s*__va(?:\$\d+)?\(1\);/);
+  expect(page).toMatch(/__vaR(?:\$\d+)?\(await expect\(loginButton\)\.toBeInTheDocument\(\), 2\);/);
+  expect(page).toMatch(/__vaR(?:\$\d+)?\(await userEvent\.click\(loginButton\), 3\);/);
+  expect(page).toMatch(/__vaR(?:\$\d+)?\(await expect\(loginButton\)\.not\.toBeInTheDocument\(\), 4\);/);
+  expect(page).toMatch(/__vaR(?:\$\d+)?\(await expect\(logoutButton\)\.toBeInTheDocument\(\), 5\);/);
+});

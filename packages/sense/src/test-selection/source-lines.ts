@@ -459,7 +459,7 @@ function following(
 }
 
 /** Which line an offset falls on, zero-based, by bisecting the line starts. */
-function lineOfStart(starts: readonly number[], offset: number): number {
+export function lineOfStart(starts: readonly number[], offset: number): number {
   let low = 0;
   let high = starts.length - 1;
   while (low < high) {
@@ -470,7 +470,7 @@ function lineOfStart(starts: readonly number[], offset: number): number {
   return low;
 }
 
-function lineStarts(code: string): readonly number[] {
+export function lineStarts(code: string): readonly number[] {
   const starts = [0];
   for (let index = 0; index < code.length; index += 1) {
     if (code.charCodeAt(index) === 10) starts.push(index + 1);

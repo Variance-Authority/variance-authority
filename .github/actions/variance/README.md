@@ -15,7 +15,7 @@ permissions:
   pull-requests: write # the comment
 
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v7
   - run: npm ci
   - uses: Variance-Authority/action@v1
     with:

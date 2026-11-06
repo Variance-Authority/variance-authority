@@ -275,9 +275,10 @@ impl Walker {
     fn arguments(&mut self, span: Span, arguments: &[Argument<'_>], via: Option<String>, own: u32, titled: bool) {
         let title = if titled {
             match arguments.first() {
-                Some(Argument::StringLiteral(it)) => Some(it.value.to_string()),
+                Some(Argument::StringLiteral(it)) => it.value.as_str().map(str::to_owned),
                 Some(Argument::TemplateLiteral(it)) => {
-                    Some(it.quasis.iter().map(|quasi| quasi.value.cooked.as_ref().map_or("", |cooked| cooked.as_str())).collect::<Vec<_>>().join("*"))
+                    let parts = it.quasis.iter().map(|quasi| quasi.value.cooked.map_or(Some(""), |cooked| cooked.as_str()));
+                    parts.collect::<Option<Vec<_>>>().map(|parts| parts.join("*"))
                 }
                 _ => None,
             }
@@ -326,7 +327,7 @@ pub(crate) fn parse(file: &str, text: &str) -> Option<Parsed> {
     let source_type = dialect(file).unwrap_or_else(SourceType::tsx);
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, text, source_type).parse();
-    if parsed.panicked {
+    if parsed.fatal_error {
         return None;
     }
     let record = &parsed.module_record;

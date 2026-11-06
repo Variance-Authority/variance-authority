@@ -35,53 +35,39 @@ export default {
        * and the scan's guess is all that is left.
        */
       sourcemap: true,
+      rolldownOptions: {
+        ...config.build?.rolldownOptions,
+        output: {
+          ...config.build?.rolldownOptions?.output,
+          /**
+           * **The line component attribution does not work without.**
+           *
+           * A production build minifies, and React reads a component's name off
+           * the function, so `Button` reports as `a`: a confident answer naming
+           * nothing in the source. It costs a slightly larger bundle.
+           */
+          keepNames: true,
+        },
+      },
     },
-    esbuild: {
-      ...config.esbuild,
-      // Stated rather than inherited. Without it the stories compile against the
-      // classic JSX runtime and every one of them throws `React is not defined` —
-      // which the adapter reports correctly, and which would still be a case
-      // about this file rather than about the adapter.
-      jsx: 'automatic',
-      /**
-       * **The line component attribution does not work without.**
-       *
-       * A production Storybook build minifies, and minification renames
-       * functions. React reads a component's display name off the function, so
-       * `Button` becomes `a` — and the whole chain still works, still finds the
-       * right regions, still resolves them to the right boxes, and reports
-       * `1356 pixel(s) differ ... in a`. Which is worse than reporting nothing,
-       * because it is a complete, confident answer naming something that appears
-       * nowhere in the source.
-       *
-       * Found by the first real `variance run` against this Storybook and by
-       * nothing before it: every other subject in this repository is built by
-       * esbuild in development mode, where names survive by default.
-       *
-       * The cost is a slightly larger bundle in a build nobody ships. Any
-       * project wanting component names in its reports pays the same, and it is
-       * not a thing anybody would guess.
-       */
-      keepNames: true,
-      /**
-       * **The setting the plugin above cannot supply for itself.**
-       *
-       * `jsxDev` is what makes the transform emit each element's file, line and
-       * column at all. Without it there is no location for anything to keep, and
-       * with it there is one even here — this is a production build, and the
-       * locations survive minification because they are data the compiler wrote
-       * rather than names a bundler could rename. `keepNames` above is the
-       * opposite kind of setting for exactly that reason.
-       *
-       * React 19 is what drops them: its `jsxDEV` takes four parameters and
-       * overwrites the transform's fifth argument with an `Error` of its own, and
-       * `createElement` skips `__source` by name. The plugin puts a runtime in
-       * React's place that records the argument before handing it on.
-       *
-       * What this buys, visible in `cli.chromium.test.js`: a finding names the
-       * element's own line rather than the line its component is declared on.
-       */
-      jsxDev: true,
+    oxc: {
+      ...config.oxc,
+      jsx: {
+        // Stated rather than inherited. Without it the stories compile against
+        // the classic JSX runtime and every one of them throws `React is not
+        // defined` — which the adapter reports correctly, and which would still
+        // be a case about this file rather than about the adapter.
+        runtime: 'automatic',
+        /**
+         * **The setting the plugin above cannot supply for itself.**
+         *
+         * It emits each element's file, line and column, data that survives
+         * minification. React 19 drops that argument, so the plugin's runtime
+         * records it first, and a finding in `cli.chromium.test.js` names the
+         * element's own line.
+         */
+        development: true,
+      },
     },
   }),
 };

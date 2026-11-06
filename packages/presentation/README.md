@@ -42,7 +42,7 @@ Node 22 or newer. Every `@variance-authority/*` package is ESM-only.
 
 | Peer | Range | Required |
 | --- | --- | --- |
-| `@playwright/test` | `>=1.49 <2` | only for `@variance-authority/presentation/playwright` |
+| `@playwright/test` | `>=1.55 <2` | only for `@variance-authority/presentation/playwright` |
 
 The live entry point uses engine-neutral Playwright APIs and reads geometry from
 whichever browser you launched; the package's own browser suite runs on

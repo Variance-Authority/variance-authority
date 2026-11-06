@@ -106,6 +106,7 @@ export interface VarianceFixtures
     VarianceDesk;
 }
 
+/** The fixtures a worker holds across its tests: `base.extend`'s second type, beside {@link VarianceFixtures}. */
 export interface VarianceWorkerFixtures
   extends VarianceEventWorkerFixtures,
     VarianceWireFixtures,

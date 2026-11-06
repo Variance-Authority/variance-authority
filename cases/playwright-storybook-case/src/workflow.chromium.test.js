@@ -96,7 +96,7 @@ live('a Playwright suite over a Storybook it opens itself', () => {
       // is the whole of what keeps this run out of a developer's own.
       const cache = { VARIANCE_AUTHORITY_CACHE: join(work, 'cache') };
       const built = await run(
-        [join(modules, 'storybook/bin/index.cjs'), 'build', '-o', join(work, 'static'), '--quiet'],
+        [join(modules, 'storybook/dist/bin/dispatcher.js'), 'build', '-o', join(work, 'static'), '--quiet'],
         cache,
       );
       expect(built, built.output).toMatchObject({ code: 0 });

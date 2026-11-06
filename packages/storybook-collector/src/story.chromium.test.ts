@@ -18,7 +18,7 @@ import { storybookCollector } from './index.js';
 
 const require = createRequire(import.meta.url);
 const ADDON = resolve(import.meta.dirname, 'preset.ts');
-const STORYBOOK = resolve(dirname(require.resolve('storybook/package.json')), 'bin/index.cjs');
+const STORYBOOK = resolve(dirname(require.resolve('storybook/package.json')), 'dist/bin/dispatcher.js');
 // A reading is read back by `variance story`, which reads it with sense's
 // decoder; sense publishes none, so this requires the one it builds.
 const stories = require(resolve(import.meta.dirname, '../../sense/dist/story/format.cjs')) as {
@@ -60,7 +60,7 @@ async function storybook(): Promise<string> {
       `  core: { disableTelemetry: true },\n` +
       `  addons: [{ name: ${JSON.stringify(ADDON)}, options: { root: ${JSON.stringify(root)} } }],\n` +
       // Without it the stories compile against the classic runtime and throw `React is not defined`.
-      `  viteFinal: async (config) => ({ ...config, esbuild: { ...config.esbuild, jsx: 'automatic' } }),\n` +
+      `  viteFinal: async (config) => ({ ...config, oxc: { ...config.oxc, jsx: { runtime: 'automatic' } } }),\n` +
       `};\n`,
   );
   await writeFile(

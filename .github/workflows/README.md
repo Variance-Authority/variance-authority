@@ -74,7 +74,7 @@ to `npx --no-install variance`, the CLI the project installed. The three files
 here pass `command: node packages/cli/dist/bin.js` instead, because this
 repository builds the CLI from source and has no published one to resolve.
 
-Every job runs inside `mcr.microsoft.com/playwright:v1.62.1-noble`. An approved
+Every job runs inside `mcr.microsoft.com/playwright:v1.64.1-noble`. An approved
 image is keyed by the identity of the machine that painted it, so a moving runner
 image means baselines invalidated on somebody else's schedule. Pin the image.
 
@@ -86,7 +86,7 @@ the config's `carry` fields, and the steps hand them to `actions/cache`:
 - id: carry
   run: npx --no-install variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
 - if: steps.carry.outputs.baselines-key != ''
-  uses: actions/cache/restore@v4
+  uses: actions/cache/restore@v6
   with:
     path: ${{ steps.carry.outputs.baselines-path }}
     key: ${{ steps.carry.outputs.baselines-key }}

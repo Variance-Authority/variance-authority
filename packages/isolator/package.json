@@ -72,8 +72,8 @@
     "@jridgewell/remapping": "^2.3.5",
     "@variance-authority/ioc": "workspace:^",
     "@variance-authority/sense": "workspace:^",
-    "magic-string": "^0.30.21",
-    "oxc-parser": "^0.144.0",
+    "magic-string": "^1.4.5",
+    "oxc-parser": "^0.157.0",
     "picomatch": "^4.0.7"
   },
   "peerDependencies": {
@@ -85,15 +85,15 @@
     }
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
-    "@rspack/core": "^2.2.6",
+    "@playwright/test": "^1.64.1",
+    "@rspack/core": "^2.3.1",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.0.0",
-    "jest": "^30.5.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jest": "^30.5.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-server-dom-parcel": "^19.3.1"
   }
 }

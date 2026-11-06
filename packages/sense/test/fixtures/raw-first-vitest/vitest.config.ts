@@ -44,10 +44,9 @@ export default withTestSelection(
   defineConfig({
     root,
     plugins: [jsxSource(), compiler, refresh],
-    esbuild: {
-      jsx: 'automatic',
-      jsxDev: true,
-      tsconfigRaw: { compilerOptions: { experimentalDecorators: true } },
+    oxc: {
+      jsx: { runtime: 'automatic', development: true },
+      decorator: { legacy: true },
     },
     test: { include: ['test/*.case.ts?(x)'] },
   }),

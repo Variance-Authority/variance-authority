@@ -108,6 +108,22 @@ fn an_import_equals_require_is_an_import() {
     assert_eq!((found, unknown), (vec![("node:fs".to_owned(), 1)], None));
 }
 
+#[test]
+fn an_import_equals_no_text_holds_is_counted_unread() {
+    let (found, unknown) = required("a.ts", "import a = require('\\uD800');\n");
+    assert_eq!(found, []);
+    assert_eq!(unknown.as_deref(), Some("1 `require()` call(s) with a specifier this cannot read"));
+}
+
+#[test]
+fn an_import_or_export_no_text_holds_is_counted_unread() {
+    let forms = ["import '\\uD800';", "import { a } from '\\uD800';", "import type { A } from '\\uD800';", "export { a } from '\\uD800';", "export * from '\\uD800';", "export * as n from '\\uD800';", "export type A = import('\\uD800').B;"];
+    let unread = Some("1 import(s) or export(s) with a specifier this cannot read".to_owned());
+    for form in forms {
+        assert_eq!(required("a.ts", form), (vec![], unread.clone()), "{form}");
+    }
+}
+
 /// Each `(request value, name)` a read lists as a member, in the read's order.
 fn members(source: &str) -> Vec<(String, String)> {
     let read = read_module("a.ts", source, &Allocator::default(), false);

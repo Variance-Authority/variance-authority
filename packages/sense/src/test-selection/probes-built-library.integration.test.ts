@@ -46,7 +46,8 @@ async function workspace(): Promise<string> {
 
 /** The module the probes in `code` name, cut again from the checkout to what a reading decides. */
 async function derived(root: string, code: string | undefined) {
-  const id = /\.r\("(ui\/dist\/Button\.js@[0-9a-f]{32})"/.exec(code ?? '')?.[1];
+  // The minifier may turn the id's quotes into backticks.
+  const id = /\.r\(["`](ui\/dist\/Button\.js@[0-9a-f]{32})["`]/.exec(code ?? '')?.[1];
   expect(id).toBeDefined();
   const module = (await deriveModules(root, [id!], undefined)).get(id!);
   return module && {

@@ -273,8 +273,8 @@ struct Walker<'n> {
 impl Walker<'_> {
     /// `at` is where its name is written, `start` where the member starts: a
     /// doc is above its modifiers.
-    fn declare(&mut self, key: Option<std::borrow::Cow<'_, str>>, at: u32, start: u32) {
-        let Some(key) = key else { return };
+    fn declare(&mut self, key: Option<oxc_ast::StaticPropertyName<'_>>, at: u32, start: u32) {
+        let Some(key) = key.and_then(|name| name.into_cow_str()) else { return };
         let on = self.containers.last().cloned().unwrap_or_default();
         self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, doc: self.harvest.doc(start) });
     }
@@ -359,7 +359,7 @@ impl<'a> Visit<'a> for Walker<'_> {
     fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
         if it.accessibility.is_some() || it.readonly || it.r#override {
             if let Some(id) = it.pattern.get_binding_identifier() {
-                self.declare(Some(std::borrow::Cow::Borrowed(id.name.as_str())), id.span.start, it.span.start);
+                self.declare(Some(id.name.as_str().into()), id.span.start, it.span.start);
             }
         }
         walk::walk_formal_parameter(self, it);

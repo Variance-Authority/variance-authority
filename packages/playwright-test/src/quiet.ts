@@ -11,9 +11,7 @@
  */
 
 /**
- * The door: how Playwright's client runs a call it does not report. Clients
- * before the options object took a bare `isInternal` flag in its place, which
- * the object, being truthy, also sets; only the installed version is run.
+ * The door: how Playwright's client runs a call it does not report.
  */
 interface WrapsApiCalls {
   readonly _wrapApiCall: <Result>(call: () => Promise<Result>, options: { readonly internal: boolean }) => Promise<Result>;
