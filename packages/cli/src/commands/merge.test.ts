@@ -207,6 +207,62 @@ describe('a subject no shard claimed', () => {
   });
 });
 
+describe('a story its owner read at widths', () => {
+  // The other shard never visits the story, so it can only leave the planned
+  // id; the widths exist on the shard that read them.
+  const widened = (over: Partial<CliRunReport> = {}): readonly Shard[] => [
+    shard('shard-1.json', {
+      observations: [observation('story:a')],
+      notObserved: [{ subject: 'story:card', kind: 'excluded', because: shardFilterBecause(GLOB) }],
+    }),
+    shard('shard-2.json', {
+      observations: [observation('story:card@375'), observation('story:card@800')],
+      notObserved: [{ subject: 'story:a', kind: 'excluded', because: shardFilterBecause('story:card*') }],
+      ...over,
+    }),
+  ];
+
+  it('is observed, so nothing is left to account for', () => {
+    const merged = mergeReports(widened());
+
+    expect(merged.notObserved).toEqual([]);
+    expect(merged.observations.map((entry) => entry.subject)).toEqual(['story:a', 'story:card@375', 'story:card@800']);
+    expect(exitFor(merged)).toBe(0);
+  });
+
+  it('still fails a width its owner could not read', () => {
+    const merged = mergeReports(
+      widened({
+        observations: [observation('story:card@375')],
+        notObserved: [
+          { subject: 'story:a', kind: 'excluded', because: shardFilterBecause('story:card*') },
+          { subject: 'story:card@800', kind: 'failed', because: 'the browser crashed' },
+        ],
+      }),
+    );
+
+    expect(merged.notObserved).toEqual([{ subject: 'story:card@800', kind: 'failed', because: 'the browser crashed' }]);
+  });
+
+  it('is not realized by a story whose id only begins with its own', () => {
+    const merged = mergeReports(widened({ observations: [observation('story:card-wide@375')] }));
+
+    expect(merged.notObserved).toEqual([
+      { subject: 'story:card', kind: 'failed', because: expect.stringContaining('no shard observed it') },
+    ]);
+  });
+
+  it('disagrees with a shard that decided not to read it', () => {
+    expect(() =>
+      mergeReports(
+        widened({
+          notObserved: [{ subject: 'story:card', kind: 'failed', because: 'it threw' }],
+        }),
+      ),
+    ).toThrow(/disagree about whether it was looked at/);
+  });
+});
+
 describe('an exclusion somebody meant', () => {
   it('survives, because it is a decision and not a filter', () => {
     const merged = mergeReports([

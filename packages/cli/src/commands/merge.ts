@@ -1,4 +1,4 @@
-import { identityDigest, totalsOf } from '@variance-authority/core/format';
+import { identityDigest, totalsOf, widenedFrom } from '@variance-authority/core/format';
 import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
@@ -279,8 +279,13 @@ function observationsOf(shards: readonly Shard[]): CliRunReport['observations'] 
 function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObserved[] } {
   if (shards.some((shard) => shard.report.notObserved === undefined)) return {};
 
+  // A story splits into its widths only when it is visited, so a shard that left
+  // it to another names the planned id, and the owner's observations name the
+  // widths: each observation answers for the id it was read from too.
   const observed = new Set(
-    shards.flatMap((shard) => shard.report.observations.map((record) => record.subject)),
+    shards.flatMap((shard) =>
+      shard.report.observations.flatMap(({ subject }) => [subject, widenedFrom(subject) ?? subject]),
+    ),
   );
 
   const bySubject = new Map<string, { entries: NotObserved[]; paths: string[] }>();
