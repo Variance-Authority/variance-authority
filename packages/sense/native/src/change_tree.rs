@@ -15,7 +15,7 @@ pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<Git
     {
         let (snapshot, change) = crate::held_listing::change_tree(&root, &index, &dirs)?;
         let seeds = crate::seed::seed_paths(&root, &dirs, &snapshot.paths);
-        let mut tree = crate::tree_from_snapshot(snapshot, seeds);
+        let mut tree = crate::git_tree::tree_from_snapshot(snapshot, seeds);
         tree.change = change;
         Some(tree)
     }
