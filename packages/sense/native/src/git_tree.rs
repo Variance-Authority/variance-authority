@@ -7,7 +7,9 @@ use napi_derive::napi;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use crate::{batch, change_tree, emitted, git, graph_index, held_listing, seed, source_update, tree};
+#[cfg(unix)]
+use crate::{change_tree, held_listing};
+use crate::{batch, emitted, git, graph_index, seed, source_update, tree};
 
 /// Every tracked path under a root, and the digest of the bytes on disk.
 ///
