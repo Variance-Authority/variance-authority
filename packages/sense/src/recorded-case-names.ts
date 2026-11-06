@@ -11,10 +11,8 @@
 // compass: variance-authority.reach
 
 import { readFileSync } from 'node:fs';
-import { keepsCases } from './test-selection/case-record.js';
+import { eachSuiteCases, type SuiteCases } from './suite-cases.js';
 import { decodeExecutionTests } from './test-selection/execution-format.js';
-import { nearestTestCoverage } from './test-selection/record-location.js';
-import { declaredSuites } from './test-selection/suites.js';
 
 /** A case, by the test file that holds it and the name it ran under. */
 export interface RecordedCaseName {
@@ -23,24 +21,11 @@ export interface RecordedCaseName {
 }
 
 /** One suite's cases, or why it holds none. */
-export type RecordedCaseNames = {
-  /** The suite, absent where the root config declares none. */
-  readonly suite?: string;
-  /** The record read. */
-  readonly recording: string;
-} & ({ readonly cases: readonly RecordedCaseName[] } | { readonly unread: string });
+export type RecordedCaseNames = SuiteCases<{ readonly cases: readonly RecordedCaseName[] }>;
 
 /** Every case each suite's nearest record holds, one answer to a suite. */
 export function recordedCaseNames(root: string): readonly RecordedCaseNames[] {
-  const suites = declaredSuites(root)?.map((declared) => declared.name) ?? [undefined];
-  return suites.map((suite) => {
-    const named = suite === undefined ? {} : { suite };
-    const recording = nearestTestCoverage(root, { suite });
-    if (!keepsCases(recording)) return { ...named, recording, unread: 'no run kept its cases there' };
-    try {
-      return { ...named, recording, cases: decodeExecutionTests(readFileSync(recording)).map(({ file, name }) => ({ file, name })) };
-    } catch (error) {
-      return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
-    }
-  });
+  return eachSuiteCases(root, (recording) => ({
+    cases: decodeExecutionTests(readFileSync(recording)).map(({ file, name }) => ({ file, name })),
+  }));
 }
