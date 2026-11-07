@@ -52,6 +52,16 @@ interface ProjectConfig {
 }
 type RuntimeClass = new (config: ProjectConfig, environment: Environment, ...rest: unknown[]) => object;
 type Mark = (root: string, file: string) => ModuleId | undefined;
+/**
+ * A value of `require.cache`. A JSON file reached through `import` sits there as
+ * `{ exports, loaded }`, with no `children` and no `filename`, and a module that
+ * then requires the file holds that value among its `children`.
+ */
+interface Cached {
+  readonly exports: unknown;
+  readonly filename?: string;
+  readonly children?: readonly Cached[];
+}
 
 const load = (file: string): unknown => {
   const loaded = nodeModule.createRequire(file)(file) as { default?: unknown };
@@ -61,6 +71,7 @@ const load = (file: string): unknown => {
 const { interop, readPreset, rooted } = presets;
 
 const INPUTS = Symbol.for('variance-authority.test-selection.environment');
+const cache: NodeJS.Dict<Cached> = require.cache;
 const RUNTIME = path.resolve(__dirname, '..') + path.sep;
 const nativeImports = new Map<string, Set<string>>();
 const marked = new Map<string, ModuleId | undefined>();
@@ -101,13 +112,18 @@ function markOnce(root: string, file: string): ModuleId | undefined {
   return marked.get(file);
 }
 
+/** The cached modules that required `child`. */
+function requirers(child: Cached): Cached[] {
+  return Object.values(cache).filter((cached) => cached?.children?.includes(child)) as Cached[];
+}
+
 /** The jest-runner that required this runtime, which resolves the way Jest just resolved. */
 let jestRunner: NodeJS.Require | undefined;
 function runner(): NodeJS.Require {
   if (jestRunner !== undefined) return jestRunner;
-  const parent = Object.values(require.cache).find((cached) => cached?.children.includes(module) && /[\\/]jest-runner[\\/]/u.test(cached.filename));
+  const parent = requirers(module).map(({ filename }) => filename).find((file) => file !== undefined && /[\\/]jest-runner[\\/]/u.test(file));
   if (parent === undefined) throw new Error('variance-authority: the Jest runtime was not required by jest-runner');
-  jestRunner = nodeModule.createRequire(parent.filename);
+  jestRunner = nodeModule.createRequire(parent);
   return jestRunner;
 }
 
@@ -116,7 +132,7 @@ function runner(): NodeJS.Require {
  * the docblock's `@jest-environment` through `resolveTestEnvironment`, the
  * project's `testEnvironment` otherwise.
  */
-function environmentOf(jest: NodeJS.Require, config: ProjectConfig, source: string, environment: Environment): NodeJS.Module {
+function environmentOf(jest: NodeJS.Require, config: ProjectConfig, source: string, environment: Environment): Cached {
   const docblock = jest('jest-docblock') as { parse(text: string): Record<string, unknown>; extract(text: string): string };
   const named = docblock.parse(docblock.extract(source))['jest-environment'];
   // An empty pragma is Jest's falsy: the project's environment.
@@ -127,7 +143,7 @@ function environmentOf(jest: NodeJS.Require, config: ProjectConfig, source: stri
       testEnvironment: named,
     })
     : config.testEnvironment;
-  const entry = require.cache[nodeModule.createRequire(file).resolve(file)];
+  const entry = cache[nodeModule.createRequire(file).resolve(file)];
   if (entry === undefined) unavailable(file);
   if (interop(entry.exports) !== environment.constructor) {
     throw new Error(`variance-authority: the environment Jest built for this test file is not the export of ${file}, where Jest resolves it`);
@@ -136,17 +152,22 @@ function environmentOf(jest: NodeJS.Require, config: ProjectConfig, source: stri
 }
 
 /** The CommonJS modules the environment loaded, its entry included, even when a previous test already cached them. */
-function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
+function inputs(entry: Cached, root: string): ModuleId[] {
   const paths = new Set<string>();
   // What required the environment — Jest's loader — required every other one for
   // Jest too: its children are not this environment's inputs.
-  const loaders = new Set(Object.values(require.cache).filter((cached) => cached?.children.includes(entry)));
+  const loaders = new Set(requirers(entry));
   const pending = [entry];
   for (let at = 0; at < pending.length; at += 1) {
-    const module = pending[at];
-    if (module === undefined || paths.has(module.filename) || intrinsic(module.filename) || loaders.has(module)) continue;
-    if (nodeUtil.types.isModuleNamespaceObject(module.exports) && markOnce(root, module.filename) !== undefined) unavailable(module.filename);
-    const native = [...nativeImports.get(module.filename) ?? []];
+    const module = pending[at]!;
+    // Only a value `import` left has no filename, and its key in the cache is its path.
+    const file = module.filename ?? Object.keys(cache).find((key) => cache[key] === module);
+    if (file === undefined) {
+      throw new Error(`variance-authority cannot name every input of environment ${entry.filename}: ${entry.filename} requires a file that left require.cache after an import cached it. Keep that file in require.cache.`);
+    }
+    if (paths.has(file) || intrinsic(file) || loaders.has(module)) continue;
+    if (nodeUtil.types.isModuleNamespaceObject(module.exports) && markOnce(root, file) !== undefined) unavailable(file);
+    const native = [...nativeImports.get(file) ?? []];
     const seenNative = new Set<string>();
     for (let next = 0; next < native.length; next += 1) {
       const target = native[next]!;
@@ -155,8 +176,8 @@ function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
       if (markOnce(root, target) !== undefined) unavailable(target);
       native.push(...nativeImports.get(target) ?? []);
     }
-    paths.add(module.filename);
-    pending.push(...module.children);
+    paths.add(file);
+    pending.push(...module.children ?? []);
   }
   const known = new Map(collectors.attach(globalThis as { __VA__?: unknown }, false).registered()
     .map((id) => [path.resolve(root, moduleIds.pathOf(id)), moduleIds.marked(id)]));
