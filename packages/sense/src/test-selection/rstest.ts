@@ -40,6 +40,7 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
 import { refuseUnreadable } from './precondition-entries.js';
+import { buildingPlugin, buildsTestFile, declareEntries, isBuilding, joinReadableEntries, noteBuilding } from './rstest-entries.js';
 import { governingPreconditions } from './governing-config.js';
 import { limitAcross } from './execution-set-columns.js';
 
@@ -271,6 +272,7 @@ export function withTestSelection(
   const entries = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
   // The configuration that lists the projects is what every test rests on.
   if (config.projects !== undefined) run.runConfig = '';
+  declareEntries(run, own, entries);
 
   const settle = foldRun(run, { coverageFile, shims: [setupId] });
   const story = askedForStories(coverageFile);
@@ -294,13 +296,18 @@ export function withTestSelection(
       limits.clear();
       // A first run in Node has run neither its global setup nor a test. A page has
       // run that setup, and a rerun the cycles before it, so what they wrote passes.
-      if (building.has(run)) refuseUnreadable(governingPreconditions(run, undefined));
+      if (isBuilding(run)) {
+        if (config.projects !== undefined) for (const file of entries) own.add(file);
+        refuseUnreadable(governingPreconditions(run, undefined));
+      }
       return reopenRun(run, ended ?? run.startedAt);
     },
     onTestRunEnd: async (payload: RstestRunEnd) => {
       ended = Date.now();
       const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
       const files = cycleResults(run, payload);
+      // Finished files and no compiler: see `rstest-entries.ts`.
+      if (!isBuilding(run) && files.length > 0) joinReadableEntries(run);
       await writeCarriedStories(story, files.flatMap(caseEnds));
       return unprobedAtEnd(run) ?? settle(files.map((file) => ({
         filepath: file.testPath,
@@ -323,8 +330,13 @@ export function withTestSelection(
   // from. Adding the loader and the setup file here would put them on a config
   // that builds no test file.
   if (config.projects !== undefined) {
-    for (const file of entries) own.add(file);
-    return { ...config, reporters: [...reporters, reporter] };
+    // A project a path names is loaded from its own file, out of reach here.
+    const projects = array(config.projects).map((project) => (
+      typeof project === 'object' && project !== null
+        ? { ...project, plugins: [...array((project as RstestConfig).plugins), buildingPlugin(run)] }
+        : project
+    ));
+    return { ...config, projects, reporters: [...reporters, reporter] };
   }
 
   // Both spellings of the same registrar, because a project may use either and
@@ -397,16 +409,6 @@ export function withTestSelection(
   };
 }
 
-/**
- * Whether what Rstest hands Rspack to build holds a file that `loaded` does not
- * name, which is a test file: its entries are that and a project's setup. A
- * watching run's entry is a function, read at each build, and may yet hold one.
- * A setup file that is a package is named differently and reads as a test file.
- */
-function buildsTestFile(entry: unknown, loaded: ReadonlySet<string>): boolean {
-  return typeof entry === 'function' || Object.values(entry ?? {}).some((file) => !loaded.has(file as string));
-}
-
 /** The part of Rsbuild's plugin API this seam reads. */
 interface RsbuildPluginApi {
   readonly onBeforeCreateCompiler: (handler: () => void) => void;
@@ -431,9 +433,6 @@ function nameFiltersOf(run: SelectionRun): Set<() => unknown> {
   return filters;
 }
 
-/** The runs with a test file to run, which Rstest counts for no reporter and no plugin. */
-const building = new WeakSet<SelectionRun>();
-
 /**
  * The setup module for a test file that runs in a page, swapped in where the
  * run says it does.
@@ -451,13 +450,13 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, ta
       // to build, or for a watch session, which builds with none. A page builds
       // after the announcement, so nothing tells its run from an empty one, and
       // it stays refused with no test file.
-      api.onBeforeCreateCompiler(() => { building.add(run); });
+      api.onBeforeCreateCompiler(() => noteBuilding(run));
       const exposed = api.useExposed('rstest');
       // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
       if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
       if (exposed?.getRstestConfig().browser?.enabled !== true) return;
       for (const file of entries) own.add(file);
-      building.add(run);
+      noteBuilding(run);
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API, taping ? await pageTaping() : undefined));
       // A test line reaches the record through a case's story alone in a page:
       // a page that does not tape cuts nothing.

@@ -992,7 +992,11 @@ A configuration with `projects` describes the run rather than a suite: wrap each
 project *and* keep one wrap at the root, the same shape a Vitest `projects`
 layout needs. A project that sets `name` keeps its setup files and
 `preconditions` for its own tests. A project Rstest names by default is named
-after the wrap has run, so its files are preconditions of every test.
+after the wrap has run, so its files are preconditions of every test. An entry
+that cannot be read is refused before any test once a wrapped project, or an
+unwrapped one written inline in `projects`, has a test file in the run. A run of
+nothing but an unwrapped project named by a path refuses nothing and leaves the
+entry out, as `rstest merge-reports` does.
 
 To assemble a configuration by hand instead, `withTestSelection` names two
 loaders by path, and you can name them yourself:

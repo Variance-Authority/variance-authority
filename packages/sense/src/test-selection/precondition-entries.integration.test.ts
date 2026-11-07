@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify, stripVTControlCharacters } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { decodeTestCoverage } from './format.js';
 
 /**
  * An entry in `preconditions` is refused when the runner announces a test run,
@@ -183,6 +184,44 @@ describe('a project declares its own entry', () => {
   }, 120_000);
 });
 
+describe('a project nobody wrapped, under a wrapped configuration', () => {
+  const plain = [rstest, 'run', '-c', resolve(fixture, 'rstest.plain.config.mjs')];
+
+  it.each([
+    ['beside a wrapped project', plain],
+    ['with the wrapped project left out', [...plain, '--project', 'plain']],
+  ])('refuses the configuration\'s entry before any test, %s', async (_, command) => {
+    const { code, output } = await finished(command, ['missing.json']);
+
+    expect(output).toContain('cannot be read as a file');
+    expect(output).not.toContain('could not be read');
+    expect(code).not.toBe(0);
+    expect(existsSync(ran())).toBe(false);
+  }, 120_000);
+
+  it('is not blocked by the entry of a project left out', async () => {
+    const { code, output } = await finished([...plain, '--project', 'plain'], [], { FIXTURE_PROJECT_PRECONDITIONS: '["missing.json"]' });
+
+    expect(output).not.toContain('read');
+    expect(code).toBe(0);
+    expect(existsSync(ran())).toBe(true);
+  }, 120_000);
+
+  it('is not blocked by the entry of a project with no test file', async () => {
+    const { code } = await finished(plain, [], { FIXTURE_PROJECT_PRECONDITIONS: '["missing.json"]', FIXTURE_TWO_INCLUDE: 'test/no-such-*.ts' });
+
+    expect(code).toBe(0);
+    expect(existsSync(ran())).toBe(true);
+  }, 120_000);
+
+  it('refuses nothing with no test to run', async () => {
+    const { code, output } = await finished([...plain, '--passWithNoTests', 'no-such-test'], ['missing.json']);
+
+    expect(output).not.toContain('cannot be read as a file');
+    expect(code).toBe(0);
+  }, 120_000);
+});
+
 it('a refused Rstest run leaves no seam module behind', async () => {
   await finished(runs['Rstest']!, ['src/**/*.ts']);
 
@@ -226,6 +265,29 @@ describe('a command that loads the configuration and runs no test', () => {
 
     expect(output).toContain('Merging 1 blob report');
     expect(output).not.toContain('cannot be read as a file');
+    expect(code).toBe(0);
+  }, 120_000);
+
+  it('rstest merge-reports writes what the run declared, and leaves out what cannot be read', async () => {
+    await finished([...runs['Rstest']!, '--reporter=blob'], []);
+
+    const { code } = await finished([rstest, 'merge-reports', '-c', resolve(fixture, 'rstest.config.mjs')], ['src/value.ts', 'missing.json']);
+
+    expect(code).toBe(0);
+    const { tests } = decodeTestCoverage(await readFile(resolve(directory, 'coverage.bin')));
+    expect(tests[0]!.preconditions.map(({ name }) => name.slice(name.indexOf('precondition-entries/') + 21))).toEqual([
+      'src/value.ts',
+      'test/entries.check.ts',
+    ]);
+  }, 120_000);
+
+  it('rstest merge-reports reads no entry of the configuration listing the projects that cannot be read', async () => {
+    const projects = ['-c', resolve(fixture, 'rstest.projects.config.mjs')];
+    await finished([rstest, 'run', ...projects, '--reporter=blob'], []);
+
+    const { code, output } = await finished([rstest, 'merge-reports', ...projects], ['missing.json']);
+
+    expect(output).not.toContain('could not be read');
     expect(code).toBe(0);
   }, 120_000);
 

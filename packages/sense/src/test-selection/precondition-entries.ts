@@ -22,6 +22,11 @@ function digest(files: readonly string[]): boolean {
   }
 }
 
+/** The files the reader of a precondition reads, each on its own. */
+export function readable(files: readonly string[]): readonly string[] {
+  return files.filter((file) => digest([file]));
+}
+
 /**
  * Refuses every file the run could not digest when it ends, naming them all.
  * Read as one set, the way the run reads it, and entry by entry only to name
