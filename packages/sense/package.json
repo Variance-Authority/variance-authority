@@ -139,6 +139,7 @@
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
+    "@variance-authority/package": "workspace:^",
     "@variance-authority/wire": "workspace:^",
     "oxc-parser": "^0.157.0",
     "oxc-resolver": "^11.24.2",

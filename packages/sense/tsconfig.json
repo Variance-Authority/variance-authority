@@ -23,6 +23,9 @@
       "path": "../core"
     },
     {
+      "path": "../package"
+    },
+    {
       "path": "../wire"
     }
   ]

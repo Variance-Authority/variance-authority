@@ -162,14 +162,15 @@ variance ask orient
 variance ask orient --area 2
 ```
 
-The first page puts every package the manifests name into a few areas, apart
-from a manifest under a directory the [source index](source-index.md) skips, such as
-`node_modules` or `dist`. A package joins the packages that sit in the same
+The first page puts every package the manifests name into a few areas. It
+leaves out a manifest under a directory the [source index](source-index.md) skips, such
+as `node_modules` or `dist`, and a root package that has no name, holds no
+source or declares workspaces, or has no package nested in it. A package joins the packages that sit in the same
 directory, share words in their names, and import each other. An area of more
 than twelve packages is split again, into at most twelve areas of at least
 three packages, none starting larger than a third of it. A package no area
 takes joins the area holding a third or more of its connections, or is listed
-after the rows, so every package is on some page. An area page lists smaller
+after the rows, so every package on the map is on some page. An area page lists smaller
 areas until an area is a short list of packages. Each row gives:
 
 - how many packages and source files the area has;
