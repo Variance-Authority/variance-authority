@@ -277,6 +277,17 @@ describe('variance ask containment', () => {
     expect(out).toContain('Another package is one the commit changed no source in.');
   });
 
+  it('reads a path that holds the character between a commit\'s fields as a path', async () => {
+    const root = workspace(['a', 'b']);
+    change(root, 'seed', [A, B]);
+    change(root, 'a, by an odd name', ['packages/a/src/odd\u0001name.ts']);
+    change(root, 'a and b', [A, B]);
+    process.chdir(root);
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01']);
+    expect(out).toContain('2 commits since 2000-01-01 changed source, of 3 first-parent commits');
+    expect(out).toContain('touched one package: 1 of 2 (50.0%)');
+  });
+
   it('refuses a window that is not a date, which git would read as now', async () => {
     process.chdir(history());
     const answered = await run(['ask', 'containment', '--after', 'lately']);

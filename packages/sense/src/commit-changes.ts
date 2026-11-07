@@ -29,25 +29,27 @@ export interface CommitChanges {
   readonly shallow: boolean;
 }
 
-/** Between a commit's fields: a name holds no control character git would print. */
+/** Around a commit's fields: a name holds no control character git would print. */
 const FIELD = '\u0001';
+
+/** A commit's token, whole: a path may hold the character, and only a NUL ends one. */
+const HEADER = new RegExp(`^${FIELD}([0-9a-f]{40,64})${FIELD}([^${FIELD}]*)${FIELD}([0-9a-f ]*)${FIELD}$`, 'u');
 
 function git(root: string, args: readonly string[]): string {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: Infinity, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-/** `-z` ends the format and each path with a NUL, and puts a newline before the first path. */
+/** `-z` ends the format and each path with a NUL, and puts a newline before a commit's first path. */
 function commitsIn(log: string): readonly CommitChange[] {
-  const fields = log.split(FIELD).slice(1);
-  const commits: CommitChange[] = [];
-  for (let at = 0; at + 3 < fields.length; at += 4) {
-    const [, ...paths] = fields[at + 3]!.split('\0');
-    commits.push({
-      commit: fields[at]!,
-      author: fields[at + 1]!,
-      compared: fields[at + 2] !== '',
-      files: paths.map((path) => path.replace(/^\n/u, '')).filter((path) => path !== ''),
-    });
+  const commits: (CommitChange & { readonly files: string[] })[] = [];
+  for (const token of log.split('\0')) {
+    const header = HEADER.exec(token);
+    if (header !== null) {
+      commits.push({ commit: header[1]!, author: header[2]!, compared: header[3] !== '', files: [] });
+    } else if (token !== '') {
+      const { files } = commits.at(-1)!;
+      files.push(files.length === 0 ? token.replace(/^\n/u, '') : token);
+    }
   }
   return commits;
 }
