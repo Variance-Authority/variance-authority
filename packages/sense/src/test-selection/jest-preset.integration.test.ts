@@ -82,6 +82,7 @@ it('sends a run whose test file fails to compile to the failure, and to no setti
     );
     const note = stderr.split('\n').find((line) => line.includes('instrumented 0 modules across 1 test file(s)'));
     expect(note).toContain('read the failures above');
+    expect(note).toContain('With no failures, check that a `transform` pattern matches');
     expect(note).not.toMatch(/`include`|plugin/u);
   });
 }, 60_000);

@@ -280,8 +280,8 @@ class JestCoverageReporter {
       markCheckout(repositoryRoot(root));
     });
     // A run that finished test files and placed no module at all failed before
-    // any source loaded, or has no `transform` pattern for it, and the snapshot it
-    // just wrote says every one of those files may be skipped. Said once, where
+    // any source loaded, imports none, or has no `transform` pattern for it, and the
+    // snapshot it just wrote says every one of those files may be skipped. Said once, where
     // the run ends. A run the lock refused wrote no snapshot, and the busy warning
     // is the whole story.
     if (merged.held) noteAnEmptyRecord(results.testResults.length, modules.size, UNREACHED);
