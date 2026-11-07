@@ -145,6 +145,34 @@ A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
 
+## Sweeping for flakes
+
+`flakes: 'true'` runs `variance run --flakes`: every subject is read twice,
+whatever its verdict, so a subject that agrees with its baseline and disagrees
+with itself is found before it fails a pull request. The check is red when a
+subject read differently twice, even with every verdict green. It costs one
+collection per subject and no render, so it runs on a `schedule`, with no pull
+request to comment on and the report uploaded as a page:
+
+```yaml
+on:
+  schedule:
+    - cron: '17 3 * * *'
+
+steps:
+  - uses: actions/checkout@v7
+  - run: npm ci
+  - uses: Variance-Authority/action@v1
+    with:
+      config: variance.config.json
+      flakes: 'true'
+      comment: 'false'
+      report-page: 'true'
+```
+
+What a sweep finds and how a flake rate is counted from it is in
+[flakiness](https://variance-authority.dev/docs/flakiness).
+
 ## Accepting with a tick
 
 `tick-to-accept: 'true'` puts a box in the comment, under `to-accept`. A reviewer

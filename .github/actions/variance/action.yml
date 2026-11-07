@@ -77,6 +77,18 @@ inputs:
     required: false
     default: ''
 
+  flakes:
+    description: >-
+      `true` reads every subject twice, whatever its verdict, as `variance run
+      --flakes` does: the nightly sweep that finds a subject which agrees with
+      its baseline and disagrees with itself. The check is red when a subject
+      read differently twice, even with every verdict green. It costs one
+      collection per subject and no render, so it belongs on a `schedule`, with
+      `comment: 'false'` and `report-page: 'true'`, since no pull request reads
+      it. Off by default.
+    required: false
+    default: 'false'
+
   command:
     description: >-
       How to invoke the CLI. Split on whitespace, so `node packages/cli/dist/bin.js`
@@ -374,6 +386,7 @@ runs:
         VARIANCE_SUBJECTS: ${{ inputs.subjects }}
         VARIANCE_SHARD: ${{ inputs.shard }}
         VARIANCE_INTENT: ${{ steps.tick.outputs.intent || inputs.intent }}
+        VARIANCE_FLAKES: ${{ inputs.flakes }}
       run: |
         set -uo pipefail
 
@@ -382,6 +395,8 @@ runs:
         if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
         if [ -n "$VARIANCE_SHARD" ]; then args+=(--shard "$VARIANCE_SHARD"); fi
         if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
+        # This step's alone: `carry` and the accept take no `--flakes`.
+        if [ "$VARIANCE_FLAKES" = true ]; then args+=(--flakes); fi
 
         # `if` rather than `set +e`: the condition of an `if` is exempt from
         # errexit, so the code is captured without ever disarming the shell for

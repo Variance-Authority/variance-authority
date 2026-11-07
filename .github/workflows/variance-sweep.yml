@@ -23,14 +23,6 @@ name: variance sweep
 # subjects is 300 cheap collections and no browser paint. That is affordable on a
 # schedule and wasteful on every push, where the same money buys nothing the gate
 # did not already get.
-#
-# ## Why this calls the CLI instead of `.github/actions/variance`
-#
-# The action is the pull-request shape: it takes no `--flakes`, and its two extra
-# steps — post the docket, optionally commit baselines — are both addressed to a
-# pull request that does not exist here. Wrapping it would mean adding an input
-# for a mode it cannot comment on. So this is `variance run` directly, which is
-# the same binary the action shells out to.
 
 on:
   schedule:
@@ -111,140 +103,27 @@ jobs:
         run: yarn workspace @variance-authority/case-storybook build-storybook
 
       # A sweep re-collects rather than paints, so this is not where its baselines
-      # come from: `variance.yml` paints them on every push to `main`, and this
-      # restores what that left, from the key `variance carry` names.
+      # come from: `variance.yml` paints them on every push to `main`, and the
+      # action restores what that left before it reads anything. Without them
+      # every subject here would be `new` every night, the check would be red
+      # whatever happened, and a nightly job that is always red is one people mute.
       #
-      # Without it every subject here would be `new` every night, the run would
-      # exit 1 on all twelve, and a nightly job that is red whatever happened is a
-      # nightly job people mute. The flake finding would still be in the report;
-      # nobody would be reading it.
-      - id: carry
-        name: what the host carries
-        shell: bash
-        run: |
-          node packages/cli/dist/bin.js carry restore \
-            --config cases/storybook-case/variance.config.json \
-            --format github >> "$GITHUB_OUTPUT"
-
-      - if: ${{ steps.carry.outputs.baselines-key != '' }}
-        name: restore the baselines main last painted
-        uses: actions/cache/restore@v6
+      # The check is red when a subject read differently twice, even with every
+      # verdict green: that is the finding this workflow exists for, so
+      # `exit-zero-on-changes` stays off. A subject that changed on `main` since
+      # its baseline, or one that is new, turns it red too; the report names
+      # which. No pull request reads this run, so the report goes to a page
+      # uploaded as an artifact rather than to a comment.
+      - name: variance run --flakes
+        uses: ./.github/actions/variance
         with:
-          path: ${{ steps.carry.outputs.baselines-path }}
-          key: ${{ steps.carry.outputs.baselines-key }}
-          restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
-
-      - id: sweep
-        name: variance run --flakes
-        shell: bash
-        run: |
-          set -uo pipefail
-
-          # `if` rather than `set +e`: the condition of an `if` is exempt from
-          # errexit, so the code is captured without disarming the shell for the
-          # lines after it.
-          if node packages/cli/dist/bin.js run \
-               --config cases/storybook-case/variance.config.json \
-               --profile chromium \
-               --flakes \
-               --intent 'nightly stability sweep'; then
-            code=0
-          else
-            code=$?
-          fi
-
-          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
-          echo "variance exited $code"
-
-          # `--exit-zero-on-changes` is deliberately absent, and it is the one
-          # flag somebody will reach for the first time this goes red.
-          #
-          # Unstable subjects exit 1 even when every verdict is green. That is the
-          # entire finding this workflow exists to produce, so suppressing 1 here
-          # would leave a job that sweeps 300 subjects nightly and reports its
-          # results to nobody. Read a red sweep as a finding, not as a break.
-          #
-          # Two other things reach 1 here and are worth telling apart in the
-          # report rather than in this file: a subject genuinely changed on the
-          # default branch since its baseline was accepted, and a subject that is
-          # new. Both are real, neither is a flake, and the docket names which.
-
-      # Written because there is no pull-request comment on this path. The gate
-      # gets a docket in a thread somebody is already reading; a sweep gets a file
-      # or it gets nothing, and "one page, no service behind it" is what the HTML
-      # renderer is for. Image paths in it are relative to the report, which is why
-      # the whole directory is uploaded rather than the page alone.
-      - id: page
-        if: ${{ always() && steps.sweep.outputs.exit-code != '2' }}
-        name: render the sweep as one page
-        shell: bash
-        env:
-          REPORT: ${{ steps.carry.outputs.report }}
-        run: |
-          set -euo pipefail
-          page="$(dirname "$REPORT")/sweep.html"
-          node packages/cli/dist/bin.js report \
-            --config cases/storybook-case/variance.config.json \
-            --format html \
-            --exit-zero-on-changes > "$page"
-          echo "path=$page" >> "$GITHUB_OUTPUT"
-
-          # `--exit-zero-on-changes` *is* right here, and for the opposite reason
-          # to the step above: this step renders, it does not adjudicate. The
-          # verdict was stated by the run and is carried by the job's own exit
-          # code; a renderer that could also fail the build would give the sweep
-          # two places to be red and no way to tell which one spoke.
-
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: variance-sweep
-          path: |
-            ${{ steps.carry.outputs.report }}
-            ${{ steps.carry.outputs.images }}
-            ${{ steps.page.outputs.path }}
-          # Without this the artifact is empty and nothing says so. `.variance` is
-          # a dotted directory, and this action skips hidden files by default —
-          # so the upload would succeed and the zip would hold nothing.
-          include-hidden-files: true
-          if-no-files-found: warn
-
-          # Longer than the 90-day default would be the wrong instinct. A sweep is
-          # a sample, and the thing worth keeping across months is not the sample
-          # but the row: whether a subject has done this before, and how often,
-          # lives in the history store (docs/history.md), which answers over a
-          # window and divides by the runs that actually asked. An artifact
-          # hoard is a worse version of that question with no way to ask it.
-          retention-days: 14
-
-      - if: always()
-        name: verdict
-        shell: bash
-        env:
-          CODE: ${{ steps.sweep.outputs.exit-code }}
-        run: |
-          case "${CODE:-}" in
-            0)
-              echo "every subject read the same way twice."
-              ;;
-            1)
-              echo "::error::the sweep found subjects that did not read the same way twice, or subjects that changed. The docket names the component, the file and the frequency band; the report is in the variance-sweep artifact."
-              exit 1
-              ;;
-            2)
-              # Not a finding about stability: no subject was collected twice.
-              echo "::error::variance could not run (exit 2); see the variance run --flakes step."
-              exit 2
-              ;;
-            '')
-              echo "::error::the sweep step produced no exit code, so this workflow cannot say what happened."
-              exit 2
-              ;;
-            *)
-              echo "::error::variance exited $CODE, which is not one of its three codes; treating it as a failure."
-              exit "$CODE"
-              ;;
-          esac
+          config: cases/storybook-case/variance.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          intent: nightly stability sweep
+          flakes: 'true'
+          comment: 'false'
+          report-page: 'true'
 
 # ## One config key that behaves differently here, and why
 #

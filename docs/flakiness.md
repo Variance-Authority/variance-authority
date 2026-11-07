@@ -267,6 +267,35 @@ comparison at all. It costs one collection per subject and no render, which is
 the shape that pays for itself nightly rather than on every pull request, and it
 exits `1` even when every verdict is green.
 
+On GitHub Actions the sweep is one step of
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action) on a
+`schedule`, after the setup [the whole job](placement.md#the-whole-job) gives
+the pull-request run. It restores the baselines the host carries, reads every subject twice, and
+uploads the report as one HTML page; the check is red when a subject read
+differently twice:
+
+```yaml
+on:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - uses: Variance-Authority/action@v1
+        with:
+          config: variance.config.json
+          flakes: 'true'
+          comment: 'false'
+          report-page: 'true'
+```
+
 **The sweep reads in plan order.** The shortlist an unexplained difference
 produces is sorted by how much control the suite has over each entry, and
 nothing points the sweep at it. A subject with four held siblings and a subject
