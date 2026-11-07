@@ -34,6 +34,7 @@ import {
   type WhatLanded,
 } from '@variance-authority/sense/test-selection';
 import { affectedBy, type EdgeKind } from '@variance-authority/core/relate';
+import { ask } from '../clone-cut.js';
 import { OperatorError } from '../exit.js';
 import { ownRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
@@ -55,6 +56,9 @@ import { probesGap, probesNote } from './probes-gap.js';
 import { runsBase } from './runs-base.js';
 import { indexUpToCheckout, sourceGraphFor } from './source-graph.js';
 import type { ReviewCoverage } from './review-coverage.js';
+/** How to get a clone a review can read, for a refusal to end with. */
+const EVERY_COMMIT = 'check out every commit and no trees: `git clone --filter=tree:0`, or `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`';
+
 /**
  * The edges a changed package's importers are walked through. Who imports the changed code is a question about
  * source, so a package importing only a type reads the change too; one that only reads the file, as a stylesheet or a
@@ -281,7 +285,10 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
             'Name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} name no start ` +
             'they descend from, so nothing records where this change starts. Name the base with `--since <ref>`.') +
-        (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
+        (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : '') +
+        ((await ask(root, ['rev-parse', '--is-shallow-repository'])).out === 'true'
+          ? `\nThis clone is shallow, so it can lack that start: ${EVERY_COMMIT}.`
+          : ''),
       { kind: 'unrecorded' },
     );
   }
@@ -292,8 +299,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
     const whose = mainline === undefined ? '' : `, where mainline ${mainline.mainline} published its record of "${mainline.suite}",`;
     throw new OperatorError(
       `\`${ref}\`${whose} could not be read as a diff. Check the commit is in this checkout's history: ` +
-        'a shallow clone has only the tip, so fetch the base, or check out every commit and no trees: ' +
-        '`git clone --filter=tree:0`, or `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.',
+        `a shallow clone has only the tip, so fetch the base, or ${EVERY_COMMIT}.`,
     );
   }
 

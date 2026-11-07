@@ -21,7 +21,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { instrumentationId } from '@variance-authority/sense/instrument';
@@ -108,6 +108,8 @@ async function setAside(root: string, suite: string): Promise<string | undefined
   if (!existsSync(record) || !keepsCases(record)) return undefined;
   const aside = resolve(root, AGAINST, suite, 'coverage.bin');
   await mkdir(dirname(aside), { recursive: true });
+  // Ignored by itself: a project's `.gitignore` may not name it, and a review would read the file as part of the change.
+  await writeFile(resolve(root, AGAINST, '.gitignore'), '*\n');
   await cp(record, aside);
   return aside;
 }

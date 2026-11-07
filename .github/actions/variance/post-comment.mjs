@@ -72,7 +72,7 @@ const token = process.env['GITHUB_TOKEN'];
 if (token === undefined || token === '') {
   fail(
     'no GITHUB_TOKEN in the environment. Pass `github-token:` to the action, or turn ' +
-      '`comment:` off — this will not post anonymously and will not guess a credential.',
+      '`comment:` off where the action has it — this will not post anonymously and will not guess a credential.',
   );
 }
 
@@ -162,15 +162,14 @@ function handOver(comment) {
 /** Almost always a token that cannot write here. */
 function refused(method, url, status) {
   // The usual cause is a `pull_request` run from a fork, which gets a read-only
-  // token by design. Warned rather than failed: the verdict still reaches the
-  // pull request as the check's exit code, and turning an unfixable permission
-  // fact into a red build teaches contributors that this check is noise. This
-  // action does not use `pull_request_target`, which would hand a writable token
-  // to code from the fork.
+  // token by design. Warned rather than failed: a verdict still reaches the pull
+  // request as the check's exit code, a review stays in the step summary, and
+  // turning an unfixable permission fact into a red build teaches contributors
+  // that this check is noise. This action does not use `pull_request_target`,
+  // which would hand a writable token to code from the fork.
   warn(
     `${method} ${url} was refused (${status}). The token cannot write here. ` +
-      'A `pull_request` run from a fork gets a read-only token; the docket is still in ' +
-      "the check's exit code and in the run's artifacts.",
+      'A `pull_request` run from a fork gets a read-only token; what the comment would have said is still in the run.',
   );
   process.exit(0);
 }
