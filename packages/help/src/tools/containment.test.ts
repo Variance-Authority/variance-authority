@@ -49,6 +49,18 @@ describe('docs_containment', () => {
     expect(figures.read).toBe(1);
   });
 
+  it('reads a signed commit in a checkout that shows signatures', () => {
+    const root = dated([daysAgo(3)]);
+    const key = join(root, '.git', 'signing');
+    execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key]);
+    const git = (args: readonly string[]): void => {
+      execFileSync('git', ['-c', 'user.name=Dev', '-c', 'user.email=dev@acme.test', ...args], { cwd: root, stdio: 'pipe' });
+    };
+    git(['config', 'log.showSignature', 'true']);
+    git(['-c', 'gpg.format=ssh', '-c', `user.signingkey=${key}`, 'commit', '--quiet', '--allow-empty', '--gpg-sign', '-m', 'signed']);
+    expect(containmentOf(root, {}).read).toBe(2);
+  });
+
   it('answers over MCP in the words the verb prints', () => {
     const root = dated([daysAgo(3)]);
     const input = { after: daysAgo(10) };

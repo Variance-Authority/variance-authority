@@ -61,7 +61,7 @@ function commitsIn(log: string): readonly CommitChange[] {
  */
 export function firstParentChanges(root: string, after: string): CommitChanges {
   const log = git(root, [
-    'log', '-z', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only', '--relative',
+    'log', '-z', '--no-show-signature', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only', '--relative',
     `--format=${FIELD}%H${FIELD}%an${FIELD}%P${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD', '--',
   ]);
   return { commits: commitsIn(log), shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
