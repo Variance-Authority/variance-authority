@@ -106,8 +106,7 @@ const intersection = intersectionOf<Help>(ALONE);
  * `docs_journey_map` reads it too, around one file: the code the tests that
  * entered that file went on to enter, nearest first. `docs_test_composition`
  * reads it around one test: the smaller tests inside it, the larger ones
- * holding it, and what none of its pieces entered. `docs_containment` reads the
- * log instead: how far a window's commits reached across package boundaries.
+ * holding it, and what none of its pieces entered. `docs_containment` reads git.
  *
  * `docs_stack` answers what a location may import that nobody wrote: the
  * third-party packages its owning manifest declares, read from the published

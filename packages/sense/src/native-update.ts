@@ -14,7 +14,8 @@
 // compass: variance-authority.reach.source-index
 
 import type { NativeGitTree } from './native.js';
-import { BUILTINS, CODE_EXTENSIONS } from './native-index-graph.js';
+import { CODE_EXTENSIONS } from './language.js';
+import { BUILTINS } from './native-index-graph.js';
 import { LARGEST_FILE } from './scan.js';
 import { READABLE } from './language.js';
 import { stepped, type Progress } from './progress.js';

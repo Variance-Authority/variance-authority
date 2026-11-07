@@ -34,7 +34,7 @@ export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependenc
  * alternative is a caller carrying its own extension list that drifts from this
  * one the first time a language is added.
  */
-export { LANGUAGES, READABLE, languageOf, grainOf, readsMembers, type LanguageId } from './language.js';
+export { CODE_EXTENSIONS, LANGUAGES, READABLE, languageOf, grainOf, readsMembers, type LanguageId } from './language.js';
 
 /**
  * One module's component index, read off its tree: where each component it
@@ -88,7 +88,6 @@ export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.j
 export type { SourceIndexState } from './source-index-file.js';
 
 export { firstParentChanges, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
-export { CODE_EXTENSIONS } from './native-index-graph.js';
 export { packageOwner } from './package-owner.js';
 export { isTestPath } from './test-path.js';
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';

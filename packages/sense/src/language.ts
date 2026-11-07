@@ -160,3 +160,9 @@ export function grainOf(id: LanguageId): 'file' | 'target' {
 export function carriesCode(id: LanguageId): boolean {
   return id !== 'style';
 }
+
+/** Every extension `kindFor` keeps a request's kind for: the ones whose language is code. */
+export const CODE_EXTENSIONS = [...READABLE].filter((suffix) => {
+  const language = languageOf(suffix);
+  return language !== undefined && carriesCode(language);
+});
