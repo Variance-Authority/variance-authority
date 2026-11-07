@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ParsedCarry } from '../carry-args.js';
+import { runCarry } from './carry.js';
 import { mergeHead } from './carry-merge.js';
 
 /**
@@ -188,5 +189,15 @@ describe("a pull request's head merged with the commit of the mainline's record"
     const differs = await merge(clone, record, { head, expect: record });
     expect(differs.exit).toBe(2);
     expect(differs.said).toContain(record);
+  });
+
+  it('is what `variance carry merge` runs, asking no mainline', async () => {
+    let outputs = '';
+    const parsed: ParsedCarry = { command: 'carry', direction: 'merge', commit: '', onConflict: 'fail', format: 'github' };
+    const exit = await runCarry(parsed, { out: (text) => void (outputs += text), err: () => {} }, () => {
+      throw new Error('a merge asks no mainline');
+    });
+
+    expect({ exit, outputs }).toEqual({ exit: 0, outputs: 'merged=false\n' });
   });
 });
