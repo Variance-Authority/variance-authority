@@ -279,11 +279,21 @@ describe('the verdict', () => {
   });
 
   it('hands the flag on only when no accept ran, so an accept the comparison did not hold still fails', async () => {
-    const flag = "${{ inputs.exit-zero-on-changes == 'true' && steps.promote.outcome != 'success' }}";
     const action = await readFile(ACTION, 'utf8');
 
-    expect(action).toContain(`VARIANCE_EXIT_ZERO_ON_CHANGES: ${flag}`);
-    expect(action).toContain(`EXIT_ZERO_ON_CHANGES: ${flag}`);
+    expect(action).toContain(
+      "VARIANCE_EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes == 'true' && steps.promote.outcome != 'success' }}",
+    );
+    expect(action.match(/inputs\.exit-zero-on-changes ==/g)).toHaveLength(1);
+  });
+
+  it('reads what the run was handed, rather than deciding it again', async () => {
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain("EXIT_ZERO_ON_CHANGES: ${{ steps.run.outputs.exit-zero-on-changes == 'true' }}");
+    expect(await conditionOf('publish the images the comment shows')).toContain(
+      "steps.run.outputs.exit-zero-on-changes == 'true'",
+    );
   });
 
   it('passes the check over changes the run named, and says where the docket is', async () => {

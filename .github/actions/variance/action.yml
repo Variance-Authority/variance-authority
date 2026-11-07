@@ -401,6 +401,8 @@ runs:
         if $VARIANCE_COMMAND "${args[@]}"; then code=0; else code=$?; fi
 
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        # What the code means: under the flag a change is 0, and a 1 is a hole.
+        echo "exit-zero-on-changes=$VARIANCE_EXIT_ZERO_ON_CHANGES" >> "$GITHUB_OUTPUT"
         echo "variance exited $code"
 
     # Beside the report rather than in `RUNNER_TEMP`: in a container job the
@@ -452,7 +454,7 @@ runs:
     # comment with no pictures is still the whole verdict.
     - id: images
       name: publish the images the comment shows
-      if: ${{ inputs.image-ref-prefix != '' && inputs.comment == 'true' && (steps.run.outputs.exit-code == '1' || (steps.run.outputs.exit-code == '0' && inputs.exit-zero-on-changes == 'true' && steps.promote.outcome != 'success')) }}
+      if: ${{ inputs.image-ref-prefix != '' && inputs.comment == 'true' && (steps.run.outputs.exit-code == '1' || (steps.run.outputs.exit-code == '0' && steps.run.outputs.exit-zero-on-changes == 'true')) }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -731,7 +733,7 @@ runs:
       env:
         CODE: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
         KEPT: ${{ steps.saved.outcome == 'success' }}
-        EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes == 'true' && steps.promote.outcome != 'success' }}
+        EXIT_ZERO_ON_CHANGES: ${{ steps.run.outputs.exit-zero-on-changes == 'true' }}
         DOCKET_URL: ${{ steps.post.outputs.comment-url }}
         REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
       run: |

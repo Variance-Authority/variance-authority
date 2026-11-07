@@ -136,6 +136,17 @@ describe('--exit-zero-on-changes', () => {
     expect(err).not.toContain('changes need review');
   });
 
+  it('keeps exit 1 when a change and a hole share the report', async () => {
+    const root = await repo(CHANGED);
+    const written = JSON.parse(await readFile(join(root, 'report.json'), 'utf8')) as object;
+    await writeFile(join(root, 'report.json'), JSON.stringify({ ...written, notObserved: HOLE.notObserved }), 'utf8');
+
+    const { code, err } = await report(root, ['--exit-zero-on-changes']);
+
+    expect(code).toBe(EXIT_REVIEW);
+    expect(err).toContain('a subject could not be observed');
+  });
+
   it('says nothing when there was nothing to suppress', async () => {
     const { code, err } = await report(await repo(UNCHANGED), ['--exit-zero-on-changes']);
 
