@@ -34,9 +34,11 @@ pub(crate) struct Stored {
     format: u32,
     /// sha256 of the index manifest the map was folded from.
     pub(crate) index: String,
-    /// sha256 over the path and blob id of every manifest, `.gitattributes` and
-    /// root `pnpm-workspace.yaml` git listed; absent when git listed nothing.
+    /// sha256 over the path and blob id of every manifest and `.gitattributes`
+    /// git listed; absent when git listed nothing.
     listed: Option<String>,
+    /// Whether the root declared workspaces when the map was folded.
+    workspaces: bool,
     unmarked: bool,
     /// What the fold made; absent when there was nothing to fold, and
     /// `unmade` says why.
@@ -69,6 +71,7 @@ pub(crate) struct Placed {
 struct Kept {
     index: String,
     listed: Option<String>,
+    workspaces: bool,
     unmarked: bool,
     made: Option<Made>,
     unmade: Option<String>,
@@ -129,13 +132,12 @@ impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
 }
 
 /// What the map is folded from beside the index, as git listed it: every
-/// manifest that may name a package, every `.gitattributes` and the root's
-/// `pnpm-workspace.yaml`, by blob id.
+/// manifest that may name a package and every `.gitattributes`, by blob id.
 /// `None` when git gave no blob id for one of them.
 fn listing(snapshot: &Listed) -> Option<String> {
     let counts = |path: &str| {
         let name = path.rsplit('/').next().unwrap_or(path);
-        (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes" || path == "pnpm-workspace.yaml"
+        (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes"
     };
     if snapshot.unhashed.iter().any(|path| counts(path)) {
         return None;
@@ -262,7 +264,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
     let listed = snapshot.as_ref().and_then(listing);
     if listed.is_some() {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
-        let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && crate::orient_map_shipped::kept(index, &digest));
+        let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && kept.workspaces == workspaces && crate::orient_map_shipped::kept(index, &digest));
         if let Some(kept) = kept {
             return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted }));
         }
@@ -284,7 +286,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
                 crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
             })
         });
-        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), tsconfig, workspaces, || {
+        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), tsconfig, || {
             let made = marks.join().ok().flatten();
             unmarked = !walked && made.is_none();
             made.unwrap_or_default()
@@ -294,10 +296,10 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
                 .collect()
         })
     });
-    let stored = match fold(&read) {
-        Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, unmarked, made: Some(made), unmade: None, pages, placed },
+    let stored = match fold(&read, workspaces) {
+        Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, workspaces, unmarked, made: Some(made), unmade: None, pages, placed },
         Err(unmade) => {
-            Stored { format: FORMAT, index: digest, listed, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new(), placed: Vec::new() }
+            Stored { format: FORMAT, index: digest, listed, workspaces, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new(), placed: Vec::new() }
         }
     };
     let text = serde_json::to_vec(&stored).map_err(|error| fail(error.to_string()))?;
@@ -310,14 +312,14 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.
-fn fold(read: &Read) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
+fn fold(read: &Read, workspaces: bool) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
     if read.records == 0 {
         return Err("the source index holds no file records");
     }
     if read.packages.is_empty() {
         return Err("no manifest names a package");
     }
-    let signals = signals(read);
+    let signals = signals(read, workspaces);
     if signals.packages.is_empty() {
         return Err("the root's is the only named manifest");
     }

@@ -33,8 +33,6 @@ pub(crate) struct Named {
 pub(crate) struct Read {
     /// Every package, in code-unit order of name; the root's included.
     pub packages: Vec<Named>,
-    /// Whether the root declares workspaces, as `members` reads it, passed in by `prepareCodeMap`.
-    pub workspaces: bool,
     /// Package names some manifest declares under `dependencies`,
     /// `peerDependencies` or `optionalDependencies`, and under `devDependencies`.
     pub depends: HashSet<String>,
@@ -126,7 +124,6 @@ pub(crate) fn read(
     layers: &[Layer],
     listed: Option<&[String]>,
     tsconfig: Tsconfig,
-    workspaces: bool,
     made: impl FnOnce() -> HashSet<String>,
 ) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
@@ -262,7 +259,7 @@ pub(crate) fn read(
     edges.sort_unstable();
     let closures = closures(&loads(&files, &counted, &roots, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
-    Read { head: heads(n, uses), packages, workspaces, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
+    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
 }
 
 /// The graph a closure is walked over: every counted file, and what it loads.

@@ -56,10 +56,10 @@ impl Words {
     }
 }
 
-pub(crate) fn signals(read: &Read) -> Signals {
+pub(crate) fn signals(read: &Read, workspaces: bool) -> Signals {
     let nested = |at: u32| !read.packages[at as usize].directory.is_empty();
     let all = 0..read.packages.len() as u32;
-    let root_joins = !read.workspaces && all.clone().any(nested);
+    let root_joins = !workspaces && all.clone().any(nested);
     let packages: Vec<u32> = all.filter(|&at| nested(at) || (root_joins && read.source[at as usize] > 0)).collect();
     let n = packages.len();
     let at: HashMap<u32, usize> = packages.iter().enumerate().map(|(i, &p)| (p, i)).collect();

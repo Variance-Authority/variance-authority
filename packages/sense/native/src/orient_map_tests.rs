@@ -93,10 +93,10 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, false, HashSet::new);
-    let (made, pages, placed) = fold(&read).ok().expect("named packages to fold");
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let (made, pages, placed) = fold(&read, false).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
-    let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages, placed };
+    let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, workspaces: false, unmarked: false, made: Some(made), unmade: None, pages, placed };
     (root, index, stored)
 }
 
@@ -258,10 +258,9 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
     let refolded = inode(&map_path(&index));
     assert_ne!(refolded, folded);
-    // So does the root's `pnpm-workspace.yaml`: it says whether the root is on the map.
-    std::fs::write(fixture.0.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
-    git(&root, &["add", "-A"]);
-    carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+    // So does a new answer to whether the root declares workspaces, with nothing
+    // git lists changed: the file that says so may be one git ignores.
+    prepare_orient_map(&root, &index, None, true, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_ne!(inode(&map_path(&index)), refolded);
 }
 
@@ -290,7 +289,7 @@ fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_pa
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, false, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["make"]);
@@ -318,7 +317,7 @@ fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_defau
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, false, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["default", "make"]);
