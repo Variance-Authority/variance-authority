@@ -58,7 +58,7 @@ const load = (file: string): unknown => {
   return loaded.default ?? loaded;
 };
 
-const { interop, presetFile, rooted } = presets;
+const { interop, readPreset, rooted } = presets;
 
 const INPUTS = Symbol.for('variance-authority.test-selection.environment');
 const RUNTIME = path.resolve(__dirname, '..') + path.sep;
@@ -176,10 +176,10 @@ function projectRuntime(jest: NodeJS.Require, config: ProjectConfig, options: Op
   const find = (jest('jest-resolve') as { default: { findNodeModule: FindNodeModule } }).default.findNodeModule;
   let name = options.runtime;
   if (name === undefined && options.preset !== undefined) {
-    const file = presetFile(find, config.rootDir, options.preset);
+    const preset = readPreset(find, require, config.rootDir, options.preset);
     // Jest read this preset before it started: a miss here is a moved file.
-    if (file === null) throw new Error(`variance-authority: preset ${options.preset} is not found from ${config.rootDir}`);
-    name = (interop(require(file)) as { runtime?: string }).runtime;
+    if (preset === null) throw new Error(`variance-authority: preset ${options.preset} is not found from ${config.rootDir}`);
+    name = preset.runtime;
   }
   if (name === undefined) return undefined;
   const file = find(rooted(config.rootDir, name), { basedir: config.rootDir, ...(config.resolver ? { resolver: config.resolver } : {}) });

@@ -86,28 +86,29 @@ describe('a Jest preset that has a `transform`', () => {
     expect(Object.keys(journeyed.transform ?? {})).toEqual(TS_PATTERNS);
   });
 
-  it('wraps a `transform` the object names, and Jest merges the preset\'s behind it', async () => {
+  it('keeps the object\'s transformer on a pattern the preset also names, as Jest\'s merge does', async () => {
     const rootDir = await adopter();
-    const transform = { '^.+\\.tsx?$': ['ts-jest', {}] } as const;
+    const transform = { '^.+\\.tsx?$': ['ts-jest', { isolatedModules: true }] } as const;
     const configured = withTestSelection({ rootDir, preset: 'ts-jest', transform }, { coverageFile: 'coverage.bin' });
     expect(configured.transform).toEqual({
-      '^.+\\.tsx?$': [SELECTION_TRANSFORM, { root: rootDir, runtime: SELECTION_RUNTIME, transformer: ['ts-jest', {}] }],
+      '^.+\\.tsx?$': [SELECTION_TRANSFORM, { root: rootDir, runtime: SELECTION_RUNTIME, transformer: ['ts-jest', { isolatedModules: true }] }],
     });
   });
 
-  it('wraps only a partial `transform`, and Jest merges the preset\'s behind it', async () => {
+  it('wraps the preset\'s patterns behind a partial `transform`, in the order Jest merges them', async () => {
     const rootDir = await adopter();
     const transform = { '\\.css$': 'css-transformer' };
     const configured = withTestSelection({ rootDir, preset: 'ts-jest', transform }, { coverageFile: 'coverage.bin' });
-    expect(configured.transform).toEqual({
-      '\\.css$': [SELECTION_TRANSFORM, { root: rootDir, runtime: SELECTION_RUNTIME, transformer: 'css-transformer' }],
-    });
+    expect(Object.entries(configured.transform ?? {})).toEqual([
+      ['\\.css$', [SELECTION_TRANSFORM, { root: rootDir, runtime: SELECTION_RUNTIME, transformer: 'css-transformer' }]],
+      ['^.+\\.tsx?$', [SELECTION_TRANSFORM, { root: rootDir, runtime: SELECTION_RUNTIME, transformer: ['ts-jest', {}] }]],
+    ]);
   });
 
-  it('instruments directly when the object sets `transform: {}`, as it does with no preset', async () => {
+  it('wraps the preset\'s transformer when the object sets `transform: {}`, which Jest merges like any other', async () => {
     const rootDir = await adopter();
     const configured = withTestSelection({ rootDir, preset: 'ts-jest', transform: {} }, { coverageFile: 'coverage.bin' });
-    expect(configured.transform).toEqual(wrapped(rootDir));
+    expect(configured.transform).toEqual(wrappedPreset(rootDir));
   });
 });
 
@@ -118,6 +119,15 @@ describe('a transformer the project at `rootDir` holds, under a checkout root ab
     const configured = withTestSelection({ rootDir, preset: '<rootDir>/preset.cjs' }, { coverageFile: 'coverage.bin' });
     const [, { runtime: _, ...options }] = configured.transform!['\\.vue$'] as [string, SelectionTransformerConfig];
     expect(options.root).toBe(resolve(rootDir, '../..'));
+    await expect(createTransformer(options)).resolves.toHaveProperty('process');
+  });
+
+  it('replaces `<rootDir>` in a preset\'s transformer with the project\'s, as Jest does', async () => {
+    const rootDir = await nestedProject();
+    await writeFile(resolve(rootDir, 'tx.cjs'), 'module.exports = { process: (text) => ({ code: text }) };\n');
+    await writeFile(resolve(rootDir, 'preset.cjs'), 'module.exports = { transform: { "\\\\.vue$": "<rootDir>/tx.cjs" } };\n');
+    const configured = withTestSelection({ rootDir, preset: '<rootDir>/preset.cjs' }, { coverageFile: 'coverage.bin' });
+    const [, { runtime: _, ...options }] = configured.transform!['\\.vue$'] as [string, SelectionTransformerConfig];
     await expect(createTransformer(options)).resolves.toHaveProperty('process');
   });
 });
@@ -136,14 +146,20 @@ describe('a Jest preset the wrap takes no `transform` from', () => {
     expect(configured.transform).toEqual(wrapped(rootDir));
   });
 
+  it('instruments directly when the merge leaves nothing: `transform: {}` beside a preset that names none', async () => {
+    const rootDir = await adopter();
+    const configured = withTestSelection({ rootDir, preset: 'plain-preset', transform: {} }, { coverageFile: 'coverage.bin' });
+    expect(configured.transform).toEqual(wrapped(rootDir));
+  });
+
   it.each(['missing-preset', 'broken-preset'])('leaves %s to Jest, which says what is wrong with it', async (preset) => {
     const rootDir = await adopter();
     const configured = withTestSelection({ rootDir, preset }, { coverageFile: 'coverage.bin' });
     expect(configured['preset']).toBe(preset);
   });
 
-  it('leaves the preset to Jest in a project that cannot find Jest', () => {
-    const configured = withTestSelection({ rootDir: '/repo', preset: 'ts-jest' }, { coverageFile: 'coverage.bin' });
-    expect(configured.transform).toEqual(wrapped('/repo', 'babel-jest'));
+  it('says so when the project cannot reach `jest-resolve`, rather than wrapping what Jest would not run', () => {
+    expect(() => withTestSelection({ rootDir: '/repo', preset: 'ts-jest' }, { coverageFile: 'coverage.bin' }))
+      .toThrow(/jest-resolve/);
   });
 });

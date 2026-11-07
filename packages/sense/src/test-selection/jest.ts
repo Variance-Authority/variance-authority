@@ -30,7 +30,7 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
-import { presetTransform } from './jest-preset.js';
+import { mergedTransform } from './jest-preset.js';
 import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
@@ -316,10 +316,10 @@ const UNMOCKED = here('../').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * the journal writer at the end; its `reporters` keep theirs and gain one at
  * the end, and a configuration with none keeps Jest's default reporter. Every `transform` entry is kept and
  * wrapped: the project's transformer still runs first, on the same pattern with
- * the same options, and probes land on what it produced. A configuration with
- * no `transform` gets what Jest would have given it, its preset's, or
- * `babel-jest` over Jest's default pattern, wrapped the same way; one that set
- * `transform: {}` to run plain JavaScript is instrumented directly.
+ * the same options, and probes land on what it produced. A preset's are merged
+ * in as Jest merges them and wrapped the same way. With none at all it gets what
+ * Jest would have given it, `babel-jest` over Jest's default pattern; one that
+ * set `transform: {}` to run plain JavaScript is instrumented directly.
  */
 export function withTestSelection(
   config: JestConfig = {},
@@ -357,7 +357,7 @@ export function withTestSelection(
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? selecting(instrumented(config, root, resolve(config.rootDir ?? rootDir), placing, declared, cadence), root, undefined) : config),
+    ...(projects === undefined ? selecting(instrumented(config, root, ownRoot(config, rootDir), placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...placingSequencer(config, { root, rootDir, times }),
@@ -399,12 +399,15 @@ export function withJourneyCoverage(
   };
 
   return {
-    ...(projects === undefined ? journeyProject(config, resolve(config.rootDir ?? rootDir)) : config),
+    ...(projects === undefined ? journeyProject(config, ownRoot(config, rootDir)) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
 }
+
+/** The `rootDir` Jest reads for a configuration with no `projects`, which a wrap's `root` does not move. */
+const ownRoot = (config: JestConfig, rootDir: string): string => resolve(config.rootDir ?? rootDir);
 
 function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
   return config.projects?.map((project) => {
@@ -437,7 +440,7 @@ function instrumented(
   declared: readonly string[],
   cadence: boolean,
 ): JestConfig {
-  const named = config.transform ?? presetTransform(config, rootDir);
+  const named = mergedTransform(config, rootDir);
   const configured = named === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
     : Object.keys(named).length === 0

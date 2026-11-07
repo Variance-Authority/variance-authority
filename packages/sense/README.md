@@ -818,11 +818,10 @@ yours, and `--skipFilter` turns filters off. Either one turns the selection
 off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
-anything. With no `transform` in the object it reads the preset's and wraps that,
-so a preset such as `ts-jest` needs nothing copied. A `transform` you name is
-wrapped as it stands, and Jest merges the preset's in after it, so the preset's
-other patterns run without probes. Transformers load from the project's
-`rootDir`, where Jest finds them. A preset's setup files and environment are read
+anything. It reads the preset's `transform`, merges it with yours as Jest does
+and wraps the result, so a preset such as `ts-jest` needs nothing copied, and a
+`transform` you name keeps its patterns beside the preset's. Transformers load
+from the project's `rootDir`, where Jest finds them. A preset's setup files and environment are read
 from the configuration Jest resolved, so a local preset's files are preconditions
 without being named. An async configuration is yours to await: wrap the object it
 returns.

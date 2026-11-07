@@ -7,6 +7,12 @@
 import path = require('node:path');
 import type { FindNodeModule } from './jest-config-paths.js';
 
+/** The options of a preset's the two readers ask for. */
+interface Preset {
+  readonly runtime?: string;
+  readonly transform?: Readonly<Record<string, unknown>>;
+}
+
 /** jest-config's `replaceRootDirInPath`. */
 const rooted = (rootDir: string, name: string): string =>
   name.startsWith('<rootDir>') ? path.resolve(rootDir, path.normalize(`./${name.slice('<rootDir>'.length)}`)) : name;
@@ -24,4 +30,10 @@ function presetFile(find: FindNodeModule, rootDir: string, name: string): string
   });
 }
 
-export = { interop, presetFile, rooted };
+/** What the preset as written says, by `load`, which is each reader's `require`; `null` when no file is found. */
+function readPreset(find: FindNodeModule, load: (file: string) => unknown, rootDir: string, name: string): Preset | null {
+  const file = presetFile(find, rootDir, name);
+  return file === null ? null : (interop(load(file)) as Preset);
+}
+
+export = { interop, readPreset, rooted };
