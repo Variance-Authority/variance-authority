@@ -13,14 +13,16 @@ import { readFinished, type FinishedFile } from './finished-files.js';
 import { pageTaping } from './carried-stories.js';
 import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
-import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, writeSeamModule, type DeclaredEntry, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, type UnmappedStep, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
-import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
+import { readCommandLine, refusingAtStart, seedInBanner, type BannerContext } from './vitest-sequencer.js';
 
 export interface ConfigPlugin {
   readonly name: string;
   readonly configResolved: (config: ResolvedViteConfig) => void;
+  /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
+  readonly configureVitest?: (context: VitestContext) => void;
 }
 
 /** The part of the configuration Vite hands a plugin that decides where a file runs, and how files are ordered. */
@@ -37,8 +39,7 @@ interface VitePlugin extends ConfigPlugin {
   };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
-  /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
-  readonly configureVitest: (context: VitestContext) => void;
+  readonly configureVitest: NonNullable<ConfigPlugin['configureVitest']>;
 }
 
 /**
@@ -47,7 +48,7 @@ interface VitePlugin extends ConfigPlugin {
  * Vitest 5, `experimental_defineCacheKeyGenerator` on 4.1, neither before.
  */
 interface VitestContext {
-  readonly vitest: BannerContext;
+  readonly vitest: BannerContext & { readonly config: { readonly reporters: unknown[] } };
   readonly defineCacheKeyGenerator?: (generate: (context: { readonly id: string }) => string | undefined | false) => void;
   readonly experimental_defineCacheKeyGenerator?: VitestContext['defineCacheKeyGenerator'];
 }
@@ -87,7 +88,7 @@ export function selectionPlugin(
     ) => CapturedAfter | undefined;
   },
   mode: InstrumentMode,
-  declared: readonly string[],
+  entries: readonly DeclaredEntry[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
   cut: ((file: string) => boolean) | undefined,
   placement: ProbePlacement,
@@ -119,6 +120,7 @@ export function selectionPlugin(
   const held = new Map<string, string>();
   /** What the plugins ahead of the probes noted by module: each `load` with no map. */
   let notes: UnmappedNotes | undefined;
+  let resolved: ResolvedViteConfig;
   return [{
     name: 'variance-authority:test-selection',
     // First, for the test files the run cuts: a case says which of its lines
@@ -168,11 +170,15 @@ export function selectionPlugin(
       }
       await reading;
     },
-    configResolved: declareConfig(run, declared, [setupId, runnerId]),
+    configResolved: (config) => { resolved = config; },
     // Vitest 3.1 and on, before any reporter starts: a command-line
     // `--reporter` leaves plugins in place, so the banner still names the seed.
     configureVitest(context) {
       seedInBanner(context.vitest);
+      // Here and not at `configResolved`, which a project `--project` left out
+      // still reaches: nothing of it runs, so nothing of it is read.
+      declareConfig(run, entries.map(({ file }) => file), [setupId, runnerId])(resolved);
+      refusingAtStart(context.vitest, entries);
       // A module served from Vitest's file-system cache skips every transform,
       // so a module the seam takes would run with probes whose identity this
       // process never learned, and the fold would refuse the run. Vitest 5

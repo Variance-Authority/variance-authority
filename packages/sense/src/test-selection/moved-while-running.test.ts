@@ -76,7 +76,7 @@ describe('a test file edited while its run was running', () => {
   it('is recorded incomplete by the Jest reporter', async () => {
     const { root, coverageFile, testFile, journal } = await project();
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     await mkdir(runDirectory, { recursive: true });
     await writeFile(resolve(runDirectory, 'a.va'), journal);
@@ -97,7 +97,7 @@ describe('a setup file edited while the run was running', () => {
     const setup = resolve(root, 'test/setup.js');
     await writeFile(setup, '// setup\n');
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [setup] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     await mkdir(runDirectory, { recursive: true });
     await writeFile(resolve(runDirectory, 'a.va'), journal);
@@ -156,7 +156,7 @@ describe('a setup file written before the run announced itself', () => {
     const loaded = (performance.timeOrigin + 1) / 1000;
     await utimes(setup, loaded, loaded);
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [setup] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     await mkdir(runDirectory, { recursive: true });
     await writeFile(resolve(runDirectory, 'a.va'), journal);

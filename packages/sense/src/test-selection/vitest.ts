@@ -20,7 +20,8 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { askedSelection, landingTimes } from './selection-environment.js';
-import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
+import { declaredEntries } from './precondition-entries.js';
+import { refusingAtStart, seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 import { shardArgument } from './shard-placement.js';
 
 export interface TestSelectionOptions {
@@ -53,6 +54,8 @@ export interface TestSelectionOptions {
    * local modules it bundled into it, and the configured setup files. Name a
    * file the runner reads without Vite knowing — compiler settings, a fixture
    * read with `fs`.
+   * Each entry is the path of one file that exists before the run starts; any
+   * other entry fails the run before any test starts.
    */
   readonly preconditions?: readonly string[];
   /**
@@ -166,7 +169,8 @@ export function withTestSelection(
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
-  const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
+  const entries = declaredEntries(options.preconditions, configRoot);
+  const declared = entries.map(({ file }) => file);
 
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const selection = askedSelection(options.selection, () => coverageFile, { root, from: configRoot, ...suite });
@@ -194,6 +198,7 @@ export function withTestSelection(
       plugins: [...array(config.plugins), {
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
+        configureVitest: ({ vitest }) => { refusingAtStart(vitest, entries); },
       } satisfies ConfigPlugin],
       test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, reporter] },
     };
@@ -202,7 +207,7 @@ export function withTestSelection(
   // Under `loads` no region is probed, so no line of a test can be said to
   // have reached one first: the cut would cost a call per statement for nothing.
   const cut = options.cadence === false || (!run.cases && story === undefined) ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms', story);
+  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, entries, settle, cut, options.placement ?? 'after-transforms', story);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = run.cases && options.continuations === true;

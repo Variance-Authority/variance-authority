@@ -20,6 +20,12 @@ import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { defaultInclude, type CapturedModule, type ProbePlacement } from './instrumented-modules.js';
 
+/** One entry of `preconditions`: as the author wrote it, and the file it resolved to. */
+export interface DeclaredEntry {
+  readonly entry: string;
+  readonly file: string;
+}
+
 export interface SelectionRun {
   readonly root: string;
   readonly runDirectory: string;
@@ -44,6 +50,8 @@ export interface SelectionRun {
   readonly modules: Map<ModuleId, CapturedModule>;
   /** Every file whose text every observation depended on, whichever configuration ran it. */
   readonly preconditions: Set<string>;
+  /** What Rstest's projects declared, by file: its reporter hears every project, and is told none of their names. */
+  readonly entries: Map<string, DeclaredEntry>;
   /**
    * What each configuration's own tests depended on, keyed by the config file
    * Vite loaded — see `governing-config.ts`.
@@ -144,6 +152,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     cut: new Map<string, readonly string[]>(),
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
+    entries: new Map<string, DeclaredEntry>(),
     configs: new Map<string, Set<string>>(),
     runConfig: undefined,
     mode,

@@ -38,6 +38,8 @@ import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedSelection, landingTimes } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
+import { declaredEntries } from './precondition-entries.js';
+import type { DeclaredEntry } from './selection-run.js';
 
 export interface JestTestSelectionOptions {
   /**
@@ -63,12 +65,14 @@ export interface JestTestSelectionOptions {
    * file is not, because Jest hands no transformer or reporter the path it
    * loaded — its global and project configs carry what the file said, never
    * where it was. Name the config file here, and any local module it imports.
+   * Each entry is the path of one file that exists before the run starts; any
+   * other entry fails the run before any test starts.
    */
   readonly preconditions?: readonly string[];
   /**
    * Globs naming product source no probe may sit in: a module whose functions
    * cross into a page as text, where the first probe would throw. Relative
-   * globs resolve against the root, as `preconditions` do; a module matches
+   * globs resolve against the root; a module matches
    * under the path Jest hands the transform or the source its map names, and
    * a glob that opens on `!` leaves out what it matches, as in `testMatch`. Each
    * is marked as loaded at its end instead of probed, and an edit to it
@@ -215,8 +219,8 @@ export interface SelectionReporterConfig {
    * project ran it.
    */
   readonly preconditions: readonly string[];
-  /** Absolute paths of the preconditions declared for every test, whichever project ran it. */
-  readonly declared?: readonly string[];
+  /** The preconditions declared for every test, whichever project ran it. */
+  readonly declared?: readonly DeclaredEntry[];
   /** The probe recipe the transforms placed; `presence` when absent. */
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
@@ -327,7 +331,8 @@ export function withTestSelection(
   const coverageFile = recordFileFor(root, rootDir, options);
   const inline = inlineProjects(config);
   const mode = options.mode;
-  const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  const entries = declaredEntries(options.preconditions, rootDir);
+  const declared = entries.map(({ file }) => file);
   // A negated glob stays negated: `!` is Jest's, not part of the path.
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
@@ -345,7 +350,7 @@ export function withTestSelection(
     root,
     coverageFile,
     preconditions: [...new Set(preconditions)],
-    ...(declared.length === 0 ? {} : { declared }),
+    ...(entries.length === 0 ? {} : { declared: entries }),
     ...(mode === undefined ? {} : { mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
   };

@@ -61,6 +61,7 @@ import {
 } from './index.js';
 import { recordsAlone } from './record-location.js';
 import { prepareRecord } from './replaced-record.js';
+import { refuseUnreadable } from './precondition-entries.js';
 
 /**
  * Set beside the case directory to the checkout the record names files against,
@@ -154,7 +155,10 @@ class JestCoverageReporter {
     this.#governing.set(test.path, own);
   }
 
-  onRunStart(): void {
+  onRunStart(results: { readonly numTotalTestSuites: number }): void {
+    // Jest announces a run after its global setup, so a file that setup writes
+    // passes here, where Vitest and Rstest refuse it. A run with no test file is no run.
+    if (!('journeyFile' in this.#config) && results.numTotalTestSuites > 0) refuseUnreadable(this.#config.declared ?? []);
     this.#startedAt = Date.now();
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
@@ -230,7 +234,7 @@ class JestCoverageReporter {
 
     const governed = results.testResults.map((result) => ({
       result,
-      governing: [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
+      governing: [...(selection.declared ?? []).map(({ file }) => file), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
     }));
     const texts = runTexts(governed.map(({ result, governing }) => ({ test: result.testFilePath, governing })), this.#startedAt);
     const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(

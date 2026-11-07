@@ -465,7 +465,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, except for a build whose sibling map leads to exactly one source: it receives that source's path first, and the module's own only if it refuses the source ([below](#a-library-loaded-from-its-build)) |
 | `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked under the same names as `include`, and wins over it; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it. A module you build into a bundle and inject into a page is not loaded by any test, so no mark reaches it: name the bundle's entry in the [`before`](https://variance-authority.dev/docs/changes-before-and-beyond#how-a-change-before-reach-is-declared) of the suite that injects it |
-| `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
+| `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs`. Each entry is the path of one file that exists before the run starts, so write a generated file before the runner starts. A glob, a directory, a missing file or a file only a test writes, absent when the run starts, is refused before the first test; a command that runs no test, such as `vitest list`, is not refused. Jest starts its run after global setup, so it accepts a file global setup writes, but that file moved during the run: every test declaring it is recorded incomplete and runs again |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them. `'loads'` records which files each test file loaded and nothing inside them: no module is probed, each one runs with one line added after its own text, and a change to a file selects every test file that loaded it. A record made so has no cases, so `continuations` and stories do not apply to it ([below](#record-only-what-each-test-file-loaded)). Which `precision` each mode answers, and what each costs: [record as finely as you select](https://variance-authority.dev/docs/selecting#record-as-finely-as-you-select) |
 | `placement` | `'after-transforms'` | `'before-transforms'` places the probes in the file as read, ahead of your transforms, for a run whose transforms only strip types or JSX ([below](#place-the-probes-ahead-of-your-transforms)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
@@ -608,7 +608,8 @@ pending directory.
 
 Give every CI shard a different path and publish each finalized file
 independently. The other options are `root`, `preconditions`, `mode`, and
-`continuations`; they have the same meanings as on the selection seam below.
+`continuations`; they have the same meanings as on the selection seam below,
+except that `withJourneyCoverage` refuses no entry in `preconditions`.
 
 After downloading the artifacts, assemble them locally. The native fold reads
 the interned sets directly rather than expanding one JavaScript object per test
@@ -788,7 +789,7 @@ With `placement: 'before-transforms'` the probes go into the file as Jest read
 it, and your transformer compiles the probed text. Jest does not report which
 config file it loaded, so name it in `preconditions`. `unprobed` is a list of
 globs rather than a function, because Jest hands its transformer options as
-data; relative globs resolve against `root`, as `preconditions` do, and a glob
+data; relative globs resolve against `root`, and a glob
 that opens with `!` keeps a module probed, as it does in `testMatch`. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
 `testMatch` or `testRegex` does not name, less dependencies and built output that
@@ -1063,7 +1064,8 @@ Each function has one place in your runner:
 - **`startRecording` goes in the process that starts the run.** It takes
   `root`, `suite`, `coverageFile`, `preconditions`, `mode`,
   `continuations` and `cadence`, with the meanings they have on the Vitest
-  seam. Name your
+  seam, except that a relative entry in `preconditions` resolves against the
+  working directory. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
   through a transform, so nothing else records that a test's outcome depends
   on them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child

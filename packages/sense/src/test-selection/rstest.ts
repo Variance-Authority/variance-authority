@@ -31,7 +31,7 @@ import { carriedJournal, statusesComplete } from './finished-files.js';
 import { pageTaping, writeCarriedStories } from './carried-stories.js';
 import { reportedDuration } from './reported-time.js';
 import { foldRun } from './selection-fold.js';
-import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, reopenRun, runFor, seamModuleId, writeSeamModule, type DeclaredEntry, type SelectionRun } from './selection-run.js';
 import { browserSetupSource, setupSource } from './worker-source.js';
 import { attendingSource, caseGlobalsSource } from './rstest-case-source.js';
 import { recordFileFor } from './record-location.js';
@@ -39,6 +39,7 @@ import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
+import { declaredEntries, refuseUnreadable } from './precondition-entries.js';
 import { limitAcross } from './execution-set-columns.js';
 
 export interface RstestTestSelectionOptions {
@@ -73,6 +74,8 @@ export interface RstestTestSelectionOptions {
    * it keeps that on an internal context, and a reporter is handed results,
    * never configuration. Name the config file here, and any local module it
    * imports.
+   * Each entry is the path of one file that exists before the run starts; any
+   * other entry fails the run before any test starts.
    */
   readonly preconditions?: readonly string[];
   /**
@@ -187,6 +190,11 @@ export interface RstestConfig {
   readonly [key: string]: unknown;
 }
 
+/** Holds what a configuration declared, once the runner has shown it runs that configuration. */
+function holdEntries(run: Pick<SelectionRun, 'entries'>, entries: readonly DeclaredEntry[]): void {
+  for (const entry of entries) run.entries.set(entry.file, entry);
+}
+
 /** A project's own preconditions, under the name Rstest reports it by. */
 function projectKey(name: string): string {
   return `project:${name}`;
@@ -263,9 +271,10 @@ export function withTestSelection(
     ? run.configs.get(projectKey(config.name)) ?? new Set<string>()
     : run.preconditions;
   if (own !== run.preconditions) run.configs.set(projectKey(config.name as string), own);
+  const entries = declaredEntries(options.preconditions, configRoot);
   for (const file of [
     ...setupFiles.filter((file) => existsSync(resolve(configRoot, file))),
-    ...(options.preconditions ?? []),
+    ...entries.map(({ file }) => file),
   ]) own.add(resolve(configRoot, file));
   // The configuration that lists the projects is what every test rests on.
   if (config.projects !== undefined) run.runConfig = '';
@@ -290,6 +299,14 @@ export function withTestSelection(
     // while it ran, and records the files it saved incomplete.
     onTestRunStart: () => {
       limits.clear();
+      // Rstest's global setup has not run, and neither has any test. Throwing
+      // here skips `onExit`, so the setup module goes first.
+      try {
+        refuseUnreadable([...run.entries.values()]);
+      } catch (refusal) {
+        removeSeamModules(run, [setupId]);
+        throw refusal;
+      }
       return reopenRun(run, ended ?? run.startedAt);
     },
     onTestRunEnd: async (payload: RstestRunEnd) => {
@@ -318,6 +335,7 @@ export function withTestSelection(
   // from. Adding the loader and the setup file here would put them on a config
   // that builds no test file.
   if (config.projects !== undefined) {
+    holdEntries(run, entries);
     return { ...config, reporters: [...reporters, reporter] };
   }
 
@@ -348,7 +366,7 @@ export function withTestSelection(
       ),
       ...setupFiles,
     ],
-    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode, story !== undefined)],
+    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode, story !== undefined, entries)],
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,
@@ -420,10 +438,12 @@ function nameFiltersOf(run: SelectionRun): Set<() => unknown> {
  * configuration with the command line merged in, so it is read there, and so is
  * `-t`, which skips every test it does not name.
  */
-function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, taping: boolean) {
+function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, taping: boolean, entries: readonly DeclaredEntry[]) {
   return {
     name: 'variance-authority:test-selection',
     async setup(api: RsbuildPluginApi): Promise<void> {
+      // Here and not at the wrap: `--project` leaves out a project after it is wrapped, and it builds nothing.
+      holdEntries(run, entries);
       const exposed = api.useExposed('rstest');
       // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
       if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);

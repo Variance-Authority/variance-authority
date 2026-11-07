@@ -64,7 +64,7 @@ describe('a Jest run with a name filter', () => {
   it('records a file with a pending case incomplete, and a file that ran every case whole', async () => {
     const { root, coverageFile, journals } = await project();
     const reporter = new SelectionReporter({ testNamePattern: 'adds' }, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     await landJournals(process.env[RUN_DIRECTORY_VARIABLE]!, journals);
 
     await reporter.onRunComplete(new Set([{ config: { cacheDirectory: resolve(root, 'cache'), id: 'project' } }]), {
