@@ -920,7 +920,8 @@ jobs:
           key: ${{ steps.save.outputs.pushed-key }}
 
       # Only a push to `main` hands its records on, to the `publish` job, which
-      # is the one job holding a token that can write to the repository. A red
+      # writes the record; this job writes only the badge, through the review
+      # step above. A red
       # suite on `main` still hands them on: the next change is reviewed against
       # what `main` ran, not against an older record that no longer describes it.
       - name: hand the records to publish

@@ -6,8 +6,6 @@
 
 # Variance Authority
 
-[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FVariance-Authority%2Fvariance-authority%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](docs/compare-coverage.md#what-it-does-not-replace)
-
 **Understand the code. Investigate the behavior. Check the work.**
 
 Variance Authority keeps fine-grained evidence of what your code did — across

@@ -61,7 +61,8 @@ describe('the review a project with only unit tests puts on the pull request', (
       let status = 0;
       let printed = '';
       try {
-        printed = execFileSync('/bin/bash', ['-c', run], {
+        // The shell GitHub runs a `shell: bash` step under, errexit and all.
+        printed = execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', run], {
           env: {
             ...process.env,
             VARIANCE_COMMAND: fake,

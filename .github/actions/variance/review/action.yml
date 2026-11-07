@@ -141,8 +141,10 @@ runs:
         here="${{ github.action_path }}"
         host_root=$(dirname "$(dirname "${{ github.workspace }}")")
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
-        bash "$here/../push-ref.sh" "$dir" "$dir/paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" > /dev/null
-        case $? in
+        # `|| pushed=$?`: GitHub runs the step under errexit, as in the images step.
+        pushed=0
+        bash "$here/../push-ref.sh" "$dir" "$dir/paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" > /dev/null || pushed=$?
+        case $pushed in
           0) ;;
           2) skip "pushing refs/badge/$BRANCH was refused: the job needs \`contents: write\`" ;;
           *) skip "the badge could not be committed" ;;
