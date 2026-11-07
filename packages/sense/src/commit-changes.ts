@@ -16,7 +16,6 @@ import { execFileSync } from 'node:child_process';
 export interface CommitChange {
   readonly commit: string;
   readonly author: string;
-  readonly subject: string;
   readonly files: readonly string[];
 }
 
@@ -26,23 +25,22 @@ export interface CommitChanges {
   readonly shallow: boolean;
 }
 
-/** Between a commit's fields: a name or a subject holds no control character git would print. */
+/** Between a commit's fields: a name holds no control character git would print. */
 const FIELD = '\u0001';
 
 function git(root: string, args: readonly string[]): string {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: Infinity, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-/** `-z` ends the subject and each path with a NUL, and puts a newline before the first path. */
+/** `-z` ends the format and each path with a NUL, and puts a newline before the first path. */
 function commitsIn(log: string): readonly CommitChange[] {
   const fields = log.split(FIELD).slice(1);
   const commits: CommitChange[] = [];
   for (let at = 0; at + 2 < fields.length; at += 3) {
-    const [subject = '', ...paths] = fields[at + 2]!.split('\0');
+    const [, ...paths] = fields[at + 2]!.split('\0');
     commits.push({
       commit: fields[at]!,
       author: fields[at + 1]!,
-      subject,
       files: paths.map((path) => path.replace(/^\n/u, '')).filter((path) => path !== ''),
     });
   }
@@ -57,7 +55,7 @@ function commitsIn(log: string): readonly CommitChange[] {
 export function firstParentChanges(root: string, after: string): CommitChanges {
   const log = git(root, [
     'log', '-z', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only',
-    `--format=${FIELD}%H${FIELD}%an${FIELD}%s`, `--since=${after}T00:00:00Z`, 'HEAD',
+    `--format=${FIELD}%H${FIELD}%an${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD',
   ]);
   return { commits: commitsIn(log), shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
 }

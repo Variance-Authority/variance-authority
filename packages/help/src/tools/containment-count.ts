@@ -5,22 +5,16 @@
  * question, so none is merged into a score: a share of commits says what was
  * touched together, and the commit never says why.
  *
- * A commit is counted when it changed source and is a person's single change.
- * What is left out is counted by the first reason that takes it: one commit
- * touching more than {@link WIDE} files is a sweep rather than a change, a bot's
- * and a revert's are not somebody deciding what belongs together, and a commit
- * with no source has no boundary to stay inside.
+ * A commit is counted when a person changed source. What is left out is counted
+ * by the first reason that takes it: a bot's commit is not somebody deciding
+ * what belongs together, and one with no source has no boundary to stay inside.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import { packageOwner, type CommitChange } from '@variance-authority/sense';
 
-/** A commit touching more files than this is left out as a sweep. */
-export const WIDE = 300;
-
 const BOT = /\[bot\]|renovate|dependabot/iu;
-const REVERT = /^revert\b/iu;
 
 const TEST = /\.(test|spec|cy|e2e)\.[cm]?[jt]sx?$|_test\.(go|py)$|(^|\/)test_[^/]+\.py$|_spec\.rb$|Tests?\.(java|kt)$|(^|\/)(__tests__|tests?|spec|e2e|cypress|playwright|integration-tests?|test-e2e)\/.*\.(ts|tsx|js|jsx|mjs|py|go|rb|java|kt)$/iu;
 const SOURCE = /\.(ts|tsx|js|jsx|mjs|vue|svelte|py|go|rb|java|kt|rs|php)$/u;
@@ -34,9 +28,7 @@ export interface Share {
 
 /** The commits not counted, by the first reason that took each. */
 export interface LeftOut {
-  readonly wide: number;
   readonly bot: number;
-  readonly revert: number;
   readonly noSource: number;
 }
 
@@ -70,9 +62,7 @@ function isSource(file: string): boolean {
 }
 
 function reasonToLeaveOut(commit: CommitChange): Reason | undefined {
-  if (commit.files.length > WIDE) return 'wide';
   if (BOT.test(commit.author)) return 'bot';
-  if (REVERT.test(commit.subject)) return 'revert';
   return commit.files.some(isSource) ? undefined : 'noSource';
 }
 
@@ -85,7 +75,7 @@ interface Touched {
 /** Counts `commits`, with each path's package taken from `packages`. */
 export function countContainment(commits: readonly CommitChange[], packages: readonly string[]): ContainmentCount {
   const ownerOf = packageOwner(packages);
-  const leftOut = { wide: 0, bot: 0, revert: 0, noSource: 0 };
+  const leftOut = { bot: 0, noSource: 0 };
   const touched: Touched[] = [];
   for (const commit of commits) {
     const reason = reasonToLeaveOut(commit);

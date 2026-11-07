@@ -16,7 +16,7 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import { members } from '@variance-authority/package';
 import { firstParentChanges, type CommitChanges } from '@variance-authority/sense';
 import { operatorError } from '../operator.js';
-import { countContainment, WIDE, type ContainmentCount, type Share } from './containment-count.js';
+import { countContainment, type ContainmentCount, type Share } from './containment-count.js';
 
 /** The figures and what they were read over. */
 export interface Containment extends ContainmentCount {
@@ -69,7 +69,7 @@ function shared({ count, of }: Share): string {
 /** The figures as a person reads them, with what each counted beside it. */
 export function formatContainment(figures: Containment): string {
   const { leftOut } = figures;
-  const left = leftOut.wide + leftOut.bot + leftOut.revert + leftOut.noSource;
+  const left = leftOut.bot + leftOut.noSource;
   return [
     `${String(figures.counted)} commits since ${figures.after} changed source, of ${String(figures.read)} first-parent commits read from HEAD.`,
     'These count what commits touched together, not what caused it.',
@@ -82,9 +82,7 @@ export function formatContainment(figures: Containment): string {
     `edited a test outside the packages they changed, in a test-only tree: ${shared(figures.testOnlyTree)}`,
     '',
     `Left out, ${String(left)} of ${String(figures.read)}:`,
-    `  over ${String(WIDE)} files: ${String(leftOut.wide)}`,
     `  by a bot: ${String(leftOut.bot)}`,
-    `  a revert: ${String(leftOut.revert)}`,
     `  touched no source: ${String(leftOut.noSource)}`,
     '',
     `A merge is one commit, compared with its first parent. Packages are the ${String(figures.packages)} the workspace lists now, so a path in a removed package counts as outside them.`,

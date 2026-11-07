@@ -69,8 +69,8 @@ function history(): string {
   git(['merge', '--quiet', '--no-ff', '-m', 'merge side', 'side'], root); // two packages, one change
   change(root, 'words', ['README.md']); // left out: no source
   change(root, 'bump', [A], 'renovate[bot]'); // left out: a bot
-  change(root, 'Revert "bump"', [A]); // left out: a revert
-  change(root, 'generate', Array.from({ length: 301 }, (_, index) => `packages/a/src/generated-${String(index)}.ts`)); // left out: too wide
+  change(root, 'Revert "bump"', [A]); // one package: a revert is a change
+  change(root, 'generate', Array.from({ length: 301 }, (_, index) => `packages/a/src/generated-${String(index)}.ts`)); // one package: however many files
   return root;
 }
 
@@ -87,17 +87,17 @@ describe('variance ask containment', () => {
     const answered = await run(['ask', 'containment', '--after', '2000-01-01']);
     expect(answered.err).toBe('');
     expect(answered.code).toBe(EXIT_CLEAN);
-    expect(answered.out).toContain('8 commits since 2000-01-01');
-    expect(answered.out).toContain('touched one package: 5 of 8 (62.5%)');
-    expect(answered.out).toContain('edited a test in another package: 2 of 8 (25.0%)');
-    expect(answered.out).toContain('edited a test outside the packages they changed, in a test-only tree: 2 of 8 (25.0%)');
+    expect(answered.out).toContain('10 commits since 2000-01-01');
+    expect(answered.out).toContain('touched one package: 7 of 10 (70.0%)');
+    expect(answered.out).toContain('edited a test in another package: 2 of 10 (20.0%)');
+    expect(answered.out).toContain('edited a test outside the packages they changed, in a test-only tree: 2 of 10 (20.0%)');
   });
 
   it('gives a test in another package over those that edited their own tests, and over those that did not', async () => {
     process.chdir(history());
     const { out } = await run(['ask', 'containment', '--after', '2000-01-01']);
     expect(out).toContain('of those that edited their own tests: 1 of 3 (33.3%)');
-    expect(out).toContain('of those that did not: 1 of 5 (20.0%)');
+    expect(out).toContain('of those that did not: 1 of 7 (14.3%)');
   });
 
   it('counts what it left out by reason, a merge once, and calls the figures co-occurrence', async () => {
@@ -106,8 +106,6 @@ describe('variance ask containment', () => {
     expect(out).toContain('12 first-parent commits read');
     expect(out).toContain('touched no source: 1');
     expect(out).toContain('by a bot: 1');
-    expect(out).toContain('a revert: 1');
-    expect(out).toContain('over 300 files: 1');
     expect(out).toContain('These count what commits touched together, not what caused it.');
   });
 
@@ -117,15 +115,15 @@ describe('variance ask containment', () => {
     expect(JSON.parse(out)).toMatchObject({
       after: '2000-01-01',
       read: 12,
-      counted: 8,
+      counted: 10,
       packages: 2,
       shallow: false,
-      leftOut: { noSource: 1, bot: 1, revert: 1, wide: 1 },
-      onePackage: { count: 5, of: 8 },
-      testInAnotherPackage: { count: 2, of: 8 },
-      testOnlyTree: { count: 2, of: 8 },
+      leftOut: { noSource: 1, bot: 1 },
+      onePackage: { count: 7, of: 10 },
+      testInAnotherPackage: { count: 2, of: 10 },
+      testOnlyTree: { count: 2, of: 10 },
       anotherGivenOwnTests: { count: 1, of: 3 },
-      anotherGivenNoOwnTests: { count: 1, of: 5 },
+      anotherGivenNoOwnTests: { count: 1, of: 7 },
     });
   });
 

@@ -84,9 +84,8 @@ How far the commits of a window reached across package boundaries, counted from
 denominator: the commits that touched one package, the commits that edited a
 test in another package, the same among commits that did and did not edit their
 own tests, and the commits that edited a test in a test-only tree. Commits that
-changed no source, came from a bot, were reverts or touched over 300 files are
-left out, and counted by reason. `--format json` holds the same figures, with no
-field that merges them.
+changed no source or came from a bot are left out, and counted by reason.
+`--format json` holds the same figures, with no field that merges them.
 
 The figures say what commits touched together, not what caused it, and nothing
 selects on them. Packages are the ones the workspace lists now.
