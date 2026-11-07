@@ -85,7 +85,8 @@ describe('withJourneyCoverage for Jest', () => {
 
   it("leaves a preset's environment options to the preset", () => {
     // Jest merges `globals` with a preset, and spreads every other key over it.
-    const configured = withJourneyCoverage({ rootDir: '/repo', preset: 'ts-jest' }, { journeyFile: 'journeys.bin' });
+    const rootDir = resolve(import.meta.dirname, '../..');
+    const configured = withJourneyCoverage({ rootDir, preset: 'ts-jest' }, { journeyFile: 'journeys.bin' });
 
     expect(configured).not.toHaveProperty('testEnvironmentOptions');
   });

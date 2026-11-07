@@ -44,6 +44,7 @@ import {
   type JestTestFiles,
   type JestTransformer as JestShapedTransformer,
   type JestTransformOptions,
+  type TransformerEntry,
 } from './jest-transformer.js';
 import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
@@ -52,6 +53,7 @@ import { probesRegions } from '../instrument/identity.js';
 import { markModule, markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude, insideRoot, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
+import presets from './jest-preset-file.cjs';
 import type { SelectionTransformerConfig } from './jest.js';
 import { namesItsMap, type TransformSourceMap } from './source-lines.js';
 
@@ -97,6 +99,10 @@ export interface JestTransformer extends JestShapedTransformer<JestTransformRequ
   senseRecipe?(mode: InstrumentMode): string;
 }
 
+/** An entry with `<rootDir>` replaced, which Jest does to a transformer's name and to nothing else in the entry. */
+const inProject = (rootDir: string, entry: TransformerEntry): TransformerEntry =>
+  typeof entry === 'string' ? presets.rooted(rootDir, entry) : [presets.rooted(rootDir, entry[0]), entry[1]];
+
 /**
  * Build the transformer Jest will call, wrapping whichever one the configuration
  * named.
@@ -122,9 +128,10 @@ export async function createTransformer(
     (createRequire(import.meta.url)(config.runtime) as { preload(mark: typeof markEnvironmentInput): void })
       .preload(markEnvironmentInput);
   }
+  const rootDir = resolve(config.rootDir ?? root);
   const inner = config.transformer === undefined
     ? undefined
-    : await loadTransformer<JestTransformRequest, JestTransformedSource, JestTransformer>(root, config.transformer);
+    : await loadTransformer<JestTransformRequest, JestTransformedSource, JestTransformer>(rootDir, inProject(rootDir, config.transformer));
   const mode = config.mode ?? 'presence';
   const recipe = probeRecipe(mode);
   // Under `loads` nothing is placed, so a transformer that places probes is not asked to.

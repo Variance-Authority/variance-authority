@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
-import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
+import { configuredPath, ownRoot, projectRoot, setupPaths } from './jest-config-paths.js';
+import { mergedTransform } from './jest-preset.js';
 import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
@@ -191,6 +192,8 @@ export interface JestConfig {
 /** What one transform entry hands the wrapping transformer. */
 export interface SelectionTransformerConfig {
   readonly root: string;
+  /** The project's `rootDir`, which `transformer` is resolved from as Jest resolves it; `root` when absent. */
+  readonly rootDir?: string;
   /** The runtime Jest constructs for each test file, readied before Jest loads the file's environment. */
   readonly runtime?: string;
   /** The transformer this one wraps, as the configuration spelled it; absent runs plain JavaScript. */
@@ -315,10 +318,10 @@ const UNMOCKED = here('../').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * the journal writer at the end; its `reporters` keep theirs and gain one at
  * the end, and a configuration with none keeps Jest's default reporter. Every `transform` entry is kept and
  * wrapped: the project's transformer still runs first, on the same pattern with
- * the same options, and probes land on what it produced. A configuration with
- * no `transform` gets what Jest would have given it, `babel-jest` over Jest's
- * default pattern, wrapped the same way; one that set `transform: {}` to run
- * plain JavaScript is instrumented directly.
+ * the same options, and probes land on what it produced. A preset's are merged
+ * in as Jest merges them and wrapped the same way. With none at all it gets what
+ * Jest would have given it, `babel-jest` over Jest's default pattern; one that
+ * set `transform: {}` to run plain JavaScript is instrumented directly.
  */
 export function withTestSelection(
   config: JestConfig = {},
@@ -327,7 +330,7 @@ export function withTestSelection(
   const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
   const root = repositoryRoot(rootDir);
   const coverageFile = recordFileFor(root, rootDir, options);
-  const inline = inlineProjects(config);
+  const inline = inlineProjects(config, rootDir);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
   // A negated glob stays negated: `!` is Jest's, not part of the path.
@@ -356,7 +359,7 @@ export function withTestSelection(
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
+    ...(projects === undefined ? selecting(instrumented(config, root, ownRoot(config, rootDir), placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...placingSequencer(config, { root, rootDir, times }),
@@ -380,7 +383,7 @@ export function withJourneyCoverage(
 ): JestConfig {
   const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
   const root = repositoryRoot(rootDir);
-  const inline = inlineProjects(config);
+  const inline = inlineProjects(config, rootDir);
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
   const trace = options.trace === undefined ? undefined : configuredPath(options.trace, rootDir)[0];
   if (options.trace !== undefined && trace === undefined) {
@@ -398,14 +401,15 @@ export function withJourneyCoverage(
   };
 
   return {
-    ...(projects === undefined ? journeyProject(config, rootDir) : config),
+    ...(projects === undefined ? journeyProject(config, ownRoot(config, rootDir)) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
 }
 
-function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
+/** The object's projects, each `rootDir` absolute as the wrap hands it to Jest. */
+function inlineProjects(config: JestConfig, rootDir: string): readonly JestConfig[] | undefined {
   return config.projects?.map((project) => {
     if (typeof project === 'string') {
       throw new Error(
@@ -414,7 +418,7 @@ function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
           'this returns. Spell the project inline in `projects`, and every one of them is instrumented.',
       );
     }
-    return project;
+    return { ...project, rootDir: projectRoot(project, rootDir) };
   });
 }
 
@@ -436,11 +440,12 @@ function instrumented(
   declared: readonly string[],
   cadence: boolean,
 ): JestConfig {
-  const configured = config.transform === undefined
+  const named = mergedTransform(config, rootDir);
+  const configured = named === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
-    : Object.keys(config.transform).length === 0
+    : Object.keys(named).length === 0
       ? { [DEFAULT_PATTERN]: undefined }
-      : config.transform;
+      : named;
   const exclude = [...new Set(declared)];
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
@@ -449,6 +454,8 @@ function instrumented(
         SELECTION_TRANSFORM,
         {
           root,
+          // These options enter Jest's cache key, so an equal `rootDir` stays out and a warm cache survives.
+          ...(rootDir === root ? {} : { rootDir }),
           runtime: SELECTION_RUNTIME,
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),
