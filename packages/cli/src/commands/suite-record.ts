@@ -1,5 +1,6 @@
 // compass: variance-authority.reach
 
+import { loadRenderless } from '../config-load.js';
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -140,6 +141,11 @@ export async function namedSuite(root: string, suite?: string): Promise<{ readon
   }
   const named = declared?.find((one) => one.name === name);
   return named === undefined ? { name } : { name, declared: named };
+}
+
+/** The suite a command that names none means, in a file that configures no project: the only one declared, and refused among several. */
+export async function onlySuiteOf(config: string): Promise<string | undefined> {
+  return (await loadRenderless(config)) === undefined ? undefined : (await namedSuite(process.cwd())).name;
 }
 
 /** Run a read whose refusal is the operator's: whatever it throws is said as an {@link OperatorError}. */

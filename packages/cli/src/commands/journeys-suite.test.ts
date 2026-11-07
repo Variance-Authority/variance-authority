@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.fixture.js';
 import { landSuite } from '../index.js';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { probedModule } from './mainline-fixture.js';
 
@@ -68,7 +68,7 @@ describe('`variance journeys` and the project config', () => {
     const record = testCoverageFile(root, { suite: 'integration' });
     expect(existsSync(record)).toBe(true);
     expect(out).toContain(`folded 2 snapshots into ${record}`);
-    expect(out).toContain('the whole journal, because `--suite` reads no project config');
+    expect(out).toContain('the whole journal, because a suite reads no project config');
   });
 
   it('lands a sharded suite for CI with the landing summary alone, never the reading', async () => {
@@ -106,6 +106,42 @@ describe('`variance journeys` and the project config', () => {
 
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(`because there is no report at ${join(root, '.variance', 'report.json')}`);
+  });
+
+  it('without `--suite` and with no project configured, reads the only suite declared', async () => {
+    await writeFile(join(root, 'variance.config.json'), JSON.stringify({ cacheRoot: '.cache', suites: { unit: { kind: 'unit' } } }));
+    await writeTestCoverage(testCoverageFile(root, { suite: 'unit' }), shard(['a.test.ts']));
+    let out = '';
+    let err = '';
+
+    const code = await main(['journeys'], { out: (text) => { out += text; }, err: (text) => { err += text; } });
+
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('the whole journal');
+  });
+
+  it.each([['journeys'], ['share'], ['share', '--publish']])('`%s` with no project configured names the suites to choose from', async (...argv) => {
+    let err = '';
+
+    const code = await main(argv, { out: () => {}, err: (text) => { err += text; } });
+
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('declares the suites "integration", "unit"');
+    expect(err).toContain('pass `--suite <name>`');
+    expect(err).not.toContain('profile');
+  });
+
+  it('`share` with no project configured publishes the only suite declared', async () => {
+    await writeFile(
+      join(root, 'variance.config.json'),
+      JSON.stringify({ cacheRoot: '.cache', suites: { unit: { kind: 'unit' } }, share: { kind: 'git', mainlines: ['main'] } }),
+    );
+    let said = '';
+
+    await main(['share', '--publish'], { out: (text) => { said += text; }, err: (text) => { said += text; } });
+
+    expect(said).toContain('the suite "unit" is not given to the share');
   });
 
   it('is refused by name beside `--suite`, because the root config declares the suite', () => {
