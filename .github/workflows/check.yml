@@ -355,14 +355,16 @@ jobs:
 
       # Tried here once for the run, and its answer handed on: a head that
       # conflicts with the record's commit stays merged with the base tip in
-      # every job, and the others are told which commit this merge made.
-      - uses: ./.github/actions/merge-baseline
+      # every job, and the others are told which commit this merge made. The
+      # CLI is the one built above from the host's merge, the pull request's
+      # own code, as `carry hand` is.
+      - name: merge the head with the record's commit
         id: merge
         if: github.event_name == 'pull_request'
-        with:
-          commit: ${{ steps.read.outputs.commit }}
-          head: ${{ github.event.pull_request.head.sha }}
-          on-conflict: stay
+        shell: bash
+        env:
+          COMMIT: ${{ steps.read.outputs.commit }}
+        run: node packages/cli/dist/bin.js carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
 
       - name: hand the read on
         id: hand
@@ -522,13 +524,20 @@ jobs:
 
       # The head merged with the commit the mainline's record was made at, as
       # `base` merged it, so the selection measures the pull request's change
-      # alone. Before the install and the build, which read the sources.
-      - uses: ./.github/actions/merge-baseline
+      # alone. The CLI that merges is the host's merge's, as `base` ran it,
+      # built alone, since the install and the build below read the merge.
+      - name: a CLI to merge with
         if: github.event_name == 'pull_request'
-        with:
-          commit: ${{ needs.base.outputs.baseline }}
-          head: ${{ github.event.pull_request.head.sha }}
-          expect: ${{ needs.base.outputs.checkout }}
+        shell: bash
+        run: corepack enable && yarn install --immutable && yarn workspace @variance-authority/cli build
+
+      - name: merge the head with the record's commit
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          COMMIT: ${{ needs.base.outputs.baseline }}
+          EXPECT: ${{ needs.base.outputs.checkout }}
+        run: node packages/cli/dist/bin.js carry merge "$COMMIT" --expect "$EXPECT"
 
       - name: install
         shell: bash
@@ -712,19 +721,25 @@ jobs:
           filter: tree:0
           persist-credentials: false
 
-      # The checkout the suite jobs ran, for the reason written at the same
-      # step in `suite`.
-      - uses: ./.github/actions/merge-baseline
-        if: github.event_name == 'pull_request'
-        with:
-          commit: ${{ needs.base.outputs.baseline }}
-          head: ${{ github.event.pull_request.head.sha }}
-          expect: ${{ needs.base.outputs.checkout }}
-
       # Node 24, for the reason written at the same step in `rules`.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+
+      # The checkout the suite jobs ran, made by the same CLI, for the reasons
+      # written at the same steps in `suite`.
+      - name: a CLI to merge with
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: corepack enable && yarn install --immutable && yarn workspace @variance-authority/cli build
+
+      - name: merge the head with the record's commit
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          COMMIT: ${{ needs.base.outputs.baseline }}
+          EXPECT: ${{ needs.base.outputs.checkout }}
+        run: node packages/cli/dist/bin.js carry merge "$COMMIT" --expect "$EXPECT"
 
       - name: install
         shell: bash

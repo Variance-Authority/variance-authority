@@ -99,6 +99,25 @@ needs neither the cache steps nor `against`. Any other suite, and any suite
 before its mainline has a record, reads "No baseline available; change cannot be
 compared" on every comment.
 
+A pull request checks out as its head merged into the base tip, so a shared
+suite compares with a record made before what the base gained since. Merge the
+head with the record's commit before this step, and the comparison holds the
+pull request alone:
+
+```yaml
+- id: merge
+  if: github.event_name == 'pull_request'
+  env:
+    COMMIT: ${{ steps.record.outputs.commit }}
+  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+`steps.record` is a step that ran `npx variance share --suite <name> --format
+github`. The merge prints `merged=true` and `checkout=<sha>`, or `merged=false`
+when there was no commit or the head conflicts with it.
+[Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
+has the whole job.
+
 The review needs the commit the change starts from and a diff from it, so check
 out every commit: `fetch-depth: 0`, with `filter: tree:0` to leave the trees out.
 A clone that lacks that commit fails the step, and the CLI says what to fetch.
