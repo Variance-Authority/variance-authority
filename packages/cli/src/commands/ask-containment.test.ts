@@ -218,6 +218,17 @@ describe('variance ask containment', () => {
     expect(JSON.parse(out)).toMatchObject({ packages: 2, onePackage: { count: 1, of: 2 } });
   });
 
+  it('reads the packages from the commit it reads the log of, whatever is staged', async () => {
+    const root = workspace(['a', 'b']);
+    change(root, 'seed', [A, B]);
+    change(root, 'a', [A]);
+    change(root, 'a and b', [A, B]);
+    git(['rm', '--quiet', '--cached', A, B], root);
+    process.chdir(root);
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01', '--format', 'json']);
+    expect(JSON.parse(out)).toMatchObject({ onePackage: { count: 1, of: 2 } });
+  });
+
   it('refuses a window that is not a date, which git would read as now', async () => {
     process.chdir(history());
     const answered = await run(['ask', 'containment', '--after', 'lately']);

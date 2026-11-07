@@ -65,7 +65,7 @@ export function firstParentChanges(root: string, after: string): CommitChanges {
   return { commits: commitsIn(log), shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
 }
 
-/** The files git tracks under `root`, spelled from it. */
+/** The files `HEAD` holds under `root`, spelled from it: the tree the log ends at, not what is staged. */
 export function trackedFiles(root: string): readonly string[] {
-  return git(root, ['ls-files', '-z']).split('\0').filter((path) => path !== '');
+  return git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD']).split('\0').filter((path) => path !== '');
 }
