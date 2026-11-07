@@ -2,6 +2,9 @@ import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 
+/** The artifact `.github/workflows/check.yml` uploads the review under. */
+export const REVIEW_ARTIFACT = 'variance-review';
+
 export type ReviewFormat = 'text' | 'markdown' | 'json' | 'handover';
 
 export interface ParsedReview {
@@ -59,7 +62,7 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(out === undefined ? {} : { out: resolve(out) }),
     ...(suite === undefined ? {} : { suite }),
-    ...(fromRun === undefined ? {} : { fromRun, ...(artifact === undefined ? {} : { artifact }) }),
+    ...(fromRun === undefined ? {} : { fromRun, artifact: artifact ?? REVIEW_ARTIFACT }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format,
   };
