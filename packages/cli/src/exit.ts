@@ -278,7 +278,9 @@ export function sideJob(
 ): ExitCode {
   if (!suppress || code !== EXIT_REVIEW) return code;
   if (hole) {
-    streams.err('a subject could not be observed; --exit-zero-on-changes still exits 1.\n');
+    streams.err(
+      'a subject could not be observed, an observation errored, or the report does not say what it skipped; --exit-zero-on-changes still exits 1.\n',
+    );
     return EXIT_REVIEW;
   }
   streams.err(`${onGitHub ? '::warning::' : ''}changes need review; --exit-zero-on-changes exits 0, not 1.\n`);
