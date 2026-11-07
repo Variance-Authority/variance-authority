@@ -27,7 +27,7 @@ use crate::resolve::Tsconfig;
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
-const FORMAT: u32 = 6;
+const FORMAT: u32 = 7;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Stored {

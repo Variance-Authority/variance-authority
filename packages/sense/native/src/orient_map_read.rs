@@ -33,6 +33,10 @@ pub(crate) struct Named {
 pub(crate) struct Read {
     /// Every package, in code-unit order of name; the root's included.
     pub packages: Vec<Named>,
+    /// Whether the root publishes: not private, and offering a runtime an
+    /// entry, so it is a package among the others rather than the repository
+    /// around them.
+    pub library: bool,
     /// Package names some manifest declares under `dependencies`,
     /// `peerDependencies` or `optionalDependencies`, and under `devDependencies`.
     pub depends: HashSet<String>,
@@ -139,6 +143,7 @@ pub(crate) fn read(
         }
     };
     let owners = owners(root, paths);
+    let library = owners.packages.iter().any(|package| package.directory.is_empty() && !package.private && !package.offers.is_empty());
 
     let (order, shown) = shown(&owners);
     let mut by_name: Vec<u32> = (0..owners.packages.len() as u32).collect();
@@ -221,7 +226,7 @@ pub(crate) fn read(
         if test[at] {
             let mut seen: HashSet<u32> = HashSet::new();
             for &b in targets[at].iter().flatten() {
-                if b != a && !packages[b as usize].directory.is_empty() && seen.insert(b) {
+                if b != a && seen.insert(b) {
                     tested[b as usize] += 1;
                 }
             }
@@ -259,7 +264,7 @@ pub(crate) fn read(
     edges.sort_unstable();
     let closures = closures(&loads(&files, &counted, &roots, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
-    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
+    Read { head: heads(n, uses), packages, library, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
 }
 
 /// The graph a closure is walked over: every counted file, and what it loads.

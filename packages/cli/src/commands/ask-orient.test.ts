@@ -26,27 +26,14 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** Two packages, one importing two names from the other through its manifest. */
-function checkout(): string {
+/** `files` written and committed in a new checkout, which is where the test now stands. */
+function repository(files: Readonly<Record<string, string>>): string {
   // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-orient-')));
-  const files: Record<string, string> = {
-    '.gitignore': 'node_modules\n',
-    'package.json': JSON.stringify({ private: true, workspaces: ['packages/*'] }),
-    'packages/cart/package.json': JSON.stringify({ name: '@t/cart', exports: { '.': './src/index.ts' } }),
-    'packages/cart/src/index.ts': "export { priceOf } from './price.js';\nexport const currency = 'EUR';\n",
-    'packages/cart/src/price.ts': '/** The price of one line, with tax. */\nexport const priceOf = (amount: number) => amount * 1.2;\n',
-    'packages/checkout/package.json': JSON.stringify({ name: '@t/checkout', dependencies: { '@t/cart': '*' } }),
-    'packages/checkout/src/total.ts':
-      "import { priceOf, currency } from '@t/cart';\n/** The total price of a basket. */\nexport const total = (amounts: number[]) => `${amounts.map(priceOf).join('+')} ${currency}`;\n",
-    'packages/checkout/src/label.ts': "import { priceOf } from '@t/cart';\nexport const label = (amount: number) => `price ${priceOf(amount)}`;\n",
-  };
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
   }
-  mkdirSync(join(root, 'node_modules/@t'), { recursive: true });
-  symlinkSync('../../packages/cart', join(root, 'node_modules/@t/cart'));
   const git = (args: readonly string[]): void => {
     execFileSync('git', args, { cwd: root, stdio: 'pipe' });
   };
@@ -58,6 +45,41 @@ function checkout(): string {
   process.chdir(root);
   return root;
 }
+
+/** Two packages, one importing two names from the other through its manifest. */
+function checkout(): string {
+  const root = repository({
+    '.gitignore': 'node_modules\n',
+    'package.json': JSON.stringify({ private: true, workspaces: ['packages/*'] }),
+    'packages/cart/package.json': JSON.stringify({ name: '@t/cart', exports: { '.': './src/index.ts' } }),
+    'packages/cart/src/index.ts': "export { priceOf } from './price.js';\nexport const currency = 'EUR';\n",
+    'packages/cart/src/price.ts': '/** The price of one line, with tax. */\nexport const priceOf = (amount: number) => amount * 1.2;\n',
+    'packages/checkout/package.json': JSON.stringify({ name: '@t/checkout', dependencies: { '@t/cart': '*' } }),
+    'packages/checkout/src/total.ts':
+      "import { priceOf, currency } from '@t/cart';\n/** The total price of a basket. */\nexport const total = (amounts: number[]) => `${amounts.map(priceOf).join('+')} ${currency}`;\n",
+    'packages/checkout/src/label.ts': "import { priceOf } from '@t/cart';\nexport const label = (amount: number) => `price ${priceOf(amount)}`;\n",
+  });
+  mkdirSync(join(root, 'node_modules/@t'), { recursive: true });
+  symlinkSync('../../packages/cart', join(root, 'node_modules/@t/cart'));
+  return root;
+}
+
+/** A library at the root, its sources in `src/`, and a private helper package nested in it. */
+const LIBRARY = {
+  'src/index.ts': "export { weak } from './weak.js';\n",
+  'src/weak.ts': 'export const weak = 1;\n',
+  'benchmarks/package.json': JSON.stringify({ name: 'benchmarks', private: true }),
+  'benchmarks/run.ts': "import { weak } from '../src/index.js';\nexport const run = weak;\n",
+};
+
+/** Two members of a workspace, and a script of the root's own. */
+const MEMBERS = {
+  'scripts/release.ts': 'export const release = 1;\n',
+  'packages/cart/package.json': JSON.stringify({ name: 'cart' }),
+  'packages/cart/index.ts': 'export const cart = 1;\n',
+  'packages/price/package.json': JSON.stringify({ name: 'price' }),
+  'packages/price/index.ts': 'export const price = 1;\n',
+};
 
 /**
  * Four families of five packages, each member importing the members before it,
@@ -160,6 +182,63 @@ describe('variance ask orient', () => {
         '',
       ].join('\n'),
     });
+  });
+
+  it.each<[string, Record<string, string>]>([
+    ['offers `main`', { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts' }) }],
+    ['offers `exports`', { 'package.json': JSON.stringify({ name: 'kashe', exports: './src/index.ts' }) }],
+    ['offers a `bin`', { 'package.json': JSON.stringify({ name: 'kashe', bin: { kashe: './src/index.ts' } }) }],
+    ['lists no entry in `workspaces`', { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts', workspaces: [] }) }],
+    ['lists a member in `workspaces`', { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts', workspaces: ['benchmarks'] }) }],
+    [
+      'sits beside a settings-only `pnpm-workspace.yaml`',
+      { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts' }), 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n' },
+    ],
+    [
+      'sits beside a `pnpm-workspace.yaml` listing nothing',
+      { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts' }), 'pnpm-workspace.yaml': 'packages: []\n' },
+    ],
+  ])('puts a root library that %s on the map beside the package nested in it', async (_, declared) => {
+    const root = repository({ ...declared, ...LIBRARY });
+
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'orient'])).out).toBe(
+      `# ${basename(root)}: 2 packages in 2 dependency layers (1 takes nothing), 3 source files, 0 areas\n  packages: benchmarks, kashe\n`,
+    );
+  });
+
+  it('keeps a root with no source of its own off the map', async () => {
+    const root = repository({
+      'package.json': JSON.stringify({ name: 'tooling', main: './index.js' }),
+      'vitest.config.ts': 'export default {};\n',
+      'benchmarks/package.json': JSON.stringify({ name: 'benchmarks', private: true }),
+      'benchmarks/run.ts': 'export const run = 1;\n',
+    });
+
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'orient'])).out).toBe(
+      `# ${basename(root)}: 1 packages in 1 dependency layers (1 takes nothing), 1 source files, 0 areas\n  packages: benchmarks\n`,
+    );
+  });
+
+  it.each<[string, Record<string, string>]>([
+    ['is private', { 'package.json': JSON.stringify({ name: 'shop', private: true, main: './src/index.ts', workspaces: ['packages/*'] }) }],
+    ['offers no entry', { 'package.json': JSON.stringify({ name: 'shop', workspaces: { packages: ['packages/*'] } }) }],
+    [
+      'offers no entry beside a `pnpm-workspace.yaml`',
+      { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' },
+    ],
+    ['is private beside a `lerna.json`', { 'package.json': JSON.stringify({ name: 'shop', private: true, main: './src/index.ts' }), 'lerna.json': '{}\n' }],
+  ])('keeps a root holding source off the map when it %s', async (_, declared) => {
+    const root = repository({ ...declared, ...MEMBERS });
+
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'orient'])).out).toBe(
+      `# ${basename(root)}: 2 packages in 1 dependency layers (1 takes nothing), 2 source files, 0 areas\n  packages: cart, price\n`,
+    );
   });
 
   it('says why a checkout git cannot list is folded into no map', async () => {

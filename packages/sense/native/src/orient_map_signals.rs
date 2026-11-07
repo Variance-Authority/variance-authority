@@ -16,7 +16,8 @@ use crate::louvain::louvain;
 use crate::orient_map_read::Read;
 
 pub(crate) struct Signals {
-    /// The packages the map folds: every one but the root's, in name order.
+    /// The packages the map folds, in name order: every nested one, and the
+    /// root's beside them when it publishes and holds source.
     /// Everything below is indexed by position in it.
     pub packages: Vec<u32>,
     /// The words of each name, less its scope and a house prefix most carry.
@@ -56,8 +57,10 @@ impl Words {
 }
 
 pub(crate) fn signals(read: &Read) -> Signals {
-    let packages: Vec<u32> =
-        (0..read.packages.len() as u32).filter(|&at| !read.packages[at as usize].directory.is_empty()).collect();
+    let nested = |at: u32| !read.packages[at as usize].directory.is_empty();
+    let all = 0..read.packages.len() as u32;
+    let root_joins = read.library && all.clone().any(nested);
+    let packages: Vec<u32> = all.filter(|&at| nested(at) || (root_joins && read.source[at as usize] > 0)).collect();
     let n = packages.len();
     let at: HashMap<u32, usize> = packages.iter().enumerate().map(|(i, &p)| (p, i)).collect();
     let name = |i: usize| read.packages[packages[i] as usize].name.as_str();
@@ -106,7 +109,7 @@ pub(crate) fn signals(read: &Read) -> Signals {
     // ---------- where it sits ----------
     let place: Vec<Vec<String>> = (0..n)
         .map(|i| {
-            let segments: Vec<&str> = read.packages[packages[i] as usize].directory.split('/').collect();
+            let segments: Vec<&str> = read.packages[packages[i] as usize].directory.split('/').filter(|part| !part.is_empty()).collect();
             (1..=segments.len()).map(|k| segments[..k].join("/")).collect()
         })
         .collect();

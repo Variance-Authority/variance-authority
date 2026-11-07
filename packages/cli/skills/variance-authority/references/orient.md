@@ -22,6 +22,10 @@ with its size, its dependency layers, the packages the rest of the repository
 imports most from it, and the areas it imports from. The number at the start of
 a row is the id `--area` takes.
 
+A root package is on the map beside the packages nested in it when it publishes:
+it is not `private`, it offers an entry, and it holds source. Any other root only
+holds them.
+
 ```
 $ variance ask orient
 # my-app: 71 packages in 8 dependency layers (1 takes nothing), 1.3k source files, 8 areas
