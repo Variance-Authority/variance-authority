@@ -164,9 +164,13 @@ record it reads, or with `--execution` the suite `--suite` names. A change to an
 and `select` names what put it there. A suite with no `before` has nothing
 before its reach, and `select` prints that beside its answer. Beside what they
 record themselves, the Vitest, Jest and Rstest integrations take a
-`preconditions` option: every test they record declares each file it lists, and a change to one
-selects every test that declares it. A changed file nothing imports and nothing
-declares selects nothing, and `select` names it.
+`preconditions` option: every test they record declares each file it lists, so a
+change to one selects every test of the run. An entry is for what every test
+rests on, such as compiler settings. A fixture a test reads is not an entry: name
+it in the module that reads it, as
+[`/// <depends path="…" />`](selecting.md#where-sourcedirs-starts-the-answer),
+and a change to it selects the tests that load that module. A changed file
+nothing imports and nothing declares selects nothing, and `select` names it.
 
 An end-to-end suite reaches your app through a browser and imports none of it,
 so the import graph names none of its tests, or names a unit test's neighbour by
@@ -209,7 +213,7 @@ that render it.
 suite selects nothing and says why:
 
 ```text
-the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a test that declares it, as a precondition or by a `/// <depends>`, runs for it
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test
 ```
 
 and `--format json` carries the same list as `"ignored": ["src/card.css"]`.

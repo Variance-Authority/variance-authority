@@ -177,9 +177,9 @@ missing snapshot, a snapshot from another machine, and a first run all leave
 - `unread` — changed paths the record has no row or declaration for, and the
   graph has no node for when you pass `relations`: a README, a script the tests
   spawn, a file outside the directories you scanned. It is a report, not a
-  reason to run more. A suite that depends on such a file declares it as a
-  precondition, and from then on a change to it selects every test it governs
-  and the path leaves `unread`. Print it so the operator can see what nothing
+  reason to run more. A module that reads such a file names it by a
+  `/// <depends>`, and with `relations` a change to it selects the tests that
+  load that module and the path leaves `unread`. Print it so the operator can see what nothing
   recorded.
 - `stale` — modules whose text on disk no longer matches what their rows were
   recorded over. A report rather than work: a stale module is already charged
@@ -381,8 +381,9 @@ A changed file selects by how the snapshot records it.
 - **A test file** selects itself: nothing covers a test, so its own edit is the
   only thing that can run it.
 - **A precondition** selects every test it governs, which is what declaring one
-  is for. Declare a fixture the tests read with `fs`, or a script they spawn —
-  anything an import graph cannot see.
+  is for. A `preconditions` entry governs every test of the run, so declare what
+  every test rests on, such as compiler settings. A fixture a test reads with
+  `fs` goes in that test as `/// <depends path="…" />`.
 - **A module with probes and no crossings** answers: the build read it and
   nobody covered it.
 - **A module with no row at all** selects nothing from the record: nothing

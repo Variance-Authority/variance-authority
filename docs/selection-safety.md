@@ -141,26 +141,26 @@ it is deliberate: a README, a changeset or a design note would
 otherwise run your whole suite on every edit. The run names every such file:
 
 ```text
-the journal records nothing about 5 changed files, so they keep no test in the run; a file the suite reads without importing it is declared as a precondition.
+the journal records nothing about 5 changed files, so they keep no test in the run; a file read without importing it is named by a `/// <depends>` in the module that reads it.
 read .changeset/mainline-owned-tests.md: unread (the record and the file graph hold nothing about it) — it keeps no test in the run
 ```
 
 If a test does depend on that file — a fixture it reads with `fs`, a schema it
-loads by path — declare the dependency, and from the next recording on a
-change to the file runs every test that declared it:
+loads by path — declare the dependency:
 
-- in the test file, `/// <depends path="…" />`;
-- on the seam, its `preconditions` option, or a
-  [case precondition](case-preconditions.md) recorded where the test arranges
-  its state;
-- in `before`, when every test in the suite rests on it.
+- in the module that reads it, `/// <depends path="…" />`: a change to the file
+  runs the tests that load that module;
+- in `before`, when every test in the suite rests on it;
+- on the seam, its `preconditions` option, when every test of the run rests on
+  it, such as compiler settings: from the next recording on, a change to the
+  file runs every test.
 
 Two settings narrow on purpose, and print a line when they do:
 
 | Setting | What the output says |
 |---|---|
 | `relations: false`: the suite asks the file graph nothing | `the suite declines relations, so N changed files its record did not measure keep no test in the run; a file the suite rests on is declared in its \`before\`` |
-| `ignore` globs | `the suite ignores N changed files by its \`ignore\`, so only a test that declares one, as a precondition or by a \`/// <depends>\`, runs for them` |
+| `ignore` globs | `the suite ignores N changed files by its \`ignore\`, so only a \`/// <depends>\` on one runs a test for them, or a \`preconditions\` entry, which runs every test` |
 
 In the JSON answer these files are under `unread`, `declined` and `ignored`.
 

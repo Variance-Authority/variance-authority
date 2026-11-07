@@ -47,8 +47,8 @@ export interface ExecutionNarrowing {
    * What is listed here is different: a file the sense database has never
    * heard of — a README, a fixture the tests read with `fs`, a script they
    * spawn, a file outside the directories the scan was pointed at. It is a
-   * report, not a widening, and no caller widens on it: a suite that depends
-   * on such a file declares it as a precondition, and it stops appearing here.
+   * report, not a widening, and no caller widens on it: a module that reads
+   * such a file names it by a `/// <depends>`, and it stops appearing here.
    * A moved package is never here; its measured importers answer for it.
    *
    * Empty is the ordinary state, and always empty in a suite that declines
