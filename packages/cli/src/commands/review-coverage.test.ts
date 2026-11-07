@@ -8,7 +8,7 @@ import { formatReview, reviewPieces } from './review-text.js';
 const CHANGE: SuiteChange = {
   gained: 2, lost: 0, hidden: 0, unmeasured: 0, thinned: 0,
   written: { regions: 0, run: 0 }, deleted: { regions: 0, run: 0 },
-  arrived: { regions: 0, run: 0, files: [] }, departed: { regions: 0, run: 0, files: [] }, testFiles: [],
+  arrived: { regions: 0, run: 0, files: [] }, departed: { regions: 0, run: 0, files: [], ran: [] }, testFiles: [],
 };
 const UNIT: Coverage = {
   at: '0b5b312c',

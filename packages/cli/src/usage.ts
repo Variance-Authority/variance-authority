@@ -282,7 +282,7 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
       ? ['--fail-on-uncovered: exit 1 when a changed function holds code no case ran, and 2 when the record does not hold the change, or source changed and nothing shows a run of it.']
       : []),
     ...(flags.includes('--fail-on-lost')
-      ? ['--fail-on-lost: exit 1 when a suite no longer runs regions its base ran. It reads `--coverage`; a base that cannot be read is said on stderr and does not fail.']
+      ? ['--fail-on-lost: exit 1 when a suite no longer runs regions its base ran, or no longer loads a file the checkout holds and its base ran. It reads `--coverage`; a base that cannot be read is said on stderr and does not fail.']
       : []),
     REVIEWS.includes(command)
       ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'

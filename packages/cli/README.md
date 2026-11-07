@@ -1252,8 +1252,9 @@ a recorded file always exits `2`. The action takes it as
 `--fail-on-lost` asks the other question a project can require: whether the
 change stopped running what its mainline ran. It reads the comparison `--coverage`
 prints, whether or not `--coverage` is named, and exits `1` when a suite's base
-ran a region no case runs now, naming the count per suite on stderr. A region
-deleted with its code is not lost, and one the comparison could not pair over an
+ran a region no case runs now, naming the count per suite on stderr, or ran a
+file the checkout still holds and the suite no longer loads, naming the file. A
+region deleted with its code is not lost, and one the comparison could not pair over an
 edit is not counted. A suite with no base, or one that could not be read, is said
 on stderr and does not fail: nothing was compared. The action takes it as
 `fail-on-lost`.

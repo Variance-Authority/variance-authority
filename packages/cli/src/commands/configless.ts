@@ -18,8 +18,9 @@
  * added to one list and not the other is offered a flag it will ignore.
  */
 
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
@@ -232,7 +233,7 @@ export async function answerConfigless(
       // After every output: the check goes red with the review already written.
       const verdicts = [
         ...(parsed.failOnUncovered === true ? [uncoveredVerdict(answer)] : []),
-        ...(parsed.failOnLost === true ? [lostVerdict(answer.coverage ?? [])] : []),
+        ...(parsed.failOnLost === true ? [lostVerdict(answer.coverage ?? [], (file) => existsSync(resolve(parsed.root, file)))] : []),
       ];
       for (const line of verdicts.flatMap(({ said }) => said)) streams.err(`${line}\n`);
       return verdicts.some(({ failed }) => failed) ? EXIT_REVIEW : EXIT_CLEAN;

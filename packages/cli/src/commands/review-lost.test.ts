@@ -64,12 +64,34 @@ describe('a review that fails on regions the mainline ran and the change stopped
     const { failed, said } = lostVerdict([
       { suite: 'e2e', missed: 'the share holds no record' },
       { suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin', baseMissed: 'no base: unit is not given to the share' }] } as unknown as Coverage,
-    ]);
+    ], () => false);
 
     expect(failed).toBe(false);
     expect(said).toEqual([
       'e2e was not compared, so what it stopped running is not known: the share holds no record',
       'unit was not compared, so what it stopped running is not known: no base: unit is not given to the share',
     ]);
+  });
+
+  describe('a file the suite stopped loading', () => {
+    const departed = (ran: readonly string[]): Coverage => ({
+      suites: [{ suite: 'unit', base: { change: { lost: 0, departed: { regions: 4, run: 2, files: ['src/kept.ts', 'src/cut.ts'], ran } } } }],
+    }) as unknown as Coverage;
+    const holds = (file: string): boolean => file === 'src/kept.ts';
+
+    it('fails while the checkout still holds it: its last test went, and its code stayed', () => {
+      const { failed, said } = lostVerdict([departed(['src/kept.ts'])], holds);
+
+      expect(failed).toBe(true);
+      expect(said.join('\n')).toContain('src/kept.ts');
+    });
+
+    it('passes when the file went with its code', () => {
+      expect(lostVerdict([departed(['src/cut.ts'])], holds).failed).toBe(false);
+    });
+
+    it('passes when the mainline ran nothing in it, so nothing stopped', () => {
+      expect(lostVerdict([departed([])], holds).failed).toBe(false);
+    });
   });
 });

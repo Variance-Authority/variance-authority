@@ -148,7 +148,8 @@ nothing, so a function only that suite reaches is marked until it does.
 ### Requiring that a change keeps running what the mainline ran
 
 `fail-on-lost: 'true'` fails the step, after the comment, when a suite's base ran
-a region no case runs now. It takes `against`: with no base nothing is compared,
+a region no case runs now, or ran a file the checkout still holds and no test
+loads. It takes `against`: with no base nothing is compared,
 which the step says and does not fail on.
 
 ```yaml
