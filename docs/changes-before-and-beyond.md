@@ -164,9 +164,15 @@ record it reads, or with `--execution` the suite `--suite` names. A change to an
 and `select` names what put it there. A suite with no `before` has nothing
 before its reach, and `select` prints that beside its answer. Beside what they
 record themselves, the Vitest, Jest and Rstest integrations take a
-`preconditions` option: every test they record declares each file it lists, and a change to one
-selects every test that declares it. A changed file nothing imports and nothing
-declares selects nothing, and `select` names it.
+`preconditions` option: every test they record declares each file it lists, so a
+change to one selects every test of the run. An entry is for what every test
+rests on, such as compiler settings. A fixture a test reads is not an entry: name
+it in the module that reads it, as
+[`/// <depends path="…" />`](selecting.md#where-sourcedirs-starts-the-answer),
+and a change to it selects the tests that load that module. A suite with
+`"relations": false` declines that edge, so there it goes in `before`, unless the
+suite's `ignore` matches it: an ignored file keeps the edge. A changed file
+nothing imports and nothing declares selects nothing, and `select` names it.
 
 An end-to-end suite reaches your app through a browser and imports none of it,
 so the import graph names none of its tests, or names a unit test's neighbour by
@@ -195,10 +201,10 @@ repository root:
 
 A changed file that matches loses what selection would infer from it: the
 regions tests entered in it, the import and asset edges into it, and the
-suite's `before`. It keeps what somebody declared. A test that lists it as a
-precondition still runs, and so does every test the recording saw enter a
-module with a `/// <depends>` on it, because that edge says the module reads
-the bytes. A declaring module the recording holds nothing for is read as any
+suite's `before`. It keeps what somebody declared. Every test the recording
+saw enter a module with a `/// <depends>` on it still runs, because that edge
+says the module reads the bytes, and so does every test of a run that lists
+it in `preconditions`. A declaring module the recording holds nothing for is read as any
 file it did not measure: the tests that import it run, or, in a suite that
 declines relations, it is listed. A
 `!` pattern takes a file back out of the list. A suite uses only its own
@@ -209,7 +215,7 @@ that render it.
 suite selects nothing and says why:
 
 ```text
-the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a test that declares it, as a precondition or by a `/// <depends>`, runs for it
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test of its run
 ```
 
 and `--format json` carries the same list as `"ignored": ["src/card.css"]`.

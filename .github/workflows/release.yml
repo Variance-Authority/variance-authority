@@ -44,6 +44,12 @@
 
 name: release
 
+# What this run publishes is built from what it fetched and verified itself, so
+# it restores nothing and saves nothing. An entry is unsigned, and `setup-zig`
+# untars a cached compiler without the signature check its download gets, whatever
+# `use-cache` says. A refused restore is a miss, and the action downloads.
+cache-mode: none
+
 on:
   push:
     branches: [main]

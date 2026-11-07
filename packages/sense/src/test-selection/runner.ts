@@ -66,8 +66,8 @@ export interface RecordingOptions {
    */
   readonly suite?: string;
   /**
-   * Files every test's outcome depends on that no transform sees: a config the
-   * runner reads, a fixture read with `fs`. A change to one selects every test.
+   * Files every test's outcome depends on that no transform sees, such as a
+   * config the runner reads. A change to one selects every test.
    * `startRecording` refuses no entry: #1093.
    */
   readonly preconditions?: readonly string[];

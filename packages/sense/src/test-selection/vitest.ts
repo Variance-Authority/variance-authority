@@ -51,8 +51,8 @@ export interface TestSelectionOptions {
    * Files whose contents are preconditions of every test observation, beside
    * the ones the seam declares on its own: the config file Vite loaded, the
    * local modules it bundled into it, and the configured setup files. Name a
-   * file the runner reads without Vite knowing — compiler settings, a fixture
-   * read with `fs`.
+   * file every test rests on that the runner reads without Vite knowing, such
+   * as compiler settings. A fixture a test reads is a `/// <depends>` instead.
    * Each entry is the path of one file that exists before the run starts; any
    * other entry fails the run before any test starts.
    */
