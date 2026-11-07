@@ -44,10 +44,6 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
       run: |
-        if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
-          echo '::error::the review reads the change from where it starts, which a shallow clone lacks: set `fetch-depth: 0` on actions/checkout'
-          exit 1
-        fi
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry restore --format github >> "$GITHUB_OUTPUT"
 

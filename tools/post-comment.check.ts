@@ -164,7 +164,7 @@ describe('post-comment', () => {
     const refused = await poster(pull, docket(TRIBUNAL, 'a review'), ['--marker', TRIBUNAL, '--adopt-unkeyed', 'false']);
 
     expect(refused.code).toBe(0);
-    expect(refused.out).toContain('what it would have said is still in the run.');
+    expect(refused.out).toContain('what the comment would have said is still in the run.');
   });
 
   it('takes over the comment written under the adopted marker rather than posting beside it', async () => {

@@ -92,16 +92,17 @@ only on a push to a mainline, so the mainline's run saves the record and a pull
 request restores it.
 
 Coverage has two bases. `against` is compared with the suite `suite` names, and
-only that suite: `against` without `suite` is not read. Otherwise a suite
+only that suite: without `suite` the coverage rows do not read it. Otherwise a suite
 declared with `"carry": "share"` is compared with the record its mainline
 published through [the share](https://variance-authority.dev/docs/sharing), and
 needs neither the cache steps nor `against`. Any other suite, and any suite
 before its mainline has a record, reads "No baseline available; change cannot be
 compared" on every comment.
 
-`fetch-depth: 0` is required: a shallow clone lacks where the change starts, so
-the action stops first and says so. With several suites declared, `suite` is required too. On
-a push there is no pull request, so the review reaches the step summary alone.
+The review needs the commit the change starts from and a diff from it, so check
+out every commit: `fetch-depth: 0`, with `filter: tree:0` to leave the trees out.
+A clone that lacks that commit fails the step, and the CLI says what to fetch.
+With several suites declared, `suite` is required too. On a push there is no pull request, so the review reaches the step summary alone, and a repository's first commit has no start to review from.
 
 A review finds nothing a person must approve, so it has no verdict and no
 outputs. The step fails when no review could be written, and when the comment

@@ -51,10 +51,11 @@ describe('the review a project with only unit tests puts on the pull request', (
       );
       await writeFile(join(at, 'output'), '');
       await writeFile(join(at, 'summary'), '');
+      const { run } = stepNamed(step);
       let status = 0;
       let printed = '';
       try {
-        printed = execFileSync('/bin/bash', ['-c', stepNamed(step).run], {
+        printed = execFileSync('/bin/bash', ['-c', run], {
           env: {
             ...process.env,
             VARIANCE_COMMAND: fake,
@@ -113,18 +114,6 @@ describe('the review a project with only unit tests puts on the pull request', (
 
   it('asks carry without a config, because a project of suites alone holds no surface the parser accepts', async () => {
     expect((await ran('what the host carries')).said).toEqual(['carry restore --format github']);
-  });
-
-  it('stops a shallow clone before anything is asked, naming the `fetch-depth` it needs', async () => {
-    const bin = await mkdtemp(join(tmpdir(), 'variance-action-shallow-'));
-    await writeFile(join(bin, 'git'), '#!/bin/bash\necho true\n', { mode: 0o755 });
-
-    const { status, said, printed } = await ran('what the host carries', { PATH: `${bin}:${process.env['PATH']}` });
-    await rm(bin, { recursive: true, force: true });
-
-    expect(status).toBe(1);
-    expect(said).toEqual(['']);
-    expect(printed).toContain('`fetch-depth: 0`');
   });
 
   it('posts the file the review wrote through the one poster, under the marker on its first line, adopting nothing', () => {

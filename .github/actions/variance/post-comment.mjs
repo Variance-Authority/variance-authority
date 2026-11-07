@@ -71,8 +71,8 @@ if (repository === undefined || !repository.includes('/')) {
 const token = process.env['GITHUB_TOKEN'];
 if (token === undefined || token === '') {
   fail(
-    'no GITHUB_TOKEN in the environment. Pass `github-token:` to the action, or leave ' +
-      'the comment off where the action offers it — this will not post anonymously and will not guess a credential.',
+    'no GITHUB_TOKEN in the environment. Pass `github-token:` to the action, or turn ' +
+      '`comment:` off where the action has it — this will not post anonymously and will not guess a credential.',
   );
 }
 
@@ -169,7 +169,7 @@ function refused(method, url, status) {
   // which would hand a writable token to code from the fork.
   warn(
     `${method} ${url} was refused (${status}). The token cannot write here. ` +
-      'A `pull_request` run from a fork gets a read-only token; what it would have said is still in the run.',
+      'A `pull_request` run from a fork gets a read-only token; what the comment would have said is still in the run.',
   );
   process.exit(0);
 }
