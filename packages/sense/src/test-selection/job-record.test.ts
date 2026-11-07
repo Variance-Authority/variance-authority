@@ -17,7 +17,6 @@ describe('landing a job', () => {
     suite: 'site-job',
     commit: 'c1',
     complete: true,
-    at: '2026-11-07T00:00:00.000Z',
     trace: trace({}),
     tracked: new Map([['a.txt', 'blob-a'], ['b.txt', 'blob-b'], ['gen.txt', 'blob-gen']]),
     ...over,
@@ -65,6 +64,13 @@ describe('landing a job', () => {
     await landJob(step({ complete: false }));
     await landJob(step({}));
     expect((await row()).complete).toBe(false);
+  });
+
+  it('counts a later step as one more run at the commit, over where the job stood', async () => {
+    await landJob(step({ trace: trace({ reads: [join(root, 'a.txt')] }) }));
+    await landJob(step({ commit: 'c2', trace: trace({ reads: [join(root, 'a.txt')] }) }));
+    await landJob(step({ commit: 'c2', trace: trace({ reads: [join(root, 'b.txt')] }) }));
+    expect(await readCommitRuns(testCoverageFile(root, { suite: 'site-job' }))).toMatchObject({ commit: 'c2', over: 'c1', runs: 2 });
   });
 
   it('starts again at another commit', async () => {

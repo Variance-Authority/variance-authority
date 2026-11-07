@@ -572,12 +572,15 @@ jobs:
       #
       # The recorder is `variance` itself, which the job also builds, so the
       # first build above makes the recorder, a copy keeps it out of the way,
-      # and everything is built again under it from nothing: a step that finds
-      # its output current reads nothing, and leaves the record short. The
-      # scanner goes too, because Cargo reads the Rust only when it has to
-      # compile it. `yarn start` stays outside: the recorder waits for what a
+      # and the build runs again under it: a step that finds its output current
+      # reads nothing, and leaves the record short. So the outputs go first, the
+      # scanner's too, because Cargo reads the Rust only when it has to compile
+      # it. `node_modules` stays, so the install step reads what a warm install
+      # reads. `yarn start` stays outside: the recorder waits for what a
       # command leaves running, and what the server reads is `site/wrangler.jsonc`,
-      # which `site-job` names under `before` for that reason.
+      # which `site-job` names under `before` for that reason. The photographing
+      # step exits 1 on changed pixels, which is a finished run, so it says so;
+      # a hole fails the verdict and no record is uploaded.
       - name: build again, recorded
         id: job
         if: matrix.project == 'site' && github.event_name != 'pull_request'
@@ -587,10 +590,10 @@ jobs:
           cp -a . "$RUNNER_TEMP/recorder"
           yarn clean
           rm -f packages/sense/npm/*/scan.node packages/sense/npm/*/scan.node.tree
-          job="node $RUNNER_TEMP/recorder/packages/cli/dist/bin.js job --suite site-job --"
-          $job yarn install --immutable
-          $job yarn build
-          echo "wrap=$job" >> "$GITHUB_OUTPUT"
+          recorder="node $RUNNER_TEMP/recorder/packages/cli/dist/bin.js job --suite site-job"
+          $recorder -- yarn install --immutable
+          $recorder -- yarn build
+          echo "wrap=$recorder --complete-on 1 --" >> "$GITHUB_OUTPUT"
 
       # Photographing the site takes minutes, and some pull requests cannot
       # move a pixel of it. `tools/site-reach.mjs` reads the whole change

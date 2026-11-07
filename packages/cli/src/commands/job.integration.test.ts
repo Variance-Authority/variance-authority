@@ -1,10 +1,11 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readJobWrites, readTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { runJob } from './job.js';
+import { selectSuite } from './select-command.js';
 
 const git = (root: string, ...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 
@@ -54,6 +55,7 @@ describe('recording a job', () => {
     git(root, 'config', 'user.name', 'a');
     writeFileSync(join(root, '.gitignore'), 'dist/\n');
     writeFileSync(join(root, 'read.txt'), 'read\n');
+    writeFileSync(join(root, 'written.txt'), 'written\n');
     writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { build: { kind: 'e2e', relations: false } } }));
     git(root, 'add', '.');
     git(root, 'commit', '-qm', 'one');
@@ -82,6 +84,18 @@ describe('recording a job', () => {
     traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
     expect(await job('sh', '-c', 'exit 3')).toBe(3);
     expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
+  });
+
+  it('holds the record whole on the exit it was told means the command ran whole, and answers that exit', async () => {
+    traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+    expect(await runJob({ command: 'job', suite: 'build', run: ['sh', '-c', 'exit 1'], completeOn: 1 }, streams, root)).toBe(1);
+    expect((await readTestCoverage(file())).tests[0]?.complete).toBe(true);
+  });
+
+  it('runs a command once when the trace holds nothing it can place', async () => {
+    traced('1 execve("./x", ["./x"], 0x0) = 0');
+    expect(await job('sh', '-c', 'echo ran >> ran')).toBe(0);
+    expect(readFileSync(join(root, 'ran'), 'utf8')).toBe('ran\n');
   });
 
   it('answers a command ended by a signal as a shell would', async () => {
@@ -129,6 +143,43 @@ describe('recording a job', () => {
       preconditions: [{ name: 'read.txt', digest: git(root, 'rev-parse', 'HEAD:read.txt') }],
     }]);
     expect((await readJobWrites(file()))?.writes).toEqual(['dist/out.txt']);
+  });
+
+  describe('then selecting it', () => {
+    const skipped = async (): Promise<boolean> => [...(await selectSuite({ root, suite: 'build' })).skip].includes('build');
+
+    /** The job read `read.txt` and wrote `written.txt`, and ended on `exit`. */
+    async function recorded(exit = 0): Promise<void> {
+      traced(
+        `1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`,
+        `1 openat(AT_FDCWD<${root}>, "written.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3<${root}/written.txt>`,
+      );
+      await job('sh', '-c', `exit ${exit}`);
+    }
+
+    it('selects the job when a file it read changes', async () => {
+      await recorded();
+      writeFileSync(join(root, 'read.txt'), 'changed\n');
+      expect([...(await selectSuite({ root, suite: 'build' })).whole]).toContain('build');
+      expect(await skipped()).toBe(false);
+    });
+
+    it('skips the job when the file changed is one it only wrote', async () => {
+      await recorded();
+      writeFileSync(join(root, 'written.txt'), 'changed\n');
+      expect(await skipped()).toBe(true);
+    });
+
+    it('selects a job whose record is incomplete, whatever changed', async () => {
+      await recorded(1);
+      writeFileSync(join(root, 'written.txt'), 'changed\n');
+      expect(await skipped()).toBe(false);
+    });
+
+    it('selects a job that has no record', async () => {
+      writeFileSync(join(root, 'written.txt'), 'changed\n');
+      expect(await skipped()).toBe(false);
+    });
   });
 
   it('runs the command unrecorded outside a checkout', async () => {

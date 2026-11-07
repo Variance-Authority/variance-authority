@@ -100,7 +100,8 @@ changes. A changed file it only wrote does not run it.
 
 It cannot see a new file it has never read, a daemon it left running, or anything
 outside the repository, so name those under `before`. A job with no record, an
-incomplete one or a failed command always runs.
+incomplete one or a failed command always runs; `--complete-on <exit>` names an
+exit that still means the command ran whole.
 
 ## Declare what a suite ignores
 

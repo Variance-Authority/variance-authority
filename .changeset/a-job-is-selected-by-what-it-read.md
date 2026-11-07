@@ -7,4 +7,5 @@
 records what it read and wrote, in any language. `variance select --suite <name>`
 selects the whole job from that record: a change to a file it read selects it, and
 a change to a file it only wrote does not. A job with no record, an incomplete one
-or a failed command runs.
+or a failed command runs. `--complete-on <exit>` names an exit that still means the
+command ran whole.

@@ -290,7 +290,7 @@ Two questions meet in this repository — *what did this change look like* and
   [**Bazel**](https://bazel.build/) — selection of whole tasks or targets, from
   a dependency graph and task inputs or, with Nx's
   [Ultracache](https://nx.dev/docs/features/ci-features/remote-cache#ultracache-and-affected),
-  from the files a task read in CI. They decide which tasks run, and the record
+  from the files a task read in CI. Coarse and orthogonal: they decide which tasks run, and the record
   decides which tests inside one of them had a reason to run.
   [`variance job`](https://variance-authority.dev/reference/packages/cli#job-record-what-a-build-read) records
   the files a build read on your own CI, and says whether one of them changed;

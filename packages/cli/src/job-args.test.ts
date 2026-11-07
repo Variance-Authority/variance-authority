@@ -10,6 +10,14 @@ describe('what job is asked for', () => {
     });
   });
 
+  it('takes the exit that still means the command ran whole', () => {
+    expect(parseArgs(['job', '--suite', 'site-job', '--complete-on', '1', '--', 'yarn', 'build'])).toMatchObject({ completeOn: 1 });
+  });
+
+  it('refuses a complete exit that is no exit', () => {
+    expect(() => parseArgs(['job', '--suite', 'site-job', '--complete-on', 'one', '--', 'yarn', 'build'])).toThrow(/--complete-on/);
+  });
+
   it('refuses a job with no suite to record it under', () => {
     expect(() => parseArgs(['job', '--', 'yarn', 'build'])).toThrow(/--suite/);
   });

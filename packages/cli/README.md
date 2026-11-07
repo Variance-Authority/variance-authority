@@ -167,7 +167,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
-variance job    --suite <name> -- <command>...
+variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
@@ -2461,7 +2461,9 @@ output current reads nothing, and the record comes out short.
 It needs `strace`, so it records on Linux. Where `strace` is not installed the
 command still runs, its exit is the job's, and the record is left as it was. Where
 `strace` cannot trace the command, the record is held incomplete. A job with an
-incomplete record, or none, is selected. So is one whose command failed.
+incomplete record, or none, is selected. So is one whose command failed. A command
+that reports what it found by its exit names that exit with `--complete-on <exit>`:
+the record stays whole, and the exit is still the job's.
 
 Files outside the repository are not selected on, and a file the job has never
 read is not seen: a new page the build would pick up does not select it. Declare
