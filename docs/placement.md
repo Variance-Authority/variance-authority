@@ -300,6 +300,10 @@ last. Without the restore, a run starts with an empty root and reports every
 subject `new`, as [Committed means committed](#committed-means-committed)
 describes.
 
+If the same repository publishes packages, read
+[Keep the cache out of your release](#keep-the-cache-out-of-your-release) before
+you copy the job.
+
 A reviewer reads the report and adds the `variance: accept` label. That starts a
 run that accepts every changed subject, compares again, and saves the baseline
 root into the pull request's own cache scope. A subject that is still unstable,
@@ -504,6 +508,68 @@ request is green until the first push to `main` records a store.
 
 For a [served route](start-routes.md), replace `npm run build-storybook` with the
 step that builds or starts what the collector reads.
+
+#### Keep the cache out of your release
+
+One run hands files to a later run through the cache, and GitHub signs nothing in
+it. In the
+[TanStack compromise](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem),
+a fork's code ran in a `pull_request_target` workflow and left an entry in
+`main`'s cache scope, the release restored it, and malicious versions of 42
+packages went to npm.
+
+[GitHub](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
+now makes `pull_request_target`, `workflow_run` and `issue_comment` runs read-only
+in `main`'s scope by default, so a pull request alone cannot do this. Every `push`,
+`schedule` or dispatch run on `main` can still save there, and that includes merged code and each dependency and action
+those runs execute. The job on this page is one of those runs: on a push to `main`
+it runs `npm ci` and your Storybook build, then saves. If one of them is compromised,
+a release that restores from the cache runs what it left.
+
+Make four changes in a repository that publishes:
+
+- **Set `cache-mode: none` at the top of the release workflow.**
+
+  ```yaml
+  name: release
+  cache-mode: none
+  ```
+
+  GitHub then refuses every restore and save in that run, including the ones an
+  action makes for itself: `actions/setup-node` with `cache: npm`, or
+  `mlugg/setup-zig`, which caches the compiler whatever its `use-cache` input says.
+  `actions/cache` and the actions built on its toolkit treat a refused restore as
+  a cache miss, so the step downloads what it needs. The same setting suits any
+  other job that holds a secret or a write token, if it can afford the cold start.
+- **Keep the job on this page out of that workflow.** It needs the cache, so it
+  runs in a workflow of its own.
+- **Never run a pull request's code in a `pull_request_target`, `workflow_run` or
+  `issue_comment` run, and never declare `cache-mode: write` or `write-only` on
+  one.** These runs have your secrets and can read `main`'s scope, and a declared
+  write mode replaces GitHub's read-only default.
+- **Keep tokens and credentials out of every cached path.** A pull request from a
+  fork restores from `main`'s scope, so whoever opens one can read what is cached
+  there.
+
+GitHub.com sets two limits. On GitHub Enterprise Server, check them and
+`cache-mode` against your version.
+
+- **`main`'s scope takes saves only from trusted events,** such as `push`,
+  `schedule` and `workflow_dispatch`, unless a workflow declares a write mode.
+- **A pull request saves into its own scope.** A `pull_request` run saves under
+  `refs/pull/<number>/merge`, and only that pull request's later runs restore from
+  it, so another pull request and `main` never read what it accepted.
+
+A bad entry can also be a bad baseline store or a suite's cached record, and then
+comparisons run against it.
+If you suspect one, delete the whole cache, and rotate every token and deploy key
+your CI runs could read:
+
+```bash
+gh cache delete --all
+```
+
+Subjects then report `new` until the next push to `main` records the store.
 
 ### Git
 
