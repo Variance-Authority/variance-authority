@@ -20,6 +20,7 @@ const { commitOfIndex } = vi.hoisted(() => ({ commitOfIndex: vi.fn() }));
 
 vi.mock('@variance-authority/sense/test-selection', () => ({
   declaredSuites: () => undefined,
+  onlySuite: () => undefined,
   readableTestCoverage: async () => '/nowhere/coverage.bin',
   recordedCommit: commitOfIndex,
   testCoverageFile: () => '/nowhere/own/coverage.bin',

@@ -496,7 +496,7 @@ changed file the record never measured from widening the run, so a file left
 out of `before` is named in the run's warnings and selects nothing.
 
 `tests` accepts `true` or an options object. `suite` names the suite this run
-records; it is required once the root config declares any. `heads` names every
+records; it is required once the root config declares several. `heads` names every
 server that reports, and a named head that reported nothing marks the whole run
 incomplete, so a server that was not watched cannot pass for one that ran
 nothing. `root`, `cacheRoot`, `coverageFile`, `mode`, `preconditions` and `commit` mean

@@ -431,7 +431,7 @@ override the repository-keyed cache paths for the coverage layers and the
 coverage index. The preview's probes report each module's file and a digest of
 the text they were placed on, and the run cuts that file again from your
 checkout, so the preview's build writes nothing the run has to find. `suite` names the suite this run is, when the root `variance.config.json`
-declares its suites under `suites`; it is required once any suite is declared,
+declares its suites under `suites`; it is required once several are declared,
 and cannot be combined with `coverageFile`. `root` is the directory Storybook
 ran in, the cwd by default: story paths and a relative `coverageFile` are read
 from it, and every path the run records is relative to the repository that

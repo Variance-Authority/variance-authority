@@ -388,9 +388,6 @@
   "jvm/test/record.mjs overview": [
     16
   ],
-  "jvm/test/suite.mjs overview": [
-    16
-  ],
   "packages/cli/src/bin.test.ts block": [
     6
   ],
@@ -781,7 +778,7 @@
     14
   ],
   "packages/cli/src/commands/suite-record.ts docblock": [
-    16
+    15
   ],
   "packages/cli/src/commands/suite-share.ts overview": [
     17

@@ -137,12 +137,12 @@ export async function shareCommand(root: string, suite: string | undefined): Pro
  * that asked is then not one suite's.
  */
 export async function declaredSuite(root: string, suite: string | undefined): Promise<DeclaredSuite | undefined> {
-  const { declaredSuites } = await import('@variance-authority/sense/test-selection');
+  const { declaredSuites, onlySuite } = await import('@variance-authority/sense/test-selection');
   let declared: ReturnType<typeof declaredSuites>;
   try {
     declared = declaredSuites(root);
   } catch {
     return undefined;
   }
-  return declared?.find((one) => one.name === (suite ?? (declared?.length === 1 ? declared[0]!.name : undefined)));
+  return declared?.find((one) => one.name === (suite ?? onlySuite(declared)));
 }

@@ -332,9 +332,9 @@ The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
 suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
 seam takes a `suite` option that names the one it runs, as in
 `withTestSelection(config, { suite: 'unit' })`. A run under one suite never
-replaces what another suite recorded. Once any suite is declared, a seam
-that names none, or names one the file does not declare, stops before the run
-starts. `declaredSuites(root)` returns what the file declares, and
+replaces what another suite recorded. A seam that names none records into the
+only declared suite. Among several it stops before the run starts, as does a
+seam that names one the file does not declare. `declaredSuites(root)` returns what the file declares, and
 `testCoverageFile(root, { suite })` the path of one suite's record. A
 repository that declares no suites keeps the one `coverage.bin` above.
 
@@ -461,7 +461,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | option | default | use it when |
 |---|---|---|
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
-| `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
+| `suite` | none; the only suite when the root config declares one, required when it declares several | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, except for a build whose sibling map leads to exactly one source: it receives that source's path first, and the module's own only if it refuses the source ([below](#a-library-loaded-from-its-build)) |
 | `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked under the same names as `include`, and wins over it; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it. A module you build into a bundle and inject into a page is not loaded by any test, so no mark reaches it: name the bundle's entry in the [`before`](https://variance-authority.dev/docs/changes-before-and-beyond#how-a-change-before-reach-is-declared) of the suite that injects it |

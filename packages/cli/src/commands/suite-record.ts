@@ -12,9 +12,8 @@ import { selectedMainline, selectedRecord } from './mainline-selected.js';
  *
  * `select`, `run --since` and `journeys` each answer for one runner's cases, so
  * they read one suite, and with more than one declared, picking one for the
- * operator would read a record they did not ask about. The declaration and
- * the path are sense's; the default is this reader's, because it is a rule
- * about what a person typed, not about where a run records.
+ * operator would read a record they did not ask about. The declaration, the
+ * path and the default are sense's.
  *
  * The path is the nearest record, which in a checkout that has not run is the
  * mainline's as last fetched on this machine, else, in a worktree, the primary
@@ -124,11 +123,6 @@ export async function recordedSuite(root: string, suite?: string): Promise<{ rea
   }
 }
 
-/** The one suite a root config declares, which a reader that names none reads. */
-export function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
-  return declared?.length === 1 ? declared[0]!.name : undefined;
-}
-
 /**
  * The suite a command scoped to one runner reads, and its declaration when it
  * has one: `--suite`, or the only one declared, and refused where several are
@@ -137,7 +131,7 @@ export function onlySuite(declared: readonly { readonly name: string }[] | undef
 export async function namedSuite(root: string, suite?: string): Promise<{ readonly name: string | undefined; readonly declared?: DeclaredSuite }> {
   const selection = await import('@variance-authority/sense/test-selection');
   const declared = asOperator(() => selection.declaredSuites(root));
-  const name = suite ?? onlySuite(declared);
+  const name = suite ?? selection.onlySuite(declared);
   if (name === undefined && declared !== undefined) {
     throw new OperatorError(
       `the root variance.config.json declares the suites ${declared.map((one) => `"${one.name}"`).join(', ')}, ` +

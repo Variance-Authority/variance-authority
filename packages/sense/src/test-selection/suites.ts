@@ -237,8 +237,8 @@ export function beforeOf(root: string, suite: string | undefined): readonly stri
 export function beforeIn(config: RootConfig | undefined, suite: string | undefined): readonly string[] {
   if (config === undefined) return [];
   const shared = config.value['before'] === undefined ? [] : parseBefore(config.value['before'], 'before', config.file);
-  const suites = suite === undefined || config.value['suites'] === undefined ? undefined : parseSuites(config.value['suites'], config.file);
-  const own = suites?.find((one) => one.name === suite)?.before;
+  const suites = config.value['suites'] === undefined ? undefined : parseSuites(config.value['suites'], config.file);
+  const own = suites?.find((one) => one.name === (suite ?? onlySuite(suites)))?.before;
   return [...shared, ...(own ?? [])];
 }
 
@@ -257,13 +257,18 @@ export function declaredSuites(root: string): readonly DeclaredSuite[] | undefin
   return parseSuites(config.value['suites'], config.file);
 }
 
+/** The one suite a root config declares, which a run or a reader that names none means. */
+export function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
+  return declared?.length === 1 ? declared[0]!.name : undefined;
+}
+
 /**
  * The one suite a run records into, or reads from, checked against the declaration.
  *
  * Undefined when the repository declares no suites and none is named: the
- * record is the repository's one. A name the declaration does not carry is
- * refused, and so is no name once any suite is declared, because the record it
- * would write is one nobody declared, and the record it would read is a guess.
+ * record is the repository's one. With no name, the only declared suite is the
+ * one meant. A name the declaration does not carry is refused, and so is no name
+ * among several, because the record it would write or read would be a guess.
  */
 export function declaredSuite(root: string, suite: string | undefined): DeclaredSuite | undefined {
   const declared = declaredSuites(root);
@@ -275,12 +280,13 @@ export function declaredSuite(root: string, suite: string | undefined): Declared
     );
   }
   const listed = declared.map((one) => `"${one.name}"`).join(', ');
-  if (suite === undefined) {
+  const name = suite ?? onlySuite(declared);
+  if (name === undefined) {
     throw new Error(`${file} declares the suites ${listed}, and none is named; name the suite this run is`);
   }
-  const found = declared.find((one) => one.name === suite);
+  const found = declared.find((one) => one.name === name);
   if (found === undefined) {
-    throw new Error(`the suite "${suite}" is not declared in ${file}, which declares ${listed}`);
+    throw new Error(`the suite "${name}" is not declared in ${file}, which declares ${listed}`);
   }
 
   return found;
