@@ -30,6 +30,10 @@ describe('landing a job', () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it('has no writes to read before a job has landed', async () => {
+    expect(await readJobWrites(testCoverageFile(root, { suite: 'site-job' }))).toBeUndefined();
+  });
+
   it('writes one row for the job, and a run that says the commit ran it whole', async () => {
     await landJob(step({ trace: trace({ reads: [join(root, 'a.txt')] }) }));
     const file = testCoverageFile(root, { suite: 'site-job' });

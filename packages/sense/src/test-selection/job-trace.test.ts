@@ -82,4 +82,27 @@ describe('reading a job trace', () => {
   it('keeps a quote, a parenthesis and a comma inside a path', () => {
     expect(read('1 openat(AT_FDCWD</r>, "a\\"(b), c.txt", O_RDONLY) = 3</r/a"(b), c.txt>').reads).toEqual(['/r/a"(b), c.txt']);
   });
+
+  it('takes nothing from a move or a truncate that failed', () => {
+    expect(read(
+      '1 rename("/r/a.txt", "/r/b.txt") = -1 ENOENT (No such file or directory)',
+      '1 truncate("/r/c.txt", 0) = -1 ENOENT (No such file or directory)',
+    )).toEqual({ reads: [], writes: [] });
+  });
+
+  it('places neither end of a relative move, which names no directory', () => {
+    expect(read('1 rename("a.txt", "b.txt") = 0')).toEqual({ reads: [], writes: [] });
+  });
+
+  it('places no path from an argument that is not a string', () => {
+    expect(read('1 execve(0x7ffd, ["tool"], 0x7ffe) = 0')).toEqual({ reads: [], writes: [] });
+  });
+
+  it('reads past a nested parenthesis in an argument', () => {
+    expect(read('1 openat(AT_FDCWD</r>, "a.txt", O_RDONLY, (nil)) = 3</r/a.txt>').reads).toEqual(['/r/a.txt']);
+  });
+
+  it('drops a line the trace cut off, inside an argument or inside a quote', () => {
+    expect(read('1 execve("/r/tool", [', '1 openat(AT_FDCWD</r>, "a.t')).toEqual({ reads: [], writes: [] });
+  });
 });

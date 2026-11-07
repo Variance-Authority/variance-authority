@@ -65,6 +65,12 @@ describe('recording a job', () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it('refuses a command that could not be started', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'va-job-outside-'));
+    await expect(runJob({ command: 'job', suite: 'build', run: ['va-no-such-command'] }, streams, outside))
+      .rejects.toThrow('`va-no-such-command` could not be started: no such command');
+  });
+
   it('records what the command read and wrote, at the commit it ran on', async () => {
     mkdirSync(join(root, 'dist'));
     writeFileSync(join(root, 'dist', 'out.js'), 'out');
