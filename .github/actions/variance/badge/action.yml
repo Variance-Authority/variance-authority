@@ -1,0 +1,60 @@
+name: variance badge
+description: >-
+  Draws the mainline's regions-run figure and pushes it to a branch of the
+  repository, which the host serves at a stable URL a README can link to. Does
+  nothing on a ref that is not the default branch.
+
+inputs:
+  suite:
+    description: The suite to count. Empty counts every suite the repository declares.
+    required: false
+    default: ''
+
+  branch:
+    description: >-
+      The branch the image is pushed to. The action owns it: every push replaces
+      it with one commit.
+    required: false
+    default: variance-badge
+
+  command:
+    description: >-
+      How to invoke the CLI. Split on whitespace, so `node packages/cli/dist/bin.js`
+      works as well as a bin on PATH.
+    required: false
+    default: npx --no-install variance
+
+  github-token:
+    description: 'Token for the push. It needs `contents: write`.'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: publish the badge
+      if: ${{ github.ref_name == github.event.repository.default_branch }}
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        SUITE: ${{ inputs.suite }}
+        BRANCH: ${{ inputs.branch }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND index
+        here="$(mktemp -d)"
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND coverage ${SUITE:+--suite "$SUITE"} --format svg > "$here/regions.svg"
+        # A repository of its own, so the push carries one file and the checkout
+        # is left as the job had it. Forced: the branch holds the latest image,
+        # not a history of them.
+        git -C "$here" init -q
+        git -C "$here" add regions.svg
+        git -C "$here" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+          commit -q -m "regions run, at ${GITHUB_SHA:-the mainline}"
+        auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+        echo "::add-mask::$auth"
+        git -C "$here" -c "http.extraheader=Authorization: Basic $auth" \
+          push -q --force "${VARIANCE_REMOTE:-${GITHUB_SERVER_URL:-}/${GITHUB_REPOSITORY:-}.git}" "HEAD:refs/heads/$BRANCH"

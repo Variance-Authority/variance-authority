@@ -3,7 +3,7 @@ import { noPositionals, type Flags } from './args.js';
 import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 
-export type CoverageFormat = 'text' | 'markdown' | 'json';
+export type CoverageFormat = 'text' | 'markdown' | 'json' | 'svg';
 
 export interface ParsedCoverage {
   readonly command: 'coverage';
@@ -26,8 +26,8 @@ export interface ParsedCoverage {
 export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   noPositionals(flags.positionals, 'coverage');
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'markdown' && format !== 'json') {
-    throw new OperatorError(`--format must be text, markdown or json, not \`${format}\``);
+  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'svg') {
+    throw new OperatorError(`--format must be text, markdown, json or svg, not \`${format}\``);
   }
   const against = flags.values.get('--against');
   const suite = flags.values.get('--suite');
@@ -35,6 +35,7 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   if (from === '') throw new OperatorError('`--from` takes a directory, spelled from the repository root.');
   const packages = flags.present.has('--packages');
   if (packages && from !== undefined) throw new OperatorError('`--from` counts one directory and `--packages` counts every package; pass one of them.');
+  if (format === 'svg' && (packages || flags.present.has('--fan-in'))) throw new OperatorError('`--format svg` draws one figure, and `--packages` and `--fan-in` answer with many.');
   const atDistance = parseAtDistance(flags);
   return {
     command: 'coverage',

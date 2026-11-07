@@ -10,6 +10,8 @@
  */
 
 import type { MovedRegion, RunOver, TestFileMotion } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
+import { coverageBadge } from './coverage-badge.js';
 import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
 import { coverageHead, coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed, table } from './coverage-summary.js';
@@ -29,7 +31,13 @@ const NAMED_DIRECTORIES = 5;
 
 export function formatCoverage(answer: Coverage, format: CoverageFormat): string {
   if (format === 'json') return `${JSON.stringify(answer, null, 2)}\n`;
+  if (format === 'svg') return badge(answer);
   return format === 'markdown' ? markdown(answer) : text(answer);
+}
+
+function badge({ count }: Coverage): string {
+  if (count.regions === 0) throw new OperatorError('the record counts no regions, so there is no figure to draw');
+  return coverageBadge(ratio(count.over?.this ?? count.run, count.regions));
 }
 
 function text(answer: Coverage): string {

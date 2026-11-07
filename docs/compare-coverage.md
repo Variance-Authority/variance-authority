@@ -115,8 +115,11 @@ describes every line of the output.
   it has six tests and no evidence.
   [On testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
   covers what coverage can and cannot tell you about a suite.
-- **No hosted dashboard.** There are no badges, no hosted history and no
-  service to log in to. The share keeps one record for each branch, so the
+- **No hosted dashboard.** There is no hosted history and no service to log in
+  to. A badge is one image the
+  [badge action](https://github.com/Variance-Authority/action#a-badge-for-the-readme)
+  writes to a branch of your repository; it reads `regions run`, and a private
+  repository has no public URL for it. The share keeps one record for each branch, so the
   report compares a pull request with its mainline and does not draw a trend.
   If your team reads Codecov's dashboards, keep uploading to it.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the

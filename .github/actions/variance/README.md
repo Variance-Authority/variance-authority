@@ -111,6 +111,30 @@ write only warns, and the review is still in the step summary. A failed review
 posts nothing, so the comment from the last good push stays in place. A project
 with a surface as well runs both actions.
 
+### A badge for the README
+
+`Variance-Authority/action/badge` draws the mainline's figure with
+`variance coverage --format svg` and pushes it to a branch of your repository,
+one commit that replaces the last, so the README links to your own host and no
+service stands between. Run it after the tests, on the default branch; on any
+other ref it does nothing.
+
+```yaml
+permissions:
+  contents: write # the push to the badge branch
+
+steps:
+  - uses: Variance-Authority/action/badge@v1
+```
+
+```markdown
+![regions run](https://raw.githubusercontent.com/<owner>/<repo>/variance-badge/regions.svg)
+```
+
+The figure is regions, not lines, and reads lower than the line coverage a
+Codecov badge showed; the image says `regions run`. A private repository has no
+public raw URL, so its badge does not load in a README.
+
 ### Requiring that a change's functions ran
 
 `fail-on-uncovered: 'true'` turns the count the review prints into a check: the
