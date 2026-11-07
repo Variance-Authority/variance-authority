@@ -94,10 +94,10 @@ export interface ReportedModule {
  * that was meant to measure and did not is otherwise silent.
  *
  * Said rather than thrown, because zero is legitimate: a run filtered down to
- * one test file that imports no source has nothing to instrument. The two
- * misconfigurations it usually is are named in the message, because a reader
- * looking at "0 modules" has no way to guess which. Zero test files is left
- * alone: a run that collected nothing has already said so.
+ * one test file that imports no source has nothing to instrument. `unreached`
+ * names what it usually is, because a reader looking at "0 modules" has no way
+ * to guess; a runner with no `include` or plugin passes its own. Zero test files
+ * is left alone: a run that collected nothing has already said so.
  */
 export function noteAnEmptyRecord(
   testFiles: number,

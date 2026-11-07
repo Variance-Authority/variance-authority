@@ -73,3 +73,15 @@ it('names a preset a sibling directory also holds, under a relative `rootDir`, a
     await expect(access(ran)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 }, 60_000);
+
+it('sends a run whose test file fails to compile to the failure, and to no setting Jest does not have', async () => {
+  await inDirectory(async (directory) => {
+    const { stderr } = await jest(directory, fixture, { FIXTURE_TRANSFORM: '{"\\\\.ts$":"<rootDir>/fails-to-compile.cjs"}' }).then(
+      () => { throw new Error('the run passed'); },
+      (failed: { stderr: string }) => failed,
+    );
+    const note = stderr.split('\n').find((line) => line.includes('instrumented 0 modules across 1 test file(s)'));
+    expect(note).toContain('read the failures above');
+    expect(note).not.toMatch(/`include`|plugin/u);
+  });
+}, 60_000);
