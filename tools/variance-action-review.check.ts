@@ -125,6 +125,12 @@ describe('the review a project with only unit tests puts on the pull request', (
     expect(run).toContain('--adopt-unkeyed false');
   });
 
+  it('marks the diff after the comment, and a mark that could not be written fails nothing', () => {
+    const { run } = stepNamed('post the review');
+
+    expect(run.indexOf('"$here/../diff-marks.mjs" "$REVIEW/review.json" ||')).toBeGreaterThan(run.indexOf('post-comment.mjs'));
+  });
+
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
     expect(Object.keys(action().inputs).sort()).toEqual(['against', 'command', 'github-token', 'suite']);
     expect(action().outputs).toBeUndefined();
@@ -139,5 +145,66 @@ describe('the review a project with only unit tests puts on the pull request', (
     const poster = normalize(join(dirname(ACTION), '../post-comment.mjs'));
     expect(poster.startsWith(`${FOLDER}/`)).toBe(true);
     expect(existsSync(join(ROOT, poster))).toBe(true);
+  });
+});
+
+describe('the marks a review puts on the diff', () => {
+  const region = (name: string, startLine: number, endLine: number, reach: string, kind = 'function') =>
+    ({ kind, name, startLine, endLine, reach });
+
+  /** What the script prints for a review of `files`, read from a `record` of that age. */
+  async function marks(files: readonly unknown[], record = 'ran'): Promise<readonly string[]> {
+    const at = await mkdtemp(join(tmpdir(), 'variance-diff-marks-'));
+    try {
+      await writeFile(join(at, 'review.json'), JSON.stringify({ record, files }));
+      return execFileSync('node', [join(ROOT, FOLDER, 'diff-marks.mjs'), join(at, 'review.json')], { encoding: 'utf8' })
+        .split('\n')
+        .filter((line) => line !== '');
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
+  }
+
+  it('marks each changed function no case covered, at its lines, and nothing a case ran or may have', async () => {
+    const regions = [
+      region('parse', 3, 9, 'hole'),
+      region('walk', 12, 20, 'unwalked'),
+      region('guess', 22, 24, 'unknown'),
+      region('ran', 30, 34, 'near'),
+      region('far', 36, 40, 'far'),
+      region('rewritten', 42, 44, 'overwritten'),
+      region('ran/if', 31, 32, 'hole', 'branch'),
+      region('', 1, 50, 'hole', 'module'),
+    ];
+
+    expect(await marks([{ file: 'src/a.ts', regions }, { file: 'README.md' }])).toEqual([
+      '::warning file=src/a.ts,line=3,endLine=9,title=No case covered this::`parse` changed, and no case covered it.',
+      '::warning file=src/a.ts,line=12,endLine=20,title=No case covered this::`walk` changed, and no case covered it.',
+      '::warning file=src/a.ts,line=22,endLine=24,title=No case covered this::`guess` changed, and no case covered it.',
+    ]);
+  });
+
+  it('marks a function once, not again for each function inside it', async () => {
+    const regions = [region('outer/inner', 4, 6, 'hole'), region('outer', 2, 9, 'hole'), region('next', 9, 12, 'hole')];
+
+    expect((await marks([{ file: 'a.ts', regions }])).map((mark) => /line=(\d+)/.exec(mark)?.[1])).toEqual(['2', '9']);
+  });
+
+  it('stops at the ten warnings GitHub shows for a step, and names how many it left out', async () => {
+    const regions = Array.from({ length: 12 }, (_, at) => region(`f${at}`, at * 10 + 1, at * 10 + 5, 'hole'));
+    const printed = await marks([{ file: 'a.ts', regions }]);
+
+    expect(printed.filter((mark) => mark.startsWith('::warning '))).toHaveLength(10);
+    expect(printed.at(-1)).toBe('::notice title=No case covered these::2 more changed functions no case covered: the comment lists them.');
+  });
+
+  it('marks nothing from a record older than the change, which has not run what the change wrote', async () => {
+    expect(await marks([{ file: 'a.ts', regions: [region('parse', 3, 9, 'hole')] }], 'before')).toEqual([]);
+  });
+
+  it('escapes what a workflow command reads as its own syntax', async () => {
+    const [mark] = await marks([{ file: 'src/a,b:c%.ts', regions: [region('100%', 1, 2, 'hole')] }]);
+
+    expect(mark).toBe('::warning file=src/a%2Cb%3Ac%25.ts,line=1,endLine=2,title=No case covered this::`100%25` changed, and no case covered it.');
   });
 });

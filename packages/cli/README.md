@@ -1220,7 +1220,8 @@ suite, and review after it:
 
 On GitHub, `Variance-Authority/action/review` replaces that last step: it runs
 the same two commands with `--coverage` and puts the review on the pull request
-as one comment updated in place.
+as one comment updated in place, and marks each changed function no case
+covered on the diff.
 [Its example](https://github.com/Variance-Authority/action#reviewing-a-project-with-only-unit-tests)
 has the cache steps that give the comment a mainline record to compare with:
 
