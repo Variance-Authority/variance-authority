@@ -16,10 +16,11 @@ async function generatorFor(
   const root = await mkdtemp(resolve(tmpdir(), 'variance-module-cache-'));
   try {
     const config = withTestSelection({ root }, { root, coverageFile: resolve(root, 'coverage.bin'), ...predicates(root) });
-    const plugin = (config.plugins as unknown as { name: string; configureVitest?: (context: object) => void }[])
+    const plugin = (config.plugins as unknown as { name: string; configResolved?: (config: object) => void; configureVitest?: (context: object) => void }[])
       .find((one) => one.name === 'variance-authority:test-selection');
     const generators: Generate[] = [];
-    const vitest = { config: { sequence: {} }, logger: { printBanner() {} } };
+    const vitest = { config: { sequence: {}, reporters: [] }, logger: { printBanner() {} } };
+    plugin?.configResolved?.({ configFile: undefined, configFileDependencies: [] });
     plugin?.configureVitest?.({ vitest, [name]: (generate: Generate) => generators.push(generate) });
     return { root, runner: config.test!.runner as string, generators };
   } finally {
