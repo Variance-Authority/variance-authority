@@ -137,6 +137,8 @@ export interface ReviewFile {
   /** Whether the record holds a row for this file. Absent when coverage was not asked: an edit that changes nothing that runs. */
   readonly recorded?: boolean;
   readonly regions?: readonly ReviewRegion[];
+  /** The lines of the file the change wrote, beside `regions`: what a diff shows of a function. */
+  readonly written?: readonly LineRange[];
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
 }
@@ -352,7 +354,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
       ...(sources.has(file) ? { indexed: true } : {}),
       ...(tested.has(file) ? { holdsCases: true } : {}),
-      ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions }),
+      ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions, written: now.get(file) ?? [] }),
       ...(cases === undefined ? {} : { cases }),
     });
   }

@@ -111,10 +111,12 @@ warns, and the review is still in the step summary. A failed review posts
 nothing, so the comment from the last good push stays in place. A project with a
 surface as well runs both actions.
 
-Each changed function no case covered is also marked on its lines in the diff,
-as a warning. GitHub shows ten of a step's warnings, so a longer list ends with a
-note of how many it left out, and the comment holds them all. A record older than
-the change marks nothing: it has not run what the change wrote.
+Each changed function no case covered in a run of the change is also marked in
+the diff, as a warning on the first lines the change wrote in it. GitHub shows ten
+of a step's warnings, so a longer list ends with a note of how many it left out.
+A record older than the change marks nothing: it has not run what the change
+wrote. With several suites, a suite that has not run the change answers for
+nothing, so a function only that suite reaches is marked until it does.
 
 ## Accepting with a tick
 
