@@ -67,6 +67,11 @@ describe('docs_containment', () => {
     expect(answer).toBe(formatContainment(containmentOf(root, {})));
   });
 
+  it('says what git said of a checkout with no commit to read', () => {
+    const root = dated([]);
+    expect(() => containmentOf(root, {})).toThrow('`git log` could not read this checkout\'s history');
+  });
+
   it('refuses a host that named no checkout', () => {
     expect(() => containment.run(undefined, {}, invocationOf({}))).toThrow('this host named none');
   });
