@@ -22,7 +22,10 @@ use crate::orient_map_closure::{closures, Closure, Nodes};
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
 use crate::resolve::Tsconfig;
-use crate::workspace_declared::declares_workspaces;
+use workspace_declared::declares_workspaces;
+
+#[path = "workspace_declared.rs"]
+mod workspace_declared;
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
