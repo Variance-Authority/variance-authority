@@ -5,20 +5,23 @@
  * question, so none is merged into a score: a share of commits says what was
  * touched together, and the commit never says why.
  *
- * A commit is counted when a person changed source. What is left out is counted
- * by the first reason that takes it: a bot's commit is not somebody deciding
- * what belongs together, and one with no source has no boundary to stay inside.
+ * A package is one the workspace lists that holds source now, whatever a window
+ * changed, so a figure does not move with the window. One that holds only tests
+ * is a test-only tree. A commit is counted when a person changed source in a
+ * package, and what is left out is counted by the first reason that takes it.
  */
 
 // compass: variance-authority.report.agent-surface
 
-import { packageOwner, type CommitChange } from '@variance-authority/sense';
+import { extname } from 'node:path';
+import { CODE_EXTENSIONS, isTestPath, packageOwner, type CommitChange } from '@variance-authority/sense';
 
-const BOT = /\[bot\]|renovate|dependabot/iu;
+const BOT = /\[bot\]|[-_ ]bot$|^(renovate|dependabot|github-actions)$/iu;
 
-const TEST = /\.(test|spec|cy|e2e)\.[cm]?[jt]sx?$|_test\.(go|py)$|(^|\/)test_[^/]+\.py$|_spec\.rb$|Tests?\.(java|kt)$|(^|\/)(__tests__|tests?|spec|e2e|cypress|playwright|integration-tests?|test-e2e)\/.*\.(ts|tsx|js|jsx|mjs|py|go|rb|java|kt)$/iu;
-const SOURCE = /\.(ts|tsx|js|jsx|mjs|vue|svelte|py|go|rb|java|kt|rs|php)$/u;
-const NEITHER = /(^|\/)(fixtures?|__fixtures__|__snapshots__|__mocks__|snapshots|testdata|locales?|i18n|translations|dist|vendor|node_modules|generated|__generated__|migrations?)\/|\.(snap|d\.ts|lock|min\.js|gen\.go|pb\.go)$/iu;
+/** Code the index does not parse: a commit changes it all the same. */
+const SOURCE_EXTENSIONS = new Set([...CODE_EXTENSIONS, '.go', '.rb', '.php', '.vue', '.svelte', '.cs', '.c', '.cc', '.cpp', '.h', '.scala']);
+
+const NOT_WRITTEN = /(^|\/)(dist|vendor|node_modules|generated|__generated__)\//u;
 
 /** A count and what it is out of. */
 export interface Share {
@@ -28,22 +31,26 @@ export interface Share {
 
 /** The commits not counted, by the first reason that took each. */
 export interface LeftOut {
+  /** A root or a shallow clone's oldest commit: its diff is the whole tree. */
+  readonly noParent: number;
   readonly bot: number;
   readonly noSource: number;
+  /** Source only outside every package that holds source. */
+  readonly noPackage: number;
 }
 
 /** The figures, each over the commits it names. */
 export interface ContainmentCount {
   /** Commits read from the line. */
   readonly read: number;
-  /** Commits that changed source and were not left out. */
+  /** Commits that changed source in a package. */
   readonly counted: number;
   readonly leftOut: LeftOut;
-  /** Source in exactly one package, over the counted commits. */
+  /** Any file in exactly one package, over the counted commits. */
   readonly onePackage: Share;
   /** A test in another package that holds source, over the counted commits. */
   readonly testInAnotherPackage: Share;
-  /** A test outside the commit's packages and outside every package with source, over the counted commits. */
+  /** A test outside every package, over the counted commits. */
   readonly testOnlyTree: Share;
   /** A test in another package, over the commits that edited their own tests. */
   readonly anotherGivenOwnTests: Share;
@@ -51,45 +58,43 @@ export interface ContainmentCount {
   readonly anotherGivenNoOwnTests: Share;
 }
 
-type Reason = keyof LeftOut;
-
-function isTest(file: string): boolean {
-  return TEST.test(file) && !NEITHER.test(file);
-}
-
-function isSource(file: string): boolean {
-  return SOURCE.test(file) && !TEST.test(file) && !NEITHER.test(file);
-}
-
-function reasonToLeaveOut(commit: CommitChange): Reason | undefined {
-  if (BOT.test(commit.author)) return 'bot';
-  return commit.files.some(isSource) ? undefined : 'noSource';
-}
-
-/** Each commit's own packages, and where its tests fell, once the window's packages with source are known. */
+/** One counted commit: the packages it changed source in, every package it touched, and where its tests fell. */
 interface Touched {
   readonly own: ReadonlySet<string>;
+  readonly packages: ReadonlySet<string>;
   readonly tests: ReadonlySet<string>;
 }
 
-/** Counts `commits`, with each path's package taken from `packages`. */
-export function countContainment(commits: readonly CommitChange[], packages: readonly string[]): ContainmentCount {
+/** Counts `commits`, with each path's package taken from `packages`, and `tracked` saying which hold source. */
+export function countContainment(commits: readonly CommitChange[], tracked: readonly string[], packages: readonly string[]): ContainmentCount {
   const ownerOf = packageOwner(packages);
-  const leftOut = { bot: 0, noSource: 0 };
+  const inside = (file: string): string => {
+    const owner = ownerOf(file);
+    return owner === '.' ? file : file.slice(owner.length + 1);
+  };
+  const isTest = (file: string): boolean => isTestPath(inside(file));
+  const isSource = (file: string): boolean => SOURCE_EXTENSIONS.has(extname(file)) && !isTest(file) && !NOT_WRITTEN.test(file);
+  const holdingSource = new Set(tracked.filter(isSource).map(ownerOf));
+  holdingSource.delete('.');
+  const isPackage = (owner: string): boolean => holdingSource.has(owner);
+
+  const leftOut = { noParent: 0, bot: 0, noSource: 0, noPackage: 0 };
   const touched: Touched[] = [];
   for (const commit of commits) {
-    const reason = reasonToLeaveOut(commit);
-    if (reason !== undefined) {
-      leftOut[reason] += 1;
-      continue;
+    const source = commit.files.filter(isSource);
+    const own = new Set(source.map(ownerOf).filter(isPackage));
+    if (!commit.compared) leftOut.noParent += 1;
+    else if (BOT.test(commit.author)) leftOut.bot += 1;
+    else if (source.length === 0) leftOut.noSource += 1;
+    else if (own.size === 0) leftOut.noPackage += 1;
+    else {
+      touched.push({
+        own,
+        packages: new Set(commit.files.map(ownerOf).filter(isPackage)),
+        tests: new Set(commit.files.filter(isTest).map(ownerOf)),
+      });
     }
-    touched.push({
-      own: new Set(commit.files.filter(isSource).map(ownerOf)),
-      tests: new Set(commit.files.filter(isTest).map(ownerOf)),
-    });
   }
-  const withSource = new Set(touched.flatMap((commit) => [...commit.own]));
-  const isPackage = (owner: string): boolean => owner !== '.' && withSource.has(owner);
   const foreign = (commit: Touched): readonly string[] => [...commit.tests].filter((owner) => !commit.own.has(owner));
   const inAnother = (commit: Touched): boolean => foreign(commit).some(isPackage);
   const inTree = (commit: Touched): boolean => foreign(commit).some((owner) => !isPackage(owner));
@@ -99,7 +104,7 @@ export function countContainment(commits: readonly CommitChange[], packages: rea
     read: commits.length,
     counted: touched.length,
     leftOut,
-    onePackage: share(touched, (commit) => commit.own.size === 1),
+    onePackage: share(touched, (commit) => commit.packages.size === 1),
     testInAnotherPackage: share(touched, inAnother),
     testOnlyTree: share(touched, inTree),
     anotherGivenOwnTests: share(touched.filter(ownTests), inAnother),

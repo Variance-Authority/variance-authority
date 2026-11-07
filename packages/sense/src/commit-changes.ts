@@ -5,7 +5,9 @@
  * changed together reads the log it asks about. A merge is one change, compared
  * with its first parent, and the commits it brought in are not read again: the
  * line is what landed, in the order it landed. Renames are not followed, so a
- * moved file is two paths, each in the place a reader would look.
+ * moved file is two paths, each in the place a reader would look. Paths are
+ * spelled from `root`, which may stand below the top of the repository, and
+ * what a commit touched outside it is not read.
  */
 
 // compass: variance-authority.reach.relations
@@ -16,6 +18,8 @@ import { execFileSync } from 'node:child_process';
 export interface CommitChange {
   readonly commit: string;
   readonly author: string;
+  /** Whether it has a parent. A root, or a shallow clone's oldest, diffs as the whole tree. */
+  readonly compared: boolean;
   readonly files: readonly string[];
 }
 
@@ -36,11 +40,12 @@ function git(root: string, args: readonly string[]): string {
 function commitsIn(log: string): readonly CommitChange[] {
   const fields = log.split(FIELD).slice(1);
   const commits: CommitChange[] = [];
-  for (let at = 0; at + 2 < fields.length; at += 3) {
-    const [, ...paths] = fields[at + 2]!.split('\0');
+  for (let at = 0; at + 3 < fields.length; at += 4) {
+    const [, ...paths] = fields[at + 3]!.split('\0');
     commits.push({
       commit: fields[at]!,
       author: fields[at + 1]!,
+      compared: fields[at + 2] !== '',
       files: paths.map((path) => path.replace(/^\n/u, '')).filter((path) => path !== ''),
     });
   }
@@ -54,8 +59,13 @@ function commitsIn(log: string): readonly CommitChange[] {
  */
 export function firstParentChanges(root: string, after: string): CommitChanges {
   const log = git(root, [
-    'log', '-z', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only',
-    `--format=${FIELD}%H${FIELD}%an${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD',
+    'log', '-z', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only', '--relative',
+    `--format=${FIELD}%H${FIELD}%an${FIELD}%P${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD',
   ]);
   return { commits: commitsIn(log), shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
+}
+
+/** The files git tracks under `root`, spelled from it. */
+export function trackedFiles(root: string): readonly string[] {
+  return git(root, ['ls-files', '-z']).split('\0').filter((path) => path !== '');
 }

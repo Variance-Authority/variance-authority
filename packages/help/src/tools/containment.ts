@@ -14,12 +14,14 @@ import { readFileSync } from 'node:fs';
 import { dirname, relative, sep } from 'node:path';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { members } from '@variance-authority/package';
-import { firstParentChanges, type CommitChanges } from '@variance-authority/sense';
+import { firstParentChanges, trackedFiles, type CommitChanges } from '@variance-authority/sense';
 import { operatorError } from '../operator.js';
 import { countContainment, type ContainmentCount, type Share } from './containment-count.js';
 
 /** The figures and what they were read over. */
 export interface Containment extends ContainmentCount {
+  /** What every figure is: commits touching things together, never a cause. */
+  readonly reading: 'co-occurrence';
   readonly after: string;
   /** How many packages the workspace lists now. */
   readonly packages: number;
@@ -45,9 +47,9 @@ function packageDirectories(root: string): readonly string[] {
   return manifests.map((manifest) => relative(root, dirname(manifest)).split(sep).join('/')).filter((dir) => dir !== '');
 }
 
-function changesOf(root: string, after: string): CommitChanges {
+function changesOf(root: string, after: string): CommitChanges & { readonly tracked: readonly string[] } {
   try {
-    return firstParentChanges(root, after);
+    return { ...firstParentChanges(root, after), tracked: trackedFiles(root) };
   } catch (error) {
     throw operatorError(`\`git log\` could not read this checkout's history: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
@@ -57,9 +59,9 @@ function changesOf(root: string, after: string): CommitChanges {
 export function containmentOf(root: string, input: Readonly<Record<string, unknown>>): Containment {
   const said = input['after'];
   const after = typeof said === 'string' ? dateOf(said) : yearBefore(new Date());
-  const { commits, shallow } = changesOf(root, after);
+  const { commits, shallow, tracked } = changesOf(root, after);
   const packages = packageDirectories(root);
-  return { after, packages: packages.length, shallow, ...countContainment(commits, packages) };
+  return { reading: 'co-occurrence', after, packages: packages.length, shallow, ...countContainment(commits, tracked, packages) };
 }
 
 function shared({ count, of }: Share): string {
@@ -69,7 +71,10 @@ function shared({ count, of }: Share): string {
 /** The figures as a person reads them, with what each counted beside it. */
 export function formatContainment(figures: Containment): string {
   const { leftOut } = figures;
-  const left = leftOut.bot + leftOut.noSource;
+  const left = leftOut.noParent + leftOut.bot + leftOut.noSource + leftOut.noPackage;
+  if (figures.packages === 0) {
+    return `The workspace here lists no package, so there is no boundary to count across. ${String(figures.read)} first-parent commits read since ${figures.after}.`;
+  }
   return [
     `${String(figures.counted)} commits since ${figures.after} changed source, of ${String(figures.read)} first-parent commits read from HEAD.`,
     'These count what commits touched together, not what caused it.',
@@ -82,11 +87,13 @@ export function formatContainment(figures: Containment): string {
     `edited a test outside the packages they changed, in a test-only tree: ${shared(figures.testOnlyTree)}`,
     '',
     `Left out, ${String(left)} of ${String(figures.read)}:`,
+    `  no parent to compare with: ${String(leftOut.noParent)}`,
     `  by a bot: ${String(leftOut.bot)}`,
     `  touched no source: ${String(leftOut.noSource)}`,
+    `  touched source in no package: ${String(leftOut.noPackage)}`,
     '',
-    `A merge is one commit, compared with its first parent. Packages are the ${String(figures.packages)} the workspace lists now, so a path in a removed package counts as outside them.`,
-    'A test is named as a test or sits in a test directory, and fixtures, snapshots, generated files and vendored code are neither test nor source.',
+    `A merge is one commit, compared with its first parent. Packages are the ${String(figures.packages)} the workspace lists now, and one holding no source is a test-only tree.`,
+    'A test is named as a test or sits with the tests, fixtures and snapshots included. Generated and vendored code is neither test nor source.',
   ].join('\n');
 }
 

@@ -54,6 +54,7 @@
 
 // compass: variance-authority.reach
 
+import { isTestNamed } from '../test-path.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ImportDiff, Node, Taint } from './index.js';
 
@@ -89,7 +90,7 @@ export function mockTaint(options: MockTaintOptions = {}): Taint {
 /** Where a mock is expected to be written. */
 export function isTestLike(file: string): boolean {
   return (
-    /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(file) ||
+    isTestNamed(file) ||
     /(^|\/)(setup|setupTests|test-setup|vitest\.setup|jest\.setup)\.[cm]?[jt]sx?$/.test(file) ||
     /(^|\/)\.storybook\//.test(file)
   );

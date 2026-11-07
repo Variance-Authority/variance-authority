@@ -87,8 +87,10 @@ export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
 
-export { firstParentChanges, type CommitChange, type CommitChanges } from './commit-changes.js';
+export { firstParentChanges, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
+export { CODE_EXTENSIONS } from './native-index-graph.js';
 export { packageOwner } from './package-owner.js';
+export { isTestPath } from './test-path.js';
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';
 
 export {

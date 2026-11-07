@@ -83,12 +83,15 @@ How far the commits of a window reached across package boundaries, counted from
 `git log` over the first parents of `HEAD`. Each line is a count over its own
 denominator: the commits that touched one package, the commits that edited a
 test in another package, the same among commits that did and did not edit their
-own tests, and the commits that edited a test in a test-only tree. Commits that
-changed no source or came from a bot are left out, and counted by reason.
+own tests, and the commits that edited a test in a test-only tree. A commit with
+no parent, from a bot, or with no source in a package is left out, and counted
+by reason.
 `--format json` holds the same figures, with no field that merges them.
 
 The figures say what commits touched together, not what caused it, and nothing
-selects on them. Packages are the ones the workspace lists now.
+selects on them. Packages are the ones the workspace lists now that hold source
+now, and one holding only tests is a test-only tree. With none listed there are
+no figures.
 
 ## `stack`
 
