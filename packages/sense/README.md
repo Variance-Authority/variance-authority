@@ -818,34 +818,37 @@ yours, and `--skipFilter` turns filters off. Either one turns the selection
 off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
-anything, so three things are yours to spell out:
+anything. It reads the preset's `transform`, merges it with yours as Jest does
+and wraps the result, so a preset such as `ts-jest` needs nothing copied, and a
+`transform` you name keeps its patterns beside the preset's. Presets and
+transformers load from an absolute `rootDir`, or from `root` when the object
+names none. Jest reads a relative `rootDir` from the config file, whose directory
+the wrap is never told, so the wrap looks in `root`, or else in that path from
+the working directory. With the config file in another folder, write `rootDir`
+as an absolute path, and a preset such as `ts-jest` still needs nothing copied.
 
-- **The preset's transform.** A configuration with no `transform` of its own
-  gets Jest's default, `babel-jest`, wrapped. Jest then merges the preset's
-  `transform` in after it, and the first pattern that matches wins, so your
-  preset's transformer never runs. Copy the preset's `transform` into the object
-  you wrap. Its setup files and environment still run, and are read from the
-  configuration Jest resolved, so a local preset's files are preconditions
-  without being named.
-- **A transformer's path.** Names resolve from the checkout root, and Jest
-  resolves them from the project's `rootDir`. A transformer installed only under
-  a nested package needs `require.resolve` from there.
-- **An async configuration.** Await it, then wrap the object it returns.
+The wrap stops at config load, naming the preset, in four cases. Under a relative
+`rootDir`, a preset spelled as a path, starting with `.` or `<rootDir>`, stops it
+whether it is there or not, because the file there may not be the one Jest runs,
+and the fix is an absolute `rootDir` even when the two are the same folder. A bare
+name it does not find there stops it because Jest may find that preset from the
+config file. A preset Jest awaits, such as one with top-level await or one that
+exports a promise, stops it because the wrap is synchronous. Any preset stops it
+when `jest-resolve` is not reachable from that directory, even one with no
+`transform`, because the wrap finds a preset through `jest-resolve`. A missing
+preset under an absolute `rootDir`, or under none, is Jest's to report.
+
+A preset's setup files and environment are read from the configuration Jest
+resolved, so a local preset's files are preconditions without being named. An
+async configuration is yours to await: wrap the object it returns.
 
 ```js
 // jest.config.mjs
-import { createRequire } from 'node:module';
 import { withTestSelection } from '@variance-authority/sense/jest';
 import buildConfig from './jest.base.mjs';
 
-const require = createRequire(import.meta.url);
-const preset = require('@acme/jest-preset/jest-preset.js');
-
 export default async () =>
-  withTestSelection(
-    { ...(await buildConfig()), transform: preset.transform },
-    { preconditions: ['jest.config.mjs', 'jest.base.mjs'] },
-  );
+  withTestSelection(await buildConfig(), { preconditions: ['jest.config.mjs', 'jest.base.mjs'] });
 ```
 
 Jest transforms inside the workers it forks and keeps the transformed text on
