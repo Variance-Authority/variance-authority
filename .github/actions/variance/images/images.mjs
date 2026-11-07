@@ -31,12 +31,20 @@ function fail(message) {
 }
 
 const { GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_TOKEN } = process.env;
-const prefix = (process.env.VARIANCE_IMAGE_REF_PREFIX ?? '').replace(/\/+$/, '');
+const prefix = process.env.VARIANCE_IMAGE_REF_PREFIX ?? '';
 if (!prefix.startsWith('refs/')) fail(`image-ref-prefix must name refs, such as refs/variance/project, not "${prefix}"`);
 
-const pull = JSON.parse(readFileSync(GITHUB_EVENT_PATH, 'utf8')).pull_request;
+const event = JSON.parse(readFileSync(GITHUB_EVENT_PATH, 'utf8'));
+const pull = event.pull_request;
 if (pull === undefined) fail('runs on a pull_request event, and this one carries no pull request');
 const branch = pull.head.ref;
+
+// A job that also runs while the pull request is open would delete what the
+// action has just pushed for its comment.
+if (event.action !== 'closed') {
+  note(`${branch}'s pull request is not closed (${event.action}), so its images stay.`);
+  process.exit(0);
+}
 
 if (pull.head.repo?.full_name !== GITHUB_REPOSITORY) {
   note(`${branch} is a fork's branch: its run could push no images here, so there is nothing to delete.`);
@@ -47,15 +55,26 @@ const remote = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git`;
 const auth = GITHUB_TOKEN ? Buffer.from(`x-access-token:${GITHUB_TOKEN}`).toString('base64') : '';
 if (auth) console.log(`::add-mask::${auth}`);
 
+// Git runs from an empty repository of its own: `push` needs one to push from,
+// and a checkout's saved credentials never stand in for the token.
+const scratch = mkdtempSync(join(tmpdir(), 'variance-images-'));
+process.on('exit', () => rmSync(scratch, { recursive: true, force: true }));
+
 /** Git against the pull request's repository, with the token. A failure fails the step, so a listing nobody read never reads as no images. */
-function git(args, env = {}) {
+function git(args) {
   const header = auth ? ['-c', `http.extraheader=AUTHORIZATION: basic ${auth}`] : [];
   try {
-    return execFileSync('git', [...header, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, ...env } });
+    return execFileSync('git', [...header, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+      env: { ...process.env, GIT_DIR: scratch },
+    });
   } catch {
     fail(`git ${args[0]} on ${GITHUB_REPOSITORY} failed; the images are where they were.`);
   }
 }
+
+git(['init', '-q', '--bare', scratch]);
 
 // The pattern is a glob matched against a ref's tail, so it only narrows the
 // listing, and the exact match is read below.
@@ -76,12 +95,5 @@ if (refs.length === 0) {
   process.exit(0);
 }
 
-// `push` needs a repository to push from, and an empty one is enough to delete.
-const scratch = mkdtempSync(join(tmpdir(), 'variance-images-'));
-try {
-  git(['init', '-q', '--bare', scratch]);
-  git(['push', '-q', remote, '--delete', ...refs], { GIT_DIR: scratch });
-} finally {
-  rmSync(scratch, { recursive: true, force: true });
-}
+git(['push', '-q', remote, '--delete', ...refs]);
 for (const ref of refs) note(`deleted ${ref}`);

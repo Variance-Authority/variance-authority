@@ -53,11 +53,12 @@ async function remote(refs: readonly string[]): Promise<{ server: string; at: st
 const refsOn = (at: string): string[] =>
   git(['--git-dir', join(at, `${REPOSITORY}.git`), 'for-each-ref', '--format=%(refname)']).split('\n').filter(Boolean).sort();
 
-/** The action's one step, its `${{ inputs.* }}` read from `inputs`, run on a `closed` event from `head`. */
+/** The action's one step, its `${{ inputs.* }}` read from `inputs`, run on a pull request event from `head`, `closed` unless `event` says otherwise. */
 async function closed(
   server: { server: string; at: string },
   head: { ref: string; repo: string | null },
   inputs: Readonly<Record<string, string>> = { 'image-ref-prefix': PREFIX, 'github-token': 'a-token' },
+  event = 'closed',
 ): Promise<{ status: number; printed: string }> {
   const action = parse(readFileSync(join(FOLDER, 'action.yml'), 'utf8')) as { runs: { steps: readonly Step[] } };
   const [step] = action.runs.steps;
@@ -68,10 +69,10 @@ async function closed(
       value.replace(/\$\{\{\s*inputs\.([\w-]+)\s*\}\}/g, (_, input: string) => inputs[input] ?? ''),
     ]),
   );
-  const event = join(server.at, 'event.json');
+  const path = join(server.at, 'event.json');
   await writeFile(
-    event,
-    JSON.stringify({ action: 'closed', pull_request: { head: { ref: head.ref, repo: head.repo === null ? null : { full_name: head.repo } } } }),
+    path,
+    JSON.stringify({ action: event, pull_request: { head: { ref: head.ref, repo: head.repo === null ? null : { full_name: head.repo } } } }),
   );
   try {
     const printed = execFileSync('/bin/bash', ['-c', step.run], {
@@ -80,7 +81,7 @@ async function closed(
         ...env,
         GIT_CONFIG_GLOBAL: '/dev/null',
         GITHUB_ACTION_PATH: FOLDER,
-        GITHUB_EVENT_PATH: event,
+        GITHUB_EVENT_PATH: path,
         GITHUB_REPOSITORY: REPOSITORY,
         GITHUB_SERVER_URL: server.server,
       },
@@ -142,6 +143,16 @@ describe('Variance-Authority/action/images', () => {
       expect(printed).toMatch(/fork/);
       expect(refsOn(server.at)).toEqual([`${PREFIX}/a/images/feature`]);
     }
+  });
+
+  it('deletes nothing on a pull request that is still open, where the action has just pushed', async () => {
+    const server = await remote([`${PREFIX}/a/images/feature`]);
+
+    const { status, printed } = await closed(server, { ref: 'feature', repo: REPOSITORY }, undefined, 'synchronize');
+
+    expect(status).toBe(0);
+    expect(printed).toMatch(/not closed/);
+    expect(refsOn(server.at)).toEqual([`${PREFIX}/a/images/feature`]);
   });
 
   it('fails on a listing it could not read, rather than reading it as no images', async () => {

@@ -832,7 +832,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.base.sha }} # the base's action, not the pull request's
           sparse-checkout: .github/actions/variance
+          persist-credentials: false
       - uses: ./.github/actions/variance/images
         with:
           image-ref-prefix: ${{ env.VARIANCE_IMAGES }}

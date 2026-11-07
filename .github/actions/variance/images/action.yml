@@ -3,7 +3,8 @@ description: >-
   Deletes the images the variance action pushed for a pull request, once it
   closes, merged or not: every project's
   `<image-ref-prefix>/<project>/images/<head branch>`, and no other branch's.
-  Runs on `pull_request` `closed`, and never checks out the pull request's code.
+  Runs on `pull_request` `closed`, deletes nothing on any other event, and
+  never checks out the pull request's code.
   A fork's pull request is skipped with a line, since its run could push none.
 
 inputs:
