@@ -224,7 +224,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.
@@ -524,7 +524,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       options: --ipc=host
 
     steps:
@@ -564,6 +564,37 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+
+      # What the site's job read and wrote, recorded under `site-job` from the
+      # build to the last photograph, so selection can answer by what the job
+      # touched rather than by the list in `tools/site-reach.mjs`. Off a pull
+      # request only: a record is what `main` ran, and a pull request reads it.
+      #
+      # The recorder is `variance` itself, which the job also builds, so the
+      # first build above makes the recorder, a copy keeps it out of the way,
+      # and the build runs again under it: a step that finds its output current
+      # reads nothing, and leaves the record short. So the outputs go first, the
+      # scanner's too, because Cargo reads the Rust only when it has to compile
+      # it. `node_modules` stays, so the install step reads what a warm install
+      # reads. `yarn start` stays outside: the recorder waits for what a
+      # command leaves running, and what the server reads is `site/wrangler.jsonc`,
+      # which `site-job` names under `before` for that reason. The photographing
+      # step exits 1 on changed pixels, which is a finished run, so it says so;
+      # a hole fails the verdict and no record is uploaded.
+      - name: build again, recorded
+        id: job
+        if: matrix.project == 'site' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a . "$RUNNER_TEMP/recorder"
+          yarn clean
+          rm -f packages/sense/npm/*/scan.node packages/sense/npm/*/scan.node.tree
+          rm -rf packages/sense/native/target
+          recorder="node $RUNNER_TEMP/recorder/packages/cli/dist/bin.js job --suite site-job"
+          $recorder -- yarn install --immutable
+          $recorder -- yarn build
+          echo "wrap=$recorder --complete-on 1 --" >> "$GITHUB_OUTPUT"
 
       # Photographing the site takes minutes, and some pull requests cannot
       # move a pixel of it. `tools/site-reach.mjs` reads the whole change
@@ -610,11 +641,13 @@ jobs:
         shell: bash
         env:
           WRANGLER_SEND_METRICS: 'false'
+          # Empty where nothing is recorded, and then the commands run as they are.
+          WRAP: ${{ steps.job.outputs.wrap }}
         run: |
           set -euo pipefail
           cd site
-          yarn install --immutable
-          yarn build --mode unminified
+          $WRAP yarn install --immutable
+          $WRAP yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
             if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
@@ -634,7 +667,7 @@ jobs:
         with:
           config: ${{ matrix.config }}
           profile: chromium
-          command: node packages/cli/dist/bin.js
+          command: ${{ steps.job.outputs.wrap }} node packages/cli/dist/bin.js
           comment: ${{ github.event_name == 'pull_request' }}
           # The docket from before the marker named a project is the case's:
           # these projects never commented then, and taking it would replace
@@ -667,6 +700,28 @@ jobs:
           path: |
             ${{ steps.variance.outputs.report }}
             ${{ steps.variance.outputs.images }}
+          include-hidden-files: true
+          if-no-files-found: warn
+
+      - name: find what the job recorded
+        id: record
+        if: steps.job.outcome == 'success'
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { appendFileSync } from "node:fs";
+            import { dirname } from "node:path";
+            import { testCoverageFile } from "@variance-authority/sense/test-selection";
+            appendFileSync(process.env.GITHUB_OUTPUT, `dir=${dirname(testCoverageFile(process.cwd(), { suite: "site-job" }))}\n`);
+          '
+
+      # An artifact until the record is carried: `carry: share` publishes a
+      # suite through a Vitest config this suite does not have.
+      - if: steps.record.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-job-record
+          path: ${{ steps.record.outputs.dir }}
           include-hidden-files: true
           if-no-files-found: warn
 
@@ -706,7 +761,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       options: --ipc=host
 
     steps:

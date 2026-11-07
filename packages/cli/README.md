@@ -167,6 +167,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
+variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
@@ -2453,6 +2454,54 @@ test in the run and is named on stderr. The whole reading happens in the native
 addon, so a stitched file with hundreds of millions of crossings is answered in
 milliseconds without expanding it in JavaScript.
 
+### `job`: record what a build read
+
+`variance job` runs a command and records the files it read and wrote, whatever
+language the command and its children are written in. The suite it records is
+one row, so `variance select --suite <name>` selects the whole job from that
+record: a changed file the job read selects it, and a file it only wrote does not.
+
+```json
+{ "suites": { "site-job": { "kind": "job", "relations": false } } }
+```
+
+```bash
+variance job --suite site-job -- yarn install --immutable
+variance job --suite site-job -- yarn build
+variance select --suite site-job
+```
+
+Every `variance job` at one commit adds to the same record, so a job of several
+commands is recorded by wrapping each. Only a suite of kind `job` can be recorded:
+anything else is refused before the command runs, because the row replaces the
+suite's record.
+
+A job is atomic: it runs whole, from nothing, or not at all. Skipping belongs
+before it or to `variance select`, never inside it, so a job keeps no cache of its
+own and no output from an earlier run. Recording the same commit twice then names
+the same files. A step that finds its output current reads nothing, and the record
+comes out short.
+
+The record is of file access, not file use. A file the job opened counts whether
+or not it changed the output, which runs a job too often and never too rarely. What
+it reads through something else is not seen: a tool asking `git`, `watchman` or
+`variance` for an answer opens their stores, not your files. Declare those files
+under `before`.
+
+It needs `strace`, so it records on Linux. Where `strace` is not installed the
+command still runs and its exit is the job's: a record from another commit stands,
+and one this job wrote at this commit is held incomplete. Where `strace` cannot
+trace the command, or a file it read differs from the commit, the record is held
+incomplete. A job with an
+incomplete record, or none, is selected. So is one whose command failed. A command
+that reports what it found by its exit names that exit with `--complete-on <exit>`:
+the record stays whole, and the exit is still the job's.
+
+Files outside the repository are not selected on, and a file the job has never
+read is not seen: a new page the build would pick up does not select it. Declare
+what the recorder cannot see under the suite's `before`: a server the job leaves
+running, or the workflow that starts it.
+
 ### `shards`: how many CI jobs a suite is worth
 
 A Vitest or Jest config wrapped by `withTestSelection` places the files of
@@ -3099,7 +3148,7 @@ The remaining top-level keys:
 | `concurrency` | how many subjects may be rendered and compared at once, split evenly across the worlds and rounded up, so at least one per world |
 | `workers` | how many browser worlds one run collects in; half the machine's logical cores when unset, never more than a `concurrency` you set and never more than there are files. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world, and the run warns when you set `workers`. Set `1` when the server under test cannot take concurrent pages. The report records the worlds it used in `workers` |
 | `intent` | the default `--intent` label |
-| `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e` or `visual`. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
+| `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e`, `visual`, or `job` for a build `variance job` records. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
 | `tiers` | line budgets, largest first, that `variance layers` places each package in by how much code it pulls in, and that a `maxTier` rule in a `.relations.json` names. Tier 0 is the first entry and has no limit. Read only from the file at the repository root; see [tiers](https://variance-authority.dev/docs/boundaries#tiers-say-how-much-code-a-package-pulls-in) |
 | `typescript.tsconfig` | which `tsconfig` decides where an import resolves: `"auto"`, the default, reads the config that governs each file; a path from the repository root reads that config and the projects it references; `false` reads none, so no `paths` and no `customConditions`. `variance doctor` names the configs in the repository that add conditions, map `paths` or set `baseUrl`, and suggests `false` only when none does. Read only from the file at the repository root |
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
