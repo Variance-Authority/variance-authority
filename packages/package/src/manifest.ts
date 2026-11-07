@@ -2,7 +2,7 @@ import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { type ImportTargets, declaresEntry, entrySubpaths, importTargets, isPublished } from './entry.js';
-import { members } from './members.js';
+import { declares, members } from './members.js';
 
 export { requested } from './exports.js';
 
@@ -405,6 +405,9 @@ function followed(dir: string, condition: unknown, custom: ReadonlySet<string>):
 export function readImportTargets(root: string): ImportTargets {
   return importTargets(members(resolve(root), read).map((path) => read(path)));
 }
+
+/** Whether the root at `root` declares workspaces: {@link declares}, which never throws. */
+export const declaresWorkspaces = (root: string): boolean => declares(resolve(root), read);
 
 /** What the manifests of a workspace say, from one read of each. */
 export interface WorkspaceManifests {
