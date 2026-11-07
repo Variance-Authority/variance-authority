@@ -208,7 +208,7 @@ parent, replaced by every run that finds a change. It is not a branch, so a
 clone does not fetch it and the branch list does not show it. The comment links
 the commit rather than the ref, so an image cache never shows a previous run's
 pictures. When the pull request closes, merged or not, a second job deletes
-every project's ref for the branch.
+every project's ref for the branch with `Variance-Authority/action/images`.
 
 That ref and the report's share lines below are why `variance.yml` asks for
 `contents: write`. Anyone who can read the repository can read the images. A

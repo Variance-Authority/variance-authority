@@ -214,3 +214,33 @@ it after that. `actions-cache` is the store this accepts into, so a git or LFS
 store leaves the input off. The box needs the docket written by a bot or an app:
 with a personal token as `github-token` the comment is a person's, the workflow
 skips the edit, and the box does nothing.
+
+## Deleting a pull request's images
+
+`image-ref-prefix: refs/variance/project` puts the leading change's before and
+after on the comment's first screen. The action pushes them to
+`refs/variance/project/<project>/images/<head branch>`, which needs
+`contents: write`, and they outlive the branch unless a job deletes them when the
+pull request closes, merged or not:
+
+```yaml
+name: variance images
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write # deleting the refs
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Variance-Authority/action/images@v1
+        with:
+          image-ref-prefix: refs/variance/project
+```
+
+It deletes every project's ref for that branch and no other branch's, so
+closing `feature` leaves `feature/x`'s images. A fork's pull request is skipped
+with a line: its run had a read-only token and pushed nothing.

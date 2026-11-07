@@ -3437,7 +3437,8 @@ image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as
 `images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
 `https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
-`image-ref-prefix` input publishes one.
+`image-ref-prefix` input publishes one, which `Variance-Authority/action/images`
+deletes when the pull request closes.
 
 ## Integration troubleshooting
 

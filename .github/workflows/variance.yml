@@ -821,56 +821,22 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
-  # The images go when their pull request does, merged or not: every project's
-  # ref for the branch, found by listing the prefix rather than by naming each
-  # project, so a job added above cannot strand its pictures. Nothing else
-  # removes them, and nothing here reads them afterwards: the comments' pictures
-  # stop loading, and the report pages in the run's artifacts still carry them.
-  #
-  # Also `refs/variance/images/<branch>`, the one ref a pull request had before
-  # the refs were named for a project. Not found is the answer for a pull
-  # request that never had a change to picture. A fork's is skipped: its run
-  # could not push one, and its token cannot delete one.
+  # The images go when their pull request does, merged or not, through the
+  # action an adopter installs: `Variance-Authority/action/images` deletes every
+  # project's ref for the branch and skips a fork's pull request with a line.
+  # Nothing here reads them afterwards: the comments' pictures stop loading, and
+  # the report pages in the run's artifacts still carry them.
   images-cleanup:
-    if: >-
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.action == 'closed'
     runs-on: ubuntu-24.04
     steps:
-      - name: delete the pull request's images
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VARIANCE_BRANCH: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          # `matching-refs/` takes the name without `refs/`. `variance carry`
-          # writes a project as one path segment, so what follows it has to be
-          # the branch exactly: `feature` must not take `feature/x`'s images.
-          # Listed into a variable first, so a listing that fails fails the job
-          # rather than reading as a branch with no pictures.
-          listed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/${VARIANCE_IMAGES#refs/}/" --jq '.[].ref')
-          # The ref a pull request pushed before refs were named for a project.
-          refs=("refs/variance/images/$VARIANCE_BRANCH")
-          while IFS= read -r ref; do
-            rest=${ref#"$VARIANCE_IMAGES/"}
-            if [ -n "$ref" ] && [ "${rest#*/}" = "images/$VARIANCE_BRANCH" ]; then refs+=("$ref"); fi
-          done <<< "$listed"
-
-          for ref in "${refs[@]}"; do
-            # `git/` and the full name make the API's `git/refs/<name>` path.
-            # The API decodes the path, and a project segment spells its bytes
-            # as `%XX`, so `%` is escaped first: the ref `a%2Eb` is asked for as
-            # `a%252Eb`, or the API would look for `a.b`. Then `#`, which a
-            # branch may hold and a URL reads as the start of a fragment.
-            path=${ref//\%/%25}
-            path=${path//#/%23}
-            if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/$path" --silent 2> err; then
-              echo "deleted $ref"
-            elif grep -qE 'HTTP (404|422)' err; then
-              echo "$ref was never pushed; nothing to delete"
-            else
-              cat err >&2
-              exit 1
-            fi
-          done
+      - uses: actions/checkout@v7
+        with:
+          # The default branch's action, not the pull request's, and not its
+          # base's, which predates the action for a pull request opened before it.
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github/actions/variance
+          persist-credentials: false
+      - uses: ./.github/actions/variance/images
+        with:
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
