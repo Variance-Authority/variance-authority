@@ -14,7 +14,7 @@
  *
  * export default defineConfig(withTestSelection({
  *   projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
- * }, { preconditions: ['playwright/fixtures.ts'] }));
+ * }, { preconditions: ['tsconfig.json'] }));
  * ```
  *
  * Every project is given the recording, because a project is a second run of

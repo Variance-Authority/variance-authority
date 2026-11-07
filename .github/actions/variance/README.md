@@ -9,6 +9,10 @@ action does the three things a command line cannot do for itself:
 - It accepts a change on a run a person asked for, such as one a label or a
   [tick](#accepting-with-a-tick) started.
 
+A project with only unit tests has nothing to observe, and
+[`Variance-Authority/action/review`](#reviewing-a-project-with-only-unit-tests)
+posts its coverage review instead.
+
 ```yaml
 permissions:
   contents: read # the checkout: a declared block sets the rest to none
@@ -38,6 +42,74 @@ live.
 Released from
 [Variance-Authority/variance-authority](https://github.com/Variance-Authority/variance-authority).
 MIT.
+
+## Reviewing a project with only unit tests
+
+`Variance-Authority/action/review` runs `variance review --coverage` after your
+tests and posts what it wrote as one comment of its own, updated in place on
+every push. The comment stays beside a docket and never replaces one. It needs
+no `config`: it reads the record your tests left, so `npm test` has to run under
+[the recorder](https://variance-authority.dev/docs/test-an-edit), for a suite the root `variance.config.json` declares with
+`"suites": { "unit": { "kind": "unit", "carry": "actions-cache" } }`.
+
+```yaml
+permissions:
+  contents: read # the checkout: a declared block sets the rest to none
+  pull-requests: write # the comment
+
+steps:
+  - uses: actions/checkout@v7
+    with:
+      fetch-depth: 0 # the review reads the change from where it starts
+  - run: npm ci
+  - id: carry
+    run: npx variance carry restore --format github >> "$GITHUB_OUTPUT"
+  - uses: actions/cache/restore@v6
+    with:
+      path: ${{ steps.carry.outputs.suite-unit-path }}
+      key: ${{ steps.carry.outputs.suite-unit-key }}
+      restore-keys: ${{ steps.carry.outputs.suite-unit-restore-keys }}
+  - id: take # sets the mainline's record aside before your tests write over it
+    run: npx variance carry take --format github >> "$GITHUB_OUTPUT"
+  - run: npm test
+  - if: ${{ !cancelled() }}
+    uses: Variance-Authority/action/review@v1
+    with:
+      suite: unit
+      against: ${{ steps.take.outputs.against-unit }}
+  - id: save
+    if: ${{ !cancelled() }}
+    run: npx variance carry save --format github >> "$GITHUB_OUTPUT"
+  - if: steps.save.outputs.suite-unit-key != ''
+    uses: actions/cache/save@v6
+    with:
+      path: ${{ steps.save.outputs.suite-unit-path }}
+      key: ${{ steps.save.outputs.suite-unit-key }}
+```
+
+The cache steps are what the comment compares with. `carry save` prints a key
+only on a push to a mainline, so the mainline's run saves the record and a pull
+request restores it.
+
+Coverage has two bases. `against` is compared with the suite `suite` names, and
+only that suite: without `suite` the coverage rows do not read it. Otherwise a suite
+declared with `"carry": "share"` is compared with the record its mainline
+published through [the share](https://variance-authority.dev/docs/sharing), and
+needs neither the cache steps nor `against`. Any other suite, and any suite
+before its mainline has a record, reads "No baseline available; change cannot be
+compared" on every comment.
+
+The review needs the commit the change starts from and a diff from it, so check
+out every commit: `fetch-depth: 0`, with `filter: tree:0` to leave the trees out.
+A clone that lacks that commit fails the step, and the CLI says what to fetch.
+With several suites declared, `suite` is required too. On a push there is no pull request, so the review reaches the step summary alone, and a repository's first commit has no start to review from.
+
+A review finds nothing a person must approve, so it has no verdict and no
+outputs. The step fails when no review could be written, and when the comment
+could not be posted: a 500 from GitHub fails it. A token that cannot write only
+warns, and the review is still in the step summary. A failed review posts
+nothing, so the comment from the last good push stays in place. A project with a
+surface as well runs both actions.
 
 ## Accepting with a tick
 

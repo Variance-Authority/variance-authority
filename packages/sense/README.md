@@ -177,9 +177,9 @@ missing snapshot, a snapshot from another machine, and a first run all leave
 - `unread` — changed paths the record has no row or declaration for, and the
   graph has no node for when you pass `relations`: a README, a script the tests
   spawn, a file outside the directories you scanned. It is a report, not a
-  reason to run more. A suite that depends on such a file declares it as a
-  precondition, and from then on a change to it selects every test it governs
-  and the path leaves `unread`. Print it so the operator can see what nothing
+  reason to run more. A module that reads such a file names it by a
+  `/// <depends>`, and with `relations` a change to it selects the tests that
+  load that module and the path leaves `unread`. Print it so the operator can see what nothing
   recorded.
 - `stale` — modules whose text on disk no longer matches what their rows were
   recorded over. A report rather than work: a stale module is already charged
@@ -381,8 +381,9 @@ A changed file selects by how the snapshot records it.
 - **A test file** selects itself: nothing covers a test, so its own edit is the
   only thing that can run it.
 - **A precondition** selects every test it governs, which is what declaring one
-  is for. Declare a fixture the tests read with `fs`, or a script they spawn —
-  anything an import graph cannot see.
+  is for. A `preconditions` entry governs every test of the run, so declare what
+  every test rests on, such as compiler settings. A fixture a test reads with
+  `fs` goes in the module that reads it as `/// <depends path="…" />`.
 - **A module with probes and no crossings** answers: the build read it and
   nobody covered it.
 - **A module with no row at all** selects nothing from the record: nothing
@@ -465,7 +466,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, except for a build whose sibling map leads to exactly one source: it receives that source's path first, and the module's own only if it refuses the source ([below](#a-library-loaded-from-its-build)) |
 | `unprobed` | none | product source a probe cannot sit in, such as a module whose functions you hand to `page.evaluate`, where the first probe throws. It is asked under the same names as `include`, and wins over it; the module runs unprobed with a mark at the end of its text, and a change to it selects every test that loaded it. A module you build into a bundle and inject into a page is not loaded by any test, so no mark reaches it: name the bundle's entry in the [`before`](https://variance-authority.dev/docs/changes-before-and-beyond#how-a-change-before-reach-is-declared) of the suite that injects it |
-| `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
+| `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings. A change to one runs every test the run records, so a fixture a test reads goes in the module that reads it as `/// <depends path="…" />` instead |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them. `'loads'` records which files each test file loaded and nothing inside them: no module is probed, each one runs with one line added after its own text, and a change to a file selects every test file that loaded it. A record made so has no cases, so `continuations` and stories do not apply to it ([below](#record-only-what-each-test-file-loaded)). Which `precision` each mode answers, and what each costs: [record as finely as you select](https://variance-authority.dev/docs/selecting#record-as-finely-as-you-select) |
 | `placement` | `'after-transforms'` | `'before-transforms'` places the probes in the file as read, ahead of your transforms, for a run whose transforms only strip types or JSX ([below](#place-the-probes-ahead-of-your-transforms)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
@@ -818,34 +819,37 @@ yours, and `--skipFilter` turns filters off. Either one turns the selection
 off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
-anything, so three things are yours to spell out:
+anything. It reads the preset's `transform`, merges it with yours as Jest does
+and wraps the result, so a preset such as `ts-jest` needs nothing copied, and a
+`transform` you name keeps its patterns beside the preset's. Presets and
+transformers load from an absolute `rootDir`, or from `root` when the object
+names none. Jest reads a relative `rootDir` from the config file, whose directory
+the wrap is never told, so the wrap looks in `root`, or else in that path from
+the working directory. With the config file in another folder, write `rootDir`
+as an absolute path, and a preset such as `ts-jest` still needs nothing copied.
 
-- **The preset's transform.** A configuration with no `transform` of its own
-  gets Jest's default, `babel-jest`, wrapped. Jest then merges the preset's
-  `transform` in after it, and the first pattern that matches wins, so your
-  preset's transformer never runs. Copy the preset's `transform` into the object
-  you wrap. Its setup files and environment still run, and are read from the
-  configuration Jest resolved, so a local preset's files are preconditions
-  without being named.
-- **A transformer's path.** Names resolve from the checkout root, and Jest
-  resolves them from the project's `rootDir`. A transformer installed only under
-  a nested package needs `require.resolve` from there.
-- **An async configuration.** Await it, then wrap the object it returns.
+The wrap stops at config load, naming the preset, in four cases. Under a relative
+`rootDir`, a preset spelled as a path, starting with `.` or `<rootDir>`, stops it
+whether it is there or not, because the file there may not be the one Jest runs,
+and the fix is an absolute `rootDir` even when the two are the same folder. A bare
+name it does not find there stops it because Jest may find that preset from the
+config file. A preset Jest awaits, such as one with top-level await or one that
+exports a promise, stops it because the wrap is synchronous. Any preset stops it
+when `jest-resolve` is not reachable from that directory, even one with no
+`transform`, because the wrap finds a preset through `jest-resolve`. A missing
+preset under an absolute `rootDir`, or under none, is Jest's to report.
+
+A preset's setup files and environment are read from the configuration Jest
+resolved, so a local preset's files are preconditions without being named. An
+async configuration is yours to await: wrap the object it returns.
 
 ```js
 // jest.config.mjs
-import { createRequire } from 'node:module';
 import { withTestSelection } from '@variance-authority/sense/jest';
 import buildConfig from './jest.base.mjs';
 
-const require = createRequire(import.meta.url);
-const preset = require('@acme/jest-preset/jest-preset.js');
-
 export default async () =>
-  withTestSelection(
-    { ...(await buildConfig()), transform: preset.transform },
-    { preconditions: ['jest.config.mjs', 'jest.base.mjs'] },
-  );
+  withTestSelection(await buildConfig(), { preconditions: ['jest.config.mjs', 'jest.base.mjs'] });
 ```
 
 Jest transforms inside the workers it forks and keeps the transformed text on

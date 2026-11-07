@@ -61,11 +61,13 @@ Some of them already ignore edits a test cannot observe. pytest-testmon
 compares syntax trees, so a comment or whitespace change selects nothing.
 Teamscale documents the same for comments, whitespace and renames.
 
-The selectors built into your tools work from the import graph instead:
-`jest --changedSince` and `vitest --changed` decide by file, and `nx affected`
-and `turbo --affected` decide by project. Google's TAP and Meta's predictive
-test selection both considered per-test coverage for their monorepos and
-decided against it. The [TAP
+The selectors built into your tools keep nothing below the file:
+`jest --changedSince` and `vitest --changed` walk the import graph and decide
+by file, and `nx affected` and `turbo --affected` decide by project or task.
+Nx's [Ultracache](https://nx.dev/docs/features/ci-features/remote-cache#ultracache-and-affected)
+records the files a task read, and `nx affected` selects from them in CI.
+Google's TAP and Meta's predictive test selection both considered per-test
+coverage for their monorepos and decided against it. The [TAP
 paper](https://huang.isis.vanderbilt.edu/cs8395/paper/google-testing-icse-seip-17.pdf)
 names the overhead of instrumentation and how quickly churn makes a coverage
 report obsolete. The [Meta paper](https://arxiv.org/abs/1810.05286) calls
@@ -276,7 +278,9 @@ two ways. Ekstazi compares a class by a checksum that leaves out debug
 information, so an edit to a comment selects nothing; under `loads` any change
 to a file's text selects every test file that loaded it. Ekstazi also records
 the resource files a test opens, where `loads` sees only what the run transforms; a file
-read with `fs` is a [precondition](execution-record.md) you declare.
+read with `fs` is one you name by a
+[`/// <depends>`](selecting.md#where-sourcedirs-starts-the-answer) in the module
+that reads it.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its

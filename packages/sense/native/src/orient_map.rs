@@ -27,7 +27,7 @@ use crate::resolve::Tsconfig;
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
-const FORMAT: u32 = 6;
+const FORMAT: u32 = 7;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Stored {
@@ -37,6 +37,8 @@ pub(crate) struct Stored {
     /// sha256 over the path and blob id of every manifest and `.gitattributes`
     /// git listed; absent when git listed nothing.
     listed: Option<String>,
+    /// Whether the root declared workspaces when the map was folded.
+    workspaces: bool,
     unmarked: bool,
     /// What the fold made; absent when there was nothing to fold, and
     /// `unmade` says why.
@@ -69,6 +71,7 @@ pub(crate) struct Placed {
 struct Kept {
     index: String,
     listed: Option<String>,
+    workspaces: bool,
     unmarked: bool,
     made: Option<Made>,
     unmade: Option<String>,
@@ -190,32 +193,34 @@ impl From<Made> for OrientMapMade {
 /// Fold the index at `index` into the code map and write it beside the index,
 /// with no scan's listing to carry: git lists the checkout for the map, and
 /// the result says so. `scanned` is a scan that ran and could not list with
-/// git, so none is asked for. `tsconfig` is the config the scan that built the
+/// git, so none is asked for. `workspaces` is whether the root declares workspaces,
+/// which keeps it off the map. `tsconfig` is the config the scan that built the
 /// index resolved under. `undefined` when there is no index.
 #[napi(ts_return_type = "Promise<OrientMapPrepared | null>")]
 pub fn prepare_orient_map(
     root: String,
     index: String,
     scanned: Option<bool>,
+    workspaces: bool,
     tsconfig: Option<napi::Either<String, bool>>,
 ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
     let tsconfig = Tsconfig::from_js(tsconfig);
-    off_thread(move || uncarried(&root, &index, scanned, tsconfig))
+    off_thread(move || uncarried(&root, &index, scanned, workspaces, tsconfig))
 }
 
 /// `prepare_orient_map`, on the calling thread.
-pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
+pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
     if scanned == Some(true) {
-        return prepare(root, index, None, false, tsconfig);
+        return prepare(root, index, None, false, workspaces, tsconfig);
     }
     let snapshot = crate::git::snapshot(root);
-    prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), tsconfig)
+    prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), workspaces, tsconfig)
 }
 
 /// `GitTree::prepare_orient_map`, on the calling thread.
 #[cfg(test)]
 pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
-    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false, Tsconfig::Auto)
+    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false, false, Tsconfig::Auto)
 }
 
 #[napi]
@@ -224,20 +229,22 @@ impl GitTree {
     /// the checkout — the one the scan that published the index took — rather
     /// than asking git again. `undefined` when there is no index.
     /// The listing is copied, because the fold runs off the JavaScript thread
-    /// while this tree stays JavaScript's. `tsconfig` is the config the scan
+    /// while this tree stays JavaScript's. `workspaces` is whether the root
+    /// declares workspaces. `tsconfig` is the config the scan
     /// resolved under.
     #[napi(ts_return_type = "Promise<OrientMapPrepared | null>")]
     pub fn prepare_orient_map(
         &self,
         root: String,
         index: String,
+        workspaces: bool,
         tsconfig: Option<napi::Either<String, bool>>,
     ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
         let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
         let tsconfig = Tsconfig::from_js(tsconfig);
         off_thread(move || {
             let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed };
-            prepare(&root, &index, Some(listed), false, tsconfig)
+            prepare(&root, &index, Some(listed), false, workspaces, tsconfig)
         })
     }
 }
@@ -247,7 +254,7 @@ impl GitTree {
 /// so a question is answered with the reason rather than with a map left from
 /// before. A kept map folded from this index and these manifests is kept as
 /// it is, so an index with nothing changed costs no fold.
-fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
+fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
     let path = map_path(index);
@@ -257,7 +264,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, ts
     let listed = snapshot.as_ref().and_then(listing);
     if listed.is_some() {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
-        let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && crate::orient_map_shipped::kept(index, &digest));
+        let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && kept.workspaces == workspaces && crate::orient_map_shipped::kept(index, &digest));
         if let Some(kept) = kept {
             return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted }));
         }
@@ -289,10 +296,10 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, ts
                 .collect()
         })
     });
-    let stored = match fold(&read) {
-        Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, unmarked, made: Some(made), unmade: None, pages, placed },
+    let stored = match fold(&read, workspaces) {
+        Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, workspaces, unmarked, made: Some(made), unmade: None, pages, placed },
         Err(unmade) => {
-            Stored { format: FORMAT, index: digest, listed, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new(), placed: Vec::new() }
+            Stored { format: FORMAT, index: digest, listed, workspaces, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new(), placed: Vec::new() }
         }
     };
     let text = serde_json::to_vec(&stored).map_err(|error| fail(error.to_string()))?;
@@ -305,14 +312,14 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, ts
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.
-fn fold(read: &Read) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
+fn fold(read: &Read, workspaces: bool) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
     if read.records == 0 {
         return Err("the source index holds no file records");
     }
     if read.packages.is_empty() {
         return Err("no manifest names a package");
     }
-    let signals = signals(read);
+    let signals = signals(read, workspaces);
     if signals.packages.is_empty() {
         return Err("the root's is the only named manifest");
     }

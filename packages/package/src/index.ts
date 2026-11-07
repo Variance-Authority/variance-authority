@@ -1,4 +1,4 @@
-export { OFFERED, readOfferings } from './manifest.js';
+export { OFFERED, declaresWorkspaces, readOfferings } from './manifest.js';
 export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { members } from './members.js';
 export { createReader, namesReachedBy } from './reach.js';

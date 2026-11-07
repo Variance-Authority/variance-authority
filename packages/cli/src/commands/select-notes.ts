@@ -11,14 +11,14 @@ import { many } from './prose-counts.js';
  * The changed paths the journal records nothing about, argued at the top of
  * `select.ts`. Counted: each has a `read` line of its own, which names it, and
  * the one an operator acts on, a fixture a test reads without importing it, is
- * recognised there by its name.
+ * recognised there by its name and declared by a `/// <depends>`.
  */
 export function unreadNotes(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   return [
     `the journal records nothing about ${many(unread.length, 'changed file')}, so ` +
-      `${unread.length === 1 ? 'it keeps' : 'they keep'} no test in the run; a file the suite ` +
-      'reads without importing it is declared as a precondition',
+      `${unread.length === 1 ? 'it keeps' : 'they keep'} no test in the run; a file read without ` +
+      'importing it is named by a `/// <depends>` in the module that reads it',
   ];
 }
 
@@ -40,7 +40,7 @@ export function ignoredNotes(ignored: readonly string[]): readonly string[] {
   if (ignored.length === 0) return [];
   return [
     `the suite ignores ${many(ignored.length, 'changed file')} by its \`ignore\`, ` +
-      `so only a test that declares ${ignored.length === 1 ? 'it' : 'one'}, as a precondition or by a \`/// <depends>\`, runs for ${ignored.length === 1 ? 'it' : 'them'}`,
+      `so only a \`/// <depends>\` on ${ignored.length === 1 ? 'it' : 'one'} runs a test for ${ignored.length === 1 ? 'it' : 'them'}, or a \`preconditions\` entry, which runs every test of its run`,
   ];
 }
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { readOfferings } from './manifest.js';
+import { declaresWorkspaces, readOfferings } from './manifest.js';
 
 /**
  * Which manifests a workspace lists, asked through the one reading that uses
@@ -381,3 +381,28 @@ describe('a member list it refuses, naming the file', () => {
 it.todo(
   'an unreadable workspace file under `tolerant` is recorded with the file and the reason, and the rest of the reading goes on — needs `readOfferings` to carry a membership record beside the offerings',
 );
+
+describe('whether a root declares workspaces', () => {
+  const rootWith = (files: Readonly<Record<string, string>>): string => {
+    const root = mkdtempSync(join(tmpdir(), 'va-declares-'));
+    for (const [path, text] of Object.entries(files)) writeFileSync(join(root, path), text);
+    return root;
+  };
+  const named = JSON.stringify({ name: 'root' });
+
+  it.each<[string, Record<string, string>, boolean]>([
+    ['an entry in `workspaces`', { 'package.json': JSON.stringify({ workspaces: ['a'] }) }, true],
+    ["an entry in yarn's `workspaces`", { 'package.json': JSON.stringify({ workspaces: { packages: ['a'] } }) }, true],
+    ['an empty `workspaces`', { 'package.json': JSON.stringify({ workspaces: [] }) }, false],
+    ['an entry under `packages:`', { 'package.json': named, 'pnpm-workspace.yaml': 'packages:\n  - a\n' }, true],
+    ['a document that is one flow mapping', { 'package.json': named, 'pnpm-workspace.yaml': '{packages: [a]}\n' }, true],
+    ['an empty `packages:`', { 'package.json': named, 'pnpm-workspace.yaml': 'packages: []\n' }, false],
+    ['a file of settings alone', { 'package.json': named, 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n' }, false],
+    ['a `packages:` the members refuse', { 'package.json': named, 'pnpm-workspace.yaml': 'packages: a\n' }, true],
+    ['a file that is not YAML', { 'package.json': named, 'pnpm-workspace.yaml': 'packages: [\n' }, true],
+    ['a `workspaces` the members refuse', { 'package.json': JSON.stringify({ workspaces: 'a' }) }, true],
+    ['no root manifest', { 'pnpm-workspace.yaml': 'packages:\n  - a\n' }, false],
+  ])('reads %s', (_, files, declared) => {
+    expect(declaresWorkspaces(rootWith(files))).toBe(declared);
+  });
+});

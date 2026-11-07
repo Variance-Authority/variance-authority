@@ -307,8 +307,8 @@ that suite's run, and the run names it declined. A suite can also list globs
 under
 [`ignore`](changes-before-and-beyond.md#what-a-suite-ignores),
 such as a unit suite's stylesheets and images. A changed file that matches
-selects only the tests that declared it, by a precondition or a
-`/// <depends>`, and the run lists it as ignored. Two refusals stand over the
+selects only the tests behind a `/// <depends>` on it, or every test recorded
+when it is a precondition, and the run lists it as ignored. Two refusals stand over the
 record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
@@ -669,7 +669,11 @@ reads it:
 The line can sit anywhere in the file, and the path is relative to the file.
 TypeScript and your runtime read it as a comment. The scan reads it as a
 `depends` edge, so a change to `schema.graphql` reaches every test that loads
-the module. A directive with no `path` is reported as a gap in that file.
+the module. A directive with no `path` is reported as a gap in that file. A suite
+with `"relations": false` declines the graph, this edge with it, so a file its
+tests read goes in its `before`, or in `preconditions` when every test of the run
+rests on it. A file the suite's `ignore` matches keeps the edge, and `before` does
+not move it.
 
 ## A change nothing has been seen rendering
 

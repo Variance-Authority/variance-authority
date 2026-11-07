@@ -1219,6 +1219,20 @@ suite, and review after it:
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
+On GitHub, `Variance-Authority/action/review` replaces that last step: it runs
+the same two commands with `--coverage` and puts the review on the pull request
+as one comment updated in place.
+[Its example](https://github.com/Variance-Authority/action#reviewing-a-project-with-only-unit-tests)
+has the cache steps that give the comment a mainline record to compare with:
+
+```yaml
+- if: ${{ !cancelled() }}
+  uses: Variance-Authority/action/review@v1
+  with:
+    suite: unit
+    against: ${{ steps.take.outputs.against-unit }}
+```
+
 The markdown's first line names what it read: the commit reviewed, the commit
 the change starts from, the commit the cases ran at, and the commit of each
 recording coverage is compared with. In CI on a pull request the checkout is
@@ -2319,13 +2333,13 @@ $ variance select
 skipping 212 of 240 test files recorded whole: none covered a changed line;
 every other test file runs.
 the journal records nothing about 1 changed file (fixtures/cart.json), so it
-keeps no test in the run; a file the suite reads without importing it is
-declared as a precondition.
+keeps no test in the run; a file read without importing it is named by a
+`/// <depends>` in the module that reads it.
 ```
 
-When a test does read that fixture, name it in the `preconditions` option of the
-Vitest recorder in `@variance-authority/sense`: from the next recording on, a
-change to it selects every test it governs.
+When a test does read that fixture, name it in the module that reads it, as
+`/// <depends path="…" />`: a change to it selects the tests that load that
+module. A `preconditions` entry would select every test of the run.
 
 A changed lockfile is compared as an install, from the install the suite ran on
 to the one in your tree. A recording keeps the lockfiles and manifests that
@@ -3102,7 +3116,10 @@ On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/a
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
 [`carry`](#what-the-next-job-reads) names, and accepts when the job sets its
-`accept` input, which the workflow ties to a label. `v1`
+`accept` input, which the workflow ties to a label. A project with no surface
+to observe uses `Variance-Authority/action/review` instead, which
+[posts the review](#review-what-a-change-did-for-the-person-merging-it) and runs
+no gate. `v1`
 is the major of its inputs and outputs:
 
 ```yaml
@@ -3260,7 +3277,7 @@ ran, red or green:
 
 Only selection reads the pushed record. `take` prints the mainline's cases
 as `against-<suite>`: for each declared suite the record the restore laid, set
-aside under `.variance/against` before anything replaces it, and for a suite it
+aside under `.variance/against`, which ignores itself, before anything replaces it, and for a suite it
 takes where the restore laid none, the cases the share holds. `keep` leaves it there, so the
 review may run before or after `keep`. Pass it to `variance review --against`,
 so the change's cases are compared with the mainline's rather than the last

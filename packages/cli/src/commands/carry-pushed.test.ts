@@ -147,6 +147,20 @@ describe('a pull request reads from what its last push ran', () => {
     expect(readFileSync(aside)).toEqual(MAINLINE);
   });
 
+  it("leaves the mainline's cases it set aside out of the change, in a project that ignores nothing of ours", async () => {
+    const { clone, kept } = await pullRequest();
+    const own = testCoverageFile(clone, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeFile(own, MAINLINE);
+    await writeFile(join(dirname(own), 'coverage.runs.json'), JSON.stringify(runsAt(kept)));
+
+    await takePushed(clone, join(clone, '.carried'));
+
+    expect(existsSync(join(clone, AGAINST, 'unit', 'coverage.bin'))).toBe(true);
+    const untracked = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', '.variance'], { cwd: clone, encoding: 'utf8' });
+    expect(untracked).toBe('');
+  });
+
   it("keeps the mainline's cases it set aside when this push is kept before the review reads them", async () => {
     const { clone, kept } = await pullRequest();
     const own = testCoverageFile(clone, { suite: 'unit' });

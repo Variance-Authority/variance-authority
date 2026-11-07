@@ -198,11 +198,13 @@ describe('the crate a Rust pipeline links', () => {
   // so what `yarn pack` packs is the crate a consumer compiles: every
   // tracked file of it, and nothing else of `native/`. The addon's own crate,
   // its lockfile and its vendored resolver stay in this repository.
+  // Run here rather than in a test: no test timeout should judge the machine.
+  const packed = execFileSync('yarn', ['pack', '--dry-run', '--json'], { cwd: SENSE, encoding: 'utf8' })
+    .split('\n')
+    .flatMap((line) => (line.startsWith('{') ? [(JSON.parse(line) as { location?: string }).location] : []))
+    .filter((location): location is string => location?.startsWith('native/') === true);
+
   it('is packed whole, and alone', () => {
-    const packed = execFileSync('yarn', ['pack', '--dry-run', '--json'], { cwd: SENSE, encoding: 'utf8' })
-      .split('\n')
-      .flatMap((line) => (line.startsWith('{') ? [(JSON.parse(line) as { location?: string }).location] : []))
-      .filter((location): location is string => location?.startsWith('native/') === true);
     const tracked = execFileSync('git', ['ls-files', '--', 'native/instrument'], { cwd: SENSE, encoding: 'utf8' })
       .split('\n')
       .filter(Boolean);

@@ -184,7 +184,8 @@ run every time. On the commits that change only prose or a benchmark it selects
 One test reads `packages/docs/content/api.mdx` through the filesystem, which is
 a real dependency and one no import names. The docs project lists it in its
 `preconditions`, so a change to it reruns every test that project records and
-no other project's. Left unlisted, it selects nothing.
+no other project's. That is wider than the one test: a `/// <depends>` in that
+test would rerun only it. Left unlisted, it selects nothing.
 
 ## What it took to fit
 

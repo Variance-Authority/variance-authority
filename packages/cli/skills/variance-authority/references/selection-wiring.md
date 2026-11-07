@@ -97,9 +97,9 @@ nothing. Without an `ignore`, the graph sends a changed `.css` to every test
 that imports the component. Give such a suite `"ignore": ["**/*.css", "**/*.png"]`,
 with globs from the repository root that match dotfiles; a `!` pattern takes a
 file back out. A matching changed file loses its regions, its import and asset
-edges and its `before`, and `select` lists it under `ignored`. A test that
-declares it, as a precondition or through a `/// <depends>` in the module it
-tests, still runs when the record saw it enter that module; a declaring module
+edges and its `before`, and `select` lists it under `ignored`. A test still runs
+when the record saw it enter a module with a `/// <depends>` on the file, and a
+`preconditions` entry still runs every test; a declaring module
 the record holds nothing for goes where any unmeasured file goes, to its
 importers or, with `relations: false`, to `declined`. Each suite uses only its own list, so a visual suite over the
 same components still selects on the stylesheet. `variance run --since` reads the
@@ -205,8 +205,8 @@ Absence is the other direction, and it widens nothing. A changed path the
 recording has no row for is looked up in the import graph when one is passed,
 and the nearest measured files that import it select their tests. One the graph
 does not list, such as a README or a fixture, appears under `unread` and selects
-nothing: if the suite reads that file without importing it, declare it as a
-precondition. One it lists whose importers include nothing measured selects
+nothing: if a test reads that file without importing it, name it by a
+`/// <depends>` in the module that reads it. One it lists whose importers include nothing measured selects
 nothing and is not reported. A bumped package selects the tests of its measured
 importers; one with none selects nothing and is not reported. In a suite with
 `"relations": false` the graph is not asked: an unmeasured path selects nothing

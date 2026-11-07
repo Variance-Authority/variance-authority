@@ -1654,6 +1654,7 @@
         "Reader": "interface",
         "countNames": "function",
         "createReader": "function",
+        "declaresWorkspaces": "const",
         "members": "function",
         "namesReachedBy": "function",
         "readOfferings": "function",
