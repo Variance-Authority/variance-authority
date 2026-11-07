@@ -1,7 +1,7 @@
 import { SITE } from "../metadata";
 import { MARKDOWN_TYPE } from "./llms-index";
 import { siteHref, splitTarget } from "./markdown-links";
-import { markdownPath, routedDocument } from "./routed-docs";
+import { markdownAddress, routedDocument } from "./routed-docs";
 
 /**
  * A document served as its own Markdown, beside the page that renders it.
@@ -64,6 +64,6 @@ function publishedHref(target: string, sourcePath: string): string {
   if (!resolved.startsWith("/")) return resolved;
 
   const { path, suffix } = splitTarget(resolved);
-  const published = routedDocument(path) ? markdownPath(path) : path;
+  const published = markdownAddress(path) ?? path;
   return new URL(`${published}${suffix}`, SITE).toString();
 }

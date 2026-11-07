@@ -63,7 +63,7 @@ const ROOT = import.meta.dirname;
  * test sits from that module has a path the scanner has actually read.
  */
 const PRODUCT = /[/\\](?:packages|examples|cases)[/\\][^/\\]+[/\\]src[/\\]/;
-const SITE = /[/\\]site[/\\]app[/\\]/;
+const SITE = /[/\\]site[/\\](?:app[/\\]|proxy\.ts$)/;
 const BUILT = /[/\\]packages[/\\][^/\\]+[/\\]dist[/\\]/;
 const MODULE = /\.[cm]?[jt]sx?$/;
 /** A probe in a test file would record the test observing itself. */
@@ -94,7 +94,7 @@ const unprobed = (file: string) => source(file) && marked(ROOT, file);
  * install, which no slice here runs, so a site module importing one of these
  * resolves only to the mock its test declares.
  */
-const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+const SITE_ONLY = ['next/link', 'next/navigation', 'next/server', 'react-markdown', 'rehype-raw', 'remark-gfm'];
 
 /**
  * What every slice runs under.
