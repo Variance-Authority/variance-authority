@@ -52,7 +52,7 @@ export async function restsOf(
       rests: [],
       notes: [
         `${whose} declares nothing before reach, so a change to its runner config or the setup it loads ` +
-          'is read like any other file; name them in `before` to run the whole suite when they change',
+          'is read like any other file; name them in `before` in variance.config.json to run the whole suite when they change',
       ],
     };
   }
