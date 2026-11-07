@@ -104,12 +104,39 @@ out every commit: `fetch-depth: 0`, with `filter: tree:0` to leave the trees out
 A clone that lacks that commit fails the step, and the CLI says what to fetch.
 With several suites declared, `suite` is required too. On a push there is no pull request, so the review reaches the step summary alone, and a repository's first commit has no start to review from.
 
-A review finds nothing a person must approve, so it has no verdict and no
-outputs. The step fails when no review could be written, and when the comment
-could not be posted: a 500 from GitHub fails it. A token that cannot write only
-warns, and the review is still in the step summary. A failed review posts
-nothing, so the comment from the last good push stays in place. A project with a
-surface as well runs both actions.
+A review finds nothing a person must approve, so by default it has no verdict
+and no outputs. The step fails when no review could be written, and when the
+comment could not be posted: a 500 from GitHub fails it. A token that cannot
+write only warns, and the review is still in the step summary. A failed review
+posts nothing, so the comment from the last good push stays in place. A project
+with a surface as well runs both actions.
+
+### Requiring that a change's functions ran
+
+`fail-on-uncovered: 'true'` turns the count the review prints into a check: the
+step posts the comment first, then fails when a changed function holds code no
+case ran. Name the job as a required status check in your branch rule, and a
+pull request with such a function cannot merge until a case runs it.
+
+```yaml
+- if: ${{ !cancelled() }}
+  uses: Variance-Authority/action/review@v1
+  with:
+    suite: unit
+    against: ${{ steps.take.outputs.against-unit }}
+    fail-on-uncovered: 'true'
+```
+
+It is a count, not a percentage: one function is enough, and nothing is compared
+with a threshold. The step also fails, with no comment, when the record does not
+hold the change, or when source changed and nothing shows a run of this change,
+because then which functions ran is not known.
+
+A file a run of this change did not load is not in the count: a run that never
+loaded a file has no answer about it, and a build script or a configuration file
+is often exactly that. The step's log names each one, and the check stays green if
+nothing else is counted, so a source file nothing imports passes it, with new
+functions or edited ones.
 
 ## Accepting with a tick
 

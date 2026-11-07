@@ -136,6 +136,8 @@ export interface ReviewFile {
   readonly holdsCases?: true;
   /** Whether the record holds a row for this file. Absent when coverage was not asked: an edit that changes nothing that runs. */
   readonly recorded?: boolean;
+  /** A suite the review read ran the file as the tree holds it, so its regions say what the change did. */
+  readonly ran?: true;
   readonly regions?: readonly ReviewRegion[];
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
@@ -339,6 +341,10 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
   const comparable = (file: string): boolean => against !== undefined || (unread === undefined && (wrote === undefined || ('compared' in wrote && wrote.compared.has(file))));
 
+  // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
+  const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
+  const fresh = ranAsTree(recorded.file, measured, changedCases, names);
+
   const tested = new Set(full.tests.map((test) => test.file));
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
@@ -353,6 +359,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       ...(sources.has(file) ? { indexed: true } : {}),
       ...(tested.has(file) ? { holdsCases: true } : {}),
       ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions }),
+      ...(fresh.has(file) || change?.ran === true ? { ran: true } : {}),
       ...(cases === undefined ? {} : { cases }),
     });
   }
@@ -370,10 +377,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
-  // The named suite's freshness: a module another suite recorded says nothing about whether this one ran.
-  const measured = [...suiteRegions].filter(([, answer]) => answer.recorded).map(([file]) => file);
   // A change with no recorded module ran nothing yet.
-  const record = measured.length > 0 && ranAsTree(recorded.file, measured, changedCases, names).size === measured.length ? 'ran' : 'before';
+  const record = measured.length > 0 && fresh.size === measured.length ? 'ran' : 'before';
   const head = await reviewedCommit(point.repository, root);
   const gap = await probesGap(from, root, request.suite);
   // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
@@ -438,13 +443,18 @@ async function prefetch(
 function textsAt(texts: ReadonlyMap<string, string>): (file: string) => string | undefined {
   return (file) => texts.get(file);
 }
+/** A line no row holds, lines counting from 1: the file is asked about, and no region meets it. */
+const NO_LINE: readonly LineRange[] = [{ start: 0, end: 0 }];
+
 /**
  * The lines of the working tree the change wrote, in the record's names.
  *
  * A reversed diff charges the gap where the base had text the tree no longer
  * does; that text is gone, and nothing is left to cover, so the gap is not
- * asked about. A file the edit reading proved changes nothing that runs is not
- * asked about either, and neither is a file no longer in the tree.
+ * asked about. A file with only such gaps is asked about at {@link NO_LINE}:
+ * whether the record ran it as the tree holds it still decides. A file the edit
+ * reading proved changes nothing that runs is not asked about, and neither is
+ * a file no longer in the tree.
  */
 function inTreeLines(
   lines: ReadonlyMap<string, readonly LineRange[]>,
@@ -455,8 +465,7 @@ function inTreeLines(
   for (const [file, ranges] of lines) {
     if (readings.get(file)?.verdict === 'none' || !existsSync(resolve(root, file))) continue;
     const written = ranges.filter((range) => range.added === undefined);
-    if (ranges.length > 0 && written.length === 0) continue;
-    kept.set(file, written);
+    kept.set(file, ranges.length > 0 && written.length === 0 ? NO_LINE : written);
   }
   return kept;
 }

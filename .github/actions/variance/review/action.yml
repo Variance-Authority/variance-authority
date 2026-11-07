@@ -2,8 +2,9 @@ name: variance review
 description: >-
   Puts `variance review --coverage` on the pull request as one comment, updated
   in place, for a project with no surface for the gate to observe. It reads the
-  record your tests left. It has no verdict: the step fails when no review could
-  be written, or when GitHub failed the post; a token that cannot write only warns.
+  record your tests left. It has no verdict unless `fail-on-uncovered` asks for
+  one: the step fails when no review could be written, or when GitHub failed the
+  post; a token that cannot write only warns.
 
 inputs:
   suite:
@@ -21,6 +22,13 @@ inputs:
       compared with the share's record and any other reads as having no baseline.
     required: false
     default: ''
+
+  fail-on-uncovered:
+    description: >-
+      'true' fails the step when a changed function holds code no case ran, after
+      the comment is posted, so a project can require the check.
+    required: false
+    default: 'false'
 
   command:
     description: >-
@@ -58,13 +66,22 @@ runs:
         SUITE: ${{ inputs.suite }}
         AGAINST: ${{ inputs.against }}
         REVIEW: ${{ steps.carry.outputs.review }}
+        FAIL_ON_UNCOVERED: ${{ inputs.fail-on-uncovered }}
       run: |
         set -euo pipefail
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND index
+        fail=''
+        [ "${FAIL_ON_UNCOVERED:-}" != true ] || fail=--fail-on-uncovered
+        status=0
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND review ${SINCE:+--since "$SINCE"} ${SUITE:+--suite "$SUITE"} --coverage ${AGAINST:+--against "$AGAINST"} \
-          --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
+          $fail --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY" || status=$?
+        # With the opt-in, 1 is a review written and a function no case ran: it is
+        # posted, then fails the step below. Anything else is a review that did
+        # not happen.
+        [ "$status" = 0 ] || { [ "$status" = 1 ] && [ -n "$fail" ]; } || exit "$status"
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
 
     # A failed review stops before this step, so the last comment stands. The
     # marker is read from the file: the command stays the one place it is spelled.
@@ -85,3 +102,10 @@ runs:
           --body-file "$REVIEW/review.md" \
           --marker "$(head -n 1 "$REVIEW/review.md")" \
           --adopt-unkeyed false
+
+    # Last, because a step that fails skips the ones after it, and the comment
+    # is what says which functions.
+    - name: fail on uncovered code
+      if: steps.review.outputs.exit-code == '1'
+      shell: bash
+      run: exit 1

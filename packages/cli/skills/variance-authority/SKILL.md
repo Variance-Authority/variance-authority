@@ -108,8 +108,9 @@ variance.config.json`.
 
 Exit codes: `ask` exits `0` for every answer, including one that describes
 changes. `run`, `report` and `adjudicate` own the verdict and exit `1` when
-something needs review, and `restrictions` exits `1` when a rule is broken.
-`2` is an operator error: a crash, a missing config, a refused question. Do
+something needs review, `restrictions` exits `1` when a rule is broken, and
+`review --fail-on-uncovered` exits `1` when a changed function holds code no
+case ran. `2` is an operator error: a crash, a missing config, a refused question. Do
 not read a `1` as a crash.
 
 ## Open the reference for the question

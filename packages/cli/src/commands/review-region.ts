@@ -200,6 +200,8 @@ export async function nearTests(
 export interface RecordedRegions {
   readonly recorded: boolean;
   readonly regions: readonly ReviewRegion[];
+  /** A suite read beside the named one ran the file as the tree holds it, so these regions say what the change did. */
+  readonly ran?: true;
 }
 
 /**
@@ -243,6 +245,7 @@ export async function recordedRegions(
 export function ranAsTree(coverageFile: string, files: readonly string[], index: ExecutionIndex, names: IndexNames): ReadonlySet<string> {
   if (files.length === 0) return new Set();
   const cut = rowsCut(coverageFile, files, index);
+  // TODO: a JVM project's record always reads `before`, and `--fail-on-uncovered` refuses it, until the JVM agent names the text of each row it writes.
   return new Set(files.filter((file) => {
     const rows = cut.get(file);
     return rows !== undefined && !('unknown' in rows) && rows.blob !== undefined && rows.blob === names.get(file);
