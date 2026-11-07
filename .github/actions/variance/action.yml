@@ -82,7 +82,8 @@ inputs:
       `true` reads every subject twice, whatever its verdict, as `variance run
       --flakes` does: the nightly sweep that finds a subject which agrees with
       its baseline and disagrees with itself. The check is red when a subject
-      read differently twice, even with every verdict green. It costs one
+      read differently twice, even with every verdict green, unless
+      `exit-zero-on-changes` makes that a warning. It costs one
       collection per subject and no render, so it belongs on a `schedule`, with
       `comment: 'false'` and `report-page: 'true'`, since no pull request reads
       it. Off by default.
@@ -395,7 +396,7 @@ runs:
         if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
         if [ -n "$VARIANCE_SHARD" ]; then args+=(--shard "$VARIANCE_SHARD"); fi
         if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
-        # This step's alone: `carry` and the accept take no `--flakes`.
+        # Only the run takes `--flakes`: `carry` and the accept refuse it.
         if [ "$VARIANCE_FLAKES" = true ]; then args+=(--flakes); fi
 
         # `if` rather than `set +e`: the condition of an `if` is exempt from

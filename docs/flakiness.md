@@ -270,9 +270,9 @@ exits `1` even when every verdict is green.
 On GitHub Actions the sweep is one step of
 [`Variance-Authority/action`](https://github.com/Variance-Authority/action) on a
 `schedule`, after the setup [the whole job](placement.md#the-whole-job) gives
-the pull-request run. It restores the baselines the host carries, reads every subject twice, and
-uploads the report as one HTML page; the check is red when a subject read
-differently twice:
+the pull-request run. It restores the baselines the host carries, reads every
+subject twice, and uploads the report as one HTML page; the check is red when a
+subject read differently twice:
 
 ```yaml
 on:

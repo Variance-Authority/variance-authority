@@ -150,7 +150,8 @@ nothing, so a function only that suite reaches is marked until it does.
 `flakes: 'true'` runs `variance run --flakes`: every subject is read twice,
 whatever its verdict, so a subject that agrees with its baseline and disagrees
 with itself is found before it fails a pull request. The check is red when a
-subject read differently twice, even with every verdict green. It costs one
+subject read differently twice, even with every verdict green, so leave
+`exit-zero-on-changes` off. It costs one
 collection per subject and no render, so it runs on a `schedule`, with no pull
 request to comment on and the report uploaded as a page:
 
