@@ -58,7 +58,7 @@ const load = (file: string): unknown => {
   return loaded.default ?? loaded;
 };
 
-const { interop, presetAt, presetFile, rooted } = presets;
+const { interop, presetFile, rooted } = presets;
 
 const INPUTS = Symbol.for('variance-authority.test-selection.environment');
 const RUNTIME = path.resolve(__dirname, '..') + path.sep;
@@ -105,8 +105,7 @@ function markOnce(root: string, file: string): ModuleId | undefined {
 let jestRunner: NodeJS.Require | undefined;
 function runner(): NodeJS.Require {
   if (jestRunner !== undefined) return jestRunner;
-  // A JSON file reached through `import` is in the cache with no `children`.
-  const parent = Object.values(require.cache).find((cached) => cached?.children?.includes(module) && /[\\/]jest-runner[\\/]/u.test(cached.filename));
+  const parent = Object.values(require.cache).find((cached) => cached?.children.includes(module) && /[\\/]jest-runner[\\/]/u.test(cached.filename));
   if (parent === undefined) throw new Error('variance-authority: the Jest runtime was not required by jest-runner');
   jestRunner = nodeModule.createRequire(parent.filename);
   return jestRunner;
@@ -141,7 +140,7 @@ function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
   const paths = new Set<string>();
   // What required the environment — Jest's loader — required every other one for
   // Jest too: its children are not this environment's inputs.
-  const loaders = new Set(Object.values(require.cache).filter((cached) => cached?.children?.includes(entry)));
+  const loaders = new Set(Object.values(require.cache).filter((cached) => cached?.children.includes(entry)));
   const pending = [entry];
   for (let at = 0; at < pending.length; at += 1) {
     const module = pending[at];
@@ -180,7 +179,7 @@ function projectRuntime(jest: NodeJS.Require, config: ProjectConfig, options: Op
     const file = presetFile(find, config.rootDir, options.preset);
     // Jest read this preset before it started: a miss here is a moved file.
     if (file === null) throw new Error(`variance-authority: preset ${options.preset} is not found from ${config.rootDir}`);
-    name = presetAt(require, file)?.['runtime'] as string | undefined;
+    name = (interop(require(file)) as { runtime?: string }).runtime;
   }
   if (name === undefined) return undefined;
   const file = find(rooted(config.rootDir, name), { basedir: config.rootDir, ...(config.resolver ? { resolver: config.resolver } : {}) });

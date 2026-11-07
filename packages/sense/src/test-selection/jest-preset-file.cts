@@ -24,18 +24,4 @@ function presetFile(find: FindNodeModule, rootDir: string, name: string): string
   });
 }
 
-/**
- * The preset in `file`; absent when only `import` can read it, as Jest reads one
- * with top-level await and neither synchronous caller here can.
- */
-function presetAt(require: NodeJS.Require, file: string): Record<string, unknown> | undefined {
-  try {
-    return interop(require(file)) as Record<string, unknown>;
-  } catch (error) {
-    const code = error instanceof Error && 'code' in error ? error.code : undefined;
-    if (code !== 'ERR_REQUIRE_ASYNC_MODULE' && code !== 'ERR_REQUIRE_ESM') throw error;
-    return undefined;
-  }
-}
-
-export = { interop, presetAt, presetFile, rooted };
+export = { interop, presetFile, rooted };

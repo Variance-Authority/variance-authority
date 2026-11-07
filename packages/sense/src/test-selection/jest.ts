@@ -30,7 +30,7 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
-import { transformToWrap } from './jest-preset.js';
+import { presetTransform } from './jest-preset.js';
 import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
@@ -281,6 +281,9 @@ export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY
  */
 const PROJECT_GLOBAL = 'variance-authority.project';
 
+/** Jest's pattern for the modules it transforms when nothing is configured. */
+const DEFAULT_PATTERN = '\\.[jt]sx?$';
+
 const here = (name: string): string => fileURLToPath(new URL(name, import.meta.url));
 
 /** The three modules a Jest configuration names, by absolute path. */
@@ -294,11 +297,29 @@ const UNMOCKED = here('../').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
- * an ordinary Jest configuration. Everything it already had stays: `setupFiles`
- * gains a file at the start, `setupFilesAfterEnv` and `reporters` one at the end,
- * and a configuration with no reporters keeps Jest's default. Every `transform`
- * entry is kept and wrapped: the project's transformer still runs first, on the
- * same pattern with the same options, and probes land on what it produced.
+ * an ordinary Jest configuration.
+ *
+ * ```js
+ * // jest.config.mjs
+ * import { withTestSelection } from '@variance-authority/sense/jest';
+ *
+ * export default withTestSelection({
+ *   testEnvironment: 'jsdom',
+ *   transform: { '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript', tsx: true } } }] },
+ * });
+ * ```
+ *
+ * Everything the configuration already had stays. Its `setupFiles` keep their
+ * order and gain one file at the start — the probe log's root every probe
+ * resolves, which has to be there before a setup file of the project's loads
+ * an instrumented module — and its `setupFilesAfterEnv` keep theirs and gain
+ * the journal writer at the end; its `reporters` keep theirs and gain one at
+ * the end, and a configuration with none keeps Jest's default reporter. Every `transform` entry is kept and
+ * wrapped: the project's transformer still runs first, on the same pattern with
+ * the same options, and probes land on what it produced. A configuration with
+ * no `transform` gets what Jest would have given it, its preset's, or
+ * `babel-jest` over Jest's default pattern, wrapped the same way; one that set
+ * `transform: {}` to run plain JavaScript is instrumented directly.
  */
 export function withTestSelection(
   config: JestConfig = {},
@@ -416,9 +437,15 @@ function instrumented(
   declared: readonly string[],
   cadence: boolean,
 ): JestConfig {
+  const named = config.transform ?? presetTransform(config, rootDir);
+  const configured = named === undefined
+    ? { [DEFAULT_PATTERN]: 'babel-jest' }
+    : Object.keys(named).length === 0
+      ? { [DEFAULT_PATTERN]: undefined }
+      : named;
   const exclude = [...new Set(declared)];
   const transform = Object.fromEntries(
-    Object.entries(transformToWrap(config, rootDir)).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
+    Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
       pattern,
       [
         SELECTION_TRANSFORM,
@@ -443,7 +470,6 @@ function instrumented(
     rootDir,
     transform,
     ...(project === undefined ? {} : { globals: { ...(config['globals'] as object | undefined), [PROJECT_GLOBAL]: project } }),
-    // The probe log's root every probe resolves, before a project's setup file loads an instrumented module.
     setupFiles: [SELECTION_GLOBALS, ...(config.setupFiles ?? [])],
     setupFilesAfterEnv: [...(config.setupFilesAfterEnv ?? []), SELECTION_SETUP],
     unmockedModulePathPatterns: [...(config['unmockedModulePathPatterns'] as string[] | undefined ?? []), UNMOCKED],

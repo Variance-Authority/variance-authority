@@ -40,39 +40,6 @@ it('records a custom environment dependency as an input, while recording its tes
 }, 60_000);
 
 
-const ASYNC_PRESET = { FIXTURE_PRESET: '<rootDir>/preset-async.mjs' };
-const JEST_DEFAULT = { FIXTURE_NO_TRANSFORM: '1', FIXTURE_ENVIRONMENT: 'node', FIXTURE_MATCH: '<rootDir>/docblock/plain.case.js' };
-
-it.each(['--runInBand', '--maxWorkers=2'])('records a run whose preset only `import` can read, under %s', async (workers) => {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-async-preset-'));
-  try {
-    const coverageFile = resolve(directory, 'coverage.bin');
-    await execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), workers, '--watchman=false'], {
-      cwd: fixture,
-      env: { ...process.env, ...ASYNC_PRESET, FIXTURE_COVERAGE: coverageFile, FIXTURE_CACHE: resolve(directory, 'cache') },
-    });
-    const record = decodeTestCoverage(await readFile(coverageFile));
-    expect(record.tests.length).toBeGreaterThan(0);
-    expect(record.tests.every(({ complete }) => complete)).toBe(true);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-}, 60_000);
-
-// Babel's JSON files are in `require.cache` with no `children`, as `import` leaves a JSON file.
-it.each([['no preset', {}], ['a preset only `import` can read', ASYNC_PRESET]])('passes under Jest\'s default transformer and %s', async (_, preset) => {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-default-transformer-'));
-  try {
-    const run = execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
-      cwd: fixture,
-      env: { ...process.env, ...JEST_DEFAULT, ...preset, FIXTURE_COVERAGE: resolve(directory, 'coverage.bin'), FIXTURE_CACHE: resolve(directory, 'cache') },
-    });
-    await expect(run).resolves.toBeDefined();
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-}, 60_000);
-
 it.each(['native-environment.mjs', 'native/environment.js', 'mixed-environment.cjs'])('refuses unobservable native inputs in %s rather than claiming complete inputs', async (environment) => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-native-environment-'));
   try {

@@ -9,5 +9,5 @@ export default withTestSelection({
   ...(process.env.FIXTURE_PRESET === undefined ? {} : { preset: process.env.FIXTURE_PRESET }),
   ...(process.env.FIXTURE_RESOLVER === undefined ? {} : { resolver: process.env.FIXTURE_RESOLVER }),
   transformIgnorePatterns: ['/node_modules/', '<rootDir>/native/'],
-  ...(process.env.FIXTURE_NO_TRANSFORM === undefined ? { transform: { '\\.[jt]s$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }] } } : {}),
+  transform: { '\\.[jt]s$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }] },
 }, { coverageFile: process.env.FIXTURE_COVERAGE });

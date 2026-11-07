@@ -818,19 +818,14 @@ yours, and `--skipFilter` turns filters off. Either one turns the selection
 off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
-anything. A preset's `transform` is read for you and wrapped, so a preset such as
-`ts-jest` needs no `transform` in the object. A `transform` you do name merges
-with the preset's as in Jest: yours wins where the patterns match, and the
-preset's other patterns are wrapped too. Transformers load from the project's
-`rootDir`, where Jest finds them. When no pattern takes scripts at all, they are
-instrumented directly, as Jest runs them untransformed. A preset's setup files
-and environment are read from the configuration Jest resolved, so a local preset's
-files are preconditions without being named. Two things are yours to spell out:
-
-- **The `transform` of a preset with top-level await.** Jest imports that preset
-  and the wrap cannot read it, so stderr names it and the wrap carries on without
-  its `transform`. Name the `transform` in the object you wrap.
-- **An async configuration.** Await it, then wrap the object it returns.
+anything. With no `transform` in the object it reads the preset's and wraps that,
+so a preset such as `ts-jest` needs nothing copied. A `transform` you name is
+wrapped as it stands, and Jest merges the preset's in after it, so the preset's
+other patterns run without probes. Transformers load from the project's
+`rootDir`, where Jest finds them. A preset's setup files and environment are read
+from the configuration Jest resolved, so a local preset's files are preconditions
+without being named. An async configuration is yours to await: wrap the object it
+returns.
 
 ```js
 // jest.config.mjs
