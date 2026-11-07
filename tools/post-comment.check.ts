@@ -142,6 +142,31 @@ describe('post-comment', () => {
     ]);
   });
 
+  it('keeps one review on the pull request, rewritten beside the docket and never adopting it', async () => {
+    const REVIEW = '<!-- variance-authority: review -->';
+    const review = (text: string) => `${REVIEW}\n\n${text}\n`;
+    const pull = await github([{ id: 1, body: docket(OLD, 'the gate from before the upgrade') }, { id: 2, body: docket(TRIBUNAL, 'the gate') }]);
+
+    await poster(pull, review('first push'), ['--marker', REVIEW, '--adopt-unkeyed', 'false']);
+    await poster(pull, review('second push'), ['--marker', REVIEW, '--adopt-unkeyed', 'false']);
+
+    expect(pull.comments.map((comment) => comment.body)).toEqual([
+      docket(OLD, 'the gate from before the upgrade'),
+      docket(TRIBUNAL, 'the gate'),
+      review('second push'),
+    ]);
+  });
+
+  it('says what the comment held is still in the run when the token cannot write', async () => {
+    const pull = await github();
+    pull.readOnly = true;
+
+    const refused = await poster(pull, docket(TRIBUNAL, 'a review'), ['--marker', TRIBUNAL, '--adopt-unkeyed', 'false']);
+
+    expect(refused.code).toBe(0);
+    expect(refused.out).toContain('what it would have said is still in the run.');
+  });
+
   it('takes over the comment written under the adopted marker rather than posting beside it', async () => {
     const pull = await github([{ id: 1, body: docket(OLD, 'from before the upgrade') }]);
 
@@ -263,6 +288,7 @@ describe('post-comment', () => {
     const places = [
       ...(await readdir(join(ROOT, '.github/workflows'))).filter((name) => name.endsWith('.yml')).map((name) => `.github/workflows/${name}`),
       '.github/actions/variance/action.yml',
+      '.github/actions/variance/review/action.yml',
     ];
     const commands: string[] = [];
     for (const place of places) {

@@ -1218,6 +1218,20 @@ suite, and review after it:
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
+On GitHub, `Variance-Authority/action/review` replaces that last step: it runs
+the same two commands with `--coverage` and puts the review on the pull request
+as one comment updated in place.
+[Its example](https://github.com/Variance-Authority/action#reviewing-a-project-with-only-unit-tests)
+has the cache steps that give the comment a mainline record to compare with:
+
+```yaml
+- if: ${{ !cancelled() }}
+  uses: Variance-Authority/action/review@v1
+  with:
+    suite: unit
+    against: ${{ steps.take.outputs.against-unit }}
+```
+
 The markdown's first line names what it read: the commit reviewed, the commit
 the change starts from, the commit the cases ran at, and the commit of each
 recording coverage is compared with. In CI on a pull request the checkout is
@@ -3101,7 +3115,10 @@ On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/a
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
 [`carry`](#what-the-next-job-reads) names, and accepts when the job sets its
-`accept` input, which the workflow ties to a label. `v1`
+`accept` input, which the workflow ties to a label. A project with no surface
+to observe uses `Variance-Authority/action/review` instead, which
+[posts the review](#review-what-a-change-did-for-the-person-merging-it) and runs
+no gate. `v1`
 is the major of its inputs and outputs:
 
 ```yaml
