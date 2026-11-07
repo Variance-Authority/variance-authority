@@ -368,6 +368,51 @@ describe('the cleared comment', () => {
   });
 });
 
+describe('the images the comment shows', () => {
+  it('pushes the pictures the report names, and nothing else, as a commit with no parent at the branch ref, and links it', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-action-images-'));
+    try {
+      const report = join(at, 'report');
+      await mkdir(report);
+      await writeFile(join(report, 'report.json'), JSON.stringify({ observations: [{ images: { change: 'card.png' } }, { images: { change: '../out.png' } }] }));
+      await writeFile(join(report, 'card.png'), 'png');
+      await writeFile(join(report, 'unnamed.png'), 'png');
+      const origin = join(at, 'origin.git');
+      execFileSync('git', ['init', '--quiet', '--bare', origin]);
+      // Two levels under the checkout, as a runner's workspace sits under the folder that holds the actions.
+      const workspace = join(ROOT, 'work', 'repository');
+      const run = (await runBlock('publish the images the comment shows'))
+        .replaceAll('${{ github.action_path }}', dirname(ACTION))
+        .replaceAll('${{ github.workspace }}', workspace);
+      await writeFile(join(at, 'output'), '');
+
+      execFileSync('/bin/bash', ['-c', run], {
+        stdio: 'pipe',
+        env: {
+          ...process.env,
+          GITHUB_TOKEN: 'token',
+          GITHUB_SERVER_URL: `file://${at}`,
+          GITHUB_REPOSITORY: 'origin',
+          GITHUB_OUTPUT: join(at, 'output'),
+          GITHUB_WORKSPACE: workspace,
+          VARIANCE_REPORT: join(report, 'report.json'),
+          VARIANCE_IMAGE_REF_PREFIX: 'refs/variance',
+          VARIANCE_PROJECT: 'web',
+          VARIANCE_BRANCH: 'feature',
+        },
+      });
+
+      const git = (...args: string[]) => execFileSync('git', ['--git-dir', origin, ...args], { encoding: 'utf8' }).trim();
+      const commit = git('rev-parse', 'refs/variance/web/images/feature');
+      expect(git('ls-tree', '--name-only', commit)).toBe('card.png');
+      expect(git('rev-list', '--count', commit)).toBe('1');
+      expect(await readFile(join(at, 'output'), 'utf8')).toBe(`root=file://${at}/origin/raw/${commit}\n`);
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('the projects the workflow observes', () => {
   it('says the tick or the label is the review, because a project may share its name with a review service', async () => {
     const accept = (await readFile(WORKFLOW, 'utf8')).split('\n').find((line) => line.includes('matrix.label') && line.includes('to-accept:'));

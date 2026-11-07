@@ -433,11 +433,12 @@ runs:
     # Only on 1: a clean run renders an empty body with nowhere to put a
     # picture, and 2 has no report of this run to take them from.
     #
-    # A repository of its own in a temporary directory, with the report's
-    # directory as its work tree: nothing here reads or writes the workspace's
-    # checkout, its index or its credentials, so this step cannot disturb the
-    # commit-back below or the tree the run observed. The paths are the report's
-    # own, so the branch holds what the comment links and nothing else.
+    # `push-ref.sh` commits from a repository of its own in a temporary
+    # directory, with the report's directory as its work tree: nothing here reads
+    # or writes the workspace's checkout, its index or its credentials, so this
+    # step cannot disturb the commit-back below or the tree the run observed.
+    # The paths are the report's own, so the branch holds what the comment links
+    # and nothing else.
     #
     # Every failure warns and leaves `root` empty, and the comment renders
     # without pictures. A fork's read-only token is the common one, and a
@@ -478,20 +479,17 @@ runs:
         ' "$VARIANCE_REPORT" > "$paths" || skip "the report could not be read"
         [ -s "$paths" ] || skip "the report names no image of a change"
 
-        git init -q --bare "$repo/git"
-        export GIT_DIR="$repo/git" GIT_WORK_TREE="$here"
-        # Literal, because a store-encoded file name is not a pathspec.
-        git --literal-pathspecs add -f --pathspec-from-file="$paths" || skip "the images could not be staged"
-        tree="$(git write-tree)" || skip "the images could not be written"
-        commit="$(git -c user.name='github-actions[bot]' \
-          -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit-tree "$tree" -m "variance: images for $VARIANCE_IMAGE_REF")" || skip "the images could not be committed"
-
-        auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
-        echo "::add-mask::$auth"
-        git -c http.extraheader="AUTHORIZATION: basic $auth" \
-          push -q --force "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$commit:$VARIANCE_IMAGE_REF" \
-          || skip "pushing $VARIANCE_IMAGE_REF was refused, which a fork's read-only token does"
+        # In a container job `github.action_path` is the runner's host path; the
+        # container mounts the same tree elsewhere, as in the post below.
+        action="${{ github.action_path }}"
+        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
+        action="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${action#"$host_root"}"
+        commit="$(bash "$action/push-ref.sh" "$here" "$paths" "$VARIANCE_IMAGE_REF" "variance: images for $VARIANCE_IMAGE_REF")"
+        case $? in
+          0) ;;
+          2) skip "pushing $VARIANCE_IMAGE_REF was refused, which a fork's read-only token does" ;;
+          *) skip "the images could not be committed" ;;
+        esac
 
         echo "root=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/raw/$commit" >> "$GITHUB_OUTPUT"
 

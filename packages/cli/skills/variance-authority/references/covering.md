@@ -174,6 +174,13 @@ the most a split saves, since each part still sends every test file that called
 into it). Under `--at-distance` the counts read only the band. `--format json` lists every file under
 `fanIn`; no field is a verdict.
 
+`variance coverage --format badge` prints the share `any suite` leads with as
+shields.io endpoint JSON, `{"schemaVersion":1,"label":"regions run",…}`, and
+exits 2 with nothing printed when no region was counted: no figure is not `0%`.
+To publish it for a README badge, set the review action's `badge` input rather
+than pushing the file from a workflow step; the action's README shows the job's
+`contents: write` and the README line.
+
 ## Read the state of every range
 
 Every range, and the answer about one line, has a `state`:

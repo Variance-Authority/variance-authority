@@ -145,6 +145,41 @@ A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
 
+### Publishing a badge
+
+`badge: 'true'` publishes the figure `variance coverage` prints first, on a push
+to your default branch, for a [shields.io](https://shields.io/badges/endpoint-badge)
+endpoint badge. The step writes `regions-run.json` as the one file of a commit
+with no parent and pushes it to `refs/badge/<branch>`, replacing what was there,
+so the ref never grows a history. The job needs `contents: write` for that push:
+
+```yaml
+permissions:
+  contents: write # the badge, on a push to the default branch
+  pull-requests: write # the comment
+
+steps:
+  # ...
+  - if: ${{ !cancelled() }}
+    uses: Variance-Authority/action/review@v1
+    with:
+      suite: unit
+      against: ${{ steps.take.outputs.against-unit }}
+      badge: 'true'
+```
+
+Then put the badge in your `README.md`, with your owner, repository and branch
+in the URL:
+
+```markdown
+[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
+```
+
+The badge is for a public repository: raw.githubusercontent.com serves a private
+repository's files only to a request with a token, and shields.io sends none. A
+run with no region counted, or a token that cannot push, warns and leaves the
+last badge in place. On a pull request the step does nothing.
+
 ## Accepting with a tick
 
 `tick-to-accept: 'true'` puts a box in the comment, under `to-accept`. A reviewer

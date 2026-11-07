@@ -155,6 +155,30 @@ describe('coverage of a repository that declares suites', () => {
     ]);
   });
 
+  it('gives a badge the figure the text leads with, in the endpoint schema shields.io reads', async () => {
+    const answer = await ask(['coverage', '--root', root, '--format', 'badge']);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toBe('{"schemaVersion":1,"label":"regions run","message":"0.0%","color":"blue"}\n');
+  });
+
+  it('gives a badge no figure when no suite loaded a region, and says why', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'variance-coverage-badge-'));
+    try {
+      execFileSync('git', ['init', '--quiet', bare]);
+      await writeFile(join(bare, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+      await record(testCoverageFile(bare, { suite: 'unit' }), { tests: [UNIT], modules: [] });
+
+      const answer = await ask(['coverage', '--root', bare, '--format', 'badge']);
+
+      expect(answer.code).toBe(2);
+      expect(answer.out).toBe('');
+      expect(answer.err).toContain('no region');
+    } finally {
+      await rm(bare, { recursive: true, force: true });
+    }
+  });
+
   it('prints a table for a pull request', async () => {
     const answer = await ask(['coverage', '--root', root, '--format', 'markdown']);
 

@@ -3,7 +3,7 @@ import { noPositionals, type Flags } from './args.js';
 import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 
-export type CoverageFormat = 'text' | 'markdown' | 'json';
+export type CoverageFormat = 'text' | 'markdown' | 'json' | 'badge';
 
 export interface ParsedCoverage {
   readonly command: 'coverage';
@@ -26,8 +26,8 @@ export interface ParsedCoverage {
 export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   noPositionals(flags.positionals, 'coverage');
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'markdown' && format !== 'json') {
-    throw new OperatorError(`--format must be text, markdown or json, not \`${format}\``);
+  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'badge') {
+    throw new OperatorError(`--format must be text, markdown, json or badge, not \`${format}\``);
   }
   const against = flags.values.get('--against');
   const suite = flags.values.get('--suite');
