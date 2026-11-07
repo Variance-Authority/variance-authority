@@ -205,11 +205,12 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }, { uncoveredVerdict }] = await Promise.all([
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }, { uncoveredVerdict }, { lostVerdict }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
         import('./review-text.js'),
         import('./review-scope.js'),
+        import('./review-coverage.js'),
       ]);
       if (parsed.fromRun !== undefined) {
         const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
@@ -228,11 +229,13 @@ export async function answerConfigless(
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
       await writePieces(reviewPieces(answer, parsed.format), streams);
-      if (parsed.failOnUncovered !== true) return EXIT_CLEAN;
       // After every output: the check goes red with the review already written.
-      const { failed, said } = uncoveredVerdict(answer);
-      for (const line of said) streams.err(`${line}\n`);
-      return failed ? EXIT_REVIEW : EXIT_CLEAN;
+      const verdicts = [
+        ...(parsed.failOnUncovered === true ? [uncoveredVerdict(answer)] : []),
+        ...(parsed.failOnLost === true ? [lostVerdict(answer.coverage ?? [])] : []),
+      ];
+      for (const line of verdicts.flatMap(({ said }) => said)) streams.err(`${line}\n`);
+      return verdicts.some(({ failed }) => failed) ? EXIT_REVIEW : EXIT_CLEAN;
     }
 
     // `covering`'s reason, for one case instead of one line: a run writes the

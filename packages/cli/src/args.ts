@@ -71,6 +71,7 @@ export const BOOLEAN = new Set([
   '--packages',
   '--coverage',
   '--fail-on-uncovered',
+  '--fail-on-lost',
   '--fan-in',
 ]);
 

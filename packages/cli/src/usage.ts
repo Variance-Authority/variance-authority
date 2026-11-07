@@ -142,7 +142,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--root', '--format'],
   layers: ['--against', '--root', '--format'],
   restrictions: ['--root', '--format'],
-  review: ['--coverage', '--fail-on-uncovered', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
+  review: ['--coverage', '--fail-on-uncovered', '--fail-on-lost', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
   doctor: ['--baselines'],
@@ -164,7 +164,7 @@ export const USAGE = [
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]',
   'variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]',
   'variance restrictions [--root <path>] [--format text|json]',
-  'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
+  'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
   'variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]',
@@ -281,10 +281,13 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
     ...(flags.includes('--fail-on-uncovered')
       ? ['--fail-on-uncovered: exit 1 when a changed function holds code no case ran, and 2 when the record does not hold the change, or source changed and nothing shows a run of it.']
       : []),
+    ...(flags.includes('--fail-on-lost')
+      ? ['--fail-on-lost: exit 1 when a suite no longer runs regions its base ran. It reads `--coverage`; a base that cannot be read is said on stderr and does not fail.']
+      : []),
     REVIEWS.includes(command)
       ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'
       : command === 'review'
-        ? 'exit codes: 0 done, 1 --fail-on-uncovered counted a changed function no case ran, 2 operator error.'
+        ? 'exit codes: 0 done, 1 --fail-on-uncovered counted a changed function no case ran or --fail-on-lost counted a region no longer run, 2 operator error.'
         : 'exit codes: 0 done, 2 operator error.',
   ].join('\n');
 }

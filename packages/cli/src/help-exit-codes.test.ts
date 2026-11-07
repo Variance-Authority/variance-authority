@@ -38,7 +38,7 @@ describe('per-command exit codes', () => {
 
   it('offers `review` its `1` only under the flag that asks for it', () => {
     expect(helpFor('review')).toContain(
-      'exit codes: 0 done, 1 --fail-on-uncovered counted a changed function no case ran, 2 operator error.',
+      'exit codes: 0 done, 1 --fail-on-uncovered counted a changed function no case ran or --fail-on-lost counted a region no longer run, 2 operator error.',
     );
   });
 

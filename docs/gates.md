@@ -61,8 +61,9 @@ build.
 
 A second check is opt-in and asks a different question: `variance review
 --fail-on-uncovered` exits `1` when a function the change touched holds code no
-case ran. The [CLI reference](../packages/cli/README.md#review-what-a-change-did-for-the-person-merging-it)
-has what it counts.
+case ran, and `--fail-on-lost` exits `1` when the change stopped running regions
+its mainline ran. The [CLI reference](../packages/cli/README.md#review-what-a-change-did-for-the-person-merging-it)
+has what each counts.
 
 Posting the result to the pull request is not part of the gate. `npx variance
 comment` writes a comment body and posts nothing. On GitHub,
