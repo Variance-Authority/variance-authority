@@ -1005,6 +1005,11 @@ fails the same way, for an entry a merged test rests on. Neither writes a record
 without that entry. A project named by a path and not wrapped itself records no
 coverage: wrap it to have its tests recorded.
 
+A `--reporter` on the command line replaces the seam's reporter, which is the
+one that refuses and records. Such a run, and such a `rstest merge-reports`,
+writes no record, refuses nothing and does not say so. Vitest does the same in a
+run with no wrapped project.
+
 To assemble a configuration by hand instead, `withTestSelection` names two
 loaders by path, and you can name them yourself:
 `@variance-authority/sense/rstest-loader` with `enforce: 'pre'`, and

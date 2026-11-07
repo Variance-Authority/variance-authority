@@ -65,7 +65,7 @@ export function buildsTestFile(entry: unknown, loaded: ReadonlySet<string>): boo
 
 /** What one entry point of Rspack's names: a path, a list of them, or a description whose `import` is either. */
 function entryFiles(point: unknown): readonly unknown[] {
-  const files = typeof point === 'object' && point !== null && !Array.isArray(point) ? (point as { import?: unknown }).import : point;
+  const files = typeof point === 'object' && point !== null && 'import' in point ? point.import : point;
   return Array.isArray(files) ? files : [files];
 }
 
