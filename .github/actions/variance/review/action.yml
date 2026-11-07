@@ -3,7 +3,7 @@ description: >-
   Puts `variance review --coverage` on the pull request as one comment, updated
   in place, and marks each changed function no case covered on the diff, for a
   project with no surface for the gate to observe. It reads the
-  record your tests left. It has no verdict unless `fail-on-uncovered` asks for
+  record your tests left. It has no verdict unless `fail-on-uncovered` or `fail-on-lost` asks for
   one: the step fails when no review could be written, or when GitHub failed the
   post; a token that cannot write only warns.
 
@@ -28,6 +28,13 @@ inputs:
     description: >-
       'true' fails the step when a changed function holds code no case ran, after
       the comment is posted, so a project can require the check.
+    required: false
+    default: 'false'
+
+  fail-on-lost:
+    description: >-
+      'true' fails the step when a suite's base ran a region no case runs now,
+      after the comment is posted, so a project can require the check.
     required: false
     default: 'false'
 
@@ -68,12 +75,14 @@ runs:
         AGAINST: ${{ inputs.against }}
         REVIEW: ${{ steps.carry.outputs.review }}
         FAIL_ON_UNCOVERED: ${{ inputs.fail-on-uncovered }}
+        FAIL_ON_LOST: ${{ inputs.fail-on-lost }}
       run: |
         set -euo pipefail
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND index
         fail=''
         [ "${FAIL_ON_UNCOVERED:-}" != true ] || fail=--fail-on-uncovered
+        [ "${FAIL_ON_LOST:-}" != true ] || fail="$fail --fail-on-lost"
         status=0
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND review ${SINCE:+--since "$SINCE"} ${SUITE:+--suite "$SUITE"} --coverage ${AGAINST:+--against "$AGAINST"} \
@@ -107,7 +116,7 @@ runs:
 
     # Last, because a step that fails skips the ones after it, and the comment
     # is what says which functions.
-    - name: fail on uncovered code
+    - name: fail on what the review counted
       if: steps.review.outputs.exit-code == '1'
       shell: bash
       run: exit 1

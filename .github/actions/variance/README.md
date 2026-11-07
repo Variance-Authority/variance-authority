@@ -145,6 +145,22 @@ A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
 
+### Requiring that a change keeps running what the mainline ran
+
+`fail-on-lost: 'true'` fails the step, after the comment, when a suite's base ran
+a region no case runs now, or ran a file the checkout still holds and no test
+loads. It takes `against`: with no base nothing is compared,
+which the step says and does not fail on.
+
+```yaml
+- if: ${{ !cancelled() }}
+  uses: Variance-Authority/action/review@v1
+  with:
+    suite: unit
+    against: ${{ steps.take.outputs.against-unit }}
+    fail-on-lost: 'true'
+```
+
 ## Accepting with a tick
 
 `tick-to-accept: 'true'` puts a box in the comment, under `to-accept`. A reviewer

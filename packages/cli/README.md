@@ -153,7 +153,7 @@ variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-d
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
@@ -1248,6 +1248,16 @@ instead, and the exit stays `0` if nothing else is counted. A JVM project cannot
 require this check: the agent's rows do not name the text they ran, so a change to
 a recorded file always exits `2`. The action takes it as
 [`fail-on-uncovered`](https://github.com/Variance-Authority/action#requiring-that-a-changes-functions-ran).
+
+`--fail-on-lost` asks the other question a project can require: whether the
+change stopped running what its mainline ran. It reads the comparison `--coverage`
+prints, whether or not `--coverage` is named, and exits `1` when a suite's base
+ran a region no case runs now, naming the count per suite on stderr, or ran a
+file the checkout still holds and the suite no longer loads, naming the file. A
+region deleted with its code is not lost, and one the comparison could not pair over an
+edit is not counted. A suite with no base, or one that could not be read, is said
+on stderr and does not fail: nothing was compared. The action takes it as
+`fail-on-lost`.
 
 The markdown's first line names what it read: the commit reviewed, the commit
 the change starts from, the commit the cases ran at, and the commit of each
@@ -2793,7 +2803,7 @@ a CI job gates on.
 ```
 
 `variance review` has no verdict of its own and exits `0` or `2`, unless a project
-asks for one with [`--fail-on-uncovered`](#review-what-a-change-did-for-the-person-merging-it).
+asks for one with [`--fail-on-uncovered` or `--fail-on-lost`](#review-what-a-change-did-for-the-person-merging-it).
 
 **A verdict and a crash never share a code.** A red build that could mean either
 "a component changed" or "the store did not answer" is a red build nobody

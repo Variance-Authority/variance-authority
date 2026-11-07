@@ -198,7 +198,7 @@ describe('what changed one suite\'s count', () => {
       written: { regions: 2, run: 1 },
       deleted: { regions: 1, run: 1 },
       arrived: { regions: 1, run: 1, files: ['src/new.ts'] },
-      departed: { regions: 2, run: 1, files: ['src/old.ts'] },
+      departed: { regions: 2, run: 1, files: ['src/old.ts'], ran: ['src/old.ts'] },
     });
     expect(sums(change)).toEqual({ run: is!.run - was!.run, regions: is!.regions - was!.regions });
   });
