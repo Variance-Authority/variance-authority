@@ -546,7 +546,7 @@ import { withTestSelection } from '@variance-authority/playwright-test';
 export default defineConfig(
   withTestSelection(
     { projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }] },
-    { preconditions: ['playwright/fixtures.ts'] },
+    { preconditions: ['tsconfig.json'] },
   ),
 );
 ```
@@ -565,7 +565,7 @@ to an array of one.
 | `suite` | The suite this run is, as the root `variance.config.json` declares it under `suites`. Required once several are declared; the only one when one is. Cannot be combined with `coverageFile`. | None. |
 | `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
-| `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
+| `preconditions` | Files whose contents are a precondition of every observation this run records, such as compiler settings. A change to one runs every test of the run. | None. |
 | `cadence` | Whether each spec is cut statement by statement, so a case records which of its lines reached each region. Read by `withTestSelection`. | `true` |
 
 `mode` has to be the same answer everywhere one coverage index is written:

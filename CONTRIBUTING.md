@@ -106,8 +106,9 @@ select their tests. One the graph does not list either â€” a README, a fixture â
 selects nothing, and the reading names it in one line. What the harness loads
 without importing it is declared: the Vitest seam declares `vitest.config.mts`
 and the local modules it imports, and the config names the rest in
-`preconditions`. A change to any of them selects every test. A test file the
-snapshot has never seen runs.
+`preconditions`. A change to any of them selects every test, so a fixture a test
+reads is named instead by a `/// <depends>` in the module that reads it. A test
+file the snapshot has never seen runs.
 
 So a green `test:since` is a smaller claim than a green `verify`, and `verify` is
 the gate.

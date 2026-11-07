@@ -718,7 +718,8 @@ against it is dropped.
 concatenation `name`, `NUL`, `digest`. A test's preconditions are the files
 its answer depended on that the instrument could not see inside: the test
 file itself, configuration, fixtures, and modules that were loaded but not
-instrumented.
+instrumented. This is the record's row for one test, not the seam's
+`preconditions` option, whose entries every test declares.
 
 **Crossing.** `(block, test)`. The record stores presence, not counts: a test
 crossed a block or did not. Counts exist only in the runtime array and are
@@ -868,8 +869,9 @@ below is one stage of that call.
    selects nobody and takes nothing from the name beside it. A path none of
    whose names is read, and a path the caller gives no name at all, is reported
    as unread. It is a report, not a widening: the skip list is still `whole`
-   less `entered`, and a suite that rests on such a file declares it as a
-   precondition, which removes it from `unread`. A name with a row is read even
+   less `entered`. A module that reads such a file names it with a
+   `/// <depends>`, and a file every test rests on is a precondition, which
+   removes it from `unread`. A name with a row is read even
    when no test names it: the row is the measurement.
 
 The whole trace is O(diff length + inserted text + B per changed module + C of charged blocks

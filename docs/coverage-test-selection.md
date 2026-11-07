@@ -278,7 +278,9 @@ two ways. Ekstazi compares a class by a checksum that leaves out debug
 information, so an edit to a comment selects nothing; under `loads` any change
 to a file's text selects every test file that loaded it. Ekstazi also records
 the resource files a test opens, where `loads` sees only what the run transforms; a file
-read with `fs` is a [precondition](execution-record.md) you declare.
+read with `fs` is one you name by a
+[`/// <depends>`](selecting.md#where-sourcedirs-starts-the-answer) in the module
+that reads it.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its

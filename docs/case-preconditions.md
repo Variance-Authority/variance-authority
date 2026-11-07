@@ -401,5 +401,6 @@ way the count is a line under `Kept`:
 ### Not the file-level `preconditions` option
 
 A case precondition is a state and never selects a test. The integration's
-file-level `preconditions` option, described in [distance](distance.md), names
-a file a test reads, so that editing the file selects the test.
+file-level `preconditions` option, described in
+[changes before and beyond](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
+names a file every test rests on, so that editing the file selects every test.

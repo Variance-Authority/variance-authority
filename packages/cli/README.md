@@ -2332,13 +2332,13 @@ $ variance select
 skipping 212 of 240 test files recorded whole: none covered a changed line;
 every other test file runs.
 the journal records nothing about 1 changed file (fixtures/cart.json), so it
-keeps no test in the run; a file the suite reads without importing it is
-declared as a precondition.
+keeps no test in the run; a file read without importing it is named by a
+`/// <depends>` in the module that reads it.
 ```
 
-When a test does read that fixture, name it in the `preconditions` option of the
-Vitest recorder in `@variance-authority/sense`: from the next recording on, a
-change to it selects every test it governs.
+When a test does read that fixture, name it in the module that reads it, as
+`/// <depends path="…" />`: a change to it selects the tests that load that
+module. A `preconditions` entry would select every test of the run.
 
 A changed lockfile is compared as an install, from the install the suite ran on
 to the one in your tree. A recording keeps the lockfiles and manifests that

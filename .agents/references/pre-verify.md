@@ -233,8 +233,9 @@ declares `vitest.config.mts` and the local modules it imports, such as
 `tools/page-side.mjs`, and the config names the rest in `preconditions`
 (`tsconfig.base.json`). A change to any of them selects every test. A change
 confined to manifests is read as the install it records, and runs nothing when
-no installed package moved. A fixture a test reads with `fs` is named in
-`preconditions` the same way, or a change to it selects nothing.
+no installed package moved. A fixture a test reads with `fs` is named by a
+`/// <depends path="…" />` in the module that reads it, or a change to it selects
+nothing; in `preconditions` it would select every test.
 
 The whole suite runs only when the reading itself could not be made — an install
 it could not compare, or a snapshot with no whole observation of any file the
