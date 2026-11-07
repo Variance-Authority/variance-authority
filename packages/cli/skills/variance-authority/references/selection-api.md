@@ -24,8 +24,8 @@ import {
 } from '@variance-authority/sense/test-selection';
 
 const root = process.cwd();
-// Name the suite when the root variance.config.json declares `suites`;
-// leave the option out when it declares none.
+// Name the suite when the root variance.config.json declares several `suites`;
+// leave the option out when it declares one or none.
 const file = await readableTestCoverage(root, { suite: 'unit' });
 const commit = await recordedCommit(file);
 

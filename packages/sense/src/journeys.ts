@@ -210,6 +210,12 @@ export async function prepareJourneys(
   return prepared;
 }
 
+/** The recording a reader of `suite` opens: with no name, the only one there is. */
+function recordingOf(root: string, suite: string | undefined): ReturnType<typeof recordings>[number] | undefined {
+  const all = recordings(root);
+  return suite === undefined && all.length === 1 ? all[0] : all.find((recorded) => recorded.suite === suite);
+}
+
 /** One suite's answer about the asked files, or why it has none. */
 export interface JourneysAround {
   readonly suite?: string;
@@ -239,9 +245,9 @@ export function journeysAround(root: string, asks: readonly NativeJourneysAsk[])
  */
 export function journeysAmong(root: string, cases: readonly number[], suite?: string): NativeJourneysAmong | undefined {
   const index = sourceIndexPath(root);
-  const found = recordings(root).find((recorded) => recorded.suite === suite);
+  const found = recordingOf(root, suite);
   if (found?.recording === undefined) return undefined;
-  return entry('journeysAmong')(index, found.recording, journeysPath(index, suite), [...cases]);
+  return entry('journeysAmong')(index, found.recording, journeysPath(index, found.suite), [...cases]);
 }
 
 /**
@@ -253,7 +259,7 @@ export function journeysAmong(root: string, cases: readonly number[], suite?: st
  * recorded.
  */
 export function pathsThrough(root: string, at: NativeJourneyEnd, suite?: string): NativePathsThrough | undefined {
-  const found = recordings(root).find((recorded) => recorded.suite === suite);
+  const found = recordingOf(root, suite);
   if (found?.recording === undefined) return undefined;
   return entry('pathsThrough')(found.recording, at.file, at.line);
 }
@@ -265,7 +271,7 @@ export function pathsThrough(root: string, at: NativeJourneyEnd, suite?: string)
  * `undefined` when the suite has nothing recorded.
  */
 export function forksBetween(root: string, a: NativeJourneyEnd, b: NativeJourneyEnd, suite?: string): NativeForksBetween | undefined {
-  const found = recordings(root).find((recorded) => recorded.suite === suite);
+  const found = recordingOf(root, suite);
   if (found?.recording === undefined) return undefined;
   return entry('forksBetween')(found.recording, { ...a }, { ...b });
 }
@@ -289,7 +295,7 @@ export function journeyMap(
   suite?: string,
   listing?: CheckoutListing,
 ): NativeJourneyMap | undefined {
-  const found = recordings(root).find((recorded) => recorded.suite === suite);
+  const found = recordingOf(root, suite);
   if (found?.recording === undefined) return undefined;
   return mapOf(root, file, terms, found.recording, listing).map;
 }

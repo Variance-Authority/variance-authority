@@ -237,8 +237,8 @@ export function beforeOf(root: string, suite: string | undefined): readonly stri
 export function beforeIn(config: RootConfig | undefined, suite: string | undefined): readonly string[] {
   if (config === undefined) return [];
   const shared = config.value['before'] === undefined ? [] : parseBefore(config.value['before'], 'before', config.file);
-  const suites = suite === undefined || config.value['suites'] === undefined ? undefined : parseSuites(config.value['suites'], config.file);
-  const own = suites?.find((one) => one.name === suite)?.before;
+  const suites = config.value['suites'] === undefined ? undefined : parseSuites(config.value['suites'], config.file);
+  const own = suites?.find((one) => one.name === (suite ?? onlySuite(suites)))?.before;
   return [...shared, ...(own ?? [])];
 }
 

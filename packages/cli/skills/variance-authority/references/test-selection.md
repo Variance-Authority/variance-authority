@@ -39,8 +39,8 @@ It is `coverage.bin` in this checkout's directory under
 `suites/<name>/coverage.bin`. Do not compose the path:
 `readableTestCoverage(root, { suite })` from
 `@variance-authority/sense/test-selection` returns the file a reader opens.
-Leave `suite` out when no suites are declared; once any is, the call throws
-without one.
+Leave `suite` out when no suites are declared, or when one is, which it then
+means; with several declared, the call throws without one.
 
 A reader opens the first of these that exists:
 
