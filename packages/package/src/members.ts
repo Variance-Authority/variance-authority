@@ -78,12 +78,9 @@ export function members(root: string, read: (path: string) => Record<string, unk
   const manifest = join(root, 'package.json');
   if (!existsSync(manifest)) return [];
 
-  const declared = workspacesOf(manifest, read(manifest)['workspaces']);
-  const pnpm = declared.length > 0 ? undefined : pnpmMembers(root);
-  const entries = declared.length > 0 ? declared : (pnpm ?? []);
+  const { entries, names } = entriesOf(root, manifest, read);
   if (entries.length === 0) return [manifest];
 
-  const names = pnpm === undefined ? NPM_MANIFESTS : PNPM_MANIFESTS;
   const negated = negatedIn(entries);
   const excluded = new Set(
     negated.length === 0
@@ -109,6 +106,34 @@ export function members(root: string, read: (path: string) => Record<string, unk
     for (const path of preferred(matched.filter((path) => !excluded.has(path)), names)) add(join(root, path));
   }
   return found;
+}
+
+/**
+ * Whether the root lists any entry {@link members} would read.
+ *
+ * A declaration `members` refuses is still a declaration, so it answers yes
+ * where `members` throws. An empty list and a `pnpm-workspace.yaml` of settings
+ * alone declare nothing.
+ */
+export function declares(root: string, read: (path: string) => Record<string, unknown>): boolean {
+  const manifest = join(root, 'package.json');
+  if (!existsSync(manifest)) return false;
+  try {
+    return entriesOf(root, manifest, read).entries.length > 0;
+  } catch {
+    return true;
+  }
+}
+
+/** The entries the root lists, and the manifest names a member of that list is read by. */
+function entriesOf(
+  root: string,
+  manifest: string,
+  read: (path: string) => Record<string, unknown>,
+): { readonly entries: readonly string[]; readonly names: readonly string[] } {
+  const declared = workspacesOf(manifest, read(manifest)['workspaces']);
+  if (declared.length > 0) return { entries: declared, names: NPM_MANIFESTS };
+  return { entries: pnpmMembers(root) ?? [], names: PNPM_MANIFESTS };
 }
 
 /**

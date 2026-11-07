@@ -236,6 +236,7 @@ describe('variance ask orient', () => {
     ],
     ['in `pnpm-workspace.yaml`, offering nothing', { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' }],
     // `members` refuses this one, and the map is no place to say so.
+    ['in a `pnpm-workspace.yaml` written as one flow mapping', { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': '{packages: [packages/*]}\n' }],
     ['in a `pnpm-workspace.yaml` pnpm refuses', { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': 'packages: packages/*\n' }],
   ])('keeps the map of a root declaring its members %s', async (_, declared) => {
     const root = repository({ ...declared, ...MEMBERS });
