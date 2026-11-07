@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
-import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
+import { configuredPath, ownRoot, projectRoot, setupPaths } from './jest-config-paths.js';
 import { mergedTransform } from './jest-preset.js';
 import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
@@ -406,9 +406,6 @@ export function withJourneyCoverage(
   };
 }
 
-/** The `rootDir` Jest reads for a configuration with no `projects`, which a wrap's `root` does not move. */
-const ownRoot = (config: JestConfig, rootDir: string): string => resolve(config.rootDir ?? rootDir);
-
 function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
   return config.projects?.map((project) => {
     if (typeof project === 'string') {
@@ -454,6 +451,7 @@ function instrumented(
         SELECTION_TRANSFORM,
         {
           root,
+          // These options enter Jest's cache key, so an equal `rootDir` stays out and a warm cache survives.
           ...(rootDir === root ? {} : { rootDir }),
           runtime: SELECTION_RUNTIME,
           ...(transformer === undefined ? {} : { transformer }),

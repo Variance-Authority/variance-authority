@@ -5,7 +5,7 @@
  */
 
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import type { JestConfig } from './jest.js';
 
 /** `jest-resolve`'s `findNodeModule`. */
@@ -41,6 +41,15 @@ export function jestDependency(rootDir: string, name: string): string {
 /** A project's `rootDir`, absolute, with the top level's `<rootDir>` spelled out; the top level's own when it has none. */
 export function projectRoot(project: JestConfig, root: string): string {
   return resolve(root, (project.rootDir ?? '.').replace(/^<rootDir>\/?/, ''));
+}
+
+/**
+ * The `rootDir` of a configuration with no `projects`, under the wrap's `root`.
+ * Jest reads a relative one from the config file, whose directory the wrap is
+ * never told, so only an absolute one is taken over `root`.
+ */
+export function ownRoot(config: JestConfig, root: string): string {
+  return config.rootDir !== undefined && isAbsolute(config.rootDir) ? resolve(config.rootDir) : root;
 }
 
 /**

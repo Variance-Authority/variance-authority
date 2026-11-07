@@ -10,7 +10,7 @@ import type { FindNodeModule } from './jest-config-paths.js';
 /** The options of a preset's the two readers ask for. */
 interface Preset {
   readonly runtime?: string;
-  readonly transform?: Readonly<Record<string, unknown>>;
+  readonly transform?: Readonly<Record<string, unknown>> | null;
 }
 
 /** jest-config's `replaceRootDirInPath`. */

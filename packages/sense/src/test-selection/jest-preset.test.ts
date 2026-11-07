@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { jestDependency } from './jest-config-paths.js';
 import { createTransformer } from './jest-transform.js';
-import { SELECTION_RUNTIME, SELECTION_TRANSFORM, withJourneyCoverage, withTestSelection, type SelectionTransformerConfig } from './jest.js';
+import { SELECTION_RUNTIME, SELECTION_TRANSFORM, withJourneyCoverage, withTestSelection, type JestConfig, type SelectionTransformerConfig } from './jest.js';
 
 const INSTALLED_JEST = resolve(import.meta.dirname, '../../../../node_modules/jest');
 const temporary: string[] = [];
@@ -25,6 +27,9 @@ async function adopter(): Promise<string> {
     'plain-preset/jest-preset.json': '{ "testEnvironment": "node" }\n',
     'emptied-preset/jest-preset.json': '{ "transform": {} }\n',
     'broken-preset/jest-preset.js': 'throw new Error("this preset does not load");\n',
+    'nulled-preset/jest-preset.json': '{ "transform": null }\n',
+    'awaiting-preset/jest-preset.mjs': 'export default await Promise.resolve({ testEnvironment: "node" });\n',
+    'esm-only-preset/jest-preset.js': 'throw Object.assign(new Error("require() of ES Module"), { code: "ERR_REQUIRE_ESM" });\n',
   };
   for (const [file, text] of Object.entries(presets)) {
     await mkdir(resolve(root, 'node_modules', file, '..'), { recursive: true });
@@ -49,6 +54,11 @@ const wrapped = (root: string, transformer?: string): unknown => ({
 });
 
 const TS_PATTERNS = ['^.+\\.tsx?$'];
+
+/** What Jest makes of a configuration, by its own reading of it. */
+const normalized = (rootDir: string, config: JestConfig): Promise<unknown> =>
+  (createRequire(import.meta.url)(jestDependency(rootDir, 'jest-config')) as { normalize(config: JestConfig, argv: object): Promise<unknown> })
+    .normalize(config, {});
 
 const wrappedPreset = (root: string): unknown => ({
   '^.+\\.tsx?$': [SELECTION_TRANSFORM, { root, runtime: SELECTION_RUNTIME, transformer: ['ts-jest', {}] }],
@@ -112,6 +122,24 @@ describe('a Jest preset that has a `transform`', () => {
   });
 });
 
+describe('a relative `rootDir` under a `root` of the wrap\'s', () => {
+  // Jest reads it from the config file, whose directory the wrap is never told.
+  it('loads a transformer from that `root`', async () => {
+    const root = await nestedProject();
+    const configured = withTestSelection({ rootDir: '..', transform: { '\\.vue$': 'vue-jest' } }, { root, coverageFile: 'coverage.bin' });
+    const [, { runtime: _, ...options }] = configured.transform!['\\.vue$'] as [string, SelectionTransformerConfig];
+    await expect(createTransformer(options)).resolves.toHaveProperty('process');
+  });
+
+  it('reads a preset from that `root`, under either wrap', async () => {
+    const root = await adopter();
+    const selected = withTestSelection({ rootDir: '..', preset: 'ts-jest' }, { root, coverageFile: 'coverage.bin' });
+    const journeyed = withJourneyCoverage({ rootDir: '..', preset: 'ts-jest' }, { root, journeyFile: 'journeys.bin' });
+    expect(Object.keys(selected.transform ?? {})).toEqual(TS_PATTERNS);
+    expect(Object.keys(journeyed.transform ?? {})).toEqual(TS_PATTERNS);
+  });
+});
+
 describe('a transformer the project at `rootDir` holds, under a checkout root above it', () => {
   it('loads it from the project, where Jest finds it', async () => {
     const rootDir = await nestedProject();
@@ -152,14 +180,31 @@ describe('a Jest preset the wrap takes no `transform` from', () => {
     expect(configured.transform).toEqual(wrapped(rootDir));
   });
 
-  it.each(['missing-preset', 'broken-preset'])('leaves %s to Jest, which says what is wrong with it', async (preset) => {
+  it('wraps Jest\'s default under a preset that says `transform: null`, which Jest reads as naming none', async () => {
     const rootDir = await adopter();
-    const configured = withTestSelection({ rootDir, preset }, { coverageFile: 'coverage.bin' });
-    expect(configured['preset']).toBe(preset);
+    const configured = withTestSelection({ rootDir, preset: 'nulled-preset' }, { coverageFile: 'coverage.bin' });
+    expect(configured.transform).toEqual(wrapped(rootDir, 'babel-jest'));
   });
 
-  it('says so when the project cannot reach `jest-resolve`, rather than wrapping what Jest would not run', () => {
+  it.each([
+    ['missing-preset', /not found relative to rootDir/],
+    ['broken-preset', /this preset does not load/],
+  ])('leaves %s to Jest, which says what is wrong with it', async (preset, message) => {
+    const rootDir = await adopter();
+    const configured = withTestSelection({ rootDir, preset }, { coverageFile: 'coverage.bin' });
+    await expect(normalized(rootDir, configured)).rejects.toThrow(message);
+  });
+});
+
+describe('a Jest preset the wrap cannot take a `transform` from', () => {
+  it.each(['awaiting-preset', 'esm-only-preset'])('refuses %s, which Jest imports and a synchronous wrap cannot, by name', async (preset) => {
+    const rootDir = await adopter();
+    expect(() => withTestSelection({ rootDir, preset }, { coverageFile: 'coverage.bin' }))
+      .toThrow(new RegExp(`preset ${preset} .*synchronous`, 'u'));
+  });
+
+  it('names the preset and where it looked when the project cannot reach `jest-resolve`', () => {
     expect(() => withTestSelection({ rootDir: '/repo', preset: 'ts-jest' }, { coverageFile: 'coverage.bin' }))
-      .toThrow(/jest-resolve/);
+      .toThrow(/preset ts-jest .*`jest-resolve`.* \/repo/u);
   });
 });

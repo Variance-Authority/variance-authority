@@ -821,7 +821,9 @@ off, and stderr says which.
 anything. It reads the preset's `transform`, merges it with yours as Jest does
 and wraps the result, so a preset such as `ts-jest` needs nothing copied, and a
 `transform` you name keeps its patterns beside the preset's. Transformers load
-from the project's `rootDir`, where Jest finds them. A preset's setup files and environment are read
+from the project's `rootDir`, where Jest finds them. A preset only `import` can
+read, such as one with top-level await, stops the wrap at config load, by name:
+the wrap is synchronous. A preset's setup files and environment are read
 from the configuration Jest resolved, so a local preset's files are preconditions
 without being named. An async configuration is yours to await: wrap the object it
 returns.
