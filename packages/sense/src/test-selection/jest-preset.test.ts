@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { jestDependency } from './jest-config-paths.js';
+import { jestDependency } from './jest-dependency.js';
 import { createTransformer } from './jest-transform.js';
 import { SELECTION_RUNTIME, SELECTION_TRANSFORM, withJourneyCoverage, withTestSelection, type JestConfig, type SelectionTransformerConfig } from './jest.js';
 
@@ -29,6 +29,7 @@ async function adopter(): Promise<string> {
     'broken-preset/jest-preset.js': 'throw new Error("this preset does not load");\n',
     'nulled-preset/jest-preset.json': '{ "transform": null }\n',
     'awaiting-preset/jest-preset.mjs': 'export default await Promise.resolve({ testEnvironment: "node" });\n',
+    'promised-preset/jest-preset.js': 'module.exports = Promise.resolve({ transform: { "^.+\\\\.tsx?$": "ts-jest" } });\n',
     'esm-only-preset/jest-preset.js': 'throw Object.assign(new Error("require() of ES Module"), { code: "ERR_REQUIRE_ESM" });\n',
   };
   for (const [file, text] of Object.entries(presets)) {
@@ -141,11 +142,26 @@ describe('a relative `rootDir` under a `root` of the wrap\'s', () => {
     expect(Object.keys(journeyed.transform ?? {})).toEqual(TS_PATTERNS);
   });
 
-  // Jest may find it from the config file's directory, and would then run wrapped `babel-jest` ahead of it.
-  it('refuses a preset it does not find from that `root`, under either wrap, and says what to write', async () => {
+  it('reads a preset given by an absolute path from there, which no `rootDir` moves', async () => {
     const root = await adopter();
-    const refusal = new RegExp(`preset \\./preset\\.cjs is not found from ${root}\\. .*absolute path`, 'u');
-    const config = { rootDir: '.', preset: './preset.cjs' };
+    const preset = resolve(root, 'node_modules/ts-jest/jest-preset.js');
+    const configured = withTestSelection({ rootDir: '..', preset }, { root, coverageFile: 'coverage.bin' });
+    expect(Object.keys(configured.transform ?? {})).toEqual(TS_PATTERNS);
+  });
+
+  // Found or not, that `root` may not be where Jest looks: it may run another file, or find one the wrap missed.
+  it.each([
+    ['a path it does not find', './missing.cjs'],
+    ['a path it finds', './preset.cjs'],
+    ['a `<rootDir>` path it finds', '<rootDir>/preset.cjs'],
+    ['a path that throws when read', './broken.cjs'],
+    ['a bare name it does not find', 'missing-preset'],
+  ])('refuses %s, under either wrap, and says what to write', async (_, preset) => {
+    const root = await adopter();
+    await writeFile(resolve(root, 'preset.cjs'), 'module.exports = { transform: { "\\\\.ts$": "ts-jest" } };\n');
+    await writeFile(resolve(root, 'broken.cjs'), 'throw new Error("this preset does not load");\n');
+    const refusal = new RegExp(`preset ${preset.replaceAll('.', '\\.')} cannot be read as Jest will read it: .*${root} .*absolute path`, 'u');
+    const config = { rootDir: '.', preset };
     expect(() => withTestSelection(config, { root, coverageFile: 'coverage.bin' })).toThrow(refusal);
     expect(() => withJourneyCoverage(config, { root, journeyFile: 'journeys.bin' })).toThrow(refusal);
   });
@@ -236,7 +252,7 @@ describe('a Jest preset the wrap takes no `transform` from', () => {
 });
 
 describe('a Jest preset the wrap cannot take a `transform` from', () => {
-  it.each(['awaiting-preset', 'esm-only-preset'])('refuses %s, which Jest imports and a synchronous wrap cannot, by name', async (preset) => {
+  it.each(['awaiting-preset', 'esm-only-preset', 'promised-preset'])('refuses %s, which Jest awaits and a synchronous wrap cannot, by name', async (preset) => {
     const rootDir = await adopter();
     expect(() => withTestSelection({ rootDir, preset }, { coverageFile: 'coverage.bin' }))
       .toThrow(new RegExp(`preset ${preset} .*synchronous`, 'u'));

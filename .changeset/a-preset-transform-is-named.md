@@ -12,12 +12,15 @@ A transformer now loads from the project's `rootDir`, where Jest finds it, so on
 installed only under a nested package needs no `require.resolve`, and `<rootDir>`
 in its name is replaced as Jest replaces it.
 
-A preset only `import` can read, such as one with top-level await, is refused at
-config load, by name, because the wrap is synchronous. A preset not found under a
-relative `rootDir` is refused the same way, and the refusal says to write an
-absolute one: Jest reads a relative `rootDir` from the config file, whose
-directory the wrap is never told. So is any `preset`, with or without a
-`transform`, when `jest-resolve` is not reachable from that directory.
+A preset Jest awaits, such as one with top-level await or one that exports a
+promise, is refused at config load, by name, because the wrap is synchronous.
+Under a relative `rootDir`, a preset spelled as a path, starting with `.` or
+`<rootDir>`, is refused the same way whether or not it is found, and so is a bare
+name that is not found. The refusal says to write an absolute `rootDir`: Jest
+reads a relative one from the config file, whose directory the wrap is never
+told, so a file found from elsewhere may not be the one Jest runs. Any `preset`,
+with or without a `transform`, is refused too when `jest-resolve` is not reachable
+from that directory.
 
 `transform: undefined` or `transform: null` beside a preset wraps Jest's default,
 because Jest reads either as shadowing the preset's `transform`.

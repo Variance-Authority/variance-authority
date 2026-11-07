@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -31,6 +31,9 @@ async function inDirectory<T>(run: (directory: string) => Promise<T>): Promise<T
   }
 }
 
+/** The wrap's refusal of the fixture's preset, having looked from `from`. */
+const refusal = (from: string): RegExp => new RegExp(`preset \\./preset\\.cjs cannot be read as Jest will read it: .*${from} .*absolute path`, 'u');
+
 it.each([
   ['names no `transform`', fixture, undefined],
   ['sets `transform: {}`', fixture, '{}'],
@@ -48,8 +51,25 @@ it('names a preset only the config file\'s directory can read, under a relative 
   await inDirectory(async (directory) => {
     const run = jest(directory, dirname(fixture), { FIXTURE_ROOT_DIR: '.' });
     await expect(run).rejects.toMatchObject({
-      stderr: expect.stringMatching(new RegExp(`preset \\./preset\\.cjs is not found from ${dirname(fixture)}\\. .*absolute path`, 'u')),
+      stderr: expect.stringMatching(refusal(dirname(fixture))),
     });
     await expect(run).rejects.not.toMatchObject({ stderr: expect.stringContaining('Test Suites:') });
+  });
+}, 60_000);
+
+it('names a preset a sibling directory also holds, under a relative `rootDir`, and runs no transformer of that other preset', async () => {
+  await inDirectory(async (directory) => {
+    const ran = resolve(directory, 'wrong-preset-ran');
+    await writeFile(resolve(directory, 'package.json'), '{"name":"sibling","private":true}\n');
+    await symlink(resolve(root, 'node_modules'), resolve(directory, 'node_modules'));
+    await writeFile(resolve(directory, 'preset.cjs'), 'module.exports = { transform: { "\\\\.ts$": "<rootDir>/wrong.cjs" } };\n');
+    await writeFile(resolve(directory, 'wrong.cjs'), [
+      `require('node:fs').writeFileSync(${JSON.stringify(ran)}, '');`,
+      'module.exports = { process: (source) => ({ code: source.replace(/: number/g, "") }) };\n',
+    ].join('\n'));
+    const run = jest(directory, directory, { FIXTURE_ROOT_DIR: '.' });
+    await expect(run).rejects.toMatchObject({ stderr: expect.stringMatching(refusal(await realpath(directory))) });
+    await expect(run).rejects.not.toMatchObject({ stderr: expect.stringContaining('Test Suites:') });
+    await expect(access(ran)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 }, 60_000);

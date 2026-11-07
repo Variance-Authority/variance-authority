@@ -827,10 +827,13 @@ the wrap is never told, so the wrap looks in `root`, or else in that path from
 the working directory. With the config file in another folder, write `rootDir`
 as an absolute path, and a preset such as `ts-jest` still needs nothing copied.
 
-The wrap stops at config load, naming the preset, in three cases. A preset it
-does not find under a relative `rootDir` stops it because Jest may find that
-preset from the config file. A preset only `import` can read, such as one with
-top-level await, stops it because the wrap is synchronous. Any preset stops it
+The wrap stops at config load, naming the preset, in four cases. Under a relative
+`rootDir`, a preset spelled as a path, starting with `.` or `<rootDir>`, stops it
+whether it is there or not, because the file there may not be the one Jest runs,
+and the fix is an absolute `rootDir` even when the two are the same folder. A bare
+name it does not find there stops it because Jest may find that preset from the
+config file. A preset Jest awaits, such as one with top-level await or one that
+exports a promise, stops it because the wrap is synchronous. Any preset stops it
 when `jest-resolve` is not reachable from that directory, even one with no
 `transform`, because the wrap finds a preset through `jest-resolve`. A missing
 preset under an absolute `rootDir`, or under none, is Jest's to report.

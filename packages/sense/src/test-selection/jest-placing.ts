@@ -20,7 +20,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
-import { jestDependency } from './jest-config-paths.js';
+import { jestDependency } from './jest-dependency.js';
 import { refuseUnfound } from './jest-selection.js';
 import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
