@@ -82,7 +82,10 @@ export function readJobTrace(lines: Iterable<string>): JobTrace {
     if (name === 'execve') {
       if (!failed) read(pathOf(args[0]));
     } else if (name === 'truncate' || name === 'creat') {
-      if (!failed) write(pathOf(args[0]));
+      if (failed) continue;
+      // A truncate to any length but zero keeps what was there.
+      if (name === 'truncate' && args[1] !== '0') read(pathOf(args[0]));
+      write(pathOf(args[0]));
     } else if (name === 'open' || name === 'openat' || name === 'openat2') {
       const at = name !== 'open';
       const flags = args[at ? 2 : 1] ?? '';

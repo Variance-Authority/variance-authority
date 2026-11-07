@@ -43,6 +43,11 @@ describe('reading a job trace', () => {
     });
   });
 
+  it('counts a truncate that keeps a prefix as a read, and one that empties the file as none', () => {
+    expect(read('1 truncate("/r/kept.txt", 4) = 0')).toEqual({ reads: ['/r/kept.txt'], writes: ['/r/kept.txt'] });
+    expect(read('1 truncate("/r/gone.txt", 0) = 0')).toEqual({ reads: [], writes: ['/r/gone.txt'] });
+  });
+
   it('follows a rename from its directories, and what it wrote moves with it', () => {
     expect(read(
       '147 openat(AT_FDCWD</r/sub>, "\\303\\251 q.tmp", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3</r/sub/\\303\\251 q.tmp>',

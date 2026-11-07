@@ -590,6 +590,7 @@ jobs:
           cp -a . "$RUNNER_TEMP/recorder"
           yarn clean
           rm -f packages/sense/npm/*/scan.node packages/sense/npm/*/scan.node.tree
+          rm -rf packages/sense/native/target
           recorder="node $RUNNER_TEMP/recorder/packages/cli/dist/bin.js job --suite site-job"
           $recorder -- yarn install --immutable
           $recorder -- yarn build
