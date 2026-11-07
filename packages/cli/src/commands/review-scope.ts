@@ -115,9 +115,9 @@ export function unrecordedSources(review: Pick<Review, 'files'>): readonly strin
 
 const RUN_FIRST = 'Run the tests under the recorder before the review.';
 
-/** Whether anything shows a run of this change: a file ran as the tree holds it, or the runs listed name the commit under review and the tree holds nothing on top of it. */
-function ranHere({ files, runs, head }: Pick<Review, 'files' | 'runs' | 'head'>): boolean {
-  return files.some((file) => file.ran === true) || (runs?.commit !== undefined && runs.commit === head?.commit && head.dirty !== true);
+/** Whether a run of this change is shown: the runs listed name the commit under review and the tree holds nothing on top of it. A file that ran as the tree holds it shows none: an earlier push may have left that row. */
+function ranHere({ runs, head }: Pick<Review, 'runs' | 'head'>): boolean {
+  return runs?.commit !== undefined && runs.commit === head?.commit && head.dirty !== true;
 }
 
 /** The changed files the record holds that no suite the review read ran as the tree holds them: a change that added or deleted code meets no row, so a row is no test of it. */

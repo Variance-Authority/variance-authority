@@ -1,13 +1,13 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodeAsSetExecutionIndex, landRun, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { type ExecutionBlock, encodeAsSetExecutionIndex, landRun, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 import { probedModule } from './mainline-fixture.js';
-import { AFTER, BEFORE, DISCOUNTS, block, changed, git, noRowsBy, roundedBy } from './review-fixture.js';
+import { AFTER, BEFORE, DISCOUNTS, GONE, block, changed, git, noRowsBy, roundedBy } from './review-fixture.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
 vi.mock('ci-info', () => ({ isCI: false }));
@@ -90,6 +90,8 @@ describe('a review that fails on a changed function no case ran', () => {
 
   it('names a changed file no run loaded and counts nothing for it, beside a function no case ran', async () => {
     const { root, first, against } = await changed({ others: FEE });
+    const commit = committed(root);
+    await listRun(root, commit, { commit }, { tests: [DISCOUNTS], blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, [])] });
 
     const { code, err } = await reviewed(['--since', first, '--against', against, '--root', root, '--fail-on-uncovered']);
 
@@ -99,16 +101,19 @@ describe('a review that fails on a changed function no case ran', () => {
   });
 
   /** The run at `first` lists itself, as a run of this commit does, and `src/total.ts` is all it loaded. */
-  const listRun = (root: string, first: string, listed: { readonly commit?: string } = { commit: first }) => landRun(testCoverageFile(root), {
-    version: 3,
-    instrumentation: INSTRUMENTATION_ID,
-    ...listed,
-    tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
-    modules: [probedModule(['test/total.test.ts'])],
-  }, root, undefined, {
-    fresh: encodeAsSetExecutionIndex({ tests: [DISCOUNTS], modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }] }),
-    run: { tests: [{ file: 'test/total.test.ts', complete: true }], ...listed },
-  });
+  const listRun = (root: string, first: string, listed: { readonly commit?: string } = { commit: first }, loaded: { readonly tests: readonly (typeof DISCOUNTS)[]; readonly blocks: readonly ExecutionBlock[] } = { tests: [DISCOUNTS], blocks: [block('applyDiscount', 1, 3, [0])] }) => {
+    const tests = [...new Set(loaded.tests.map((test) => test.file))].map((file) => ({ file, complete: true }));
+    return landRun(testCoverageFile(root), {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      ...listed,
+      tests: tests.map((test) => ({ ...test, preconditions: [] })),
+      modules: [probedModule(tests.map((test) => test.file))],
+    }, root, undefined, {
+      fresh: encodeAsSetExecutionIndex({ tests: loaded.tests, modules: [{ file: 'src/total.ts', blocks: loaded.blocks }] }),
+      run: { tests, ...listed },
+    });
+  };
 
   /** The change committed, so the tree is the commit a run can name. */
   const committed = (root: string): string => {
@@ -139,6 +144,8 @@ describe('a review that fails on a changed function no case ran', () => {
 
   it('says in the comment what the log says of a changed file no run loaded, and counts only what a run loaded', async () => {
     const { root, first, against } = await changed({ gone: true, others: FEE });
+    const commit = committed(root);
+    await listRun(root, commit, { commit }, { tests: [DISCOUNTS, GONE], blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, [1])] });
 
     const { code, out, err } = await reviewed(['--since', first, '--against', against, '--root', root, '--format', 'markdown', '--fail-on-uncovered']);
     const said = '`src/fee.ts` changed and no run loaded it, so the count says nothing of it.';
@@ -198,6 +205,7 @@ describe('a review that fails on a changed function no case ran', () => {
 
   it('names a file no run loaded when the change only deleted lines from it', async () => {
     const { root, first, against } = await changed({ gone: true, others: { 'src/fee.ts': ['export function fee(): number {\n  log();\n  return 1;\n}\n', 'export function fee(): number {\n  return 1;\n}\n'] } });
+    await listRun(root, committed(root));
 
     const { code, err } = await reviewed(['--since', first, '--against', against, '--root', root, '--fail-on-uncovered']);
 
@@ -215,6 +223,16 @@ describe('a review that fails on a changed function no case ran', () => {
 
     expect(code).toBe(EXIT_CLEAN);
     expect(err).toBe('');
+  });
+
+  it('is not green on a changed file no run loaded when the file a run did load ran at an earlier commit', async () => {
+    const { root, first, against } = await changed({ others: FEE });
+    committed(root);
+
+    const { code, err } = await reviewed(['--since', first, '--against', against, '--root', root, '--fail-on-uncovered']);
+
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('nothing shows a run of this change');
   });
 
   it('is not green on an edited function outside the record when nothing shows a run of this change', async () => {
