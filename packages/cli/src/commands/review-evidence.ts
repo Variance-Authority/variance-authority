@@ -11,7 +11,7 @@ export async function reviewWithCoverage(request: ParsedReview): Promise<Review>
   const readings = await eachSuite(request.root, (suite) => coverage({
     command: 'coverage', root: request.root, format: 'json', packages: true,
     ...(suite === undefined ? {} : { suite }),
-    ...(request.against === undefined || suite !== request.suite ? {} : { against: request.against }),
+    ...(request.against === undefined || (request.suite !== undefined && suite !== request.suite) ? {} : { against: request.against }),
   }, undefined));
   return { ...answer, coverage: readings, ...(request.suite === undefined ? {} : { recordedSuite: request.suite }) };
 }
