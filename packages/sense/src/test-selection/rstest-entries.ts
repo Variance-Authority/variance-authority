@@ -53,5 +53,12 @@ export function buildingPlugin(run: SelectionRun) {
  * A setup file that is a package is named differently and reads as a test file.
  */
 export function buildsTestFile(entry: unknown, loaded: ReadonlySet<string>): boolean {
-  return typeof entry === 'function' || Object.values(entry ?? {}).some((file) => !loaded.has(file as string));
+  if (typeof entry === 'function') return true;
+  const named = new Set([...loaded].map(forwardSlashed));
+  return Object.values(entry ?? {}).some((file) => !named.has(forwardSlashed(file as string)));
+}
+
+/** Rspack spells a Windows path with forward slashes, and `resolve` with backslashes. */
+function forwardSlashed(file: string): string {
+  return file.replaceAll('\\', '/');
 }
