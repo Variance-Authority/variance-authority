@@ -125,7 +125,8 @@ describes every line of the output.
   `count.regions`. Those are the regions in files the suites loaded, so a file
   no test loads does not lower the figure. Label it `regions run`, since a
   badge that says `coverage` reads as line coverage. Variance Authority's
-  README on GitHub shows one, which its CI writes on every push to `main`.
+  README on GitHub shows one, which its CI writes on each push to `main`
+  that publishes its records.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a

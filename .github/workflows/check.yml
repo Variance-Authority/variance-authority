@@ -1052,7 +1052,7 @@ jobs:
       # schema as the one file of a commit with no parent at `refs/badge/main`,
       # replaced on every push so the ref never grows a history.
       # raw.githubusercontent.com serves it as it serves any ref. A count of no
-      # regions is no figure: nothing is written and the last badge stands.
+      # regions is no figure, nor is a failed read: nothing is written and the last badge stands.
       # The token reaches git as in the step above.
       - name: publish the badge's figure
         shell: bash
@@ -1063,14 +1063,13 @@ jobs:
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
-          node packages/cli/dist/bin.js coverage --format json > "$RUNNER_TEMP/coverage.json"
-          if ! badge=$(node -e '
+          if ! node packages/cli/dist/bin.js coverage --format json > "$RUNNER_TEMP/coverage.json" || ! badge=$(node -e '
             const { count } = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
             if (!(count.regions > 0)) process.exit(1);
             const run = count.over?.this ?? count.run;
             process.stdout.write(JSON.stringify({ schemaVersion: 1, label: "regions run", message: `${(100 * run / count.regions).toFixed(1)}%`, color: "blue" }));
           ' "$RUNNER_TEMP/coverage.json"); then
-            echo "::warning title=badge not updated::no region was counted, so the last badge stands."
+            echo "::warning title=badge not updated::no figure was read, so the last badge stands."
             exit 0
           fi
           blob=$(printf '%s\n' "$badge" | git hash-object -w --stdin)
