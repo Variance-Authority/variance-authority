@@ -1,6 +1,5 @@
 // compass: variance-authority.reach
 
-import { loadRenderless } from '../config-load.js';
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -145,6 +144,8 @@ export async function namedSuite(root: string, suite?: string): Promise<{ readon
 
 /** The suite a command that names none means, in a file that configures no project: the only one declared, and refused among several. */
 export async function onlySuiteOf(config: string): Promise<string | undefined> {
+  // Imported here because the argument parsers load this file, and the config reader reaches the pixel packages.
+  const { loadRenderless } = await import('../config-load.js');
   return (await loadRenderless(config)) === undefined ? undefined : (await namedSuite(process.cwd())).name;
 }
 
