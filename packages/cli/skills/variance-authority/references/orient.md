@@ -22,9 +22,10 @@ with its size, its dependency layers, the packages the rest of the repository
 imports most from it, and the areas it imports from. The number at the start of
 a row is the id `--area` takes.
 
-A root package is on the map beside the packages nested in it when it publishes:
-it is not `private`, it offers an entry, and it holds source. Any other root only
-holds them.
+A root package is on the map beside the packages nested in it when its manifest
+has a `name`, it holds source, and it declares no workspaces: no entry in
+`workspaces` and none under `packages:` in a `pnpm-workspace.yaml`. A root that
+declares workspaces only holds them.
 
 ```
 $ variance ask orient

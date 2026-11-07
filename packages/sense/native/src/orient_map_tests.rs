@@ -256,7 +256,13 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     std::fs::write(fixture.0.join("packages/ui/ui1/package.json"), r#"{"name": "@t/ui-1", "private": true}"#).unwrap();
     git(&root, &["add", "-A"]);
     carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
-    assert_ne!(inode(&map_path(&index)), folded);
+    let refolded = inode(&map_path(&index));
+    assert_ne!(refolded, folded);
+    // So does the root's `pnpm-workspace.yaml`: it says whether the root is on the map.
+    std::fs::write(fixture.0.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    git(&root, &["add", "-A"]);
+    carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+    assert_ne!(inode(&map_path(&index)), refolded);
 }
 
 #[test]

@@ -35,8 +35,6 @@ pub(crate) struct Package {
     pub develops: Vec<String>,
     /// The paths it offers a runtime, as written (`offered`).
     pub offers: Vec<String>,
-    /// Whether its manifest says `private`, so it publishes nothing.
-    pub private: bool,
 }
 
 pub(crate) struct Owners<'a> {
@@ -71,7 +69,6 @@ pub(crate) struct Manifest {
     main: Option<serde_json::Value>,
     module: Option<serde_json::Value>,
     bin: Option<serde_json::Value>,
-    private: Option<serde_json::Value>,
 }
 
 /// The paths a manifest offers a runtime, as written: every target of
@@ -139,14 +136,13 @@ pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
             let bytes = std::fs::read(std::path::Path::new(root).join(manifest)).ok()?;
             let parsed: Manifest = serde_json::from_slice(&bytes).ok()?;
             let offers = offered(&parsed);
-            let private = parsed.private == Some(serde_json::Value::Bool(true));
             let serde_json::Value::String(name) = parsed.name? else { return None };
             let depends = [&parsed.dependencies, &parsed.peer_dependencies, &parsed.optional_dependencies]
                 .into_iter()
                 .flat_map(declared)
                 .collect();
             let develops = declared(&parsed.dev_dependencies).collect();
-            Some(Package { directory: parent(manifest).to_owned(), name, depends, develops, offers, private })
+            Some(Package { directory: parent(manifest).to_owned(), name, depends, develops, offers })
         })
         .collect();
     named.sort_unstable_by(|left, right| crate::order::code_unit(&left.directory, &right.directory));

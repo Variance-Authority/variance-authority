@@ -22,6 +22,7 @@ use crate::orient_map_closure::{closures, Closure, Nodes};
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
 use crate::resolve::Tsconfig;
+use crate::workspace_declared::declares_workspaces;
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
@@ -33,10 +34,8 @@ pub(crate) struct Named {
 pub(crate) struct Read {
     /// Every package, in code-unit order of name; the root's included.
     pub packages: Vec<Named>,
-    /// Whether the root publishes: not private, and offering a runtime an
-    /// entry, so it is a package among the others rather than the repository
-    /// around them.
-    pub library: bool,
+    /// Whether the root declares workspaces (`declares_workspaces`).
+    pub workspaces: bool,
     /// Package names some manifest declares under `dependencies`,
     /// `peerDependencies` or `optionalDependencies`, and under `devDependencies`.
     pub depends: HashSet<String>,
@@ -143,7 +142,6 @@ pub(crate) fn read(
         }
     };
     let owners = owners(root, paths);
-    let library = owners.packages.iter().any(|package| package.directory.is_empty() && !package.private && !package.offers.is_empty());
 
     let (order, shown) = shown(&owners);
     let mut by_name: Vec<u32> = (0..owners.packages.len() as u32).collect();
@@ -264,7 +262,7 @@ pub(crate) fn read(
     edges.sort_unstable();
     let closures = closures(&loads(&files, &counted, &roots, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
-    Read { head: heads(n, uses), packages, library, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
+    Read { head: heads(n, uses), packages, workspaces: declares_workspaces(root), depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
 }
 
 /// The graph a closure is walked over: every counted file, and what it loads.

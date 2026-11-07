@@ -172,6 +172,7 @@ mod tree;
 mod watchman;
 mod witness;
 mod witness_aliases;
+mod workspace_declared;
 
 pub use seed::seed_files;
 

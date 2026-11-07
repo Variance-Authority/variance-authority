@@ -72,7 +72,7 @@ const LIBRARY = {
   'benchmarks/run.ts': "import { weak } from '../src/index.js';\nexport const run = weak;\n",
 };
 
-/** Two members of a workspace, and a script of the root's own. */
+/** Two members of a workspace, and a script of the root's own, so the root holds source. */
 const MEMBERS = {
   'scripts/release.ts': 'export const release = 1;\n',
   'packages/cart/package.json': JSON.stringify({ name: 'cart' }),
@@ -185,20 +185,22 @@ describe('variance ask orient', () => {
   });
 
   it.each<[string, Record<string, string>]>([
+    ['names itself and nothing else', { 'package.json': JSON.stringify({ name: 'kashe' }) }],
+    ['offers only `types`', { 'package.json': JSON.stringify({ name: 'kashe', types: './src/index.d.ts' }) }],
+    ['is private', { 'package.json': JSON.stringify({ name: 'kashe', private: true }) }],
     ['offers `main`', { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts' }) }],
     ['offers `exports`', { 'package.json': JSON.stringify({ name: 'kashe', exports: './src/index.ts' }) }],
     ['offers a `bin`', { 'package.json': JSON.stringify({ name: 'kashe', bin: { kashe: './src/index.ts' } }) }],
-    ['lists no entry in `workspaces`', { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts', workspaces: [] }) }],
-    ['lists a member in `workspaces`', { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts', workspaces: ['benchmarks'] }) }],
+    ['lists no entry in `workspaces`', { 'package.json': JSON.stringify({ name: 'kashe', workspaces: [] }) }],
+    ['lists no entry in yarn\'s `workspaces`', { 'package.json': JSON.stringify({ name: 'kashe', workspaces: { packages: [] } }) }],
     [
       'sits beside a settings-only `pnpm-workspace.yaml`',
-      { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts' }), 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n' },
+      { 'package.json': JSON.stringify({ name: 'kashe' }), 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n' },
     ],
-    [
-      'sits beside a `pnpm-workspace.yaml` listing nothing',
-      { 'package.json': JSON.stringify({ name: 'kashe', main: './src/index.ts' }), 'pnpm-workspace.yaml': 'packages: []\n' },
-    ],
-  ])('puts a root library that %s on the map beside the package nested in it', async (_, declared) => {
+    ['sits beside a `pnpm-workspace.yaml` listing nothing', { 'package.json': JSON.stringify({ name: 'kashe' }), 'pnpm-workspace.yaml': 'packages: []\n' }],
+    // `members` reads no `lerna.json`, so it declares nothing here either.
+    ['sits beside a `lerna.json`', { 'package.json': JSON.stringify({ name: 'kashe', private: true }), 'lerna.json': '{}\n' }],
+  ])('puts a root that %s on the map beside the package nested in it', async (_, declared) => {
     const root = repository({ ...declared, ...LIBRARY });
 
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -224,14 +226,18 @@ describe('variance ask orient', () => {
   });
 
   it.each<[string, Record<string, string>]>([
-    ['is private', { 'package.json': JSON.stringify({ name: 'shop', private: true, main: './src/index.ts', workspaces: ['packages/*'] }) }],
-    ['offers no entry', { 'package.json': JSON.stringify({ name: 'shop', workspaces: { packages: ['packages/*'] } }) }],
+    ['in `workspaces`', { 'package.json': JSON.stringify({ name: 'shop', main: './scripts/release.ts', workspaces: ['packages/*'] }) }],
+    ['in yarn\'s `workspaces`', { 'package.json': JSON.stringify({ name: 'shop', main: './scripts/release.ts', workspaces: { packages: ['packages/*'] } }) }],
+    ['in `workspaces`, offering nothing', { 'package.json': JSON.stringify({ name: 'shop', workspaces: ['packages/*'] }) }],
+    ['in `workspaces`, private', { 'package.json': JSON.stringify({ name: 'shop', private: true, main: './scripts/release.ts', workspaces: ['packages/*'] }) }],
     [
-      'offers no entry beside a `pnpm-workspace.yaml`',
-      { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' },
+      'in `pnpm-workspace.yaml`',
+      { 'package.json': JSON.stringify({ name: 'shop', main: './scripts/release.ts' }), 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' },
     ],
-    ['is private beside a `lerna.json`', { 'package.json': JSON.stringify({ name: 'shop', private: true, main: './src/index.ts' }), 'lerna.json': '{}\n' }],
-  ])('keeps a root holding source off the map when it %s', async (_, declared) => {
+    ['in `pnpm-workspace.yaml`, offering nothing', { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': 'packages:\n  - packages/*\n' }],
+    // `members` refuses this one, and the map is no place to say so.
+    ['in a `pnpm-workspace.yaml` pnpm refuses', { 'package.json': JSON.stringify({ name: 'shop' }), 'pnpm-workspace.yaml': 'packages: packages/*\n' }],
+  ])('keeps the map of a root declaring its members %s', async (_, declared) => {
     const root = repository({ ...declared, ...MEMBERS });
 
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -239,6 +245,17 @@ describe('variance ask orient', () => {
     expect((await run(['ask', 'orient'])).out).toBe(
       `# ${basename(root)}: 2 packages in 1 dependency layers (1 takes nothing), 2 source files, 0 areas\n  packages: cart, price\n`,
     );
+  });
+
+  it('folds the map again when `pnpm-workspace.yaml` starts declaring members', async () => {
+    const root = repository({ 'package.json': JSON.stringify({ name: 'kashe' }), 'pnpm-workspace.yaml': 'onlyBuiltDependencies:\n  - esbuild\n', ...LIBRARY });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    expect((await run(['ask', 'orient'])).out).toContain('packages: benchmarks, kashe\n');
+
+    writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - benchmarks\n');
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect((await run(['ask', 'orient'])).out).toContain('packages: benchmarks\n');
   });
 
   it('says why a checkout git cannot list is folded into no map', async () => {

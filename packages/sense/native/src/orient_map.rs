@@ -34,8 +34,8 @@ pub(crate) struct Stored {
     format: u32,
     /// sha256 of the index manifest the map was folded from.
     pub(crate) index: String,
-    /// sha256 over the path and blob id of every manifest and `.gitattributes`
-    /// git listed; absent when git listed nothing.
+    /// sha256 over the path and blob id of every manifest, `.gitattributes` and
+    /// root `pnpm-workspace.yaml` git listed; absent when git listed nothing.
     listed: Option<String>,
     unmarked: bool,
     /// What the fold made; absent when there was nothing to fold, and
@@ -129,12 +129,13 @@ impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
 }
 
 /// What the map is folded from beside the index, as git listed it: every
-/// manifest that may name a package and every `.gitattributes`, by blob id.
+/// manifest that may name a package, every `.gitattributes` and the root's
+/// `pnpm-workspace.yaml`, by blob id.
 /// `None` when git gave no blob id for one of them.
 fn listing(snapshot: &Listed) -> Option<String> {
     let counts = |path: &str| {
         let name = path.rsplit('/').next().unwrap_or(path);
-        (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes"
+        (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes" || path == "pnpm-workspace.yaml"
     };
     if snapshot.unhashed.iter().any(|path| counts(path)) {
         return None;
