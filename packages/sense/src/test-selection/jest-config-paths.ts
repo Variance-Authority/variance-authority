@@ -8,6 +8,9 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import type { JestConfig } from './jest.js';
 
+/** `jest-resolve`'s `findNodeModule`. */
+export type FindNodeModule = (path: string, options: { basedir: string; extensions?: readonly string[]; resolver?: string }) => string | null;
+
 /** The packages a dependency of Jest is reached through, from the outside in. */
 const JEST_CHAIN = ['jest', '@jest/core', 'jest-config'] as const;
 

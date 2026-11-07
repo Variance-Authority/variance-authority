@@ -52,6 +52,7 @@ import { probesRegions } from '../instrument/identity.js';
 import { markModule, markUnplaced, placeModule, planModule } from './captured-modules.js';
 import { defaultInclude, insideRoot, projectPath, type ProbePlacement } from './instrumented-modules.js';
 import { probedAfter } from './jest-after.js';
+import presets from './jest-preset-file.cjs';
 import type { SelectionTransformerConfig } from './jest.js';
 import { namesItsMap, type TransformSourceMap } from './source-lines.js';
 
@@ -122,9 +123,15 @@ export async function createTransformer(
     (createRequire(import.meta.url)(config.runtime) as { preload(mark: typeof markEnvironmentInput): void })
       .preload(markEnvironmentInput);
   }
-  const inner = config.transformer === undefined
+  const project = resolve(config.rootDir ?? root);
+  const named = config.transformer;
+  const inner = named === undefined
     ? undefined
-    : await loadTransformer<JestTransformRequest, JestTransformedSource, JestTransformer>(root, config.transformer);
+    : await loadTransformer<JestTransformRequest, JestTransformedSource, JestTransformer>(
+      project,
+      // Jest replaces `<rootDir>` in a name of its own, and never in a wrapper's options.
+      typeof named === 'string' ? presets.rooted(project, named) : [presets.rooted(project, named[0]), named[1]],
+    );
   const mode = config.mode ?? 'presence';
   const recipe = probeRecipe(mode);
   // Under `loads` nothing is placed, so a transformer that places probes is not asked to.

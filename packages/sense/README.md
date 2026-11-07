@@ -819,14 +819,17 @@ off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
 anything. A preset's `transform` is read for you and wrapped, so a preset such as
-`ts-jest` needs no `transform` in the object; a `transform` you do name replaces
-the preset's where the patterns match, as in Jest. A preset's setup files and
-environment are read from the configuration Jest resolved, so a local preset's
+`ts-jest` needs no `transform` in the object. A `transform` you do name merges
+with the preset's as in Jest: yours wins where the patterns match, and the
+preset's other patterns are wrapped too. Transformers load from the project's
+`rootDir`, where Jest finds them. When no pattern takes scripts at all, they are
+instrumented directly, as Jest runs them untransformed. A preset's setup files
+and environment are read from the configuration Jest resolved, so a local preset's
 files are preconditions without being named. Two things are yours to spell out:
 
-- **A transformer's path.** Names resolve from the checkout root, and Jest
-  resolves them from the project's `rootDir`. A transformer installed only under
-  a nested package needs `require.resolve` from there.
+- **The `transform` of a preset with top-level await.** Jest imports that preset
+  and the wrap cannot read it, so stderr names it and the wrap carries on without
+  its `transform`. Name the `transform` in the object you wrap.
 - **An async configuration.** Await it, then wrap the object it returns.
 
 ```js

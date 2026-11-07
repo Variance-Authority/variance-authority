@@ -30,7 +30,7 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { configuredPath, projectRoot, setupPaths } from './jest-config-paths.js';
-import { presetTransform } from './jest-preset.js';
+import { transformToWrap } from './jest-preset.js';
 import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
@@ -190,6 +190,8 @@ export interface JestConfig {
 /** What one transform entry hands the wrapping transformer. */
 export interface SelectionTransformerConfig {
   readonly root: string;
+  /** The project's `rootDir`, which `transformer` is resolved from as Jest resolves it; `root` when absent. */
+  readonly rootDir?: string;
   /** The runtime Jest constructs for each test file, readied before Jest loads the file's environment. */
   readonly runtime?: string;
   /** The transformer this one wraps, as the configuration spelled it; absent runs plain JavaScript. */
@@ -279,9 +281,6 @@ export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY
  */
 const PROJECT_GLOBAL = 'variance-authority.project';
 
-/** Jest's pattern for the modules it transforms when nothing is configured. */
-const DEFAULT_PATTERN = '\\.[jt]sx?$';
-
 const here = (name: string): string => fileURLToPath(new URL(name, import.meta.url));
 
 /** The three modules a Jest configuration names, by absolute path. */
@@ -337,7 +336,7 @@ export function withTestSelection(
   const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
 
   return {
-    ...(projects === undefined ? selecting(instrumented(config, root, rootDir, placing, declared, cadence), root, undefined) : config),
+    ...(projects === undefined ? selecting(instrumented(config, root, resolve(config.rootDir ?? rootDir), placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     ...placingSequencer(config, { root, rootDir, times }),
@@ -379,7 +378,7 @@ export function withJourneyCoverage(
   };
 
   return {
-    ...(projects === undefined ? journeyProject(config, rootDir) : config),
+    ...(projects === undefined ? journeyProject(config, resolve(config.rootDir ?? rootDir)) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
@@ -417,17 +416,15 @@ function instrumented(
   declared: readonly string[],
   cadence: boolean,
 ): JestConfig {
-  const named = Object.keys(config.transform ?? {}).length > 0 ? config.transform : presetTransform(config, rootDir);
-  const configured = named
-    ?? (config.transform === undefined ? { [DEFAULT_PATTERN]: 'babel-jest' } : { [DEFAULT_PATTERN]: undefined });
   const exclude = [...new Set(declared)];
   const transform = Object.fromEntries(
-    Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
+    Object.entries(transformToWrap(config, rootDir)).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
       pattern,
       [
         SELECTION_TRANSFORM,
         {
           root,
+          ...(rootDir === root ? {} : { rootDir }),
           runtime: SELECTION_RUNTIME,
           ...(transformer === undefined ? {} : { transformer }),
           ...(exclude.length === 0 ? {} : { exclude }),

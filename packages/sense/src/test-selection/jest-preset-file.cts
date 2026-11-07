@@ -5,8 +5,7 @@
  */
 
 import path = require('node:path');
-
-type FindNodeModule = (path: string, options: { basedir: string; extensions?: readonly string[]; resolver?: string }) => string | null;
+import type { FindNodeModule } from './jest-config-paths.js';
 
 /** jest-config's `replaceRootDirInPath`. */
 const rooted = (rootDir: string, name: string): string =>
@@ -25,4 +24,18 @@ function presetFile(find: FindNodeModule, rootDir: string, name: string): string
   });
 }
 
-export = { interop, presetFile, rooted };
+/**
+ * The preset in `file`; absent when only `import` can read it, as Jest reads one
+ * with top-level await and neither synchronous caller here can.
+ */
+function presetAt(require: NodeJS.Require, file: string): Record<string, unknown> | undefined {
+  try {
+    return interop(require(file)) as Record<string, unknown>;
+  } catch (error) {
+    const code = error instanceof Error && 'code' in error ? error.code : undefined;
+    if (code !== 'ERR_REQUIRE_ASYNC_MODULE' && code !== 'ERR_REQUIRE_ESM') throw error;
+    return undefined;
+  }
+}
+
+export = { interop, presetAt, presetFile, rooted };
