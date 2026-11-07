@@ -35,10 +35,10 @@ function dateOf(said: string): string {
   return said;
 }
 
-/** The day a year before `now`, the window a question that names none is read over. */
-function yearBefore(now: Date): string {
+/** The day two weeks before `now`, the window a question that names none is read over: a repository moves faster than a longer one stays true. */
+function twoWeeksBefore(now: Date): string {
   const then = new Date(now);
-  then.setUTCFullYear(then.getUTCFullYear() - 1);
+  then.setUTCDate(then.getUTCDate() - 14);
   return then.toISOString().slice(0, 10);
 }
 
@@ -58,7 +58,7 @@ function changesOf(root: string, after: string): CommitChanges & { readonly trac
 /** The figures for the checkout at `root`, over the window `input` names. */
 export function containmentOf(root: string, input: Readonly<Record<string, unknown>>): Containment {
   const said = input['after'];
-  const after = typeof said === 'string' ? dateOf(said) : yearBefore(new Date());
+  const after = typeof said === 'string' ? dateOf(said) : twoWeeksBefore(new Date());
   const { commits, shallow, tracked } = changesOf(root, after);
   const packages = packageDirectories(root);
   return { reading: 'co-occurrence', after, packages: packages.length, shallow, ...countContainment(commits, tracked, packages) };
@@ -111,7 +111,7 @@ export const containment: Tool<unknown> = {
   inputSchema: {
     type: 'object',
     properties: {
-      after: { type: 'string', description: 'Optional. The first day counted, as YYYY-MM-DD; a year ago when left out.' },
+      after: { type: 'string', description: 'Optional. The first day counted, as YYYY-MM-DD; two weeks ago when left out.' },
     },
     additionalProperties: false,
   },

@@ -44,8 +44,8 @@ async function served(root: string, justAnswer: boolean): Promise<string> {
 }
 
 describe('docs_containment', () => {
-  it('reads a year back when no window is named', () => {
-    const figures = containmentOf(dated([daysAgo(400), daysAgo(300)]), {});
+  it('reads two weeks back when no window is named', () => {
+    const figures = containmentOf(dated([daysAgo(20), daysAgo(3)]), {});
     expect(figures.read).toBe(1);
   });
 

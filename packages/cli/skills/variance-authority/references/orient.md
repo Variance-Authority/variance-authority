@@ -12,7 +12,7 @@ the answer. Run them from the checkout you are asking about.
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
 | one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
-| a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last year |
+| a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last two weeks |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
 
