@@ -1,11 +1,10 @@
-// compass: variance-authority.reach
 /**
  * Where this checkout's cache is, and the share's place in it. A leaf, so
  * `share-lines` reads it without loading the record readers that read the share.
  */
 
 import { join } from 'node:path';
-import { cacheRootFor } from '@variance-authority/sense/test-selection';
+import { cacheRootFor } from '@variance-authority/sense/cache-root';
 import type { Config } from '../config.js';
 
 /**

@@ -73,13 +73,7 @@ export async function runCommand(
     effective.source?.dirs ?? [],
   );
 
-  const identity = identityOf(
-    {
-      ...(parsed.run !== undefined ? { run: parsed.run } : {}),
-      ...(parsed.commit !== undefined ? { commit: parsed.commit } : {}),
-    },
-    process.env,
-  );
+  const identity = identityOf(parsed, process.env);
 
   const ignore = await suiteIgnore(process.cwd(), parsed.suite);
 
@@ -134,13 +128,9 @@ export async function runCommand(
     const shared =
       (await publishedLine(effective, report, effective.report)) + (await publishedCostsLine(effective, report));
 
-    // Last, and for the same reason: the cache this run may have added to
-    // is regenerable, so nothing it does here can reach a verdict. It runs
-    // on every run rather than on a command of its own — an operator who
-    // knew to prune was never the one whose disk filled up — and on every
-    // run rather than on the durable ones, because a machine that has moved
-    // to a tribunal is the machine whose leftover cache nothing else will
-    // ever come back for.
+    // Last, for the same reason: the cache is regenerable, so nothing here
+    // reaches a verdict. Every run prunes, because the operator whose disk
+    // fills is never the one who knew to prune.
     const renders = renderCacheLine(await sweepRenders(effective)) + (await pruneWhenDueLines(effective));
 
     streams.out(

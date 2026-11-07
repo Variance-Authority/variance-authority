@@ -218,13 +218,7 @@ export async function dispatch(
       // can join to anything. `--branch` is separate because no CI system agrees
       // on where it lives, and a wrong guess would attribute a decision to the
       // wrong branch.
-      const identity = identityOf(
-        {
-          ...(parsed.run !== undefined ? { run: parsed.run } : {}),
-          ...(parsed.commit !== undefined ? { commit: parsed.commit } : {}),
-        },
-        process.env,
-      );
+      const identity = identityOf(parsed, process.env);
 
       if (identity === undefined) {
         throw new OperatorError(

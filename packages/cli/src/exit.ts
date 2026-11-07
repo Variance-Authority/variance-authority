@@ -254,17 +254,10 @@ export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EX
 /**
  * `--exit-zero-on-changes`: a check that reports without gating the merge.
  *
- * The alternative an operator reaches for is `|| true`, and it is worse than it
- * looks: it swallows exit 2 along with exit 1, so a job whose browser never
- * launched — which observed nothing and therefore found nothing — becomes a
- * green tick. That is the precise collapse ADR-0017 exists to prevent, arrived
- * at by a shell operator rather than by this code, which does not make it less
- * of a green check over an unwatched surface.
- *
- * So the suppression is narrow: exit 1 becomes exit 0, exit 2 stays exit 2, and
- * the line to stderr is not optional. A run whose code was suppressed silently
- * is indistinguishable in a log from a run that found nothing, and the whole
- * value of a non-blocking check is that somebody still reads it.
+ * Narrower than `|| true`, which also swallows exit 2 and turns a job that
+ * observed nothing into a green tick, the collapse ADR-0017 prevents. Exit 1
+ * becomes 0, exit 2 stays 2, and the stderr line is not optional: a silent
+ * suppression reads in a log like a run that found nothing.
  */
 export function sideJob(
   code: ExitCode,
