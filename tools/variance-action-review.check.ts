@@ -178,17 +178,42 @@ describe('the review a project with only unit tests puts on the pull request', (
   describe('the badge', () => {
     const git = (dir: string, ...args: string[]) => execFileSync('git', ['--git-dir', dir, ...args], { encoding: 'utf8' }).trim();
 
-    /** A bare repository the step pushes to, as it would push to this run's repository. */
+    /** Moves `main` of the bare repository to a new commit, as a push to it does, and answers the commit. */
+    const pushed = (dir: string, message: string) => {
+      const tree = execFileSync('git', ['--git-dir', dir, 'mktree'], { input: '', encoding: 'utf8' }).trim();
+      const commit = execFileSync('git', ['--git-dir', dir, '-c', 'user.name=a', '-c', 'user.email=a@a', 'commit-tree', tree, '-m', message], { encoding: 'utf8' }).trim();
+      git(dir, 'update-ref', 'refs/heads/main', commit);
+      return commit;
+    };
+
+    /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
     async function origin(): Promise<{ readonly env: Record<string, string>; readonly dir: string; readonly done: () => Promise<void> }> {
       const at = await mkdtemp(join(tmpdir(), 'variance-action-badge-'));
       const dir = join(at, 'origin.git');
       execFileSync('git', ['init', '--quiet', '--bare', dir]);
       return {
         dir,
-        env: { GITHUB_SERVER_URL: `file://${at}`, GITHUB_REPOSITORY: 'origin', GITHUB_TOKEN: 'token', GITHUB_SHA: 'abc123', BRANCH: 'main' },
+        env: { GITHUB_SERVER_URL: `file://${at}`, GITHUB_REPOSITORY: 'origin', GITHUB_TOKEN: 'token', GITHUB_SHA: pushed(dir, 'ran'), BRANCH: 'main' },
         done: () => rm(at, { recursive: true, force: true }),
       };
     }
+
+    it('leaves the badge to the newer commit\'s run when the branch has moved past this one', async () => {
+      const remote = await origin();
+      try {
+        await ran('publish the badge', remote.env);
+        const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
+        pushed(remote.dir, 'newer');
+
+        const { status, printed } = await ran('publish the badge', remote.env);
+
+        expect(status).toBe(0);
+        expect(printed).toContain('::warning');
+        expect(git(remote.dir, 'rev-parse', 'refs/badge/main')).toBe(held);
+      } finally {
+        await remote.done();
+      }
+    });
 
     it('pushes the figure as the one file of a commit with no parent at `refs/badge/<branch>`, replaced on each push', async () => {
       const remote = await origin();
