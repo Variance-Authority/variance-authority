@@ -71,6 +71,13 @@ export function readJobTrace(lines: Iterable<string>): JobTrace {
       if (failed) continue;
       const [from, to] = move.at ? [pathOf(args[1], args[0]), pathOf(args[3], args[2])] : [pathOf(args[0]), pathOf(args[1])];
       read(from);
+      // An exchange moves nothing away: both ends held a file, and both hold one after.
+      if (/RENAME_EXCHANGE/.test(args[4] ?? '')) {
+        read(to);
+        write(from);
+        write(to);
+        continue;
+      }
       if (from !== undefined && move.away) {
         writes.add(from);
         made.delete(from);

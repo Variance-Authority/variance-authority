@@ -59,7 +59,7 @@ describe('recording a job', () => {
     writeFileSync(join(root, '.gitignore'), 'dist/\n');
     writeFileSync(join(root, 'read.txt'), 'read\n');
     writeFileSync(join(root, 'written.txt'), 'written\n');
-    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { build: { kind: 'e2e', relations: false } } }));
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { build: { kind: 'job', relations: false }, unit: { kind: 'unit' } } }));
     git(root, 'add', '.');
     git(root, 'commit', '-qm', 'one');
   });
@@ -132,6 +132,39 @@ describe('recording a job', () => {
     recorder('#!/bin/sh\nexit 1\n');
     await job('sh', '-c', 'exit 0');
     expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
+  });
+
+  describe('when a later step has no recorder', () => {
+    function withoutRecorder(): void {
+      const bin = mkdtempSync(join(tmpdir(), 'va-job-bin-'));
+      for (const tool of ['git', 'sh']) symlinkSync(execFileSync('which', [tool], { encoding: 'utf8' }).trim(), join(bin, tool));
+      vi.stubEnv('PATH', bin);
+    }
+
+    it('holds the job incomplete at the commit an earlier step recorded', async () => {
+      traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+      await job('sh', '-c', 'exit 0');
+      withoutRecorder();
+      await job('sh', '-c', 'exit 0');
+      expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
+    });
+
+    it('leaves a record standing at another commit, which this run says nothing about', async () => {
+      traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+      await job('sh', '-c', 'exit 0');
+      git(root, 'commit', '-q', '--allow-empty', '-m', 'two');
+      withoutRecorder();
+      await job('sh', '-c', 'exit 0');
+      expect((await readTestCoverage(file())).tests[0]?.complete).toBe(true);
+    });
+  });
+
+  it('refuses a suite that is not a job, before the command runs', async () => {
+    traced('1 write(1, "x", 1) = 1');
+    await expect(runJob({ command: 'job', suite: 'unit', run: ['touch', 'ran'] }, streams, root))
+      .rejects.toThrow('`unit` is a suite of kind `unit`');
+    expect(existsSync(join(root, 'ran'))).toBe(false);
+    expect(existsSync(testCoverageFile(root, { suite: 'unit' }))).toBe(false);
   });
 
   it('runs the command and leaves the record alone when there is no recorder', async () => {

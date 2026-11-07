@@ -37,7 +37,7 @@
       ]
     },
     "site-job": {
-      "kind": "e2e",
+      "kind": "job",
       "relations": false,
       "before": [
         ".github/actions/build/action.yml",

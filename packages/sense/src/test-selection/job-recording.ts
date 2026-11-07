@@ -15,7 +15,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
-import { landJob } from './job-record.js';
+import { holdJob, landJob, type JobStep } from './job-record.js';
 import { readJobTrace, TRACED_CALLS, type JobTrace } from './job-trace.js';
 
 /** One command to run as part of a job. */
@@ -47,15 +47,18 @@ export async function recordJob(job: JobRun, unrecorded: (why: string) => void):
   try {
     const file = join(scratch, 'trace');
     const exit = await started('strace', traced(file, run), cwd);
-    // Nothing here can record, as on a laptop: what CI recorded stands.
-    if (exit === undefined) return await plainly('strace is not installed');
+    // Nothing here can record, as on a laptop: what CI recorded stands, unless a step of this job landed at this commit.
+    if (exit === undefined) {
+      await holdJob(stepOf(root, suite, false, NOTHING, edited));
+      return await plainly('strace is not installed');
+    }
     if (!traceWritten(file)) {
       // The recorder could not start the command, which then never ran. Held first:
       // a step that left no trace must not leave the steps before it standing for the whole job.
-      await land(root, suite, false, NOTHING, edited);
+      await landJob(stepOf(root, suite, false, NOTHING, edited));
       return await plainly('strace could not trace it');
     }
-    await land(root, suite, exit === 0 || exit === completeOn, readJobTrace(linesOf(file)), edited);
+    await landJob(stepOf(root, suite, exit === 0 || exit === completeOn, readJobTrace(linesOf(file)), edited));
     return exit;
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -80,9 +83,9 @@ function editedFiles(root: string): ReadonlySet<string> {
   return new Set(gitIn(root, 'diff', '--name-only', '-z', 'HEAD').split('\0').filter(Boolean));
 }
 
-function land(root: string, suite: string, complete: boolean, trace: JobTrace, edited: ReadonlySet<string>): Promise<void> {
+function stepOf(root: string, suite: string, complete: boolean, trace: JobTrace, edited: ReadonlySet<string>): JobStep {
   const git = (...args: string[]): string => gitIn(root, ...args);
-  return landJob({ root, suite, commit: git('rev-parse', 'HEAD').trim(), complete, trace, tracked: trackedBlobs(git('ls-files', '-s', '-z')), edited });
+  return { root, suite, commit: git('rev-parse', 'HEAD').trim(), complete, trace, tracked: trackedBlobs(git('ls-files', '-s', '-z')), edited };
 }
 
 /** `git ls-files -s -z` as path to blob. */

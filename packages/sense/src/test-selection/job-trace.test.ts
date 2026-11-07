@@ -83,6 +83,13 @@ describe('reading a job trace', () => {
     expect(read('1 openat(AT_FDCWD</r>, "a\\"(b), c.txt", O_RDONLY) = 3</r/a"(b), c.txt>').reads).toEqual(['/r/a"(b), c.txt']);
   });
 
+  it('reads both ends of an exchange, each of which held something', () => {
+    expect(read(
+      '1 renameat2(AT_FDCWD</r>, "input.txt", AT_FDCWD</r>, "tmp.txt", RENAME_EXCHANGE) = 0',
+      '1 openat(AT_FDCWD</r>, "tmp.txt", O_RDONLY) = 3</r/tmp.txt>',
+    )).toEqual({ reads: ['/r/input.txt', '/r/tmp.txt'], writes: ['/r/input.txt', '/r/tmp.txt'] });
+  });
+
   it('takes nothing from a move or a truncate that failed', () => {
     expect(read(
       '1 rename("/r/a.txt", "/r/b.txt") = -1 ENOENT (No such file or directory)',

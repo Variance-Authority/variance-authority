@@ -79,6 +79,19 @@ export async function landJob(step: JobStep): Promise<void> {
   if (!landed.held) throw new Error(busyIndex(file));
 }
 
+/**
+ * Hold the job incomplete if a step of it landed at `step`'s commit: a step that
+ * ran unrecorded read what the record cannot name, so the steps before it no
+ * longer stand for the whole job. A record at another commit says nothing of this run.
+ */
+export async function holdJob(step: JobStep): Promise<void> {
+  const file = testCoverageFile(step.root, { suite: step.suite });
+  const landed = await withIndexLock(file, async () => {
+    if ((await heldAt(file, step.commit, step.suite)).here) await land(file, { ...step, complete: false });
+  });
+  if (!landed.held) throw new Error(busyIndex(file));
+}
+
 async function land(file: string, step: JobStep): Promise<void> {
   const { root, suite, commit, complete, trace, tracked, edited } = step;
   const before = await recordedSnapshot(file);
