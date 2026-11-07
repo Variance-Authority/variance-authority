@@ -18,7 +18,7 @@ import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
 import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
-import { caseTree, functionsMarkdown, namedList, outermost, regionKind, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
+import { caseTree, countAfter, countOf, functionsMarkdown, leftOutOfCount, namedList, outermost, ranThisChange, regionKind, uncoveredFunctions, uncoveredMarkdown, unrecordedFiles } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { LEGEND, MARK, notKnown, REACH_TEXT } from './review-words.js';
 import { describeDistance } from './share.js';
@@ -109,7 +109,7 @@ function editText(file: string, region: ReviewRegion): string {
 function markdown(review: Review): string {
   const code = (value: string): string => `\`${value}\``;
   const mark = (region: ReviewRegion): string => MARK[region.reach];
-  const ran = review.record === 'ran';
+  const ran = ranThisChange(review);
   const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${markdownHeader(review, code)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
   }</sub>`, '', ...notes(review).flatMap((note) => [`<sub>${note}</sub>`, ''])];
@@ -117,7 +117,7 @@ function markdown(review: Review): string {
   lines.push(...calloutMarkdown(review), ...changed);
   if (changed.length > 0) lines.push('', `<sub>${LEGEND}</sub>`);
   lines.push(...casesMarkdown(review.files, code));
-  lines.push(...(ran ? selectionMarkdown(review, code) : []), ...lostMarkdown(review, code));
+  lines.push(...(review.record === 'ran' ? selectionMarkdown(review, code) : []), ...lostMarkdown(review, code));
   if (review.coverage !== undefined) lines.push(...reviewCoverageSummary(review.coverage));
   if (review.before !== undefined && review.before.length > 0) {
     lines.push('', ...review.before.map((file) => `⚙️ ${code(file.file)} changed, and ${
@@ -179,23 +179,20 @@ function calloutMarkdown(review: Review): readonly string[] {
       inert > 0 ? `; ${inert} of them change nothing that runs` : ''
     }.`];
   }
-  const ran = review.record === 'ran';
+  const ran = ranThisChange(review);
   const { total, names, overwritten } = uncoveredFunctions(review);
-  const has = (count: number) => (count === 1 ? 'has' : 'have');
-  const of = (count: number) => `${count} of ${total} changed function${total === 1 ? '' : 's'} ${has(count)}`;
-  const lost = overwritten.length === 0 ? [] : [`> **${names.length > 0 ? `${overwritten.length} more ${has(overwritten.length)}` : of(overwritten.length)} code ${
-    notKnown(ran)
-  }:** ${namedList(overwritten)}.`];
+  const lost = overwritten.length === 0 ? [] : [`> **${countAfter(names.length, overwritten.length, total)} code ${notKnown(ran)}:** ${namedList(overwritten)}.`];
   if (names.length > 0) {
     return [
       ran ? '> [!WARNING]' : '> [!NOTE]',
-      `> **${of(names.length)} code ${ran ? 'no case ran' : 'the record holds no case for'}:** ${namedList(names)}.`,
+      `> **${countOf(names.length, total)} code ${ran ? 'no case ran' : 'the record holds no case for'}:** ${namedList(names)}.`,
       ...lost,
     ];
   }
   if (lost.length > 0) return ['> [!NOTE]', ...lost];
   const every = total === 0 ? `${regions.length} changed region${regions.length === 1 ? '' : 's'}` : `${total} changed function${total === 1 ? '' : 's'}`;
-  return ['> [!TIP]', `> Every one of the ${every} ${ran ? 'ran under a case' : 'has a case in the record'}.`];
+  const left = leftOutOfCount(review);
+  return ['> [!TIP]', `> Every one of the ${every}${left.length === 0 ? '' : ' a run loaded'} ${ran ? 'ran under a case' : 'has a case in the record'}.`, ...left.map((said) => `> ${said}`)];
 }
 
 /**
@@ -249,26 +246,6 @@ function selectionMarkdown(review: Review, code: (value: string) => string): rea
   return ['', `🎯 **${ran} of ${suite} test files ran** ${at}, ${ran * 100 < suite ? 'under 1' : Math.round((100 * ran) / suite)}% of the suite; the other ${
     suite - ran
   } kept the rows recorded before them. ${select} lists the files a change reaches.`];
-}
-
-/** The changed files the record holds nothing of, source or not: a file the change created is named whatever it holds. */
-function unrecordedFiles(review: Review): readonly string[] {
-  return outsideRecord(review).filter((file) => isSource(file) || file.created === true).map((file) => file.file);
-}
-
-/** The changed source files the record holds nothing of, in any language a reader here reads: no function in them can be named. */
-export function unrecordedSources(review: Review): readonly string[] {
-  return outsideRecord(review).filter(isSource).map((file) => file.file);
-}
-
-/** Neither a module the record holds a row for nor a test file it holds cases of. */
-function outsideRecord(review: Review): readonly ReviewFile[] {
-  return review.files.filter((file) => file.recorded === false && file.cases === undefined && file.holdsCases !== true);
-}
-
-/** Code: what the module reader claims, and what the source index reads in any language. */
-function isSource(file: ReviewFile): boolean {
-  return file.verdict !== undefined || file.unread !== undefined || file.indexed === true;
 }
 
 function marksOf(file: ReviewFile): string {

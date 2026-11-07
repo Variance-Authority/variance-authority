@@ -8,7 +8,8 @@
 // last line says how many it would have dropped.
 //
 // A record older than the change has not run what the change wrote, so its
-// `hole` says the record is behind, not that a test is missing: nothing is marked.
+// `hole` says the record is behind, not that a test is missing: a file is marked
+// only when the named suite ran the change, or a suite the review read ran the file.
 // With several suites, one that has not run the change answers for nothing, so a
 // mark says what the runs of this change did, not what no test could do.
 //
@@ -46,9 +47,9 @@ function lines(region, written = []) {
 }
 
 const review = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-const marks = review.record !== 'ran'
-  ? []
-  : review.files.flatMap((file) => uncovered(file).map((region) => ({ file: file.file, name: region.name, ...lines(region, file.written) })));
+const marks = review.files
+  .filter((file) => review.record === 'ran' || file.ran === true)
+  .flatMap((file) => uncovered(file).map((region) => ({ file: file.file, name: region.name, ...lines(region, file.written) })));
 
 for (const { file, name, line, endLine } of marks.slice(0, SHOWN)) {
   const subject = name === '' ? 'A function' : `\`${data(name)}\``;

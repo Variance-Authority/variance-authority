@@ -48,7 +48,7 @@ async function shard(selected: boolean): Promise<readonly string[]> {
     preconditions: [],
     ...(selected ? { selected: true } : {}),
   });
-  reporter.onRunStart();
+  reporter.onRunStart({ numTotalTestSuites: 1 });
   await reporter.onRunComplete([], {
     testResults: [{ testFilePath: here, skipped: false, testResults: [{ status: 'passed' }] }],
   });

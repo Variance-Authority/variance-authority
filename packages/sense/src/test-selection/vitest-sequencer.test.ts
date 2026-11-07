@@ -439,17 +439,18 @@ describe('the banner of a shuffled run', () => {
     }
   }
   interface Hooked {
-    readonly config: { readonly sequence: { readonly sequencer?: unknown; readonly shuffle: boolean; seed?: number } };
+    readonly config: { readonly sequence: { readonly sequencer?: unknown; readonly shuffle: boolean; seed?: number }; readonly reporters: unknown[] };
     readonly logger: Logger;
   }
   const seam = async (shuffle: boolean) => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-seed-banner-'));
     try {
       const config = withTestSelection({ root: directory }, { root: directory, coverageFile: resolve(directory, 'coverage.bin') });
-      const vitest: Hooked = { config: { sequence: { ...config.test?.sequence, shuffle } }, logger: new Logger() };
+      const vitest: Hooked = { config: { sequence: { ...config.test?.sequence, shuffle }, reporters: [] }, logger: new Logger() };
       const [first] = config.test!.reporters as unknown as [{ onInit: (ctx: Hooked) => void }];
-      const plugin = (config.plugins as unknown as { name: string; configureVitest?: (context: { vitest: Hooked }) => void }[])
+      const plugin = (config.plugins as unknown as { name: string; configResolved?: (config: object) => void; configureVitest?: (context: { vitest: Hooked }) => void }[])
         .find((one) => one.name === 'variance-authority:test-selection');
+      plugin?.configResolved?.({ configFile: undefined, configFileDependencies: [] });
       return { vitest, onInit: () => first.onInit(vitest), configureVitest: () => plugin?.configureVitest?.({ vitest }) };
     } finally {
       await rm(directory, { recursive: true, force: true });

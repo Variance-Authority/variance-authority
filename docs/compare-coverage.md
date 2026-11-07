@@ -119,8 +119,10 @@ describes every line of the output.
   service to log in to. The share keeps one record for each branch, so the
   report compares a pull request with its mainline and does not draw a trend.
   If your team reads Codecov's dashboards, keep uploading to it.
-- **No gate.** `variance coverage` exits `0` whatever the numbers are. A
-  threshold is a line in your own workflow.
+- **No gate on a percentage.** `variance coverage` exits `0` whatever the
+  numbers are. A threshold is a line in your own workflow. What a project can
+  require is a count: `variance review --fail-on-uncovered` exits `1` when a
+  changed function holds code no case ran.
 
 ## Run it beside the service you have
 

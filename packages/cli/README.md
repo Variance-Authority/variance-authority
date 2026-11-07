@@ -153,7 +153,7 @@ variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-d
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
@@ -1232,6 +1232,21 @@ has the cache steps that give the comment a mainline record to compare with:
     suite: unit
     against: ${{ steps.take.outputs.against-unit }}
 ```
+
+`--fail-on-uncovered` makes the review a check a project can require. It prints
+and writes the same review, then exits `1` when the count of changed functions
+holding code no case ran is above zero, and names that count on stderr. There is
+no percentage and no threshold. With `--coverage` it reads every suite, and each
+file is judged by the suites that ran it as it stands; without `--coverage` it
+reads the named suite alone. It exits `2` when no suite ran a changed file as it
+stands, since which functions ran is then not known, and when source changed
+outside the record and nothing shows a run of this change. A source file a run of
+this change did not load is not counted, whether its functions are new or edited:
+a run that never loaded a file has no answer about it. It is named on stderr
+instead, and the exit stays `0` if nothing else is counted. A JVM project cannot
+require this check: the agent's rows do not name the text they ran, so a change to
+a recorded file always exits `2`. The action takes it as
+[`fail-on-uncovered`](https://github.com/Variance-Authority/action#requiring-that-a-changes-functions-ran).
 
 The markdown's first line names what it read: the commit reviewed, the commit
 the change starts from, the commit the cases ran at, and the commit of each
@@ -2775,6 +2790,9 @@ a CI job gates on.
 1  changes need review
 2  operator error
 ```
+
+`variance review` has no verdict of its own and exits `0` or `2`, unless a project
+asks for one with [`--fail-on-uncovered`](#review-what-a-change-did-for-the-person-merging-it).
 
 **A verdict and a crash never share a code.** A red build that could mean either
 "a component changed" or "the store did not answer" is a red build nobody

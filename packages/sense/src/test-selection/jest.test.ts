@@ -394,7 +394,7 @@ describe('the Jest reporter', () => {
     for (const name of ['alpha', 'beta', 'gamma']) await writeFile(resolve(root, `test/${name}.case.js`), `// ${name}\n`);
 
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     expect(runDirectory).toBeDefined();
     await mkdir(runDirectory, { recursive: true });

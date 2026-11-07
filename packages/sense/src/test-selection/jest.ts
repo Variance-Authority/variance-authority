@@ -64,12 +64,14 @@ export interface JestTestSelectionOptions {
    * file is not, because Jest hands no transformer or reporter the path it
    * loaded — its global and project configs carry what the file said, never
    * where it was. Name the config file here, and any local module it imports.
+   * Each entry is the path of one file that exists before the run starts; any
+   * other entry fails the run before any test starts.
    */
   readonly preconditions?: readonly string[];
   /**
    * Globs naming product source no probe may sit in: a module whose functions
    * cross into a page as text, where the first probe would throw. Relative
-   * globs resolve against the root, as `preconditions` do; a module matches
+   * globs resolve against the root; a module matches
    * under the path Jest hands the transform or the source its map names, and
    * a glob that opens on `!` leaves out what it matches, as in `testMatch`. Each
    * is marked as loaded at its end instead of probed, and an edit to it

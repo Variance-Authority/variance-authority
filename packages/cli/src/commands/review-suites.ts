@@ -120,6 +120,7 @@ export async function everySuiteRegions(
       ...answers.flatMap((other) => other.regions.map((region) => ({ file, region, ran: true }))),
     ];
     joined.set(file, {
+      ran: true,
       recorded: answers.some((other) => other.recorded) || (ownRan.has(file) && answer.recorded),
       regions: nearestOfEach(parts).map(({ region }) => region).sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine),
     });

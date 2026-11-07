@@ -27,7 +27,7 @@ describe('the phases the Jest reporter records', () => {
     await writeFile(resolve(root, 'src/one.js'), SOURCE);
     await writeFile(test, '// alpha\n');
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     await mkdir(runDirectory, { recursive: true });
     const hits = new Map([[moduleId('src/one.js', SOURCE), Uint32Array.of(1)]]);

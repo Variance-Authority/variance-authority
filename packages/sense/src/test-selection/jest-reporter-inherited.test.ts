@@ -31,7 +31,7 @@ it('hands its workers no case scope of a run it was started inside, under the lo
     preconditions: [],
     mode: 'loads',
   });
-  reporter.onRunStart();
+  reporter.onRunStart({ numTotalTestSuites: 1 });
 
   expect(VARIABLES.map((name) => process.env[name])).toEqual([undefined, undefined, undefined]);
 });
