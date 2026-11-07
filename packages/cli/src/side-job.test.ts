@@ -1,7 +1,7 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { main } from './bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from './exit.js';
 
@@ -68,6 +68,12 @@ const CHANGED = {
 
 const UNCHANGED = { subject: 'fixture:a', verdict: 'unchanged', because: 'nothing moved', regions: [] };
 
+/** What a run that observed nothing changed, and could not observe one subject, reports. */
+const HOLE = {
+  observations: [UNCHANGED],
+  notObserved: [{ subject: 'fixture:b', kind: 'failed', because: 'the server died' }],
+};
+
 async function report(root: string, flags: readonly string[]): Promise<{ code: number; err: string }> {
   let err = '';
   const code = await main(['report', '--config', join(root, 'variance.config.json'), ...flags], {
@@ -97,6 +103,17 @@ describe('--exit-zero-on-changes', () => {
     expect(err).toContain('--exit-zero-on-changes exits 0, not 1');
   });
 
+  it('says it as a warning on GitHub Actions, where a 0 no longer carries it to the check', async () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true');
+    try {
+      const { err } = await report(await repo(CHANGED), ['--exit-zero-on-changes']);
+
+      expect(err).toBe('::warning::changes need review; --exit-zero-on-changes exits 0, not 1.\n');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('leaves an operator error at 2 — which is what `|| true` cannot do', async () => {
     // The reason this flag exists rather than a line of shell. A report that is
     // not there is a run that did not happen, and a job that treats that as
@@ -105,6 +122,18 @@ describe('--exit-zero-on-changes', () => {
     await writeFile(join(root, 'report.json'), 'not json', 'utf8');
 
     expect((await report(root, ['--exit-zero-on-changes'])).code).toBe(EXIT_OPERATOR);
+  });
+
+  it('keeps exit 1 over a subject the report could not observe, and says that rather than that changes need review', async () => {
+    const root = await repo(UNCHANGED);
+    const written = JSON.parse(await readFile(join(root, 'report.json'), 'utf8')) as object;
+    await writeFile(join(root, 'report.json'), JSON.stringify({ ...written, ...HOLE }), 'utf8');
+
+    const { code, err } = await report(root, ['--exit-zero-on-changes']);
+
+    expect(code).toBe(EXIT_REVIEW);
+    expect(err).toContain('a subject could not be observed');
+    expect(err).not.toContain('changes need review');
   });
 
   it('says nothing when there was nothing to suppress', async () => {

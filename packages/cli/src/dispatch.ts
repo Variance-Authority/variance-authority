@@ -2,7 +2,16 @@ import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Config } from './config.js';
 import { loadConfig, loadRenderless } from './config-load.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor, type ExitCode } from './exit.js';
+import {
+  EXIT_CLEAN,
+  EXIT_OPERATOR,
+  OperatorError,
+  exitFor,
+  holeIn,
+  sideJob,
+  type ExitCode,
+  type ReviewableReport,
+} from './exit.js';
 import {
   collectorPath,
   loadCollector,
@@ -201,7 +210,7 @@ export async function dispatch(
         streams.out(
           `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
         );
-        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+        return reported(report, parsed.exitZeroOnChanges, streams);
       } finally {
         await collector.close();
       }
@@ -213,7 +222,7 @@ export async function dispatch(
           { paths: parsed.reports, config, embedImages: parsed.embedImages, ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}) },
           streams,
         );
-        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+        return reported(report, parsed.exitZeroOnChanges, streams);
       }
       const report = await reportsFor(parsed.reports, config);
       streams.out(
@@ -226,7 +235,7 @@ export async function dispatch(
       // The artifact decides the code, exactly as it decided the text. A `report`
       // that exited 0 while describing a change would make the two halves of this
       // tool disagree about the same file.
-      return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+      return reported(report, parsed.exitZeroOnChanges, streams);
     }
 
     case 'ask': {
@@ -258,7 +267,7 @@ export async function dispatch(
       const result = adjudicateReport({ report, claims });
 
       streams.out(formatAdjudication(result));
-      return sideJob(exitForAdjudication(result), parsed.exitZeroOnChanges, streams);
+      return sideJob(exitForAdjudication(result), false, parsed.exitZeroOnChanges, streams, onGitHub());
     }
 
     case 'accept': {
@@ -474,27 +483,12 @@ function selectionOf(parsed: Extract<Parsed, { command: 'accept' }>): ChangelogS
   return 'named';
 }
 
-/**
- * `--exit-zero-on-changes`: a check that reports without gating the merge.
- *
- * The alternative an operator reaches for is `|| true`, and it is worse than it
- * looks: it swallows exit 2 along with exit 1, so a job whose browser never
- * launched — which observed nothing and therefore found nothing — becomes a
- * green tick. That is the precise collapse ADR-0017 exists to prevent, arrived
- * at by a shell operator rather than by this code, which does not make it less
- * of a green check over an unwatched surface.
- *
- * So the suppression is narrow: exit 1 becomes exit 0, exit 2 stays exit 2, and
- * the line to stderr is not optional. A run whose code was suppressed silently
- * is indistinguishable in a log from a run that found nothing, and the whole
- * value of a non-blocking check is that somebody still reads it.
- */
-function sideJob(
-  code: ExitCode,
-  suppress: boolean,
-  streams: { err(text: string): void },
-): ExitCode {
-  if (!suppress || code !== EXIT_REVIEW) return code;
-  streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
-  return EXIT_CLEAN;
+/** Whether this process is a GitHub Actions step, which reads `::warning::` lines. */
+function onGitHub(): boolean {
+  return process.env.GITHUB_ACTIONS === 'true';
+}
+
+/** A report's code, with `--exit-zero-on-changes` applied as {@link sideJob} draws it. */
+function reported(report: ReviewableReport, suppress: boolean, streams: { err(text: string): void }): ExitCode {
+  return sideJob(exitFor(report), holeIn(report), suppress, streams, onGitHub());
 }

@@ -179,40 +179,29 @@ describe('the docket a tick needs', () => {
 
 const DOCKET_URL = 'https://github.test/o/r/pull/7#issuecomment-1';
 
-/** A report in which every subject was observed, and one changed. */
-const CHANGED = { observations: [{ verdict: 'changed' }], notObserved: [] };
-
 /**
- * What the verdict step exits with, and the annotation it prints, for a run's
- * exit code and report; `null` writes none, and `path` names another.
+ * What the verdict step exits with, and what it prints, for a run's exit code
+ * and whether `variance run` was handed `--exit-zero-on-changes`.
  */
 async function verdict(
   code: string,
   exitZeroOnChanges: string,
   {
     kept = 'false',
-    report = CHANGED as unknown,
-    path,
     docketUrl = DOCKET_URL,
     reportUrl = '',
   }: {
     readonly kept?: string;
-    readonly report?: unknown;
-    readonly path?: string;
     readonly docketUrl?: string;
     readonly reportUrl?: string;
   } = {},
 ): Promise<{ readonly status: number; readonly out: string }> {
-  const at = await mkdtemp(join(tmpdir(), 'variance-action-verdict-'));
   try {
-    const written = join(at, 'report.json');
-    if (report !== null) await writeFile(written, JSON.stringify(report));
     const out = execFileSync('/bin/bash', ['-c', await runBlock('verdict')], {
       env: {
         ...process.env,
         CODE: code,
         KEPT: kept,
-        REPORT: path ?? written,
         DOCKET_URL: docketUrl,
         REPORT_URL: reportUrl,
         EXIT_ZERO_ON_CHANGES: exitZeroOnChanges,
@@ -224,6 +213,28 @@ async function verdict(
   } catch (error) {
     const failed = error as { status: number; stdout: string };
     return { status: failed.status, out: failed.stdout };
+  }
+}
+
+/** The arguments the run step hands `variance run`, one per line. */
+async function runArguments(exitZeroOnChanges: string): Promise<readonly string[]> {
+  const at = await mkdtemp(join(tmpdir(), 'variance-action-run-'));
+  try {
+    const out = execFileSync('/bin/bash', ['-c', await runBlock('variance run')], {
+      env: {
+        ...process.env,
+        VARIANCE_COMMAND: 'printf %s\\n',
+        VARIANCE_CONFIG: 'variance.config.json',
+        VARIANCE_PROFILE: '',
+        VARIANCE_SUBJECTS: '',
+        VARIANCE_SHARD: '',
+        VARIANCE_INTENT: '',
+        VARIANCE_EXIT_ZERO_ON_CHANGES: exitZeroOnChanges,
+        GITHUB_OUTPUT: join(at, 'output'),
+      },
+      encoding: 'utf8',
+    });
+    return out.split('\n').filter((line) => line !== '' && !line.startsWith('variance exited'));
   } finally {
     await rm(at, { recursive: true, force: true });
   }
@@ -243,10 +254,6 @@ describe('the verdict', () => {
     expect(out).toContain(`::error::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
   });
 
-  it('names the same comment on a check that reports rather than blocks', async () => {
-    expect((await verdict('1', 'true')).out).toContain(`::warning::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
-  });
-
   it('points at the report when no comment was written, rather than at a comment nobody can find', async () => {
     const uploaded = await verdict('1', 'false', { docketUrl: '', reportUrl: 'https://github.test/artifacts/1' });
     const neither = await verdict('1', 'false', { docketUrl: '' });
@@ -262,11 +269,28 @@ describe('the verdict', () => {
     expect(action).toContain('DOCKET_URL: ${{ steps.post.outputs.comment-url }}');
   });
 
-  it('reports changes and passes the check when the job reports rather than blocks', async () => {
-    const { status, out } = await verdict('1', 'true');
+  it('hands `--exit-zero-on-changes` to the run, which maps a change to 0 itself', async () => {
+    expect(await runArguments('true')).toEqual(['run', '--config', 'variance.config.json', '--exit-zero-on-changes']);
+    expect(await runArguments('false')).toEqual(['run', '--config', 'variance.config.json']);
+  });
+
+  it('reads no report of its own to tell a change from a hole', async () => {
+    expect(await runBlock('verdict')).not.toContain('node -e');
+  });
+
+  it('hands the flag on only when no accept ran, so an accept the comparison did not hold still fails', async () => {
+    const flag = "${{ inputs.exit-zero-on-changes == 'true' && steps.promote.outcome != 'success' }}";
+    const action = await readFile(ACTION, 'utf8');
+
+    expect(action).toContain(`VARIANCE_EXIT_ZERO_ON_CHANGES: ${flag}`);
+    expect(action).toContain(`EXIT_ZERO_ON_CHANGES: ${flag}`);
+  });
+
+  it('passes the check over changes the run named, and says where the docket is', async () => {
+    const { status, out } = await verdict('0', 'true');
 
     expect(status).toBe(0);
-    expect(out).toContain('::warning::variance found changes that need review');
+    expect(out).toBe(`nothing blocks this check; the docket is in the pull request comment at ${DOCKET_URL}\n`);
   });
 
   it('still fails an accept the comparison after it did not hold when the job reports rather than blocks', async () => {
@@ -278,28 +302,11 @@ describe('the verdict', () => {
   });
 
   it('still fails a run that could not observe every subject when the job reports rather than blocks', async () => {
-    const holes = [
-      { observations: [{ verdict: 'unchanged' }], notObserved: [{ kind: 'failed' }] },
-      { observations: [{ verdict: 'unchanged', diagnostics: [{ severity: 'error' }] }], notObserved: [] },
-      { observations: [{ verdict: 'changed' }] },
-      { notObserved: [] },
-      null,
-    ];
-
-    for (const report of holes) {
-      const { status, out } = await verdict('1', 'true', { report });
-
-      expect(status).toBe(1);
-      expect(out).toContain('::error::variance could not observe every subject');
-      expect(out).toContain(`; the docket is in the pull request comment at ${DOCKET_URL}\n`);
-    }
-  });
-
-  it('still fails when the run named no report, when the job reports rather than blocks', async () => {
-    const { status, out } = await verdict('1', 'true', { report: CHANGED, path: '' });
+    const { status, out } = await verdict('1', 'true');
 
     expect(status).toBe(1);
     expect(out).toContain('::error::variance could not observe every subject');
+    expect(out).toContain(`; the docket is in the pull request comment at ${DOCKET_URL}\n`);
   });
 
   it('still fails a run that did not happen when the job reports rather than blocks', async () => {

@@ -144,8 +144,8 @@ baseline: every push to `main` accepts what `main` renders, as [Accepting a
 change on a pull request](#accepting-a-change-on-a-pull-request) describes. To
 record one without waiting for a push, run `variance.yml` from the Actions tab
 on `main`, tick `accept: true`, and let it finish. Either run executes
-`variance run --exit-zero-on-changes`, then `variance accept --all`, compares
-again, and saves the baseline store to the runner cache. Every run after it
+`variance run`, then `variance accept --all` whether or not it found changes,
+compares again, and saves the baseline store to the runner cache. Every run after it
 restores that store and compares against it.
 
 `accept --all` promotes every candidate the run produced — both the subjects
@@ -272,7 +272,8 @@ A verdict and a crash never share a code, which is why none of these files greps
 the CLI's output and why `|| true` appears in none of them — it would swallow `2`
 and post a green tick over a run whose browser never launched. `run` and `report`
 take `--exit-zero-on-changes` for a job that reports rather than blocks; it
-suppresses `1` only, and says so on stderr.
+turns a change's `1` into `0` and says so on stderr, and leaves a subject it
+could not observe at `1` and a crash at `2`.
 
 Each file ends by turning that integer into a line in the job log:
 

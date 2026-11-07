@@ -1971,9 +1971,14 @@ refused by `accept`. `strict` absorbs nothing.
 
 ### Reporting without gating
 
-`--exit-zero-on-changes` turns exit 1 into exit 0 on `run` and `report`, for a
-job that reports instead of blocking the merge — which is how most of this
-category is actually run.
+`--exit-zero-on-changes` turns a change's exit 1 into exit 0 on `run` and
+`report`, for a job that reports instead of blocking the merge — which is how
+most of this category is actually run. A subject that could not be observed
+still exits 1, and so do an `error` diagnostic and a report that does not say
+what it skipped: each is a hole in what the run says, not a change for a
+reviewer, and a job that reports rather than blocks still has to see it. On
+GitHub Actions the line saying a change was suppressed is a `::warning::`
+annotation, since a passing step no longer carries it to the check.
 
 The reason it is a flag and not a line of shell: `|| true` swallows exit **2** as
 well. A job whose browser never launched observed nothing and therefore found
