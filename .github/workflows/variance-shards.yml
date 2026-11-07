@@ -115,7 +115,7 @@ jobs:
     # the merge refuses them naming both files (ADR-0011). A matrix that varied
     # the image would produce reports that cannot be added up.
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       options: --ipc=host
 
     steps:

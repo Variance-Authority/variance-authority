@@ -42,7 +42,7 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
 export async function main(
   argv: readonly string[],
   streams: Streams,
-): Promise<ExitCode> {
+): Promise<number> {
   let parsed: Parsed;
   try {
     parsed = parseArgs(argv);
@@ -65,6 +65,12 @@ export async function main(
   }
 
   try {
+    // Wraps a command rather than answering about a project, so its exit is that
+    // command's, whatever it was, and nothing below has a say in it.
+    if (parsed.command === 'job') {
+      const { runJob } = await import('./commands/job.js');
+      return await runJob(parsed, streams);
+    }
     // Loaded here and not above: the version and the help answer without a
     // command, and every module a command needs is a module they would wait on.
     const [{ settleFollowUps }, { answerConfigless, constantAnswer, withoutConfig }] = await Promise.all([

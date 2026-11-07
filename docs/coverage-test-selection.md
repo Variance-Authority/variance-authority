@@ -65,7 +65,9 @@ The selectors built into your tools keep nothing below the file:
 `jest --changedSince` and `vitest --changed` walk the import graph and decide
 by file, and `nx affected` and `turbo --affected` decide by project or task.
 Nx's [Ultracache](https://nx.dev/docs/features/ci-features/remote-cache#ultracache-and-affected)
-records the files a task read, and `nx affected` selects from them in CI.
+records the files a task read, and `nx affected` selects from them in CI;
+[`variance job`](https://variance-authority.dev/reference/packages/cli#job-record-what-a-build-read)
+records a build the same way, under the job rather than on Nx's agents.
 Google's TAP and Meta's predictive test selection both considered per-test
 coverage for their monorepos and decided against it. The [TAP
 paper](https://huang.isis.vanderbilt.edu/cs8395/paper/google-testing-icse-seip-17.pdf)

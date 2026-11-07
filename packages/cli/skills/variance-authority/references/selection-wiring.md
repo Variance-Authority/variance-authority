@@ -89,6 +89,25 @@ normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
 scan has no reader for.
 
+## Record a build as one job
+
+A build is selected whole, by what it touched, rather than by a list of its
+inputs. Declare a suite of kind `job` with `"relations": false`, and wrap every
+command of the job with `variance job --suite <name> -- <command>...` on a Linux CI
+machine with `strace`. `variance select --suite <name>` then runs the job when a
+file it read changes. A changed file it only wrote does not run it.
+
+A job is atomic and its recording reproducible: it builds from nothing, with no
+cache of its own, and every skip happens before it or through `variance select`. A
+step that finds its output current reads nothing.
+
+The record is of access, not use: a file opened counts, which only over-selects. It
+cannot see a new file it has never read, a daemon it left running, anything outside
+the repository, or what it read through `git`, `watchman` or `variance`, so name
+those under `before`. A job with no record, an
+incomplete one or a failed command always runs; `--complete-on <exit>` names an
+exit that still means the command ran whole.
+
 ## Declare what a suite ignores
 
 A suite can import a file that cannot change any of its results. A unit suite

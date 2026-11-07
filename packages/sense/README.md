@@ -328,7 +328,7 @@ kind, under `suites` in the root `variance.config.json`:
 { "suites": { "unit": { "kind": "unit" }, "stories": { "kind": "visual" } } }
 ```
 
-The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
+The kind is one of `unit`, `integration`, `e2e`, `visual` and `job`. Each declared
 suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
 seam takes a `suite` option that names the one it runs, as in
 `withTestSelection(config, { suite: 'unit' })`. A run under one suite never
