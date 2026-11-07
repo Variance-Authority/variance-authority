@@ -170,7 +170,8 @@ rests on, such as compiler settings. A fixture a test reads is not an entry: nam
 it in the module that reads it, as
 [`/// <depends path="…" />`](selecting.md#where-sourcedirs-starts-the-answer),
 and a change to it selects the tests that load that module. A suite with
-`"relations": false` declines that edge, so there it goes in `before`. A changed file
+`"relations": false` declines that edge, so there it goes in `before`, unless the
+suite's `ignore` matches it: an ignored file keeps the edge. A changed file
 nothing imports and nothing declares selects nothing, and `select` names it.
 
 An end-to-end suite reaches your app through a browser and imports none of it,

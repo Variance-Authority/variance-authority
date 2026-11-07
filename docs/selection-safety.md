@@ -156,7 +156,9 @@ loads by path — declare the dependency:
   file runs every test.
 
 A suite with `"relations": false` declines the graph, so a `/// <depends>` reaches
-none of its tests: there the file goes in `before` or `preconditions`.
+none of its tests: there the file goes in `before` or `preconditions`. A file the
+suite's `ignore` matches is the exception: the declaration still selects its
+readers, and `before` does not.
 
 Two settings narrow on purpose, and print a line when they do:
 

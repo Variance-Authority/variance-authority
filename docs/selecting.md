@@ -672,7 +672,8 @@ TypeScript and your runtime read it as a comment. The scan reads it as a
 the module. A directive with no `path` is reported as a gap in that file. A suite
 with `"relations": false` declines the graph, this edge with it, so a file its
 tests read goes in its `before`, or in `preconditions` when every test of the run
-rests on it.
+rests on it. A file the suite's `ignore` matches keeps the edge, and `before` does
+not move it.
 
 ## A change nothing has been seen rendering
 
