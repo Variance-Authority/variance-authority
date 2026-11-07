@@ -10,9 +10,6 @@ import {
 } from './read.js';
 import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
 
-/** The subject of a question that reads no workspace: no generation, so nothing dates its answer. */
-const NOTHING_READ: Help = { packages: [], deep: [], unfollowed: [], byPath: [], exported: [], unreadable: [] };
-
 /**
  * The transport, and one decision that could not go anywhere else.
  *
@@ -37,6 +34,9 @@ export interface WorkspaceOptions extends AnsweringOptions {
   readonly input?: Readable;
   readonly output?: Writable;
 }
+
+/** The subject of a question that reads no workspace: no generation, so nothing dates its answer. */
+const NOTHING_READ: Help = { packages: [], deep: [], unfollowed: [], byPath: [], exported: [], unreadable: [] };
 
 /**
  * Serve one workspace generation over MCP, refreshing it only when permitted.
