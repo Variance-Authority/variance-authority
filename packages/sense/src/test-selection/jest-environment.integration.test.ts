@@ -39,6 +39,82 @@ it('records a custom environment dependency as an input, while recording its tes
   }
 }, 60_000);
 
+it('runs a project on Jest\'s default transformer, whose Babel 8 leaves JSON in require.cache with no children', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'variance-default-transform-'));
+  try {
+    const coverageFile = resolve(directory, 'coverage.bin');
+    const run = execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
+      cwd: fixture,
+      env: {
+        ...process.env,
+        FIXTURE_COVERAGE: coverageFile,
+        FIXTURE_CACHE: resolve(directory, 'cache'),
+        FIXTURE_DEFAULT_TRANSFORM: '1',
+        FIXTURE_ENVIRONMENT: 'node',
+        FIXTURE_MATCH: '<rootDir>/default-transform/*.case.js',
+      },
+    });
+    await expect(run).resolves.toMatchObject({ stderr: expect.stringContaining('1 passed, 1 total') });
+    const record = decodeTestCoverage(await readFile(coverageFile));
+    expect(record.tests.map(({ file, complete }) => [file, complete])).toEqual([[at('default-transform/setting.case.js'), true]]);
+    const setting = record.modules.find((module) => module.file === at('src/default-setting.js') && module.instrumented);
+    expect(setting?.blocks.filter((block) => block.kind === 'function').map((block) => block.testFiles)).toEqual([[at('default-transform/setting.case.js')]]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it('names a JSON file an environment requires after an import cached it, as it names one a require loaded', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'variance-imported-json-'));
+  try {
+    const coverageFile = resolve(directory, 'coverage.bin');
+    const run = execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
+      cwd: fixture,
+      env: {
+        ...process.env,
+        FIXTURE_COVERAGE: coverageFile,
+        FIXTURE_CACHE: resolve(directory, 'cache'),
+        FIXTURE_ENVIRONMENT: '<rootDir>/imported-environment.cjs',
+        FIXTURE_ENVIRONMENT_VALUE: 'imported',
+        FIXTURE_IMPORTED_JSON: '1',
+        FIXTURE_MATCH: '<rootDir>/imported/*.case.js',
+      },
+    });
+    await expect(run).resolves.toMatchObject({ stderr: expect.stringContaining('1 passed, 1 total') });
+    const record = decodeTestCoverage(await readFile(coverageFile));
+    expect(record.tests.every((test) => test.complete)).toBe(true);
+    expect(record.tests.flatMap((test) => test.preconditions.map(({ name }) => name))).toEqual(expect.arrayContaining([at('imported-environment.cjs'), at('src/imported-settings.json')]));
+    const change = `--- a/${at('src/imported-settings.json')}\n+++ b/${at('src/imported-settings.json')}\n@@ -1 +1 @@\n-${'x'}\n+${'y'}\n`;
+    expect(await selectTestFiles(coverageFile, change)).toEqual([at('imported/settings.case.js')]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it('passes an environment that evicted a JSON file an import cached, which leaves that file no input of it', async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), 'variance-evicted-json-'));
+  try {
+    const coverageFile = resolve(directory, 'coverage.bin');
+    const run = execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
+      cwd: fixture,
+      env: {
+        ...process.env,
+        FIXTURE_COVERAGE: coverageFile,
+        FIXTURE_CACHE: resolve(directory, 'cache'),
+        FIXTURE_ENVIRONMENT: '<rootDir>/evicted-environment.cjs',
+        FIXTURE_IMPORTED_JSON: '1',
+        FIXTURE_MATCH: '<rootDir>/imported/*.case.js',
+      },
+    });
+    await expect(run).resolves.toMatchObject({ stderr: expect.stringContaining('1 passed, 1 total') });
+    const record = decodeTestCoverage(await readFile(coverageFile));
+    const inputs = record.tests.flatMap((test) => test.preconditions.map(({ name }) => name));
+    expect(inputs).toContain(at('evicted-environment.cjs'));
+    expect(inputs).not.toContain(at('src/imported-settings.json'));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
 
 it.each(['native-environment.mjs', 'native/environment.js', 'mixed-environment.cjs'])('refuses unobservable native inputs in %s rather than claiming complete inputs', async (environment) => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-native-environment-'));
