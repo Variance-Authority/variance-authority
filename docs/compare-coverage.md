@@ -137,10 +137,10 @@ npx variance coverage --format markdown >> "$GITHUB_STEP_SUMMARY"
 For a badge in a public repository's `README.md`, set `badge: 'true'` on the
 [review action](https://github.com/Variance-Authority/action#publishing-a-badge)
 and give its job `contents: write`. On every push to your default branch it
-publishes the share of regions every suite together ran, the figure
-`variance coverage` prints first, from `variance coverage --format badge`. The
-badge reads `regions run`, not `coverage`, because the number is not line
-coverage:
+publishes the share of regions run by every suite the job's record holds, the
+figure `variance coverage` prints first, from `variance coverage --format
+badge`. The badge reads `regions run`, not `coverage`, because the number is
+not line coverage. Put your default branch in place of `main`:
 
 ```markdown
 [![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
