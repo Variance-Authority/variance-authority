@@ -1,5 +1,4 @@
 import { countOf, noPositionals, type Flags } from './args.js';
-import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 import type { ShardsFormat } from './commands/shards.js';
 
@@ -9,7 +8,7 @@ export interface ParsedShards {
   /** `--since <ref>`: the change whose skipped files ask for no shard. */
   readonly since?: string;
   /** `--at-distance <hops>`: count only the leg of the change's selection this many imports away. */
-  readonly atDistance?: { readonly from: number; readonly to: number };
+  readonly atDistance?: string;
   /** `--setup <seconds>`, in milliseconds: what each shard spends before its first test; absent, the count does not weigh it. */
   readonly setup?: number;
   /** `--budget <seconds>`, in milliseconds: what one shard may take, setup included. */
@@ -52,7 +51,7 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
   const suite = flags.values.get('--suite');
   const since = flags.values.get('--since');
   const collected = flags.values.get('--collected');
-  const atDistance = parseAtDistance(flags);
+  const atDistance = flags.values.get('--at-distance');
   return {
     command: 'shards',
     ...(suite === undefined ? {} : { suite }),

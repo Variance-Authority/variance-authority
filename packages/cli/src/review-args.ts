@@ -1,6 +1,5 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
-import { REVIEW_ARTIFACT } from './commands/review-from-run.js';
 import { OperatorError } from './exit.js';
 
 export type ReviewFormat = 'text' | 'markdown' | 'json' | 'handover';
@@ -60,7 +59,7 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(out === undefined ? {} : { out: resolve(out) }),
     ...(suite === undefined ? {} : { suite }),
-    ...(fromRun === undefined ? {} : { fromRun, artifact: artifact ?? REVIEW_ARTIFACT }),
+    ...(fromRun === undefined ? {} : { fromRun, ...(artifact === undefined ? {} : { artifact }) }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format,
   };

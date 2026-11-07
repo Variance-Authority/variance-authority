@@ -5,7 +5,7 @@ import {
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
-import { inLeg } from './select-leg.js';
+import { inLeg, parseAtDistance } from './select-leg.js';
 import { formatSelection, selectionNotes, skippableTests, type SelectInput } from './select.js';
 
 /**
@@ -45,12 +45,12 @@ function read(distances: readonly TestDistance[] = DISTANCES, incomplete?: reado
 
 describe('--at-distance on the command line', () => {
   it('reads a range of hop counts', () => {
-    expect(parseArgs(['select', '--at-distance', '0-2'])).toMatchObject({ atDistance: { from: 0, to: 2 } });
-    expect(parseArgs(['select', '--at-distance', '3-'])).toMatchObject({ atDistance: { from: 3 } });
+    expect(parseAtDistance((parseArgs(['select', '--at-distance', '0-2']) as { atDistance?: string }).atDistance)).toEqual({ from: 0, to: 2 });
+    expect(parseAtDistance('3-')).toMatchObject({ from: 3 });
   });
 
   it('refuses what is not a range of hop counts', () => {
-    expect(() => parseArgs(['select', '--at-distance', '0-e'])).toThrow(/--at-distance takes hop counts/);
+    expect(() => parseAtDistance('0-e')).toThrow(/--at-distance takes hop counts/);
   });
 });
 

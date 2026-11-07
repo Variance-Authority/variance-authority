@@ -1,11 +1,9 @@
 import { resolve } from 'node:path';
-import { distanceRange } from '@variance-authority/sense/test-selection';
-import { noPositionals, type Flags } from './args.js';
+import { noPositionals, oneRecord, type Flags } from './args.js';
 import { checkoutFile } from './checkout-file.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
 import type { ListedChange } from './commands/covering-since.js';
-import { oneRecord } from './commands/suite-record.js';
 
 /** Where the answer is read from and how it is written, whichever was asked. */
 export interface CoveringSource {
@@ -67,7 +65,7 @@ export interface CoveringAt extends CoveringSource {
    * the import graph. A separate reading from the crossing that put the test in
    * the list, and a more expensive one, which is why it is a flag.
    */
-  readonly atDistance?: { readonly from: number; readonly to: number };
+  readonly atDistance?: string;
   /** `--in-package`: keep only witnesses whose test file shares the subject's package. */
   readonly inPackage?: true;
   /**
@@ -201,7 +199,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
   const line = asked === undefined || 'lines' in asked ? undefined : asked.line;
   const lines = asked !== undefined && 'lines' in asked ? asked.lines : undefined;
 
-  const atDistance = parseAtDistance(flags);
+  const atDistance = flags.values.get('--at-distance');
   const text = flags.values.get('--text');
   if (flags.present.has('--hops') && asked === undefined && functionName === undefined) {
     throw new OperatorError(
@@ -223,29 +221,6 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(flags.present.has('--hops') ? { hops: true as const } : {}),
     ...(text === undefined ? {} : { text }),
   };
-}
-
-/**
- * Read `--at-distance`, or say what it should have been.
- *
- * The same spelling `atDistance` ranges over — `0-3`, `2`, `3-` — because the
- * flag is named after the quantity and the quantity is hop counts. A typo is
- * refused rather than read as one distance: `0-e` narrowing silently to zero
- * hops would answer *nothing is near* about a line six tests reach.
- */
-export function parseAtDistance(
-  flags: Flags,
-): { readonly from: number; readonly to: number } | undefined {
-  const raw = flags.values.get('--at-distance');
-  if (raw === undefined) return undefined;
-  const range = distanceRange(raw);
-  if (range === undefined) {
-    throw new OperatorError(
-      `--at-distance takes hop counts — \`0-3\`, \`2\`, or \`3-\` for three and beyond — not ` +
-        `\`${raw}\`.`,
-    );
-  }
-  return range;
 }
 
 /** Where to read the index, where the run was rooted, and how to write the answer. */

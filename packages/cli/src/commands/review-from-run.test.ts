@@ -84,7 +84,9 @@ describe('the review a CI run kept', () => {
   });
 
   it('refuses a flag that would change a review the run already made', () => {
-    expect(parse(['--from-run', '7'])).toMatchObject({ fromRun: '7', artifact: 'variance-review' });
+    // The artifact's default is the download's, applied where the run is read; the parser carries only what was typed.
+    expect(parse(['--from-run', '7'])).toMatchObject({ fromRun: '7' });
+    expect(parse(['--from-run', '7'])).not.toHaveProperty('artifact');
     expect(() => parse(['--from-run', '7', '--since', 'main'])).toThrow(/--since has nothing to change/);
     expect(() => parse(['--artifact', 'x'])).toThrow(/no `--from-run` was given/);
   });

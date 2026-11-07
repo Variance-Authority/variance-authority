@@ -10,7 +10,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, planCachePrune } from './prune-cache.js';
-import { cacheOf } from './resources.js';
+import { cacheOf } from './cache-of.js';
 
 /**
  * The cache besides renders, as doctor reports it: what it holds, what the
