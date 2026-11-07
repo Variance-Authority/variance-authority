@@ -86,10 +86,11 @@ route is answered `public, max-age=0, must-revalidate` with no CDN policy
 beside it, whatever it declares, so the edge revalidates it against the worker
 on every request.
 
-The proxy runs ahead of that cache, so a page and its Markdown stay two entries
-under two addresses. `Vary: Accept` comes from the
-proxy and not from `next.config.ts` for a reason: the CDN adapter will not store
-a tagged page whose own response varies on a field outside the framework's.
+The proxy runs ahead of that cache, so a stored page cannot answer a reader of
+Markdown, whose answer `wrangler dev` shows rendered per request and not stored.
+`Vary: Accept` comes from the proxy and not from `next.config.ts` for a reason:
+the CDN adapter will not store a tagged page whose own response varies on a
+field outside the framework's.
 
 ## To add or change a page
 

@@ -1,4 +1,4 @@
-import { NAVIGATION_ITEMS } from "../navigation";
+import { NAVIGATION_ITEMS, navigationItem } from "../navigation";
 import { packageDocument } from "./package-docs";
 import { productDocument } from "./product-docs";
 
@@ -29,7 +29,7 @@ function productSlug(path: string): string | undefined {
   if (path === "/reference/compare-visual-review") return "compare-visual-review";
 
   const documented = /^\/docs\/([a-z0-9-]+)$/.exec(path);
-  if (documented) return documented[1];
+  if (documented) return navigationItem(path) ? documented[1] : undefined;
 
   const prefixed = /^\/(start|agents)(?:\/([a-z0-9-]+))?$/.exec(path);
   if (prefixed) {

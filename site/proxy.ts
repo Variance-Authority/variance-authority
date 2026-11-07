@@ -4,11 +4,13 @@ import { negotiation } from "./app/content/markdown-negotiation";
 /**
  * Answers a page's address with its Markdown when the reader asks for that.
  *
- * This runs ahead of the edge cache, so the rewrite decides which cached entry
- * answers: the page and its Markdown keep the two addresses they are stored
- * under, and neither can be served for the other. `Vary` is added outside that
- * entry too, which matters: the CDN adapter refuses to store a tagged page that
- * varies on anything of its own, so a page must not declare this itself.
+ * This runs in the uncached gateway, ahead of any stored page, so a stored page
+ * cannot answer a rewritten reader. On `wrangler dev` the Markdown a rewrite
+ * reaches comes back `no-store`: it is rendered per request. `Vary` is added
+ * here, outside the page, because the CDN adapter refuses to store a tagged page
+ * that varies on anything of its own.
+ *
+ * TODO: confirm both orders of reader against the production edge after deploy.
  */
 export function proxy(request: NextRequest): NextResponse {
   const { address, varies } = negotiation(request.nextUrl.pathname, request.headers.get("accept"));

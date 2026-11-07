@@ -18,7 +18,7 @@ describe("negotiation", () => {
     expect(negotiation("/", "text/markdown")).toEqual({ address: LLMS_INDEX, varies: true });
   });
 
-  it.each(["/docs/all", "/docs/theory", "/docs/index.md", "/llms.txt"])(
+  it.each(["/docs/all", "/docs/theory", "/docs/index.md", "/llms.txt", "/docs/start", "/docs/comparison"])(
     "leaves %s, which has no Markdown of its own, to its page",
     (path) => {
       expect(negotiation(path, "text/markdown")).toEqual({ address: undefined, varies: false });
