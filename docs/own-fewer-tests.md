@@ -325,8 +325,9 @@ about the code. Whether a test checks a region it ran is a separate question,
 and only a break answers it: mutation testing across the suite, or, for one
 region, the change-and-rerun above. A test the import walk could not place is
 never in, and what only such tests ran is counted on the last line. The
-comment `variance review --coverage` posts on a pull request carries the same
-table under **Coverage by suite**.
+comment `variance review --coverage` puts on a pull request, through
+`Variance-Authority/action/review`, carries the same table under **Coverage by
+suite**.
 
 ## Ask what still holds since the code changed
 

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -34,6 +35,33 @@ describe('a review that cannot be made', () => {
     const refused = review(parse(['--root', root]));
     await expect(refused).rejects.toThrow(/no run has listed itself.*nothing records where this change starts\. Name the base with `--since <ref>`\./su);
     await expect(refused).rejects.not.toThrow(/[Rr]un the suite/);
+  });
+
+  it('says a shallow clone can lack the start, and how to check out every commit, when nothing records one', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'variance-review-whole-'));
+    const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+    git(source, 'init', '-q');
+    git(source, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'one');
+    git(source, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'two');
+    const root = await mkdtemp(join(tmpdir(), 'variance-review-shallow-'));
+    git(root, 'clone', '-q', '--depth', '1', `file://${source}`, '.');
+
+    const refused = review(parse(['--root', root]));
+
+    await expect(refused).rejects.toThrow(/nothing records where this change starts/);
+    await expect(refused).rejects.toThrow('This clone is shallow, so it can lack that start: check out every commit and no trees:');
+    await expect(refused).rejects.toThrow('`fetch-depth: 0` with `filter: tree:0` on `actions/checkout`');
+  });
+
+  it('says how to check out every commit when the named start cannot be read as a diff', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-review-undiffed-'));
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'one'], { cwd: root });
+
+    const refused = review(parse(['--root', root, '--since', 'no-such-ref']));
+
+    await expect(refused).rejects.toThrow('`no-such-ref` could not be read as a diff.');
+    await expect(refused).rejects.toThrow('check out every commit and no trees: `git clone --filter=tree:0`, or `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.');
   });
 
   it('refuses a runs record that is there and cannot be read, as an operator error naming it', async () => {
