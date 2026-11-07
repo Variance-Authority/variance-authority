@@ -53,6 +53,17 @@ describe('a review that cannot be made', () => {
     await expect(refused).rejects.toThrow('`fetch-depth: 0` with `filter: tree:0` on `actions/checkout`');
   });
 
+  it('says how to check out every commit when the named start cannot be read as a diff', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-review-undiffed-'));
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'one'], { cwd: root });
+
+    const refused = review(parse(['--root', root, '--since', 'no-such-ref']));
+
+    await expect(refused).rejects.toThrow('`no-such-ref` could not be read as a diff.');
+    await expect(refused).rejects.toThrow('check out every commit and no trees: `git clone --filter=tree:0`, or `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.');
+  });
+
   it('refuses a runs record that is there and cannot be read, as an operator error naming it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-review-unread-'));
     const runs = commitRunsFile(testCoverageFile(root));
