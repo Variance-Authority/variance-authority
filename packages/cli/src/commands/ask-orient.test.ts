@@ -199,7 +199,7 @@ describe('variance ask orient', () => {
     ],
     ['sits beside a `pnpm-workspace.yaml` listing nothing', { 'package.json': JSON.stringify({ name: 'kashe' }), 'pnpm-workspace.yaml': 'packages: []\n' }],
     // `members` reads no `lerna.json`, so it declares nothing here either.
-    ['sits beside a `lerna.json`', { 'package.json': JSON.stringify({ name: 'kashe', private: true }), 'lerna.json': '{}\n' }],
+    ['sits beside a `lerna.json`', { 'package.json': JSON.stringify({ name: 'kashe', private: true }), 'lerna.json': JSON.stringify({ packages: ['benchmarks'] }) }],
   ])('puts a root that %s on the map beside the package nested in it', async (_, declared) => {
     const root = repository({ ...declared, ...LIBRARY });
 
@@ -208,6 +208,23 @@ describe('variance ask orient', () => {
     expect((await run(['ask', 'orient'])).out).toBe(
       `# ${basename(root)}: 2 packages in 2 dependency layers (1 takes nothing), 3 source files, 0 areas\n  packages: benchmarks, kashe\n`,
     );
+  });
+
+  it('lists a root after the rows of a map its nested packages split into areas', async () => {
+    const files: Record<string, string> = { 'package.json': JSON.stringify({ name: 'hub' }), 'src/index.ts': 'export const hub = 1;\n' };
+    for (const family of ['data', 'shop', 'tool', 'ui']) {
+      for (let member = 0; member < 6; member += 1) {
+        files[`examples/${family}/${member}/package.json`] = JSON.stringify({ name: `${family}-${member}`, private: true });
+        files[`examples/${family}/${member}/index.ts`] = `import { hub } from '../../../src/index.js';\nexport const taken = hub;\n`;
+      }
+    }
+    repository(files);
+
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const top = (await run(['ask', 'orient'])).out;
+    expect(top).toContain(': 25 packages in 2 dependency layers (1 takes nothing), 25 source files, 4 areas + 1 packages in none\n');
+    expect(top).toContain('  in no area above: hub\n');
   });
 
   it('keeps a root with no source of its own off the map', async () => {
