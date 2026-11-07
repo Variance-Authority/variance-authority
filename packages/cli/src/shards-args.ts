@@ -7,7 +7,7 @@ export interface ParsedShards {
   readonly suite?: string;
   /** `--since <ref>`: the change whose skipped files ask for no shard. */
   readonly since?: string;
-  /** `--at-distance <hops>`: count only the leg of the change's selection this many imports away. */
+  /** `--at-distance <hops>`: count only the leg of the change's selection this many imports away; the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
   /** `--setup <seconds>`, in milliseconds: what each shard spends before its first test; absent, the count does not weigh it. */
   readonly setup?: number;

@@ -18,7 +18,7 @@ export interface ParsedSelect {
    * beside a journey file, whose `before` it is read against.
    */
   readonly suite?: string;
-  /** `--at-distance <hops>`: one leg of the selection; an open end is `Number.MAX_SAFE_INTEGER`. */
+  /** `--at-distance <hops>`: one leg of the selection, the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
 }
 

@@ -137,10 +137,13 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      const [{ answerGaps, answerSays, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }] = await Promise.all([
+      const [{ answerGaps, answerSays, coveringAnswer, formatCoveringAnswer }, { evidenceGapText, GapRefusal }, { parseAtDistance }] = await Promise.all([
         import('./covering-suites.js'),
         import('./evidence-gap.js'),
+        import('./select-leg.js'),
       ]);
+      // A mistyped band is refused before any record is read, as the parser once did.
+      if (!('since' in parsed)) parseAtDistance(parsed.atDistance);
       try {
         const answer = await coveringAnswer(parsed);
         streams.out(formatCoveringAnswer(answer, parsed.format, Date.now()));

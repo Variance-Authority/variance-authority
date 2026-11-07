@@ -4,6 +4,7 @@ import {
   type ExecutionNarrowing,
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
+import { main } from '../bin.fixture.js';
 import { parseArgs } from '../parse.js';
 import { inLeg, parseAtDistance } from './select-leg.js';
 import { formatSelection, selectionNotes, skippableTests, type SelectInput } from './select.js';
@@ -49,8 +50,11 @@ describe('--at-distance on the command line', () => {
     expect(parseAtDistance('3-')).toMatchObject({ from: 3 });
   });
 
-  it('refuses what is not a range of hop counts', () => {
-    expect(() => parseAtDistance('0-e')).toThrow(/--at-distance takes hop counts/);
+  it.each([['select'], ['shards', '--setup', '1'], ['covering', '--file', 'src/total.ts']])('refuses what is not a range of hop counts, for `%s`, before it reads anything', async (...command) => {
+    let err = '';
+    const code = await main([...command, '--at-distance', '0-e'], { out: () => {}, err: (text) => (err += text) });
+    expect(code).not.toBe(0);
+    expect(err).toContain('--at-distance takes hop counts');
   });
 });
 

@@ -14,7 +14,7 @@ export interface ParsedCoverage {
   readonly from?: string;
   /** `--packages`: count each package the manifests name on its own, and with what it imports. */
   readonly packages?: true;
-  /** `--at-distance <hops>`: count a region as run only when a test file this many import hops from it ran it; an open end is `Number.MAX_SAFE_INTEGER`. */
+  /** `--at-distance <hops>`: count a region as run only when a test file this many import hops from it ran it; the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
   /** `--fan-in`: count, for every region and every file, the test files that called into it. */
   readonly fanIn?: true;

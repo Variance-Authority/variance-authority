@@ -63,7 +63,8 @@ export interface CoveringAt extends CoveringSource {
    *
    * Hops from the file the question names to the test's own file, walked over
    * the import graph. A separate reading from the crossing that put the test in
-   * the list, and a more expensive one, which is why it is a flag.
+   * the list, and a more expensive one, which is why it is a flag. The text as
+   * typed, read by `parseAtDistance`.
    */
   readonly atDistance?: string;
   /** `--in-package`: keep only witnesses whose test file shares the subject's package. */
