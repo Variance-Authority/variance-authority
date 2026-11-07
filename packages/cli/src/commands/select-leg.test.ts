@@ -1,4 +1,8 @@
+import { mkdir, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { sourceIndexPath } from '@variance-authority/sense';
 import {
   atDistance,
   type ExecutionNarrowing,
@@ -6,6 +10,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.fixture.js';
 import { parseArgs } from '../parse.js';
+import { followUpsLogPath, holdFollowUps, releaseFollowUps } from './index-follow-ups.js';
 import { inLeg, parseAtDistance } from './select-leg.js';
 import { formatSelection, selectionNotes, skippableTests, type SelectInput } from './select.js';
 
@@ -50,11 +55,23 @@ describe('--at-distance on the command line', () => {
     expect(parseAtDistance('3-')).toMatchObject({ from: 3 });
   });
 
-  it.each([['select'], ['shards', '--setup', '1'], ['covering', '--file', 'src/total.ts']])('refuses what is not a range of hop counts, for `%s`, before it reads anything', async (...command) => {
-    let err = '';
-    const code = await main([...command, '--at-distance', '0-e'], { out: () => {}, err: (text) => (err += text) });
-    expect(code).not.toBe(0);
-    expect(err).toContain('--at-distance takes hop counts');
+  it.each([['select'], ['shards', '--setup', '1'], ['coverage'], ['covering', '--file', 'src/total.ts']])('refuses what is not a range of hop counts, for `%s`, before it waits on or reads anything', async (...command) => {
+    const root = await mkdtemp(join(tmpdir(), 'va-at-distance-'));
+    const cwd = process.cwd();
+    const index = sourceIndexPath(root);
+    await mkdir(dirname(index), { recursive: true });
+    // This process is live and never lets the lock go, so a command that waits on it never returns.
+    holdFollowUps(index, { pid: process.pid, log: followUpsLogPath(index) });
+    try {
+      process.chdir(root);
+      let err = '';
+      const code = await main([...command, '--at-distance', '0-e'], { out: () => {}, err: (text) => (err += text) });
+      expect(code).not.toBe(0);
+      expect(err).toContain('--at-distance takes hop counts');
+    } finally {
+      releaseFollowUps(index, process.pid);
+      process.chdir(cwd);
+    }
   });
 });
 
