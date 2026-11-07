@@ -61,7 +61,7 @@ async function packagesLoaded(args: readonly string[]): Promise<string[]> {
 
 /**
  * Packages that hold pixels, Storybook, MCP, history or the help, none of which these commands call.
- * Not `raster`: each reads the config, whose `baselines.path` the store parses and refuses with raster's error.
+ * Not `raster`, which each loads: it reads the config, whose `baselines.path` the store parses and refuses with raster's error.
  */
 const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'remote', 'renderer', 'storybook'];
 
@@ -69,6 +69,7 @@ describe('what the program loads before it answers', () => {
   it.each([['--version'], ['--help'], ['index', '--no-git'], ['select', '--format', 'vitest']])('loads no pixel, Storybook, MCP, history or help package for `%s`', async (...args) => {
     const loaded = await packagesLoaded(args);
     expect(loaded).toContain('cli');
+    expect(loaded).toContain('raster');
     expect(loaded.filter((name) => UNCALLED.includes(name))).toEqual([]);
   });
 
