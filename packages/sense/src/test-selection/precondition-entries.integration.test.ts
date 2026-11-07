@@ -88,6 +88,8 @@ const finished = (command: readonly string[], entries: readonly string[], env: N
   (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, output: stripVTControlCharacters(`${error.stdout}\n${error.stderr}`) }),
 );
 
+const recordOrNone = (): Promise<Buffer | undefined> => readFile(resolve(directory, 'coverage.bin')).catch(() => undefined);
+
 describe.each(Object.keys(runs))('a %s run', (runner) => {
   const command = runs[runner]!;
 
@@ -249,30 +251,27 @@ describe('a run the entry is refused from', () => {
   }, 120_000);
 });
 
-describe('a command that loads the configuration and runs no test', () => {
-  it.each(Object.keys(quiet))('%s exits as it would without the seam', async (name) => {
-    const { code, output } = await finished(quiet[name]!, ['src/**/*.ts']);
+describe('rstest merge-reports', () => {
+  const merged = (config: string, entries: readonly string[], env?: NodeJS.ProcessEnv) =>
+    finished([rstest, 'merge-reports', '-c', resolve(fixture, config)], entries, env);
 
-    expect(output).not.toContain('cannot be read as a file');
-    expect(code).toBe(0);
-    expect(existsSync(ran())).toBe(false);
+  it('refuses an entry it cannot read, and writes no record without it', async () => {
+    await finished([...runs['Rstest']!, '--reporter=blob'], []);
+    const before = await recordOrNone();
+
+    const { code, output } = await merged('rstest.config.mjs', ['src/value.ts', 'missing.json']);
+
+    expect(output).toContain(`names ${resolve(fixture, 'missing.json')}, which`);
+    expect(code).not.toBe(0);
+    expect(await recordOrNone()).toEqual(before);
   }, 120_000);
 
-  it('rstest merge-reports exits as it would without the seam', async () => {
+  it('writes what the run declared', async () => {
     await finished([...runs['Rstest']!, '--reporter=blob'], []);
 
-    const { code, output } = await finished([rstest, 'merge-reports', '-c', resolve(fixture, 'rstest.config.mjs')], ['src/**/*.ts']);
+    const { code, output } = await merged('rstest.config.mjs', ['src/value.ts']);
 
     expect(output).toContain('Merging 1 blob report');
-    expect(output).not.toContain('cannot be read as a file');
-    expect(code).toBe(0);
-  }, 120_000);
-
-  it('rstest merge-reports writes what the run declared, and leaves out what cannot be read', async () => {
-    await finished([...runs['Rstest']!, '--reporter=blob'], []);
-
-    const { code } = await finished([rstest, 'merge-reports', '-c', resolve(fixture, 'rstest.config.mjs')], ['src/value.ts', 'missing.json']);
-
     expect(code).toBe(0);
     const { tests } = decodeTestCoverage(await readFile(resolve(directory, 'coverage.bin')));
     expect(tests[0]!.preconditions.map(({ name }) => name.slice(name.indexOf('precondition-entries/') + 21))).toEqual([
@@ -281,14 +280,46 @@ describe('a command that loads the configuration and runs no test', () => {
     ]);
   }, 120_000);
 
-  it('rstest merge-reports reads no entry of the configuration listing the projects that cannot be read', async () => {
-    const projects = ['-c', resolve(fixture, 'rstest.projects.config.mjs')];
-    await finished([rstest, 'run', ...projects, '--reporter=blob'], []);
+  it('refuses an entry of the configuration listing the projects', async () => {
+    await finished([rstest, 'run', '-c', resolve(fixture, 'rstest.projects.config.mjs'), '--reporter=blob'], []);
 
-    const { code, output } = await finished([rstest, 'merge-reports', ...projects], ['missing.json']);
+    const { code, output } = await merged('rstest.projects.config.mjs', ['missing.json']);
 
-    expect(output).not.toContain('could not be read');
+    expect(output).toContain(`names ${resolve(fixture, 'missing.json')}, which`);
+    expect(code).not.toBe(0);
+  }, 120_000);
+
+  it('reads no entry of a project none of whose tests it merges', async () => {
+    await finished([rstest, 'run', '-c', resolve(fixture, 'rstest.projects.config.mjs'), '--project', 'one', '--reporter=blob'], []);
+
+    const { code, output } = await merged('rstest.projects.config.mjs', [], { FIXTURE_PROJECT_PRECONDITIONS: '["missing.json"]' });
+
+    expect(output).not.toContain('cannot be read as a file');
     expect(code).toBe(0);
+  }, 120_000);
+});
+
+it('a run of only a project a path names refuses an entry when its tests end, as nothing reaches it before', async () => {
+  const { code, output } = await finished([rstest, 'run', '-c', resolve(fixture, 'rstest.path.config.mjs')], ['missing.json']);
+
+  expect(output).toContain(`names ${resolve(fixture, 'missing.json')}, which`);
+  expect(code).not.toBe(0);
+}, 120_000);
+
+it('a run of only a project a path names says it recorded nothing, as no plugin of the seam reached it', async () => {
+  const { code, output } = await finished([rstest, 'run', '-c', resolve(fixture, 'rstest.path.config.mjs')], []);
+
+  expect(output).toContain('this run recorded no coverage, so it narrows no later selection');
+  expect(code).toBe(0);
+}, 120_000);
+
+describe('a command that loads the configuration and runs no test', () => {
+  it.each(Object.keys(quiet))('%s exits as it would without the seam', async (name) => {
+    const { code, output } = await finished(quiet[name]!, ['src/**/*.ts']);
+
+    expect(output).not.toContain('cannot be read as a file');
+    expect(code).toBe(0);
+    expect(existsSync(ran())).toBe(false);
   }, 120_000);
 
   it('vite build of the shared configuration exits as it would without the seam', async () => {

@@ -40,7 +40,7 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
 import { refuseUnreadable } from './precondition-entries.js';
-import { buildingPlugin, buildsTestFile, declareEntries, isBuilding, joinReadableEntries, noteBuilding } from './rstest-entries.js';
+import { buildingPlugin, buildsTestFile, declareEntries, isBuilding, joinEntries, noteBuilding } from './rstest-entries.js';
 import { governingPreconditions } from './governing-config.js';
 import { limitAcross } from './execution-set-columns.js';
 
@@ -307,7 +307,7 @@ export function withTestSelection(
       const named = [...nameFiltersOf(run)].some((filter) => ![undefined, ''].includes(filter() as string | undefined));
       const files = cycleResults(run, payload);
       // Finished files and no compiler: see `rstest-entries.ts`.
-      if (!isBuilding(run) && files.length > 0) joinReadableEntries(run);
+      if (!isBuilding(run) && files.length > 0) joinEntries(run, files.map((file) => file.project === undefined ? undefined : [projectKey(file.project)]));
       await writeCarriedStories(story, files.flatMap(caseEnds));
       return unprobedAtEnd(run) ?? settle(files.map((file) => ({
         filepath: file.testPath,

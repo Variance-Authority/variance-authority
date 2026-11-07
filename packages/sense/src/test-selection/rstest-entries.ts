@@ -6,12 +6,14 @@
  * watch session, which builds with none. So a compiler says the run takes part,
  * and what Rspack is handed says which project does. A run that made none and
  * still finished files is a merge of reports, or ran only a project this seam
- * cannot reach: nothing refuses there, and what can be read still counts.
+ * cannot reach. Nothing could refuse before those tests, so an entry they rest
+ * on is refused at their end, ahead of a record that would hold them without it.
  */
 
 // compass: variance-authority.reach
 
-import { readable } from './precondition-entries.js';
+import { governingPreconditions } from './governing-config.js';
+import { refuseUnreadable } from './precondition-entries.js';
 import type { SelectionRun } from './selection-run.js';
 
 const building = new WeakSet<SelectionRun>();
@@ -27,9 +29,10 @@ export function declareEntries(run: SelectionRun, own: Set<string>, entries: rea
   declared.set(run, [...declared.get(run) ?? [], { own, entries }]);
 }
 
-/** Joins every configuration's entries that can be read. */
-export function joinReadableEntries(run: SelectionRun): void {
-  for (const { own, entries } of declared.get(run) ?? []) for (const file of readable(entries)) own.add(file);
+/** Joins every configuration's entries, and refuses one that the tests finished under `configs` rest on and that cannot be read. */
+export function joinEntries(run: SelectionRun, configs: readonly (readonly string[] | undefined)[]): void {
+  for (const { own, entries } of declared.get(run) ?? []) for (const file of entries) own.add(file);
+  refuseUnreadable([...new Set(configs.flatMap((of) => governingPreconditions(run, of)))]);
 }
 
 /**
@@ -50,12 +53,20 @@ export function buildingPlugin(run: SelectionRun) {
  * Whether what Rstest hands Rspack to build holds a file that `loaded` does not
  * name, which is a test file: its entries are that and a project's setup. A
  * watching run's entry is a function, read at each build, and may yet hold one.
- * A setup file that is a package is named differently and reads as a test file.
+ * A setup file that is a package is named differently and reads as a test file,
+ * and so does what is not a path: neither says the entries hold no test file.
  */
 export function buildsTestFile(entry: unknown, loaded: ReadonlySet<string>): boolean {
   if (typeof entry === 'function') return true;
   const named = new Set([...loaded].map(forwardSlashed));
-  return Object.values(entry ?? {}).some((file) => !named.has(forwardSlashed(file as string)));
+  const points = typeof entry === 'string' || Array.isArray(entry) ? [entry] : Object.values(entry ?? {});
+  return points.flatMap(entryFiles).some((file) => typeof file !== 'string' || !named.has(forwardSlashed(file)));
+}
+
+/** What one entry point of Rspack's names: a path, a list of them, or a description whose `import` is either. */
+function entryFiles(point: unknown): readonly unknown[] {
+  const files = typeof point === 'object' && point !== null && !Array.isArray(point) ? (point as { import?: unknown }).import : point;
+  return Array.isArray(files) ? files : [files];
 }
 
 /** Rspack spells a Windows path with forward slashes, and `resolve` with backslashes. */

@@ -999,8 +999,11 @@ layout needs. A project that sets `name` keeps its setup files and
 after the wrap has run, so its files are preconditions of every test. An entry
 that cannot be read is refused before any test once a wrapped project, or an
 unwrapped one written inline in `projects`, has a test file in the run. A run of
-nothing but an unwrapped project named by a path refuses nothing and leaves the
-entry out, as `rstest merge-reports` does.
+nothing but an unwrapped project named by a path gives the seam nothing to refuse
+from, so its tests run and the run fails when they end, and `rstest merge-reports`
+fails the same way, for an entry a merged test rests on. Neither writes a record
+without that entry. A project named by a path and not wrapped itself records no
+coverage: wrap it to have its tests recorded.
 
 To assemble a configuration by hand instead, `withTestSelection` names two
 loaders by path, and you can name them yourself:
