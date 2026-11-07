@@ -229,6 +229,8 @@ export interface Review {
   };
   /** The runs recorded at this commit, when they listed themselves. */
   readonly runs?: ReviewRuns;
+  /** The commits every suite's runs name, under `--coverage`, which reads every suite. */
+  readonly ranCommits?: readonly string[];
   readonly files: readonly ReviewFile[];
   /** The packages holding changed functions, by directory. Absent when no changed function was located. */
   readonly changedPackages?: readonly ChangedPackage[];

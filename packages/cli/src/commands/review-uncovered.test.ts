@@ -101,9 +101,9 @@ describe('a review that fails on a changed function no case ran', () => {
   });
 
   /** The run at `first` lists itself, as a run of this commit does, and `src/total.ts` is all it loaded. */
-  const listRun = (root: string, first: string, listed: { readonly commit?: string } = { commit: first }, loaded: { readonly tests: readonly (typeof DISCOUNTS)[]; readonly blocks: readonly ExecutionBlock[] } = { tests: [DISCOUNTS], blocks: [block('applyDiscount', 1, 3, [0])] }) => {
+  const listRun = (root: string, first: string, listed: { readonly commit?: string } = { commit: first }, loaded: { readonly tests: readonly (typeof DISCOUNTS)[]; readonly blocks: readonly ExecutionBlock[] } = { tests: [DISCOUNTS], blocks: [block('applyDiscount', 1, 3, [0])] }, suite?: string) => {
     const tests = [...new Set(loaded.tests.map((test) => test.file))].map((file) => ({ file, complete: true }));
-    return landRun(testCoverageFile(root), {
+    return landRun(testCoverageFile(root, suite === undefined ? {} : { suite }), {
       version: 3,
       instrumentation: INSTRUMENTATION_ID,
       ...listed,
@@ -311,6 +311,30 @@ describe('a review that fails on a changed function no case ran', () => {
 
       expect(out).toContain('code no case ran:** `round`');
       expect(out).not.toContain('the record holds no case for');
+    });
+
+    it('takes a run of this commit by another suite as the run a changed file no suite loaded missed', async () => {
+      const { root, first, against } = await changed({ suites: ['e2e', 'unit'], tree: BEFORE, others: FEE });
+      const commit = committed(root);
+      await noRowsBy(root, commit, 'unit');
+      await listRun(root, commit, { commit }, undefined, 'e2e');
+
+      const { code, err } = await twoSuites(root, first, against);
+
+      expect(code).toBe(EXIT_CLEAN);
+      expect(err).toContain('`src/fee.ts` changed and no run loaded it');
+    });
+
+    it('refuses a changed file no suite loaded when every suite last ran an earlier commit', async () => {
+      const { root, first, against } = await changed({ suites: ['e2e', 'unit'], tree: BEFORE, others: FEE });
+      committed(root);
+      await noRowsBy(root, first, 'unit');
+      await listRun(root, first, { commit: first }, undefined, 'e2e');
+
+      const { code, err } = await twoSuites(root, first, against);
+
+      expect(code).toBe(EXIT_OPERATOR);
+      expect(err).toContain('nothing shows a run of this change');
     });
 
     it('refuses when no suite ran the file as the tree holds it', async () => {
