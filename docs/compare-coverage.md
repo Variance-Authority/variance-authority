@@ -124,9 +124,8 @@ describes every line of the output.
   mainline: `count.over.this`, or `count.run` when that is absent, divided by
   `count.regions`. Those are the regions in files the suites loaded, so a file
   no test loads does not lower the figure. Label it `regions run`, since a
-  badge that says `coverage` reads as line coverage. This repository's own
-  README shows one, written by the `publish the badge's figure` step of its
-  `.github/workflows/check.yml` on every push to `main`.
+  badge that says `coverage` reads as line coverage. Variance Authority's
+  README on GitHub shows one, which its CI writes on every push to `main`.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a
