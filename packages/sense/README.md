@@ -788,7 +788,8 @@ The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
 `unprobed`, `mode`, `placement`, `continuations`, `cadence`, and `selection`, with the meanings above.
 With `placement: 'before-transforms'` the probes go into the file as Jest read
 it, and your transformer compiles the probed text. Jest does not report which
-config file it loaded, so name it in `preconditions`. `unprobed` is a list of
+config file it loaded, so name it in `before` in `variance.config.json`, and a
+change to it runs the whole suite. `unprobed` is a list of
 globs rather than a function, because Jest hands its transformer options as
 data; relative globs resolve against `root`, and a glob
 that opens with `!` keeps a module probed, as it does in `testMatch`. There is no `include`:
