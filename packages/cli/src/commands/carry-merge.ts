@@ -46,13 +46,6 @@ export async function mergeHead(parsed: ParsedCarry, root: string, streams: Stre
   const git = gitIn(root, env);
   const commit = await commitOf(git, parsed.commit);
   const head = await commitOf(git, asked);
-  // A stop resets the checkout hard, which would take an uncommitted change with it.
-  const dirty = (await git(['diff', 'HEAD', '--name-only'])).stdout.trim().split('\n').filter(Boolean);
-  if (dirty.length > 0) {
-    throw new OperatorError(
-      `\`carry merge\` stands the checkout on another commit, and ${dirty.join(', ')} ${dirty.length === 1 ? 'holds' : 'hold'} changes nobody committed: commit or stash them first`,
-    );
-  }
   const started = (await git(['rev-parse', 'HEAD'])).stdout.trim();
   const date = `@${Math.max(await committedAt(git, commit), await committedAt(git, head))} +0000`;
 
