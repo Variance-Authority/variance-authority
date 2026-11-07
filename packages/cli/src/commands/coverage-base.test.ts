@@ -193,14 +193,14 @@ describe('review with coverage against a base', () => {
     expect(reading.base).toEqual((JSON.parse(named.out) as Coverage).suites[0]!.base);
   });
 
-  it('refuses a base with several suites declared and none named, rather than give every suite its record', async () => {
+  it('refuses before any coverage is read, with several suites declared and none named', async () => {
     const several = await copyOf('several');
     await writeFile(join(several, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
 
     const answer = await ask(['review', '--root', several, '--since', 'HEAD', '--coverage', '--against', base, '--format', 'json']);
 
     expect(answer.code).toBe(2);
-    expect(answer.err).toContain('pass `--suite <name>`');
+    expect(answer.err).toContain('pass `--suite <name>` to say which record to read');
   });
 });
 
