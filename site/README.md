@@ -27,7 +27,12 @@ for every user agent that names itself. Each page names the index in its head as
 `rel="describedby"`; an article also names its own Markdown as `rel="alternate"`,
 and every response — page, `robots.txt`, Markdown
 — names the index again in a `Link:` header, so a reader that fetches a URL
-without rendering it is told where the source starts.
+without rendering it is told where the source starts. A reader that sends
+`Accept: text/markdown` gets that Markdown at the page's own address: `proxy.ts`
+rewrites to `<path>/index.md`, and the home to `/index.md`, which is the index.
+A page with no Markdown stays HTML. `robots.txt` carries a `Content-Signal`
+line, and `/.well-known/api-catalog` says the site's documentation starts at
+`/llms.txt`; the site has no API to describe.
 
 Run every command below from `site/`, in a checkout of the repository:
 
@@ -80,6 +85,12 @@ render. Give a new route the same declaration.
 route is answered `public, max-age=0, must-revalidate` with no CDN policy
 beside it, whatever it declares, so the edge revalidates it against the worker
 on every request.
+
+The proxy runs ahead of that cache, so a page and its Markdown stay two entries
+under two addresses. A Markdown answer reached through `Accept` is rendered per
+request, which is one string, and is not stored. `Vary: Accept` comes from the
+proxy and not from `next.config.ts` for a reason: the CDN adapter will not store
+a tagged page whose own response varies on a field outside the framework's.
 
 ## To add or change a page
 

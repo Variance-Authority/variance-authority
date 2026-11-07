@@ -94,7 +94,7 @@ const unprobed = (file: string) => source(file) && marked(ROOT, file);
  * install, which no slice here runs, so a site module importing one of these
  * resolves only to the mock its test declares.
  */
-const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+const SITE_ONLY = ['next/link', 'next/navigation', 'next/server', 'react-markdown', 'rehype-raw', 'remark-gfm'];
 
 /**
  * What every slice runs under.
@@ -103,8 +103,8 @@ const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw
  * run here, on the root one: the suite's CI job installs nothing in `site/`. So a module a site
  * test loads resolves from the root manifest or not at all, and the root
  * declares the site's rendering dependencies as `devDependencies` at the site's
- * own ranges. The framework is the exception: `next/link` and
- * `next/navigation` are interfaces each site test mocks, and the plugin below
+ * own ranges. The framework is the exception: `next/link`, `next/navigation`
+ * and `next/server` are interfaces each site test mocks, and the plugin below
  * only lets their names resolve so the mock has something to replace.
  */
 const shared = defineConfig({
