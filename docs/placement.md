@@ -287,8 +287,10 @@ arrangements, and each puts the approval somewhere else:
 On GitHub, `Variance-Authority/action` runs any of the three, and the config's
 `baselines` section chooses. With the CI cache, the action's `accept` input
 accepts, on the run a label started. With git, its `commit-baselines` input
-pushes the accepted images to the pull request's branch, which needs a token
-whose push starts a workflow. With a review service, a `variance push` step after
+pushes the accepted images to the pull request's branch on a `pull_request`
+event, or to the dispatched branch on a `workflow_dispatch`, and refuses any
+other run, such as a dispatch on a tag. The push needs a token whose push starts
+a workflow. With a review service, a `variance push` step after
 the action sends the run there. The
 [CLI reference](../packages/cli/README.md#run-it-in-ci) has the step.
 
