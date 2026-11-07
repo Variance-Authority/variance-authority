@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers two *arguments* — an `ask` with no
  * question, and an `ask` whose question is about the source — whose commands
  * otherwise go on to load a config like any other.
- * `withoutConfig` covers fourteen whole commands, and narrows them out of the
+ * `withoutConfig` covers thirteen whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -25,10 +25,10 @@ import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
 import { writePieces } from '../json-pieces.js';
 
-/** The fourteen commands that read no project configuration at all. */
+/** The thirteen commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'shards' | 'reach' | 'prune' | 'job' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'shards' | 'reach' | 'prune' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -46,7 +46,6 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'shards'
     || parsed.command === 'reach'
     || parsed.command === 'prune'
-    || parsed.command === 'job'
   );
 }
 
@@ -101,7 +100,7 @@ export interface Streams {
 export async function answerConfigless(
   parsed: Configless,
   streams: Streams,
-): Promise<number> {
+): Promise<ExitCode> {
   switch (parsed.command) {
     // A watcher is about a suite, not about a project: it listens, holds what a
     // run says, and answers. Loading a config first would make it unstartable in
@@ -330,13 +329,6 @@ export async function answerConfigless(
       const { text, exit } = await pruneOutput();
       streams.out(text);
       return exit;
-    }
-
-    // Wraps a command rather than observing a project, and the suite it names is
-    // the repository root's. The exit is the command's, whatever it was.
-    case 'job': {
-      const { runJob } = await import('./job.js');
-      return runJob(parsed, streams);
     }
   }
 }

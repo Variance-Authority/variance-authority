@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
@@ -21,6 +21,8 @@ done
 cp "$FAKE_TRACE" "$out"
 exec "$@"
 `;
+
+const RECORDER_INSTALLED = spawnSync('strace', ['-V']).status === 0;
 
 describe('recording a job', () => {
   let root: string;
@@ -63,9 +65,7 @@ describe('recording a job', () => {
     writeFileSync(join(root, 'dist', 'out.js'), 'out');
     traced(
       `1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`,
-      `1 openat(AT_FDCWD<${root}>, "missing.json", O_RDONLY) = -1 ENOENT (No such file or directory)`,
-      `1 openat(AT_FDCWD<${root}>, "dist/probe.json", O_RDONLY) = -1 ENOENT (No such file or directory)`,
-      `1 openat(AT_FDCWD<${root}>, "dist/out.js", O_WRONLY|O_CREAT, 0666) = 3<${root}/dist/out.js>`,
+      `1 openat(AT_FDCWD<${root}>, "dist/out.js", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3<${root}/dist/out.js>`,
     );
     expect(await job('sh', '-c', 'exit 0')).toBe(0);
     const record = await readTestCoverage(file());
@@ -73,24 +73,9 @@ describe('recording a job', () => {
     expect(record.tests).toEqual([{
       file: 'build',
       complete: true,
-      preconditions: [
-        { name: 'missing.json', digest: 'absent' },
-        { name: 'read.txt', digest: git(root, 'rev-parse', 'HEAD:read.txt') },
-      ],
+      preconditions: [{ name: 'read.txt', digest: git(root, 'rev-parse', 'HEAD:read.txt') }],
     }]);
-    expect((await readJobWrites(file()))?.writes.map(({ name }) => name)).toEqual(['dist/out.js']);
-  });
-
-  it('leaves out a miss under an ignored folder, through a link as a workspace package is', async () => {
-    mkdirSync(join(root, 'real'));
-    mkdirSync(join(root, 'dist'));
-    symlinkSync('../real', join(root, 'dist', 'link'));
-    traced(
-      `1 openat(AT_FDCWD<${root}>, "dist/link/probe.json", O_RDONLY) = -1 ENOENT (No such file or directory)`,
-      `1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`,
-    );
-    await job('sh', '-c', 'exit 0');
-    expect((await readTestCoverage(file())).tests[0]?.preconditions.map(({ name }) => name)).toEqual(['read.txt']);
+    expect((await readJobWrites(file()))?.writes).toEqual(['dist/out.js']);
   });
 
   it('answers the exit of a command that failed, and holds its record incomplete', async () => {
@@ -112,6 +97,12 @@ describe('recording a job', () => {
     expect(notes.join('')).toContain('strace could not trace it');
   });
 
+  it('holds the job incomplete before running a command it could not trace', async () => {
+    recorder('#!/bin/sh\nexit 1\n');
+    vi.stubEnv('RECORD', file());
+    expect(await job('sh', '-c', 'test -f "$RECORD"')).toBe(0);
+  });
+
   it('holds the job incomplete when a later step could not be traced', async () => {
     traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
     await job('sh', '-c', 'exit 0');
@@ -120,13 +111,24 @@ describe('recording a job', () => {
     expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
   });
 
-  it('runs the command unrecorded when there is no recorder', async () => {
+  it('runs the command and leaves the record alone when there is no recorder', async () => {
     const bin = mkdtempSync(join(tmpdir(), 'va-job-bin-'));
     for (const tool of ['git', 'sh', 'touch']) symlinkSync(execFileSync('which', [tool], { encoding: 'utf8' }).trim(), join(bin, tool));
     vi.stubEnv('PATH', bin);
     expect(await job('sh', '-c', 'touch ran')).toBe(0);
     expect(existsSync(join(root, 'ran'))).toBe(true);
     expect(notes.join('')).toContain('strace is not installed');
+    expect(existsSync(file())).toBe(false);
+  });
+
+  it.runIf(RECORDER_INSTALLED)('records what a child of the command read and wrote, under the real recorder', async () => {
+    expect(await job('sh', '-c', 'mkdir -p dist && cat read.txt > dist/out.txt && cat dist/out.txt > /dev/null')).toBe(0);
+    expect((await readTestCoverage(file())).tests).toEqual([{
+      file: 'build',
+      complete: true,
+      preconditions: [{ name: 'read.txt', digest: git(root, 'rev-parse', 'HEAD:read.txt') }],
+    }]);
+    expect((await readJobWrites(file()))?.writes).toEqual(['dist/out.txt']);
   });
 
   it('runs the command unrecorded outside a checkout', async () => {

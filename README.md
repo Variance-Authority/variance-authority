@@ -293,8 +293,8 @@ Two questions meet in this repository — *what did this change look like* and
   from the files a task read in CI. They decide which tasks run, and the record
   decides which tests inside one of them had a reason to run.
   [`variance job`](https://variance-authority.dev/reference/packages/cli#job-record-what-a-build-read) records
-  the files a build read on your own CI, and runs the build only when one of
-  them changed; nothing here orders tasks or restores their outputs yet.
+  the files a build read on your own CI, and says whether one of them changed;
+  nothing here orders tasks or restores their outputs yet.
 - [**TraceDecay**](https://github.com/ScriptedAlchemy/tracedecay) — source
   extraction across some sixty languages into one graph. The same appetite for
   reading a whole polyglot repository that

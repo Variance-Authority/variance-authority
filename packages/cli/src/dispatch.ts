@@ -71,7 +71,7 @@ import { rendererFor } from './renderer.js';
  * which is exactly the point of parsing into a value first.
  */
 export async function dispatch(
-  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | Configless>,
+  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | { command: 'job' } | Configless>,
   streams: { out(text: string): void; err(text: string): void; detach?(argv: readonly string[], log: string): number | undefined },
 ): Promise<ExitCode> {
   if (parsed.command === 'journeys' && parsed.operation !== undefined)

@@ -96,12 +96,11 @@ inputs. Declare a suite with `"relations": false`, and wrap every command of the
 job with `variance job --suite <name> -- <command>...` on a Linux CI machine with
 `strace`, building from nothing: a step that finds its output current reads
 nothing. `variance select --suite <name>` then runs the job when a file it read
-changes, when a file appears where it found nothing, and when a file lands
-directly in a folder it listed. A changed file it only wrote does not run it.
+changes. A changed file it only wrote does not run it.
 
-It cannot see a new file in a new folder below one it listed, a daemon it left
-running, or anything outside the repository, so name those under `before`. A job
-with no record, an incomplete one or a failed command always runs.
+It cannot see a new file it has never read, a daemon it left running, or anything
+outside the repository, so name those under `before`. A job with no record, an
+incomplete one or a failed command always runs.
 
 ## Declare what a suite ignores
 

@@ -104,9 +104,6 @@ function readDiff(
     // left in the table is what no row can answer: a test's own file, a
     // configured setup file, a module some other run never instrumented.
     for (const name of knownAs(file)) governing.add(name);
-    // A folder a job listed is a declaration too, of what the folder holds: a
-    // file appearing in it was read by nobody, and the listing it moved was.
-    governing.add(listingOf(file));
     const route = routed(run, file);
     for (const name of route.rows.keys()) run.rowed.add(name);
     routes.set(file, route);
@@ -173,7 +170,7 @@ function readDiff(
   // snapshot holds nothing under selects nobody and takes nothing from the
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
-  const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name)) || !unmatched.has(listingOf(file));
+  const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
   const unmeasured = [...answered.unread.filter((name) => !measured(name)), ...answered.unheld].sort(codeUnitOrder);
   // A suite that declines relations never asked the graph, so nothing it
   // holds is unread: what the record did not measure was declined.
@@ -192,10 +189,4 @@ function readDiff(
     because,
     readings,
   }, changed.keys(), knownAs);
-}
-
-/** The name a listing of `file`'s folder is declared under, `./` at the root (`job-record.ts`). */
-export function listingOf(file: string): string {
-  const slash = file.lastIndexOf('/');
-  return slash === -1 ? './' : file.slice(0, slash + 1);
 }

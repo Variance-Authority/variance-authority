@@ -16,8 +16,9 @@ the rules that decide when neither may narrow.
 ## Boundary
 
 It observes nothing, paints nothing, compares nothing, issues no **verdict** and
-computes no build graph: another tool's affected-project answer arrives as a
-**seed** rather than as a selection. It does not gate — a **subject** it
+computes no build graph: a **job** is one unit with the files it touched, and
+another tool's affected-project answer arrives as a **seed** rather than as a
+selection. It does not gate — a **subject** it
 excluded is stated by name for [report](../report/README.md) to carry.
 
 ## Technology

@@ -44,4 +44,4 @@ here is a scope decision of its own, not a step inside a feature.
 | What source text means as syntax | oxc |
 | What an import meant under test, how a case is collected and run | the test runner (Jest, Vitest, Rstest, Playwright) |
 | How a page paints | Chromium |
-| What a build produced and from what | the bundler and its source maps |
+| What a build produced and from what, past the files a **job** touched | the bundler and its source maps |

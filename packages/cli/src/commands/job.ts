@@ -3,10 +3,10 @@
  * `variance job`: run a command and record what it touched.
  *
  * The recorder sits under the command rather than inside a runtime, so a job is
- * whatever the command starts, in any language. Recording never stands between a
- * build and its result: where nothing can be recorded the command still runs, and
- * its exit is the job's either way. A job with no record is one selection runs,
- * which is the safe answer to having recorded nothing.
+ * whatever the command starts, in any language. Where nothing can be recorded the
+ * command still runs, and its exit is the job's: a job with no record is one
+ * selection runs, which is the safe answer to having recorded nothing. A record
+ * that cannot be written is an error of its own, after the command has run.
  */
 
 import { spawn } from 'node:child_process';
@@ -15,7 +15,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
-import { jobInputs, landJob, readJobTrace, TRACED_CALLS, type JobTrace } from '@variance-authority/sense/test-selection';
+import { landJob, readJobTrace, TRACED_CALLS, type JobTrace } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import type { ParsedJob } from '../job-args.js';
 import type { Streams } from './configless.js';
@@ -30,7 +30,8 @@ export async function runJob({ suite, run }: ParsedJob, streams: Pick<Streams, '
   try {
     const file = join(scratch, 'trace');
     const exit = await started('strace', traced(file, run), cwd);
-    if (exit === undefined) return await untraced(root, suite, run, cwd, streams, 'strace is not installed');
+    // Nothing here can record, as on a laptop: what CI recorded stands.
+    if (exit === undefined) return await unrecorded(run, cwd, streams, 'strace is not installed');
     const trace = readTrace(file);
     // Nothing traced means the recorder could not start the command, which then never ran.
     if (trace === undefined) return await untraced(root, suite, run, cwd, streams, 'strace could not trace it');
@@ -59,8 +60,8 @@ async function record(root: string, suite: string, exit: number, trace: JobTrace
     commit: git('rev-parse', 'HEAD').trim(),
     complete: exit === 0,
     at: new Date().toISOString(),
-    inputs: jobInputs(trace, root, trackedBlobs(git('ls-files', '-s', '-z')), ignoredBy(git('ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z'))),
     trace,
+    tracked: trackedBlobs(git('ls-files', '-s', '-z')),
   });
 }
 
@@ -72,24 +73,6 @@ function trackedBlobs(listing: string): ReadonlyMap<string, string> {
   }));
 }
 
-/**
- * Which names `git ls-files --others --ignored --directory -z` covers, by the name
- * or a folder above it. A listing, because `git check-ignore` dies on the first
- * name beyond a link and answers for none after it. An ignored name it misses,
- * one nothing on disk matches, stays recorded and can never be in a diff.
- */
-function ignoredBy(listing: string): (names: readonly string[]) => ReadonlySet<string> {
-  const entries = new Set(listing.split('\0'));
-  const covered = (name: string): boolean => {
-    if (entries.has(name)) return true;
-    for (let slash = name.indexOf('/'); slash !== -1; slash = name.indexOf('/', slash + 1)) {
-      if (entries.has(name.slice(0, slash + 1))) return true;
-    }
-    return false;
-  };
-  return (names) => new Set(names.filter(covered));
-}
-
 /** The trace in `file`, undefined when the recorder traced nothing. */
 function readTrace(file: string): JobTrace | undefined {
   let trace: JobTrace;
@@ -99,7 +82,7 @@ function readTrace(file: string): JobTrace | undefined {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
   }
-  return trace.reads.size + trace.writes.size + trace.absent.size === 0 ? undefined : trace;
+  return trace.reads.size + trace.writes.size === 0 ? undefined : trace;
 }
 
 /** The lines of `file`, a piece at a time: a build's trace outgrows what a string may hold. */
@@ -122,13 +105,12 @@ function* linesOf(file: string): Generator<string> {
 
 /** Run `run` unrecorded and hold the job incomplete: a step that left no trace must not leave the steps before it standing for the whole job. */
 async function untraced(root: string, suite: string, run: readonly string[], cwd: string, streams: Pick<Streams, 'err'>, why: string): Promise<number> {
-  const exit = await unrecorded(run, cwd, streams, why);
-  await record(root, suite, 1, { reads: new Set(), writes: new Set(), absent: new Set() });
-  return exit;
+  await record(root, suite, 1, { reads: new Set(), writes: new Set() });
+  return unrecorded(run, cwd, streams, why);
 }
 
 async function unrecorded(run: readonly string[], cwd: string, streams: Pick<Streams, 'err'>, why: string): Promise<number> {
-  streams.err(`Not recorded: ${why}. The command runs, and selection will run this job.\n`);
+  streams.err(`Not recorded: ${why}. The command runs.\n`);
   const exit = await started(run[0]!, run.slice(1), cwd);
   if (exit === undefined) throw new OperatorError(`\`${run[0]!}\` could not be started: no such command`);
   return exit;

@@ -102,8 +102,7 @@ not run*.
 A **job** is a suite of one row, recorded from under the command rather than
 inside a runtime. What it read are the row's preconditions, so selection answers
 for a build with the machinery it answers for a test file. What it wrote is kept
-beside the row and is no reason to run it. A folder it listed is read as a
-precondition on what lands directly in that folder.
+beside the row and is no reason to run it.
 
 An install that could not be compared — an unreadable lockfile, or a base
 revision that does not carry it — does not narrow, for the reason a missing diff

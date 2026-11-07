@@ -8,40 +8,31 @@
  * happened: that order is what tells an input from an output, since a file the
  * job wrote before reading is one it made.
  *
- * Three answers, all absolute paths as the kernel resolved them:
+ * Two answers, both absolute paths as the kernel resolved them:
  *
- * - `reads`: opened for reading, run, or moved away, before the job wrote it.
+ * - `reads`: opened for reading, run, or moved away, before the job wrote it. A
+ *   write that keeps what was there, an append, is a read of it too.
  * - `writes`: opened for writing, created, truncated, or landed on by a rename
  *   or a link. A file read first is in both.
- * - `absent`: looked for and not found, so a file appearing there is news to
- *   the job, as a new config file is to a tool that looks for one.
  *
- * A failed call names no resolved path. Where it carries a directory the path
- * is put together from that; a relative path on a call with none (`stat`,
- * `access`) names no directory to read it from and is left out.
+ * A relative path on a call with no directory, and a line that is no call, say
+ * nothing that can be placed, and are left out. A script started by a relative
+ * path is still read, through the open its interpreter makes.
  */
 
 import { posix } from 'node:path';
 
-/** What one traced command touched, as paths the recorder resolved: read, written, and looked for and not found. */
+/** What one traced command touched, as paths the recorder resolved. */
 export interface JobTrace {
   readonly reads: ReadonlySet<string>;
   readonly writes: ReadonlySet<string>;
-  readonly absent: ReadonlySet<string>;
 }
 
 /** The calls the recorder traces, as `strace -e trace=` takes them. */
 export const TRACED_CALLS: readonly string[] = [
   'open', 'openat', 'openat2', 'creat', 'execve', 'truncate',
   'rename', 'renameat', 'renameat2', 'link', 'linkat',
-  'stat', 'lstat', 'newfstatat', 'statx', 'access', 'faccessat', 'faccessat2', 'readlink', 'readlinkat',
 ];
-
-/** The calls that take a path and report only whether it was there, by whether the first argument is a directory. */
-const LOOKS: ReadonlyMap<string, boolean> = new Map([
-  ['stat', false], ['lstat', false], ['access', false], ['readlink', false],
-  ['newfstatat', true], ['statx', true], ['faccessat', true], ['faccessat2', true], ['readlinkat', true],
-]);
 
 /** The calls that move or copy a name, by whether each path follows its directory. */
 const MOVES: ReadonlyMap<string, { readonly at: boolean; readonly away: boolean }> = new Map([
@@ -56,7 +47,6 @@ const MOVES: ReadonlyMap<string, { readonly at: boolean; readonly away: boolean 
 export function readJobTrace(lines: Iterable<string>): JobTrace {
   const reads = new Set<string>();
   const writes = new Set<string>();
-  const absent = new Set<string>();
   // What the job has made so far: a read of one of these is a read of its own output.
   const made = new Set<string>();
   const split = new Map<string, string>();
@@ -68,7 +58,6 @@ export function readJobTrace(lines: Iterable<string>): JobTrace {
     if (path === undefined) return;
     writes.add(path);
     made.add(path);
-    absent.delete(path);
   };
 
   for (const line of lines) {
@@ -90,13 +79,6 @@ export function readJobTrace(lines: Iterable<string>): JobTrace {
       continue;
     }
 
-    const looks = LOOKS.get(name);
-    if (looks !== undefined) {
-      const path = looks ? pathOf(args[1], args[0]) : pathOf(args[0]);
-      if (path !== undefined && result.startsWith('-1 ENOENT') && !made.has(path)) absent.add(path);
-      continue;
-    }
-
     if (name === 'execve') {
       if (!failed) read(pathOf(args[0]));
     } else if (name === 'truncate' || name === 'creat') {
@@ -105,19 +87,15 @@ export function readJobTrace(lines: Iterable<string>): JobTrace {
       const at = name !== 'open';
       const flags = args[at ? 2 : 1] ?? '';
       const asked = at ? pathOf(args[1], args[0]) : pathOf(args[0]);
-      const writing = /O_WRONLY|O_RDWR/.test(flags);
-      if (failed) {
-        if (!writing && asked !== undefined && result.startsWith('-1 ENOENT') && !made.has(asked)) absent.add(asked);
-        continue;
-      }
       // A descriptor opened by `O_PATH` only names the file: nothing of it was read.
-      if (/O_PATH/.test(flags)) continue;
+      if (failed || /O_PATH/.test(flags)) continue;
       const path = annotated(result) ?? asked;
-      if (!/O_WRONLY/.test(flags)) read(path);
-      if (writing) write(path);
+      // Only a write that empties the file owes nothing to what was there.
+      if (!/O_WRONLY/.test(flags) || !/O_TRUNC/.test(flags)) read(path);
+      if (/O_WRONLY|O_RDWR/.test(flags)) write(path);
     }
   }
-  return { reads: sorted(reads), writes: sorted(writes), absent: sorted(absent) };
+  return { reads: sorted(reads), writes: sorted(writes) };
 }
 
 const sorted = (paths: ReadonlySet<string>): ReadonlySet<string> => new Set([...paths].sort());

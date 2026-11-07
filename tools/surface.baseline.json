@@ -3398,8 +3398,6 @@
         "innermostAt": "function",
         "isEncodedExecutionIndex": "function",
         "isTestCoverageFile": "function",
-        "jobInputs": "function",
-        "jobWritesFile": "function",
         "journeyDivergences": "function",
         "journeyGaps": "function",
         "journeysApart": "function",
