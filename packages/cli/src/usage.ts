@@ -192,16 +192,10 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill`, `covering`, `coverage`, `review`, `story`, `index`,
- * `select`, `shards` and `reach` do not read project configuration. One holds a live
- * listener; the next five read evidence a run left behind, named on the command line or found
- * where a run puts it; the last four are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else. `prune` reads the
- * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
- * whether or not a project is configured. `carry` is on the list
- * for the same reason and names `--config` itself: the suites it carries are
- * the repository root's, and a project is read only when one is named. `job`
- * wraps a command, and its suite is the repository root's too.
+ * These read no project configuration: they hold a listener, read evidence a run
+ * left behind, answer a repository whose tests another runner runs, or work from
+ * the repository root, as `prune`, `job` and `carry` do. `carry` still names
+ * `--config`, and reads a project only when one is named.
  */
 const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'carry'];
 

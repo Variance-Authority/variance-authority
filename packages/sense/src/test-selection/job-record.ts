@@ -20,6 +20,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestBytes } from '../digest.js';
 import { INSTRUMENTATION_ID } from '../instrument/identity.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns } from './commit-runs.js';
@@ -94,7 +95,7 @@ function withinRepository(path: string, root: string): string | undefined {
 }
 
 const byName = <Named extends { readonly name: string }>(entries: readonly Named[]): readonly Named[] =>
-  [...entries].sort((one, other) => (one.name < other.name ? -1 : one.name > other.name ? 1 : 0));
+  [...entries].sort((one, other) => codeUnitOrder(one.name, other.name));
 
 /** Where the writes of the job recorded at `coverageFile` are kept. */
 export function jobWritesFile(coverageFile: string): string {

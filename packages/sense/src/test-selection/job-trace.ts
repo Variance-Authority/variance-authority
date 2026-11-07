@@ -23,6 +23,7 @@
 
 import { posix } from 'node:path';
 
+/** What one traced command touched, as paths the recorder resolved: read, written, and looked for and not found. */
 export interface JobTrace {
   readonly reads: ReadonlySet<string>;
   readonly writes: ReadonlySet<string>;
