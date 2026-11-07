@@ -1,7 +1,8 @@
 name: variance review
 description: >-
   Puts `variance review --coverage` on the pull request as one comment, updated
-  in place, for a project with no surface for the gate to observe. It reads the
+  in place, and marks each changed function no case covered on the diff, for a
+  project with no surface for the gate to observe. It reads the
   record your tests left. It has no verdict unless `fail-on-uncovered` or `fail-on-lost` asks for
   one: the step fails when no review could be written, or when GitHub failed the
   post; a token that cannot write only warns.
@@ -111,6 +112,7 @@ runs:
           --body-file "$REVIEW/review.md" \
           --marker "$(head -n 1 "$REVIEW/review.md")" \
           --adopt-unkeyed false
+        node "$here/../diff-marks.mjs" "$REVIEW/review.json" || echo '::warning::The diff carries no marks: the comment holds what they would say.'
 
     # Last, because a step that fails skips the ones after it, and the comment
     # is what says which functions.

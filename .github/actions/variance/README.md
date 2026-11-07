@@ -138,6 +138,13 @@ is often exactly that. The step's log names each one, and the check stays green 
 nothing else is counted, so a source file nothing imports passes it, with new
 functions or edited ones.
 
+Each changed function no case covered in a run of the change is also marked in
+the diff, as a warning on the first lines the change wrote in it. GitHub shows ten
+of a step's warnings, so a longer list ends with a note of how many it left out.
+A file no suite ran as the tree holds it marks nothing: a record older than the
+change has not run what the change wrote. With several suites, a suite that has not run the change answers for
+nothing, so a function only that suite reaches is marked until it does.
+
 ### Requiring that a change keeps running what the mainline ran
 
 `fail-on-lost: 'true'` fails the step, after the comment, when a suite's base ran

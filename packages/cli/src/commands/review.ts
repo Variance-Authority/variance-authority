@@ -139,6 +139,8 @@ export interface ReviewFile {
   /** A suite the review read ran the file as the tree holds it, so its regions say what the change did. */
   readonly ran?: true;
   readonly regions?: readonly ReviewRegion[];
+  /** The lines of the file the change wrote, beside `regions`: what a diff shows of a function. */
+  readonly written?: readonly LineRange[];
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
 }
@@ -360,7 +362,7 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
       ...(sources.has(file) ? { indexed: true } : {}),
       ...(tested.has(file) ? { holdsCases: true } : {}),
-      ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions }),
+      ...(change === undefined ? {} : { recorded: change.recorded, regions: change.regions, written: now.get(file) ?? [] }),
       ...(fresh.has(file) || change?.ran === true ? { ran: true } : {}),
       ...(cases === undefined ? {} : { cases }),
     });

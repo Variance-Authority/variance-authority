@@ -34,6 +34,7 @@ describe('a review of a suite whose case index was carried past its snapshot', (
 
     expect(answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map(({ name, startLine, endLine, cases }) => [name, startLine, endLine, cases]))
       .toEqual([['applyDiscount', 2, 4, 1], ['round', 6, 8, 0]]);
+    expect(answer.files.find((file) => file.file === 'src/total.ts')?.written?.length).toBeGreaterThan(0);
   });
 
   it('says what the change might do when the named suite\'s cases were cut at other text than its snapshot', async () => {
