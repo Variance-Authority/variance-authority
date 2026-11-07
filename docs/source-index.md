@@ -79,7 +79,7 @@ and the index line is followed by one naming that process and the file its lines
 go to:
 
 ```text
-follow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process 48213, and the next variance command that reads them waits for it; their lines are written to <cache>/test-selection/<digest>/source-index.bin.follow-ups.log
+follow-ups: nothing has failed; process 48213 is still making the code map, the journeys, the dependency lexicon and the questions. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk. Its lines are written to <cache>/test-selection/<digest>/source-index.bin.follow-ups.log
 ```
 
 The next `variance` command you run that reads any of them waits for that
