@@ -7,6 +7,9 @@ import { readJobWrites, readTestCoverage, testCoverageFile } from '@variance-aut
 import { runJob } from './job.js';
 import { selectSuite } from './select-command.js';
 
+// `selectSuite` builds its own source index only outside CI, and these checkouts have no pipeline to publish one.
+vi.mock('ci-info', () => ({ isCI: false }));
+
 const git = (root: string, ...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 
 /** A recorder that copies `FAKE_TRACE` to where it was told to write, then runs the command. */
