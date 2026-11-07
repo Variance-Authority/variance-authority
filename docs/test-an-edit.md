@@ -252,8 +252,8 @@ A pull request selects from the record your main branch saved, so its CI job
 runs the tests the change needs and leaves the rest out. Your main branch runs
 the whole suite and saves the record to the CI cache, and the pull request
 restores it and sets the variable. [The workflow](cache.md#in-ci) is one file,
-and the page lists what a Jest preset, declared suites and a package per
-configuration change in it.
+and the page lists what declared suites and a package per configuration change
+in it.
 
 ## When it runs everything
 

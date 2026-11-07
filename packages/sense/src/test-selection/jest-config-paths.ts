@@ -1,10 +1,39 @@
 /**
- * Where a Jest configuration's entries are on disk: a project's `rootDir`, and
- * the setup, environment and trace entries that name files rather than packages.
+ * Where a Jest configuration's entries are on disk: a project's `rootDir`, the
+ * setup, environment and trace entries that name files rather than packages,
+ * and the packages Jest itself depends on.
  */
 
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import type { JestConfig } from './jest.js';
+
+/** The packages a dependency of Jest is reached through, from the outside in. */
+const JEST_CHAIN = ['jest', '@jest/core', 'jest-config'] as const;
+
+/**
+ * Where a package Jest depends on is. Jest resolves it from `jest-config`, not
+ * from the project: under pnpm or any layout that does not hoist it, the project
+ * cannot resolve it. So it is looked for from the project, then from each
+ * package on Jest's path to it.
+ */
+export function jestDependency(rootDir: string, name: string): string {
+  let from = resolve(rootDir, 'package.json');
+  for (const next of [...JEST_CHAIN, undefined]) {
+    const require = createRequire(from);
+    try {
+      return require.resolve(name);
+    } catch (error) {
+      if (next === undefined) throw error;
+      try {
+        from = require.resolve(next);
+      } catch {
+        throw error;
+      }
+    }
+  }
+  throw new Error(`unreachable: ${name}`);
+}
 
 /** A project's `rootDir`, absolute, with the top level's `<rootDir>` spelled out; the top level's own when it has none. */
 export function projectRoot(project: JestConfig, root: string): string {

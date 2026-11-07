@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
+import { jestDependency } from './jest-config-paths.js';
 import { refuseUnfound } from './jest-selection.js';
 import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
@@ -37,34 +38,8 @@ interface Shard {
 
 type SequencerClass = new (options: unknown) => object;
 
-/** Jest's own sequencer, and the packages it is a dependency of, from the outside in. */
+/** Jest's own sequencer, for a configuration that names none. */
 const JEST_SEQUENCER = '@jest/test-sequencer';
-const JEST_CHAIN = ['jest', '@jest/core', 'jest-config'] as const;
-
-/**
- * Where Jest's own sequencer is, for a configuration that names none. Jest
- * resolves it from `jest-config`, its dependency, not from the project: under
- * pnpm or any layout that does not hoist it, the project cannot resolve it, and
- * a run that never asked for `--shard` would fail on a sequencer it never named.
- * So it is looked for from the project, then from each package on Jest's path to it.
- */
-function jestSequencer(rootDir: string): string {
-  let from = resolve(rootDir, 'package.json');
-  for (const next of [...JEST_CHAIN, undefined]) {
-    const require = createRequire(from);
-    try {
-      return require.resolve(JEST_SEQUENCER);
-    } catch (error) {
-      if (next === undefined) throw error;
-      try {
-        from = require.resolve(next);
-      } catch {
-        throw error;
-      }
-    }
-  }
-  throw new Error(`unreachable: ${JEST_SEQUENCER}`);
-}
 
 export interface PlacingOptions {
   /** The checkout the record names its files from. */
@@ -104,7 +79,7 @@ export function placingSequencer(
   const handed = {
     sorting: refuseUnfound,
     own: (): SequencerClass => {
-      const at = path === undefined ? jestSequencer(options.rootDir) : from.resolve(path, { paths: [options.rootDir] });
+      const at = path === undefined ? jestDependency(options.rootDir, JEST_SEQUENCER) : from.resolve(path, { paths: [options.rootDir] });
       const module = from(at) as SequencerClass | { default: SequencerClass };
       return (own ??= typeof module === 'function' ? module : module.default);
     },

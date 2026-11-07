@@ -210,12 +210,8 @@ With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
 
-Three things in your repository change what you write:
+Two things in your repository change what you write:
 
-- **A Jest preset.** The wrap gives a configuration with no `transform` of its
-  own Jest's default, so `ts-jest` and any other preset's transformer never runs.
-  Copy the preset's `transform` into the object you wrap, as
-  [the Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) shows.
 - **Declared suites.** Once `variance.config.json` declares
   [`suites`](../packages/sense/README.md#where-the-snapshot-lives-and-when-it-is-rebuilt), a wrap that names none
   records into the only one, and among several stops before the run starts, so

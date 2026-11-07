@@ -20,6 +20,7 @@ import nodeUrl = require('node:url');
 import nodeUtil = require('node:util');
 import path = require('node:path');
 import collectors = require('./collectors.cjs');
+import presets = require('./jest-preset-file.cjs');
 import moduleIds = require('./module-id.cjs');
 import type { ModuleId } from '../instrument/index.js';
 import type { JourneyTrace } from './journey.js';
@@ -56,9 +57,7 @@ const load = (file: string): unknown => {
   return loaded.default ?? loaded;
 };
 
-/** Jest's `interopRequireDefault(…).default`, the way it reads an environment or a runtime module. */
-const interop = (loaded: unknown): unknown =>
-  (loaded as { __esModule?: boolean } | null)?.__esModule === true ? (loaded as { default: unknown }).default : loaded;
+const { interop, presetFile, rooted } = presets;
 
 const INPUTS = Symbol.for('variance-authority.test-selection.environment');
 const RUNTIME = path.resolve(__dirname, '..') + path.sep;
@@ -168,10 +167,6 @@ function inputs(entry: NodeJS.Module, root: string): ModuleId[] {
 
 type FindNodeModule = (path: string, options: { basedir: string; extensions?: readonly string[]; resolver?: string }) => string | null;
 
-/** jest-config's `replaceRootDirInPath`. */
-const rooted = (rootDir: string, name: string): string =>
-  name.startsWith('<rootDir>') ? path.resolve(rootDir, path.normalize(`./${name.slice('<rootDir>'.length)}`)) : name;
-
 /**
  * The file of the project's own runtime, by jest-config's steps: the preset
  * found as `setupPreset` finds it, its `runtime` overridden by the project's,
@@ -182,11 +177,7 @@ function projectRuntime(jest: NodeJS.Require, config: ProjectConfig, options: Op
   const find = (jest('jest-resolve') as { default: { findNodeModule: FindNodeModule } }).default.findNodeModule;
   let name = options.runtime;
   if (name === undefined && options.preset !== undefined) {
-    const preset = rooted(config.rootDir, options.preset);
-    const file = find(preset.startsWith('.') || path.isAbsolute(preset) ? preset : `${preset}/jest-preset`, {
-      basedir: config.rootDir,
-      extensions: ['.json', '.js', '.cjs', '.mjs'],
-    });
+    const file = presetFile(find, config.rootDir, options.preset);
     // Jest read this preset before it started: a miss here is a moved file.
     if (file === null) throw new Error(`variance-authority: preset ${options.preset} is not found from ${config.rootDir}`);
     name = (interop(require(file)) as { runtime?: string }).runtime;

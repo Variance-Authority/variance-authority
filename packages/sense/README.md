@@ -818,15 +818,12 @@ yours, and `--skipFilter` turns filters off. Either one turns the selection
 off, and stderr says which.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
-anything, so three things are yours to spell out:
+anything. A preset's `transform` is read for you and wrapped, so a preset such as
+`ts-jest` needs no `transform` in the object; a `transform` you do name replaces
+the preset's where the patterns match, as in Jest. A preset's setup files and
+environment are read from the configuration Jest resolved, so a local preset's
+files are preconditions without being named. Two things are yours to spell out:
 
-- **The preset's transform.** A configuration with no `transform` of its own
-  gets Jest's default, `babel-jest`, wrapped. Jest then merges the preset's
-  `transform` in after it, and the first pattern that matches wins, so your
-  preset's transformer never runs. Copy the preset's `transform` into the object
-  you wrap. Its setup files and environment still run, and are read from the
-  configuration Jest resolved, so a local preset's files are preconditions
-  without being named.
 - **A transformer's path.** Names resolve from the checkout root, and Jest
   resolves them from the project's `rootDir`. A transformer installed only under
   a nested package needs `require.resolve` from there.
@@ -834,18 +831,11 @@ anything, so three things are yours to spell out:
 
 ```js
 // jest.config.mjs
-import { createRequire } from 'node:module';
 import { withTestSelection } from '@variance-authority/sense/jest';
 import buildConfig from './jest.base.mjs';
 
-const require = createRequire(import.meta.url);
-const preset = require('@acme/jest-preset/jest-preset.js');
-
 export default async () =>
-  withTestSelection(
-    { ...(await buildConfig()), transform: preset.transform },
-    { preconditions: ['jest.config.mjs', 'jest.base.mjs'] },
-  );
+  withTestSelection(await buildConfig(), { preconditions: ['jest.config.mjs', 'jest.base.mjs'] });
 ```
 
 Jest transforms inside the workers it forks and keeps the transformed text on
