@@ -36,7 +36,7 @@ export function refusingAtStart(vitest: { readonly config: { readonly reporters:
 export interface ConfigPlugin {
   readonly name: string;
   readonly configResolved: (config: ResolvedViteConfig) => void;
-  /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
+  /** Vitest calls it with the run's context. */
   readonly configureVitest?: (context: VitestContext) => void;
 }
 

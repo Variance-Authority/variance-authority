@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -32,6 +32,7 @@ const runs: Readonly<Record<string, readonly string[]>> = {
 };
 
 const refusedAlike: Readonly<Record<string, readonly string[]>> = {
+  'Jest with projects': [jest, '--config', resolve(fixture, 'jest.projects.config.mjs'), '--watchman=false'],
   'Vitest under a command-line --reporter': [...runs['Vitest']!, '--reporter=dot'],
   'Vitest with projects': [vitest, 'run', '--config', resolve(fixture, 'vitest.projects.config.ts')],
   'Rstest with projects': [rstest, 'run', '-c', resolve(fixture, 'rstest.projects.config.mjs')],
@@ -58,6 +59,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
+  await rm(resolve(fixture, '.rstest-reports'), { recursive: true, force: true });
 });
 
 interface Finished {
@@ -168,6 +170,16 @@ it('a refused Rstest run leaves no seam module behind', async () => {
   expect(existsSync(resolve(fixture, '.variance-authority'))).toBe(false);
 }, 120_000);
 
+it.each(['Jest', 'Vitest'])('a refused %s run that cut a file leaves no cut behind', async (runner) => {
+  const { code, output } = await finished(runs[runner]!, ['src/**/*.ts'], {
+    FIXTURE_CUT: relative(repository, resolve(fixture, 'test/entries.check.ts')),
+  });
+
+  expect(output).toContain('cannot be read as a file');
+  expect(code).not.toBe(0);
+  expect((await readdir(directory)).filter((name) => name.includes('cut'))).toEqual([]);
+}, 120_000);
+
 describe('a run the entry is refused from', () => {
   it.each(Object.keys(refusedAlike))('%s', async (name) => {
     const { code, output } = await finished(refusedAlike[name]!, ['src/**/*.ts']);
@@ -186,6 +198,16 @@ describe('a command that loads the configuration and runs no test', () => {
     expect(output).not.toContain('cannot be read as a file');
     expect(code).toBe(0);
     expect(existsSync(ran())).toBe(false);
+  }, 120_000);
+
+  it('rstest merge-reports exits as it would without the seam', async () => {
+    await finished([...runs['Rstest']!, '--reporter=blob'], []);
+
+    const { code, output } = await finished([rstest, 'merge-reports', '-c', resolve(fixture, 'rstest.config.mjs')], ['src/**/*.ts']);
+
+    expect(output).toContain('Merging 1 blob report');
+    expect(output).not.toContain('cannot be read as a file');
+    expect(code).toBe(0);
   }, 120_000);
 
   it('vite build of the shared configuration exits as it would without the seam', async () => {

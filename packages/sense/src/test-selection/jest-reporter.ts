@@ -155,10 +155,21 @@ class JestCoverageReporter {
     this.#governing.set(test.path, own);
   }
 
+  /** A refused run reaches no `onRunComplete`, which is what takes the filter's cut off. */
+  #refuseUnreadable(files: readonly string[]): void {
+    try {
+      refuseUnreadable(files);
+    } catch (refusal) {
+      removeCut(process.env[CUT_VARIABLE]);
+      delete process.env[CUT_VARIABLE];
+      throw refusal;
+    }
+  }
+
   onRunStart(results: { readonly numTotalTestSuites: number }): void {
     // Jest announces a run after its global setup, so a file that setup writes
-    // passes here, where Vitest and Rstest refuse it. A run with no test file is no run.
-    if (!('journeyFile' in this.#config) && results.numTotalTestSuites > 0) refuseUnreadable(this.#config.declared ?? []);
+    // passes here, where Vitest and Rstest in Node refuse it. A run with no test file is no run.
+    if (!('journeyFile' in this.#config) && results.numTotalTestSuites > 0) this.#refuseUnreadable(this.#config.declared ?? []);
     this.#startedAt = Date.now();
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);

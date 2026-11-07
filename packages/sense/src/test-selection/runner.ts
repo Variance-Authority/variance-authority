@@ -68,6 +68,7 @@ export interface RecordingOptions {
   /**
    * Files every test's outcome depends on that no transform sees: a config the
    * runner reads, a fixture read with `fs`. A change to one selects every test.
+   * `startRecording` refuses no entry: #1093.
    */
   readonly preconditions?: readonly string[];
   /** The probe recipe; `'presence'` when absent. */

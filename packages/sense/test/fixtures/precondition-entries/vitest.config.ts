@@ -5,6 +5,10 @@ import { defineConfig } from 'vitest/config';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const source = resolve(root, 'src');
+const cut = process.env['FIXTURE_CUT'];
+const selection = cut === undefined ? {} : {
+  selection: async () => ({ whole: new Set<string>(), skip: new Set<string>(), cases: new Map([[cut, ['no such case']]]), notes: [] }),
+};
 
 export default withTestSelection(
   defineConfig({
@@ -15,5 +19,6 @@ export default withTestSelection(
     coverageFile: process.env['VARIANCE_AUTHORITY_COVERAGE']!,
     include: (file) => file.startsWith(source),
     preconditions: JSON.parse(process.env['FIXTURE_PRECONDITIONS']!),
+    ...selection,
   },
 );
