@@ -529,7 +529,7 @@ jobs:
       - name: a CLI to merge with
         if: github.event_name == 'pull_request'
         shell: bash
-        run: corepack enable && yarn install --immutable && yarn workspace @variance-authority/cli build
+        run: corepack enable && yarn install --immutable && yarn tsc --build packages/cli
 
       - name: merge the head with the record's commit
         if: github.event_name == 'pull_request'
@@ -731,7 +731,7 @@ jobs:
       - name: a CLI to merge with
         if: github.event_name == 'pull_request'
         shell: bash
-        run: corepack enable && yarn install --immutable && yarn workspace @variance-authority/cli build
+        run: corepack enable && yarn install --immutable && yarn tsc --build packages/cli
 
       - name: merge the head with the record's commit
         if: github.event_name == 'pull_request'
