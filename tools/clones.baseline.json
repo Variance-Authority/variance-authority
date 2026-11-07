@@ -85,13 +85,6 @@
   },
   {
     "files": [
-      "packages/cli/src/coverage-args.ts",
-      "packages/cli/src/layers-args.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/cli/src/dispatch.ts",
       "packages/cli/src/dispatch.ts"
     ],
