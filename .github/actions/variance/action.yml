@@ -617,7 +617,7 @@ runs:
         # is already on the branch it ran on.
         current="$(git rev-parse --abbrev-ref HEAD)"
         if [ "$current" != "$VARIANCE_BRANCH" ]; then
-          echo "::error::the workspace is on '$current', not '$VARIANCE_BRANCH'; give actions/checkout the pull request head ref before enabling commit-baselines, because pushing from a merge ref would rewrite the branch with the merge"
+          echo "::error::the workspace is on '$current', not '$VARIANCE_BRANCH'; check out the branch '$VARIANCE_BRANCH' before enabling commit-baselines (on a pull_request, give actions/checkout the head ref), because pushing from another commit would rewrite the branch with it"
           exit 2
         fi
 

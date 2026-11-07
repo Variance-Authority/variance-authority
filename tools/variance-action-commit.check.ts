@@ -138,6 +138,18 @@ describe('the commit-back', () => {
     expect(git(origin, 'rev-parse', 'feature')).toBe(tip);
   });
 
+  it('refuses a dispatch whose workspace is off its branch, naming the branch to check out', async () => {
+    const { origin, workspace } = await checkout();
+    git(workspace, 'checkout', '--quiet', '--detach');
+    const tip = git(origin, 'rev-parse', 'feature');
+
+    const { status, out } = await commitBack(workspace, dispatch('feature', 'branch'));
+
+    expect(status).toBe(2);
+    expect(out).toContain("::error::the workspace is on 'HEAD', not 'feature'; check out the branch 'feature' before enabling commit-baselines");
+    expect(git(origin, 'rev-parse', 'feature')).toBe(tip);
+  });
+
   it('refuses a push, which is on a branch but is no accept a person asked for', async () => {
     const { origin, workspace } = await checkout();
     const tip = git(origin, 'rev-parse', 'feature');
