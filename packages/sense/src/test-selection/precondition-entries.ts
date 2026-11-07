@@ -9,28 +9,29 @@
 
 // compass: variance-authority.reach
 
-import { accessSync, constants, statSync } from 'node:fs';
-import { resolve } from 'node:path';
-import type { DeclaredEntry } from './selection-run.js';
+import { NoDigester, textDigests } from '../text-digests.js';
 
-/** The entries as paths from `from`. Nothing is read: a wrapped configuration may run no test. */
-export function declaredEntries(entries: readonly string[] | undefined, from: string): readonly DeclaredEntry[] {
-  return (entries ?? []).map((entry) => ({ entry, file: resolve(from, entry) }));
-}
-
-function readsAsFile(file: string): boolean {
+/** Whether the reader of a precondition reads these. A missing addon says nothing of any file, so it goes through. */
+function digest(files: readonly string[]): boolean {
   try {
-    accessSync(file, constants.R_OK);
-    return statSync(file).isFile();
-  } catch {
+    textDigests(files);
+    return true;
+  } catch (failure) {
+    if (failure instanceof NoDigester) throw failure;
     return false;
   }
 }
 
-/** Throws for every entry the disk does not hold as a readable file, named both ways. */
-export function refuseUnreadable(declared: readonly DeclaredEntry[]): void {
-  const refused = declared.filter(({ file }) => !readsAsFile(file));
-  if (refused.length === 0) return;
-  const named = refused.map(({ entry, file }) => `${JSON.stringify(entry)} (${file})`).join(', ');
-  throw new Error(`preconditions names ${named}, which cannot be read as a file. Each entry is the path of one file that exists before the run starts: name each file of a glob or a directory, and write a generated file before the runner starts; a file a test writes during the run is not a precondition.`);
+/**
+ * Refuses every file the run could not digest when it ends, naming them all.
+ * Read as one set, the way the run reads it, and entry by entry only to name
+ * what failed. Nothing declared asks nothing, so it needs no addon.
+ */
+export function refuseUnreadable(files: readonly string[]): void {
+  if (files.length === 0 || digest(files)) return;
+  const named = files.filter((file) => !digest([file])).join(', ');
+  throw new Error(
+    `preconditions names ${named}, which cannot be read as a file. Each entry is the path of one file that exists before the run starts: ` +
+      'name each file of a glob or a directory, and write a generated file before the runner starts; a file a test writes during the run is not a precondition.',
+  );
 }

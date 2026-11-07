@@ -10,8 +10,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 /**
  * An entry in `preconditions` is refused when the runner announces a test run,
  * before any test starts, so each case here runs a real runner. A command that
- * loads the configuration and runs no test is not a run: it exits as it would
- * without the seam, and neither is a project `--project` left out.
+ * loads the configuration and runs no test is not a run, nor is one with no test
+ * file: each exits as it would without the seam, and neither is a project
+ * `--project` left out.
  */
 
 const execute = promisify(execFile);
@@ -40,6 +41,9 @@ const quiet: Readonly<Record<string, readonly string[]>> = {
   'Jest --listTests': [...runs['Jest']!, '--listTests'],
   'Jest --showConfig': [...runs['Jest']!, '--showConfig'],
   'Jest with no test to run': [...runs['Jest']!, '--passWithNoTests', '--testPathPatterns', 'no-such-test'],
+  'Vitest with no test to run': [...runs['Vitest']!, '--passWithNoTests', 'no-such-test'],
+  'Rstest with no test to run': [...runs['Rstest']!, '--passWithNoTests', 'no-such-test'],
+  'Rstest with projects and no test to run': [...refusedAlike['Rstest with projects']!, '--passWithNoTests', 'no-such-test'],
   'vitest list': [vitest, 'list', '--config', resolve(fixture, 'vitest.config.ts')],
   'vitest list that loads each test file': [vitest, 'list', '--no-staticParse', '--config', resolve(fixture, 'vitest.config.ts')],
   'rstest list': [rstest, 'list', '-c', resolve(fixture, 'rstest.config.mjs')],
@@ -84,12 +88,12 @@ const finished = (command: readonly string[], entries: readonly string[], env: N
 describe.each(Object.keys(runs))('a %s run', (runner) => {
   const command = runs[runner]!;
 
-  it('refuses a glob with no test run, and names the entry and the path it resolved to', async () => {
+  it('refuses a glob with no test run, and names the path it resolved to', async () => {
     const { code, output } = await finished(command, ['src/**/*.ts']);
 
     expect(existsSync(ran())).toBe(false);
     expect(code).not.toBe(0);
-    expect(output).toContain(`"src/**/*.ts" (${resolve(fixture, 'src/**/*.ts')})`);
+    expect(output).toContain(`names ${resolve(fixture, 'src/**/*.ts')}, which`);
     expect(output).toContain('Each entry is the path of one file');
     expect(output).not.toContain('could not be read');
   }, 120_000);
@@ -99,7 +103,7 @@ describe.each(Object.keys(runs))('a %s run', (runner) => {
 
     expect(existsSync(ran())).toBe(false);
     expect(code).not.toBe(0);
-    expect(output).toContain(`"src" (${resolve(fixture, 'src')})`);
+    expect(output).toContain(`names ${resolve(fixture, 'src')}, which`);
   }, 120_000);
 
   it('refuses a file a test would write, and says that is not a precondition', async () => {
@@ -144,7 +148,7 @@ describe('a project declares its own entry', () => {
   it.each(Object.keys(projects))('%s refuses it when that project runs', async (runner) => {
     const { code, output } = await finished([...projects[runner]!, '--project', 'two'], [], { FIXTURE_PROJECT_PRECONDITIONS: '["src"]' });
 
-    expect(output).toContain(`"src" (${resolve(fixture, 'src')})`);
+    expect(output).toContain(`names ${resolve(fixture, 'src')}, which`);
     expect(code).not.toBe(0);
     expect(existsSync(ran())).toBe(false);
   }, 120_000);
@@ -170,7 +174,7 @@ describe('a run the entry is refused from', () => {
 
     expect(existsSync(ran())).toBe(false);
     expect(code).not.toBe(0);
-    expect(output).toContain(`"src/**/*.ts" (${resolve(fixture, 'src/**/*.ts')})`);
+    expect(output).toContain(`names ${resolve(fixture, 'src/**/*.ts')}, which`);
     expect(output).not.toContain('could not be read');
   }, 120_000);
 });

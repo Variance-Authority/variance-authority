@@ -127,7 +127,7 @@ describe('withTestSelection for Jest', () => {
           resolve(root, 'test/setup.ts'),
           resolve(root, 'tsconfig.json'),
         ],
-        declared: [{ entry: 'tsconfig.json', file: resolve(root, 'tsconfig.json') }],
+        declared: [resolve(root, 'tsconfig.json')],
       }],
     ]);
     expect(configured.transform).toEqual({

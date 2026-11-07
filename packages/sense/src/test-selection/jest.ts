@@ -38,8 +38,6 @@ import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedSelection, landingTimes } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
-import { declaredEntries } from './precondition-entries.js';
-import type { DeclaredEntry } from './selection-run.js';
 
 export interface JestTestSelectionOptions {
   /**
@@ -219,8 +217,8 @@ export interface SelectionReporterConfig {
    * project ran it.
    */
   readonly preconditions: readonly string[];
-  /** The preconditions declared for every test, whichever project ran it. */
-  readonly declared?: readonly DeclaredEntry[];
+  /** Absolute paths of the preconditions declared for every test, whichever project ran it. */
+  readonly declared?: readonly string[];
   /** The probe recipe the transforms placed; `presence` when absent. */
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
@@ -331,8 +329,7 @@ export function withTestSelection(
   const coverageFile = recordFileFor(root, rootDir, options);
   const inline = inlineProjects(config);
   const mode = options.mode;
-  const entries = declaredEntries(options.preconditions, rootDir);
-  const declared = entries.map(({ file }) => file);
+  const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
   // A negated glob stays negated: `!` is Jest's, not part of the path.
   const unprobed = options.unprobed?.map((glob) =>
     glob.startsWith('!') ? `!${resolve(rootDir, glob.slice(1))}` : resolve(rootDir, glob));
@@ -350,7 +347,7 @@ export function withTestSelection(
     root,
     coverageFile,
     preconditions: [...new Set(preconditions)],
-    ...(entries.length === 0 ? {} : { declared: entries }),
+    ...(declared.length === 0 ? {} : { declared }),
     ...(mode === undefined ? {} : { mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
   };

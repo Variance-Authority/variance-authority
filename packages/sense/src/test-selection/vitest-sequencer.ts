@@ -42,8 +42,6 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cutOf, type CaseCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
-import { refuseUnreadable } from './precondition-entries.js';
-import type { DeclaredEntry } from './selection-run.js';
 import { shardOf, type ShardAsked } from './shard-placement.js';
 import { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 
@@ -71,20 +69,6 @@ export interface SequencerContext {
   readonly logger?: object;
   /** The command line as Vitest 3 and 4 parsed it, before it was merged over the configuration file. */
   readonly _cliOptions?: { readonly sequence?: { readonly shuffle?: unknown } };
-}
-
-/**
- * Refuses what `preconditions` declares when Vitest announces a run, before its
- * global setup. The seam's own reporter is replaced by a command-line
- * `--reporter`, and this one is added after that was read. A run with no test
- * file announces itself too, and `vitest list` does not.
- */
-export function refusingAtStart(vitest: { readonly config: { readonly reporters: unknown[] } }, entries: readonly DeclaredEntry[]): void {
-  vitest.config.reporters.push({
-    onTestRunStart: (specifications: readonly unknown[]) => {
-      if (specifications.length > 0) refuseUnreadable(entries);
-    },
-  });
 }
 
 /** The part of Vitest's own context its banner reads: what a reporter's `onInit` and a plugin's `configureVitest` are handed. */

@@ -2,6 +2,9 @@ import { statSync } from 'node:fs';
 import { native, nativeRefusal } from './addon.js';
 import type { Digest } from './digest.js';
 
+/** There is no addon to digest with: an answer about the install, not about any file. */
+export class NoDigester extends Error {}
+
 /**
  * Each file's text digest, keyed by the path as given, each file read once.
  *
@@ -13,7 +16,7 @@ export function textDigests(paths: Iterable<string>): ReadonlyMap<string, Digest
   const unique = [...new Set(paths)];
   const addon = native();
   if (addon?.textDigests === undefined) {
-    throw new Error(`a run's preconditions are digested by the native addon, ${nativeRefusal() ?? 'which has no `textDigests`; build it again'}`);
+    throw new NoDigester(`a run's preconditions are digested by the native addon, ${nativeRefusal() ?? 'which has no `textDigests`; build it again'}`);
   }
   const digests = addon.textDigests(unique);
   return new Map(unique.map((path, at) => [path, digests[at] as Digest]));

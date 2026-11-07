@@ -87,7 +87,7 @@ describe.each([
     const config = withTestSelection({ root }, { coverageFile });
     const rstest: { testNamePattern?: string } = { testNamePattern: atSetup };
     const plugin = (config.plugins as ReadonlyArray<{ setup(api: object): void }>).at(-1)!;
-    plugin.setup({ useExposed: () => ({ getRstestConfig: () => ({ ...rstest }) }) });
+    plugin.setup({ onBeforeCreateCompiler: () => {}, useExposed: () => ({ getRstestConfig: () => ({ ...rstest }) }) });
     if (atCycle !== undefined) rstest.testNamePattern = atCycle;
     const reporter = (config.reporters as ReadonlyArray<{
       onTestRunStart(): unknown;

@@ -234,7 +234,7 @@ class JestCoverageReporter {
 
     const governed = results.testResults.map((result) => ({
       result,
-      governing: [...(selection.declared ?? []).map(({ file }) => file), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
+      governing: [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
     }));
     const texts = runTexts(governed.map(({ result, governing }) => ({ test: result.testFilePath, governing })), this.#startedAt);
     const tests = oneTestPerFile(governed.map(({ result, governing }) => coverageTest(

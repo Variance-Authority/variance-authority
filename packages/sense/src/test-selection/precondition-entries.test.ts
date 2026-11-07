@@ -1,9 +1,9 @@
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { withTestSelection as withJest } from './jest.js';
-import { declaredEntries, refuseUnreadable } from './precondition-entries.js';
+import { refuseUnreadable } from './precondition-entries.js';
 import { withTestSelection as withRstest } from './rstest.js';
 import { withTestSelection as withVitest } from './vitest.js';
 
@@ -27,7 +27,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const refusing = (entries: readonly string[]) => () => refuseUnreadable(declaredEntries(entries, root));
+const refusing = (entries: readonly string[]) => () => refuseUnreadable(entries.map((entry) => resolve(root, entry)));
 
 describe('refuseUnreadable', () => {
   it('passes a file that reads', () => {
@@ -35,15 +35,19 @@ describe('refuseUnreadable', () => {
   });
 
   it('passes nothing declared', () => {
-    expect(() => refuseUnreadable(declaredEntries(undefined, root))).not.toThrow();
+    expect(refusing([])).not.toThrow();
   });
 
-  it('refuses a glob, by the entry as written and the path it resolved to', () => {
-    expect(refusing(['tsconfig.json', 'src/**/*.ts'])).toThrow(`"src/**/*.ts" (${resolve(root, 'src/**/*.ts')})`);
+  it('passes what digests though it is no regular file', () => {
+    expect(() => refuseUnreadable(['/dev/null'])).not.toThrow();
+  });
+
+  it('refuses a glob, by the path it resolved to', () => {
+    expect(refusing(['tsconfig.json', 'src/**/*.ts'])).toThrow(`names ${resolve(root, 'src/**/*.ts')}, which`);
   });
 
   it('refuses a directory', () => {
-    expect(refusing(['src'])).toThrow(`"src" (${resolve(root, 'src')})`);
+    expect(refusing(['src'])).toThrow(`names ${resolve(root, 'src')}, which`);
   });
 
   it('refuses a missing path, and says what a precondition is', () => {
@@ -58,7 +62,16 @@ describe('refuseUnreadable', () => {
   });
 
   it('names every entry it refuses', () => {
-    expect(refusing(['src', 'generated.json'])).toThrow(/"src".*"generated\.json"/s);
+    expect(refusing(['tsconfig.json', 'src', 'generated.json'])).toThrow(`names ${resolve(root, 'src')}, ${resolve(root, 'generated.json')}, which`);
+  });
+
+  it('lets a missing addon through, which says nothing of any file', async () => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({ native: () => undefined, nativeRefusal: () => 'which did not load' }));
+    const { refuseUnreadable: withoutAddon } = await import('./precondition-entries.js');
+    vi.doUnmock('../addon.js');
+
+    expect(() => withoutAddon([resolve(root, 'tsconfig.json')])).toThrow('digested by the native addon, which did not load');
   });
 });
 

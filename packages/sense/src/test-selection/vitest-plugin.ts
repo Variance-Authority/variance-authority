@@ -13,10 +13,25 @@ import { readFinished, type FinishedFile } from './finished-files.js';
 import { pageTaping } from './carried-stories.js';
 import { browserSetupSource } from './worker-source.js';
 import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
-import { removeSeamModules, writeSeamModule, type DeclaredEntry, type SelectionRun } from './selection-run.js';
+import { refuseUnreadable } from './precondition-entries.js';
+import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, type UnmappedStep, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
-import { readCommandLine, refusingAtStart, seedInBanner, type BannerContext } from './vitest-sequencer.js';
+import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
+
+/**
+ * Refuses what `preconditions` declares when Vitest announces a run, before its
+ * global setup. The seam's own reporter is replaced by a command-line
+ * `--reporter`, and this one is added after that was read. A run with no test
+ * file announces itself too, and `vitest list` does not.
+ */
+export function refusingAtStart(vitest: { readonly config: { readonly reporters: unknown[] } }, files: readonly string[]): void {
+  vitest.config.reporters.push({
+    onTestRunStart: (specifications: readonly unknown[]) => {
+      if (specifications.length > 0) refuseUnreadable(files);
+    },
+  });
+}
 
 export interface ConfigPlugin {
   readonly name: string;
@@ -88,7 +103,7 @@ export function selectionPlugin(
     ) => CapturedAfter | undefined;
   },
   mode: InstrumentMode,
-  entries: readonly DeclaredEntry[],
+  declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
   cut: ((file: string) => boolean) | undefined,
   placement: ProbePlacement,
@@ -177,8 +192,8 @@ export function selectionPlugin(
       seedInBanner(context.vitest);
       // Here and not at `configResolved`, which a project `--project` left out
       // still reaches: nothing of it runs, so nothing of it is read.
-      declareConfig(run, entries.map(({ file }) => file), [setupId, runnerId])(resolved);
-      refusingAtStart(context.vitest, entries);
+      declareConfig(run, declared, [setupId, runnerId])(resolved);
+      refusingAtStart(context.vitest, declared);
       // A module served from Vitest's file-system cache skips every transform,
       // so a module the seam takes would run with probes whose identity this
       // process never learned, and the fold would refuse the run. Vitest 5
