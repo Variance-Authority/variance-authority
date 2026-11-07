@@ -1,5 +1,63 @@
 # @variance-authority/sense
 
+## 0.27.0
+
+### Minor Changes
+
+- 7c87f4e: `variance ask containment` counts how far the commits of a window reached across
+  package boundaries: the share that touched one package, and the share that
+  edited a test in another package or in a test-only tree. Each figure is a count
+  over its denominator, and `--format json` holds them all. MCP clients get the
+  same answer as `docs_containment`.
+
+### Patch Changes
+
+- 9b9a6ee: `variance select` names a file read without importing it as one for a `/// <depends>` in the module that reads it, where it used to send that file to `preconditions`. A `preconditions` entry is declared by every test the run records, so a change to a fixture listed there ran every test. The note on a file the suite's `ignore` matches now says what each declaration runs. The `variance-authority` skill's selection references say the same.
+- c6af945: A Jest run that instruments no module no longer tells you to check `include` or
+  the plugin, which Jest's wrap does not have. The `instrumented 0 modules` warning
+  now sends you to the failures Jest printed above it, and, with no failures, to
+  your `transform` patterns.
+- facbe1c: `withTestSelection` for Jest, Vitest and Rstest refuses an entry in `preconditions` that cannot be read as a file when the run starts, before any test. The refusal names the path each entry resolved to, and says each entry is the path of one file. A glob, a directory or a missing file used to fail the run in the reporter after its tests passed. A command that runs no test, such as `jest --listTests`, `vitest list`, `rstest list` or `vite build`, is not refused, and neither is a run with no test file. A project's entries are read only when a test file of that project is in the run, so a project `--project` left out, or one with no matching test file, blocks no other. What the configuration listing the projects declares is read when any project has a test file in the run. Under Vitest, a command-line `--reporter` replaces the reporter that refuses it, so it is refused through a wrapped project with a test file in the run; a run of no wrapped project records nothing, and reads nothing. Under Rstest it replaces that reporter in any run and in `rstest merge-reports`, which then write no record and refuse nothing. Rstest cannot tell a run with no test file in a page or in a watch session, so it refuses those, and it reads a project's entries in a page or a watch session whether or not it has a test file. Rstest reaches a project through its wrap or by finding it written inline in the wrapped `projects`, so a run of nothing but an unwrapped project named by a path is treated like a merge, and records no coverage either.
+
+  A file only a test writes, absent when the run starts, is refused too, where that run used to pass: write the file before the runner starts. So is a file global setup writes under Vitest, and under Rstest in Node, which announce the first run before that setup; Jest, and Rstest in a page, announce it after global setup and still accept one, and every test declaring that file is recorded incomplete and runs again.
+
+  Under Rstest, `rstest merge-reports` and a run of nothing but an unwrapped project named by a path make no compiler, so nothing can refuse before their tests: each fails when they end, naming an entry those tests rest on that cannot be read, and writes no record without it.
+- 1732eab: `withTestSelection` and `withJourneyCoverage` wrap the `transform` of a Jest
+  preset such as `ts-jest`, merged with the object's as Jest merges them. The
+  wrap's own pattern used to match first, so the preset's transformer never ran and
+  the first run failed on syntax, and a preset's other patterns beside an object's
+  `transform` ran without probes.
+
+  A transformer now loads from the project's `rootDir`, where Jest finds it, so one
+  installed only under a nested package needs no `require.resolve`, and `<rootDir>`
+  in its name is replaced as Jest replaces it.
+
+  A preset Jest awaits, such as one with top-level await or one that exports a
+  promise, is refused at config load, by name, because the wrap is synchronous.
+  Under a relative `rootDir`, a preset spelled as a path, starting with `.` or
+  `<rootDir>`, is refused the same way whether or not it is found, and so is a bare
+  name that is not found. The refusal says to write an absolute `rootDir`: Jest
+  reads a relative one from the config file, whose directory the wrap is never
+  told, so a file found from elsewhere may not be the one Jest runs. Any `preset`,
+  with or without a `transform`, is refused too when `jest-resolve` is not reachable
+  from that directory.
+
+  `transform: undefined` or `transform: null` beside a preset wraps Jest's default,
+  because Jest reads either as shadowing the preset's `transform`.
+- 632bc86: A run with nothing before reach names the file `before` is written in, and the Jest wrap's documentation gives the same answer for its config.
+- a80cf38: `withTestSelection` and `withJourneyCoverage` now run a Jest project in whose
+  process something `import`ed a JSON file, most often Babel 8 under `babel-jest`.
+  Node leaves such a file in `require.cache` as `{ exports, loaded }`, with no
+  `children` and no `filename`, and every test file used to fail before its first
+  test with `Cannot read properties of undefined (reading 'includes')`. A custom
+  environment that requires a file cached this way still counts it as an input,
+  and one that then evicts the file is refused, since nothing is left to name it.
+- d948104: A run that names no suite now records into the only declared suite, as
+  `variance covering` already reads it, and a reader that names none opens it.
+  Among several declared suites both still stop. `onlySuite` is exported from
+  `@variance-authority/sense/test-selection` for readers of their own.
+- 5a19cbe: `ask orient` keeps a root package on the map beside a package nested in it, and its file count covers the root's sources. A root joins when its manifest has a `name`, it holds source, and it declares no workspaces, in `workspaces` or in the `packages:` of a `pnpm-workspace.yaml`. A root that declares workspaces stays out, and that repository's map does not change. `@variance-authority/package` exports `declaresWorkspaces(root)`, which reads what `members` reads and never throws: a declaration `members` refuses counts as declared.
+
 ## 0.26.0
 
 ### Minor Changes

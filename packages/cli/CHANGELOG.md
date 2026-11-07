@@ -1,5 +1,66 @@
 # @variance-authority/cli
 
+## 0.27.0
+
+### Minor Changes
+
+- 7c87f4e: `variance ask containment` counts how far the commits of a window reached across
+  package boundaries: the share that touched one package, and the share that
+  edited a test in another package or in a test-only tree. Each figure is a count
+  over its denominator, and `--format json` holds them all. MCP clients get the
+  same answer as `docs_containment`.
+- 6007f04: `Variance-Authority/action/review` marks each changed function no case covered
+  on its lines in the diff, as a warning, up to the ten GitHub shows for a step,
+  and says how many it left out.
+
+  A review's JSON names the lines the change wrote in each file, as `written`.
+- 607f6d4: `variance review --fail-on-uncovered` exits `1` when a changed function holds
+  code no case ran, and `Variance-Authority/action/review` takes it as
+  `fail-on-uncovered`, posting the comment before the step fails, so a project can
+  require the check. It reads the count the review prints, with no percentage. It
+  exits `2` when the record does not hold the change, or when source changed and
+  nothing shows a run of it. A changed file a run of this change did not load is
+  named on stderr and not counted, whether its functions are new or edited.
+
+  The review comment now says "did" and "no case ran" for a change any suite of the
+  review ran as the tree holds it, where it said "might do" unless the named suite
+  had: a project whose named suite is stale reads the firmer wording, with or
+  without the flag.
+- 4461895: `Variance-Authority/action/review` runs `variance review --coverage` after your
+  tests and posts the review as one comment updated in place, so a project with
+  only unit tests needs no script of its own to put it on the pull request. Its
+  README has the cache steps that give the comment a mainline record to compare
+  with.
+
+  `variance carry take` keeps the mainline's record it sets aside out of the
+  change, in a project that does not ignore `.variance/`, and a review refused for
+  naming no start says when the clone is shallow and how to check out every
+  commit.
+
+### Patch Changes
+
+- 9b9a6ee: `variance select` names a file read without importing it as one for a `/// <depends>` in the module that reads it, where it used to send that file to `preconditions`. A `preconditions` entry is declared by every test the run records, so a change to a fixture listed there ran every test. The note on a file the suite's `ignore` matches now says what each declaration runs. The `variance-authority` skill's selection references say the same.
+- facbe1c: `withTestSelection` for Jest, Vitest and Rstest refuses an entry in `preconditions` that cannot be read as a file when the run starts, before any test. The refusal names the path each entry resolved to, and says each entry is the path of one file. A glob, a directory or a missing file used to fail the run in the reporter after its tests passed. A command that runs no test, such as `jest --listTests`, `vitest list`, `rstest list` or `vite build`, is not refused, and neither is a run with no test file. A project's entries are read only when a test file of that project is in the run, so a project `--project` left out, or one with no matching test file, blocks no other. What the configuration listing the projects declares is read when any project has a test file in the run. Under Vitest, a command-line `--reporter` replaces the reporter that refuses it, so it is refused through a wrapped project with a test file in the run; a run of no wrapped project records nothing, and reads nothing. Under Rstest it replaces that reporter in any run and in `rstest merge-reports`, which then write no record and refuse nothing. Rstest cannot tell a run with no test file in a page or in a watch session, so it refuses those, and it reads a project's entries in a page or a watch session whether or not it has a test file. Rstest reaches a project through its wrap or by finding it written inline in the wrapped `projects`, so a run of nothing but an unwrapped project named by a path is treated like a merge, and records no coverage either.
+
+  A file only a test writes, absent when the run starts, is refused too, where that run used to pass: write the file before the runner starts. So is a file global setup writes under Vitest, and under Rstest in Node, which announce the first run before that setup; Jest, and Rstest in a page, announce it after global setup and still accept one, and every test declaring that file is recorded incomplete and runs again.
+
+  Under Rstest, `rstest merge-reports` and a run of nothing but an unwrapped project named by a path make no compiler, so nothing can refuse before their tests: each fails when they end, naming an entry those tests rest on that cannot be read, and writes no record without it.
+- 632bc86: A run with nothing before reach names the file `before` is written in, and the Jest wrap's documentation gives the same answer for its config.
+- 9fa0ecd: `variance carry take` now prints `against-<suite>` for every declared suite a
+  restore laid cases for, not only for the suites it takes, so a pull
+  request's first push, or a push whose last record could not be taken, compares
+  with the mainline.
+- e5205cc: `variance covering --function` puts the recorded functions that end in the name asked first in its refusal, so a method asked for by its bare name, as `isStarted`, names `FasteInstance/isStarted` before the rest of the file.
+- 46f4160: `variance index` says in plain words that nothing has failed when it leaves its follow-ups to another process, and what a later command does if they do: it exits 2 with the reason. The line used to end in a clause about exiting "as the operator's" that a reader could not parse.
+- 49fc965: `variance review --coverage --against <file>` compares the only declared suite with that base when no `--suite` names it. It used to drop the base without saying so.
+- 33290d4: `variance journeys` and `variance share` with no `--suite`, in a repository that configures no project, take the only suite declared, and among several name them. They no longer ask for a `profile`.
+- 1342d15: `variance ask symbol` no longer calls a name unpublished when its package declares an entry the reading could not follow to a source file, as a build output no tsconfig names. It says whether the name is published is not known.
+- d948104: A run that names no suite now records into the only declared suite, as
+  `variance covering` already reads it, and a reader that names none opens it.
+  Among several declared suites both still stop. `onlySuite` is exported from
+  `@variance-authority/sense/test-selection` for readers of their own.
+- 5a19cbe: `ask orient` keeps a root package on the map beside a package nested in it, and its file count covers the root's sources. A root joins when its manifest has a `name`, it holds source, and it declares no workspaces, in `workspaces` or in the `packages:` of a `pnpm-workspace.yaml`. A root that declares workspaces stays out, and that repository's map does not change. `@variance-authority/package` exports `declaresWorkspaces(root)`, which reads what `members` reads and never throws: a declaration `members` refuses counts as declared.
+
 ## 0.26.0
 
 ### Minor Changes
