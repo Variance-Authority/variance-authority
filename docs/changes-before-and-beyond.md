@@ -169,7 +169,8 @@ change to one selects every test of the run. An entry is for what every test
 rests on, such as compiler settings. A fixture a test reads is not an entry: name
 it in the module that reads it, as
 [`/// <depends path="…" />`](selecting.md#where-sourcedirs-starts-the-answer),
-and a change to it selects the tests that load that module. A changed file
+and a change to it selects the tests that load that module. A suite with
+`"relations": false` declines that edge, so there it goes in `before`. A changed file
 nothing imports and nothing declares selects nothing, and `select` names it.
 
 An end-to-end suite reaches your app through a browser and imports none of it,
@@ -213,7 +214,7 @@ that render it.
 suite selects nothing and says why:
 
 ```text
-the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test of its run of its run
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test of its run
 ```
 
 and `--format json` carries the same list as `"ignored": ["src/card.css"]`.

@@ -718,7 +718,8 @@ against it is dropped.
 concatenation `name`, `NUL`, `digest`. A test's preconditions are the files
 its answer depended on that the instrument could not see inside: the test
 file itself, configuration, fixtures, and modules that were loaded but not
-instrumented.
+instrumented. This is the record's row for one test, not the seam's
+`preconditions` option, whose entries every test declares.
 
 **Crossing.** `(block, test)`. The record stores presence, not counts: a test
 crossed a block or did not. Counts exist only in the runtime array and are

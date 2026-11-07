@@ -155,6 +155,9 @@ loads by path — declare the dependency:
   it, such as compiler settings: from the next recording on, a change to the
   file runs every test.
 
+A suite with `"relations": false` declines the graph, so a `/// <depends>` reaches
+none of its tests: there the file goes in `before` or `preconditions`.
+
 Two settings narrow on purpose, and print a line when they do:
 
 | Setting | What the output says |
