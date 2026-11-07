@@ -31,8 +31,7 @@ without rendering it is told where the source starts. A reader that sends
 `Accept: text/markdown` gets that Markdown at the page's own address: `proxy.ts`
 rewrites to `<path>/index.md`, and the home to `/llms.txt`.
 A page with no Markdown stays HTML. `robots.txt` carries a `Content-Signal`
-line, and `/.well-known/api-catalog` says the site's documentation starts at
-`/llms.txt`; the site has no API to describe.
+line.
 
 Run every command below from `site/`, in a checkout of the repository:
 
