@@ -1043,6 +1043,47 @@ jobs:
             exit 1
           fi
 
+      # The figure the root README's badge shows, read from the records just
+      # published the way `docs/compare-coverage.md` tells a reader to read it:
+      # `count.over.this` of `variance coverage --format json`, or `count.run`
+      # when the count does not part it, over `count.regions`, every shared
+      # suite together. It is labelled `regions run`, never `coverage`, so it
+      # is not read as line coverage, and written in shields.io's endpoint
+      # schema as the one file of a commit with no parent at `refs/badge/main`,
+      # replaced on every push so the ref never grows a history.
+      # raw.githubusercontent.com serves it as it serves any ref. A count of no
+      # regions is no figure: nothing is written and the last badge stands.
+      # The token reaches git as in the step above.
+      - name: publish the badge's figure
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          node packages/cli/dist/bin.js coverage --format json > "$RUNNER_TEMP/coverage.json"
+          if ! badge=$(node -e '
+            const { count } = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+            if (!(count.regions > 0)) process.exit(1);
+            const run = count.over?.this ?? count.run;
+            process.stdout.write(JSON.stringify({ schemaVersion: 1, label: "regions run", message: `${(100 * run / count.regions).toFixed(1)}%`, color: "blue" }));
+          ' "$RUNNER_TEMP/coverage.json"); then
+            echo "::warning title=badge not updated::no region was counted, so the last badge stands."
+            exit 0
+          fi
+          blob=$(printf '%s\n' "$badge" | git hash-object -w --stdin)
+          tree=$(printf '100644 blob %s\tregions-run.json\n' "$blob" | git mktree)
+          commit=$(git commit-tree "$tree" -m "regions run at $GITHUB_SHA")
+          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          git push --force origin "$commit:refs/badge/main"
+          echo "regions run: $badge" >> "$GITHUB_STEP_SUMMARY"
+
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
     # real Rstest, and every file in it that needs a Chromium or a built subject

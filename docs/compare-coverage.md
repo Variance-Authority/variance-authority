@@ -119,12 +119,14 @@ describes every line of the output.
   to. The share keeps one record for each branch, so the report compares a pull
   request with its mainline and does not draw a trend. If your team reads
   Codecov's dashboards, keep uploading to it.
-- **No badge of its own.** Nothing here publishes one. For a README badge from
+- **No badge of its own.** Variance draws no image. For a README badge from
   a service of your choice, read `variance coverage --format json` on your
   mainline: `count.over.this`, or `count.run` when that is absent, divided by
   `count.regions`. Those are the regions in files the suites loaded, so a file
   no test loads does not lower the figure. Label it `regions run`, since a
-  badge that says `coverage` reads as line coverage.
+  badge that says `coverage` reads as line coverage. This repository's own
+  README shows one, written by the `publish the badge's figure` step of its
+  [`check.yml`](../.github/workflows/check.yml) on every push to `main`.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a
