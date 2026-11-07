@@ -288,6 +288,15 @@ describe('variance ask containment', () => {
     expect(out).toContain('touched one package: 1 of 2 (50.0%)');
   });
 
+  it('reads a test named as Deno names one as a test', async () => {
+    const root = workspace(['a', 'b']);
+    change(root, 'seed', [A, B]);
+    change(root, 'a edits a test of b', [A, 'packages/b/src/b_test.ts']);
+    process.chdir(root);
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01']);
+    expect(out).toContain('edited a test in another package: 1 of 1 (100.0%)');
+  });
+
   it('refuses a window that is not a date, which git would read as now', async () => {
     process.chdir(history());
     const answered = await run(['ask', 'containment', '--after', 'lately']);

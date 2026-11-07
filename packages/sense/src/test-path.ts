@@ -9,7 +9,7 @@
 
 // compass: variance-authority.reach
 
-const NAMED = /\.(test|spec|cy|e2e|stories|story)\.[cm]?[jt]sx?$|_test\.(go|py)$|(^|\/)test_[^/]+\.py$|_spec\.rb$|[a-z0-9]Tests?\.(java|kt)$/u;
+const NAMED = /\.(test|spec|cy|e2e|stories|story)\.[cm]?[jt]sx?$|_test\.(go|py|[cm]?[jt]sx?)$|(^|\/)test_[^/]+\.py$|_spec\.rb$|[a-z0-9]Tests?\.(java|kt)$/u;
 
 const WITH_THE_TESTS = /(^|\/)(__tests?__|__mocks__|__fixtures?__|__snapshots__|__stories__|\.storybook|fixtures|testdata|tests?|e2e|cypress)\//iu;
 
