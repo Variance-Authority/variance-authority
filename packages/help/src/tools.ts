@@ -3,6 +3,7 @@ import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
 import { operatorError } from './operator.js';
 import { workspaceGeneration } from './read.js';
+import { containment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
 import { entrypoint } from './tools/entrypoint.js';
 import { FoundNothing } from './tools/find.js';
@@ -53,7 +54,7 @@ function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
  * `HELP_TOOLS` is this order with `docs_intersection`, which crosses them.
  */
 const ALONE: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, journeyMapTool, testCompositionTool, containment, stack, gaps];
 
 /** Every question above, crossed; built over the list so a question that joins it can be an operand. */
 const intersection = intersectionOf<Help>(ALONE);
@@ -107,6 +108,10 @@ const intersection = intersectionOf<Help>(ALONE);
  * reads it around one test: the smaller tests inside it, the larger ones
  * holding it, and what none of its pieces entered.
  *
+ * `docs_containment` is about the history: how far the commits of a window
+ * reached across package boundaries, counted from the log. It sits with the
+ * questions about the suite because it is what the tests were edited with.
+ *
  * `docs_stack` answers what a location may import that nobody wrote: the
  * third-party packages its owning manifest declares, read from the published
  * dependency lexicon rather than from the source.
@@ -117,7 +122,7 @@ const intersection = intersectionOf<Help>(ALONE);
  * told a name is undocumented is the agent best placed to write the paragraph.
  */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, stack, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, journeyMapTool, testCompositionTool, containment, stack, gaps];
 
 
 export const SERVER_NAME = 'variance-authority-help';
@@ -136,7 +141,8 @@ export const HELP: Served<Help> = {
  */
 export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((tool) => dated(tool, true)) };
 
-export { discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
+export { containment, discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, search, slowestTests, stack, symbol, testCompositionTool, uses };
+export { containmentOf, formatContainment, type Containment } from './tools/containment.js';
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf, searchQuestionOf } from './tools/search.js';

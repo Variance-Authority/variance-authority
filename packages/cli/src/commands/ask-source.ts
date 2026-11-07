@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
-import { answerSearch, discover, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import { answerSearch, containmentOf, discover, formatContainment, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { readTree, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -21,8 +21,8 @@ import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
 /** A source answer not yet given, and the generation it will be given from. */
 export interface Answering {
   readonly answer: () => string;
-  /** The answer as data, for the one question that has a shape: `search`. */
-  readonly data?: () => SearchAnswer;
+  /** The answer as data, for the questions that have a shape: `search` and `containment`. */
+  readonly data?: () => SearchAnswer | Containment;
   readonly at: string | undefined;
   /** True when the reading was opened at its age and nothing compared it with the checkout. */
   readonly unseen?: boolean;
@@ -174,6 +174,12 @@ export async function readChanged(path: string): Promise<readonly string[]> {
 /** `journey-map` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
 export function journeyMapSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
   return { answer: () => journeyMapTool.run(undefined, input, invocationOf({ root })), at: undefined };
+}
+
+/** `containment` reads git and the workspace list, so it has no generation to date it by. */
+export function containmentSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
+  const figures = containmentOf(root, input);
+  return { answer: () => formatContainment(figures), data: () => figures, at: undefined };
 }
 
 /** `test-composition` opens the same recording `journey-map` does, and dates nothing for the same reason. */
