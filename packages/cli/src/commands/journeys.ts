@@ -225,7 +225,7 @@ function poolSentence(pool: JourneyPool, recorded: RecordedJourneys): string {
 
     case 'unasked':
       return pool.report === undefined
-        ? `${whole}: the whole journal, because \`--suite\` reads no project config and has no report to narrow it by; a deleted subject still counts`
+        ? `${whole}: the whole journal, because a suite reads no project config and has no report to narrow it by; a deleted subject still counts`
         : `${whole}: the whole journal, because there is no report at ${pool.report}, so a ` +
             'deleted subject still counts';
   }
