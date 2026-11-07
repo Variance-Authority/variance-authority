@@ -253,7 +253,7 @@ describe('a run the snapshot lock refuses', () => {
   async function report(busy: boolean): Promise<{ coverageFile: string }> {
     const { root, coverageFile, testFile } = await project(busy);
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     await mkdir(runDirectory, { recursive: true });
     await writeFile(resolve(runDirectory, 'a.va'), encodeJournal(testFile, new Map()));

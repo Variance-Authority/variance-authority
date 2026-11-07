@@ -59,13 +59,17 @@ async function packagesLoaded(args: readonly string[]): Promise<string[]> {
   return [...new Set(names)].sort();
 }
 
-/** Packages that hold pixels, Storybook, MCP, history or the help, none of which these commands call. */
-const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'raster', 'remote', 'renderer', 'storybook'];
+/**
+ * Packages that hold pixels, Storybook, MCP, history or the help, none of which these commands call.
+ * Not `raster`, which each loads: it reads the config, whose `baselines.path` the store parses and refuses with raster's error.
+ */
+const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'remote', 'renderer', 'storybook'];
 
 describe('what the program loads before it answers', () => {
   it.each([['--version'], ['--help'], ['index', '--no-git'], ['select', '--format', 'vitest']])('loads no pixel, Storybook, MCP, history or help package for `%s`', async (...args) => {
     const loaded = await packagesLoaded(args);
     expect(loaded).toContain('cli');
+    expect(loaded).toContain('raster');
     expect(loaded.filter((name) => UNCALLED.includes(name))).toEqual([]);
   });
 
@@ -74,12 +78,12 @@ describe('what the program loads before it answers', () => {
   it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x']])('loads no pixel package for `%s %s %s %s`', async (...args) => {
     const loaded = await packagesLoaded(args);
     expect(loaded).toContain('cli');
-    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
   it('loads no pixel package for `ask search --query x`', async () => {
     const loaded = await packagesLoaded(['ask', 'search', '--query', 'x']);
-    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
   // FIXME: parsing `--at-distance` loads `@variance-authority/sense/test-selection` whole, about 30 ms, for `distanceRange`.

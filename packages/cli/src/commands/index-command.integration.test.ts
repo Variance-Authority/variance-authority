@@ -306,7 +306,7 @@ describe('variance index', () => {
     const env = { ...process.env, CI: 'false' };
     const indexed = spawnSync(process.execPath, [BIN, 'index'], { cwd: root, env, encoding: 'utf8' });
     expect(indexed.status).toBe(EXIT_CLEAN);
-    expect(indexed.stdout).toMatch(/^follow-ups: .+ are being made by process \d+, and the next variance command that reads them waits for it/mu);
+    expect(indexed.stdout).toMatch(/^follow-ups: nothing has failed; process \d+ is still making .+\. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk\. Its lines are written to /mu);
 
     const searched = spawnSync(process.execPath, [BIN, 'ask', 'search', '--query', 'widget'], { cwd: root, env, encoding: 'utf8' });
     // The detached process may be done before the question is asked, and then nothing is waited on.

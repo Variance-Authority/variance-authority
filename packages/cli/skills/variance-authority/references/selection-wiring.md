@@ -196,8 +196,9 @@ produces a green report over work nothing checked, and silently. Expect these:
   it: `before` in `variance.config.json`, and a precondition for the test
   integrations. The Vitest integration declares the config file Vite loaded,
   the local modules it imports and the configured setup files; all three
-  integrations take further files in `preconditions`, and Jest and Rstest need
-  the config named there. Undeclared, a config edited beside a component file is
+  integrations take further files in `preconditions`, each entry the path of
+  one file that exists before any test starts, and Jest and Rstest need the
+  config named there. Undeclared, a config edited beside a component file is
   invisible.
 - A file below a declared entry point, such as a setup module or a fixture only
   that setup imports, does not narrow either, and neither does a package the

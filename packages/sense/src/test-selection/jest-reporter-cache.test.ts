@@ -34,7 +34,7 @@ it('leaves what other runs left in the cache where it is when a Jest run complet
   await utimes(dead, hoursAgo, hoursAgo);
 
   const reporter = new SelectionReporter(undefined, { root, coverageFile: resolve(root, 'coverage.bin'), preconditions: [] });
-  reporter.onRunStart();
+  reporter.onRunStart({ numTotalTestSuites: 1 });
   await reporter.onRunComplete(new Set([{ config: { cacheDirectory: resolve(root, 'jest-cache'), id: 'project' } }]), {
     testResults: [],
   });

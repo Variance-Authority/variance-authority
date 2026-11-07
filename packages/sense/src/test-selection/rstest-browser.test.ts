@@ -13,7 +13,7 @@ type Hook = (...args: unknown[]) => void;
 
 interface Seam {
   readonly plugin: { setup(api: unknown): void };
-  readonly reporter: { onTestRunEnd(payload: { results: readonly RstestFileResult[] }): Promise<void> };
+  readonly reporter: { onTestRunStart(): unknown; onTestRunEnd(payload: { results: readonly RstestFileResult[] }): Promise<void> };
   readonly setup: string;
   readonly coverageFile: string;
 }
@@ -24,11 +24,11 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-async function seam(cases = false): Promise<Seam & { root: string }> {
+async function seam(cases = false, preconditions: readonly string[] = []): Promise<Seam & { root: string }> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-rstest-page-'));
   temporary.push(root);
   const coverageFile = resolve(root, 'coverage.bin');
-  const config = withTestSelection({ root }, { coverageFile, include: (file) => file.includes('/src/'), cases });
+  const config = withTestSelection({ root }, { coverageFile, include: (file) => file.includes('/src/'), cases, preconditions });
   return {
     root,
     coverageFile,
@@ -41,6 +41,7 @@ async function seam(cases = false): Promise<Seam & { root: string }> {
 /** Rsbuild's plugin API as Rstest exposes it, holding the configuration the run merged. */
 function api(browser: { enabled?: boolean } | undefined): unknown {
   return {
+    onBeforeCreateCompiler: () => {},
     useExposed: (id: string) => (id === 'rstest' ? { getRstestConfig: () => ({ browser }) } : undefined),
   };
 }
@@ -88,6 +89,14 @@ function page(setup: string, module: string, test: string): { before: Hook; afte
 const PRICE = 'export function price(amount) { if (amount > 10) { return 1; } return 2; }';
 
 describe('an Rstest file that runs in a page', () => {
+  it('refuses an entry when the run starts, where nothing says the run has no test file', async () => {
+    const { plugin, reporter } = await seam(false, ['generated.json']);
+
+    plugin.setup(api({ enabled: true }));
+
+    expect(() => reporter.onTestRunStart()).toThrow('cannot be read as a file');
+  });
+
   it('swaps in the page setup module when the run says the files run in a page', async () => {
     const { plugin, setup } = await seam();
     const node = await readFile(setup, 'utf8');

@@ -12,11 +12,28 @@ import { cleanId, fileOrNone, mayTake, projectPath, type ProbePlacement } from '
 import { readFinished, type FinishedFile } from './finished-files.js';
 import { pageTaping } from './carried-stories.js';
 import { browserSetupSource } from './worker-source.js';
-import { declareConfig, type ResolvedViteConfig } from './governing-config.js';
+import { configKey, declareConfig, governingPreconditions, type ResolvedViteConfig } from './governing-config.js';
+import { refuseUnreadable } from './precondition-entries.js';
 import { removeSeamModules, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, type UnmappedStep, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import { readCommandLine, seedInBanner, type BannerContext } from './vitest-sequencer.js';
+
+/**
+ * A reporter that refuses `files` as the run starts, when a test file of the run
+ * `takesPart` names is in it: ahead of its global setup, and of the first test.
+ * A run with no test file announces itself too, and `vitest list` does not.
+ */
+export function refusal(
+  takesPart: (specification: { readonly project: unknown }) => boolean,
+  files: () => readonly string[],
+) {
+  return {
+    onTestRunStart: (specifications: readonly { readonly project: unknown }[]) => {
+      if (specifications.some(takesPart)) refuseUnreadable(files());
+    },
+  };
+}
 
 export interface ConfigPlugin {
   readonly name: string;
@@ -37,7 +54,7 @@ interface VitePlugin extends ConfigPlugin {
   };
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
-  /** Vitest 3.1 and on call it with the run's context; Vitest 2 and 3.0 never do. */
+  /** Vitest calls it with the run's context. */
   readonly configureVitest: (context: VitestContext) => void;
 }
 
@@ -47,7 +64,9 @@ interface VitePlugin extends ConfigPlugin {
  * Vitest 5, `experimental_defineCacheKeyGenerator` on 4.1, neither before.
  */
 interface VitestContext {
-  readonly vitest: BannerContext;
+  readonly vitest: BannerContext & { readonly config: { readonly reporters: unknown[] } };
+  /** The project this hook is called for, which a test file's specification names. */
+  readonly project: unknown;
   readonly defineCacheKeyGenerator?: (generate: (context: { readonly id: string }) => string | undefined | false) => void;
   readonly experimental_defineCacheKeyGenerator?: VitestContext['defineCacheKeyGenerator'];
 }
@@ -119,6 +138,7 @@ export function selectionPlugin(
   const held = new Map<string, string>();
   /** What the plugins ahead of the probes noted by module: each `load` with no map. */
   let notes: UnmappedNotes | undefined;
+  let resolved: ResolvedViteConfig;
   return [{
     name: 'variance-authority:test-selection',
     // First, for the test files the run cuts: a case says which of its lines
@@ -168,11 +188,19 @@ export function selectionPlugin(
       }
       await reading;
     },
-    configResolved: declareConfig(run, declared, [setupId, runnerId]),
+    configResolved: (config) => { resolved = config; },
     // Vitest 3.1 and on, before any reporter starts: a command-line
     // `--reporter` leaves plugins in place, so the banner still names the seed.
     configureVitest(context) {
       seedInBanner(context.vitest);
+      // At the start and not at `configResolved`, which a project `--project`
+      // left out still reaches: a project none of whose files run reads nothing.
+      // What it refuses is what the fold reads, the root's entries with its own:
+      // a reporter of the command line drops the root's refusal, not this one.
+      context.vitest.config.reporters.push(refusal(({ project }) => project === context.project, () => {
+        declareConfig(run, declared, [setupId, runnerId])(resolved);
+        return governingPreconditions(run, [configKey(resolved.configFile)]);
+      }));
       // A module served from Vitest's file-system cache skips every transform,
       // so a module the seam takes would run with probes whose identity this
       // process never learned, and the fold would refuse the run. Vitest 5

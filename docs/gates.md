@@ -59,6 +59,11 @@ Four things deliberately do not take it there:
 All four are recorded either way; what changes is whether they block the
 build.
 
+A second check is opt-in and asks a different question: `variance review
+--fail-on-uncovered` exits `1` when a function the change touched holds code no
+case ran. The [CLI reference](../packages/cli/README.md#review-what-a-change-did-for-the-person-merging-it)
+has what it counts.
+
 Posting the result to the pull request is not part of the gate. `npx variance
 comment` writes a comment body and posts nothing. On GitHub,
 `Variance-Authority/action` posts it as one comment updated in place; the

@@ -153,9 +153,9 @@ variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-d
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
@@ -192,7 +192,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `doctor` | prints what this machine can observe, before a run, not after one; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
-| `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |
+| `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite, and a repository that configures no project takes the only suite it declares's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
@@ -270,6 +270,7 @@ variance ask describe --subject story:card
 variance ask search --query viewport    # the code, and the cases the last run recorded: no report and no config needed
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
 variance ask slowest-tests --over 3s --from src   # the cases under src that ran at least 3 s, closest to their limit first
+variance ask containment --after 2026-01-01    # how far commits since that day reached across package boundaries
 variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token
 variance ask concerns --build ci-42           # what reviewers flagged as suspect on the subjects that build showed, and why
 ```
@@ -1221,7 +1222,8 @@ suite, and review after it:
 
 On GitHub, `Variance-Authority/action/review` replaces that last step: it runs
 the same two commands with `--coverage` and puts the review on the pull request
-as one comment updated in place.
+as one comment updated in place, and marks each changed function no case
+covered on the diff.
 [Its example](https://github.com/Variance-Authority/action#reviewing-a-project-with-only-unit-tests)
 has the cache steps that give the comment a mainline record to compare with:
 
@@ -1232,6 +1234,21 @@ has the cache steps that give the comment a mainline record to compare with:
     suite: unit
     against: ${{ steps.take.outputs.against-unit }}
 ```
+
+`--fail-on-uncovered` makes the review a check a project can require. It prints
+and writes the same review, then exits `1` when the count of changed functions
+holding code no case ran is above zero, and names that count on stderr. There is
+no percentage and no threshold. With `--coverage` it reads every suite, and each
+file is judged by the suites that ran it as it stands; without `--coverage` it
+reads the named suite alone. It exits `2` when no suite ran a changed file as it
+stands, since which functions ran is then not known, and when source changed
+outside the record and nothing shows a run of this change. A source file a run of
+this change did not load is not counted, whether its functions are new or edited:
+a run that never loaded a file has no answer about it. It is named on stderr
+instead, and the exit stays `0` if nothing else is counted. A JVM project cannot
+require this check: the agent's rows do not name the text they ran, so a change to
+a recorded file always exits `2`. The action takes it as
+[`fail-on-uncovered`](https://github.com/Variance-Authority/action#requiring-that-a-changes-functions-ran).
 
 The markdown's first line names what it read: the commit reviewed, the commit
 the change starts from, the commit the cases ran at, and the commit of each
@@ -2823,6 +2840,9 @@ a CI job gates on.
 1  changes need review
 2  operator error
 ```
+
+`variance review` has no verdict of its own and exits `0` or `2`, unless a project
+asks for one with [`--fail-on-uncovered`](#review-what-a-change-did-for-the-person-merging-it).
 
 **A verdict and a crash never share a code.** A red build that could mean either
 "a component changed" or "the store did not answer" is a red build nobody

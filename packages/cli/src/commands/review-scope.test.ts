@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { functionsMarkdown, namedList, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
+import { functionsMarkdown, namedList, uncoveredFunctions, uncoveredMarkdown, uncoveredVerdict } from './review-scope.js';
 import type { Review, ReviewRegion } from './review.js';
 
 const region = (kind: string, name: string, startLine: number, endLine: number, reach: ReviewRegion['reach'], tests: readonly string[] = []): ReviewRegion => ({
@@ -32,6 +32,12 @@ const mixed = [
 describe('where to look, for a comment', () => {
   it('names the changed functions holding code no case ran, a branch by the function around it', () => {
     expect(uncoveredFunctions(review(mixed))).toEqual({ total: 2, names: ['cap', 'spill'], overwritten: [] });
+  });
+
+  it('names on the log a function no case is known to have run, and does not fail on it', () => {
+    const ran = { from: 'abc', record: 'ran', base: 'since', files: [{ file: 'src/caps.ts', ran: true, regions: [region('function', 'trim', 30, 35, 'overwritten')] }] } as unknown as Review;
+
+    expect(uncoveredVerdict(ran)).toEqual({ failed: false, said: ['1 of 1 changed function has code no case is known to have run: `trim`.'] });
   });
 
   it('names five functions and counts the rest', () => {

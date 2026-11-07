@@ -41,7 +41,7 @@ import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, changelogStoreFor, formatChangelog } from './commands/changelog.js';
 import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
 import { runJourneys } from './commands/journeys-command.js';
-import { refiningRecord } from './commands/suite-record.js';
+import { onlySuiteOf, refiningRecord } from './commands/suite-record.js';
 import { suiteIgnore } from './commands/select-before.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
@@ -79,11 +79,11 @@ export async function dispatch(
   if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
   // The parts say how they were collected; a merge reads no project.
   if (parsed.command === 'collect' && parsed.operation === 'merge') return runCollectMerge(parsed, streams);
-  // A suite's record alone: the root config declares the suite and its share,
-  // and no project config is read.
-  if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
-  if (parsed.command === 'share' && parsed.purgeOlderThan !== undefined) return runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
-  if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
+  if (parsed.command === 'share' && parsed.suite === undefined && parsed.purgeOlderThan !== undefined) return runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
+  if (parsed.command === 'share' || parsed.command === 'journeys') {
+    const suite = parsed.suite ?? (await onlySuiteOf(parsed.config));
+    if (suite !== undefined) return parsed.command === 'share' ? runSuiteShare({ ...parsed, suite }, streams) : runJourneys({ ...parsed, suite }, streams);
+  }
 
   const renderless = parsed.command === 'doctor' && parsed.baselines !== true ? await loadRenderless(parsed.config) : undefined;
   if (renderless !== undefined) {

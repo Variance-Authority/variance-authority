@@ -83,7 +83,7 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
     const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
     if (pid === undefined) return report(update, alone, await followUps(request, update, alone));
     holdFollowUps(index, { pid, log });
-    return report(update, alone, [`follow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it, and exits as the operator's when a walk git could not read failed; their lines are written to ${log}`]);
+    return report(update, alone, [`follow-ups: nothing has failed; process ${pid} is still making the code map, the journeys, the dependency lexicon and the questions. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk. Its lines are written to ${log}`]);
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
