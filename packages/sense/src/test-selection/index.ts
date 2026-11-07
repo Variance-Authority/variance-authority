@@ -2,18 +2,16 @@ import { readFile } from 'node:fs/promises';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import type { FilePhases } from './reported-time.js';
-import { deviationFromView } from './deviation.js';
 import { journeyDivergences, type JourneyDivergence, type JourneyDivergenceOptions, type JourneyRegion } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
-import { askCoverageFile } from './coverage-file.js';
 import { NO_BASE } from './record-base.js';
 import type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion } from './at-source.js';
-import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
-import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
 import type { ImporterReason } from './importers.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionCause, SelectionReason } from './narrowing.js';
+
+export { deviationOfTests, distanceByExecution, narrowByExecution, selectTestFiles } from './file-readers.js';
 
 export {
   coveringChange,
@@ -427,57 +425,6 @@ export async function writeTestCoverage(file: string, coverage: TestCoverage, ca
 }
 
 /**
- * Query one persisted coverage snapshot and return whole test-file paths.
- * Only the section index and strings present in the result are decoded.
- *
- * Hand the file graph in through `options.relations` and a changed file no
- * probe can sit in — a stylesheet, an image — is answered by the module that
- * imports it; without it, such a file selects nothing, and only
- * `narrowByExecution` says so.
- */
-export async function selectTestFiles(
-  file: string,
-  diff: string,
-  options: ExecutionNarrowingOptions = {},
-): Promise<readonly string[]> {
-  return askCoverageFile(file, (coverage) => selectTestFilesFromView(coverage, diff, options));
-}
-
-/**
- * The same query, plus the tests the snapshot is entitled to speak for, what it
- * could not answer, and why each selected test is there.
- *
- * Read this rather than `selectTestFiles` whenever the answer will *exclude*
- * something. See `ExecutionNarrowing`.
- */
-export async function narrowByExecution(
-  file: string,
-  diff: string,
-  options: ExecutionNarrowingOptions = {},
-): Promise<ExecutionNarrowing> {
-  return askCoverageFile(file, (coverage) => narrowByExecutionFromView(coverage, diff, options));
-}
-
-/**
- * The same query, and how far the change had to travel to reach each test it
- * selected.
- *
- * One read, because the two answers come off the same columns and a caller that
- * asked twice would decode the snapshot twice to join a reading to the narrowing
- * it was derived from.
- */
-export async function distanceByExecution(
-  file: string,
-  diff: string,
-  options: ExecutionNarrowingOptions & DistanceOptions = {},
-): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly TestDistance[] }> {
-  return askCoverageFile(file, (coverage) => {
-    const narrowing = narrowByExecutionFromView(coverage, diff, options);
-    return { narrowing, distances: distanceFromView(coverage, narrowing, options) };
-  });
-}
-
-/**
  * Read the snapshot and answer which modules its observers crossed differently.
  *
  * The file reader beside {@link journeyDivergences}, which takes the decoded
@@ -489,12 +436,4 @@ export async function journeysApart(
   options: JourneyDivergenceOptions = {},
 ): Promise<readonly JourneyDivergence[]> {
   return journeyDivergences(await readTestCoverage(file), options);
-}
-
-/** Compare per-test execution slices with the static code each test can reach. */
-export async function deviationOfTests(
-  file: string,
-  options: DeviationOptions,
-): Promise<VariationDeviation> {
-  return askCoverageFile(file, (coverage) => deviationFromView(coverage, options));
 }
