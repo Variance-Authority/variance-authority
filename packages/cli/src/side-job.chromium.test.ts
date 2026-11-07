@@ -24,7 +24,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/cli run --exit-zero-on-changes: skipped.' + '\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/cli run --exit-zero-on-changes: skipped.' + '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 describe.skipIf(!BROWSER_AVAILABLE)('`variance run --exit-zero-on-changes`', () => {
