@@ -126,7 +126,7 @@ describes every line of the output.
   no test loads does not lower the figure. Label it `regions run`, since a
   badge that says `coverage` reads as line coverage. This repository's own
   README shows one, written by the `publish the badge's figure` step of its
-  [`check.yml`](../.github/workflows/check.yml) on every push to `main`.
+  `.github/workflows/check.yml` on every push to `main`.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a
