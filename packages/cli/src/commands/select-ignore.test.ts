@@ -50,7 +50,7 @@ describe('a changed file a suite ignores', () => {
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\n');
     expect(said.err).toContain('the suite ignores 1 changed file by its `ignore`');
-    expect(said.err).toContain('only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test');
+    expect(said.err).toContain('only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test of its run');
     expect(said.err).toContain(`read ${file}: unread (the suite's \`ignore\` matches it)`);
   });
 

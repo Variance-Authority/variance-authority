@@ -160,7 +160,7 @@ Two settings narrow on purpose, and print a line when they do:
 | Setting | What the output says |
 |---|---|
 | `relations: false`: the suite asks the file graph nothing | `the suite declines relations, so N changed files its record did not measure keep no test in the run; a file the suite rests on is declared in its \`before\`` |
-| `ignore` globs | `the suite ignores N changed files by its \`ignore\`, so only a \`/// <depends>\` on one runs a test for them, or a \`preconditions\` entry, which runs every test` |
+| `ignore` globs | `the suite ignores N changed files by its \`ignore\`, so only a \`/// <depends>\` on one runs a test for them, or a \`preconditions\` entry, which runs every test of its run` |
 
 In the JSON answer these files are under `unread`, `declined` and `ignored`.
 

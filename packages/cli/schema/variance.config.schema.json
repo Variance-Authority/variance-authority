@@ -161,7 +161,7 @@
             "type": "array",
             "minItems": 1,
             "items": { "type": "string", "minLength": 1 },
-            "description": "Globs, from the repository root and matching dotfiles, of changed files whose regions, import and asset edges and before select none of this suite's tests; a `!` glob takes a file back out. A test that declares a matching file, as a precondition or through a `/// <depends>`, still runs, and the selection names the file as ignored. A unit suite under jsdom paints nothing, so it can ignore stylesheets and images. Without it, nothing is ignored."
+            "description": "Globs, from the repository root and matching dotfiles, of changed files whose regions, import and asset edges and before select none of this suite's tests; a `!` glob takes a file back out. A test behind a `/// <depends>` on a matching file still runs, as does every test when the file is a precondition, and the selection names the file as ignored. A unit suite under jsdom paints nothing, so it can ignore stylesheets and images. Without it, nothing is ignored."
           },
           "precision": {
             "enum": ["file", "symbol", "file-use", "function-use", "region-use"],

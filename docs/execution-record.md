@@ -868,8 +868,9 @@ below is one stage of that call.
    selects nobody and takes nothing from the name beside it. A path none of
    whose names is read, and a path the caller gives no name at all, is reported
    as unread. It is a report, not a widening: the skip list is still `whole`
-   less `entered`, and a suite that rests on such a file declares it as a
-   precondition, which removes it from `unread`. A name with a row is read even
+   less `entered`. A module that reads such a file names it with a
+   `/// <depends>`, and a file every test rests on is a precondition, which
+   removes it from `unread`. A name with a row is read even
    when no test names it: the row is the measurement.
 
 The whole trace is O(diff length + inserted text + B per changed module + C of charged blocks

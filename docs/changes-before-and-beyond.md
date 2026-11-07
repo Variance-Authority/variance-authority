@@ -199,10 +199,10 @@ repository root:
 
 A changed file that matches loses what selection would infer from it: the
 regions tests entered in it, the import and asset edges into it, and the
-suite's `before`. It keeps what somebody declared. A test that lists it as a
-precondition still runs, and so does every test the recording saw enter a
-module with a `/// <depends>` on it, because that edge says the module reads
-the bytes. A declaring module the recording holds nothing for is read as any
+suite's `before`. It keeps what somebody declared. Every test the recording
+saw enter a module with a `/// <depends>` on it still runs, because that edge
+says the module reads the bytes, and so does every test of a run that lists
+it in `preconditions`. A declaring module the recording holds nothing for is read as any
 file it did not measure: the tests that import it run, or, in a suite that
 declines relations, it is listed. A
 `!` pattern takes a file back out of the list. A suite uses only its own
@@ -213,7 +213,7 @@ that render it.
 suite selects nothing and says why:
 
 ```text
-the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test
+the suite ignores 1 changed file (src/card.css) by its `ignore`, so only a `/// <depends>` on it runs a test for it, or a `preconditions` entry, which runs every test of its run of its run
 ```
 
 and `--format json` carries the same list as `"ignored": ["src/card.css"]`.
