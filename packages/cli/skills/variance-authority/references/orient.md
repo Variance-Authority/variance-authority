@@ -90,8 +90,9 @@ by reason.
 
 The figures say what commits touched together, not what caused it, and nothing
 selects on them. Packages are the ones the workspace lists now that hold source
-now, and one holding only tests is a test-only tree. With none listed there are
-no figures.
+now, another package is one the commit changed no source in, and a test-only
+tree is a package or a top folder holding tests and no source. With none listed
+there are no figures.
 
 ## `stack`
 

@@ -102,7 +102,7 @@ describe('variance ask containment', () => {
     expect(answered.out).toContain('9 commits since 2000-01-01');
     expect(answered.out).toContain('touched one package: 5 of 9 (55.6%)');
     expect(answered.out).toContain('edited a test in another package: 2 of 9 (22.2%)');
-    expect(answered.out).toContain('edited a test outside the packages they changed, in a test-only tree: 1 of 9 (11.1%)');
+    expect(answered.out).toContain('edited a test in a test-only tree: 1 of 9 (11.1%)');
   });
 
   it('gives a test in another package over those that edited their own tests, and over those that did not', async () => {
@@ -120,7 +120,7 @@ describe('variance ask containment', () => {
     expect(out).toContain('by a bot: 1');
     expect(out).toContain('touched no source: 1');
     expect(out).toContain('touched source in no package: 1');
-    expect(out).toContain('These count what commits touched together, not what caused it.');
+    expect(out).toContain('These are co-occurrence: they count what commits touched together, not what caused it.');
   });
 
   it('holds every figure in the JSON format, and no field merges them', async () => {
@@ -227,6 +227,54 @@ describe('variance ask containment', () => {
     process.chdir(root);
     const { out } = await run(['ask', 'containment', '--after', '2000-01-01', '--format', 'json']);
     expect(JSON.parse(out)).toMatchObject({ onePackage: { count: 1, of: 2 } });
+  });
+
+  it('counts a test beside source outside every package as neither a package nor a test-only tree', async () => {
+    const root = workspace(['a']);
+    change(root, 'seed', [A, 'tools/x.ts']);
+    change(root, 'a and a test of the tools', [A, 'tools/x.test.ts']);
+    process.chdir(root);
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01', '--format', 'json']);
+    expect(JSON.parse(out)).toMatchObject({ counted: 1, testOnlyTree: { count: 0, of: 1 } });
+  });
+
+  it('reads a package named for what a build makes as the source it holds', async () => {
+    const root = workspace(['generated', 'b']);
+    change(root, 'seed', ['packages/generated/src/g.ts', B]);
+    change(root, 'g', ['packages/generated/src/g.ts']);
+    change(root, 'g and b', ['packages/generated/src/g.ts', B]);
+    process.chdir(root);
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01', '--format', 'json']);
+    expect(JSON.parse(out)).toMatchObject({ packages: 2, onePackage: { count: 1, of: 2 } });
+  });
+
+  it('reads a checkout that tracks a file named HEAD', async () => {
+    const root = workspace(['a']);
+    change(root, 'seed', [A, 'HEAD']);
+    change(root, 'a', [A]);
+    process.chdir(root);
+    const answered = await run(['ask', 'containment', '--after', '2000-01-01', '--format', 'json']);
+    expect(answered.err).toBe('');
+    expect(JSON.parse(answered.out)).toMatchObject({ onePackage: { count: 1, of: 1 } });
+  });
+
+  it('says a clone is shallow when the workspace lists no package too', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-containment-')));
+    git(['init', '--quiet', '--initial-branch', 'main'], root);
+    change(root, 'seed', ['src/lib.rs']);
+    change(root, 'one', ['src/lib.rs']);
+    const clone = realpathSync(mkdtempSync(join(tmpdir(), 'va-containment-')));
+    git(['clone', '--quiet', '--depth', '1', `file://${root}`, clone], root);
+    process.chdir(clone);
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01']);
+    expect(out).toContain('lists no package');
+    expect(out).toContain('This is a shallow clone');
+  });
+
+  it('says what another package is', async () => {
+    process.chdir(history());
+    const { out } = await run(['ask', 'containment', '--after', '2000-01-01']);
+    expect(out).toContain('Another package is one the commit changed no source in.');
   });
 
   it('refuses a window that is not a date, which git would read as now', async () => {

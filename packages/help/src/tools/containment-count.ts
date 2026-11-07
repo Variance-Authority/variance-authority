@@ -6,8 +6,8 @@
  * touched together, and the commit never says why.
  *
  * A package is one the workspace lists that holds source now, whatever a window
- * changed, so a figure does not move with the window. One that holds only tests
- * is a test-only tree. A commit is counted when a person changed source in a
+ * changed, so a figure does not move with the window. A test-only tree is a
+ * package or a top folder holding tests and no source. A commit is counted when a person changed source in a
  * package, and what is left out is counted by the first reason that takes it.
  */
 
@@ -20,8 +20,6 @@ const BOT = /\[bot\]|[-_ ]bot$|^(renovate|dependabot|github-actions)$/iu;
 
 /** Code the index does not parse: a commit changes it all the same. */
 const SOURCE_EXTENSIONS = new Set([...CODE_EXTENSIONS, '.go', '.rb', '.php', '.vue', '.svelte', '.cs', '.c', '.cc', '.cpp', '.h', '.scala']);
-
-const NOT_WRITTEN = /(^|\/)(dist|vendor|node_modules|generated|__generated__)\//u;
 
 /** A count and what it is out of. */
 export interface Share {
@@ -50,7 +48,7 @@ export interface ContainmentCount {
   readonly onePackage: Share;
   /** A test in another package that holds source, over the counted commits. */
   readonly testInAnotherPackage: Share;
-  /** A test outside every package, over the counted commits. */
+  /** A test in a package or top folder that holds no source, over the counted commits. */
   readonly testOnlyTree: Share;
   /** A test in another package, over the commits that edited their own tests. */
   readonly anotherGivenOwnTests: Share;
@@ -63,6 +61,7 @@ interface Touched {
   readonly own: ReadonlySet<string>;
   readonly packages: ReadonlySet<string>;
   readonly tests: ReadonlySet<string>;
+  readonly inTree: boolean;
 }
 
 /** Counts `commits`, with each path's package taken from `packages`, and `tracked` saying which hold source. */
@@ -73,10 +72,16 @@ export function countContainment(commits: readonly CommitChange[], tracked: read
     return owner === '.' ? file : file.slice(owner.length + 1);
   };
   const isTest = (file: string): boolean => isTestPath(inside(file));
-  const isSource = (file: string): boolean => SOURCE_EXTENSIONS.has(extname(file)) && !isTest(file) && !NOT_WRITTEN.test(file);
-  const holdingSource = new Set(tracked.filter(isSource).map(ownerOf));
-  holdingSource.delete('.');
-  const isPackage = (owner: string): boolean => holdingSource.has(owner);
+  const isSource = (file: string): boolean => SOURCE_EXTENSIONS.has(extname(file)) && !isTest(file);
+  /** The package a file is in, or the top folder when it is in none: `.` for a file at the root. */
+  const treeOf = (file: string): string => {
+    const owner = ownerOf(file);
+    const slash = file.indexOf('/');
+    return owner !== '.' || slash === -1 ? owner : file.slice(0, slash);
+  };
+  const holdingSource = new Set(tracked.filter(isSource).map(treeOf));
+  const isPackage = (owner: string): boolean => owner !== '.' && holdingSource.has(owner);
+  const inTestOnlyTree = (file: string): boolean => treeOf(file) !== '.' && !holdingSource.has(treeOf(file));
 
   const leftOut = { noParent: 0, bot: 0, noSource: 0, noPackage: 0 };
   const touched: Touched[] = [];
@@ -92,12 +97,11 @@ export function countContainment(commits: readonly CommitChange[], tracked: read
         own,
         packages: new Set(commit.files.map(ownerOf).filter(isPackage)),
         tests: new Set(commit.files.filter(isTest).map(ownerOf)),
+        inTree: commit.files.some((file) => isTest(file) && inTestOnlyTree(file)),
       });
     }
   }
-  const foreign = (commit: Touched): readonly string[] => [...commit.tests].filter((owner) => !commit.own.has(owner));
-  const inAnother = (commit: Touched): boolean => foreign(commit).some(isPackage);
-  const inTree = (commit: Touched): boolean => foreign(commit).some((owner) => !isPackage(owner));
+  const inAnother = (commit: Touched): boolean => [...commit.tests].some((owner) => !commit.own.has(owner) && isPackage(owner));
   const ownTests = (commit: Touched): boolean => [...commit.tests].some((owner) => commit.own.has(owner));
   const share = (over: readonly Touched[], holds: (commit: Touched) => boolean): Share => ({ count: over.filter(holds).length, of: over.length });
   return {
@@ -106,7 +110,7 @@ export function countContainment(commits: readonly CommitChange[], tracked: read
     leftOut,
     onePackage: share(touched, (commit) => commit.packages.size === 1),
     testInAnotherPackage: share(touched, inAnother),
-    testOnlyTree: share(touched, inTree),
+    testOnlyTree: share(touched, (commit) => commit.inTree),
     anotherGivenOwnTests: share(touched.filter(ownTests), inAnother),
     anotherGivenNoOwnTests: share(touched.filter((commit) => !ownTests(commit)), inAnother),
   };

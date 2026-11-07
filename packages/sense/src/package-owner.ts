@@ -7,6 +7,12 @@
  * of the listed package around it.
  */
 export function packageOwner(packages: readonly string[]): (file: string) => string {
-  const deepest = [...packages].sort((left, right) => right.length - left.length);
-  return (file) => deepest.find((dir) => file.startsWith(`${dir}/`)) ?? '.';
+  const listed = new Set(packages);
+  return (file) => {
+    for (let slash = file.lastIndexOf('/'); slash > 0; slash = file.lastIndexOf('/', slash - 1)) {
+      const dir = file.slice(0, slash);
+      if (listed.has(dir)) return dir;
+    }
+    return '.';
+  };
 }

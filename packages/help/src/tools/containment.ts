@@ -72,19 +72,20 @@ function shared({ count, of }: Share): string {
 export function formatContainment(figures: Containment): string {
   const { leftOut } = figures;
   const left = leftOut.noParent + leftOut.bot + leftOut.noSource + leftOut.noPackage;
+  const shallow = figures.shallow ? ['This is a shallow clone, so the log holds only the commits it was fetched with.'] : [];
   if (figures.packages === 0) {
-    return `The workspace here lists no package, so there is no boundary to count across. ${String(figures.read)} first-parent commits read since ${figures.after}.`;
+    return [`The workspace here lists no package, so there is no boundary to count across. ${String(figures.read)} first-parent commits read since ${figures.after}.`, ...shallow].join('\n');
   }
   return [
     `${String(figures.counted)} commits since ${figures.after} changed source, of ${String(figures.read)} first-parent commits read from HEAD.`,
-    'These count what commits touched together, not what caused it.',
-    ...(figures.shallow ? ['This is a shallow clone, so the log holds only the commits it was fetched with.'] : []),
+    'These are co-occurrence: they count what commits touched together, not what caused it.',
+    ...shallow,
     '',
     `touched one package: ${shared(figures.onePackage)}`,
     `edited a test in another package: ${shared(figures.testInAnotherPackage)}`,
     `  of those that edited their own tests: ${shared(figures.anotherGivenOwnTests)}`,
     `  of those that did not: ${shared(figures.anotherGivenNoOwnTests)}`,
-    `edited a test outside the packages they changed, in a test-only tree: ${shared(figures.testOnlyTree)}`,
+    `edited a test in a test-only tree: ${shared(figures.testOnlyTree)}`,
     '',
     `Left out, ${String(left)} of ${String(figures.read)}:`,
     `  no parent to compare with: ${String(leftOut.noParent)}`,
@@ -92,8 +93,9 @@ export function formatContainment(figures: Containment): string {
     `  touched no source: ${String(leftOut.noSource)}`,
     `  touched source in no package: ${String(leftOut.noPackage)}`,
     '',
-    `A merge is one commit, compared with its first parent. Packages are the ${String(figures.packages)} the workspace lists now, and one holding no source is a test-only tree.`,
-    'A test is named as a test or sits with the tests, fixtures and snapshots included. Generated and vendored code is neither test nor source.',
+    `A merge is one commit, compared with its first parent. Packages are the ${String(figures.packages)} the workspace lists now. Another package is one the commit changed no source in.`,
+    'A test-only tree is a package or a top folder holding tests and no source.',
+    'A test is named as a test or sits with the tests, fixtures and snapshots included.',
   ].join('\n');
 }
 

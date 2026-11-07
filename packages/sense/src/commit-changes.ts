@@ -10,7 +10,7 @@
  * what a commit touched outside it is not read.
  */
 
-// compass: variance-authority.reach.relations
+// compass: variance-authority.reach
 
 import { execFileSync } from 'node:child_process';
 
@@ -60,7 +60,7 @@ function commitsIn(log: string): readonly CommitChange[] {
 export function firstParentChanges(root: string, after: string): CommitChanges {
   const log = git(root, [
     'log', '-z', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only', '--relative',
-    `--format=${FIELD}%H${FIELD}%an${FIELD}%P${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD',
+    `--format=${FIELD}%H${FIELD}%an${FIELD}%P${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD', '--',
   ]);
   return { commits: commitsIn(log), shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
 }
