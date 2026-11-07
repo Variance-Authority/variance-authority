@@ -29,7 +29,7 @@ and every response — page, `robots.txt`, Markdown
 — names the index again in a `Link:` header, so a reader that fetches a URL
 without rendering it is told where the source starts. A reader that sends
 `Accept: text/markdown` gets that Markdown at the page's own address: `proxy.ts`
-rewrites to `<path>/index.md`, and the home to `/index.md`, which is the index.
+rewrites to `<path>/index.md`, and the home to `/llms.txt`.
 A page with no Markdown stays HTML. `robots.txt` carries a `Content-Signal`
 line, and `/.well-known/api-catalog` says the site's documentation starts at
 `/llms.txt`; the site has no API to describe.
@@ -87,8 +87,7 @@ beside it, whatever it declares, so the edge revalidates it against the worker
 on every request.
 
 The proxy runs ahead of that cache, so a page and its Markdown stay two entries
-under two addresses. A Markdown answer reached through `Accept` is rendered per
-request, which is one string, and is not stored. `Vary: Accept` comes from the
+under two addresses. `Vary: Accept` comes from the
 proxy and not from `next.config.ts` for a reason: the CDN adapter will not store
 a tagged page whose own response varies on a field outside the framework's.
 

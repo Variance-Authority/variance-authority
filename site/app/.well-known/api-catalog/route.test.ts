@@ -7,12 +7,14 @@ describe("api-catalog", () => {
   it("answers one linkset entry that documents the site through its index", async () => {
     const response = GET();
 
-    expect(response.headers.get("content-type")).toBe("application/linkset+json");
+    expect(response.headers.get("content-type")).toBe(
+      'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
+    );
     expect(await response.json()).toEqual({
       linkset: [
         {
           anchor: `${SITE}/`,
-          "service-doc": [{ href: `${SITE}${LLMS_INDEX}`, type: "text/markdown" }],
+          "service-doc": [{ href: `${SITE}${LLMS_INDEX}` }],
         },
       ],
     });

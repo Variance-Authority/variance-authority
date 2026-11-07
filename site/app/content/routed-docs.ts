@@ -46,6 +46,11 @@ export function markdownPath(path: string): string {
   return `${path}/index.md`;
 }
 
+/** The Markdown a published path has, if it has any. */
+export function markdownAddress(path: string): string | undefined {
+  return routedDocument(path) ? markdownPath(path) : undefined;
+}
+
 /** The guides published under a section, in publication order. */
 export function guidesUnder(section: string): readonly string[] {
   return NAVIGATION_ITEMS.flatMap(({ href }) => {

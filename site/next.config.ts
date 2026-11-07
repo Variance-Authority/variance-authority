@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/", headers: RESPONSE_HEADERS },
       { source: "/:path*", headers: RESPONSE_HEADERS },
+      {
+        source: "/.well-known/api-catalog",
+        headers: [{ key: "Link", value: `${LLMS_LINK}, </.well-known/api-catalog>; rel="api-catalog"` }],
+      },
     ];
   },
 };

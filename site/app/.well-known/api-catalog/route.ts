@@ -1,4 +1,4 @@
-import { LLMS_INDEX, MARKDOWN_TYPE } from "../../content/llms-index";
+import { LLMS_INDEX } from "../../content/llms-index";
 import { SITE } from "../../metadata";
 
 export const revalidate = 3600;
@@ -11,11 +11,13 @@ export function GET(): Response {
   const linkset = [
     {
       anchor: `${SITE}/`,
-      "service-doc": [{ href: `${SITE}${LLMS_INDEX}`, type: MARKDOWN_TYPE }],
+      "service-doc": [{ href: `${SITE}${LLMS_INDEX}` }],
     },
   ];
 
   return new Response(JSON.stringify({ linkset }), {
-    headers: { "content-type": "application/linkset+json" },
+    headers: {
+      "content-type": 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
+    },
   });
 }

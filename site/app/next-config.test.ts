@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import nextConfig from "../next.config";
+import { LLMS_LINK } from "./content/llms-index";
 
 /**
  * The framework serves a page's generated metadata after `</head>` to every
@@ -16,5 +17,17 @@ describe("generated metadata", () => {
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot",
   ])("htmlLimitedBots matches %s", (userAgent) => {
     expect(nextConfig.htmlLimitedBots?.test(userAgent)).toBe(true);
+  });
+});
+
+/** RFC 9727 has a HEAD of the catalog name it, and the last matching rule is the one served. */
+describe("the catalog's Link", () => {
+  it("names the catalog beside the index", async () => {
+    const rule = (await nextConfig.headers?.())?.at(-1);
+
+    expect(rule?.source).toBe("/.well-known/api-catalog");
+    expect(rule?.headers).toEqual([
+      { key: "Link", value: `${LLMS_LINK}, </.well-known/api-catalog>; rel="api-catalog"` },
+    ]);
   });
 });

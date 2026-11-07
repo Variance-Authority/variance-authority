@@ -58,4 +58,8 @@ describe("llms.txt", () => {
       expect(documentHeadings(document!.source).map(({ id }) => id), link).toContain(hash.slice(1));
     }
   });
+
+  it("answers as the Markdown the site says it is", () => {
+    expect(GET().headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+  });
 });

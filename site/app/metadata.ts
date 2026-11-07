@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { markdownPath, routedDocument } from "./content/routed-docs";
+import { markdownAddress } from "./content/routed-docs";
 
 export const SITE =
   process.env.SITE_URL ?? "https://variance-authority.dev";
@@ -15,15 +15,14 @@ export function pageMetadata(
   description: string,
 ): Metadata {
   const shareTitle = `${title} — ${SITE_NAME}`;
+  const markdown = markdownAddress(path);
 
   return {
     title,
     description,
     alternates: {
       canonical: path,
-      types: routedDocument(path)
-        ? { "text/markdown": markdownPath(path) }
-        : undefined,
+      types: markdown ? { "text/markdown": markdown } : undefined,
     },
     openGraph: {
       type: "website",

@@ -1,4 +1,5 @@
 import { EXAMPLES, exampleUrl } from "../content/examples";
+import { MARKDOWN_TYPE } from "../content/llms-index";
 import { documentDescription } from "../content/markdown-text";
 import { PACKAGE_DOCUMENTS } from "../content/package-docs";
 import { markdownPath, routedDocument } from "../content/routed-docs";
@@ -20,7 +21,7 @@ export const revalidate = 3600;
  */
 export function GET(): Response {
   return new Response(index(), {
-    headers: { "content-type": "text/plain; charset=utf-8" },
+    headers: { "content-type": `${MARKDOWN_TYPE}; charset=utf-8` },
   });
 }
 
