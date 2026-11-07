@@ -146,6 +146,15 @@ export async function roundedBy(root: string, first: string, suite: string, text
   });
 }
 
+/** A suite's record that holds no row of `src/total.ts`: its run loaded something else. */
+export async function noRowsBy(root: string, first: string, suite: string): Promise<void> {
+  const file = testCoverageFile(root, { suite });
+  await mkdir(dirname(file), { recursive: true });
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, commit: first, tests: [], modules: [] }, {
+    index: encodeAsSetExecutionIndex({ tests: [], modules: [] }),
+  });
+}
+
 /**
  * A record of `src/total.ts` at `coverageFile`: `text` is the source it ran,
  * its snapshot cut at `lines`, `entered` names the test files that entered each

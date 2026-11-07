@@ -3,9 +3,8 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredSuites, heardSplit } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { review, type Reach, type Review, type ReviewRegion } from './review.js';
-import { functionOf, TOP_LEVEL, unproven } from './review-scope.js';
+import { functionOf, TOP_LEVEL, unproven, unrecordedSources } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
-import { unrecordedSources } from './review-text.js';
 import { FRESH_MARK, MARK, notKnown, REACH_WORD } from './review-words.js';
 
 /** The line a pull request body's handover starts at: a re-run replaces everything up to {@link HANDOVER_END}. */
