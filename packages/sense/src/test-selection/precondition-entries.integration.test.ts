@@ -4,7 +4,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
+import { promisify, stripVTControlCharacters } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
@@ -83,8 +83,8 @@ const finished = (command: readonly string[], entries: readonly string[], env: N
     },
   },
 ).then(
-  ({ stdout, stderr }) => ({ code: 0, output: `${stdout}\n${stderr}` }),
-  (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, output: `${error.stdout}\n${error.stderr}` }),
+  ({ stdout, stderr }) => ({ code: 0, output: stripVTControlCharacters(`${stdout}\n${stderr}`) }),
+  (error: { code: number; stdout: string; stderr: string }) => ({ code: error.code, output: stripVTControlCharacters(`${error.stdout}\n${error.stderr}`) }),
 );
 
 describe.each(Object.keys(runs))('a %s run', (runner) => {
@@ -161,6 +161,25 @@ describe('a project declares its own entry', () => {
     expect(output).not.toContain('cannot be read as a file');
     expect(code).toBe(0);
     expect(existsSync(ran())).toBe(true);
+  }, 120_000);
+
+  it.each(Object.keys(projects))('%s reads nothing of a project with no test file in the run', async (runner) => {
+    const { code, output } = await finished([...projects[runner]!], [], {
+      FIXTURE_PROJECT_PRECONDITIONS: '["missing.json"]',
+      FIXTURE_TWO_INCLUDE: 'test/no-such*.check.ts',
+    });
+
+    expect(output).not.toContain('missing.json');
+    expect(code).toBe(0);
+    expect(existsSync(ran())).toBe(true);
+  }, 120_000);
+
+  it.each(Object.keys(projects))('%s refuses what the root declares, when any project has a test file in the run', async (runner) => {
+    const { code, output } = await finished([...projects[runner]!], ['src'], { FIXTURE_TWO_INCLUDE: 'test/no-such*.check.ts' });
+
+    expect(output).toContain(`names ${resolve(fixture, 'src')}, which`);
+    expect(code).not.toBe(0);
+    expect(existsSync(ran())).toBe(false);
   }, 120_000);
 });
 

@@ -15,8 +15,8 @@ interface Resolved {
 }
 
 interface Seam {
-  readonly plugin: { configResolved(config: Resolved): void; configureVitest(context: object): void; transform?: unknown };
-  /** Vite resolves the configuration, then Vitest takes the project into the run. */
+  readonly plugin: { configResolved(config: Resolved): void; configureVitest?(context: object): void; transform?: unknown };
+  /** Vite resolves the configuration, Vitest takes the project into the run, and the run starts with a file of it. */
   readonly resolved: (config: Resolved) => void;
   readonly finish: () => Promise<readonly string[]>;
 }
@@ -57,7 +57,10 @@ function seam(config: UserConfig): Seam {
     plugin,
     resolved: (config) => {
       plugin.configResolved(config);
-      plugin.configureVitest({ vitest: { config: { reporters: [] } } });
+      const project = {};
+      const reporters: Array<{ onTestRunStart(specifications: readonly object[]): void }> = [];
+      plugin.configureVitest?.({ vitest: { config: { reporters } }, project });
+      for (const pushed of reporters) pushed.onTestRunStart([{ project }]);
     },
     finish: async () => {
       await reporter.onFinished([{ filepath: resolve(root, 'case.test.ts'), tasks: [] }]);

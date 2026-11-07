@@ -11,7 +11,7 @@ import { writeCut } from './case-cut.js';
 import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { declareConfig } from './governing-config.js';
-import { refusingAtStart, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
+import { refusal, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
 import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
 import { testFilesAt } from './test-files.js';
@@ -182,13 +182,10 @@ export function withTestSelection(
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
 
   // A configuration that names projects describes the run rather than a suite:
-  // nothing is transformed under it, and it is the only place a reporter is
-  // read from. The instrumenting plugin and the setup file would sit on a
-  // config that loads no test file; what it carries is its own file, which
-  // governs every project it lists.
-  // `projects` is Vitest 3 and 4's name for it; Vitest 2 called the same idea
-  // `workspace`. Read structurally, because the seam is built against one of
-  // them and run against whichever the project installed.
+  // nothing is transformed under it, it is the only place a reporter is read
+  // from, and it carries its own file, which governs every project it lists.
+  // `projects` is Vitest 3 and 4's name; Vitest 2 called it `workspace`. Read
+  // structurally: the seam runs against whichever the project installed.
   const describesProjects = (config.test as { projects?: unknown } | undefined)?.projects !== undefined;
   if (describesProjects) {
     return {
@@ -196,9 +193,10 @@ export function withTestSelection(
       plugins: [...array(config.plugins), {
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
-        configureVitest: ({ vitest }) => { refusingAtStart(vitest, declared); },
       } satisfies ConfigPlugin],
-      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, reporter] },
+      // Any test file of the run answers for this config, and a reporter refuses
+      // for it: Vitest 4 calls no `configureVitest` of a config that lists projects.
+      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, refusal(() => true, () => declared), reporter] },
     };
   }
 

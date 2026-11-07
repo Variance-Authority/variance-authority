@@ -335,25 +335,24 @@ export function withTestSelection(
   // a mixed suite, and wrapping an absent one is skipped.
   const scope = caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`) +
     attendingSource(`globalThis[${JSON.stringify(RSTEST_API)}]`);
+  const seam = writeSeamModule(
+    run,
+    setupId,
+    setupSource(run.runDirectory, run.caseDirectory, {
+      runner: RSTEST_API,
+      root,
+      continuations: options.continuations === true,
+      scope,
+      story,
+      cases: probesRegions(mode),
+    }),
+  );
+  const loaded = new Set([...globalSetup, ...[seam, ...setupFiles].map((file) => resolve(configRoot, file))]);
   return {
     ...config,
     // First, so a setup file of the project's that loads an instrumented
     // module finds the probe log its header resolves.
-    setupFiles: [
-      writeSeamModule(
-        run,
-        setupId,
-        setupSource(run.runDirectory, run.caseDirectory, {
-          runner: RSTEST_API,
-          root,
-          continuations: options.continuations === true,
-          scope,
-          story,
-          cases: probesRegions(mode),
-        }),
-      ),
-      ...setupFiles,
-    ],
+    setupFiles: [seam, ...setupFiles],
     plugins: [...array(config.plugins), pagePlugin(setupId, run, mode, story !== undefined, own, entries)],
     reporters: [...reporters, reporter],
     tools: {
@@ -365,7 +364,11 @@ export function withTestSelection(
       // loader.
       rspack: [
         ...array(config.tools?.rspack),
-        (rspack: { module?: { rules?: unknown[] } }) => {
+        (rspack: { entry?: unknown; module?: { rules?: unknown[] } }) => {
+          // Here and not at the wrap: `--project` leaves out a project after it
+          // is wrapped, and it builds nothing. Rstest still builds a project
+          // none of whose files run, and only this says that it has none.
+          if (buildsTestFile(rspack.entry, loaded)) for (const file of entries) own.add(file);
           const rules = rspack.module?.rules ?? [];
           rspack.module = {
             ...rspack.module,
@@ -392,6 +395,16 @@ export function withTestSelection(
       ],
     },
   };
+}
+
+/**
+ * Whether what Rstest hands Rspack to build holds a file that `loaded` does not
+ * name, which is a test file: its entries are that and a project's setup. A
+ * watching run's entry is a function, read at each build, and may yet hold one.
+ * A setup file that is a package is named differently and reads as a test file.
+ */
+function buildsTestFile(entry: unknown, loaded: ReadonlySet<string>): boolean {
+  return typeof entry === 'function' || Object.values(entry ?? {}).some((file) => !loaded.has(file as string));
 }
 
 /** The part of Rsbuild's plugin API this seam reads. */
@@ -434,8 +447,6 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, ta
   return {
     name: 'variance-authority:test-selection',
     async setup(api: RsbuildPluginApi): Promise<void> {
-      // Here and not at the wrap: `--project` leaves out a project after it is wrapped, and it builds nothing.
-      for (const file of entries) own.add(file);
       // Rstest makes a compiler before it announces a run only for a test file
       // to build, or for a watch session, which builds with none. A page builds
       // after the announcement, so nothing tells its run from an empty one, and
@@ -445,6 +456,7 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode, ta
       // `-t` is merged in here too, and watch mode's `t` sets it between cycles.
       if (exposed !== undefined) nameFiltersOf(run).add(() => exposed.getRstestConfig().testNamePattern);
       if (exposed?.getRstestConfig().browser?.enabled !== true) return;
+      for (const file of entries) own.add(file);
       building.add(run);
       writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API, taping ? await pageTaping() : undefined));
       // A test line reaches the record through a case's story alone in a page:
