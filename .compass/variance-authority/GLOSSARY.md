@@ -668,6 +668,18 @@ the reachability trail, which explains it. Cycles are condensed, never broken.
 
 [**Reach**](./DOMAIN.md#reach)
 
+## **Job**
+
+### Meaning
+
+A command, or several at one commit, recorded from under it as one unit: what it
+read and looked for are what selects it, what it wrote only is not. A job with
+no complete record runs.
+
+### Bounded context
+
+[**Reach**](./DOMAIN.md#reach)
+
 ## **Seed**
 
 ### Meaning

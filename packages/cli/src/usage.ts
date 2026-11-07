@@ -38,6 +38,7 @@ export const COMMANDS = [
   'serve',
   'doctor',
   'prune',
+  'job',
   'share',
   'collect',
   'carry',
@@ -146,6 +147,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   serve: ['--just-answer'],
   doctor: ['--baselines'],
   prune: [],
+  job: ['--suite'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -177,6 +179,7 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
+  'variance job    --suite <name> -- <command>...',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]',
@@ -197,9 +200,10 @@ export const USAGE = [
  * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
  * whether or not a project is configured. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
- * the repository root's, and a project is read only when one is named.
+ * the repository root's, and a project is read only when one is named. `job`
+ * wraps a command, and its suite is the repository root's too.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

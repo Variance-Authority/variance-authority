@@ -99,6 +99,12 @@ of such a tool is fatal rather than empty, because *this diff crosses no package
 boundary* is a legitimate answer and must not be confusable with *the tool did
 not run*.
 
+A **job** is a suite of one row, recorded from under the command rather than
+inside a runtime. What it read are the row's preconditions, so selection answers
+for a build with the machinery it answers for a test file. What it wrote is kept
+beside the row and is no reason to run it. A folder it listed is read as a
+precondition on what lands directly in that folder.
+
 An install that could not be compared — an unreadable lockfile, or a base
 revision that does not carry it — does not narrow, for the reason a missing diff
 does not: *nothing moved* and *nothing could be read* are the same empty list

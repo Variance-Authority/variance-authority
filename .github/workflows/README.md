@@ -54,7 +54,9 @@ with its docket and report as on the other two, and `variance: accept site`
 still accepts it. It turns red when the run did not happen, when a subject
 could not be observed, an observation errored or the report cannot be read, and
 when an accept the comparison after it did not hold. The action's
-`exit-zero-on-changes` input does that for any job.
+`exit-zero-on-changes` input does that for any job. Off a pull request the same
+row also builds everything again under `variance job`, and the record of what it
+read and wrote is the run's `site-job-record` artifact.
 Two more jobs run the case's Storybook under the other two ways of keeping a
 baseline, each with its own config, label and comment: `lfs` commits the
 baselines to the pull request's branch through git-LFS, and `tribunal-service`

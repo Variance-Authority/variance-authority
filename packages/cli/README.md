@@ -167,6 +167,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
+variance job    --suite <name> -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
@@ -2435,6 +2436,37 @@ A path neither the journey nor the import graph has keeps no
 test in the run and is named on stderr. The whole reading happens in the native
 addon, so a stitched file with hundreds of millions of crossings is answered in
 milliseconds without expanding it in JavaScript.
+
+### `job`: record what a build read
+
+`variance job` runs a command and records the files it read and wrote, whatever
+language the command and its children are written in. The suite it records is
+one row, so `variance select --suite <name>` selects the whole job from that
+record: a changed file the job read, a file that appears where it looked and
+found nothing, or a file that appears in a folder it listed selects it, and a file
+it only wrote does not.
+
+```json
+{ "suites": { "site-job": { "kind": "e2e", "relations": false } } }
+```
+
+```bash
+variance job --suite site-job -- yarn install --immutable
+variance job --suite site-job -- yarn build
+variance select --suite site-job
+```
+
+Every `variance job` at one commit adds to the same record, so a job of several
+commands is recorded by wrapping each. Build from nothing: a step that finds its
+output current reads nothing, and the record comes out short.
+
+It needs `strace`, so it records on Linux. Where it cannot record, the command
+still runs and its exit is the job's, and the record is held incomplete. A job
+with an incomplete record, or none, is selected. So is one whose command failed.
+
+Files outside the repository are not selected on. Declare what the recorder
+cannot see under the suite's `before`: a server the job leaves running, or the
+workflow that starts it.
 
 ### `shards`: how many CI jobs a suite is worth
 

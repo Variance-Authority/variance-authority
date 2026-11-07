@@ -27,6 +27,7 @@
 | SQLite | `variance-authority.retention` | An engine for a file the operator possesses; the record outlives it and could be kept anywhere |
 | pixelmatch, pngjs, sharp, @jsquash/webp | `variance-authority.adjudication` | Codecs and comparators; replacing one changes the speed of an answer and not the answer |
 | oxc | `variance-authority.reach` | A parser for source the adopter already owns |
+| strace | `variance-authority.reach` | The recorder under a job; the record names no recorder, so another can replace it |
 | nx, turbo | `variance-authority.reach` | Build tools that contribute seeds to a selection and never a selection; the system works with neither installed |
 
 ## Not ours

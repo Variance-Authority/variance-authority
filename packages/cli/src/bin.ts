@@ -4,7 +4,7 @@ import { closeSync, openSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError } from './exit.js';
 import { directCallLine } from './direct-call.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
@@ -42,7 +42,7 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
 export async function main(
   argv: readonly string[],
   streams: Streams,
-): Promise<ExitCode> {
+): Promise<number> {
   let parsed: Parsed;
   try {
     parsed = parseArgs(argv);
@@ -74,7 +74,7 @@ export async function main(
     // A walk the follow-ups could not make is told while they are settled, and the
     // command still answers: it exits as the operator's once it has.
     const unwalked = await settleFollowUps(parsed, streams);
-    const answered = (code: ExitCode): ExitCode => (unwalked && code === EXIT_CLEAN ? EXIT_OPERATOR : code);
+    const answered = (code: number): number => (unwalked && code === EXIT_CLEAN ? EXIT_OPERATOR : code);
     // What answers before a config is read, and why each of them may: see
     // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
     // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,

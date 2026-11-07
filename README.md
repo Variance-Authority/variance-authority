@@ -290,9 +290,11 @@ Two questions meet in this repository — *what did this change look like* and
   [**Bazel**](https://bazel.build/) — selection of whole tasks or targets, from
   a dependency graph and task inputs or, with Nx's
   [Ultracache](https://nx.dev/docs/features/ci-features/remote-cache#ultracache-and-affected),
-  from the files a task read in CI. Coarse and orthogonal: they decide which
-  tasks run, and the record decides which tests inside one of them had a reason
-  to run.
+  from the files a task read in CI. They decide which tasks run, and the record
+  decides which tests inside one of them had a reason to run.
+  [`variance job`](packages/cli/README.md#job-record-what-a-build-read) records
+  a build the way Ultracache does, on your own CI, and selects it whole; nothing
+  here orders tasks or restores their outputs yet.
 - [**TraceDecay**](https://github.com/ScriptedAlchemy/tracedecay) — source
   extraction across some sixty languages into one graph. The same appetite for
   reading a whole polyglot repository that
