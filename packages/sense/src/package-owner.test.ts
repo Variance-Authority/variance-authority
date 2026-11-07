@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { packageOwner } from './coverage-source.js';
+import { packageOwner } from './package-owner.js';
 
 describe('the package that holds a file', () => {
   it('is the deepest listed package around it, so a package nested in another owns its own files', () => {

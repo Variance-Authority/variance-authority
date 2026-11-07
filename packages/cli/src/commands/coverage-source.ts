@@ -153,7 +153,7 @@ export async function readSource(root: string, from: string | undefined, package
   };
   const declared = from === undefined && entrypoints !== undefined ? [...entrypoints.keys()].sort() : [];
   const dirs = packages ? packageDirectories(sense, root, published.records) : declared;
-  const ownerOf = packageOwner(dirs);
+  const ownerOf = sense.packageOwner(dirs);
   const entries = dirs.map((dir): EntryReading | MissedEntry => {
     try {
       const uses = scoped(dir);
@@ -189,17 +189,6 @@ export async function readSource(root: string, from: string | undefined, package
     records: published.records,
     ...listed,
   };
-}
-
-/**
- * The package a file is in: the deepest of `packages` that holds it, so a
- * package nested in another owns its own files, or `.` when none does. A
- * package here is a listed one: a manifest no workspace pattern lists is part
- * of the listed package around it.
- */
-export function packageOwner(packages: readonly string[]): (file: string) => string {
-  const deepest = [...packages].sort((left, right) => right.length - left.length);
-  return (file) => deepest.find((dir) => file.startsWith(`${dir}/`)) ?? '.';
 }
 
 /**

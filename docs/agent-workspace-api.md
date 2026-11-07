@@ -109,12 +109,12 @@ npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspac
 
 Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
 runs on every Node these packages do. It prints a notice that version 1 is
-deprecated, then the answer, which lists these fourteen:
+deprecated, then the answer, which lists these fifteen:
 
 ```text
 docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
 docs_discover docs_intersection docs_orient docs_slowest_tests docs_journey_map
-docs_test_composition docs_stack docs_gaps
+docs_test_composition docs_containment docs_stack docs_gaps
 ```
 
 Then start the client, approve the server if it asks, and have your agent call

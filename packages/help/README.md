@@ -92,7 +92,7 @@ npx variance-authority-help search viewport --from packages/app/ --just-answer
 
 The verbs each take the same arguments as the tool of the same name below:
 `packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`,
-`intersection`, `orient`, `slowest-tests`, `journey-map`, `test-composition`, `stack`, `gaps`. An entrypoint is
+`intersection`, `orient`, `slowest-tests`, `journey-map`, `test-composition`, `containment`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -187,6 +187,7 @@ and the rows on a page are reordered by that label.
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have run (`to`), a time the cases ran at least (`over`), and how many rows to list | the record it read, whose run, at which commit and how old; the cases closest to their limit, each as its run and its limit; then the test files and cases that run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have no duration or limit; with `over`, cases alone |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
+| `containment` / `docs_containment` | optionally the first day counted (`after`), two weeks ago when left out | from `git log` and the workspace list: the share of source-changing commits that touched one package, that edited a test in another package, among commits that did and did not edit their own tests, and that edited a test in a test-only tree, each as a count over its denominator, with what was left out counted by reason |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
 | `gaps` / `docs_gaps` | nothing | names other packages import that carry no documentation |
 
@@ -397,7 +398,7 @@ npx variance-authority-help .
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`,
-`docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
+`docs_journey_map`, `docs_test_composition`, `docs_containment`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `docs_orient` with no files needs the code map `variance
 index` makes, so install the CLI beside this package: [connect your
 agent](https://variance-authority.dev/agents/workspace-api#connect-your-agent)

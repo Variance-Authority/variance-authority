@@ -7,7 +7,7 @@ import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
-import { discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { containment, discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
@@ -16,7 +16,7 @@ import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, containmentSource, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -129,12 +129,14 @@ export interface AskRequest extends Crossing {
   readonly justAnswer?: boolean;
   /** `--over <time>`: only the cases that ran at least that long. */
   readonly over?: string;
+  /** `--after <date>`: the first day `containment` counts, as `YYYY-MM-DD`. */
+  readonly after?: string;
   readonly limit?: number;
   /** Rows a paged question skips. */
   readonly offset?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
-  /** `--format json`: the answer as data. Only `search` answers in it. */
+  /** `--format json`: the answer as data. Only `search` and `containment` answer in it. */
   readonly format?: 'json';
   /**
    * The words typed after the question, as typed. A question about a finished
@@ -214,7 +216,7 @@ export async function ask(request: AskRequest): Promise<string> {
     throw new OperatorError(`\`${flag}\` supplies source identity and can only be used with a source question`);
   }
   if (request.format === 'json') {
-    throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
+    throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
   }
 
   // A question only a watcher answers reads no report, with a watcher or
@@ -250,8 +252,8 @@ export async function askSource(request: SourceRequest): Promise<string> {
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
-  if (request.format === 'json' && tool.name !== search.name) {
-    throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
+  if (request.format === 'json' && tool.name !== search.name && tool.name !== containment.name) {
+    throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
   }
   const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
@@ -340,6 +342,7 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
     : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
+    : tool.name === containment.name ? containmentSource(process.cwd(), input)
     : await wholeSource(readSource, tool, input, reading);
 }
 
