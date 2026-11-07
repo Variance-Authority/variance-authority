@@ -91,26 +91,20 @@ it('names a JSON file an environment requires after an import cached it, as it n
   }
 }, 60_000);
 
-it('passes an environment that evicted a JSON file an import cached, which leaves that file no input of it', async () => {
+it('refuses an environment that evicted a JSON file an import cached rather than claiming complete inputs', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-evicted-json-'));
   try {
-    const coverageFile = resolve(directory, 'coverage.bin');
-    const run = execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
+    await expect(execute(process.execPath, [resolve(root, 'node_modules/jest/bin/jest.js'), '--config', resolve(fixture, 'jest.config.mjs'), '--runInBand', '--watchman=false'], {
       cwd: fixture,
       env: {
         ...process.env,
-        FIXTURE_COVERAGE: coverageFile,
+        FIXTURE_COVERAGE: resolve(directory, 'coverage.bin'),
         FIXTURE_CACHE: resolve(directory, 'cache'),
         FIXTURE_ENVIRONMENT: '<rootDir>/evicted-environment.cjs',
         FIXTURE_IMPORTED_JSON: '1',
         FIXTURE_MATCH: '<rootDir>/imported/*.case.js',
       },
-    });
-    await expect(run).resolves.toMatchObject({ stderr: expect.stringContaining('1 passed, 1 total') });
-    const record = decodeTestCoverage(await readFile(coverageFile));
-    const inputs = record.tests.flatMap((test) => test.preconditions.map(({ name }) => name));
-    expect(inputs).toContain(at('evicted-environment.cjs'));
-    expect(inputs).not.toContain(at('src/imported-settings.json'));
+    })).rejects.toMatchObject({ stderr: expect.stringContaining('evicted-environment.cjs requires a file that left require.cache') });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

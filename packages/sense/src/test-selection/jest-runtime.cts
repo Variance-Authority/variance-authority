@@ -161,9 +161,11 @@ function inputs(entry: Cached, root: string): ModuleId[] {
   for (let at = 0; at < pending.length; at += 1) {
     const module = pending[at]!;
     // Only a value `import` left has no filename, and its key in the cache is its path.
-    // Evicted, it has neither, and a file nothing names is no input.
     const file = module.filename ?? Object.keys(cache).find((key) => cache[key] === module);
-    if (file === undefined || paths.has(file) || intrinsic(file) || loaders.has(module)) continue;
+    if (file === undefined) {
+      throw new Error(`variance-authority cannot name every input of environment ${entry.filename}: ${entry.filename} requires a file that left require.cache after an import cached it. Keep that file in require.cache.`);
+    }
+    if (paths.has(file) || intrinsic(file) || loaders.has(module)) continue;
     if (nodeUtil.types.isModuleNamespaceObject(module.exports) && markOnce(root, file) !== undefined) unavailable(file);
     const native = [...nativeImports.get(file) ?? []];
     const seenNative = new Set<string>();
