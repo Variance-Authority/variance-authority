@@ -44,12 +44,20 @@ export function projectRoot(project: JestConfig, root: string): string {
 }
 
 /**
- * The `rootDir` of a configuration with no `projects`, under the wrap's `root`.
- * Jest reads a relative one from the config file, whose directory the wrap is
- * never told, so only an absolute one is taken over `root`.
+ * Whether Jest reads this `rootDir` from the config file, whose directory the
+ * wrap is never told. An absolute one is Jest's as written, and with none the
+ * wrap gives Jest its own `root`.
+ */
+export function readFromConfigFile(config: JestConfig): boolean {
+  return config.rootDir !== undefined && !isAbsolute(config.rootDir);
+}
+
+/**
+ * The `rootDir` of a configuration with no `projects`, under the wrap's `root`:
+ * only an absolute one is taken over `root`.
  */
 export function ownRoot(config: JestConfig, root: string): string {
-  return config.rootDir !== undefined && isAbsolute(config.rootDir) ? resolve(config.rootDir) : root;
+  return config.rootDir === undefined || readFromConfigFile(config) ? root : resolve(config.rootDir);
 }
 
 /**

@@ -820,13 +820,24 @@ off, and stderr says which.
 `withTestSelection` reads the object you pass it, before Jest resolves
 anything. It reads the preset's `transform`, merges it with yours as Jest does
 and wraps the result, so a preset such as `ts-jest` needs nothing copied, and a
-`transform` you name keeps its patterns beside the preset's. Transformers load
-from the project's `rootDir`, where Jest finds them. A preset only `import` can
-read, such as one with top-level await, stops the wrap at config load, by name:
-the wrap is synchronous. A preset's setup files and environment are read
-from the configuration Jest resolved, so a local preset's files are preconditions
-without being named. An async configuration is yours to await: wrap the object it
-returns.
+`transform` you name keeps its patterns beside the preset's. Presets and
+transformers load from an absolute `rootDir`, or from `root` when the object
+names none. Jest reads a relative `rootDir` from the config file, whose directory
+the wrap is never told, so the wrap looks in `root`, or else in that path from
+the working directory. With the config file in another folder, write `rootDir`
+as an absolute path, and a preset such as `ts-jest` still needs nothing copied.
+
+The wrap stops at config load, naming the preset, in three cases. A preset it
+does not find under a relative `rootDir` stops it because Jest may find that
+preset from the config file. A preset only `import` can read, such as one with
+top-level await, stops it because the wrap is synchronous. Any preset stops it
+when `jest-resolve` is not reachable from that directory, even one with no
+`transform`, because the wrap finds a preset through `jest-resolve`. A missing
+preset under an absolute `rootDir`, or under none, is Jest's to report.
+
+A preset's setup files and environment are read from the configuration Jest
+resolved, so a local preset's files are preconditions without being named. An
+async configuration is yours to await: wrap the object it returns.
 
 ```js
 // jest.config.mjs

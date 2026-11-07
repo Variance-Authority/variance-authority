@@ -8,7 +8,7 @@
  */
 
 import { createRequire } from 'node:module';
-import { jestDependency, type FindNodeModule } from './jest-config-paths.js';
+import { jestDependency, readFromConfigFile, type FindNodeModule } from './jest-config-paths.js';
 import presets from './jest-preset-file.cjs';
 import type { JestConfig } from './jest.js';
 
@@ -20,7 +20,7 @@ function resolver(preset: string, rootDir: string): { readonly find: FindNodeMod
   } catch (cause) {
     throw new Error(
       `variance-authority: preset ${preset} cannot be read: \`jest-resolve\` is not reachable from ${rootDir}. ` +
-        'Set `rootDir` to the project that has Jest installed.',
+        'Set `rootDir` to the absolute path of the project that has Jest installed.',
       { cause },
     );
   }
@@ -30,14 +30,18 @@ function resolver(preset: string, rootDir: string): { readonly find: FindNodeMod
 
 /**
  * What the object's preset says of `transform`; `null` from a preset is Jest's
- * none. A preset that is missing or throws is left to Jest, which reads it next
- * and says what is wrong. One only `import` can read is refused here: Jest
- * awaits it and runs, so nothing would name what the wrap failed to read.
+ * none. A preset that throws is left to Jest, which reads it next and says what
+ * is wrong, and so is a missing one when the wrap searched from Jest's directory.
+ * One missing from a `rootDir` Jest reads from the config file is refused: Jest
+ * may find it, and the wrap's default would then match ahead of its patterns.
+ * One only `import` can read is refused too: Jest awaits it and runs, so nothing
+ * would name what the wrap failed to read.
  */
-function presetTransform(preset: string, rootDir: string): JestConfig['transform'] {
+function presetTransform(preset: string, config: JestConfig, rootDir: string): JestConfig['transform'] {
   const { find, load } = resolver(preset, rootDir);
+  let read: ReturnType<typeof presets.readPreset>;
   try {
-    return presets.readPreset(find, load, rootDir, preset)?.transform as JestConfig['transform'] | null ?? undefined;
+    read = presets.readPreset(find, load, rootDir, preset);
   } catch (error) {
     const { code, message } = error as NodeJS.ErrnoException;
     if (code !== 'ERR_REQUIRE_ASYNC_MODULE' && code !== 'ERR_REQUIRE_ESM') return undefined;
@@ -47,15 +51,25 @@ function presetTransform(preset: string, rootDir: string): JestConfig['transform
       { cause: error },
     );
   }
+  if (read === null && readFromConfigFile(config)) {
+    throw new Error(
+      `variance-authority: preset ${preset} is not found from ${rootDir}. ` +
+        'Jest reads a relative `rootDir` from the config file, whose directory the wrap is never told. ' +
+        'Write `rootDir` as an absolute path, such as `import.meta.dirname` in an ES module or `__dirname` in CommonJS.',
+    );
+  }
+  return read?.transform as JestConfig['transform'] | null ?? undefined;
 }
 
 /**
  * The object's `transform` as `setupPreset` leaves it: the preset's merged
- * behind it, and the object's own winning. `jest-config` is not asked, because
+ * behind it, the object's own winning, and an own `undefined` or `null`
+ * shadowing the preset's. `jest-config` is not asked, because
  * its public readers are async, `setupPreset` is not exported, and the wrap is sync.
  */
 export function mergedTransform(config: JestConfig, rootDir: string): JestConfig['transform'] {
   const { preset, transform } = config;
-  const theirs = typeof preset === 'string' ? presetTransform(preset, rootDir) : undefined;
+  if ('transform' in config && !transform) return undefined;
+  const theirs = typeof preset === 'string' ? presetTransform(preset, config, rootDir) : undefined;
   return transform && theirs ? { ...transform, ...theirs, ...transform } : transform ?? theirs;
 }

@@ -328,7 +328,7 @@ export function withTestSelection(
   const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
   const root = repositoryRoot(rootDir);
   const coverageFile = recordFileFor(root, rootDir, options);
-  const inline = inlineProjects(config);
+  const inline = inlineProjects(config, rootDir);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
   // A negated glob stays negated: `!` is Jest's, not part of the path.
@@ -381,7 +381,7 @@ export function withJourneyCoverage(
 ): JestConfig {
   const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
   const root = repositoryRoot(rootDir);
-  const inline = inlineProjects(config);
+  const inline = inlineProjects(config, rootDir);
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
   const trace = options.trace === undefined ? undefined : configuredPath(options.trace, rootDir)[0];
   if (options.trace !== undefined && trace === undefined) {
@@ -406,7 +406,8 @@ export function withJourneyCoverage(
   };
 }
 
-function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
+/** The object's projects, each `rootDir` absolute as the wrap hands it to Jest. */
+function inlineProjects(config: JestConfig, rootDir: string): readonly JestConfig[] | undefined {
   return config.projects?.map((project) => {
     if (typeof project === 'string') {
       throw new Error(
@@ -415,7 +416,7 @@ function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
           'this returns. Spell the project inline in `projects`, and every one of them is instrumented.',
       );
     }
-    return project;
+    return { ...project, rootDir: projectRoot(project, rootDir) };
   });
 }
 

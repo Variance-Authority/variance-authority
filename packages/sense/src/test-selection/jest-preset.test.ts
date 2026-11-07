@@ -56,8 +56,10 @@ const wrapped = (root: string, transformer?: string): unknown => ({
 const TS_PATTERNS = ['^.+\\.tsx?$'];
 
 /** What Jest makes of a configuration, by its own reading of it. */
-const normalized = (rootDir: string, config: JestConfig): Promise<unknown> =>
-  (createRequire(import.meta.url)(jestDependency(rootDir, 'jest-config')) as { normalize(config: JestConfig, argv: object): Promise<unknown> })
+type Normalized = { readonly options: { readonly transform: readonly (readonly [pattern: string, file: string])[] } };
+
+const normalized = (rootDir: string, config: JestConfig): Promise<Normalized> =>
+  (createRequire(import.meta.url)(jestDependency(rootDir, 'jest-config')) as { normalize(config: JestConfig, argv: object): Promise<Normalized> })
     .normalize(config, {});
 
 const wrappedPreset = (root: string): unknown => ({
@@ -138,6 +140,20 @@ describe('a relative `rootDir` under a `root` of the wrap\'s', () => {
     expect(Object.keys(selected.transform ?? {})).toEqual(TS_PATTERNS);
     expect(Object.keys(journeyed.transform ?? {})).toEqual(TS_PATTERNS);
   });
+
+  // Jest may find it from the config file's directory, and would then run wrapped `babel-jest` ahead of it.
+  it('refuses a preset it does not find from that `root`, under either wrap, and says what to write', async () => {
+    const root = await adopter();
+    const refusal = new RegExp(`preset \\./preset\\.cjs is not found from ${root}\\. .*absolute path`, 'u');
+    const config = { rootDir: '.', preset: './preset.cjs' };
+    expect(() => withTestSelection(config, { root, coverageFile: 'coverage.bin' })).toThrow(refusal);
+    expect(() => withJourneyCoverage(config, { root, journeyFile: 'journeys.bin' })).toThrow(refusal);
+  });
+
+  it('says the same when that `root` cannot reach `jest-resolve`', () => {
+    expect(() => withTestSelection({ rootDir: '.', preset: 'ts-jest' }, { root: '/repo', coverageFile: 'coverage.bin' }))
+      .toThrow(/preset ts-jest .*`jest-resolve`.* \/repo\. .*absolute path/u);
+  });
 });
 
 describe('a transformer the project at `rootDir` holds, under a checkout root above it', () => {
@@ -193,6 +209,29 @@ describe('a Jest preset the wrap takes no `transform` from', () => {
     const rootDir = await adopter();
     const configured = withTestSelection({ rootDir, preset }, { coverageFile: 'coverage.bin' });
     await expect(normalized(rootDir, configured)).rejects.toThrow(message);
+  });
+
+  // An own `transform` of nothing shadows the preset's in `{ ...preset, ...options }`, and Jest falls to its default.
+  it.each([['undefined', undefined], ['null', null]])('wraps Jest\'s default under `transform: %s`, which Jest reads as shadowing the preset\'s', async (_, transform) => {
+    const rootDir = await adopter();
+    const config = { rootDir, preset: 'ts-jest', transform } as JestConfig;
+    expect((await normalized(rootDir, config)).options.transform.map(([, file]) => file)).toEqual([expect.stringContaining('babel-jest')]);
+    expect(withTestSelection(config, { coverageFile: 'coverage.bin' }).transform).toEqual(wrapped(rootDir, 'babel-jest'));
+  });
+
+  it('leaves a missing preset to Jest under no `rootDir`, where the wrap gives Jest its `root`', async () => {
+    const root = await adopter();
+    const configured = withTestSelection({ preset: 'missing-preset' }, { root, coverageFile: 'coverage.bin' });
+    await expect(normalized(root, configured)).rejects.toThrow(/not found relative to rootDir/);
+  });
+
+  it('leaves a missing preset to Jest under a project\'s relative `rootDir`, which the wrap gives Jest absolute', async () => {
+    const root = await adopter();
+    await mkdir(resolve(root, 'app'));
+    const configured = withTestSelection({ rootDir: root, projects: [{ rootDir: 'app', preset: 'missing-preset' }] }, { coverageFile: 'coverage.bin' });
+    const [project] = configured['projects'] as JestConfig[];
+    expect(project!.rootDir).toBe(resolve(root, 'app'));
+    await expect(normalized(root, project!)).rejects.toThrow(/not found relative to rootDir/);
   });
 });
 
