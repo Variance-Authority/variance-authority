@@ -185,6 +185,73 @@ describe('recording a job', () => {
       expect(await skipped()).toBe(false);
     });
 
+    describe('across passes', () => {
+      const commit = (name: string, text: string) => {
+        writeFileSync(join(root, name), text);
+        git(root, 'add', '-A');
+        git(root, 'commit', '-qm', name);
+      };
+      /** The job ran warm: its tool found its output current, read nothing, and exited clean. */
+      async function warm(): Promise<void> {
+        traced(`1 write(1, "up to date", 10) = 10`);
+        await job('sh', '-c', 'exit 0');
+      }
+
+      it('skips on an unread commit and leaves the record where it stood', async () => {
+        await recorded();
+        const at = (await readTestCoverage(file()))?.commit;
+        commit('unread.txt', 'x\n');
+        expect(await skipped()).toBe(true);
+        expect((await readTestCoverage(file()))?.commit).toBe(at);
+      });
+
+      it('selects on a read file after a skipped commit', async () => {
+        await recorded();
+        commit('unread.txt', 'x\n');
+        expect(await skipped()).toBe(true);
+        commit('read.txt', 'changed\n');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('still selects when the read file moved under a commit that followed', async () => {
+        await recorded();
+        commit('read.txt', 'changed\n');
+        commit('unread.txt', 'x\n');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('skips when the read file came back to what the job read', async () => {
+        await recorded();
+        commit('read.txt', 'changed\n');
+        commit('read.txt', 'read\n');
+        expect(await skipped()).toBe(true);
+      });
+
+      it('selects when the record stands at a commit history lost', async () => {
+        commit('unread.txt', 'x\n');
+        await recorded();
+        git(root, 'commit', '-q', '--amend', '-m', 'rewritten');
+        git(root, 'reflog', 'expire', '--expire=now', '--all');
+        git(root, 'gc', '-q', '--prune=now');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('selects on a read file after a warm run that read nothing', async () => {
+        await recorded();
+        commit('unread.txt', 'x\n');
+        await warm();
+        commit('read.txt', 'changed\n');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('selects when a job ran over an edit that is gone again', async () => {
+        writeFileSync(join(root, 'read.txt'), 'edited\n');
+        await recorded();
+        git(root, 'checkout', '--', 'read.txt');
+        expect(await skipped()).toBe(false);
+      });
+    });
+
     it('selects a job that has no record', async () => {
       writeFileSync(join(root, 'written.txt'), 'changed\n');
       expect(await skipped()).toBe(false);

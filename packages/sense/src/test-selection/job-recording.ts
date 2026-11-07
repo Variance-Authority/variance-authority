@@ -42,6 +42,7 @@ export async function recordJob(job: JobRun, unrecorded: (why: string) => void):
     return started(run[0]!, run.slice(1), cwd);
   };
   if (root === undefined) return plainly('this is not a git checkout');
+  const edited = editedFiles(root);
   const scratch = await mkdtemp(join(tmpdir(), 'variance-job-'));
   try {
     const file = join(scratch, 'trace');
@@ -51,10 +52,10 @@ export async function recordJob(job: JobRun, unrecorded: (why: string) => void):
     if (!traceWritten(file)) {
       // The recorder could not start the command, which then never ran. Held first:
       // a step that left no trace must not leave the steps before it standing for the whole job.
-      await land(root, suite, false, NOTHING);
+      await land(root, suite, false, NOTHING, edited);
       return await plainly('strace could not trace it');
     }
-    await land(root, suite, exit === 0 || exit === completeOn, readJobTrace(linesOf(file)));
+    await land(root, suite, exit === 0 || exit === completeOn, readJobTrace(linesOf(file)), edited);
     return exit;
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -71,10 +72,17 @@ function traced(file: string, run: readonly string[]): readonly string[] {
   return ['-f', '--seccomp-bpf', '-qq', '-y', '-e', 'signal=none', '-o', file, '-e', `trace=${calls}`, '--', ...run];
 }
 
-function land(root: string, suite: string, complete: boolean, trace: JobTrace): Promise<void> {
-  const git = (...args: string[]): string =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
-  return landJob({ root, suite, commit: git('rev-parse', 'HEAD').trim(), complete, trace, tracked: trackedBlobs(git('ls-files', '-s', '-z')) });
+const gitIn = (root: string, ...args: string[]): string =>
+  execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+
+/** The tracked files that differ from `HEAD`, staged or not. */
+function editedFiles(root: string): ReadonlySet<string> {
+  return new Set(gitIn(root, 'diff', '--name-only', '-z', 'HEAD').split('\0').filter(Boolean));
+}
+
+function land(root: string, suite: string, complete: boolean, trace: JobTrace, edited: ReadonlySet<string>): Promise<void> {
+  const git = (...args: string[]): string => gitIn(root, ...args);
+  return landJob({ root, suite, commit: git('rev-parse', 'HEAD').trim(), complete, trace, tracked: trackedBlobs(git('ls-files', '-s', '-z')), edited });
 }
 
 /** `git ls-files -s -z` as path to blob. */

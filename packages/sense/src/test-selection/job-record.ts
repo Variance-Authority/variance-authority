@@ -10,6 +10,11 @@
  * What it wrote is no input. Those files are named in a file beside the record,
  * for a later step of the same job to leave out and for a cache to restore. A job
  * of several commands lands each into the same row, at one commit.
+ *
+ * A run that found its output current reads next to nothing, and it cannot be told
+ * from a run that needs little: what a job read stays an input until the record
+ * goes, each at its blob now. A file the job stopped reading selects it needlessly;
+ * a file dropped by a warm run would skip it wrongly.
  */
 
 import { access, readFile } from 'node:fs/promises';
@@ -34,6 +39,8 @@ export interface JobStep {
   readonly trace: JobTrace;
   /** Each tracked path and its blob: a change can only move a tracked file, so only those are selected on. */
   readonly tracked: ReadonlyMap<string, string>;
+  /** Tracked files that differed from `commit` when the command started: what it read of them is no blob of this commit. */
+  readonly edited: ReadonlySet<string>;
 }
 
 /** What a job's commands wrote at `commit`, by name from the repository's root. */
@@ -73,22 +80,29 @@ export async function landJob(step: JobStep): Promise<void> {
 }
 
 async function land(file: string, step: JobStep): Promise<void> {
-  const { root, suite, commit, complete, trace, tracked } = step;
+  const { root, suite, commit, complete, trace, tracked, edited } = step;
   const before = await recordedSnapshot(file);
   const runs = await heldCommitRuns(file);
   const held = await heldAt(file, commit, suite);
   const made = new Set(held.writes);
-  const inputs = new Map(held.row?.preconditions.map(({ name, digest }) => [name, digest]));
+  const inputs = new Map<string, string>();
+  for (const { name } of held.row?.preconditions ?? []) {
+    const blob = tracked.get(name);
+    if (blob !== undefined) inputs.set(name, blob);
+  }
+  let whole = complete && (!held.here || (held.row?.complete ?? true));
   for (const path of trace.reads) {
     const name = withinRepository(path, root);
     const blob = name === undefined ? undefined : tracked.get(name);
-    if (name !== undefined && blob !== undefined && !made.has(name)) inputs.set(name, blob);
+    if (name === undefined || blob === undefined || made.has(name)) continue;
+    inputs.set(name, blob);
+    if (edited.has(name)) whole = false;
   }
   for (const name of await writesOf(step)) made.add(name);
 
   const row = {
     file: suite,
-    complete: complete && (held.row?.complete ?? true),
+    complete: whole,
     preconditions: [...inputs].map(([name, digest]) => ({ name, digest })).sort((one, other) => codeUnitOrder(one.name, other.name)),
   };
   // Whose probes a row entered, and a job's entered none: naming this build's
@@ -99,13 +113,14 @@ async function land(file: string, step: JobStep): Promise<void> {
   await writeCommitRuns(commitRunsFile(file), commitRunsAfter(before, runs, { commit, instrumentation: INSTRUMENTATION_ID, tests: [row], laid: 'none' }));
 }
 
-/** What the job's earlier commands left at `commit`; nothing, when the record stands elsewhere. */
+/** The job's row as it stands, and whether it stands at `commit`, where its writes and its verdict are this run's too. */
 async function heldAt(file: string, commit: string, suite: string) {
   const bytes = await readFile(file).catch(() => undefined);
   const record = bytes === undefined ? undefined : decodeTestCoverage(bytes);
-  if (record?.commit !== commit) return { row: undefined, writes: [] };
+  const row = record?.tests.find((test) => test.file === suite);
+  if (record?.commit !== commit) return { row, here: false, writes: [] };
   const writes = await readJobWrites(file);
-  return { row: record.tests.find((test) => test.file === suite), writes: writes?.commit === commit ? writes.writes : [] };
+  return { row, here: true, writes: writes?.commit === commit ? writes.writes : [] };
 }
 
 /** The files `step` wrote that are still there. A temporary file a job removed is no output of it. */

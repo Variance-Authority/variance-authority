@@ -19,6 +19,7 @@ describe('landing a job', () => {
     complete: true,
     trace: trace({}),
     tracked: new Map([['a.txt', 'blob-a'], ['b.txt', 'blob-b'], ['gen.txt', 'blob-gen']]),
+    edited: new Set(),
     ...over,
   });
   const row = async () => (await readTestCoverage(testCoverageFile(root, { suite: 'site-job' }))).tests[0]!;
@@ -77,9 +78,31 @@ describe('landing a job', () => {
     expect(await readCommitRuns(testCoverageFile(root, { suite: 'site-job' }))).toMatchObject({ commit: 'c2', over: 'c1', runs: 2 });
   });
 
-  it('starts again at another commit', async () => {
+  it('judges a run at another commit afresh, and keeps what the job read before', async () => {
     await landJob(step({ trace: trace({ reads: [join(root, 'a.txt')] }), complete: false }));
     await landJob(step({ commit: 'c2', trace: trace({ reads: [join(root, 'b.txt')] }) }));
-    expect(await row()).toEqual({ file: 'site-job', complete: true, preconditions: [{ name: 'b.txt', digest: 'blob-b' }] });
+    expect(await row()).toEqual({
+      file: 'site-job',
+      complete: true,
+      preconditions: [{ name: 'a.txt', digest: 'blob-a' }, { name: 'b.txt', digest: 'blob-b' }],
+    });
+  });
+
+  it('carries a kept input at its blob now, and lets go of one no longer tracked', async () => {
+    await landJob(step({ trace: trace({ reads: [join(root, 'a.txt'), join(root, 'b.txt')] }) }));
+    await landJob(step({ commit: 'c2', tracked: new Map([['a.txt', 'blob-a2']]) }));
+    expect((await row())?.preconditions).toEqual([{ name: 'a.txt', digest: 'blob-a2' }]);
+  });
+
+  it('holds a job incomplete when it read a file edited off its commit', async () => {
+    await landJob(step({ edited: new Set(['a.txt']), trace: trace({ reads: [join(root, 'a.txt')] }) }));
+    expect((await row())?.complete).toBe(false);
+  });
+
+  it('counts an edit the job made itself as its own output, not a hole', async () => {
+    writeFileSync(join(root, 'gen.txt'), 'made');
+    await landJob(step({ trace: trace({ writes: [join(root, 'gen.txt')] }) }));
+    await landJob(step({ edited: new Set(['gen.txt']), trace: trace({ reads: [join(root, 'gen.txt')] }) }));
+    expect((await row())?.complete).toBe(true);
   });
 });
