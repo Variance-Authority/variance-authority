@@ -122,7 +122,8 @@ describes every line of the output.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a
-  changed function holds code no case ran.
+  changed function holds code no case ran, and `--fail-on-lost` exits `1` when
+  the change stopped running regions its mainline ran.
 
 ## Run it beside the service you have
 

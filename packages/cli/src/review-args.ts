@@ -13,6 +13,8 @@ export interface ParsedReview {
   readonly coverage?: true;
   /** Exit with the review code when the review counts a changed function no case ran. */
   readonly failOnUncovered?: true;
+  /** Exit with the review code when a suite no longer runs regions its base ran. Reads the comparison, so it implies `coverage`. */
+  readonly failOnLost?: true;
   /** Where the change starts. Absent: where the recording stood before the runs at this commit. */
   readonly since?: string;
   /** A case index recorded at the base, to compare the cases with. */
@@ -36,7 +38,7 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
     throw new OperatorError(`--format must be text, markdown, json or handover, not \`${format}\``);
   }
   if (format === 'handover') {
-    const ci = (['--from-run', '--out', '--coverage', '--against', '--fail-on-uncovered'] as const).filter((flag) => flags.values.get(flag) !== undefined || flags.present.has(flag));
+    const ci = (['--from-run', '--out', '--coverage', '--against', '--fail-on-uncovered', '--fail-on-lost'] as const).filter((flag) => flags.values.get(flag) !== undefined || flags.present.has(flag));
     if (ci.length > 0) throw new OperatorError(`--format handover reads this checkout before CI runs, so ${ci.join(' and ')} ${ci.length === 1 ? 'has' : 'have'} nothing to add to it`);
   }
   const since = flags.values.get('--since');
@@ -48,7 +50,7 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
   if (fromRun !== undefined) {
     const local = [
       ...(['--since', '--against', '--suite', '--out', '--coverage'] as const).filter((flag) => flags.values.get(flag) !== undefined),
-      ...(flags.present.has('--fail-on-uncovered') ? ['--fail-on-uncovered'] : []),
+      ...(['--fail-on-uncovered', '--fail-on-lost'] as const).filter((flag) => flags.present.has(flag)),
     ];
     if (local.length > 0) throw new OperatorError(`--from-run prints the review the run already made, so ${local.join(' and ')} has nothing to change in it`);
   } else if (artifact !== undefined) {
@@ -56,8 +58,9 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
   }
   return {
     command: 'review',
-    ...(flags.present.has('--coverage') ? { coverage: true as const } : {}),
+    ...(flags.present.has('--coverage') || flags.present.has('--fail-on-lost') ? { coverage: true as const } : {}),
     ...(flags.present.has('--fail-on-uncovered') ? { failOnUncovered: true as const } : {}),
+    ...(flags.present.has('--fail-on-lost') ? { failOnLost: true as const } : {}),
     ...(since === undefined ? {} : { since }),
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(out === undefined ? {} : { out: resolve(out) }),

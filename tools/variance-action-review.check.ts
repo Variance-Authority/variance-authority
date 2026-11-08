@@ -126,6 +126,10 @@ describe('the review a project with only unit tests puts on the pull request', (
     expect((await ran('review the change', { FAIL_ON_UNCOVERED: 'true' })).said[1]).toBe('review --coverage --fail-on-uncovered --out <at>/review --format markdown');
     expect(stepNamed('review the change').env).toMatchObject({ FAIL_ON_UNCOVERED: '${{ inputs.fail-on-uncovered }}' });
     expect(action().inputs['fail-on-uncovered']).toMatchObject({ default: 'false' });
+    expect((await ran('review the change', { FAIL_ON_LOST: 'true' })).said[1]).toBe('review --coverage --fail-on-lost --out <at>/review --format markdown');
+    expect((await ran('review the change', { FAIL_ON_UNCOVERED: 'true', FAIL_ON_LOST: 'true' })).said[1]).toBe('review --coverage --fail-on-uncovered --fail-on-lost --out <at>/review --format markdown');
+    expect(stepNamed('review the change').env).toMatchObject({ FAIL_ON_LOST: '${{ inputs.fail-on-lost }}' });
+    expect(action().inputs['fail-on-lost']).toMatchObject({ default: 'false' });
   });
 
   it('posts a review that found uncovered code, then fails the step, so the comment says why the check is red', async () => {
@@ -134,8 +138,8 @@ describe('the review a project with only unit tests puts on the pull request', (
     expect(status).toBe(0);
     expect(output).toBe('exit-code=1\n');
     const names = action().runs.steps.map((step) => step.name);
-    expect(names.indexOf('fail on uncovered code')).toBeGreaterThan(names.indexOf('post the review'));
-    const failing = stepNamed('fail on uncovered code');
+    expect(names.indexOf('fail on what the review counted')).toBeGreaterThan(names.indexOf('post the review'));
+    const failing = stepNamed('fail on what the review counted');
     expect(failing.if).toBe("steps.review.outputs.exit-code == '1'");
     expect(() => execFileSync('/bin/bash', ['-c', failing.run], { stdio: 'pipe' })).toThrow();
   });
@@ -171,7 +175,7 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
-    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-uncovered', 'github-token', 'suite']);
+    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-lost', 'fail-on-uncovered', 'github-token', 'suite']);
     expect(action().outputs).toBeUndefined();
   });
 
@@ -259,13 +263,13 @@ describe('the review a project with only unit tests puts on the pull request', (
       }
     });
 
-    it('is published only when asked, on a push to the default branch, before a failure on uncovered code can skip it', () => {
+    it('is published only when asked, on a push to the default branch, before a failure the review counted can skip it', () => {
       expect(action().inputs['badge']).toMatchObject({ default: 'false' });
       expect(stepNamed('publish the badge').if).toBe(
         "inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
-      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on uncovered code'));
+      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
     });
   });
 
