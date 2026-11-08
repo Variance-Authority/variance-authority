@@ -70,6 +70,25 @@ inputs:
     required: false
     default: 'false'
 
+  comment:
+    description: >-
+      'false' posts nothing and pushes no badge: the review, and the badge's
+      figure when `badge` asks for one, are uploaded as the artifact
+      `variance-review` for a job with `from` to post. The job that runs the
+      tests then needs `contents: read` alone.
+    required: false
+    default: 'true'
+
+  from:
+    description: >-
+      The artifact a job with `comment: 'false'` uploaded, `variance-review`.
+      Given it, the action runs nothing of the pull request and needs no
+      checkout and no CLI: it downloads the review, posts it, marks the diff,
+      and publishes the badge when the review job counted one. `comment`,
+      `badge` and every input that runs something are not read beside it.
+    required: false
+    default: ''
+
   github-token:
     description: >-
       Token for the comment, which needs `pull-requests: write`, and for the
@@ -82,6 +101,7 @@ runs:
   steps:
     # No `--config`: a project of suites alone holds no surface the parser accepts.
     - id: carry
+      if: inputs.from == ''
       name: what the host carries
       shell: bash
       env:
@@ -93,7 +113,7 @@ runs:
     # Keys from `carry`, read by the suite's name: a saved key ends in the run,
     # so the newest prefix match wins, and a pull request searches its own
     # scope before its base's.
-    - if: inputs.test != '' && steps.carry.outputs[format('suite-{0}-key', inputs.suite)] != ''
+    - if: inputs.from == '' && inputs.test != '' && steps.carry.outputs[format('suite-{0}-key', inputs.suite)] != ''
       name: restore the suite's mainline record
       uses: actions/cache/restore@v6
       with:
@@ -102,7 +122,7 @@ runs:
         restore-keys: ${{ steps.carry.outputs[format('suite-{0}-restore-keys', inputs.suite)] }}
 
     # `carry` prints a pushed key on a pull request alone.
-    - if: inputs.test != '' && steps.carry.outputs.pushed-key != ''
+    - if: inputs.from == '' && inputs.test != '' && steps.carry.outputs.pushed-key != ''
       name: restore what the pull request's last push ran
       uses: actions/cache/restore@v6
       with:
@@ -112,7 +132,7 @@ runs:
 
     # Before the tests, which write over the record the mainline left.
     - id: take
-      if: inputs.test != ''
+      if: inputs.from == '' && inputs.test != ''
       name: set the mainline's record aside
       shell: bash
       env:
@@ -126,7 +146,7 @@ runs:
     # The shell a `run:` step has. A red exit is held for the last step, so the
     # review and the saves still run on what the tests left.
     - id: test
-      if: inputs.test != ''
+      if: inputs.from == '' && inputs.test != ''
       name: run the tests
       shell: bash
       env:
@@ -139,6 +159,7 @@ runs:
     # The source index comes first: under CI a reader refuses to build it on
     # demand.
     - id: review
+      if: inputs.from == ''
       name: review the change
       shell: bash
       env:
@@ -166,13 +187,53 @@ runs:
         [ "$status" = 0 ] || { [ "$status" = 1 ] && [ -n "$fail" ]; } || exit "$status"
         echo "exit-code=$status" >> "$GITHUB_OUTPUT"
 
+    # Read here, where the CLI and the record are, so a job with `from` pushes
+    # it without either. No figure warns, and the last badge stands.
+    - name: count the regions run
+      if: inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        REVIEW: ${{ steps.carry.outputs.review }}
+      run: |
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND coverage --format badge > "$REVIEW/regions-run.json" \
+          || { rm -f "$REVIEW/regions-run.json"; echo '::warning title=badge not updated::`variance coverage` gave no figure, so the last badge stands.'; }
+
+    # A job that ran the pull request's code holds no write token: what would be
+    # posted goes to a job with `from`, which runs none of it.
+    - name: hand the review on
+      if: inputs.from == '' && inputs.comment == 'false'
+      uses: actions/upload-artifact@v7
+      with:
+        name: variance-review
+        path: ${{ steps.carry.outputs.review }}
+        include-hidden-files: true
+
+    # A review job that failed before it handed anything on is the red that
+    # says why; this job warns once and posts nothing rather than turn red too.
+    - name: take the review
+      id: taken
+      if: inputs.from != ''
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.from }}
+        path: ${{ runner.temp }}/variance-review
+
     # A failed review stops before this step, so the last comment stands. The
     # marker is read from the file: the command stays the one place it is spelled.
+    - name: say the review job handed nothing on
+      if: inputs.from != '' && steps.taken.outcome != 'success'
+      shell: bash
+      run: echo '::warning title=review not posted::the review job handed nothing on, so the last comment stands.'
+
     - name: post the review
+      if: steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false')
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        REVIEW: ${{ steps.carry.outputs.review }}
+        REVIEW: ${{ inputs.from != '' && format('{0}/variance-review', runner.temp) || steps.carry.outputs.review }}
       run: |
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere. `GITHUB_WORKSPACE` is the
@@ -193,19 +254,20 @@ runs:
     # No figure, or a refused push, warns, and the last badge stands. Before the
     # failure on uncovered code, which would skip it.
     - name: publish the badge
-      if: inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      if: (steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: bash
       env:
-        VARIANCE_COMMAND: ${{ inputs.command }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         BRANCH: ${{ github.ref_name }}
+        FROM: ${{ inputs.from }}
+        REVIEW: ${{ inputs.from != '' && format('{0}/variance-review', runner.temp) || steps.carry.outputs.review }}
       run: |
         set -uo pipefail
         skip() { echo "::warning title=badge not updated::$1, so the last badge stands."; exit 0; }
-        dir="$(mktemp -d)"
-        # shellcheck disable=SC2086
-        $VARIANCE_COMMAND coverage --format badge > "$dir/regions-run.json" || skip '`variance coverage` gave no figure'
-        echo regions-run.json > "$dir/paths"
+        # Under `from`, the job that ran the tests decided: no figure handed on is no badge asked for.
+        if [ ! -s "$REVIEW/regions-run.json" ]; then [ -n "${FROM:-}" ] && exit 0; skip 'no figure was counted'; fi
+        paths="$(mktemp)"
+        echo regions-run.json > "$paths"
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere, as in the post above.
         here="${{ github.action_path }}"
@@ -213,7 +275,7 @@ runs:
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
         # `|| pushed=$?`: GitHub runs the step under errexit, as in the images step.
         pushed=0
-        bash "$here/../push-ref.sh" "$dir" "$dir/paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" \
+        bash "$here/../push-ref.sh" "$REVIEW" "$paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" \
           "refs/heads/$BRANCH" "$GITHUB_SHA" > /dev/null || pushed=$?
         case $pushed in
           0) ;;
@@ -221,13 +283,13 @@ runs:
           3) skip "$BRANCH has moved past $GITHUB_SHA, and the newer commit's run publishes the badge" ;;
           *) skip "the badge could not be committed" ;;
         esac
-        echo "regions run: $(cat "$dir/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
+        echo "regions run: $(cat "$REVIEW/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
 
     # `!cancelled()`, so a red test, a review that did not happen or a post that
     # failed still saves what the tests ran. `carry save` prints a suite key only
     # on a push to a mainline, and a pushed key only on a pull request.
     - id: save
-      if: ${{ !cancelled() && inputs.test != '' }}
+      if: ${{ !cancelled() && inputs.from == '' && inputs.test != '' }}
       name: what the host keeps
       shell: bash
       env:
@@ -236,7 +298,7 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry save --format github >> "$GITHUB_OUTPUT"
 
-    - if: ${{ !cancelled() && inputs.test != '' && steps.save.outputs[format('suite-{0}-key', inputs.suite)] != '' }}
+    - if: ${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.save.outputs[format('suite-{0}-key', inputs.suite)] != '' }}
       name: keep the suite's record for the next pull request
       uses: actions/cache/save@v6
       with:
@@ -244,7 +306,7 @@ runs:
         key: ${{ steps.save.outputs[format('suite-{0}-key', inputs.suite)] }}
 
     - id: keep
-      if: ${{ !cancelled() && inputs.test != '' && steps.save.outputs.pushed-key != '' }}
+      if: ${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.save.outputs.pushed-key != '' }}
       name: keep what this push ran
       shell: bash
       env:
@@ -253,7 +315,7 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry keep
 
-    - if: ${{ !cancelled() && steps.keep.outcome == 'success' }}
+    - if: ${{ !cancelled() && inputs.from == '' && steps.keep.outcome == 'success' }}
       name: save what this push ran
       uses: actions/cache/save@v6
       with:
@@ -263,11 +325,11 @@ runs:
     # Last, because a step that fails skips the ones after it, and the comment
     # is what says which functions.
     - name: fail on what the review counted
-      if: steps.review.outputs.exit-code == '1'
+      if: inputs.from == '' && steps.review.outputs.exit-code == '1'
       shell: bash
       run: exit 1
 
-    - if: ${{ !cancelled() && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}
+    - if: ${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}
       name: fail on the tests
       shell: bash
       env:

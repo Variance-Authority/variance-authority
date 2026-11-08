@@ -52,24 +52,48 @@ no `config`: the tests have to run under
 [the recorder](https://variance-authority.dev/docs/test-an-edit), for a suite the root `variance.config.json` declares with
 `"suites": { "unit": { "kind": "unit", "carry": "actions-cache" } }`.
 
-```yaml
-permissions:
-  contents: read # the checkout: a declared block sets the rest to none
-  pull-requests: write # the comment
+The job that runs your tests runs the pull request's code, so it holds no write
+token. `comment: 'false'` hands the review on as the artifact `variance-review`,
+and a second job, which runs none of that code, posts it with `from`:
 
-steps:
-  - uses: actions/checkout@v7
-    with:
-      fetch-depth: 0 # the review reads the change from where it starts
-  - uses: actions/setup-node@v7
-    with:
-      node-version: 24 # the CLI needs 22.15 or newer
-  - run: npm ci
-  - uses: Variance-Authority/action/review@v1
-    with:
-      suite: unit
-      test: npx jest
+```yaml
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # the checkout: a declared block sets the rest to none
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the review reads the change from where it starts
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # the CLI needs 22.15 or newer
+      - run: npm ci
+      - uses: Variance-Authority/action/review@v1
+        with:
+          suite: unit
+          test: npx jest
+          comment: 'false'
+
+  post:
+    needs: review
+    if: ${{ !cancelled() && needs.review.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # the comment
+    steps:
+      - uses: Variance-Authority/action/review@v1
+        with:
+          from: variance-review
 ```
+
+With `from` the action checks nothing out, runs no CLI and installs nothing: it
+downloads the review, posts the comment and marks the diff. A red test still
+uploads the review, so the post job runs and the comment says what ran. One job
+with both, and `pull-requests: write`, still works: it is the shape to use only
+where every pull request's code is already trusted.
 
 [Review coverage on every pull request](https://variance-authority.dev/docs/review-coverage)
 walks through the whole setup, from wrapping the tests to the badge.
@@ -129,7 +153,7 @@ with a surface as well runs both actions.
 ### Requiring that a change's functions ran
 
 `fail-on-uncovered: 'true'` turns the count the review prints into a check: the
-step posts the comment first, then fails when a changed function holds code no
+step posts the comment first, or hands it on, then fails when a changed function holds code no
 case ran. Name the job as a required status check in your branch rule, and a
 pull request with such a function cannot merge until a case runs it.
 
@@ -180,20 +204,29 @@ which the step says and does not fail on.
 to your default branch, for a [shields.io](https://shields.io/badges/endpoint-badge)
 endpoint badge. The step writes `regions-run.json` as the one file of a commit
 with no parent and pushes it to `refs/badge/<branch>`, replacing what was there,
-so the ref never grows a history. The job needs `contents: write` for that push:
+so the ref never grows a history. The job that runs the tests counts the
+figure and hands it on with the review; the job with `from` pushes it, and needs
+`contents: write` for that push:
 
 ```yaml
-permissions:
-  contents: write # the badge, on a push to the default branch
-  pull-requests: write # the comment
+  review:
+    # ... as above
+      - uses: Variance-Authority/action/review@v1
+        with:
+          suite: unit
+          test: npx jest
+          comment: 'false'
+          badge: 'true'
 
-steps:
-  # ...
-  - uses: Variance-Authority/action/review@v1
-    with:
-      suite: unit
-      test: npx jest
-      badge: 'true'
+  post:
+    # ... as above
+    permissions:
+      contents: write # the badge, on a push to the default branch
+      pull-requests: write # the comment
+    steps:
+      - uses: Variance-Authority/action/review@v1
+        with:
+          from: variance-review
 ```
 
 Then put the badge in your `README.md`, with your owner, repository and branch

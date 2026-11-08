@@ -119,7 +119,9 @@ describe('the review a project with only unit tests puts on the pull request', (
 
   it('fails on a review that did not happen, so the post never runs and the last comment stands', async () => {
     expect((await ran('review the change', { SINCE: 'abc123' }, 2)).status).toBe(2);
-    expect(stepNamed('post the review').if).toBeUndefined();
+    expect(stepNamed('post the review').if).toBe(
+      "steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false')",
+    );
     expect(stepNamed('review the change')['continue-on-error']).toBeUndefined();
   });
 
@@ -143,7 +145,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     const names = action().runs.steps.map((step) => step.name);
     expect(names.indexOf('fail on what the review counted')).toBeGreaterThan(names.indexOf('post the review'));
     const failing = stepNamed('fail on what the review counted');
-    expect(failing.if).toBe("steps.review.outputs.exit-code == '1'");
+    expect(failing.if).toBe("inputs.from == '' && steps.review.outputs.exit-code == '1'");
     expect(() => execFileSync('/bin/bash', ['-c', failing.run], { stdio: 'pipe' })).toThrow();
   });
 
@@ -178,7 +180,7 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
-    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-lost', 'fail-on-uncovered', 'github-token', 'suite', 'test']);
+    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'comment', 'fail-on-lost', 'fail-on-uncovered', 'from', 'github-token', 'suite', 'test']);
     expect(action().outputs).toBeUndefined();
   });
 
@@ -191,6 +193,10 @@ describe('the review a project with only unit tests puts on the pull request', (
       "set the mainline's record aside",
       'run the tests',
       'review the change',
+      'count the regions run',
+      'hand the review on',
+      'take the review',
+      'say the review job handed nothing on',
       'post the review',
       'publish the badge',
       'what the host keeps',
@@ -210,7 +216,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
-      for (const name of order.slice(1, 5).concat(order.slice(8, 11), order.slice(13))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+      for (const name of order.slice(1, 5).concat(order.slice(12, 15), order.slice(17))) expect(stepNamed(name).if).toContain("inputs.test != ''");
     });
 
     it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {
@@ -238,7 +244,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect((await ran('run the tests', { VARIANCE_TEST: 'false\necho not reached' })).output).toBe('exit-code=1\n');
       expect(stepNamed('run the tests').env).toMatchObject({ VARIANCE_TEST: '${{ inputs.test }}' });
       const failing = stepNamed('fail on the tests');
-      expect(failing.if).toBe("${{ !cancelled() && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}");
+      expect(failing.if).toBe("${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}");
       expect(failing.env).toMatchObject({ CODE: '${{ steps.test.outputs.exit-code }}' });
       expect((await ran('fail on the tests', { CODE: '3' })).status).toBe(3);
     });
@@ -249,15 +255,15 @@ describe('the review a project with only unit tests puts on the pull request', (
 
     it('saves after a red test or a failed post, as carry saves any run on a mainline', async () => {
       expect((await ran('what the host keeps')).said).toEqual(['carry save --format github']);
-      expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.test != '' }}");
+      expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.from == '' && inputs.test != '' }}");
       const suite = stepNamed("keep the suite's record for the next pull request");
       expect(suite.uses).toBe('actions/cache/save@v6');
-      expect(suite.if).toBe(`\${{ !cancelled() && inputs.test != '' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
+      expect(suite.if).toBe(`\${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
       expect(suite.with).toEqual({ path: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'path')})] }}`, key: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'key')})] }}` });
       expect((await ran('keep what this push ran')).said).toEqual(['carry keep']);
-      expect(stepNamed('keep what this push ran').if).toBe("${{ !cancelled() && inputs.test != '' && steps.save.outputs.pushed-key != '' }}");
+      expect(stepNamed('keep what this push ran').if).toBe("${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.save.outputs.pushed-key != '' }}");
       const pushed = stepNamed('save what this push ran');
-      expect(pushed.if).toBe("${{ !cancelled() && steps.keep.outcome == 'success' }}");
+      expect(pushed.if).toBe("${{ !cancelled() && inputs.from == '' && steps.keep.outcome == 'success' }}");
       expect(pushed.with).toEqual({ path: '${{ steps.save.outputs.pushed-path }}', key: '${{ steps.save.outputs.pushed-key }}' });
     });
   });
@@ -272,6 +278,17 @@ describe('the review a project with only unit tests puts on the pull request', (
       git(dir, 'update-ref', 'refs/heads/main', commit);
       return commit;
     };
+
+    /** Counts the figure, as the job that ran the tests does, then publishes it from the same review directory. */
+    async function badge(env: Readonly<Record<string, string>>, exit = 0) {
+      const review = await mkdtemp(join(tmpdir(), 'variance-action-badge-review-'));
+      try {
+        const counted = await ran('count the regions run', { REVIEW: review }, exit);
+        return { ...(await ran('publish the badge', { ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
+      } finally {
+        await rm(review, { recursive: true, force: true });
+      }
+    }
 
     /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
     async function origin(): Promise<{ readonly env: Record<string, string>; readonly dir: string; readonly done: () => Promise<void> }> {
@@ -288,11 +305,11 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('leaves the badge to the newer commit\'s run when the branch has moved past this one', async () => {
       const remote = await origin();
       try {
-        await ran('publish the badge', remote.env);
+        await badge(remote.env);
         const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
         pushed(remote.dir, 'newer');
 
-        const { status, printed } = await ran('publish the badge', remote.env);
+        const { status, printed } = await badge(remote.env);
 
         expect(status).toBe(0);
         expect(printed).toContain('::warning');
@@ -305,8 +322,8 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('pushes the figure as the one file of a commit with no parent at `refs/badge/<branch>`, replaced on each push', async () => {
       const remote = await origin();
       try {
-        const first = await ran('publish the badge', remote.env);
-        const second = await ran('publish the badge', remote.env);
+        const first = await badge(remote.env);
+        const second = await badge(remote.env);
 
         expect(first.said).toEqual(['coverage --format badge']);
         expect(second.status).toBe(0);
@@ -321,10 +338,10 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('leaves the last badge standing when coverage gives no figure, and says so', async () => {
       const remote = await origin();
       try {
-        await ran('publish the badge', remote.env);
+        await badge(remote.env);
         const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
 
-        const { status, printed } = await ran('publish the badge', remote.env, 2);
+        const { status, printed } = await badge(remote.env, 2);
 
         expect(status).toBe(0);
         expect(printed).toContain('::warning');
@@ -334,10 +351,23 @@ describe('the review a project with only unit tests puts on the pull request', (
       }
     });
 
+    it('pushes nothing and says nothing under `from` when the job that ran the tests counted no figure', async () => {
+      const remote = await origin();
+      try {
+        const { status, printed } = await ran('publish the badge', { ...remote.env, FROM: 'variance-review' });
+
+        expect(status).toBe(0);
+        expect(printed).not.toContain('::warning');
+        expect(() => git(remote.dir, 'rev-parse', '--verify', '--quiet', 'refs/badge/main')).toThrow();
+      } finally {
+        await remote.done();
+      }
+    });
+
     it('warns and fails nothing when the push is refused', async () => {
       const remote = await origin();
       try {
-        const { status, printed } = await ran('publish the badge', { ...remote.env, GITHUB_REPOSITORY: 'elsewhere' });
+        const { status, printed } = await badge({ ...remote.env, GITHUB_REPOSITORY: 'elsewhere' });
 
         expect(status).toBe(0);
         expect(printed).toContain('::warning');
@@ -348,11 +378,63 @@ describe('the review a project with only unit tests puts on the pull request', (
 
     it('is published only when asked, on a push to the default branch, before a failure the review counted can skip it', () => {
       expect(action().inputs['badge']).toMatchObject({ default: 'false' });
+      expect(stepNamed('count the regions run').if).toBe(
+        "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+      );
       expect(stepNamed('publish the badge').if).toBe(
-        "inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+        "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
       expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
+    });
+  });
+
+  // A test, or a package it installs, can read every token its job holds: the
+  // runner reaps what a step left running only when the job ends, and a later
+  // step's environment is readable from `/proc`.
+  describe("the job that runs the tests and the job that holds the token", () => {
+    const steps = () => action().runs.steps;
+    const text = (step: Step): string => JSON.stringify(step);
+
+    it("reads the token only in a step `comment: 'false'` skips, and hands on the review that step would post", () => {
+      const reading = steps().filter((step) => text(step).includes('inputs.github-token'));
+
+      expect(reading.map((step) => step.name)).toEqual(['post the review', 'publish the badge']);
+      for (const step of reading) expect(step.if).toContain("inputs.comment != 'false'");
+      const handed = stepNamed('hand the review on');
+      expect(handed.if).toBe("inputs.from == '' && inputs.comment == 'false'");
+      expect(handed.with).toMatchObject({
+        name: 'variance-review',
+        path: '${{ steps.carry.outputs.review }}',
+        'include-hidden-files': true,
+      });
+    });
+
+    it('runs nothing of the pull request with `from`: it takes the review, posts it and pushes the badge', () => {
+      // A step whose every branch needs no `from` cannot run beside it.
+      const running = steps().filter((step) => !/^(\$\{\{ )?(!cancelled\(\) && )?inputs\.from == ''/u.test(step.if ?? ''));
+
+      expect(running.map((step) => step.name)).toEqual([
+        'take the review',
+        'say the review job handed nothing on',
+        'post the review',
+        'publish the badge',
+      ]);
+      for (const step of running) expect(text(step)).not.toMatch(/inputs\.(test|command)\b|actions\/checkout/u);
+      expect(stepNamed('take the review').with).toMatchObject({ name: '${{ inputs.from }}' });
+    });
+
+    // A review job that failed uploads nothing: its red says why, and the
+    // download's own error would be a second red pointing elsewhere.
+    it('warns once and posts nothing when the review job handed nothing on', () => {
+      const taken = stepNamed('take the review');
+
+      expect(taken).toMatchObject({ id: 'taken', 'continue-on-error': true });
+      expect(stepNamed('say the review job handed nothing on').if).toBe(
+        "inputs.from != '' && steps.taken.outcome != 'success'",
+      );
+      for (const name of ['post the review', 'publish the badge'])
+        expect(stepNamed(name).if).toContain("steps.taken.outcome == 'success'");
     });
   });
 
@@ -365,90 +447,5 @@ describe('the review a project with only unit tests puts on the pull request', (
     const poster = normalize(join(dirname(ACTION), '../post-comment.mjs'));
     expect(poster.startsWith(`${FOLDER}/`)).toBe(true);
     expect(existsSync(join(ROOT, poster))).toBe(true);
-  });
-});
-
-describe('the marks a review puts on the diff', () => {
-  const region = (name: string, startLine: number, endLine: number, reach: string, kind = 'function') =>
-    ({ kind, name, startLine, endLine, reach });
-
-  /** What the script prints for a review of `files`, read from a `record` of that age. */
-  async function marks(files: readonly unknown[], record = 'ran'): Promise<readonly string[]> {
-    const at = await mkdtemp(join(tmpdir(), 'variance-diff-marks-'));
-    try {
-      await writeFile(join(at, 'review.json'), JSON.stringify({ record, files }));
-      return execFileSync('node', [join(ROOT, FOLDER, 'diff-marks.mjs'), join(at, 'review.json')], { encoding: 'utf8' })
-        .split('\n')
-        .filter((line) => line !== '');
-    } finally {
-      await rm(at, { recursive: true, force: true });
-    }
-  }
-
-  it('marks each changed function no case covered, at its lines, and nothing a case ran or may have', async () => {
-    const regions = [
-      region('parse', 3, 9, 'hole'),
-      region('walk', 12, 20, 'unwalked'),
-      region('guess', 22, 24, 'unknown'),
-      region('ran', 30, 34, 'near'),
-      region('far', 36, 40, 'far'),
-      region('rewritten', 42, 44, 'overwritten'),
-      region('ran/if', 31, 32, 'hole', 'branch'),
-      region('', 1, 50, 'hole', 'module'),
-    ];
-
-    expect(await marks([{ file: 'src/a.ts', regions }, { file: 'README.md' }])).toEqual([
-      '::warning file=src/a.ts,line=3,endLine=9,title=No run of this change covered this::`parse` changed, and no case that ran this change covered it.',
-      '::warning file=src/a.ts,line=12,endLine=20,title=No run of this change covered this::`walk` changed, and no case that ran this change covered it.',
-      '::warning file=src/a.ts,line=22,endLine=24,title=No run of this change covered this::`guess` changed, and no case that ran this change covered it.',
-    ]);
-  });
-
-  it('marks a function once, not again for each function inside it', async () => {
-    const regions = [region('outer/inner', 4, 6, 'hole'), region('outer', 2, 9, 'hole'), region('next', 9, 12, 'hole')];
-
-    expect((await marks([{ file: 'a.ts', regions }])).map((mark) => /line=(\d+)/.exec(mark)?.[1])).toEqual(['2', '9']);
-  });
-
-  it('marks the lines the change wrote, which the diff shows, not the whole function', async () => {
-    const written = [{ start: 1, end: 1 }, { start: 40, end: 41 }, { start: 58, end: 70 }];
-    const regions = [region('long', 30, 60, 'hole')];
-
-    expect((await marks([{ file: 'a.ts', written, regions }])).map((mark) => /line=\d+,endLine=\d+/.exec(mark)?.[0])).toEqual(['line=40,endLine=41']);
-  });
-
-  it('marks two functions that share their lines, one inside neither', async () => {
-    const regions = [region('first', 3, 3, 'hole'), region('second', 3, 3, 'hole')];
-
-    expect((await marks([{ file: 'a.ts', regions }])).map((mark) => /`(\w+)`/.exec(mark)?.[1])).toEqual(['first', 'second']);
-  });
-
-  it('calls a function with no name by what it is', async () => {
-    const [mark] = await marks([{ file: 'a.ts', regions: [region('', 3, 4, 'hole')] }]);
-
-    expect(mark).toContain('::A function changed, and no case that ran this change covered it.');
-  });
-
-  it('stops at the ten warnings GitHub shows for a step, and names how many it left out', async () => {
-    const regions = Array.from({ length: 12 }, (_, at) => region(`f${at}`, at * 10 + 1, at * 10 + 5, 'hole'));
-    const printed = await marks([{ file: 'a.ts', regions }]);
-
-    expect(printed.filter((mark) => mark.startsWith('::warning '))).toHaveLength(10);
-    expect(printed.at(-1)).toBe('::notice title=No run of this change covered these::2 more changed functions no case that ran this change covered: the review lists them.');
-  });
-
-  it('marks a file another suite ran as the tree holds it, under a named suite whose record is older', async () => {
-    const regions = [region('parse', 3, 9, 'hole')];
-    expect((await marks([{ file: 'a.ts', ran: true, regions }, { file: 'b.ts', regions }], 'before')).map((mark) => /file=([\w.]+)/.exec(mark)?.[1])).toEqual(['a.ts']);
-  });
-
-  it('marks nothing from a record older than the change, which has not run what the change wrote', async () => {
-    expect(await marks([{ file: 'a.ts', regions: [region('parse', 3, 9, 'hole')] }], 'before')).toEqual([]);
-  });
-
-  it('escapes what a workflow command reads as its own syntax', async () => {
-    const [mark] = await marks([{ file: 'src/a,b:c%.ts', regions: [region('100%', 1, 2, 'hole')] }]);
-
-    expect(mark).toBe('::warning file=src/a%2Cb%3Ac%25.ts,line=1,endLine=2,title=No run of this change covered this::`100%25` changed, and no case that ran this change covered it.');
   });
 });

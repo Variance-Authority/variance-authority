@@ -98,12 +98,12 @@ jobs:
   review:
     runs-on: ubuntu-latest
     permissions:
-      contents: read # the checkout
-      pull-requests: write # the comment
+      contents: read # the checkout, and nothing it could write with
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # the review reads the change from where it starts
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24 # the CLI needs 22.15 or newer
@@ -112,6 +112,18 @@ jobs:
         with:
           suite: unit
           test: npx jest
+          comment: 'false' # hand the review to the job below
+
+  post:
+    needs: review
+    if: ${{ !cancelled() && needs.review.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # the comment
+    steps:
+      - uses: Variance-Authority/action/review@v1
+        with:
+          from: variance-review
 ```
 
 The action runs `test`, reviews what it ran, and saves the record: which
@@ -119,6 +131,12 @@ functions each test ran. A push to the default branch saves the record every
 pull request compares with. A pull request's push saves what the next push of
 the same pull request reads. A failing test still gets its comment, then fails
 the job with the test's exit code.
+
+Two jobs, because the first runs the pull request's code: a test, or a package
+it installs, can read whatever token its job holds, and GitHub stops what a
+step left running only when the job ends. So that job can read and nothing more,
+and the `post` job, which checks nothing out and runs no code of the pull
+request, holds the write token and posts what the first handed it.
 
 `test` and the install step are your own; the action installs nothing, so
 whatever your tests need first, such as a build, is a step before it. Keep the
@@ -136,25 +154,23 @@ compares with that record. On a push there is no pull request, so the review
 goes to the job's summary.
 
 A pull request from a fork gets a token that cannot comment. The review is
-still in the job's summary, and the job warns rather than fails. Your tests run
-in the job that holds the token: a fork's get only the read-only one, and a
-pull request from your own repository was pushed by somebody who can already
-write.
+still in the job's summary, and the `post` job warns rather than fails.
 
 ## Require it, or show a badge
 
-Both are inputs of the same step:
+Both are inputs of the `review` job's step:
 
 ```yaml
-- uses: Variance-Authority/action/review@v1
+- uses: Variance-Authority/action/review@v1 # in `review`
   with:
     suite: unit
     test: npx jest
+    comment: 'false'
     fail-on-uncovered: 'true'
     badge: 'true'
 ```
 
-`fail-on-uncovered` fails the job, after the comment, when a changed function
+`fail-on-uncovered` fails the `review` job, after it hands the review on, when a changed function
 holds code no test ran. Name the `review` job as a required check in your branch rule, and
 such a pull request cannot merge until a test runs it.
 
@@ -162,10 +178,9 @@ such a pull request cannot merge until a test runs it.
 your tests ran: a region is a function, a branch, or a run of statements with no
 decision in it, so the figure is lower than line coverage. The action pushes it
 as one file to the git ref `refs/badge/<default-branch>`, replaced each time, for
-a [shields.io](https://shields.io/badges/endpoint-badge) endpoint badge. Add
-`contents: write` to the job's `permissions`, in place of `contents: read`; the
-action pushes with that token itself, so `persist-credentials: false` on the
-checkout still works. Put the badge in your README
+a [shields.io](https://shields.io/badges/endpoint-badge) endpoint badge. The
+`review` job counts the figure and hands it on; the `post` job pushes it, so give
+that one `contents: write` beside `pull-requests: write`. Put the badge in your README
 with your owner, repository and default branch:
 
 ```markdown
