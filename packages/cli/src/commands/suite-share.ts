@@ -22,15 +22,18 @@
  */
 
 import { execFile } from 'node:child_process';
-import { readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, posix, relative, resolve, sep } from 'node:path';
+import { copyFile, mkdir, readFile, readdir, realpath } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import { entryCarriesEyes, suiteEntry, suiteEntryOf } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun } from '../share-lines.js';
-import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
-import { rootShare } from './mainline-selected.js';
+import { landSuite } from './journeys-command.js';
+import { mainlineBase, mainlineMissed, mainlineRead, type MainlineBase } from './mainline-base.js';
+import { recordHeld, rootShare } from './mainline-selected.js';
+import { layMainline, mainlinePassedOver } from './suite-base.js';
 import { describePublish, eyesWritten, unkept, type Here, type RunPublish } from './share.js';
 
 /** What `share --suite` was asked to do. */
@@ -50,6 +53,11 @@ export interface SuiteShareOptions {
    * the pull request's alone.
    */
   readonly format?: 'text' | 'github';
+  /**
+   * Records this suite's jobs handed on, folded over the base before the read
+   * is told or the publish writes: a sharded or sliced run made one again.
+   */
+  readonly records?: readonly string[];
 }
 
 /**
@@ -118,48 +126,108 @@ async function publishOnLine(
   return on({ line: run.line, published, ...eyes, ...gone, ...noMainline });
 }
 
+/** What `share` prints for one suite, and the code it exits with. `notes` are said beside `lines` when `lines` are a workflow's output. */
+export interface SuiteShare {
+  readonly lines: readonly string[];
+  readonly notes?: readonly string[];
+  readonly exit: ExitCode;
+}
+
 /**
  * What `variance share --suite <name>` prints, and the code it exits with:
  * what the publish did, or the record the reader's mainline holds and where it
  * is kept. A mainline publish that wrote nothing exits `EXIT_OPERATOR`.
- * `notes` are said beside `lines` when `lines` are a workflow's output.
+ *
+ * The read lays the mainline's record into this checkout's own layer, where
+ * the run it makes next lands on it, and says when the suite has no base to
+ * run from. `records`, when given, are folded over that base, as `variance
+ * journeys --suite` lands shards, before the read is told or the publish
+ * writes; a publish given none publishes the record this checkout holds.
  */
-export async function suiteShare(
-  root: string,
-  options: SuiteShareOptions,
-  here: Here = {},
-): Promise<{ readonly lines: readonly string[]; readonly notes?: readonly string[]; readonly exit: ExitCode }> {
+export async function suiteShare(root: string, options: SuiteShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
+    const based = options.records === undefined ? undefined : await baseAndFold(root, options.suite, options.records, here);
+    const folded = based === undefined ? [] : [based.said, ...based.notices, ...based.landed];
     const share = rootShare(selection.rootConfig(root));
     const { done, mainline } = await publishOnLine(root, options.suite, here, options);
-    const lines = describePublish(share === undefined ? {} : { share }, done);
+    const lines = [...folded, ...describePublish(share === undefined ? {} : { share }, done)];
     return { lines, exit: (mainline && !('published' in done)) || unkept(done) ? EXIT_OPERATOR : EXIT_CLEAN };
   }
-  const declared = declaredIn(selection.declaredSuites(root), options.suite);
-  // Asked by name, the remote is asked now, whatever was fetched a moment ago.
-  const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), fetch: 'always' });
-  const said =
-    read === undefined
-      ? `record of "${options.suite}": not given to the share; its "carry" in the root config is not "share".`
-      : `${'miss' in read ? mainlineMissed(read) : mainlineRead(read)}.`;
-  if (options.format !== 'github') return { lines: [said], exit: EXIT_CLEAN };
+  const { read, said, notices, landed } = await baseAndFold(root, options.suite, options.records, here);
+  if (options.format !== 'github') return { lines: [said, ...notices, ...landed], exit: EXIT_CLEAN };
   const commit = read === undefined || 'miss' in read ? '' : read.commit;
-  return { lines: [`commit=${commit}`], notes: [said], exit: EXIT_CLEAN };
+  const based = selection.keepsCases(selection.testCoverageFile(root, { suite: options.suite })) ? ['based=true'] : [];
+  const notes = [said, ...notices.map((line) => `::notice::${line}`), ...landed];
+  return { lines: [`commit=${commit}`, ...based], notes, exit: EXIT_CLEAN };
 }
 
-/** `variance share --suite <name>`, from the directory it was run in: the lines to `out`, and what is said beside them to `err`. */
-export async function runSuiteShare(
-  options: SuiteShareOptions,
-  streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
-  root: string = process.cwd(),
-  here: Here = {},
-): Promise<ExitCode> {
-  const done = await suiteShare(root, options, here);
-  streams.out(`${done.lines.join('\n')}\n`);
-  if (done.notes !== undefined) streams.err(`${done.notes.join('\n')}\n`);
-  return done.exit;
+/**
+ * The mainline's record of `suite`, laid into this checkout's own layer when
+ * it was read, and `records` folded over the layer: what was read, what it
+ * leaves the suite without, and what the fold landed. A suite's one record
+ * that its job laid over a base is put in place instead (`laidAsLeft`).
+ *
+ * A read this run already handed on, as `carry receive` lays one, stands
+ * without asking the line again; any other is asked now, whatever was fetched
+ * a moment ago. A record written under other probes than this build records
+ * under is passed over, as `layMainline` says why, and the suite has no base.
+ */
+async function baseAndFold(
+  root: string,
+  suite: string,
+  records: readonly string[] | undefined,
+  here: Here,
+): Promise<{ readonly read: MainlineBase | undefined; readonly said: string; readonly notices: readonly string[]; readonly landed: readonly string[] }> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const declared = declaredIn(selection.declaredSuites(root), suite);
+  const fetch = selection.mainlineHanded(root, suite) ? {} : { fetch: 'always' as const };
+  const read = await mainlineBase(root, declared, { ...(here.env === undefined ? {} : { env: here.env }), ...fetch });
+  const said =
+    read === undefined
+      ? `record of "${suite}": not given to the share; its "carry" in the root config is not "share".`
+      : `${'miss' in read ? mainlineMissed(read) : mainlineRead(read)}.`;
+  const laid = read === undefined || 'miss' in read ? undefined : await layMainline(root, read, instrumentationId());
+  const notices = laid !== undefined && 'passed' in laid ? [`${mainlinePassedOver(laid.passed)}. ${noBase(suite)}`] : [];
+  if (records !== undefined) {
+    const landed = records.length === 0
+      ? `${suite}: nothing was handed on, so the base stands.`
+      : (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite));
+    return { read, said, notices, landed: [landed] };
+  }
+  const own = selection.testCoverageFile(root, { suite });
+  if (notices.length > 0 || read === undefined || selection.keepsCases(own)) return { read, said, notices, landed: [] };
+  const unbased = (await recordHeld(own))
+    ? `The ${suite} base record was read without its case index, so ${suite} has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison.`
+    : `The mainline's ${suite} record was not read. ${noBase(suite)}`;
+  return { read, said, notices: [unbased], landed: [] };
 }
+
+/**
+ * A suite's one record whose runs record says it was laid over a base, put in
+ * place with every file named for it, as its job left them: a slice's record,
+ * laid over whatever base its job read, the mainline's or the last push's.
+ * Landed again, every test it holds from that base would be listed as run at
+ * its commit, and a part run would publish as a whole one. A shard's runs
+ * record names no base, since it ran in a cache of its own, and it is landed.
+ */
+async function laidAsLeft(root: string, suite: string, records: readonly string[]): Promise<string | undefined> {
+  const [record] = records;
+  if (record === undefined || records.length > 1) return undefined;
+  const selection = await import('@variance-authority/sense/test-selection');
+  if ((await selection.readCommitRuns(record).catch(() => undefined))?.over === undefined) return undefined;
+  const target = selection.testCoverageFile(root, { suite });
+  const [from, to] = [record, target].map((file) => `${basename(file).replace(/\.bin$/u, '')}.`);
+  await mkdir(dirname(target), { recursive: true });
+  await copyFile(record, target);
+  for (const name of await readdir(dirname(record))) {
+    const beside = name !== basename(record) && name.startsWith(from!) && !name.endsWith('.tmp');
+    if (beside) await copyFile(join(dirname(record), name), join(dirname(target), `${to}${name.slice(from!.length)}`));
+  }
+  return `${suite}: its record, laid over a base in its job, as that job left it.`;
+}
+
+const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;
 
 /** {@link suiteShare}'s lines alone. */
 export async function suiteShareLines(root: string, options: SuiteShareOptions, here: Here = {}): Promise<readonly string[]> {

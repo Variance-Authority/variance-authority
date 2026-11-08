@@ -181,7 +181,7 @@ export const USAGE = [
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
   'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
-  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
+  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared',

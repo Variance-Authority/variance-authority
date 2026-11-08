@@ -29,12 +29,13 @@ export async function dispatch(
   if (parsed.command === 'collect' && parsed.operation === 'merge') return (await import('./commands/collect-command.js')).runCollectMerge(parsed, streams);
   if (parsed.command === 'share' && parsed.suite === undefined && parsed.purgeOlderThan !== undefined)
     return (await import('./commands/share-purge.js')).runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
-  if (parsed.command === 'share' || parsed.command === 'journeys') {
+  if (parsed.command === 'share') {
+    const rooted = await (await import('./commands/share-suites.js')).runRootShare(parsed, streams);
+    if (rooted !== undefined) return rooted;
+  }
+  if (parsed.command === 'journeys') {
     const suite = parsed.suite ?? (await (await import('./commands/suite-record.js')).onlySuiteOf(parsed.config));
-    if (suite !== undefined)
-      return parsed.command === 'share'
-        ? (await import('./commands/suite-share.js')).runSuiteShare({ ...parsed, suite }, streams)
-        : (await import('./commands/journeys-command.js')).runJourneys({ ...parsed, suite }, streams);
+    if (suite !== undefined) return (await import('./commands/journeys-command.js')).runJourneys({ ...parsed, suite }, streams);
   }
 
   const renderless = parsed.command === 'doctor' && parsed.baselines !== true ? await loadRenderless(parsed.config) : undefined;
