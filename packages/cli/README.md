@@ -1225,7 +1225,7 @@ tests and the review: it runs your command between the carry that restores the
 mainline's record and the carry that saves what it ran, runs the same two
 commands with `--coverage`, puts the review on the pull request as one comment
 updated in place, and marks each changed function no case covered on the diff.
-[Its example](https://github.com/Variance-Authority/action#reviewing-a-project-with-only-unit-tests)
+[Review coverage on every pull request](https://variance-authority.dev/docs/review-coverage)
 has the whole job:
 
 ```yaml

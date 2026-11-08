@@ -61,12 +61,18 @@ steps:
   - uses: actions/checkout@v7
     with:
       fetch-depth: 0 # the review reads the change from where it starts
+  - uses: actions/setup-node@v7
+    with:
+      node-version: 24 # the CLI needs 22.15 or newer
   - run: npm ci
   - uses: Variance-Authority/action/review@v1
     with:
       suite: unit
       test: npx jest
 ```
+
+[Review coverage on every pull request](https://variance-authority.dev/docs/review-coverage)
+walks through the whole setup, from wrapping the tests to the badge.
 
 `test` is your command, with your package manager: `pnpm exec jest` or `yarn
 jest` work the same. The action restores the suite's record from the runner
@@ -194,7 +200,7 @@ Then put the badge in your `README.md`, with your owner, repository and branch
 in the URL:
 
 ```markdown
-[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
+[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2F<default-branch>%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
 ```
 
 The badge is for a public repository: raw.githubusercontent.com serves a private

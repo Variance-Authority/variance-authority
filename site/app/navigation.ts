@@ -64,6 +64,7 @@ export const NAVIGATION = [
     label: "Your test suite",
     items: [
       { href: "/docs/better-tests", label: "Make a test suite faster and more reliable", cluster: "Test coverage and scope" },
+      { href: "/docs/review-coverage", label: "Review coverage on every pull request", cluster: "Test coverage and scope" },
       { href: "/docs/own-fewer-tests", label: "Own fewer tests", cluster: "Test coverage and scope" },
       { href: "/docs/test-level-coverage", label: "Test-level coverage", cluster: "Test coverage and scope" },
       { href: "/docs/case-preconditions", label: "Record the state each test ran under", cluster: "Test coverage and scope" },
