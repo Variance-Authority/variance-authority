@@ -5,8 +5,11 @@ import { reads } from "../content/reads";
 import type { DocumentationIndex as Index } from "../navigation";
 import DocsPage from "./DocsPage";
 
-/** An index routes to existing documents using catalogue captions or their openings. */
-export default function DocumentationIndex({ index }: { readonly index: Index }) {
+/**
+ * An index routes to existing documents using catalogue captions or their openings.
+ * `exclude` is the reason the site's visual run leaves the index out, when it does.
+ */
+export default function DocumentationIndex({ index, exclude }: { readonly index: Index; readonly exclude?: string }) {
   return (
     <DocsPage
       contentKind="index"
@@ -16,7 +19,7 @@ export default function DocumentationIndex({ index }: { readonly index: Index })
       eyebrow="Documentation"
       toc={index.sections.map(({ label }) => ({ id: headingId(label), label }))}
     >
-      <div className="space-y-12">
+      <div className="space-y-12" data-variance-exclude={exclude}>
         {index.sections.map((section) => (
           <section key={section.label} aria-labelledby={headingId(section.label)}>
             <h2 id={headingId(section.label)} className="mb-5 text-xl font-semibold text-ivory">

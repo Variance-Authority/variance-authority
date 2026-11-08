@@ -9,6 +9,7 @@ import { documentationIndex } from "../navigation";
 import DocsPage from "./DocsPage";
 import DocumentationIndex from "./DocumentationIndex";
 import MarkdownDocument from "./MarkdownDocument";
+import AllPages from "../(docs)/docs/all/page";
 import { DocsSidebar, DocsMobileNavigation } from "./DocsNavigation";
 
 const route = vi.hoisted(() => ({ pathname: "/docs" }));
@@ -60,15 +61,18 @@ describe("what a page says it showed", () => {
   });
 
   // The site's run photographs the catalog and component pages; a page that
-  // renders a markdown document whole leaves the run by saying so.
-  it("excludes a markdown document from the photographed pages, and keeps a catalog page in", () => {
+  // renders a markdown document whole leaves the run by saying so, and so does
+  // the list of every page, which grows with the docs and repeats their openings.
+  it("excludes a markdown document and the list of every page from the photographed pages, and keeps a catalog page in", () => {
     const prose = documentOf(renderToStaticMarkup(
       <MarkdownDocument source={"# Tests\n\nLead.\n\nBody."} sourcePath="docs/tests.md" />,
     ));
+    const all = documentOf(renderToStaticMarkup(<AllPages />));
     const catalog = documentOf(renderToStaticMarkup(
-      <DocumentationIndex index={documentationIndex("/docs/all")!} />,
+      <DocumentationIndex index={documentationIndex("/docs/theory")!} />,
     ));
     expect(prose.querySelector("[data-variance-exclude]")?.getAttribute("data-variance-exclude")).toMatch(/markdown/);
+    expect(all.querySelector("[data-variance-exclude]")?.getAttribute("data-variance-exclude")).toMatch(/every page/);
     expect(catalog.querySelector("[data-variance-exclude]")).toBeNull();
   });
 
