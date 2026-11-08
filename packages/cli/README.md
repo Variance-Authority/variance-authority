@@ -2773,8 +2773,9 @@ means the slices overlapped, which only the operator can resolve.
 
 `report` exits `2`, before it merges, when the shards named are not every shard
 of one `--shard` count, and so does every command that reads shards' reports:
-`comment`, `ask`, `adjudicate` and `share --publish`. One shard's report alone
-is refused the same way. Each shard's part beside its report names its `k/n`, so
+`comment`, `ask`, `adjudicate` and `share --publish`. `report` over one
+shard's report alone exits `2` too, and so does a named report that is not
+there. Each shard's part beside its report names its `k/n`, so
 the count is never typed again: a shard that never uploaded, a shard given
 twice, or shards cut two ways are named in the refusal:
 

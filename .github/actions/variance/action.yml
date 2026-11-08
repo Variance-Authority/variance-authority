@@ -81,8 +81,9 @@ inputs:
       suite index and the subject costs with `share --publish`, and exits 0, 1
       or 2 as one run would. The count comes from the shards' own `k/n`, so a
       missing shard, a shard given twice or reports cut two ways exit 2, and
-      so does a line that names no file. The inputs that shape a run do
-      nothing beside it. Publishing needs `contents: write`.
+      so does a line that names no file. Leave the inputs that shape or accept
+      a run, such as `shard`, `flakes`, `tick-to-accept` and
+      `commit-baselines`, off beside it. Publishing needs `contents: write`.
     required: false
     default: ''
 

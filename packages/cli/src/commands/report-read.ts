@@ -66,18 +66,22 @@ async function shardsOf(
   config: Config,
 ): Promise<{ path: string; report: CliRunReport }[]> {
   const named = paths.length === 0 ? [config.report] : paths;
-  // Shards named are the suite, and a suite with a shard missing did not
-  // happen: its subjects would read as ones no shard observed.
-  if (paths.length > 0) await refuseMissingShards(paths);
-  return Promise.all(
+  const shards = await Promise.all(
     named.map(async (path) => {
       const report = await readCliRunReport(path).catch((error: unknown) => {
-        // Only the configured path: a shard the operator named and mistyped
-        // is their typo, and says so in the words the filesystem used.
-        const absent = paths.length === 0 && (error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
-        throw absent ? new AbsentReport(config, { cause: error }) : error;
+        if ((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT') throw error;
+        // A shard named and not there is a run that did not happen, as the
+        // configured one is: an artifact that never uploaded, or a glob that
+        // matched nothing and reached here as written.
+        throw paths.length === 0
+          ? new AbsentReport(config, { cause: error })
+          : new OperatorError(`${path} is not there: no run wrote it.`, { cause: error });
       });
       return { path, report };
     }),
   );
+  // Shards named are the suite, and a suite with a shard missing did not
+  // happen: its subjects would read as ones no shard observed.
+  if (paths.length > 0) await refuseMissingShards(paths);
+  return shards;
 }

@@ -14,9 +14,8 @@ import { settle } from '../settle.js';
 import { writeSuiteIndex } from '@variance-authority/report/file';
 import { UNCOVERED } from './merge.js';
 import { censusOf, examplesOf, lexiconReportFrom, type LexiconReading } from './compose.js';
-import { reportsFor } from './report-read.js';
 import { isSlice, suitePartPath, type CliRunReport } from './run-report.js';
-import { describePublish, publishKept, refusedUnkept, shareLines, suiteIndexPath, type Here } from './share.js';
+import { describePublish, publishKept, refusedUnkept, suiteIndexPath, type Here } from './share.js';
 
 /**
  * One shard's share of the suite index, and the fold that makes the index whole.
@@ -191,24 +190,28 @@ export function missingShards(parts: readonly SuitePart[]): string | undefined {
 }
 
 /**
+ * The part beside each report, or nothing where none was written. A part that
+ * is there and cannot be read is a file the operator has to replace, as a run
+ * report that does not parse is.
+ */
+async function partsBeside(reports: readonly string[]): Promise<(SuitePart | undefined)[]> {
+  const parts = await Promise.all(reports.map((path) => openSuitePart(suitePartPath(path))));
+  const torn = parts.find((part) => typeof part === 'string');
+  if (torn !== undefined) throw new OperatorError(`these reports are not one build: ${torn}.`);
+  return parts as (SuitePart | undefined)[];
+}
+
+/**
  * Refuse reports named as one suite that are not every shard of one count.
  *
  * The count is the parts' own `shard.total`, so the caller types none. Reports
  * whose parts name no shard — `--subjects` slices, or runs that wrote no part —
- * are left to the merge, which judges them by what they observed. Once any part
- * names a shard, a report with no part beside it is one the check cannot place.
+ * are left to the merge, which judges them by what they observed.
  */
 export async function refuseMissingShards(reports: readonly string[]): Promise<void> {
-  const found = await Promise.all(reports.map(async (path) => ({ path, part: await openSuitePart(suitePartPath(path)) })));
-  const torn = found.find(({ part }) => typeof part === 'string');
-  if (torn !== undefined) throw new OperatorError(`these reports are not one build: ${torn.part as string}.`);
-  const read = found as readonly { readonly path: string; readonly part: SuitePart | undefined }[];
-  if (!read.some(({ part }) => part?.shard !== undefined)) return;
-  const bare = read.find(({ part }) => part === undefined);
-  if (bare !== undefined) {
-    throw new OperatorError(`these reports are not one build: ${bare.path} has no ${suitePartPath(bare.path)} beside it.`);
-  }
-  const missing = missingShards(read.map(({ part }) => part!));
+  const parts = (await partsBeside(reports)).filter((part) => part !== undefined);
+  if (!parts.some((part) => part.shard !== undefined)) return;
+  const missing = missingShards(parts);
   if (missing !== undefined) throw new OperatorError(`these reports are not one build: ${missing}.`);
 }
 
@@ -264,15 +267,10 @@ export async function publishComposed(
     return ['nothing published: these reports do not cover the suite, so its census would be counted short.'];
   }
 
-  const parts: SuitePart[] = [];
-  for (const path of reports) {
-    const part = await openSuitePart(suitePartPath(path));
-    if (part === undefined) return [`nothing published: ${path} has no ${suitePartPath(path)} beside it.`];
-    // A part that is there and cannot be read is a file the operator has to
-    // replace, as a run report that does not parse is.
-    if (typeof part === 'string') throw new OperatorError(`nothing published: ${part}.`);
-    parts.push(part);
-  }
+  const beside = await partsBeside(reports);
+  const bare = beside.findIndex((part) => part === undefined);
+  if (bare !== -1) return [`nothing published: ${reports[bare]!} has no ${suitePartPath(reports[bare]!)} beside it.`];
+  const parts = beside as SuitePart[];
 
   const index = composeSuiteIndex(parts, commit);
   if (typeof index === 'string') return [`nothing published: ${index}.`];
@@ -286,24 +284,4 @@ export async function publishComposed(
   }
   const done = await publishKept(config, { commit, index }, { report: merged }, here);
   return refusedUnkept(done, [`suite index at ${commit}, composed from ${String(parts.length)} shard(s): ${path}`, ...describePublish(config, done)]);
-}
-
-/**
- * `variance share`: a lookup, one report published, or every shard's.
- *
- * Several reports are one sharded build, and they publish the index composed
- * from all of their parts and the costs of the merged report. One report
- * publishes itself, as an unsharded build does from its own run.
- */
-export async function shareOutput(
-  config: Config,
-  options: { readonly publish: boolean; readonly mainline?: string; readonly reports: readonly string[] },
-  here: Here = {},
-): Promise<readonly string[]> {
-  const [only, ...more] = options.reports;
-  if (!options.publish) {
-    return shareLines(config, { publish: false, ...(options.mainline === undefined ? {} : { mainline: options.mainline }) }, here);
-  }
-  if (more.length === 0) return shareLines(config, { publish: true, ...(only === undefined ? {} : { report: only }) }, here);
-  return publishComposed(config, options.reports, await reportsFor(options.reports, config), here);
 }

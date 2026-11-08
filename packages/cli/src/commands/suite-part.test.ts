@@ -15,11 +15,11 @@ import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
 import { suitePartPath, writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishedLine, suiteIndexPath } from './share.js';
+import { shareOutput } from './share-output.js';
 import {
   composeSuiteIndex,
   encodeSuitePart,
   openSuitePart,
-  shareOutput,
   suitePartOf,
   writeSuitePart,
   type SuitePart,
@@ -354,6 +354,22 @@ describe('report over the shards it is given', () => {
     expect(await report([await shard(1, 2), await shard(2, 2), await shard(3, 3)])).toEqual({
       code: EXIT_OPERATOR,
       err: 'these reports are not one build: the shards were cut 2 ways and 3 ways.',
+    });
+  });
+
+  it('refuses a shard named twice', async () => {
+    const one = await shard(1, 2);
+    expect(await report([one, await shard(2, 2), one])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: shard 1/2 was given twice.',
+    });
+  });
+
+  it('refuses a named report that is not there, by its path, as the run that did not happen', async () => {
+    const absent = join(home, 'shards', '*', 'run.json');
+    expect(await report([await shard(1, 2), absent])).toEqual({
+      code: EXIT_OPERATOR,
+      err: `${absent} is not there: no run wrote it.`,
     });
   });
 });

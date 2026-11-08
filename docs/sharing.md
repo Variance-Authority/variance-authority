@@ -400,8 +400,8 @@ in the job after the shards, with every shard's artifact downloaded under
 ```
 
 Given `reports`, the action runs nothing: it merges the shards' run reports,
-posts one docket, publishes, and exits 0, 1 or 2 for the whole suite. Each run
-report names its shard as `k/n`, so the step is never told the count, and a
+posts one docket, publishes, and exits 0, 1 or 2 for the whole suite. The part
+beside each run report names its shard as `k/n`, so the step is never told the count, and a
 missing shard, a shard named twice, or shards cut two ways exits 2 naming which.
 
 Outside the action, name every shard's run report to `share --publish`. It
@@ -421,9 +421,10 @@ kept the record at 3f1c9a2… beside the latest.
 
 Keep each part beside its run report when you move the reports between jobs.
 The command publishes nothing, and says why, when a run report
-has no part beside it, when a part cannot be read, when a shard is missing or
-named twice, when you name one shard's run report alone, and when the reports
-mix an unsharded run with shards or name two unsharded runs. A build that does
+has no part beside it, when you name one shard's run report alone, and when the
+reports mix an unsharded run with shards or name two unsharded runs. It exits 2
+when a part cannot be read, a shard is missing or named twice, or the shards
+were cut two ways. A build that does
 not shard publishes from its own run and needs no extra job.
 
 ## Looking up mainline's record
@@ -712,7 +713,8 @@ record](#a-suite-your-checkout-has-not-recorded).
   not parse;
 - `variance share --publish` over shard reports when a suite part beside one
   cannot be read, for example
-  `nothing published: shard-2/report.suite-part.json is not a suite part this version reads.`;
+  `these reports are not one build: shard-2/report.suite-part.json is not a suite part this version reads.`,
+  or when a shard is missing, named twice, or cut two ways;
 - a run report whose commit is not a commit id, for example
   `cannot publish suite-index-v2: "HEAD" is not a commit`;
 - a config the CLI refuses, such as `"mainlines": []`, a `share` carrier with no
