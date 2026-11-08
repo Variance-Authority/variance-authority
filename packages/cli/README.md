@@ -2489,25 +2489,13 @@ it reads through something else is not seen: a tool asking `git`, `watchman` or
 under `before`.
 
 It needs `strace`, so it records on Linux. On a Mac, start from Docker rather than
-waiting for CI: a clean clone of the commit, inside a Linux container and at the
-primary checkout's own path, records into the cache this checkout and its
-worktrees read, so `variance select` answers from the record at once. Commit
-first, since the clone builds the commit and not your edits:
-
-```bash
-root=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-docker run --rm -v "$root:/source:ro" \
-  -v "$root/node_modules/.cache/variance-authority:/cache" -e VARIANCE_AUTHORITY_CACHE=/cache \
-  -w "$root" node:22 bash -c "
-    apt-get update -qq && apt-get install -yqq strace
-    git config --global --add safe.directory '*'
-    git clone -q /source . && git checkout -q $(git rev-parse HEAD)
-    corepack enable && yarn install --immutable
-    yarn variance job --suite site-job -- yarn build"
-```
-
-The mount is the default cache; a config that names `cacheRoot` mounts that
-instead. The record holds what the Linux build read, which is what CI records too.
+waiting for CI: run the same commands in a Linux container with `strace`, in a
+clean clone of the commit placed at the primary checkout's own path, with that
+checkout's cache directory mounted and named by `VARIANCE_AUTHORITY_CACHE`. The
+cache is keyed by that path, so the record lands where the checkout and its
+worktrees read, and `variance select` answers from it at once. The clone builds
+the commit, not your edits, and the record holds what the Linux build read, as
+CI's does.
 
 Where `strace` is not installed the
 command still runs and its exit is the job's: a record from another commit stands,
