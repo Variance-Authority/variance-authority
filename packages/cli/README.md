@@ -2501,8 +2501,17 @@ it reads through something else is not seen: a tool asking `git`, `watchman` or
 `variance` for an answer opens their stores, not your files. Declare those files
 under `before`.
 
-It needs `strace`, so it records on Linux. Where `strace` is not installed the
-command still runs and its exit is the job's: a record from another commit stands,
+It needs `strace`, so it records on Linux. On a Mac, start from Docker rather than
+waiting for CI: run the same commands in a Linux container with `strace`, in a
+clean clone of the commit placed at the primary checkout's own path, with that
+checkout's cache directory mounted and named by `VARIANCE_AUTHORITY_CACHE`. A
+config that names `cacheRoot` wins over the variable, so there the mount goes
+where that `cacheRoot` resolves inside the container. The cache is keyed by the
+path, so the record lands where the checkout and its worktrees read, and
+`variance select` answers from it at once. The clone builds the commit, not your
+edits, and the record holds what the Linux build read, as CI's does.
+
+Where `strace` is not installed the command still runs and its exit is the job's: a record from another commit stands,
 and one this job wrote at this commit is held incomplete. Where `strace` cannot
 trace the command, or a file it read differs from the commit, the record is held
 incomplete. A job with an
