@@ -154,11 +154,17 @@ order; each golden path on the site links the page that owns each step.
   [covering](references/covering.md), then
   [case preconditions](references/case-preconditions.md), then
   [distill](references/distill.md).
-- **Orient in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
-  [orient](references/orient.md), then [workspace API](references/workspace-api.md).
+- **Orient a coding agent in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
+  ask through [the installed binary](#run-the-installed-binary) or
+  [MCP](references/mcp.md), then [orient](references/orient.md#orient), then
+  what is installed ([stack](references/orient.md#stack) and
+  [packages](references/workspace-api.md#packages)), then `variance layers`,
+  then [covering](references/covering.md) for each changed line.
 - **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
-  [ask a run](references/ask-a-run.md), then [story](references/story.md);
-  while the suite still runs, [live run](references/live-run.md).
+  [ask a run](references/ask-a-run.md), then [story](references/story.md),
+  then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
+  a run that has not ended starts at [live run](references/live-run.md), then
+  [interrogate the test](https://variance-authority.dev/agents/interrogate).
 
 ## Rules every answer shares
 
