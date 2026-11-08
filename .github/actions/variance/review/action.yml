@@ -210,8 +210,12 @@ runs:
         path: ${{ steps.carry.outputs.review }}
         include-hidden-files: true
 
+    # A review job that failed before it handed anything on is the red that
+    # says why; this job warns once and posts nothing rather than turn red too.
     - name: take the review
+      id: taken
       if: inputs.from != ''
+      continue-on-error: true
       uses: actions/download-artifact@v8
       with:
         name: ${{ inputs.from }}
@@ -219,8 +223,13 @@ runs:
 
     # A failed review stops before this step, so the last comment stands. The
     # marker is read from the file: the command stays the one place it is spelled.
+    - name: say the review job handed nothing on
+      if: inputs.from != '' && steps.taken.outcome != 'success'
+      shell: bash
+      run: echo '::warning title=review not posted::the review job handed nothing on, so the last comment stands.'
+
     - name: post the review
-      if: inputs.from != '' || inputs.comment != 'false'
+      if: steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false')
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -245,7 +254,7 @@ runs:
     # No figure, or a refused push, warns, and the last badge stands. Before the
     # failure on uncovered code, which would skip it.
     - name: publish the badge
-      if: (inputs.from != '' || (inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      if: (steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

@@ -119,7 +119,9 @@ describe('the review a project with only unit tests puts on the pull request', (
 
   it('fails on a review that did not happen, so the post never runs and the last comment stands', async () => {
     expect((await ran('review the change', { SINCE: 'abc123' }, 2)).status).toBe(2);
-    expect(stepNamed('post the review').if).toBe("inputs.from != '' || inputs.comment != 'false'");
+    expect(stepNamed('post the review').if).toBe(
+      "steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false')",
+    );
     expect(stepNamed('review the change')['continue-on-error']).toBeUndefined();
   });
 
@@ -194,6 +196,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       'count the regions run',
       'hand the review on',
       'take the review',
+      'say the review job handed nothing on',
       'post the review',
       'publish the badge',
       'what the host keeps',
@@ -213,7 +216,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
-      for (const name of order.slice(1, 5).concat(order.slice(11, 14), order.slice(16))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+      for (const name of order.slice(1, 5).concat(order.slice(12, 15), order.slice(17))) expect(stepNamed(name).if).toContain("inputs.test != ''");
     });
 
     it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {
@@ -379,7 +382,7 @@ describe('the review a project with only unit tests puts on the pull request', (
         "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       expect(stepNamed('publish the badge').if).toBe(
-        "(inputs.from != '' || (inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+        "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
       expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
@@ -400,15 +403,38 @@ describe('the review a project with only unit tests puts on the pull request', (
       for (const step of reading) expect(step.if).toContain("inputs.comment != 'false'");
       const handed = stepNamed('hand the review on');
       expect(handed.if).toBe("inputs.from == '' && inputs.comment == 'false'");
-      expect(handed.with).toMatchObject({ name: 'variance-review', path: '${{ steps.carry.outputs.review }}' });
+      expect(handed.with).toMatchObject({
+        name: 'variance-review',
+        path: '${{ steps.carry.outputs.review }}',
+        'include-hidden-files': true,
+      });
     });
 
     it('runs nothing of the pull request with `from`: it takes the review, posts it and pushes the badge', () => {
-      const running = steps().filter((step) => !(step.if ?? '').includes("inputs.from == ''"));
+      // A step whose every branch needs no `from` cannot run beside it.
+      const running = steps().filter((step) => !/^(\$\{\{ )?(!cancelled\(\) && )?inputs\.from == ''/u.test(step.if ?? ''));
 
-      expect(running.map((step) => step.name)).toEqual(['take the review', 'post the review', 'publish the badge']);
+      expect(running.map((step) => step.name)).toEqual([
+        'take the review',
+        'say the review job handed nothing on',
+        'post the review',
+        'publish the badge',
+      ]);
       for (const step of running) expect(text(step)).not.toMatch(/inputs\.(test|command)\b|actions\/checkout/u);
       expect(stepNamed('take the review').with).toMatchObject({ name: '${{ inputs.from }}' });
+    });
+
+    // A review job that failed uploads nothing: its red says why, and the
+    // download's own error would be a second red pointing elsewhere.
+    it('warns once and posts nothing when the review job handed nothing on', () => {
+      const taken = stepNamed('take the review');
+
+      expect(taken).toMatchObject({ id: 'taken', 'continue-on-error': true });
+      expect(stepNamed('say the review job handed nothing on').if).toBe(
+        "inputs.from != '' && steps.taken.outcome != 'success'",
+      );
+      for (const name of ['post the review', 'publish the badge'])
+        expect(stepNamed(name).if).toContain("steps.taken.outcome == 'success'");
     });
   });
 
