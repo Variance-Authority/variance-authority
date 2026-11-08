@@ -373,9 +373,10 @@ describe('the cleared comment', () => {
 
 describe('the projects the workflow observes', () => {
   it('says the tick is the review, because a project may share its name with a review service', async () => {
-    const lines = (await readFile(WORKFLOW, 'utf8')).split('\n');
-    const job = lines.slice(lines.findIndex((line) => line.includes('config: ${{ matrix.config }}')));
-    const accept = job.find((line) => line.includes('to-accept:'));
+    const workflow = parse(await readFile(WORKFLOW, 'utf8')) as {
+      jobs: { project: { steps: ReadonlyArray<{ uses?: string; with?: Record<string, string> }> } };
+    };
+    const accept = workflow.jobs.project.steps.find((step) => step.uses === './.github/actions/variance')?.with?.['to-accept'];
 
     expect(accept).toContain('That is the whole review: no review service holds this run.');
   });
@@ -402,7 +403,9 @@ describe('the lfs job', () => {
   it('commits the images on a dispatch with accept, and on no other run', async () => {
     const action = (await lfs()).steps.find((step) => step['uses'] === './.github/actions/variance');
 
-    expect(action?.['with']).toMatchObject({ 'commit-baselines': '${{ inputs.accept == true }}' });
+    expect(action?.['with']).toMatchObject({
+      'commit-baselines': '${{ inputs.accept == true && github.ref_name != github.event.repository.default_branch }}',
+    });
     expect(action?.['with']).not.toHaveProperty('accept');
     expect(action?.['with']).not.toHaveProperty('tick-to-accept');
     expect(action).not.toHaveProperty('if');

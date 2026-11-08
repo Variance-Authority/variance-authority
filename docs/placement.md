@@ -280,7 +280,7 @@ arrangements, and each puts the approval somewhere else:
 
 | baselines live in | config | a change is accepted by | the record of it is |
 |---|---|---|---|
-| the CI cache | `directory`, root ignored by git | a tick in the pull request's comment, a dispatch of the workflow with `accept`, and a push to `main` | the accepting run's log, which names who ticked or dispatched, and the push |
+| the CI cache | `directory`, root ignored by git | a tick in the pull request's comment, a dispatch of the workflow with `accept`, and a push to `main` | the accepting run's log, which names who ticked; the run's page, which names who dispatched; and the push |
 | git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, pushed by a dispatch with `accept` on that branch and reviewed with the code | the commit and the pull-request review |
 | a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
 
@@ -290,8 +290,8 @@ tick starts, and its `accept` input on a dispatch or a push to `main`. With git,
 its `commit-baselines` input pushes the accepted images to the pull request's
 branch on a `pull_request` event, or to the dispatched branch on a
 `workflow_dispatch`, and refuses any other run, such as a dispatch on a tag.
-The push needs a token whose push starts a workflow. With a review service, a `variance push` step after
-the action sends the run there. The
+The push needs a token whose push starts a workflow. With a review service, a
+`variance push` step after the action sends the run there. The
 [CLI reference](../packages/cli/README.md#run-it-in-ci) has the step.
 
 ### The CI cache
@@ -352,9 +352,9 @@ required `variance` check that is red blocks that merge.
 
 This job goes red on a change, green once a reviewer ticks the box, and compares
 the next push again. It needs three things in place first. The config you
-already run keeps its `subjects`, and sets these two keys. `carry` names who keeps the root between
-jobs, and `actions-cache` is the runner's cache, which the action restores before
-the run and saves after an accept:
+already run keeps its `subjects`, and sets these two keys. `carry` names who
+keeps the root between jobs, and `actions-cache` is the runner's cache, which the
+action restores before the run and saves after an accept:
 
 ```json
 "retention": "durable",
@@ -549,8 +549,9 @@ and in the job's steps:
 ```yaml
 - uses: actions/checkout@v7
   with:
+    repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
     ref: ${{ github.head_ref }} # the branch, not the merge commit; a dispatch is on its branch already
-    token: ${{ secrets.VARIANCE_PUSH_TOKEN }}
+    token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
 - uses: Variance-Authority/action@v1
   with:
     config: variance.config.json

@@ -36,7 +36,7 @@
 // The change is the pull request's whole, its merge commit against the base it
 // merges into, not the last push: a test-only push to a branch that already
 // changed a docs page still has that page to show. A push and a dispatch
-// always run, and so does a pull request whose change cannot be read. Not running is the claim that needs the evidence.
+// always run, and so does a pull request whose change cannot be read.
 //
 // Reads the source index `variance index` publishes; in CI that step runs first.
 // Writes `observe` and `because` to `$GITHUB_OUTPUT`. To ask it by hand about a

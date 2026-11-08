@@ -554,9 +554,10 @@ jobs:
     steps:
       # The pull request's own branch on its events, since the action refuses
       # to push a merge commit onto somebody's branch; the dispatched branch on
-      # a dispatch, which the accept commits to; `main` on a push. `lfs: false` is the default, spelled out: the image carries git-lfs
-      # with its filter off, so the checkout holds pointers, and the step after
-      # the build asserts what that checkout holds. The token is
+      # a dispatch, which the accept commits to; `main` on a push. `lfs:
+      # false` is the default, spelled out: the image carries git-lfs with its
+      # filter off, so the checkout holds pointers, and the step after the
+      # build asserts what that checkout holds. The token is
       # `VARIANCE_PUSH_TOKEN` when it is set, so the commit-back starts the run
       # that checks it; `GITHUB_TOKEN` otherwise, whose push lands and starts
       # nothing.
@@ -642,8 +643,10 @@ jobs:
           # the check was added to catch, and the next run is green. The run
           # itself stays red, because it found the change it then committed;
           # the push starts the run that checks the new commit, when
-          # `VARIANCE_PUSH_TOKEN` made it.
-          commit-baselines: ${{ inputs.accept == true }}
+          # `VARIANCE_PUSH_TOKEN` made it. Not on `main`: a dispatch there
+          # with `accept` records the cached checks' first baseline, and the
+          # images reach `main` with the merge of the branch that changed them.
+          commit-baselines: ${{ inputs.accept == true && github.ref_name != github.event.repository.default_branch }}
           exit-zero-on-changes: ${{ github.event_name == 'push' }}
 
       - if: always()
