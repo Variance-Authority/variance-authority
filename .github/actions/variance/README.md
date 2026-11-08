@@ -227,7 +227,6 @@ figure and hands it on with the review; the job with `from` pushes it, and needs
       - uses: Variance-Authority/action/review@v1
         with:
           from: variance-review
-          badge: 'true'
 ```
 
 Then put the badge in your `README.md`, with your owner, repository and branch

@@ -158,7 +158,7 @@ still in the job's summary, and the `post` job warns rather than fails.
 
 ## Require it, or show a badge
 
-Both are inputs of the action, and the badge is asked for in both jobs:
+Both are inputs of the `review` job's step:
 
 ```yaml
 - uses: Variance-Authority/action/review@v1 # in `review`
@@ -180,8 +180,7 @@ decision in it, so the figure is lower than line coverage. The action pushes it
 as one file to the git ref `refs/badge/<default-branch>`, replaced each time, for
 a [shields.io](https://shields.io/badges/endpoint-badge) endpoint badge. The
 `review` job counts the figure and hands it on; the `post` job pushes it, so give
-that one `badge: 'true'` beside `from` and `contents: write` beside
-`pull-requests: write`. Put the badge in your README
+that one `contents: write` beside `pull-requests: write`. Put the badge in your README
 with your owner, repository and default branch:
 
 ```markdown

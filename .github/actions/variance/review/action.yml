@@ -84,7 +84,8 @@ inputs:
       The artifact a job with `comment: 'false'` uploaded, `variance-review`.
       Given it, the action runs nothing of the pull request and needs no
       checkout and no CLI: it downloads the review, posts it, marks the diff,
-      and publishes the badge `badge` asks for.
+      and publishes the badge when the review job counted one. `comment`,
+      `badge` and every input that runs something are not read beside it.
     required: false
     default: ''
 
@@ -219,7 +220,7 @@ runs:
     # A failed review stops before this step, so the last comment stands. The
     # marker is read from the file: the command stays the one place it is spelled.
     - name: post the review
-      if: inputs.comment != 'false'
+      if: inputs.from != '' || inputs.comment != 'false'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -244,16 +245,18 @@ runs:
     # No figure, or a refused push, warns, and the last badge stands. Before the
     # failure on uncovered code, which would skip it.
     - name: publish the badge
-      if: inputs.comment != 'false' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      if: (inputs.from != '' || (inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         BRANCH: ${{ github.ref_name }}
+        FROM: ${{ inputs.from }}
         REVIEW: ${{ inputs.from != '' && format('{0}/variance-review', runner.temp) || steps.carry.outputs.review }}
       run: |
         set -uo pipefail
         skip() { echo "::warning title=badge not updated::$1, so the last badge stands."; exit 0; }
-        [ -s "$REVIEW/regions-run.json" ] || skip 'no figure was counted'
+        # Under `from`, the job that ran the tests decided: no figure handed on is no badge asked for.
+        if [ ! -s "$REVIEW/regions-run.json" ]; then [ -n "${FROM:-}" ] && exit 0; skip 'no figure was counted'; fi
         paths="$(mktemp)"
         echo regions-run.json > "$paths"
         # In a container job `github.action_path` is the runner's host path; the

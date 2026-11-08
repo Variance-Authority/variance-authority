@@ -119,7 +119,7 @@ describe('the review a project with only unit tests puts on the pull request', (
 
   it('fails on a review that did not happen, so the post never runs and the last comment stands', async () => {
     expect((await ran('review the change', { SINCE: 'abc123' }, 2)).status).toBe(2);
-    expect(stepNamed('post the review').if).toBe("inputs.comment != 'false'");
+    expect(stepNamed('post the review').if).toBe("inputs.from != '' || inputs.comment != 'false'");
     expect(stepNamed('review the change')['continue-on-error']).toBeUndefined();
   });
 
@@ -276,7 +276,6 @@ describe('the review a project with only unit tests puts on the pull request', (
       return commit;
     };
 
-    /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
     /** Counts the figure, as the job that ran the tests does, then publishes it from the same review directory. */
     async function badge(env: Readonly<Record<string, string>>, exit = 0) {
       const review = await mkdtemp(join(tmpdir(), 'variance-action-badge-review-'));
@@ -288,6 +287,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       }
     }
 
+    /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
     async function origin(): Promise<{ readonly env: Record<string, string>; readonly dir: string; readonly done: () => Promise<void> }> {
       const at = await mkdtemp(join(tmpdir(), 'variance-action-badge-'));
       const dir = join(at, 'origin.git');
@@ -348,6 +348,19 @@ describe('the review a project with only unit tests puts on the pull request', (
       }
     });
 
+    it('pushes nothing and says nothing under `from` when the job that ran the tests counted no figure', async () => {
+      const remote = await origin();
+      try {
+        const { status, printed } = await ran('publish the badge', { ...remote.env, FROM: 'variance-review' });
+
+        expect(status).toBe(0);
+        expect(printed).not.toContain('::warning');
+        expect(() => git(remote.dir, 'rev-parse', '--verify', '--quiet', 'refs/badge/main')).toThrow();
+      } finally {
+        await remote.done();
+      }
+    });
+
     it('warns and fails nothing when the push is refused', async () => {
       const remote = await origin();
       try {
@@ -366,7 +379,7 @@ describe('the review a project with only unit tests puts on the pull request', (
         "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       expect(stepNamed('publish the badge').if).toBe(
-        "inputs.comment != 'false' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+        "(inputs.from != '' || (inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
       expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
