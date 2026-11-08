@@ -187,7 +187,7 @@ async function read(context, pull, seen, { unit }) {
   for (const [name, run] of Object.entries(checks)) {
     annotations[name] = await gh('GET', `/repos/${repo}/check-runs/${run.id}/annotations?per_page=100`);
   }
-  const comments = await gh('GET', `/repos/${repo}/issues/${pull.number}/comments?per_page=100`);
+  const comments = await commentsOn(context, pull);
   const logs = {};
   if (unit && flow.unit !== undefined) {
     // An Actions check run's id is its job's id.
@@ -260,18 +260,27 @@ async function explained(waiting, why) {
   }
 }
 
+/** The comments on `pull`: the two the flow's pull requests carry fit one page. */
+function commentsOn({ repo, gh }, pull) {
+  return gh('GET', `/repos/${repo}/issues/${pull.number}/comments?per_page=100`);
+}
+
 const ACCEPTS = {
   // A reviewer's tick: the example's tick workflow runs the check again, and
   // that run saves what it renders into the pull request's cache scope.
   async tick(context, change, seen) {
     const { flow, repo, gh } = context;
-    const comments = await gh('GET', `/repos/${repo}/issues/${change.number}/comments?per_page=100`);
-    const docket = commentWith(comments, flow.marker);
+    const docket = commentWith(await commentsOn(context, change), flow.marker);
     const box = boxIn(docket?.body);
-    if (box === undefined || box.ticked || box.head !== change.sha) {
+    if (box === undefined) {
       throw new Refusal(
-        `the docket on #${change.number} carries no box to tick for ${change.sha}; ` +
-          `${repo}'s workflow sets the action's \`tick-to-accept\``,
+        `the docket on #${change.number} carries no box to tick; set the action's \`tick-to-accept\` in ${repo}'s workflow`,
+      );
+    }
+    if (box.ticked || box.head !== change.sha) {
+      throw new Refusal(
+        `the docket's box on #${change.number} is ${box.ticked ? 'ticked already' : `bound to ${box.head}`}, ` +
+          `not unticked on the change ${change.sha}`,
       );
     }
     await gh('PATCH', `/repos/${repo}/issues/comments/${docket.id}`, {

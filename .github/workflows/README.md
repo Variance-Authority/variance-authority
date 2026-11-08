@@ -318,7 +318,7 @@ renders, and a control that changes nothing any subject reaches. It proves:
 - after the tick on `example-storybook` and the dispatch on
   `example-static-site` the check is green, and on `example-static-site` the
   commit the dispatched run made touches only the changed page's baseline image
-  and its report, and the pair 0.15.0 left on `main` that it moves.
+  and its report, and the pair 0.15.0 left on `main` where it removes it.
 
 Each example also accepts on a push to `main`, and `example-storybook` on a
 dispatch with `accept` too. The loop drives neither: a push to `main` accepts

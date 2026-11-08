@@ -308,7 +308,7 @@ describe('what a consumer sees, held against the flow', () => {
     ]);
   });
 
-  it('finds the docket by the marker the release each example installs prints', () => {
+  it("declares the docket marker the CLI on this branch still prints for each 0.26.0 example", () => {
     expect(FLOWS.cache.marker).toBe(commentMarker('example-storybook'));
     expect(FLOWS.lfs.marker).toBe(commentMarker('example-static-site'));
   });

@@ -6,11 +6,6 @@
 // When an example changes what it renders, this file changes with it, in the
 // same review.
 
-/**
- * The marker the docket opens with, as `variance comment --marker` prints it for
- * `project`: keyed by project from 0.16.0, unkeyed `v1` before it.
- */
-const docket = (project) => `<!-- variance-authority: pr-docket v2 project=${project} -->`;
 
 /** The annotation the action's verdict step writes when the run returns 1. */
 export const NEEDS_REVIEW = 'variance found changes that need review';
@@ -36,7 +31,8 @@ export const FLOWS = {
     change: { path: 'src/Panel.jsx', from: 'padding: 20,', to: 'padding: 28,' },
     checks: ['variance', 'tests'],
     gate: 'variance',
-    marker: docket('example-storybook'),
+    // The docket's marker as 0.26.0's `variance comment --marker` prints it.
+    marker: '<!-- variance-authority: pr-docket v2 project=example-storybook -->',
     docket: ['panel--settings', 'src/Panel.jsx'],
     unit: {
       check: 'tests',
@@ -66,7 +62,7 @@ export const FLOWS = {
     change: { path: 'site/pricing.html', from: '$12 per seat', to: '$14 per seat' },
     checks: ['variance'],
     gate: 'variance',
-    marker: docket('example-static-site'),
+    marker: '<!-- variance-authority: pr-docket v2 project=example-static-site -->',
     docket: ['pricing'],
     accept: 'dispatch',
     dispatch: { workflow: 'variance.yml', inputs: { accept: 'true' } },
@@ -75,8 +71,8 @@ export const FLOWS = {
       message: 'chore(variance): regenerate baselines',
       // The layout 0.26.0 writes: `{title}/{name}-{engine}`.
       files: [/^baselines\/pricing-chromium\.webp$/, /^baselines\/pricing-chromium\.json$/],
-      // The pair 0.15.0 left on `main`, which an accept may remove; this goes
-      // once an accept of pricing reaches `main`.
+      // The pair 0.15.0 left on `main`, which an accept may remove.
+      // TODO: drop once an accept of pricing reaches the example's `main`.
       removes: [/^baselines\/v1-[0-9a-f]{32}\/pricing\.(?:png|json)$/],
     },
     // The accept commit is pushed with the example's VARIANCE_PUSH_TOKEN; a
