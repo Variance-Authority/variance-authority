@@ -43,6 +43,15 @@ yarn start       # wrangler dev against dist/server/wrangler.json; build first
 yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 ```
 
+A release deploys the site itself: the `site` job in
+[`release.yml`](../.github/workflows/release.yml) builds and deploys it from
+the commit it just published, so the package pages are the READMEs on npm and
+not those on a `main` that may have moved past them. It needs
+`CLOUDFLARE_API_TOKEN` on the `site` environment. Pressing the release button
+again publishes nothing new and deploys again, which is how a fix to a page
+reaches the site between releases; `yarn deploy` by hand is for a site nobody
+has released.
+
 ## What the visual review watches
 
 Every page `sitemap.xml` lists is a subject of the `site` check in
