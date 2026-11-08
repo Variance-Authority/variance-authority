@@ -10,24 +10,33 @@ Your workflow names your test command and one action.
 
 The comment reads which functions each test ran, which your tests record when
 their configuration is wrapped. Install the recorder and the command line that
-reads what it records:
+reads what it records, with your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/sense @variance-authority/cli
+pnpm add --save-dev @variance-authority/sense @variance-authority/cli
+yarn add --dev @variance-authority/sense @variance-authority/cli
 ```
 
-Wrap your Jest configuration once:
+Keep the Jest configuration you have and wrap what it exports. Jest refuses two
+configuration files, so do not add a second one beside it. A `jest.config.js`
+in CommonJS:
 
 ```js
-// jest.config.mjs
-import { withTestSelection } from '@variance-authority/sense/jest';
+// jest.config.js
+const { withTestSelection } = require('@variance-authority/sense/jest');
 
-export default withTestSelection({
+module.exports = withTestSelection({
+  preset: 'ts-jest',
   testEnvironment: 'node',
 });
 ```
 
-For Vitest, wrap `defineConfig` the same way:
+A `preset` stays as it is: Jest still reads it, and nothing from it is copied
+into the wrap. In a `jest.config.mjs` or `jest.config.ts`, `import {
+withTestSelection } from '@variance-authority/sense/jest'` and wrap the default
+export the same way. For Vitest, wrap `defineConfig` in the configuration you
+have:
 
 ```ts
 // vitest.config.ts
@@ -37,10 +46,9 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 export default withTestSelection(defineConfig({ test: {} }));
 ```
 
-Then name the tests in
-`variance.config.json` at the repository root. `unit` is the name the workflow
-uses for them, and `"carry": "actions-cache"` keeps what they ran in the GitHub
-Actions cache between runs:
+Then name the tests in `variance.config.json` at the repository root. `unit` is
+the name the workflow uses for them, and `"carry": "actions-cache"` keeps what
+they ran in the GitHub Actions cache between runs:
 
 ```json
 {
@@ -48,9 +56,24 @@ Actions cache between runs:
 }
 ```
 
-The review writes its comment under `.variance/` in the checkout. Add
-`.variance/` to your `.gitignore`, so a review run on your own machine is never
-committed.
+In CI the action keeps its working files, the review and what each push ran,
+under `.variance/` in the checkout. Add `.variance/` to your `.gitignore`, so
+those files are never committed from a checkout where they were made.
+
+## Check it on your machine
+
+Run your tests once with your usual command, then, on a branch with a change,
+ask for the review the comment will hold:
+
+```bash
+npx variance review --since <default-branch> --suite unit --coverage
+```
+
+It lists the functions the branch changed and says which of them a test ran.
+Once the wrap is in effect, a changed function one of your tests calls shows as
+run; if none does, the tests ran without it. No command
+yet confirms each declared suite and its record in one line; until one does,
+this review is the check.
 
 ## Add the job
 
@@ -60,7 +83,7 @@ This is the whole workflow, for npm and Jest:
 name: tests
 on:
   push:
-    branches: [main]
+    branches: [main] # your default branch: master, if that is its name
   pull_request:
 
 jobs:
@@ -84,9 +107,10 @@ jobs:
 ```
 
 The action runs `test`, reviews what it ran, and saves the record: which
-functions each test ran. A push to `main` saves the record every pull request compares with. A pull request's
-push saves what the next push of the same pull request reads. A failing test
-still gets its comment, then fails the job with the test's exit code.
+functions each test ran. A push to the default branch saves the record every
+pull request compares with. A pull request's push saves what the next push of
+the same pull request reads. A failing test still gets its comment, then fails
+the job with the test's exit code.
 
 `test` and the install step are your own; the action installs nothing. With
 pnpm, run `pnpm install --frozen-lockfile` and set `test: pnpm exec vitest run`;
@@ -95,9 +119,9 @@ with Yarn, `yarn install --immutable` (`--frozen-lockfile` on Yarn 1) and
 
 ## The first runs
 
-Until `main` has run the job once, the comment says it has nothing on `main` to
-compare with, and still names the changed functions this run's tests did not
-reach. Merge the workflow, let `main` run it, and the next pull request
+Until your default branch has run the job once, the comment says it has
+nothing to compare with, and still names the changed functions this run's tests did not
+reach. Merge the workflow, let the default branch run it, and the next pull request
 compares with that record. On a push there is no pull request, so the review
 goes to the job's summary.
 
