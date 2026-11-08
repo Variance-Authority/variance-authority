@@ -434,6 +434,14 @@ describe('a start point is grounded in a file, at whatever width the caller has'
     expect(scopeOf(APP, 'app/*', APP_TREE).refused).toContain('not found');
   });
 
+  it('a folder said without its trailing slash is the folder', () => {
+    expect([...scopeOf(APP, 'app/about-us', APP_TREE).subjects].sort()).toEqual([
+      'story:about-layout',
+      'story:about-page',
+      'story:about-team',
+    ]);
+  });
+
   it('the folder alone is everything underneath it', () => {
     expect([...scopeOf(APP, 'app/about-us/', APP_TREE).subjects].sort()).toEqual([
       'story:about-layout',

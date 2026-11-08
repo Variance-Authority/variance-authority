@@ -191,6 +191,17 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
         files.add(file);
         here = true;
       }
+      // A file-width path that is no file is the folder of that name, said
+      // without its slash: the one repair, and only when the tree holds no
+      // file by that name, so it never turns a file into a folder.
+      if (!here && width === 'file') {
+        const folder = at(`${said}/`, 'under');
+        for (const file of tree.files) {
+          if (!folder(file)) continue;
+          files.add(file);
+          here = true;
+        }
+      }
     }
     if (here) found.push(term);
     else unmatched.push(term);
