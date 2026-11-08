@@ -240,31 +240,59 @@ export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EX
   const needsReview = report.observations.some(
     (observation) =>
       (!GREEN.includes(observation.verdict) && observation.verdict !== 'new') ||
-      (observation.unstable !== undefined && observation.unstable.absorbed === undefined) ||
-      (observation.diagnostics ?? []).some((diagnostic) => diagnostic.severity === 'error'),
+      (observation.unstable !== undefined && observation.unstable.absorbed === undefined),
   );
-  if (needsReview) return EXIT_REVIEW;
+  return needsReview || holeIn(report) ? EXIT_REVIEW : EXIT_CLEAN;
+}
 
+/**
+ * Whether the run could not account for every subject: a `failed` entry in
+ * {@link ReviewableReport.notObserved}, a report silent on what it skipped, or
+ * an `error` diagnostic. The part of {@link exitFor}'s `1` that is not a change.
+ */
+export function holeIn(report: ReviewableReport): boolean {
   // Undefined rather than empty: the writer never said. See the field's note.
-  if (report.notObserved === undefined) return EXIT_REVIEW;
-
-  return report.notObserved.some((entry) => entry.kind === 'failed') ? EXIT_REVIEW : EXIT_CLEAN;
+  if (report.notObserved === undefined) return true;
+  if (report.notObserved.some((entry) => entry.kind === 'failed')) return true;
+  return report.observations.some((observation) =>
+    (observation.diagnostics ?? []).some((diagnostic) => diagnostic.severity === 'error'),
+  );
 }
 
 /**
  * `--exit-zero-on-changes`: a check that reports without gating the merge.
  *
- * Narrower than `|| true`, which also swallows exit 2 and turns a job that
- * observed nothing into a green tick, the collapse ADR-0017 prevents. Exit 1
- * becomes 0, exit 2 stays 2, and the stderr line is not optional: a silent
- * suppression reads in a log like a run that found nothing.
+ * `|| true` is worse than it looks: it swallows exit 2 with exit 1, so a job
+ * whose browser never launched becomes a green tick — the collapse ADR-0017
+ * exists to prevent. So the mapping is narrow: a change becomes `0`, a subject
+ * the run could not observe stays `1`, `2` stays `2`, and the line to stderr is
+ * not optional. On GitHub Actions the change line is a `::warning::`, because a
+ * `0` no longer carries it to the check.
  */
 export function sideJob(
   code: ExitCode,
+  hole: boolean,
   suppress: boolean,
   streams: { err(text: string): void },
+  onGitHub: boolean,
 ): ExitCode {
   if (!suppress || code !== EXIT_REVIEW) return code;
-  streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
+  if (hole) {
+    streams.err(
+      'a subject could not be observed, an observation errored, or the report does not say what it skipped; --exit-zero-on-changes still exits 1.\n',
+    );
+    return EXIT_REVIEW;
+  }
+  streams.err(`${onGitHub ? '::warning::' : ''}changes need review; --exit-zero-on-changes exits 0, not 1.\n`);
   return EXIT_CLEAN;
+}
+
+/** Whether this process is a GitHub Actions step, which reads `::warning::` lines. */
+export function onGitHub(): boolean {
+  return process.env.GITHUB_ACTIONS === 'true';
+}
+
+/** A report's code, with `--exit-zero-on-changes` applied as {@link sideJob} draws it. */
+export function reported(report: ReviewableReport, suppress: boolean, streams: { err(text: string): void }): ExitCode {
+  return sideJob(exitFor(report), holeIn(report), suppress, streams, onGitHub());
 }

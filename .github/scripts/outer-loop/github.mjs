@@ -1,9 +1,10 @@
 // The one door to GitHub and to the review service, and the one way to wait.
 //
-// `fetch` and nothing else, like `variance-accept.mjs`: a dependency here would
-// be a third party between the driver and the thing it is testing. Every
-// request names the secret it bears and the permission it needs, so a refusal
-// arrives as a sentence about a credential rather than as a status code.
+// `fetch` and nothing else, like the action's `post-comment.mjs`: a dependency
+// here would be a third party between the driver and the thing it is testing.
+// Every request names the secret it bears and the permission it needs, so a
+// refusal arrives as a sentence about a credential rather than as a status
+// code.
 
 const API_VERSION = '2022-11-28';
 

@@ -6,8 +6,8 @@ action does the three things a command line cannot do for itself:
 
 - It posts the result to the pull request as one comment, updated in place.
 - It restores and saves the baselines the Actions cache carries.
-- It accepts a change on a run a person asked for, such as one a label or a
-  [tick](#accepting-with-a-tick) started.
+- It accepts a change on a run a person asked for, such as a dispatch or the
+  run a [tick](#accepting-with-a-tick) starts.
 
 A project with only unit tests has nothing to observe, and
 [`Variance-Authority/action/review`](#reviewing-a-project-with-only-unit-tests)
@@ -260,7 +260,7 @@ jobs:
 The person needs write access, and the box must go from unticked to ticked on the
 head the pull request is still at. Anything else accepts nothing and says why in
 that job's log. The tick waits for a run still going, then reruns it: the rerun
-renders that commit again and accepts what it renders, as the label's run does.
+renders that commit again and accepts what it renders, as `accept: true` would.
 The approval row names the person where a history is kept, as `by`. The rerun's
 intent ends `accepted: ticked by @them`, and its log names them; the name in the
 comment lasts until the next run rewrites it, and the comment's edit history keeps
