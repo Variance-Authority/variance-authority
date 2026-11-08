@@ -170,7 +170,7 @@ variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
+variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -3279,9 +3279,27 @@ mainline has none, and `based=true` when the record it laid keeps its cases, so
 a selection can start from it; the `record of "<name>":` line goes to stderr.
 Without `--suite` each line is keyed by its suite, `commit-<name>=`. A pull
 request merged with that commit, rather than with the base tip, is measured
-from the record alone:
+from the record alone, and `variance carry merge <commit>` makes that merge:
+
+```yaml
+- id: merge
+  if: github.event_name == 'pull_request'
+  env:
+    COMMIT: ${{ steps.record.outputs.commit }}
+  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+It reads the head from the pull request's event, or from `--head <sha>`, and
+stands the checkout on the head merged into `<commit>`, the same commit in
+every clone. Under `--format github` it prints `merged=true` and
+`checkout=<sha>`, or `merged=false` when `<commit>` is empty or, under
+`--on-conflict stay`, the head conflicts with it. A conflict fails the step
+without `stay`; a merge stopped by anything else always fails it, and every stop
+leaves the checkout where it was. A job that passes `--expect <sha>`, the
+`checkout` another job made, fails when its own merge differs. A checkout with
+changes nobody committed is refused before anything moves.
 [Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
-has the steps.
+has the steps around it.
 
 With a config, `--format github` also prints `project=<segment>`: the config's
 `project` as one path segment that a git ref and an Actions artifact name both

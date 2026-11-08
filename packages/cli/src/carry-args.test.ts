@@ -8,8 +8,8 @@ describe('the arguments', () => {
     const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format']));
 
     expect(parse('save', '--format', 'github')).toEqual({ command: 'carry', direction: 'save', format: 'github' });
-    expect(() => parse()).toThrow('`carry` needs a direction: `restore` before the run, `save` after it, `take` and `keep` for a pull request\'s next push, or `hand` and `receive` for a run\'s other jobs');
-    expect(() => parse('upload')).toThrow('`carry` restores, saves, takes, keeps, hands or receives, not `upload`');
+    expect(() => parse()).toThrow('`carry` needs a direction: `restore` before the run, `save` after it, `take` and `keep` for a pull request\'s next push, `hand` and `receive` for a run\'s other jobs, or `merge` for a pull request\'s head');
+    expect(() => parse('upload')).toThrow('`carry` restores, saves, takes, keeps, hands, receives or merges, not `upload`');
     expect(parse('take')).toEqual({ command: 'carry', direction: 'take', format: 'text' });
     expect(parse('keep', 'here')).toEqual({ command: 'carry', direction: 'keep', dir: resolve('here'), format: 'text' });
     expect(() => parse('take', 'here', 'there')).toThrow('`carry take` takes no other argument, and was given `there`');
@@ -25,5 +25,27 @@ describe('the arguments', () => {
     expect(() => parse('hand')).toThrow('`carry hand` needs the directory the host moves between jobs');
     expect(() => parse('receive')).toThrow('`carry receive` needs the directory the host moves between jobs');
     expect(() => parse('receive', 'here', 'there')).toThrow('`carry receive` takes no other argument, and was given `there`');
+  });
+
+  it("name the record's commit a pull request's head is merged with, empty when there is none", () => {
+    const parse = (...argv: string[]) =>
+      parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format', '--head', '--on-conflict', '--expect'], ''));
+
+    expect(parse('merge', 'abc', '--head', 'def', '--on-conflict', 'stay', '--expect', '123', '--format', 'github')).toEqual({
+      command: 'carry',
+      direction: 'merge',
+      commit: 'abc',
+      head: 'def',
+      onConflict: 'stay',
+      expect: '123',
+      format: 'github',
+    });
+    // A workflow output that is empty: nothing to merge with, no head named, nothing to expect.
+    expect(parse('merge', '', '--head', '', '--expect', '')).toEqual({ command: 'carry', direction: 'merge', commit: '', onConflict: 'fail', format: 'text' });
+    expect(() => parse('merge')).toThrow("`carry merge` needs the record's commit, empty when the mainline has none");
+    expect(() => parse('merge', 'abc', 'def')).toThrow('`carry merge` takes no other argument, and was given `def`');
+    expect(() => parse('merge', 'abc', '--on-conflict', 'skip')).toThrow('--on-conflict must be stay or fail, not `skip`');
+    expect(() => parse('save', '--head', 'def')).toThrow('`--head` belongs to `carry merge`, not `carry save`');
+    expect(() => parse('hand', 'here', '--expect', '123')).toThrow('`--expect` belongs to `carry merge`, not `carry hand`');
   });
 });

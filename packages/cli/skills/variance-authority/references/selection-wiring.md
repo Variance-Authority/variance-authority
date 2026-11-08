@@ -181,6 +181,25 @@ replaces the record in the cache and says so in one line. A run fails rather
 than lay itself over a `coverageFile` made under another `mode`: give it a new
 one, or delete the old record.
 
+## Measure a pull request from the record's commit
+
+A host checks a pull request out as its head merged into the base tip, and the
+mainline's record was made at an older commit, so the diff `select` measures
+holds what the base gained since too. Merge the head with the record's commit
+instead, before the install:
+
+```bash
+npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+`$COMMIT` is the `commit=` that `variance share --suite <name> --format github`
+or `variance carry hand <dir>` printed. The head comes from the pull request's
+event, or from `--head <sha>`. The step prints `merged=true` and
+`checkout=<sha>`, or `merged=false` when the commit is empty or the head
+conflicts with it under `stay`; install again after a merge. Every clone makes
+the same merge, and another job of the run passes `--expect <checkout>` to fail
+when its own differs.
+
 ## What selection refuses to narrow
 
 Selection over-includes on purpose, because skipping a test that should have run
