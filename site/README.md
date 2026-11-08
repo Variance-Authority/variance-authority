@@ -43,6 +43,10 @@ yarn start       # wrangler dev against dist/server/wrangler.json; build first
 yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 ```
 
+A release deploys the site itself, from the commit it published: the `site`
+job in [`release.yml`](../.github/workflows/release.yml), which needs
+`CLOUDFLARE_API_TOKEN` on the `site` environment.
+
 ## What the visual review watches
 
 Every page `sitemap.xml` lists is a subject of the `site` check in
