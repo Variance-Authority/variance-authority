@@ -30,6 +30,7 @@ import { createDirectoryLineCell, createGitLineCell, gitDescends } from '@varian
 import { countPast } from './clone-cut.js';
 import type { Config } from './config.js';
 import { ConfigError } from './config-values.js';
+import { onGitHub } from './exit.js';
 import { shareRoot } from './commands/cache-of.js';
 
 /** The environment a CI host describes the run in. `process.env` unless a caller says otherwise. */
@@ -389,23 +390,29 @@ async function remoteOfClone(
   const url = (await git(['remote', 'get-url', remote], cwd))?.trim();
   if (url === undefined || url === '') return { kind: 'unreachable', detail: `this clone has no remote named ${remote}` };
   const cloned = (await git(['config', '--get-urlmatch', 'http.extraheader', url], cwd))?.trim();
-  const header = cloned !== undefined && cloned !== '' ? cloned : tokenHeader(url, process.env);
+  const header = cloned !== undefined && cloned !== '' ? cloned : await tokenHeader(url, cwd);
   return { url, gitDir: gitDirOf(config, url), ...(header !== undefined ? { extraHeader: header } : {}) };
 }
 
 /**
  * The header `actions/checkout` writes for the step's `GITHUB_TOKEN`, on a
- * GitHub Actions run whose `url` is on the host `GITHUB_SERVER_URL` names. A
- * token is never offered to another host, nor off Actions, where a shell's
+ * GitHub Actions step, when `url` is one git would send a header scoped to
+ * `GITHUB_SERVER_URL` to, as `actions/checkout` scopes it. Git's own URL
+ * matching answers that, asked with a placeholder, never the token. A token is
+ * never offered to another host, nor off Actions, where a shell's
  * `GITHUB_TOKEN` is for `gh` and git asks its own credential helper.
  */
-function tokenHeader(url: string, env: Env): string | undefined {
-  const token = env['GITHUB_TOKEN'];
-  const server = env['GITHUB_SERVER_URL']?.replace(/\/+$/u, '');
-  if (env['GITHUB_ACTIONS'] !== 'true' || token === undefined || token === '' || server === undefined || server === '') return undefined;
-  if (!url.startsWith(`${server}/`)) return undefined;
+async function tokenHeader(url: string, cwd: string): Promise<string | undefined> {
+  const token = process.env['GITHUB_TOKEN'];
+  const server = process.env['GITHUB_SERVER_URL']?.replace(/\/+$/u, '');
+  if (!onGitHub() || token === undefined || token === '' || server === undefined || server === '') return undefined;
+  const scoped = await git(['-c', `http.${server}/.extraheader=${SCOPE_PROBE}`, 'config', '--get-urlmatch', 'http.extraheader', url], cwd);
+  if (scoped?.trim() !== SCOPE_PROBE) return undefined;
   return `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
 }
+
+/** What git is asked to match in place of the header, so the token is never on a command line. */
+const SCOPE_PROBE = 'variance-scope-probe';
 
 /** One bare repository per remote URL, so two checkouts of one repository share their fetches. */
 function gitDirOf(config: Pick<Config, 'cacheRoot'>, url: string): string {
