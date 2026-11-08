@@ -438,8 +438,8 @@ mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -
 Without the package, or for an agent these directories do not reach, `npx skills
 add https://variance-authority.dev` installs both from the site's skills index,
 `/.well-known/agent-skills/index.json`.
-Those are the copies from the site's latest deploy, which a release makes from
-the commit it published, so they do not follow the version you have installed.
+Those are the copies from the site's latest deploy: they do not follow the
+version you have installed.
 `variance-testing` links into `variance-authority`, so install the two together.
 
 An agent opens a skill only when its description matches the task, and it reads

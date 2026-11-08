@@ -524,11 +524,10 @@ jobs:
   # built in, so it says what npm carries exactly when it is built from this
   # commit, and from nothing else: `main` can run ahead of the registry, and an
   # agent that adopts from a page describing an unreleased version configures
-  # for behaviour it did not install. Until this job, nothing deployed it, and
-  # 0.27.0 went out with the site still telling adopters to copy ts-jest's
-  # transform by hand. After the publish, because npm cannot be taken back and
-  # a deploy can: a failed one is repaired by re-running this job, or by pressing
-  # the button again, which republishes nothing.
+  # for behaviour it did not install. After the publish, because npm cannot be
+  # taken back and a deploy can: a failed one is repaired by re-running this
+  # job, or by pressing the button again, which republishes nothing and which
+  # `green` refuses while a changeset waits for a version.
   #
   # The `site` environment holds `CLOUDFLARE_API_TOKEN`, a token allowed to edit
   # Workers on the account `site/wrangler.jsonc` names.

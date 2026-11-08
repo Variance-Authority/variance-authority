@@ -43,15 +43,9 @@ yarn start       # wrangler dev against dist/server/wrangler.json; build first
 yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 ```
 
-A release deploys the site itself: the `site` job in
-[`release.yml`](../.github/workflows/release.yml) builds and deploys it from
-the commit it just published, so the package pages are the READMEs on npm and
-not those on a `main` that may have moved past them. It needs
-`CLOUDFLARE_API_TOKEN` on the `site` environment. Pressing the release button
-again publishes nothing new and deploys again, and it is refused while a
-changeset waits for a version, so it cannot deploy pages ahead of npm: a page
-fix that carries `yarn changeset --empty` reaches the site that way between
-releases. Deploy by hand only to repair the site when no release can run.
+A release deploys the site itself, from the commit it published: the `site`
+job in [`release.yml`](../.github/workflows/release.yml), which needs
+`CLOUDFLARE_API_TOKEN` on the `site` environment.
 
 ## What the visual review watches
 
