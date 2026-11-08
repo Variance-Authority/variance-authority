@@ -19,6 +19,8 @@
 #   checkout.
 # - build-essential and curl, for the native scanner, built on this machine by
 #   `.github/actions/build`, which installs Rust through rustup.
+# - strace, for `variance job`, which records what the site's job read and wrote
+#   from under the job, whatever language each of its commands is written in.
 #
 # The image is published by `.github/workflows/ci-image.yml` under this file's
 # git blob id, so a workflow names the image by the content it was built from,
@@ -26,7 +28,7 @@
 FROM mcr.microsoft.com/playwright:v1.64.1-noble
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git-lfs build-essential curl ca-certificates \
+  && apt-get install -y --no-install-recommends git-lfs build-essential curl ca-certificates strace \
   && rm -rf /var/lib/apt/lists/* \
   && git lfs uninstall --system \
   && ! git config --system --get-regexp '^filter\.lfs\.'

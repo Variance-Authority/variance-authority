@@ -328,7 +328,7 @@ kind, under `suites` in the root `variance.config.json`:
 { "suites": { "unit": { "kind": "unit" }, "stories": { "kind": "visual" } } }
 ```
 
-The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
+The kind is one of `unit`, `integration`, `e2e`, `visual` and `job`. Each declared
 suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
 seam takes a `suite` option that names the one it runs, as in
 `withTestSelection(config, { suite: 'unit' })`. A run under one suite never
@@ -2712,6 +2712,7 @@ same under every host:
 | `@variance-authority/sense/runner` | recording from a runner with no seam: opening and folding the run, instrumenting what it loads, and bracketing each test file and case | Node 22.15 or newer, and one test file at a time per process |
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
 | `@variance-authority/sense/cache-root` | `cacheRootFor`, the checkout's cache directory, without loading the parser and resolver | a checkout |
+| `@variance-authority/sense/checkout-path` | `checkoutPath`, a path asked about spelled the way the recording spells it, or why it is outside the checkout, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/side-effects` | `declaresSideEffects(files)`, which of these modules their package's `sideEffects` names, the reading test selection uses | absolute paths |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |

@@ -1201,22 +1201,21 @@ received.
       - id: record
         if: github.event_name == 'pull_request'
         run: npx variance share --suite unit --format github >> "$GITHUB_OUTPUT"
-      - name: merge with the record's commit
-        if: steps.record.outputs.commit != ''
+      - id: merge
+        if: github.event_name == 'pull_request'
         env:
           COMMIT: ${{ steps.record.outputs.commit }}
-          HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
-        run: |
-          later=$(git show -s --format=%ct "$COMMIT" "$HEAD_COMMIT" | sort -n | tail -n 1)
-          git checkout --quiet --detach "$COMMIT"
-          GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@localhost \
-          GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@localhost \
-          GIT_AUTHOR_DATE="$later +0000" GIT_COMMITTER_DATE="$later +0000" \
-            git merge --no-ff --no-edit -m "Merge $HEAD_COMMIT into $COMMIT" "$HEAD_COMMIT" \
-            || { git merge --abort; git checkout --quiet --detach "$GITHUB_SHA"; }
-          git diff --quiet "$GITHUB_SHA" HEAD -- package-lock.json || npm ci
+        run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+      - if: steps.merge.outputs.merged == 'true'
+        run: npm ci
       - run: npx vitest run
 ```
+
+`carry merge` stands the checkout on the head merged into that commit, reading
+the head from the pull request's event, or from `--head <sha>`. It prints
+`merged=true` and `checkout=<sha>`, the merge it made, or `merged=false` when
+it made none: no commit was named, or the head conflicts with it. The install
+runs again after a merge, because the merge can take a different lockfile.
 
 - **The run tests your change on the record's commit, not on the base tip.**
   What the mainline gained since is checked where your branch is brought up to
@@ -1224,15 +1223,18 @@ received.
   rebase. A merge queue checks it only as far as the tests it runs; one that runs
   part of the suite leaves the rest to the whole run on the mainline after the
   merge.
-- **A head that conflicts with the record's commit stays on GitHub's merge**,
-  and the run measures what the mainline gained since the record as well.
+- **A head that conflicts with the record's commit stays on GitHub's merge**
+  under `--on-conflict stay`, and the run measures what the mainline gained
+  since the record as well. Without it, a conflict fails the step. A merge
+  stopped by anything else, a hook or a commit the clone lacks, always fails it,
+  and every stop leaves the checkout where it was.
 - **Shards read the commit once and share it.** A publish can land between
   two jobs of one run, and two jobs that each ask can merge with two commits.
-  Read it in one job, pass `commit` to the others as a job output, and every
-  shard makes the same merge: the author, committer, date and message are
-  fixed. Shards then record at one commit, and their records fold into one.
-- **The install runs again only when the lockfile differs** from GitHub's
-  merge, because the merge can take a different one.
+  Read it in one job and pass `commit` and `checkout` to the others as job
+  outputs. Every clone makes the same merge, because its author, committer,
+  date and message are fixed, and a shard that passes `--expect <checkout>`
+  fails when its merge differs. Shards then record at one commit, and their
+  records fold into one.
 
 ## S3 and Google Cloud Storage
 

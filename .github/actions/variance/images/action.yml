@@ -1,0 +1,30 @@
+name: variance images
+description: >-
+  Deletes the images the variance action pushed for a pull request, once it
+  closes, merged or not: every project's
+  `<image-ref-prefix>/<project>/images/<head branch>`, and no other branch's.
+  Runs on `pull_request` `closed`, deletes nothing on any other event, and
+  never checks out the pull request's code.
+  A fork's pull request is skipped with a line, since its run could push none.
+
+inputs:
+  image-ref-prefix:
+    description: >-
+      The prefix the variance action was given as its own `image-ref-prefix`,
+      such as `refs/variance/project`, with no trailing slash.
+    required: true
+  github-token:
+    description: >-
+      Token that lists and deletes the refs. It needs `contents: write`.
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: delete the pull request's images
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VARIANCE_IMAGE_REF_PREFIX: ${{ inputs.image-ref-prefix }}
+      run: node "$GITHUB_ACTION_PATH/images.mjs"

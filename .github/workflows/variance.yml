@@ -224,7 +224,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.
@@ -524,7 +524,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       options: --ipc=host
 
     steps:
@@ -564,6 +564,37 @@ jobs:
         run: corepack enable && yarn install --immutable
 
       - uses: ./.github/actions/build
+
+      # What the site's job read and wrote, recorded under `site-job` from the
+      # build to the last photograph, so selection can answer by what the job
+      # touched rather than by the list in `tools/site-reach.mjs`. Off a pull
+      # request only: a record is what `main` ran, and a pull request reads it.
+      #
+      # The recorder is `variance` itself, which the job also builds, so the
+      # first build above makes the recorder, a copy keeps it out of the way,
+      # and the build runs again under it: a step that finds its output current
+      # reads nothing, and leaves the record short. So the outputs go first, the
+      # scanner's too, because Cargo reads the Rust only when it has to compile
+      # it. `node_modules` stays, so the install step reads what a warm install
+      # reads. `yarn start` stays outside: the recorder waits for what a
+      # command leaves running, and what the server reads is `site/wrangler.jsonc`,
+      # which `site-job` names under `before` for that reason. The photographing
+      # step exits 1 on changed pixels, which is a finished run, so it says so;
+      # a hole fails the verdict and no record is uploaded.
+      - name: build again, recorded
+        id: job
+        if: matrix.project == 'site' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a . "$RUNNER_TEMP/recorder"
+          yarn clean
+          rm -f packages/sense/npm/*/scan.node packages/sense/npm/*/scan.node.tree
+          rm -rf packages/sense/native/target
+          recorder="node $RUNNER_TEMP/recorder/packages/cli/dist/bin.js job --suite site-job"
+          $recorder -- yarn install --immutable
+          $recorder -- yarn build
+          echo "wrap=$recorder --complete-on 1 --" >> "$GITHUB_OUTPUT"
 
       # Photographing the site takes minutes, and some pull requests cannot
       # move a pixel of it. `tools/site-reach.mjs` reads the whole change
@@ -610,11 +641,13 @@ jobs:
         shell: bash
         env:
           WRANGLER_SEND_METRICS: 'false'
+          # Empty where nothing is recorded, and then the commands run as they are.
+          WRAP: ${{ steps.job.outputs.wrap }}
         run: |
           set -euo pipefail
           cd site
-          yarn install --immutable
-          yarn build --mode unminified
+          $WRAP yarn install --immutable
+          $WRAP yarn build --mode unminified
           nohup yarn start > "$RUNNER_TEMP/site.log" 2>&1 &
           for _ in $(seq 60); do
             if node -e "fetch('http://localhost:8787/sitemap.xml').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
@@ -634,7 +667,7 @@ jobs:
         with:
           config: ${{ matrix.config }}
           profile: chromium
-          command: node packages/cli/dist/bin.js
+          command: ${{ steps.job.outputs.wrap }} node packages/cli/dist/bin.js
           comment: ${{ github.event_name == 'pull_request' }}
           # The docket from before the marker named a project is the case's:
           # these projects never commented then, and taking it would replace
@@ -667,6 +700,28 @@ jobs:
           path: |
             ${{ steps.variance.outputs.report }}
             ${{ steps.variance.outputs.images }}
+          include-hidden-files: true
+          if-no-files-found: warn
+
+      - name: find what the job recorded
+        id: record
+        if: steps.job.outcome == 'success'
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { appendFileSync } from "node:fs";
+            import { dirname } from "node:path";
+            import { testCoverageFile } from "@variance-authority/sense/test-selection";
+            appendFileSync(process.env.GITHUB_OUTPUT, `dir=${dirname(testCoverageFile(process.cwd(), { suite: "site-job" }))}\n`);
+          '
+
+      # An artifact until the record is carried: `carry: share` publishes a
+      # suite through a Vitest config this suite does not have.
+      - if: steps.record.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-job-record
+          path: ${{ steps.record.outputs.dir }}
           include-hidden-files: true
           if-no-files-found: warn
 
@@ -706,7 +761,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/variance-authority/ci:94839b81dd8048b1e5d32474d6822164c684fa13
+      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
       options: --ipc=host
 
     steps:
@@ -821,56 +876,22 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
-  # The images go when their pull request does, merged or not: every project's
-  # ref for the branch, found by listing the prefix rather than by naming each
-  # project, so a job added above cannot strand its pictures. Nothing else
-  # removes them, and nothing here reads them afterwards: the comments' pictures
-  # stop loading, and the report pages in the run's artifacts still carry them.
-  #
-  # Also `refs/variance/images/<branch>`, the one ref a pull request had before
-  # the refs were named for a project. Not found is the answer for a pull
-  # request that never had a change to picture. A fork's is skipped: its run
-  # could not push one, and its token cannot delete one.
+  # The images go when their pull request does, merged or not, through the
+  # action an adopter installs: `Variance-Authority/action/images` deletes every
+  # project's ref for the branch and skips a fork's pull request with a line.
+  # Nothing here reads them afterwards: the comments' pictures stop loading, and
+  # the report pages in the run's artifacts still carry them.
   images-cleanup:
-    if: >-
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.action == 'closed'
     runs-on: ubuntu-24.04
     steps:
-      - name: delete the pull request's images
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VARIANCE_BRANCH: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          # `matching-refs/` takes the name without `refs/`. `variance carry`
-          # writes a project as one path segment, so what follows it has to be
-          # the branch exactly: `feature` must not take `feature/x`'s images.
-          # Listed into a variable first, so a listing that fails fails the job
-          # rather than reading as a branch with no pictures.
-          listed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/${VARIANCE_IMAGES#refs/}/" --jq '.[].ref')
-          # The ref a pull request pushed before refs were named for a project.
-          refs=("refs/variance/images/$VARIANCE_BRANCH")
-          while IFS= read -r ref; do
-            rest=${ref#"$VARIANCE_IMAGES/"}
-            if [ -n "$ref" ] && [ "${rest#*/}" = "images/$VARIANCE_BRANCH" ]; then refs+=("$ref"); fi
-          done <<< "$listed"
-
-          for ref in "${refs[@]}"; do
-            # `git/` and the full name make the API's `git/refs/<name>` path.
-            # The API decodes the path, and a project segment spells its bytes
-            # as `%XX`, so `%` is escaped first: the ref `a%2Eb` is asked for as
-            # `a%252Eb`, or the API would look for `a.b`. Then `#`, which a
-            # branch may hold and a URL reads as the start of a fragment.
-            path=${ref//\%/%25}
-            path=${path//#/%23}
-            if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/$path" --silent 2> err; then
-              echo "deleted $ref"
-            elif grep -qE 'HTTP (404|422)' err; then
-              echo "$ref was never pushed; nothing to delete"
-            else
-              cat err >&2
-              exit 1
-            fi
-          done
+      - uses: actions/checkout@v7
+        with:
+          # The default branch's action, not the pull request's, and not its
+          # base's, which predates the action for a pull request opened before it.
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github/actions/variance
+          persist-credentials: false
+      - uses: ./.github/actions/variance/images
+        with:
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}

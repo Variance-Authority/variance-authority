@@ -1,8 +1,7 @@
 import { resolve } from 'node:path';
 import { checkoutFile } from './checkout-file.js';
-import { noPositionals, type Flags } from './args.js';
+import { noPositionals, oneRecord, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
-import { oneRecord } from './commands/suite-record.js';
 
 export interface ParsedDistill {
   readonly command: 'distill';

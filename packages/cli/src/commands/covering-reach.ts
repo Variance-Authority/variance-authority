@@ -44,6 +44,7 @@ import {
 import { OperatorError } from '../exit.js';
 import { packageOf } from '../package-home.js';
 import { snapshotFor } from './covering-frame.js';
+import { parseAtDistance } from './select-leg.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt } from '../covering-args.js';
 
@@ -86,8 +87,9 @@ export async function nearbyWitnesses(request: CoveringAt): Promise<Narrowing> {
     filters.push((test) => packageOf(request.root, test.file) === home);
   }
 
-  if (request.atDistance !== undefined) {
-    const { from, to } = request.atDistance;
+  const band = parseAtDistance(request.atDistance);
+  if (band !== undefined) {
+    const { from, to } = band;
     const { byFile: hops, unread } = await hopsToTests(request);
     // A snapshot that cannot measure any distance keeps no test, and says so.
     if (unread !== undefined) notes.push(unread);
