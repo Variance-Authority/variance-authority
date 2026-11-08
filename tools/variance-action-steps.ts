@@ -8,7 +8,6 @@ import { join, resolve } from 'node:path';
 
 export const ROOT = resolve(import.meta.dirname, '..');
 export const ACTION = join(ROOT, '.github/actions/variance/action.yml');
-export const SHARDS = join(ROOT, '.github/workflows/variance-shards.yml');
 
 /** The `if:` of the step whose `name:` or `id:` is `step`. */
 export async function conditionOf(step: string): Promise<string> {
@@ -27,8 +26,8 @@ export async function conditionOf(step: string): Promise<string> {
 }
 
 /** The `run:` block of the step whose `name:` is `step`, unindented. */
-export async function runBlock(step: string, file = ACTION): Promise<string> {
-  const lines = (await readFile(file, 'utf8')).split('\n');
+export async function runBlock(step: string): Promise<string> {
+  const lines = (await readFile(ACTION, 'utf8')).split('\n');
   const named = lines.findIndex((line) => line.trim().replace(/^- /u, '') === `name: ${step}`);
   if (named < 0) throw new Error(`the action has no step ${step}`);
   const run = lines.findIndex((line, at) => at > named && line.trim() === 'run: |');

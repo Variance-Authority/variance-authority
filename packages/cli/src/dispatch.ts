@@ -283,7 +283,7 @@ export async function dispatch(
     }
 
     case 'share': {
-      streams.out(`${(await (await import('./commands/suite-part.js')).shareOutput(config, parsed)).join('\n')}\n`);
+      streams.out(`${(await (await import('./commands/share-output.js')).shareOutput(config, parsed)).join('\n')}\n`);
       return EXIT_CLEAN;
     }
 

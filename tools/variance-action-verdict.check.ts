@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
-import { ACTION, SHARDS, conditionOf, runBlock } from './variance-action-steps.ts';
+import { ACTION, conditionOf, runBlock } from './variance-action-steps.ts';
 
 /**
  * The check a run leaves: what the verdict step exits with and prints, and
@@ -158,29 +158,5 @@ describe('the verdict', () => {
   it('still fails a run that did not happen when the job reports rather than blocks', async () => {
     expect((await verdict('2', 'true')).status).toBe(2);
     expect((await verdict('', 'true')).status).toBe(2);
-  });
-});
-
-describe('the verdict over the shards', () => {
-  const merged = async (docketUrl: string): Promise<string> => {
-    try {
-      execFileSync('/bin/bash', ['-c', await runBlock('verdict', SHARDS)], {
-        env: { ...process.env, CODE: '1', DOCKET_URL: docketUrl },
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-      throw new Error('a run that needs review passed');
-    } catch (error) {
-      return (error as { stdout: string }).stdout;
-    }
-  };
-
-  it('leads the reader to the comment', async () => {
-    expect(await merged(DOCKET_URL)).toContain(`::error::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
-    expect(await readFile(SHARDS, 'utf8')).toContain('DOCKET_URL: ${{ steps.post.outputs.comment-url }}');
-  });
-
-  it('names no comment when none was written', async () => {
-    expect(await merged('')).toContain(`::error::${NEEDS_REVIEW}; the report is in the variance report step above\n`);
   });
 });

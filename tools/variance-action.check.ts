@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { ACTION, ROOT, SHARDS, conditionOf, runBlock } from './variance-action-steps.ts';
+import { ACTION, ROOT, conditionOf, runBlock } from './variance-action-steps.ts';
 
 /**
  * An accept is kept because a person made it, not because a comparison agreed.
@@ -213,8 +213,8 @@ async function projectRows(): Promise<ReadonlyArray<Record<string, string>>> {
 }
 
 describe('the cleared comment', () => {
-  it.each([['the action', ACTION], ['the shards', SHARDS]])('reaches the poster from the renderer in %s', async (_, file) => {
-    const text = await readFile(file, 'utf8');
+  it('reaches the poster from the renderer', async () => {
+    const text = await readFile(ACTION, 'utf8');
 
     expect(text).toMatch(/--cleared > "\$RUNNER_TEMP\/variance-cleared\.md"/);
     expect(text).toContain('--cleared-file "$RUNNER_TEMP/variance-cleared.md"');

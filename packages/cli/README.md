@@ -2752,10 +2752,11 @@ under the commit the shards share:
 variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
 
-It publishes nothing, and says why, when a report has no part beside it, a
-part cannot be read, a shard is missing or given twice, or an unsharded run is
-named with shards or beside another unsharded run. An unsharded run publishes
-its own index and needs no merge.
+It publishes nothing, and says why, when a report has no part beside it, or an
+unsharded run is named with shards or beside another unsharded run. It exits
+`2` when a part cannot be read, or a shard is missing, given twice or cut two
+ways, and one shard's report named alone is a build with the rest missing. An
+unsharded run publishes its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
@@ -2784,6 +2785,22 @@ The merge refuses shards whose renderer identity, retention, or `--intent`
 (the free-text label recorded for what a run was meant to do) differ, naming
 both files — those were not one run. Two shards observing the same subject
 means the slices overlapped, which only the operator can resolve.
+
+`report` exits `2`, before it merges, when the shards named are not every shard
+of one `--shard` count, and so does every command that reads shards' reports:
+`comment`, `ask`, `adjudicate` and `share --publish`. `report` over one
+shard's report alone exits `2` too, and so does a named report that is not
+there. Each shard's part beside its report names its `k/n`, so
+the count is never typed again: a shard that never uploaded, a shard given
+twice, or shards cut two ways are named in the refusal:
+
+```text
+these reports are not one build: shard 3/3 is missing.
+```
+
+In CI, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
+does the merge in one step: given the shards' reports as `reports`, it runs
+`report`, posts the `comment` body and publishes with `share --publish`.
 
 What it does accept is the arithmetic nobody wants to do by hand. Each shard
 records every subject outside its slice as `excluded`, so three shards report
