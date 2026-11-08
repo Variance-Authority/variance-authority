@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import type { PngDecoder } from '@variance-authority/png';
 import {
-  cacheRootFor,
   type ExecutionNarrowing,
   type Stand,
   type StandQuestion,
@@ -19,6 +18,7 @@ import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { selectingRecord, suiteRecord } from './suite-record.js';
+import { cacheOf } from './cache-of.js';
 
 /**
  * The machine-shaped things a run needs before it can start: a decoder, a store,
@@ -87,14 +87,6 @@ export function suiteIndexRoot(config: Pick<Config, 'cacheRoot'>): string {
 }
 
 /**
- * Where a share keeps its own git repositories: one per remote, holding the
- * lines of a `git` share and the mainline history every kind asks descent of.
- */
-export function shareRoot(config: Pick<Config, 'cacheRoot'>): string {
-  return join(cacheOf(config), 'share');
-}
-
-/**
  * Where a report read from a share is kept: one directory per entry digest,
  * holding the report at its path in the repository, or at `run.json` when the
  * configured report is outside the repository, and the images a reader opened
@@ -107,14 +99,6 @@ export function shareRoot(config: Pick<Config, 'cacheRoot'>): string {
  */
 export function sharedReportRoot(config: Pick<Config, 'cacheRoot'>): string {
   return join(cacheOf(config), 'report');
-}
-
-/**
- * The cache `loadConfig` resolved, or the one this directory's repository
- * names when the config was built in code and never read from a file.
- */
-export function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
-  return config.cacheRoot ?? cacheRootFor(process.cwd());
 }
 
 /**
