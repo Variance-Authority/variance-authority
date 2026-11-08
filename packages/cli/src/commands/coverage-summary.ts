@@ -1,5 +1,5 @@
 // compass: variance-authority.reach.crossings
-import type { SuiteChange } from '@variance-authority/sense/test-selection';
+import type { RunOver, SuiteChange } from '@variance-authority/sense/test-selection';
 import { code } from './comment-text.js';
 import type { Coverage } from './coverage.js';
 
@@ -70,9 +70,14 @@ export function coverageRows(answer: Coverage, percentages: boolean): readonly s
       ? `${ran}${ratio(was.run, answer.base!.regions)} previously; ${change}`
       : percentages && ran !== '' ? `${ran}; ${change}` : change;
     return percentages
-      ? `| ${name} | ${ratio(now.over?.this ?? now.run, answer.count.regions)} | ${comparison} |`
+      ? `| ${name} | ${ratio(leading(now), answer.count.regions)} | ${comparison} |`
       : `| ${name} | ${change} |`;
   });
+}
+
+/** The regions a count leads with: what ran over this text where the count parts it by text, else what ran. */
+export function leading(count: { readonly run: number; readonly over?: RunOver }): number {
+  return count.over?.this ?? count.run;
 }
 
 export function ratio(run: number, regions: number): string {

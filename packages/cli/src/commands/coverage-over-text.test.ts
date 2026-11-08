@@ -76,6 +76,16 @@ describe('coverage parts what ran by the text it ran over', () => {
     expect(answer.out).toMatch(/unit\s+unit\s+2\s+40\.0%\s+.*over this text; ran in any text 3 \(60\.0%\): 1 over an older text/u);
   });
 
+  it('gives a badge the share the text leads with, what ran over this text, in the endpoint schema shields.io reads', async () => {
+    const { at } = await checkout(atRecord);
+    await writeFile(join(at, PAY_FILE), REFUNDED);
+
+    const answer = await ask('--root', at, '--format', 'badge');
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toBe('{"schemaVersion":1,"label":"regions run","message":"40.0%","color":"blue"}\n');
+  });
+
   it('parts an edit committed after the runs the same way, and names the commit the record was made at', async () => {
     const { at, git, recorded } = await checkout(atRecord);
     await writeFile(join(at, PAY_FILE), REFUNDED);
