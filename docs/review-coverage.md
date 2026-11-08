@@ -27,8 +27,17 @@ export default withTestSelection({
 });
 ```
 
-For Vitest, import `withTestSelection` from `@variance-authority/sense/vitest`
-and wrap `defineConfig(...)` the same way. Then name the tests in
+For Vitest, wrap `defineConfig` the same way:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import { withTestSelection } from '@variance-authority/sense/vitest';
+
+export default withTestSelection(defineConfig({ test: {} }));
+```
+
+Then name the tests in
 `variance.config.json` at the repository root. `unit` is the name the workflow
 uses for them, and `"carry": "actions-cache"` keeps what they ran in the GitHub
 Actions cache between runs:
@@ -81,7 +90,8 @@ still gets its comment, then fails the job with the test's exit code.
 
 `test` and the install step are your own; the action installs nothing. With
 pnpm, run `pnpm install --frozen-lockfile` and set `test: pnpm exec vitest run`;
-with Yarn, `yarn install --frozen-lockfile` and `test: yarn jest`.
+with Yarn, `yarn install --immutable` (`--frozen-lockfile` on Yarn 1) and
+`test: yarn jest`.
 
 ## The first runs
 

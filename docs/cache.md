@@ -134,14 +134,14 @@ directory.
 
 ## In CI
 
+To comment coverage on each pull request as well, the review action carries its
+own record: [review coverage on every pull request](review-coverage.md).
+
 This workflow runs your whole suite on each push to your main branch and saves
 what it recorded. On a pull request it restores that recording and runs only the
 test files the change needs. [Wrap your runner configuration](test-an-edit.md#wrap-once-then-set-one-variable)
 first, then use this workflow with your own install and test commands in place
 of `npm ci` and `npx vitest run`, and your own main branch in place of `main`:
-
-To comment coverage on each pull request instead, the review action carries its
-own record: [review coverage on every pull request](review-coverage.md).
 
 ```yaml
 name: tests

@@ -238,7 +238,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect((await ran('run the tests', { TEST: 'false\necho not reached' })).output).toBe('exit-code=1\n');
       expect(stepNamed('run the tests').env).toMatchObject({ TEST: '${{ inputs.test }}' });
       const failing = stepNamed('fail on the tests');
-      expect(failing.if).toBe("${{ !cancelled() && inputs.test != '' && steps.test.outputs.exit-code != '0' }}");
+      expect(failing.if).toBe("${{ !cancelled() && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}");
       expect(failing.env).toMatchObject({ CODE: '${{ steps.test.outputs.exit-code }}' });
       expect((await ran('fail on the tests', { CODE: '3' })).status).toBe(3);
     });
@@ -252,7 +252,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.test != '' }}");
       const suite = stepNamed("keep the suite's record for the next pull request");
       expect(suite.uses).toBe('actions/cache/save@v6');
-      expect(suite.if).toBe(`\${{ !cancelled() && inputs.test != '' && steps.test.outputs.exit-code == '0' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
+      expect(suite.if).toBe(`\${{ !cancelled() && inputs.test != '' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
       expect(suite.with).toEqual({ path: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'path')})] }}`, key: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'key')})] }}` });
       expect((await ran('keep what this push ran')).said).toEqual(['carry keep']);
       expect(stepNamed('keep what this push ran').if).toBe("${{ !cancelled() && inputs.test != '' && steps.save.outputs.pushed-key != '' }}");

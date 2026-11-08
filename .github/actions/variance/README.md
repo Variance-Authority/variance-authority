@@ -80,7 +80,7 @@ cache, sets the mainline's record aside before the tests write over it, runs the
 command, reviews, and saves what the tests ran: on a push to a mainline the
 record every pull request compares with, and on a pull request what its next push
 reads. A red test still reviews and saves, then fails the step with the test's
-exit code; only tests that passed save the mainline's record.
+exit code.
 
 Without `test` the action reviews the record a step before it left, and the
 mainline record comes from `against`: the `against-<suite>` output of a `variance
