@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 
 /**
@@ -308,12 +309,14 @@ describe('the verdict', () => {
   });
 });
 
-/** The rows `plan` lists, before a label narrows them. */
+/** The rows the `project` job's matrix lists. */
 async function projectRows(): Promise<ReadonlyArray<Record<string, string>>> {
-  const workflow = await readFile(WORKFLOW, 'utf8');
-  const listed = /projects='(\[[^']*\])'/.exec(workflow);
-  if (listed?.[1] === undefined) throw new Error('the workflow lists no projects');
-  return JSON.parse(listed[1]) as ReadonlyArray<Record<string, string>>;
+  const workflow = parse(await readFile(WORKFLOW, 'utf8')) as {
+    jobs: { project?: { strategy?: { matrix?: { include?: ReadonlyArray<Record<string, string>> } } } };
+  };
+  const rows = workflow.jobs.project?.strategy?.matrix?.include;
+  if (rows === undefined) throw new Error('the workflow lists no projects');
+  return rows;
 }
 
 describe('the verdict over the shards', () => {
@@ -369,8 +372,10 @@ describe('the cleared comment', () => {
 });
 
 describe('the projects the workflow observes', () => {
-  it('says the tick or the label is the review, because a project may share its name with a review service', async () => {
-    const accept = (await readFile(WORKFLOW, 'utf8')).split('\n').find((line) => line.includes('matrix.label') && line.includes('to-accept:'));
+  it('says the tick is the review, because a project may share its name with a review service', async () => {
+    const lines = (await readFile(WORKFLOW, 'utf8')).split('\n');
+    const job = lines.slice(lines.findIndex((line) => line.includes('config: ${{ matrix.config }}')));
+    const accept = job.find((line) => line.includes('to-accept:'));
 
     expect(accept).toContain('That is the whole review: no review service holds this run.');
   });
@@ -384,6 +389,29 @@ describe('the projects the workflow observes', () => {
 
   it('hands each row\'s choice to the action', async () => {
     expect(await readFile(WORKFLOW, 'utf8')).toContain("exit-zero-on-changes: ${{ matrix['exit-zero-on-changes'] || 'false' }}");
+  });
+});
+
+// A committed store accepts by a dispatch with `accept` on the pull request's
+// branch: the action commits the images there, which the commit-back's own
+// checks run for a dispatch. Nothing but that input turns it on.
+describe('the lfs job', () => {
+  const lfs = async (): Promise<{ steps: ReadonlyArray<Record<string, unknown>> }> =>
+    (parse(await readFile(WORKFLOW, 'utf8')) as { jobs: { lfs: { steps: ReadonlyArray<Record<string, unknown>> } } }).jobs.lfs;
+
+  it('commits the images on a dispatch with accept, and on no other run', async () => {
+    const action = (await lfs()).steps.find((step) => step['uses'] === './.github/actions/variance');
+
+    expect(action?.['with']).toMatchObject({ 'commit-baselines': '${{ inputs.accept == true }}' });
+    expect(action?.['with']).not.toHaveProperty('accept');
+    expect(action?.['with']).not.toHaveProperty('tick-to-accept');
+    expect(action).not.toHaveProperty('if');
+  });
+
+  it('checks out the branch it commits to', async () => {
+    const checkout = (await lfs()).steps.find((step) => String(step['uses']).startsWith('actions/checkout@'));
+
+    expect(checkout?.['with']).toMatchObject({ ref: "${{ github.head_ref || '' }}" });
   });
 });
 

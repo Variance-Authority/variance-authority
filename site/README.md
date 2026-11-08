@@ -60,8 +60,8 @@ way, start the server and, from the repository root, run the line below.
 node packages/cli/dist/bin.js run --config site/variance.config.json
 ```
 
-A change it finds is accepted on the pull request with the `variance: accept
-site` label.
+A change it finds is accepted on the pull request by ticking the box in its
+comment.
 
 A pull request that changes nothing the site is built from or photographed
 with does not run it: nothing here, nothing a page here reaches, nothing the

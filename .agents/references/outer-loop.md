@@ -13,7 +13,7 @@ for it. A red `site` is a run that did not happen, a subject it could not
 observe, or an accept the comparison after it did not hold, and that is yours
 like any other red check; one that goes red after you handed over reaches the
 person, and the next cycle picks it up. Its docket is the person's to read, and
-accepting what it found is their label, `variance: accept site`.
+accepting what it found is their tick, in the box it carries.
 
 ## Labels
 

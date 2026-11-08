@@ -118,9 +118,9 @@ inputs:
       others' baselines with it. For a store the
       host cache carries (`carry: actions-cache`); a committed store accepts
       through `commit-baselines` instead. Turn it on only for a run a person
-      asked for, such as one a label started: on every run,
-      `accept --all` promotes the regression the check was added to catch. Off
-      by default.
+      asked for, such as a push to `main` or a dispatch; the rerun a tick
+      starts accepts without it. On every run, `accept --all` promotes the
+      regression the check was added to catch. Off by default.
     required: false
     default: 'false'
 
@@ -132,7 +132,7 @@ inputs:
       dispatch on a tag, refuses. This is how a committed store accepts a
       change: the images arrive in the pull request's diff, and its review is
       the approval. Turn it on only for a run a person asked for, such as a
-      dispatch or one started by a label. On every run, `accept --all` promotes
+      dispatch. On every run, `accept --all` promotes
       the regression the check was added to catch, in the run that found it.
       Needs `contents: write` and a checkout of that branch. Off by default.
     required: false
@@ -205,7 +205,7 @@ inputs:
     description: >-
       How a reviewer accepts in this repository, printed at the foot of the
       comment as `To accept: <this>`. Markdown. Empty prints nothing: whether it
-      is a workflow to dispatch, a label or a command is your policy, and this
+      is a box to tick, a workflow to dispatch or a command is your policy, and this
       action does not guess it.
     required: false
     default: ''
