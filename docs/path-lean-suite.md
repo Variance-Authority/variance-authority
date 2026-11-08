@@ -39,10 +39,9 @@ not.
 ## 4. Make the tests you keep cost less
 
 Running only the tests an edit reached cuts how many run, not what one costs.
-A test that imports a module pays for loading it on every run, and is picked by
-every edit to it, whether or not it calls into it. A test can load far more than
-it uses.
+A test that imports a module pays for loading it on every run, whether or not it
+calls into it, and a test can load far more than it uses.
 
 [Make one test cost less](optimize-a-test.md), then
 [Distil a test to the behavior it witnesses](distill.md) for a test that renders
-a whole page to exercise three elements of it.
+a whole page to check one part of it.

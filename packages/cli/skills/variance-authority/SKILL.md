@@ -148,7 +148,7 @@ latest release. Below, each path names the references that cover its steps.
   select on a pull request ([selection wiring](references/selection-wiring.md)),
   carry the record to the next push (the same reference), then
   [test an edit in a loop](references/test-selection.md#test-an-edit-in-a-loop).
-  All four read the record main's full run writes.
+  All four start from the record main publishes.
 - **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
   [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
 - **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):

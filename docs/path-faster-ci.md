@@ -4,8 +4,8 @@ A suite that takes too long in CI gets faster in four steps, and each one
 builds on the one before: split it across jobs by time, run only the tests a
 change reached, and let each next push run only what it changed. The fourth
 step brings the same selection to the loop you or your coding agent run on your
-own machine after every edit, so less is left for CI to catch. All four read one
-record that your main branch's full run writes, so wiring the first step
+own machine after every edit, so less is left for CI to catch. All four start
+from the record your main branch's runs publish, so wiring the first step
 prepares the rest.
 
 [Variance Authority](README.md) keeps that record on the suite you already run.
@@ -20,20 +20,18 @@ ones and the run waits for it. Wrap the Vitest, Jest or Playwright config with
 the last recorded run, so the shards finish close together. No test is skipped
 yet: this step only removes the wait for the slowest shard.
 
-The wrap is also what records. Every wrapped run writes the record, and main's
-full run saves it to the CI cache for pull requests to restore. With no record
-to read, every test file runs, and that run writes the first one. A suite that runs in a single
-job keeps the wrap and leaves out `--shard`.
+The wrap is also what records: every wrapped run writes the record, and your
+mainline publishes its shards' records to the share that every later run reads.
 
-[Split a suite across CI jobs](sharding.md), and
-[the CI cache workflow](cache.md#in-ci) for where main's record is saved.
+[Split a suite across CI jobs](sharding.md), and [the share](sharing.md) for
+where main's record is kept.
 
 ## 2. Run only the tests a change reached
 
 A pull request then reads the record main saved and leaves out every test file
 that ran none of the changed code. The selection reads which lines each test
 covered, not which files import which, so a one-line edit to a shared module
-runs the few tests that executed that line. When the record leaves a doubt,
+runs the few tests that executed the changed code. When the record leaves a doubt,
 the run either widens or stops, and says which doubt it was.
 
 [Coverage-based test selection](coverage-test-selection.md) says why this
@@ -59,9 +57,8 @@ The same selection runs on your machine, after every edit, with no script of
 ours in between: put `VARIANCE_AUTHORITY_SINCE=` in front of the runner you
 already call. Add `VARIANCE_AUTHORITY_AT_DISTANCE=0-1` to keep the tests within
 one import of the change, and you or your coding agent read a verdict in about a
-second, while the edit is still fresh. Each run also refreshes the record, so the
-push that follows has less to run. A full run before the change is done is
-still the gate.
+second, while the edit is still fresh. Before you hand the change over, the
+same page says how to run the tests further from it.
 
 [Run the tests an edit needs](test-an-edit.md) and its
 [loop an agent runs after each edit](test-an-edit.md#the-loop-an-agent-runs-after-each-edit).

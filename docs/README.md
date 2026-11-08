@@ -13,7 +13,7 @@ depend on.
 ## Follow a golden path
 
 Came for an outcome rather than a question? Each path takes it in order, one
-step to a page, and starts where nothing is set up yet.
+step to a page.
 
 <div class="doc-link-grid doc-link-grid--capabilities">
 <a class="doc-link-card doc-link-card--compact" href="path-faster-ci.md">
