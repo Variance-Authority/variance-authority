@@ -421,10 +421,10 @@ kept the record at 3f1c9a2… beside the latest.
 
 Keep each part beside its run report when you move the reports between jobs.
 The command publishes nothing, and says why, when a run report
-has no part beside it, when you name one shard's run report alone, and when the
-reports mix an unsharded run with shards or name two unsharded runs. It exits 2
-when a part cannot be read, a shard is missing or named twice, or the shards
-were cut two ways. A build that does
+has no part beside it, and when the reports mix an unsharded run with shards or
+name two unsharded runs. It exits 2 when a part cannot be read, a shard is
+missing or named twice, or the shards were cut two ways, and one shard's run
+report named alone is a build with the rest missing. A build that does
 not shard publishes from its own run and needs no extra job.
 
 ## Looking up mainline's record

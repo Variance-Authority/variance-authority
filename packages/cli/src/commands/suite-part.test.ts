@@ -9,7 +9,7 @@ import { readSuiteIndex } from '@variance-authority/report/file';
 import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/suite-index';
 import { main } from '../bin.fixture.js';
 import type { Config } from '../config.js';
-import { EXIT_OPERATOR } from '../exit.js';
+import { EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { composeReports } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
@@ -194,8 +194,8 @@ describe('share --publish over every shard', () => {
     const reports = await writeShards(true);
 
     expect((await openSuitePart(suitePartPath(reports[0]!)))?.shard).toEqual({ index: 1, total: 2 });
-    expect(await shareOutput(configOf(root), { publish: true, reports: [reports[0]!] })).toContainEqual(
-      expect.stringMatching(/is one shard of a build/),
+    await expect(shareOutput(configOf(root), { publish: true, reports: [reports[0]!] })).rejects.toThrow(
+      new OperatorError('these reports are not one build: shard 2/2 is missing.'),
     );
     expect(await publishedLine(configOf(root), shardReport(1), reports[0])).toMatch(
       /not kept from one shard; its part is .*run\.suite-part\.json, for the merge/,
