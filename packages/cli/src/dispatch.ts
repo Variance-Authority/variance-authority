@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, loadRenderless } from './config-load.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, exitFor, onGitHub, reported, sideJob, type ExitCode } from './exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, onGitHub, reported, sideJob, type ExitCode } from './exit.js';
 import type { Configless } from './commands/configless.js';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
