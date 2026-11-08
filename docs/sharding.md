@@ -386,6 +386,7 @@ that is the matrix job and one merge step:
 ```yaml
 jobs:
   shard:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -409,6 +410,7 @@ jobs:
   merge:
     needs: shard
     if: ${{ always() }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
@@ -421,6 +423,7 @@ jobs:
       - uses: Variance-Authority/action@v1
         with:
           reports: shards/*/report.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 The count is written once, in the matrix: every report names its shard as

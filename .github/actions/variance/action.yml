@@ -81,10 +81,8 @@ inputs:
       suite index and the subject costs with `share --publish`, and exits 0, 1
       or 2 as one run would. The count comes from the shards' own `k/n`, so a
       missing shard, a shard given twice or reports cut two ways exit 2, and
-      so does a line that names no file. It takes no `shard`, `subjects`,
-      `profile`, `intent`, `flakes`, `accept`, `tick-to-accept` or
-      `commit-baselines`: those ask for a run. Publishing needs
-      `contents: write`.
+      so does a line that names no file. The inputs that shape a run do
+      nothing beside it. Publishing needs `contents: write`.
     required: false
     default: ''
 
@@ -286,15 +284,6 @@ runs:
         echo "::error::image-ref is removed: set image-ref-prefix, such as refs/variance/project, and the action names the ref for the project and the branch"
         exit 1
 
-    # A merge observes nothing, so an input that shapes a run or writes a
-    # baseline would be ignored, and ignoring it would read as having done it.
-    - if: ${{ inputs.reports != '' && (inputs.shard != '' || inputs.subjects != '' || inputs.profile != '' || inputs.intent != '' || inputs.flakes == 'true' || inputs.accept == 'true' || inputs.tick-to-accept == 'true' || inputs.commit-baselines == 'true') }}
-      name: refuse a run's inputs on a merge
-      shell: bash
-      run: |
-        echo "::error::reports merges the shards' reports and runs nothing; drop shard, subjects, profile, intent, flakes, accept, tick-to-accept and commit-baselines from this step"
-        exit 1
-
     # Before the run, because the baselines have to be in place before it
     # compares. A config the parser refuses stops here, with the CLI's message.
     - id: carry
@@ -427,10 +416,9 @@ runs:
 
         # A merge: the shards' reports are the suite, and `report` over them is
         # its verdict. Each line is a path or a glob, expanded with no word
-        # splitting, so a path with a space stays one path. A line that names no
-        # file is a shard that never uploaded, and the run did not happen.
+        # splitting, so a path with a space stays one path. A glob that matches
+        # nothing stays as written, and `report` refuses the file it cannot read.
         if [ -n "${VARIANCE_REPORTS:-}" ]; then
-          shopt -s nullglob
           reports=()
           while IFS= read -r line; do
             [ -n "$line" ] || continue
@@ -439,12 +427,6 @@ runs:
             # shellcheck disable=SC2206
             named=($line)
             IFS=$ifs
-            # A path with no glob in it is kept as written, found or not.
-            if [ "${#named[@]}" -eq 0 ] || [ ! -e "${named[0]}" ]; then
-              echo "::error::reports: $line names no report"
-              echo "exit-code=2" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
             reports+=("${named[@]}")
           done <<< "${VARIANCE_REPORTS:-}"
           { echo 'reports<<VARIANCE_EOF'; printf '%s\n' "${reports[@]}"; echo 'VARIANCE_EOF'; } >> "$GITHUB_OUTPUT"

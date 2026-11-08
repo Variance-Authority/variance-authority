@@ -4,6 +4,7 @@ import { OperatorError } from '../exit.js';
 import { mergeReports } from './merge.js';
 import { locatePictures, type Picture, type Pictures } from './report-html-pictures.js';
 import { readCliRunReport, type CliRunReport } from './run-report.js';
+import { refuseMissingShards } from './suite-part.js';
 
 /**
  * The configured report is not on disk: no run has written it in this checkout.
@@ -65,6 +66,9 @@ async function shardsOf(
   config: Config,
 ): Promise<{ path: string; report: CliRunReport }[]> {
   const named = paths.length === 0 ? [config.report] : paths;
+  // Shards named are the suite, and a suite with a shard missing did not
+  // happen: its subjects would read as ones no shard observed.
+  if (paths.length > 0) await refuseMissingShards(paths);
   return Promise.all(
     named.map(async (path) => {
       const report = await readCliRunReport(path).catch((error: unknown) => {

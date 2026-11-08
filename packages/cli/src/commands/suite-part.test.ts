@@ -246,7 +246,7 @@ describe('share --publish over every shard', () => {
     expect({ code, out, err: err.split('\n')[0] }).toEqual({
       code: EXIT_OPERATOR,
       out: '',
-      err: `nothing published: ${torn} is not a suite part this version reads.`,
+      err: `these reports are not one build: ${torn} is not a suite part this version reads.`,
     });
     expect(await readdir(home)).not.toContain('share');
   });
@@ -313,7 +313,7 @@ describe('report over the shards it is given', () => {
     return path;
   }
 
-  async function report(paths: readonly string[]): Promise<{ code: number; err: string }> {
+  async function report(paths: readonly string[], command = 'report'): Promise<{ code: number; err: string }> {
     const config = join(home, 'variance.config.json');
     await writeFile(
       config,
@@ -328,7 +328,7 @@ describe('report over the shards it is given', () => {
       }),
     );
     let err = '';
-    const code = await main(['report', ...paths, '--config', config], { out: () => {}, err: (text) => (err += text) });
+    const code = await main([command, ...paths, '--config', config], { out: () => {}, err: (text) => (err += text) });
     return { code, err: err.split('\n')[0]! };
   }
 
@@ -338,6 +338,13 @@ describe('report over the shards it is given', () => {
 
   it('refuses a shard that is missing, by its number, with no count given to it', async () => {
     expect(await report([await shard(1, 3), await shard(2, 3)])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: shard 3/3 is missing.',
+    });
+  });
+
+  it('refuses a missing shard in `comment` as in `report`, since every reader of the shards merges alike', async () => {
+    expect(await report([await shard(1, 3), await shard(2, 3)], 'comment')).toEqual({
       code: EXIT_OPERATOR,
       err: 'these reports are not one build: shard 3/3 is missing.',
     });

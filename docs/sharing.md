@@ -396,6 +396,7 @@ in the job after the shards, with every shard's artifact downloaded under
 - uses: Variance-Authority/action@v1
   with:
     reports: shards/*/report.json
+    github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 Given `reports`, the action runs nothing: it merges the shards' run reports,

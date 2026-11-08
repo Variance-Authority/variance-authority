@@ -46,9 +46,9 @@ describe('the merge of the shards', () => {
     expect(output).toContain('exit-code=0\n');
   });
 
-  it('refuses a line that names no report, as a run that did not happen, and asks the CLI nothing', async () => {
-    const { said, output } = await merge('shards/*/run.json\nmissing/run.json', ['shards/a/run.json']);
-    expect({ said, code: /exit-code=(\d)/.exec(output)?.[1] }).toEqual({ said: '', code: '2' });
+  it('hands a line that names no file to the CLI as written, for `report` to refuse', async () => {
+    const { said } = await merge('shards/*/run.json\nmissing/*.json', ['shards/a/run.json']);
+    expect(said).toBe('report\n--config\nc.json\nshards/a/run.json\nmissing/*.json\n');
   });
 
   it('is the matrix job and one action step, with no count and no glue of its own', async () => {

@@ -154,6 +154,7 @@ to `reports` and gets the suite's one docket and one check colour:
 ```yaml
 jobs:
   shard:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -179,6 +180,7 @@ jobs:
   merge:
     needs: shard
     if: ${{ always() }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write # the published suite index and costs
       pull-requests: write # the comment
