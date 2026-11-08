@@ -18,7 +18,7 @@ import { selectedMainline, selectedRecord } from './mainline-selected.js';
  *
  * The path is the nearest record, which in a checkout that has not run is the
  * mainline's as last fetched on this machine, else, in a worktree, the primary
- * checkout's: sense's `readableTestCoverage` owns that lookup, and it never
+ * checkout's: sense's `nearestRecord` owns that lookup, and it never
  * fetches. The case index is read beside this path, so from the same
  * layer as the record it was written with. The runs log is not: it says where
  * this checkout's change starts and which files this checkout ran, so it is

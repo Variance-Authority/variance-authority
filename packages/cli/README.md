@@ -105,6 +105,14 @@ Run this in the same machine or CI image that will execute `variance run`.
 Doctor reports what can be checked locally and labels remote renderer checks as
 not performed, instead of pretending a network endpoint is healthy.
 
+When the root config declares `suites`, doctor ends with each suite: its kind,
+and whether a run has recorded it, read without fetching anything — this
+checkout's own record, the mainline's as last fetched, or the primary
+checkout's, with the file. A suite no run has recorded says what writes its
+first record: its runner's config wrapped by the seam's `withTestSelection`, or
+`variance job --suite <name>` for a `job`. Not recorded yet is the state before
+a first run, so it leaves the exit code alone.
+
 ### 4. Run, review, accept, rerun
 
 ```bash
@@ -189,7 +197,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | prints what this machine can observe, before a run, not after one; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
+| `doctor` | prints what this machine can observe, before a run, not after one, and whether each declared suite has recorded; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite, and a repository that configures no project takes the only suite it declares's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |

@@ -41,7 +41,7 @@ export async function dispatch(
   const renderless = parsed.command === 'doctor' && parsed.baselines !== true ? await loadRenderless(parsed.config) : undefined;
   if (renderless !== undefined) {
     const [{ formatRenderless }, { renderlessDoctor }] = await Promise.all([import('./commands/doctor-report.js'), import('./commands/doctor.js')]);
-    streams.out(`${formatRenderless(await renderlessDoctor(renderless))}\n`);
+    streams.out(`${formatRenderless(await renderlessDoctor(renderless, await configRepository(parsed.config)))}\n`);
     return EXIT_CLEAN;
   }
 
@@ -278,7 +278,7 @@ export async function dispatch(
         streams.out(`${formatBaselines(finding)}\n`);
         return exitForBaselines(finding);
       }
-      const diagnosis = await doctor(config, machineProbes(config));
+      const diagnosis = await doctor(config, machineProbes(config), await configRepository(parsed.config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);
     }
@@ -340,4 +340,10 @@ function selectionOf(parsed: Extract<Parsed, { command: 'accept' }>): ChangelogS
   if (parsed.all) return 'all';
   if (parsed.shapes.length > 0) return 'shape';
   return 'named';
+}
+
+/** The repository a config file is in: where doctor reads the suites its root config declares. */
+async function configRepository(config: string): Promise<string> {
+  const { repositoryRoot } = await import('@variance-authority/sense/test-selection');
+  return repositoryRoot(dirname(resolve(config)));
 }

@@ -69,6 +69,12 @@ starts any of them, and prints one line to stderr first:
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
+To check the wrap took, run `npx variance doctor --config variance.config.json`
+after one run. For each of the
+[`suites`](../packages/cli/README.md#configuration) the repository's root
+`variance.config.json` declares, it names the record a run left and its file. A
+suite it still calls `not recorded yet` was not run through the wrap.
+
 Set and empty, the variable measures each test file from the commit a run last
 finished it at, which the record keeps per test file: a later run that ran only
 some of its cases does not change it. Set to a ref, such as `origin/main`, it

@@ -12,6 +12,7 @@ import type {
 } from './doctor.js';
 import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
+import { formatSuites } from './doctor-suites.js';
 import { formatTypescript } from './doctor-typescript.js';
 
 /**
@@ -94,15 +95,23 @@ function rendererLines(finding: RendererFinding): readonly string[] {
   ];
 }
 
+/** The sections both diagnoses end with, read from the repository rather than the machine. */
+function repositoryTail(diagnosis: Pick<Diagnosis, 'skills' | 'typescript' | 'suites'>): readonly string[] {
+  return [
+    ...formatSkills(diagnosis.skills),
+    '',
+    ...formatTypescript(diagnosis.typescript),
+    ...(diagnosis.suites === undefined ? [] : ['', ...formatSuites(diagnosis.suites)]),
+  ];
+}
+
 export function formatRenderless(diagnosis: RenderlessDiagnosis): string {
   return [
     ...rendererLines(diagnosis.renderer),
     '',
     ...formatCache(diagnosis.cache),
     '',
-    ...formatSkills(diagnosis.skills),
-    '',
-    ...formatTypescript(diagnosis.typescript),
+    ...repositoryTail(diagnosis),
   ].join('\n');
 }
 
@@ -131,9 +140,7 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
     `  ${diagnosis.history.because}`,
     '',
-    ...formatSkills(diagnosis.skills),
-    '',
-    ...formatTypescript(diagnosis.typescript),
+    ...repositoryTail(diagnosis),
   ].join('\n');
 }
 

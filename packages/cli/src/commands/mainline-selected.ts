@@ -9,7 +9,7 @@
 
 import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { DeclaredSuite, RootConfig } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, RecordOrigin, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
 import { ConfigError } from '../config-values.js';
 import { OperatorError } from '../exit.js';
@@ -101,7 +101,18 @@ export async function recordHeld(file: string): Promise<boolean> {
  * git process or two, is worked out only without one.
  */
 export async function selectedRecord(root: string, suite: string | undefined, declared: DeclaredSuite | undefined): Promise<string> {
+  return (await selectedRecordOf(root, suite, declared)).file;
+}
+
+/** {@link selectedRecord}, and whose record it is: no origin when no layer holds one, and the file is this checkout's own to write. */
+export async function selectedRecordOf(
+  root: string,
+  suite: string | undefined,
+  declared: DeclaredSuite | undefined,
+): Promise<{ readonly file: string; readonly origin?: RecordOrigin }> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const held = await recordHeld(selection.testCoverageFile(root, { suite }));
-  return selection.readableTestCoverage(root, { suite, selected: held ? undefined : await selectedMainline(root, declared) });
+  const own = selection.testCoverageFile(root, { suite });
+  if (await recordHeld(own)) return { file: own, origin: 'own' };
+  const nearest = selection.nearestRecord(root, { suite, selected: await selectedMainline(root, declared) });
+  return nearest.origin === 'own' ? { file: nearest.file } : nearest;
 }

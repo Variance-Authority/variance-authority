@@ -119,6 +119,7 @@ export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 export { prepareRecord } from './replaced-record.js';
 export {
   cachedRecord, cachedSuite,
+  nearestRecord,
   type PassedOver,
   readableTestCoverage,
   recordFileFor,
@@ -127,6 +128,7 @@ export {
   testCoverageFile,
   writeCoverageBytes,
   type RecordLocationOptions,
+  type RecordOrigin,
 } from './record-location.js';
 export {
   CARRIERS,
