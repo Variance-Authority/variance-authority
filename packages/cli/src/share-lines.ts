@@ -379,7 +379,7 @@ function remoteOf(config: Pick<Config, 'share'> | undefined): string {
  * authenticates to it with. A CI checkout keeps its token in the clone's
  * configuration, so the share's repository is given it rather than asking for
  * one of its own. A clone checked out with `persist-credentials: false` keeps
- * none, and then the step's `GITHUB_TOKEN` is the header.
+ * none, and then a GitHub Actions step's `GITHUB_TOKEN` is the header.
  */
 async function remoteOfClone(
   config: Pick<Config, 'share' | 'cacheRoot'>,
@@ -394,15 +394,15 @@ async function remoteOfClone(
 }
 
 /**
- * The header `actions/checkout` writes for the step's `GITHUB_TOKEN`, when it
- * holds one and `url` is on the host the token is for: `GITHUB_SERVER_URL`, or
- * `https://github.com` where the host names none. A token is never offered to
- * another host.
+ * The header `actions/checkout` writes for the step's `GITHUB_TOKEN`, on a
+ * GitHub Actions run whose `url` is on the host `GITHUB_SERVER_URL` names. A
+ * token is never offered to another host, nor off Actions, where a shell's
+ * `GITHUB_TOKEN` is for `gh` and git asks its own credential helper.
  */
 function tokenHeader(url: string, env: Env): string | undefined {
   const token = env['GITHUB_TOKEN'];
-  if (token === undefined || token === '') return undefined;
-  const server = (env['GITHUB_SERVER_URL'] || 'https://github.com').replace(/\/+$/u, '');
+  const server = env['GITHUB_SERVER_URL']?.replace(/\/+$/u, '');
+  if (env['GITHUB_ACTIONS'] !== 'true' || token === undefined || token === '' || server === undefined || server === '') return undefined;
   if (!url.startsWith(`${server}/`)) return undefined;
   return `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
 }

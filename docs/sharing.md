@@ -797,11 +797,11 @@ Tribunal deployment is an `http` share.
 - **It authenticates with your global and system git configuration**, with
   the `http.extraheader` your clone has for that remote, which is where
   `actions/checkout` writes its token, and with git configuration in the
-  `GIT_CONFIG_COUNT` environment variables. A clone that keeps no header, as
-  one checked out with `persist-credentials: false`, is given the step's
-  `GITHUB_TOKEN`, for a remote on the host `GITHUB_SERVER_URL` names
-  (`https://github.com` when it names none) and no other. A credential helper
-  set only in your clone's `.git/config` is not used. Git never prompts, and each git command
+  `GIT_CONFIG_COUNT` environment variables. On GitHub Actions, a clone that
+  keeps no header, as one checked out with `persist-credentials: false`, is
+  given the step's `GITHUB_TOKEN`, for a remote on the host
+  `GITHUB_SERVER_URL` names and no other. A credential helper set only in your
+  clone's `.git/config` is not used. Git never prompts, and each git command
   is stopped after 60 s.
 - **A lookup reuses a fetched line for 60 s**, so ten lookups in a minute fetch
   once.

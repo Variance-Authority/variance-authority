@@ -143,8 +143,8 @@ fetched here, and a reader that asks `suiteBase` says so.**
   `GITHUB_TOKEN` in its `env:`. Install scripts and the build never see it.
   When the clone keeps no header for the remote, `share` builds the one
   `actions/checkout` would have written, `AUTHORIZATION: basic` over
-  `x-access-token:<token>`, for a remote on the host `GITHUB_SERVER_URL` names
-  and no other, and the share's `headerEnv` hands it to git through git's
+  `x-access-token:<token>`, on GitHub Actions only and for a remote on the
+  host `GITHUB_SERVER_URL` names and no other, and the share's `headerEnv` hands it to git through git's
   environment configuration, never to disk and never twice. A header the clone
   or the environment already gives git wins. *Amended 2026-11-08 (#1151):* the
   step first handed git the header itself through `GIT_CONFIG_*` variables, a

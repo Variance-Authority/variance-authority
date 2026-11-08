@@ -186,27 +186,19 @@ one, or delete the old record.
 
 ## Publish the mainline's record
 
-A suite the root config gives `"carry": "share"` is read from the record its
-mainline published. On a push to the mainline, a job after the test jobs
-downloads their records and publishes them:
+A suite given `"carry": "share"` is read from the record its mainline
+published. The publish job checks out with `persist-credentials: false`, and
+its publish step holds the token itself:
 
 ```yaml
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      # install, download the records to $RUNNER_TEMP/records, list the collected files
-      - name: publish the records
-        env:
+      - env:
           GITHUB_TOKEN: ${{ github.token }}
         run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
-The job needs `contents: write`. The token is that step's alone: the clone
-keeps none, so `share` hands git the step's `GITHUB_TOKEN`, for a remote on
-the host `GITHUB_SERVER_URL` names, and writes it to no file. Write no git
-header and no `GIT_CONFIG_*` for it. [Sharing](https://variance-authority.dev/docs/sharing)
-has the whole job.
+`share` hands that token to git for the remote on `GITHUB_SERVER_URL`'s host
+and writes it to no file; write no git header and no `GIT_CONFIG_*` for it.
+[Sharing](https://variance-authority.dev/docs/sharing) has the whole job.
 
 ## Measure a pull request from the record's commit
 

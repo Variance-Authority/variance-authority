@@ -25,6 +25,7 @@ let home: string;
 beforeEach(async () => {
   home = await realpath(await mkdtemp(join(tmpdir(), 'variance-share-token-')));
   for (const name of ['GITHUB_TOKEN', 'GITHUB_SERVER_URL', 'GIT_CONFIG_COUNT']) vi.stubEnv(name, undefined);
+  vi.stubEnv('GITHUB_ACTIONS', 'true');
 });
 
 afterEach(async () => {
@@ -50,12 +51,22 @@ describe('a publish step that holds a token', () => {
     expect(await filesHolding(home, [TOKEN, basic(TOKEN).slice('basic '.length)])).toEqual([]);
   });
 
-  it('sends the header the clone or the step already gives git, once, rather than one of its own', async () => {
+  it.each([
+    ['the clone keeps', async (ci: string, url: string) => {
+      await git(ci, 'config', `http.${url}.extraheader`, `AUTHORIZATION: ${basic('ghs_given')}`);
+    }],
+    ['the step gives git as `GIT_CONFIG_*`', (_: string, url: string) => {
+      vi.stubEnv('GIT_CONFIG_COUNT', '1');
+      vi.stubEnv('GIT_CONFIG_KEY_0', `http.${url}.extraheader`);
+      vi.stubEnv('GIT_CONFIG_VALUE_0', `AUTHORIZATION: ${basic('ghs_given')}`);
+      return Promise.resolve();
+    }],
+  ])('sends the header %s, once, rather than one of its own', async (_, given) => {
     const { ci, origin } = await gitPublished(home, { publish: false });
     const seen: number[] = [];
-    await served(origin, basic('ghs_clones'), async (url, server) => {
+    await served(origin, basic('ghs_given'), async (url, server) => {
       await git(ci, 'remote', 'set-url', 'origin', url);
-      await git(ci, 'config', `http.${url}.extraheader`, `AUTHORIZATION: ${basic('ghs_clones')}`);
+      await given(ci, url);
       vi.stubEnv('GITHUB_SERVER_URL', server);
       vi.stubEnv('GITHUB_TOKEN', TOKEN);
 
@@ -66,13 +77,17 @@ describe('a publish step that holds a token', () => {
     expect(new Set(seen)).toEqual(new Set([1]));
   });
 
-  it('gives the token to no host but the one the CI host names', async () => {
+  it.each([
+    ['to a host other than the one the CI host names', { GITHUB_SERVER_URL: 'https://github.com' }],
+    ['off GitHub Actions, where a shell\'s token is for `gh`', { GITHUB_ACTIONS: undefined }],
+  ])('gives the token to no remote %s', async (_, env: Record<string, string | undefined>) => {
     const { ci, origin } = await gitPublished(home, { publish: false });
     const seen: number[] = [];
-    await served(origin, basic(TOKEN), async (url) => {
+    await served(origin, basic(TOKEN), async (url, server) => {
       await git(ci, 'remote', 'set-url', 'origin', url);
-      vi.stubEnv('GITHUB_SERVER_URL', 'https://github.com');
+      vi.stubEnv('GITHUB_SERVER_URL', server);
       vi.stubEnv('GITHUB_TOKEN', TOKEN);
+      for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
 
       expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) }))
         .not.toMatchObject({ published: { written: [suiteEntry('unit')] } });
