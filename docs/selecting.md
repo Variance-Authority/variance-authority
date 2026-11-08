@@ -6,6 +6,9 @@ records **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
 [what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
 
+Its [next push](#a-pull-requests-next-push) is the third of four steps in
+[Make CI faster](path-faster-ci.md).
+
 For a Vitest or Jest suite, [run the tests an edit needs](test-an-edit.md) puts
 that selection inside the runner you already call.
 

@@ -148,6 +148,8 @@ order; each golden path on the site links the page that owns each step.
   carry the record to the next push (the same reference), then
   [test an edit in a loop](references/test-selection.md#test-an-edit-in-a-loop).
   All four read the record main's full run writes.
+- **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
+  [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
 - **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):
   [covering](references/covering.md), then
   [case preconditions](references/case-preconditions.md), then
@@ -157,8 +159,6 @@ order; each golden path on the site links the page that owns each step.
 - **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
   [ask a run](references/ask-a-run.md), then [story](references/story.md);
   while the suite still runs, [live run](references/live-run.md).
-- **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
-  [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
 
 ## Rules every answer shares
 
