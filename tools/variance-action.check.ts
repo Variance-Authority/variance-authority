@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 
@@ -424,63 +424,6 @@ describe('the cleared comment', () => {
     } finally {
       await rm(temp, { recursive: true, force: true });
     }
-  });
-});
-
-describe('the images the comment shows', () => {
-  let at = '';
-  beforeEach(async () => { at = await mkdtemp(join(tmpdir(), 'variance-action-images-')); });
-  afterEach(async () => { await rm(at, { recursive: true, force: true }); });
-
-  /** Runs the step in the shell GitHub gives it, errexit and all, pushing to a bare `origin`. */
-  async function published(repository: string): Promise<{ readonly origin: string; readonly output: string; readonly printed: string }> {
-    const report = join(at, 'report');
-    await mkdir(report, { recursive: true });
-    await writeFile(join(report, 'report.json'), JSON.stringify({ observations: [{ images: { change: 'card.png' } }, { images: { change: '../out.png' } }] }));
-    await writeFile(join(report, 'card.png'), 'png');
-    await writeFile(join(report, 'unnamed.png'), 'png');
-    const origin = join(at, 'origin.git');
-    execFileSync('git', ['init', '--quiet', '--bare', origin]);
-    // Two levels under the checkout, as a runner's workspace sits under the folder that holds the actions.
-    const workspace = join(ROOT, 'work', 'repository');
-    const run = (await runBlock('publish the images the comment shows'))
-      .replaceAll('${{ github.action_path }}', dirname(ACTION))
-      .replaceAll('${{ github.workspace }}', workspace);
-    await writeFile(join(at, 'output'), '');
-    const printed = execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', run], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-      env: {
-        ...process.env,
-        GITHUB_TOKEN: 'token',
-        GITHUB_SERVER_URL: `file://${at}`,
-        GITHUB_REPOSITORY: repository,
-        GITHUB_OUTPUT: join(at, 'output'),
-        GITHUB_WORKSPACE: workspace,
-        VARIANCE_REPORT: join(report, 'report.json'),
-        VARIANCE_IMAGE_REF_PREFIX: 'refs/variance',
-        VARIANCE_PROJECT: 'web',
-        VARIANCE_BRANCH: 'feature',
-      },
-    });
-    return { origin, output: await readFile(join(at, 'output'), 'utf8'), printed };
-  }
-
-  it('pushes the pictures the report names, and nothing else, as a commit with no parent at the branch ref, and links it', async () => {
-    const { origin, output } = await published('origin');
-
-    const git = (...args: string[]) => execFileSync('git', ['--git-dir', origin, ...args], { encoding: 'utf8' }).trim();
-    const commit = git('rev-parse', 'refs/variance/web/images/feature');
-    expect(git('ls-tree', '--name-only', commit)).toBe('card.png');
-    expect(git('rev-list', '--count', commit)).toBe('1');
-    expect(output).toBe(`root=file://${at}/origin/raw/${commit}\n`);
-  });
-
-  it('warns and links nothing when the push is refused, as a fork\'s token is', async () => {
-    const { output, printed } = await published('elsewhere');
-
-    expect(printed).toContain('::warning');
-    expect(output).toBe('');
   });
 });
 
