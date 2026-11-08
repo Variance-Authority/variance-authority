@@ -184,6 +184,22 @@ replaces the record in the cache and says so in one line. A run fails rather
 than lay itself over a `coverageFile` made under another `mode`: give it a new
 one, or delete the old record.
 
+## Publish the mainline's record
+
+A suite given `"carry": "share"` is read from the record its mainline
+published. The publish job checks out with `persist-credentials: false`, and
+its publish step holds the token itself:
+
+```yaml
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+```
+
+`share` hands that token to git for the remote on `GITHUB_SERVER_URL`'s host
+and writes it to no file; write no git header and no `GIT_CONFIG_*` for it.
+[Sharing](https://variance-authority.dev/docs/sharing) has the whole job.
+
 ## Measure a pull request from the record's commit
 
 A host checks a pull request out as its head merged into the base tip, and the

@@ -172,8 +172,9 @@ inputs:
 
   github-token:
     description: >-
-      Token used to read and write the pull-request comment. Nothing is sent
-      anywhere else. A `pull_request` run from a fork receives a read-only token,
+      Token used to read and write the pull-request comment, and to publish to
+      the share when the checkout keeps no credential. Nothing is sent anywhere
+      else. A `pull_request` run from a fork receives a read-only token,
       and the comment step warns rather than failing in that case.
     required: false
     default: ''
@@ -662,6 +663,9 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        # `share` hands it to git when the clone keeps no header, as a
+        # checkout with `persist-credentials: false` leaves it.
+        GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_REPORTS: ${{ steps.run.outputs.reports }}

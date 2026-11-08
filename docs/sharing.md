@@ -797,8 +797,10 @@ Tribunal deployment is an `http` share.
 - **It authenticates with your global and system git configuration**, with
   the `http.extraheader` your clone has for that remote, which is where
   `actions/checkout` writes its token, and with git configuration in the
-  `GIT_CONFIG_COUNT` environment variables, which is how one CI step can give
-  git a token the clone does not keep. A credential helper set only in your
+  `GIT_CONFIG_COUNT` environment variables. On GitHub Actions, a clone that
+  keeps no header, as one checked out with `persist-credentials: false`, is
+  given the step's `GITHUB_TOKEN`, for a remote on the host
+  `GITHUB_SERVER_URL` names and no other. A credential helper set only in your
   clone's `.git/config` is not used. Git never prompts, and each git command
   is stopped after 60 s.
 - **A lookup reuses a fetched line for 60 s**, so ten lookups in a minute fetch
@@ -1118,14 +1120,8 @@ jobs:
       - run: npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
       - name: publish the records
         env:
-          TOKEN: ${{ github.token }}
-        run: |
-          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
-          echo "::add-mask::$auth"
-          export GIT_CONFIG_COUNT=1
-          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
-          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
-          npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 ```text
@@ -1147,8 +1143,9 @@ kept the record at 3f1c9a2… beside the latest.
 - **One suite takes a file for `--collected`.** With several, name a directory
   holding one `<name>.txt` per suite.
 - **`persist-credentials: false` keeps the token out of the clone.** The
-  publish step gives it to git through `GIT_CONFIG_*` variables, for that step
-  alone, so the install and the build never run beside it.
+  publish step alone holds it, as `GITHUB_TOKEN` in its `env:`, so the install
+  and the build never run beside it. The publish hands it to git through git's
+  environment configuration and writes it to no file.
 - **`--collected` is the runner's list of the test files it collects**, one
   path per line, relative to the repository root or absolute. With Jest it is
   `npx jest --listTests`.
