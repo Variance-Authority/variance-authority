@@ -96,7 +96,7 @@ inputs. Declare a suite of kind `job` with `"relations": false`, and wrap every
 command of the job with `variance job --suite <name> -- <command>...` on Linux with
 `strace`. On a Mac, record in a Docker container rather than waiting for CI: a
 clean clone of the commit at the primary checkout's path, with the cache mounted,
-as the [CLI reference](../../../README.md#job-record-what-a-build-read) describes.
+as the `job` section of the CLI reference describes.
 `variance select --suite <name>` then runs the job when a file it read changes. A
 changed file it only wrote does not run it.
 
