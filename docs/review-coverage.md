@@ -32,8 +32,9 @@ module.exports = withTestSelection({
 });
 ```
 
-A `preset` stays as it is: the wrap keeps its transform and wraps it, so copy
-nothing from it into your file. In a `jest.config.mjs` or `jest.config.ts`, `import {
+A `preset` and a `transform` with its own options stay as they are: the wrap
+keeps each transformer, on the same pattern with the same options, and wraps
+it, so copy nothing from a preset into your file. In a `jest.config.mjs` or `jest.config.ts`, `import {
 withTestSelection } from '@variance-authority/sense/jest'` and wrap the default
 export the same way. For Vitest, wrap `defineConfig` in the configuration you
 have:
@@ -65,7 +66,8 @@ those files are never committed from a checkout where they were made.
 The CLI needs Node 22.15 or newer, on your machine as in CI. Raise only the Node
 you run: `.nvmrc`, and `node-version` in the workflow. Leave `engines` in
 `package.json` alone; it says what your library asks of its users. Run your
-tests once with your usual command, then name a source file one of them imports:
+tests once with your usual command, then name a source file they import, in
+place of `src/index.ts`:
 
 ```bash
 npx variance covering --file src/index.ts
@@ -83,7 +85,7 @@ means the tests ran without the wrap. On your machine the record is kept under
 This is the whole workflow, for npm and Jest. If you already have a test job,
 replace its test step with the action rather than adding this workflow beside
 it, or your tests run twice. When that job runs a matrix of Node versions, keep
-it as it is and add this job beside it, once, in the same workflow:
+it as it is and add the `review` job beside it, once, in the same workflow:
 
 ```yaml
 name: tests
@@ -93,7 +95,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  review:
     runs-on: ubuntu-latest
     permissions:
       contents: read # the checkout
@@ -118,9 +120,11 @@ pull request compares with. A pull request's push saves what the next push of
 the same pull request reads. A failing test still gets its comment, then fails
 the job with the test's exit code.
 
-`test` and the install step are your own; the action installs nothing. With
-pnpm, run `pnpm install --frozen-lockfile` and set `test: pnpm exec vitest run`;
-with Yarn, `yarn install --immutable` (`--frozen-lockfile` on Yarn 1) and
+`test` and the install step are your own; the action installs nothing, so
+whatever your tests need first, such as a build, is a step before it. Keep the
+steps that set up your package manager, such as `pnpm/action-setup` and
+setup-node's `cache:`. With pnpm, run `pnpm install --frozen-lockfile` and set
+`test: pnpm exec jest` or `pnpm exec vitest run`; with Yarn, `yarn install --immutable` (`--frozen-lockfile` on Yarn 1) and
 `test: yarn jest`.
 
 ## The first runs
@@ -132,7 +136,10 @@ compares with that record. On a push there is no pull request, so the review
 goes to the job's summary.
 
 A pull request from a fork gets a token that cannot comment. The review is
-still in the job's summary, and the job warns rather than fails.
+still in the job's summary, and the job warns rather than fails. Your tests run
+in the job that holds the token: a fork's get only the read-only one, and a
+pull request from your own repository was pushed by somebody who can already
+write.
 
 ## Require it, or show a badge
 
@@ -148,7 +155,7 @@ Both are inputs of the same step:
 ```
 
 `fail-on-uncovered` fails the job, after the comment, when a changed function
-holds code no test ran. Name the job as a required check in your branch rule, and
+holds code no test ran. Name the `review` job as a required check in your branch rule, and
 such a pull request cannot merge until a test runs it.
 
 `badge` publishes, on every push to the default branch, the share of regions
@@ -156,7 +163,9 @@ your tests ran: a region is a function, a branch, or a run of statements with no
 decision in it, so the figure is lower than line coverage. The action pushes it
 as one file to the git ref `refs/badge/<default-branch>`, replaced each time, for
 a [shields.io](https://shields.io/badges/endpoint-badge) endpoint badge. Add
-`contents: write` to the job's `permissions`, in place of `contents: read`, and put the badge in your README
+`contents: write` to the job's `permissions`, in place of `contents: read`; the
+action pushes with that token itself, so `persist-credentials: false` on the
+checkout still works. Put the badge in your README
 with your owner, repository and default branch:
 
 ```markdown
