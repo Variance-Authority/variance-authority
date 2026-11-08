@@ -177,7 +177,7 @@ describe('a pull request reads from what its last push ran', () => {
     const pushed = join(clone, '.pushed');
     await carry(pushed, 'chromium', runsAt(kept));
 
-    expect(await keepPushed(clone, pushed, 'refs/remotes/origin/main')).toEqual({ kept: ['unit'], bundled: [], absent: [] });
+    expect(await keepPushed(clone, pushed, 'refs/remotes/origin/main')).toEqual({ kept: ['unit'], bundled: [] });
     expect(readFileSync(join(pushed, 'unit', 'coverage.bin'), 'utf8')).toBe('this push');
     expect(existsSync(join(pushed, 'unit', '.run-1'))).toBe(false);
     // What an earlier push kept and this one did not record is not carried twice.
@@ -193,7 +193,7 @@ describe('a pull request reads from what its last push ran', () => {
     await writeFile(join(dirname(own), 'coverage.runs.json'), JSON.stringify(runsAt(kept)));
     const pushed = join(clone, '.pushed');
 
-    expect(await keepPushed(clone, pushed, 'refs/remotes/origin/main')).toEqual({ kept: ['jest'], bundled: [], absent: [] });
+    expect(await keepPushed(clone, pushed, 'refs/remotes/origin/main')).toEqual({ kept: ['jest'], bundled: [] });
     expect(readFileSync(join(pushed, 'jest', 'coverage.bin'), 'utf8')).toBe('this push');
   });
 

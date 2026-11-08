@@ -62,7 +62,6 @@ export interface PushedKept extends KeptCommits {
 /** The file in which `take` names the suites it took, for a later take over the same directory. */
 const TAKEN = 'taken.json';
 
-
 /** The suites the repository declares by name; none when it declares none. */
 const declaredNames = (root: string): ReadonlySet<string> => new Set((declaredSuites(root) ?? []).map((one) => one.name));
 
@@ -185,12 +184,16 @@ export async function takePushed(
     ...(unbundled === undefined ? {} : { unbundled }),
     ...(Object.keys(against).length === 0 ? {} : { against }),
   };
-  const lost = left.filter((one) => earlier?.includes(one.suite) === true);
+  const lost = (earlier ?? []).filter((suite) => !taken.includes(suite));
   if (lost.length > 0) {
+    const why = (suite: string): string => {
+      const one = left.find((each) => each.suite === suite);
+      return one === undefined ? `${dir} holds no record of ${suite}.` : leftLine(one);
+    };
     throw new OperatorError(
-      `an earlier take of this run took ${lost.map((one) => one.suite).join(', ')} from ${dir}, and this one cannot, so this job stops rather than read another record than the other jobs read:\n${[
+      `an earlier take of this run took ${lost.join(', ')} from ${dir}, and this one cannot, so this job stops rather than read another record than the other jobs read:\n${[
         ...(unbundled === undefined ? [] : [unbundled]),
-        ...lost.map(leftLine),
+        ...lost.map(why),
       ].join('\n')}`,
     );
   }
@@ -252,11 +255,6 @@ export function takenLines(result: PushedTaken): readonly string[] {
 /** What `keep` did, one line each. */
 export function keptLines(result: PushedKept, dir: string): readonly string[] {
   const lines = [result.kept.length === 0 ? 'this push recorded no suite, so nothing is kept.' : `kept ${result.kept.join(', ')} in ${dir}.`];
-  if (result.absent.length > 0) {
-    lines.push(
-      `this clone does not hold ${result.absent.map((commit) => commit.slice(0, 12)).join(', ')}, which the records name, so the next push reads their suites from the mainline unless the remote has them.`,
-    );
-  }
   if (result.unbundled !== undefined) lines.push(`no commit is kept beside the records: ${result.unbundled}.`);
   if (result.bundled.length > 0) {
     const count = result.bundled.length;

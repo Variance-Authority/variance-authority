@@ -22,8 +22,6 @@ export const BUNDLE = 'commits.bundle';
 export interface KeptCommits {
   /** The commits written to the bundle. */
   readonly bundled: readonly string[];
-  /** The commits the records name that this clone does not hold: the next push leaves their suites. */
-  readonly absent: readonly string[];
   /** Why nothing was bundled, when a mainline to bundle against could not be had. */
   readonly unbundled?: string;
 }
@@ -57,16 +55,16 @@ export async function keepCommits(root: string, dir: string, mainline: string | 
   for (const suite of (await readdir(dir, { withFileTypes: true })).filter((entry) => entry.isDirectory())) {
     for (const commit of (await namedCommits(join(dir, suite.name, 'coverage.bin'))) ?? []) named.add(commit);
   }
+  // A commit this clone lacks cannot be kept: `take` leaves the suites standing on it.
   const held = [...named].filter((commit) => holds(root, commit));
-  const absent = [...named].filter((commit) => !held.includes(commit)).sort();
   await rm(join(dir, BUNDLE), { force: true });
-  if (held.length === 0) return { bundled: [], absent };
-  if (mainline === undefined) return { bundled: [], absent, unbundled: 'no mainline is named, so nothing marks which commits every clone holds' };
+  if (held.length === 0) return { bundled: [] };
+  if (mainline === undefined) return { bundled: [], unbundled: 'no mainline is named, so nothing marks which commits every clone holds' };
   if (!succeeds(root, 'rev-parse', '--verify', '--quiet', `${mainline}^{commit}`)) {
-    return { bundled: [], absent, unbundled: `this clone has no ${mainline}, the mainline every clone holds` };
+    return { bundled: [], unbundled: `this clone has no ${mainline}, the mainline every clone holds` };
   }
   const bundled = held.filter((commit) => !succeeds(root, 'merge-base', '--is-ancestor', commit, mainline)).sort();
-  if (bundled.length === 0) return { bundled, absent };
+  if (bundled.length === 0) return { bundled };
   const refs = bundled.map((commit, index) => [`refs/carried/${String(index)}`, commit] as const);
   try {
     for (const [ref, commit] of refs) git(root, 'update-ref', ref, commit);
@@ -74,7 +72,7 @@ export async function keepCommits(root: string, dir: string, mainline: string | 
   } finally {
     for (const [ref] of refs) git(root, 'update-ref', '-d', ref);
   }
-  return { bundled, absent };
+  return { bundled };
 }
 
 /**

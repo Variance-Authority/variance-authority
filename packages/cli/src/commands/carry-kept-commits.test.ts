@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, writeFile } from 'node:fs/promises';
+import { readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { OperatorError } from '../exit.js';
@@ -47,7 +47,7 @@ describe('a merge no remote holds travels beside the records', () => {
     await recorded(earlier, 'unit', runsAt(merge, [kept]));
     const pushed = join(earlier, '.pushed');
 
-    expect(await keepPushed(earlier, pushed, MAINLINE)).toEqual({ kept: ['unit'], bundled: [merge], absent: [] });
+    expect(await keepPushed(earlier, pushed, MAINLINE)).toEqual({ kept: ['unit'], bundled: [merge] });
     expect(git(earlier, 'for-each-ref', 'refs/carried/')).toBe('');
     expect(() => git(clone, 'cat-file', '-e', `${merge}^{commit}`)).toThrow();
 
@@ -56,12 +56,12 @@ describe('a merge no remote holds travels beside the records', () => {
     expect(git(clone, 'for-each-ref', 'refs/carried/')).toBe('');
   });
 
-  it('keeps the commits the clone holds, and names the ones it does not', async () => {
+  it('keeps the commits the clone holds, and not the ones it lacks', async () => {
     const { earlier, kept, merge } = await mergedPush();
     const lost = 'f'.repeat(40);
     await recorded(earlier, 'unit', runsAt(kept, [merge, lost]));
 
-    expect(await keepPushed(earlier, join(earlier, '.pushed'), MAINLINE)).toEqual({ kept: ['unit'], bundled: [merge], absent: [lost] });
+    expect(await keepPushed(earlier, join(earlier, '.pushed'), MAINLINE)).toEqual({ kept: ['unit'], bundled: [merge] });
   });
 
   it('keeps no commit when every one the records name is on the mainline', async () => {
@@ -69,7 +69,7 @@ describe('a merge no remote holds travels beside the records', () => {
     await recorded(earlier, 'unit', runsAt(kept));
     const pushed = join(earlier, '.pushed');
 
-    expect(await keepPushed(earlier, pushed, MAINLINE)).toEqual({ kept: ['unit'], bundled: [], absent: [] });
+    expect(await keepPushed(earlier, pushed, MAINLINE)).toEqual({ kept: ['unit'], bundled: [] });
     expect(existsSync(join(pushed, BUNDLE))).toBe(false);
   });
 
@@ -81,8 +81,8 @@ describe('a merge no remote holds travels beside the records', () => {
     const nameless = await keepPushed(earlier, pushed, undefined);
     const lacking = await keepPushed(earlier, pushed, 'refs/remotes/origin/nowhere');
 
-    expect(nameless).toEqual({ kept: ['unit'], bundled: [], absent: [], unbundled: 'no mainline is named, so nothing marks which commits every clone holds' });
-    expect(lacking).toEqual({ kept: ['unit'], bundled: [], absent: [], unbundled: 'this clone has no refs/remotes/origin/nowhere, the mainline every clone holds' });
+    expect(nameless).toEqual({ kept: ['unit'], bundled: [], unbundled: 'no mainline is named, so nothing marks which commits every clone holds' });
+    expect(lacking).toEqual({ kept: ['unit'], bundled: [], unbundled: 'this clone has no refs/remotes/origin/nowhere, the mainline every clone holds' });
     expect(existsSync(join(pushed, BUNDLE))).toBe(false);
   });
 
@@ -137,6 +137,17 @@ describe('a run of several jobs takes one push', () => {
     const stopped = takePushed(later, pushed);
     await expect(stopped).rejects.toBeInstanceOf(OperatorError);
     await expect(takePushed(later, pushed)).rejects.toThrow(/an earlier take of this run took unit/u);
+  });
+
+  it('stops a later take over a directory that lost a suite the first one took', async () => {
+    const { clone, earlier, merge } = await mergedPush();
+    await recorded(earlier, 'unit', runsAt(merge));
+    const pushed = join(earlier, '.pushed');
+    await keepPushed(earlier, pushed, MAINLINE);
+    await takePushed(clone, pushed);
+    await rm(join(pushed, 'unit'), { recursive: true });
+
+    await expect(takePushed(clone, pushed)).rejects.toThrow(/an earlier take of this run took unit/u);
   });
 
   it('lets a later take that takes what the first one took go on', async () => {

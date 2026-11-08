@@ -3392,7 +3392,7 @@ directory to the run's other jobs as an artifact. Each of them runs
 the first job took, so no job reads another record than the rest:
 
 ```yaml
-# the job that restored the cache, after `take`:
+# the job that restored the cache, after `take`, when it took a suite:
 - if: steps.take.outputs.taken != ''
   uses: actions/upload-artifact@v7
   with:
