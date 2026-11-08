@@ -12,6 +12,7 @@ import type { DoctorProbes } from './doctor-probes.js';
 import { cacheFinding, readCache, type CacheFinding, type CacheReading } from './doctor-cache.js';
 import { agentSkills, type SkillsFinding } from './doctor-skills.js';
 import { baselineFinding, type BaselineFinding } from './doctor-baselines.js';
+import { suitesFinding, type SuitesFinding } from './doctor-suites.js';
 import { typescriptFinding, type TypescriptFinding } from './doctor-typescript.js';
 
 /**
@@ -64,6 +65,8 @@ export interface Diagnosis {
   readonly history: HistoryFinding;
   readonly skills: SkillsFinding;
   readonly typescript: TypescriptFinding;
+  /** Absent when the root config declares no suite, or when no repository was named to read one from. */
+  readonly suites?: SuitesFinding;
 }
 
 /**
@@ -71,7 +74,7 @@ export interface Diagnosis {
  * setting. Its own shape rather than a {@link Diagnosis} with optional sections,
  * so that every reader of a whole diagnosis keeps a whole one.
  */
-export type RenderlessDiagnosis = Pick<Diagnosis, 'renderer' | 'cache' | 'skills' | 'typescript'>;
+export type RenderlessDiagnosis = Pick<Diagnosis, 'renderer' | 'cache' | 'skills' | 'typescript' | 'suites'>;
 
 /**
  * The render cache, named so that somebody knows where it is.
@@ -146,7 +149,11 @@ export type { CacheFinding, CacheReading } from './doctor-cache.js';
 export { baselineFinding } from './doctor-baselines.js';
 export type { BaselineFinding, Partition } from './doctor-baselines.js';
 
-export async function doctor(config: Config, probes: DoctorProbes): Promise<Diagnosis> {
+/**
+ * `root` is the repository the config is in, whose declared suites are read;
+ * a caller that names none asks nothing of them.
+ */
+export async function doctor(config: Config, probes: DoctorProbes, root?: string): Promise<Diagnosis> {
   let renderer: Renderer | null = null;
   let rendererFinding: RendererFinding;
 
@@ -176,7 +183,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       baselines: await baselineFinding(config, probes, undefined),
       renders: await renders(probes, undefined),
       history: history(config),
-      ...(await repositoryFindings(await probes.cache())),
+      ...(await repositoryFindings(await probes.cache(), root)),
     };
   }
 
@@ -207,7 +214,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       baselines: await baselineFinding(config, probes, rendererFinding.identity),
       renders: await renders(probes, rendererFinding.identity),
       history: history(config),
-      ...(await repositoryFindings(await probes.cache())),
+      ...(await repositoryFindings(await probes.cache(), root)),
     };
   } finally {
     // Closed here rather than left to the process: doctor is often the last thing
@@ -220,7 +227,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
  * Doctor for a file that names no render settings, which is a valid file: there
  * is nothing to open a renderer for, so none is opened and that is said.
  */
-export async function renderlessDoctor(config: Pick<Config, 'cacheRoot'>): Promise<RenderlessDiagnosis> {
+export async function renderlessDoctor(config: Pick<Config, 'cacheRoot'>, root: string): Promise<RenderlessDiagnosis> {
   const named = `${RENDER_SETTINGS.slice(0, -1).join(', ')} and ${RENDER_SETTINGS.at(-1)}`;
   return {
     renderer: {
@@ -228,18 +235,21 @@ export async function renderlessDoctor(config: Pick<Config, 'cacheRoot'>): Promi
       checked: false,
       because: `this config names none of ${named}, so no renderer was opened`,
     },
-    ...(await repositoryFindings(await readCache(config))),
+    ...(await repositoryFindings(await readCache(config), root)),
   };
 }
 
 /** The half of doctor that reads the repository, which no render setting decides. */
 async function repositoryFindings(
   cache: CacheReading,
-): Promise<Pick<Diagnosis, 'cache' | 'skills' | 'typescript'>> {
+  root: string | undefined,
+): Promise<Pick<Diagnosis, 'cache' | 'skills' | 'typescript' | 'suites'>> {
+  const suites = root === undefined ? undefined : await suitesFinding(root);
   return {
     cache: cacheFinding(cache),
     skills: agentSkills(process.cwd()),
     typescript: await typescriptFinding(process.cwd()),
+    ...(suites === undefined ? {} : { suites }),
   };
 }
 

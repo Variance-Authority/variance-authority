@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { main } from '../bin.fixture.js';
 import { RENDER_SETTINGS } from '../config-settings.js';
@@ -19,13 +20,19 @@ function doctorOn(settings: unknown, ...flags: string[]) {
 }
 
 /** The same, with the config in `directory` of that repository. A string is the file's text. */
-async function doctorIn(directory: string, settings: unknown, ...flags: string[]) {
+function doctorIn(directory: string, settings: unknown, ...flags: string[]) {
+  return doctorAfter(async () => {}, directory, settings, ...flags);
+}
+
+/** {@link doctorIn} once `seed` has laid what a run would have left in the repository. */
+async function doctorAfter(seed: (root: string) => Promise<void>, directory: string, settings: unknown, ...flags: string[]) {
   const root = await mkdtemp(join(tmpdir(), 'variance-renderless-'));
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   const at = join(root, directory);
   await mkdir(at, { recursive: true });
   const file = join(at, 'variance.config.json');
   await writeFile(file, typeof settings === 'string' ? settings : JSON.stringify(settings));
+  await seed(root);
 
   let out = '';
   let err = '';
@@ -69,6 +76,38 @@ describe('doctor on a config that renders nothing', () => {
 
     expect(code).toBe(0);
     expect(out).toContain('renderer: not checked');
+  });
+
+  it('names a declared suite no run has recorded, says what writes its record, and exits clean', async () => {
+    const { code, out } = await doctorOn({ suites: { unit: { kind: 'unit' } } });
+
+    expect(code).toBe(0);
+    expect(out).toMatch(/^suites: 1 declared in the root variance\.config\.json$/m);
+    expect(out).toContain('unit (unit): not recorded yet');
+    expect(out).toContain('`withTestSelection`');
+  });
+
+  it('names the record a suite has in this checkout, and its file', async () => {
+    let record = '';
+    const { code, out } = await doctorAfter(
+      async (root) => {
+        record = testCoverageFile(root, { suite: 'unit' });
+        await mkdir(dirname(record), { recursive: true });
+        await writeFile(record, '{}');
+      },
+      '.',
+      { suites: { unit: { kind: 'unit' } } },
+    );
+
+    expect(code).toBe(0);
+    expect(out).toContain('unit (unit): recorded in this checkout');
+    expect(out).toContain(record);
+  });
+
+  it('prints no suites section for a file that declares none', async () => {
+    const { out } = await doctorOn({});
+
+    expect(out).not.toMatch(/^suites: /m);
   });
 
   it('refuses a file that is not JSON', async () => {

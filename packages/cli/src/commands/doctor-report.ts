@@ -12,6 +12,7 @@ import type {
 } from './doctor.js';
 import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
+import { formatSuites } from './doctor-suites.js';
 import { formatTypescript } from './doctor-typescript.js';
 
 /**
@@ -103,6 +104,7 @@ export function formatRenderless(diagnosis: RenderlessDiagnosis): string {
     ...formatSkills(diagnosis.skills),
     '',
     ...formatTypescript(diagnosis.typescript),
+    ...(diagnosis.suites === undefined ? [] : ['', ...formatSuites(diagnosis.suites)]),
   ].join('\n');
 }
 
@@ -134,6 +136,7 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     ...formatSkills(diagnosis.skills),
     '',
     ...formatTypescript(diagnosis.typescript),
+    ...(diagnosis.suites === undefined ? [] : ['', ...formatSuites(diagnosis.suites)]),
   ].join('\n');
 }
 
