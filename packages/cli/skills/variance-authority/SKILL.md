@@ -137,6 +137,29 @@ when its condition holds, not before.
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
 | A Cloudflare tribunal needs setting up, a token, or its Access values; CI says the ingest token is not set | [deploy a tribunal](references/deploy-a-tribunal.md) | |
 
+## Follow a golden path
+
+When the task is an outcome rather than one question, take its steps in this
+order; each golden path on the site links the page that owns each step.
+
+- **Make CI faster** ([path](https://variance-authority.dev/docs/path-faster-ci)):
+  shard by recorded time ([combine CI shard records](references/test-selection.md#combine-ci-shard-records)),
+  select on a pull request ([selection wiring](references/selection-wiring.md)),
+  carry the record to the next push (the same reference), then
+  [test an edit in a loop](references/test-selection.md#test-an-edit-in-a-loop).
+  All four read the record main's full run writes.
+- **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):
+  [covering](references/covering.md), then
+  [case preconditions](references/case-preconditions.md), then
+  [distill](references/distill.md).
+- **Orient in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
+  [orient](references/orient.md), then [workspace API](references/workspace-api.md).
+- **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
+  [ask a run](references/ask-a-run.md), then [story](references/story.md);
+  while the suite still runs, [live run](references/live-run.md).
+- **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
+  [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
+
 ## Rules every answer shares
 
 **Absent is not empty.** An unavailable domain is unknown, never an empty

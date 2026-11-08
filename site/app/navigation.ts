@@ -33,6 +33,16 @@ export const NAVIGATION = [
     ],
   },
   {
+    label: "Golden paths",
+    items: [
+      { href: "/docs/path-faster-ci", label: "Make CI faster" },
+      { href: "/docs/path-visual-review", label: "Review a visual change" },
+      { href: "/docs/path-lean-suite", label: "Keep a test suite lean" },
+      { href: "/docs/path-agent-orientation", label: "Orient a coding agent in a codebase" },
+      { href: "/docs/path-test-failure", label: "Find out why a test failed or hangs" },
+    ],
+  },
+  {
     label: "Theory",
     items: [
       { href: "/docs/tests", label: "Tests preserve the paths we care about", cluster: "Testing and dependencies" },
@@ -248,7 +258,7 @@ export interface DocumentationIndex {
 
 /** Existing question and integration pages are also top-level browsing entries. */
 const ENTRY_SECTIONS: Readonly<Record<string, readonly string[]>> = {
-  '/docs': ['Code exploration', 'Your test suite', 'Investigate a run'],
+  '/docs': ['Golden paths', 'Code exploration', 'Your test suite', 'Investigate a run'],
   '/start': ['Visual review integrations'],
   '/agents': ['Agents'],
 };
