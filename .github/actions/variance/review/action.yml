@@ -254,7 +254,8 @@ runs:
         set -uo pipefail
         skip() { echo "::warning title=badge not updated::$1, so the last badge stands."; exit 0; }
         [ -s "$REVIEW/regions-run.json" ] || skip 'no figure was counted'
-        echo regions-run.json > "$RUNNER_TEMP/badge-paths"
+        paths="$(mktemp)"
+        echo regions-run.json > "$paths"
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere, as in the post above.
         here="${{ github.action_path }}"
@@ -262,7 +263,7 @@ runs:
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
         # `|| pushed=$?`: GitHub runs the step under errexit, as in the images step.
         pushed=0
-        bash "$here/../push-ref.sh" "$REVIEW" "$RUNNER_TEMP/badge-paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" \
+        bash "$here/../push-ref.sh" "$REVIEW" "$paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" \
           "refs/heads/$BRANCH" "$GITHUB_SHA" > /dev/null || pushed=$?
         case $pushed in
           0) ;;

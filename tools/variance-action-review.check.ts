@@ -119,7 +119,7 @@ describe('the review a project with only unit tests puts on the pull request', (
 
   it('fails on a review that did not happen, so the post never runs and the last comment stands', async () => {
     expect((await ran('review the change', { SINCE: 'abc123' }, 2)).status).toBe(2);
-    expect(stepNamed('post the review').if).toBeUndefined();
+    expect(stepNamed('post the review').if).toBe("inputs.comment != 'false'");
     expect(stepNamed('review the change')['continue-on-error']).toBeUndefined();
   });
 
@@ -143,7 +143,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     const names = action().runs.steps.map((step) => step.name);
     expect(names.indexOf('fail on what the review counted')).toBeGreaterThan(names.indexOf('post the review'));
     const failing = stepNamed('fail on what the review counted');
-    expect(failing.if).toBe("steps.review.outputs.exit-code == '1'");
+    expect(failing.if).toBe("inputs.from == '' && steps.review.outputs.exit-code == '1'");
     expect(() => execFileSync('/bin/bash', ['-c', failing.run], { stdio: 'pipe' })).toThrow();
   });
 
@@ -178,7 +178,7 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
-    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-lost', 'fail-on-uncovered', 'github-token', 'suite', 'test']);
+    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'comment', 'fail-on-lost', 'fail-on-uncovered', 'from', 'github-token', 'suite', 'test']);
     expect(action().outputs).toBeUndefined();
   });
 
@@ -191,6 +191,9 @@ describe('the review a project with only unit tests puts on the pull request', (
       "set the mainline's record aside",
       'run the tests',
       'review the change',
+      'count the regions run',
+      'hand the review on',
+      'take the review',
       'post the review',
       'publish the badge',
       'what the host keeps',
@@ -210,7 +213,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
-      for (const name of order.slice(1, 5).concat(order.slice(8, 11), order.slice(13))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+      for (const name of order.slice(1, 5).concat(order.slice(11, 14), order.slice(16))) expect(stepNamed(name).if).toContain("inputs.test != ''");
     });
 
     it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {
@@ -238,7 +241,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect((await ran('run the tests', { VARIANCE_TEST: 'false\necho not reached' })).output).toBe('exit-code=1\n');
       expect(stepNamed('run the tests').env).toMatchObject({ VARIANCE_TEST: '${{ inputs.test }}' });
       const failing = stepNamed('fail on the tests');
-      expect(failing.if).toBe("${{ !cancelled() && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}");
+      expect(failing.if).toBe("${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}");
       expect(failing.env).toMatchObject({ CODE: '${{ steps.test.outputs.exit-code }}' });
       expect((await ran('fail on the tests', { CODE: '3' })).status).toBe(3);
     });
@@ -249,15 +252,15 @@ describe('the review a project with only unit tests puts on the pull request', (
 
     it('saves after a red test or a failed post, as carry saves any run on a mainline', async () => {
       expect((await ran('what the host keeps')).said).toEqual(['carry save --format github']);
-      expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.test != '' }}");
+      expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.from == '' && inputs.test != '' }}");
       const suite = stepNamed("keep the suite's record for the next pull request");
       expect(suite.uses).toBe('actions/cache/save@v6');
-      expect(suite.if).toBe(`\${{ !cancelled() && inputs.test != '' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
+      expect(suite.if).toBe(`\${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
       expect(suite.with).toEqual({ path: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'path')})] }}`, key: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'key')})] }}` });
       expect((await ran('keep what this push ran')).said).toEqual(['carry keep']);
-      expect(stepNamed('keep what this push ran').if).toBe("${{ !cancelled() && inputs.test != '' && steps.save.outputs.pushed-key != '' }}");
+      expect(stepNamed('keep what this push ran').if).toBe("${{ !cancelled() && inputs.from == '' && inputs.test != '' && steps.save.outputs.pushed-key != '' }}");
       const pushed = stepNamed('save what this push ran');
-      expect(pushed.if).toBe("${{ !cancelled() && steps.keep.outcome == 'success' }}");
+      expect(pushed.if).toBe("${{ !cancelled() && inputs.from == '' && steps.keep.outcome == 'success' }}");
       expect(pushed.with).toEqual({ path: '${{ steps.save.outputs.pushed-path }}', key: '${{ steps.save.outputs.pushed-key }}' });
     });
   });
@@ -274,6 +277,17 @@ describe('the review a project with only unit tests puts on the pull request', (
     };
 
     /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
+    /** Counts the figure, as the job that ran the tests does, then publishes it from the same review directory. */
+    async function badge(env: Readonly<Record<string, string>>, exit = 0) {
+      const review = await mkdtemp(join(tmpdir(), 'variance-action-badge-review-'));
+      try {
+        const counted = await ran('count the regions run', { REVIEW: review }, exit);
+        return { ...(await ran('publish the badge', { ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
+      } finally {
+        await rm(review, { recursive: true, force: true });
+      }
+    }
+
     async function origin(): Promise<{ readonly env: Record<string, string>; readonly dir: string; readonly done: () => Promise<void> }> {
       const at = await mkdtemp(join(tmpdir(), 'variance-action-badge-'));
       const dir = join(at, 'origin.git');
@@ -288,11 +302,11 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('leaves the badge to the newer commit\'s run when the branch has moved past this one', async () => {
       const remote = await origin();
       try {
-        await ran('publish the badge', remote.env);
+        await badge(remote.env);
         const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
         pushed(remote.dir, 'newer');
 
-        const { status, printed } = await ran('publish the badge', remote.env);
+        const { status, printed } = await badge(remote.env);
 
         expect(status).toBe(0);
         expect(printed).toContain('::warning');
@@ -305,8 +319,8 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('pushes the figure as the one file of a commit with no parent at `refs/badge/<branch>`, replaced on each push', async () => {
       const remote = await origin();
       try {
-        const first = await ran('publish the badge', remote.env);
-        const second = await ran('publish the badge', remote.env);
+        const first = await badge(remote.env);
+        const second = await badge(remote.env);
 
         expect(first.said).toEqual(['coverage --format badge']);
         expect(second.status).toBe(0);
@@ -321,10 +335,10 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('leaves the last badge standing when coverage gives no figure, and says so', async () => {
       const remote = await origin();
       try {
-        await ran('publish the badge', remote.env);
+        await badge(remote.env);
         const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
 
-        const { status, printed } = await ran('publish the badge', remote.env, 2);
+        const { status, printed } = await badge(remote.env, 2);
 
         expect(status).toBe(0);
         expect(printed).toContain('::warning');
@@ -337,7 +351,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('warns and fails nothing when the push is refused', async () => {
       const remote = await origin();
       try {
-        const { status, printed } = await ran('publish the badge', { ...remote.env, GITHUB_REPOSITORY: 'elsewhere' });
+        const { status, printed } = await badge({ ...remote.env, GITHUB_REPOSITORY: 'elsewhere' });
 
         expect(status).toBe(0);
         expect(printed).toContain('::warning');
@@ -348,11 +362,40 @@ describe('the review a project with only unit tests puts on the pull request', (
 
     it('is published only when asked, on a push to the default branch, before a failure the review counted can skip it', () => {
       expect(action().inputs['badge']).toMatchObject({ default: 'false' });
+      expect(stepNamed('count the regions run').if).toBe(
+        "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+      );
       expect(stepNamed('publish the badge').if).toBe(
-        "inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+        "inputs.comment != 'false' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
       expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
+    });
+  });
+
+  // A test, or a package it installs, can read every token its job holds: the
+  // runner reaps what a step left running only when the job ends, and a later
+  // step's environment is readable from `/proc`.
+  describe("the job that runs the tests and the job that holds the token", () => {
+    const steps = () => action().runs.steps;
+    const text = (step: Step): string => JSON.stringify(step);
+
+    it("reads the token only in a step `comment: 'false'` skips, and hands on the review that step would post", () => {
+      const reading = steps().filter((step) => text(step).includes('inputs.github-token'));
+
+      expect(reading.map((step) => step.name)).toEqual(['post the review', 'publish the badge']);
+      for (const step of reading) expect(step.if).toContain("inputs.comment != 'false'");
+      const handed = stepNamed('hand the review on');
+      expect(handed.if).toBe("inputs.from == '' && inputs.comment == 'false'");
+      expect(handed.with).toMatchObject({ name: 'variance-review', path: '${{ steps.carry.outputs.review }}' });
+    });
+
+    it('runs nothing of the pull request with `from`: it takes the review, posts it and pushes the badge', () => {
+      const running = steps().filter((step) => !(step.if ?? '').includes("inputs.from == ''"));
+
+      expect(running.map((step) => step.name)).toEqual(['take the review', 'post the review', 'publish the badge']);
+      for (const step of running) expect(text(step)).not.toMatch(/inputs\.(test|command)\b|actions\/checkout/u);
+      expect(stepNamed('take the review').with).toMatchObject({ name: '${{ inputs.from }}' });
     });
   });
 
