@@ -10,16 +10,17 @@
  * restored record set aside or, where the restore laid none, the cases the share
  * holds.
  *
- * The records name earlier pushes' merge commits, which no branch holds;
- * `take` fetches the ones the clone lacks by name. A suite whose commits cannot
- * all be had is left, and reads the mainline's record, as a first push does;
- * so is one the last push recorded under other probes than the run `take`
- * precedes, which could not be laid over it.
+ * The records name earlier pushes' merge commits, which no branch holds.
+ * `keep` keeps the ones the mainline lacks beside the records, and `take` reads
+ * them, then fetches the rest by name. A suite whose commits cannot all be had
+ * is left, and reads the mainline's record, as a first push does; so is one the
+ * last push recorded under other probes than the run `take` precedes. `take`
+ * removes what it left from the directory and names what it took there, so a
+ * run's later jobs take the same suites from it, or stop.
  */
 
 // compass: variance-authority.retention
 
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
@@ -27,8 +28,9 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import { declaredSuites, foreignProbes, keepsCases, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
-import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Env } from '../share-lines.js';
+import { BUNDLE, git, holds, keepCommits, succeeds, takeCommits, type KeptCommits } from './carry-bundle.js';
 import { suiteBase } from './suite-base.js';
 
 /** Where `carry` keeps and takes the pushed records, under the checkout. */
@@ -44,6 +46,8 @@ export type PushedLeft =
 export interface PushedTaken {
   readonly taken: readonly string[];
   readonly left: readonly PushedLeft[];
+  /** Why the commits kept beside the records did not read, when they did not. */
+  readonly unbundled?: string;
   /**
    * The mainline's cases by suite, for `variance review --against`, which would
    * otherwise compare the change's cases with the last push's: the restored
@@ -60,33 +64,23 @@ export interface PushedTaken {
  */
 export const AGAINST = '.variance/against';
 
-export interface PushedKept {
+export interface PushedKept extends KeptCommits {
   readonly kept: readonly string[];
 }
 
-const run = (root: string, ...args: string[]): string =>
-  execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+/** The file in which `take` names the suites it took, for a later take over the same directory. */
+const TAKEN = 'taken.json';
 
-const succeeds = (root: string, ...args: string[]): boolean => {
-  try {
-    execFileSync('git', args, { cwd: root, stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const holds = (root: string, commit: string): boolean => succeeds(root, 'cat-file', '-e', `${commit}^{commit}`);
 
 /** The suites the repository declares by name; none when it declares none. */
 const declaredNames = (root: string): ReadonlySet<string> => new Set((declaredSuites(root) ?? []).map((one) => one.name));
 
 /**
  * Copy every declared suite's own record into `dir`, replacing what an earlier
- * push kept there. A run's half-written `.run-*` directories are left out: they
- * are no record.
+ * push kept there, with the commits they name that `mainline` does not hold. A
+ * run's half-written `.run-*` directories are left out: they are no record.
  */
-export async function keepPushed(root: string, dir: string): Promise<PushedKept> {
+export async function keepPushed(root: string, dir: string, mainline: string | undefined): Promise<PushedKept> {
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   const kept: string[] = [];
@@ -99,7 +93,7 @@ export async function keepPushed(root: string, dir: string): Promise<PushedKept>
     });
     kept.push(suite);
   }
-  return { kept: kept.sort() };
+  return { kept: kept.sort(), ...(await keepCommits(root, dir, mainline)) };
 }
 
 /** Where the restored record of `suite` stays readable once this push writes over it: absent when none was laid, or the one laid kept no cases, since a review could not read it. */
@@ -118,12 +112,11 @@ async function setAside(root: string, suite: string): Promise<string | undefined
  * Lay each suite under `dir` into the checkout at `root` as its own record,
  * replacing one a restore laid from the mainline: the last push was laid on a
  * mainline record, so it is that record plus what the pull request ran since.
- * `left` names the rest, each with the commits the remote did not give,
- * `unlisted` when its record names no commit its tests ran at, `undeclared`
- * for a suite the repository no longer declares, or the probes it was written
- * under when they are not `instrumentation`, the probes of the run that lands
- * next (`foreignProbes`, as `layMainline` asks). `undefined` takes a record
- * under any probes.
+ * `left` names the rest: the commits not had, `unlisted`, `undeclared`, or
+ * the probes it was written under when they are not `instrumentation`, the
+ * run's next (`foreignProbes`); `undefined` takes any probes. The left are
+ * removed from `dir` and the taken named there; a take over a directory an
+ * earlier take named stops when it leaves one of those.
  */
 export async function takePushed(
   root: string,
@@ -137,11 +130,14 @@ export async function takePushed(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     entries = [];
   }
+  const earlier = await earlierTaken(dir);
   const taken: string[] = [];
   const left: PushedLeft[] = [];
   const against: Record<string, string> = {};
+  let unbundled: string | undefined;
+  let bundleRead = false;
   // A shallow clone fetches each commit alone: a diff reads two trees, not history.
-  const depth = run(root, 'rev-parse', '--is-shallow-repository') === 'true' ? ['--depth=1'] : [];
+  const depth = git(root, 'rev-parse', '--is-shallow-repository') === 'true' ? ['--depth=1'] : [];
   const declared = declaredNames(root);
   // Every declared suite: what `take` leaves in place, the run writes over.
   for (const suite of [...declared].sort()) {
@@ -166,6 +162,11 @@ export async function takePushed(
       left.push({ suite, unlisted: true });
       continue;
     }
+    if (!bundleRead && named.some((commit) => !holds(root, commit))) {
+      // Once: what the bundle holds is in the clone after the first read.
+      bundleRead = true;
+      unbundled = takeCommits(root, dir);
+    }
     const absent = named.filter((commit) => !holds(root, commit));
     // One commit the remote no longer has fails the whole fetch; each is asked after.
     if (absent.length > 0 && !succeeds(root, 'fetch', '--quiet', '--no-tags', ...depth, 'origin', ...absent)) {
@@ -187,16 +188,58 @@ export async function takePushed(
     await cp(from, own, { recursive: true });
     taken.push(suite);
   }
-  return {
+  const result: PushedTaken = {
     taken,
     left,
+    ...(unbundled === undefined ? {} : { unbundled }),
     ...(Object.keys(against).length === 0 ? {} : { against }),
   };
+  const lost = left.filter((one) => earlier?.includes(one.suite) === true);
+  if (lost.length > 0) {
+    throw new OperatorError(
+      `an earlier take of this run took ${lost.map((one) => one.suite).join(', ')} from ${dir}, and this one cannot, so this job stops rather than read another record than the other jobs read:\n${[
+        ...(unbundled === undefined ? [] : [unbundled]),
+        ...lost.map(leftLine),
+      ].join('\n')}`,
+    );
+  }
+  if (existsSync(dir)) {
+    for (const one of left) await rm(join(dir, one.suite), { recursive: true, force: true });
+    await writeFile(join(dir, TAKEN), `${JSON.stringify({ taken })}\n`);
+  }
+  return result;
+}
+
+/** The suites an earlier take over `dir` took, or absent when none took from it. */
+async function earlierTaken(dir: string): Promise<readonly string[] | undefined> {
+  let text: string;
+  try {
+    text = await readFile(join(dir, TAKEN), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+  const read = (JSON.parse(text) as { taken?: unknown }).taken;
+  if (!Array.isArray(read) || !read.every((one) => typeof one === 'string')) {
+    throw new OperatorError(`${join(dir, TAKEN)} does not name the suites an earlier take took.`);
+  }
+  return read;
+}
+
+/** Why `one` reads the mainline's record, for a person. */
+function leftLine(one: PushedLeft): string {
+  return 'missing' in one
+    ? `${one.suite} reads the mainline's record: neither the commits kept beside the records nor the remote hold ${one.missing.map((commit) => commit.slice(0, 12)).join(', ')}, which the last push's record stands on.`
+    : 'unlisted' in one
+      ? `${one.suite} reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.`
+      : 'run' in one
+        ? `${one.suite} reads the mainline's record: the last push recorded under the probes \`${one.instrumentation}\`, and this run records under \`${one.run}\`, so no run here can be laid over it.`
+        : `${one.suite} is not taken: the last push kept it, and the repository no longer declares it.`;
 }
 
 /** What `take` did, one line each, for a person reading the log. */
 export function takenLines(result: PushedTaken): readonly string[] {
-  const lines: string[] = [];
+  const lines = result.unbundled === undefined ? [] : [result.unbundled];
   for (const suite of result.taken) {
     const aside = result.against?.[suite];
     lines.push(
@@ -207,17 +250,7 @@ export function takenLines(result: PushedTaken): readonly string[] {
       }`,
     );
   }
-  for (const one of result.left) {
-    lines.push(
-      'missing' in one
-        ? `${one.suite} reads the mainline's record: the remote no longer has ${one.missing.map((commit) => commit.slice(0, 12)).join(', ')}, which the last push's record stands on.`
-        : 'unlisted' in one
-          ? `${one.suite} reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.`
-          : 'run' in one
-            ? `${one.suite} reads the mainline's record: the last push recorded under the probes \`${one.instrumentation}\`, and this run records under \`${one.run}\`, so no run here can be laid over it.`
-            : `${one.suite} is not taken: the last push kept it, and the repository no longer declares it.`,
-    );
-  }
+  lines.push(...result.left.map(leftLine));
   for (const [suite, aside] of Object.entries(result.against ?? {})) {
     if (!result.taken.includes(suite)) lines.push(`${suite}: the mainline's cases are at ${aside}, for \`review --against\`.`);
   }
@@ -225,21 +258,34 @@ export function takenLines(result: PushedTaken): readonly string[] {
   return lines;
 }
 
-/** What `keep` did, in one line. */
+/** What `keep` did, one line each. */
 export function keptLines(result: PushedKept, dir: string): readonly string[] {
-  return [result.kept.length === 0 ? 'this push recorded no suite, so nothing is kept.' : `kept ${result.kept.join(', ')} in ${dir}.`];
+  const lines = [result.kept.length === 0 ? 'this push recorded no suite, so nothing is kept.' : `kept ${result.kept.join(', ')} in ${dir}.`];
+  if (result.absent.length > 0) {
+    lines.push(
+      `this clone does not hold ${result.absent.map((commit) => commit.slice(0, 12)).join(', ')}, which the records name, so the next push reads their suites from the mainline unless the remote has them.`,
+    );
+  }
+  if (result.unbundled !== undefined) lines.push(`no commit is kept beside the records: ${result.unbundled}.`);
+  if (result.bundled.length > 0) {
+    const count = result.bundled.length;
+    lines.push(`${String(count)} ${count === 1 ? 'commit' : 'commits'} no remote holds ${count === 1 ? 'is' : 'are'} kept in ${join(dir, BUNDLE)}.`);
+  }
+  return lines;
 }
 
 /**
  * `carry take|keep`: lay what the last push ran over the restored records, or
  * keep what this one ran for the next. Under `--format github` the suites go to
  * `$GITHUB_OUTPUT` as `taken` and `left`, or `kept`, separated by spaces, and
- * the lines to the error stream.
+ * the lines to the error stream. `line` is the mainline branch, whose commits
+ * on `origin` every clone holds and `keep` leaves out of what it keeps.
  */
 export async function movePushed(
   parsed: ParsedCarry,
   root: string,
   streams: { readonly out: (text: string) => void; readonly err: (text: string) => void },
+  line?: string,
 ): Promise<ExitCode> {
   const dir = parsed.dir ?? resolve(root, PUSHED);
   let outputs: string[];
@@ -254,7 +300,7 @@ export async function movePushed(
     ];
     lines = takenLines(taken);
   } else {
-    const kept = await keepPushed(root, dir);
+    const kept = await keepPushed(root, dir, line === undefined ? undefined : `refs/remotes/origin/${line}`);
     outputs = [`kept=${kept.kept.join(' ')}`];
     lines = keptLines(kept, dir);
   }

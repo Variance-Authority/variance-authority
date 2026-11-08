@@ -186,8 +186,10 @@ finish green: a failed one, and one the run never reached.
 
 `variance carry keep` copies the record a push wrote into a directory that
 `carry save` names, and the host cache saves it under a key only that pull
-request restores, red or green. On the next push `variance carry take` lays
-it over the mainline's record.
+request restores, red or green, with the commits it names that no remote
+holds. On the next push `variance carry take` reads those commits and lays the
+record over the mainline's; a suite whose commits cannot be had reads the
+mainline's record instead, as a first push does.
 [What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
 has the steps, and how the jobs of one run stand on one record.
 

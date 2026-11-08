@@ -3372,10 +3372,11 @@ review reads a shared suite from the share, and any other needs the restore
 before `take`.
 
 The record names the commits its tests last ran at: the merge commits of
-earlier pushes, which no branch holds. `take` fetches the ones the clone lacks
-from `origin` by name, each alone in a shallow clone. A workflow that merges a
-pull request itself, rather than checking out GitHub's merge, makes commits no
-remote holds, and fetches them into the clone before `take`. A suite whose
+earlier pushes, which no branch holds. A workflow that merges a pull request
+itself, as `carry merge` does, makes commits no remote holds, so `keep` keeps
+them beside the records in `commits.bundle`, with every commit they need that
+`origin/<base>` does not hold, and `take` reads them from there. It fetches the
+rest from `origin` by name, each alone in a shallow clone. A suite whose
 commits cannot all be had keeps the mainline's record and `take` names it, so
 that push runs as a first push does. So does a suite the last push recorded
 under other probes than this build records under, after an upgrade of
@@ -3383,6 +3384,28 @@ variance: no run here could be laid over it. Both read `.variance/pushed` unless
 name another directory: `variance carry take <dir>`. Under `--format github`,
 `take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
 prints `kept=<suite> <suite>`; the lines saying why go to stderr.
+
+`take` removes the suites it left from the directory and names the ones it
+took there, in `taken.json`, so one job can take the last push and hand the
+directory to the run's other jobs as an artifact. Each of them runs
+`variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
+the first job took, so no job reads another record than the rest:
+
+```yaml
+# the job that restored the cache, after `take`:
+- if: steps.take.outputs.taken != ''
+  uses: actions/upload-artifact@v7
+  with:
+    name: variance-carried
+    path: ${{ steps.carry.outputs.pushed-path }}
+    include-hidden-files: true
+# every other job, before its tests run:
+- uses: actions/download-artifact@v8
+  with:
+    name: variance-carried
+    path: ${{ runner.temp }}/carried
+- run: npx variance carry take "$RUNNER_TEMP/carried"
+```
 
 Jobs of one run read one record, and a re-run of one of them reads it too. The
 share moves while a run goes on: two jobs that each ask it can read two records
