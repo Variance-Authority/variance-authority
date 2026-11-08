@@ -3505,6 +3505,7 @@
         "recordFileFor": "function",
         "recordJob": "function",
         "recordOfCases": "function",
+        "recordPath": "function",
         "recordStorageAt": "function",
         "recordedCases": "function",
         "recordedCommit": "function",

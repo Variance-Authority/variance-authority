@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { readTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { PUSH, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
@@ -37,12 +37,12 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 }
 
 /**
- * The CI checkout one commit past the published `first`, `integration` given
- * to the share beside `unit` and only `unit` published, as the publish job finds it: nothing
+ * The CI checkout one commit past the published `first`, `unit` and `integration`
+ * given to the share, `site` declared beside them, and only `unit` published, as the publish job finds it: nothing
  * recorded in its own cache, and the commit pushed.
  */
 async function nextPush(): Promise<{ ci: string; origin: string; first: string; second: string }> {
-  const suites = { unit: { kind: 'unit', carry: 'share' }, integration: { kind: 'unit', carry: 'share' } };
+  const suites = { unit: { kind: 'unit', carry: 'share' }, integration: { kind: 'unit', carry: 'share' }, site: { kind: 'unit' } };
   const { ci, origin, first } = await gitPublished(home, { instrumentation: instrumentationId(), suites });
   await writeFile(join(ci, 'src/later.ts'), 'export const later = 1;\n');
   await git(ci, 'add', '-A');
@@ -85,6 +85,23 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
     expect(testCoverageFile(ci, { suite: 'unit' })).toContain(join(home, 'publish-cache'));
+  });
+
+  it("publishes a slice's record, already laid over the base in its job, as that job left it", async () => {
+    const { ci, second } = await nextPush();
+    const slice = join(home, 'ran', 'variance-slice-unit');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', slice);
+    const shard = await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    expect((await suitesShare(ci, { suite: 'unit', publish: false, records: [shard] }, { env: PUSH })).exit).toBe(EXIT_CLEAN);
+    const laid = await readTestCoverage(testCoverageFile(ci, { suite: 'unit' }));
+    expect(laid.commit).toBe(second);
+    await rm(join(home, 'ran', 'variance-shard-unit-1'), { recursive: true });
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'publish-cache'));
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [slice], collected: join(await collectedEach(), 'unit.txt') }, { env: PUSH });
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(await readTestCoverage(testCoverageFile(ci, { suite: 'unit' }))).toEqual(laid);
   });
 
   it('publishes every suite given to the share without `--suite`, and names each it could not', async () => {

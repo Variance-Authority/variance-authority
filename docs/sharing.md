@@ -48,7 +48,7 @@ npm install --save-dev @variance-authority/cli
 | `suite-index-v2` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
 | `subject-costs-v1` | what each subject took to collect, in whole milliseconds, and the file that declares it | the run report timed a subject, and is not one shard of a sharded build |
 | `report-v1` | the run report byte for byte, and a table from each image path it names to that image's digest | `report.carry` is `"share"` |
-| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --suite`](#a-suite-with-no-run-report) |
+| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --publish`](#a-suite-with-no-run-report) |
 
 Every publish includes `suite-index-v2`, which is what `variance share` reads,
 and the other entries are published only beside it. A line that still holds
@@ -1022,7 +1022,7 @@ jobs:
   integration](execution-record.md#one-record-for-each-suite), and only to a
   branch line. This step cannot determine which test files the runner collects,
   so a push to a mainline leaves the suite out and prints that you need to pass
-  `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
+  `--collected`, which [`share --publish`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
   `suite-v1/<name>`, while `report-v1` and `suite-index-v2` are one per line,
   from the job that published last.

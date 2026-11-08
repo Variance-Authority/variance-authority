@@ -5,9 +5,9 @@
  * `--suite` names, read from the mainline or published to it, with the records
  * a CI run's jobs handed on folded in first.
  *
- * A record is attributed to its suite by where the suite's run wrote it,
- * `suites/<suite>/coverage.bin` under a cache, which is what an uploaded cache
- * directory keeps. A file named beside `--suite` is that suite's whatever its
+ * A record is attributed to its suite by where the suite's run wrote it, the
+ * path `recordPath` gives the suite under a cache, which is what an uploaded
+ * cache directory keeps. A file named beside `--suite` is that suite's whatever its
  * path. Nothing else is guessed: a file without that shape, or of a suite the
  * root config does not give to the share, is refused before anything is read.
  *
@@ -18,7 +18,7 @@
  */
 
 import { readdir, stat } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import type { ParsedShare } from '../share-args.js';
 import { loadRenderless } from '../config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
@@ -70,10 +70,11 @@ export async function runRootShare(
  */
 export async function suitesShare(root: string, options: SuitesShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const shared = (selection.declaredSuites(root) ?? []).filter(({ carry }) => carry === 'share').map(({ name }) => name).sort();
+  const declared = selection.declaredSuites(root) ?? [];
+  const shared = declared.filter(({ carry }) => carry === 'share').map(({ name }) => name).sort();
   const suites = options.suite !== undefined ? [options.suite] : shared;
   if (suites.length === 0) throw new OperatorError('the root variance.config.json gives no suite to the share: name one with `"carry": "share"`');
-  const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared);
+  const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, suiteOfPath(root, declared.map(({ name }) => name), selection.recordPath));
   const collected = options.collected === undefined ? undefined : await collectedOf(root, options.collected, suites);
   if (suites.length === 1) {
     const [suite] = suites as [string];
@@ -128,15 +129,16 @@ async function rootSuite(config: string, root: string): Promise<string | undefin
   return (await namedSuite(root)).name ?? null;
 }
 
-/** The suite a record's path says it is of: the `<suite>` of `suites/<suite>/coverage.bin`. */
-function suiteOfPath(file: string): string | undefined {
-  return basename(file) === 'coverage.bin' && basename(dirname(dirname(file))) === 'suites' ? basename(dirname(file)) : undefined;
+/** The declared suite a record's path ends in the place of, as `recordPath` lays it out. */
+function suiteOfPath(root: string, declared: readonly string[], recordPath: (root: string, suite?: string) => string) {
+  const ends = declared.map((suite) => [suite, `${sep}${recordPath(root, suite).split('/').join(sep)}`] as const);
+  return (file: string): string | undefined => ends.find(([, end]) => file.endsWith(end))?.[0];
 }
 
-/** Every `suites/<suite>/coverage.bin` under `dir`, in code-unit order. */
-async function recordsUnder(dir: string): Promise<string[]> {
+/** Every record of a declared suite under `dir`, in code-unit order. */
+async function recordsUnder(dir: string, of: (file: string) => string | undefined): Promise<string[]> {
   const found = await readdir(dir, { recursive: true });
-  return found.map((path) => join(dir, path)).filter((path) => suiteOfPath(path) !== undefined).sort();
+  return found.map((path) => join(dir, path)).filter((path) => of(path) !== undefined).sort();
 }
 
 /**
@@ -148,6 +150,7 @@ async function recordsOf(
   given: readonly string[],
   suite: string | undefined,
   shared: readonly string[],
+  suiteOf: (file: string) => string | undefined,
 ): Promise<ReadonlyMap<string, readonly string[]>> {
   const bySuite = new Map<string, string[]>();
   const add = (of: string, file: string) => bySuite.set(of, [...(bySuite.get(of) ?? []), file]);
@@ -155,13 +158,13 @@ async function recordsOf(
     const at = resolve(root, path);
     const kind = await stat(at).catch(() => undefined);
     if (kind === undefined) throw new OperatorError(`the record ${path} is not there`);
-    const files = kind.isDirectory() ? await recordsUnder(at) : [at];
+    const files = kind.isDirectory() ? await recordsUnder(at, suiteOf) : [at];
     for (const file of files) {
-      const of = suite ?? suiteOfPath(file);
+      const of = suite ?? suiteOf(file);
       if (of === undefined) {
         throw new OperatorError(`${path} names no suite: a record is \`suites/<suite>/coverage.bin\` under a cache, or is named beside \`--suite\``);
       }
-      if (suite !== undefined && kind.isDirectory() && suiteOfPath(file) !== suite) continue;
+      if (suite !== undefined && kind.isDirectory() && suiteOf(file) !== suite) continue;
       if (suite === undefined && !shared.includes(of)) {
         throw new OperatorError(`${file} is a record of "${of}", which the root variance.config.json does not give to the share`);
       }
