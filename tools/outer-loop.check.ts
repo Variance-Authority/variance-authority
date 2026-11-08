@@ -86,10 +86,18 @@ describe('the outer loop against a healthy example', () => {
     expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
   });
 
-  it('accepts the cache flow with the label', async () => {
+  it('accepts the cache flow by ticking the box in the change\'s docket, and labels nothing', async () => {
     const { github } = await drive('cache');
-    expect(github.requests).toContain('POST /repos/Variance-Authority/example-storybook/issues/1/labels');
-    expect(github.requests.filter((r) => r.includes('/issues/2/labels'))).toEqual([]);
+    expect(github.ticked).toEqual([1]);
+    expect(github.requests.filter((r) => r.endsWith('/labels') || r.endsWith('/dispatches'))).toEqual([]);
+  });
+
+  it('accepts the lfs flow by dispatching its workflow with accept on the change\'s branch', async () => {
+    const { github } = await drive('lfs');
+    expect(github.dispatched).toEqual([
+      { workflow: 'variance.yml', ref: 'outer-loop/lfs/change-42-1', inputs: { accept: 'true' } },
+    ]);
+    expect(github.requests.filter((r) => r.endsWith('/labels') || r.includes('/issues/comments/'))).toEqual([]);
   });
 
   // An approval on the deployment replaces the baseline `main` and every branch
@@ -119,7 +127,19 @@ describe('the outer loop against an example that breaks a promise', () => {
     expect(code).toBe(1);
     expect(out).toContain('::error::check `variance` concluded success, expected failure');
     expect(leftOpen(github)).toEqual({ pulls: [], branches: [] });
-    expect(github.requests.some((r) => r.endsWith('/labels'))).toBe(false);
+    expect(github.ticked).toEqual([]);
+  });
+
+  it('names tick-to-accept when the docket carries no box to tick', async () => {
+    const { code, out } = await drive('cache', { boxless: true });
+    expect(code).toBe(1);
+    expect(out).toContain('the docket on #1 carries no box to tick');
+  });
+
+  it("names a person's token when the tick starts no run", async () => {
+    const { code, out } = await drive('cache', { untouched: true });
+    expect(code).toBe(1);
+    expect(out).toContain("the tick workflow answers a person's edit");
   });
 
   it('times out, bounded, when no check ever finishes, and cleans up', async () => {
@@ -159,6 +179,14 @@ describe('the outer loop against an example that breaks a promise', () => {
     expect(code).toBe(1);
     expect(out).toContain(
       'VARIANCE_PUSH_TOKEN needs contents and pull requests: write, and actions: read, on Variance-Authority/example-storybook',
+    );
+  });
+
+  it('asks the push token for actions: write where the flow accepts by a dispatch', async () => {
+    const { code, out } = await drive('lfs', { denied: true });
+    expect(code).toBe(1);
+    expect(out).toContain(
+      'VARIANCE_PUSH_TOKEN needs contents, pull requests and actions: write, on Variance-Authority/example-static-site',
     );
   });
 
@@ -265,11 +293,16 @@ describe('what a consumer sees, held against the flow', () => {
       files: files.map((filename) => ({ filename })),
     });
     const digest = 'f'.repeat(32);
-    const right = [`baselines/v1-${digest}/pricing.png`, `baselines/v1-${digest}/pricing.json`];
+    const moved = [`baselines/v1-${digest}/pricing.png`, `baselines/v1-${digest}/pricing.json`];
+    const right = ['baselines/pricing-chromium.webp', 'baselines/pricing-chromium.json', ...moved];
     expect(commitProblems(FLOWS.lfs, commit(right), 'p')).toEqual([]);
-    expect(commitProblems(FLOWS.lfs, commit([...right, `baselines/v1-${digest}/checkout.png`]), 'q')).toEqual([
+    expect(commitProblems(FLOWS.lfs, commit(moved), 'p')).toEqual([
+      'the accept commit touches nothing matching /^baselines\\/pricing-chromium\\.webp$/',
+      'the accept commit touches nothing matching /^baselines\\/pricing-chromium\\.json$/',
+    ]);
+    expect(commitProblems(FLOWS.lfs, commit([...right, 'baselines/checkout-chromium.webp']), 'q')).toEqual([
       'the accept commit\'s parent is p, not the change q',
-      `the accept commit touches \`baselines/v1-${digest}/checkout.png\`, which the change did not reach`,
+      'the accept commit touches `baselines/checkout-chromium.webp`, which the change did not reach',
     ]);
   });
 

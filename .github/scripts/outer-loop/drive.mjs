@@ -4,14 +4,21 @@
 // turn green, and close both whatever happened.
 //
 // Nothing here approves or merges. An accept lands only on the pull request
-// that will be closed: the cache flow's label saves into that pull request's
-// own cache scope, and the LFS flow's label commits to its own branch. A
+// that will be closed: the cache flow's tick saves into that pull request's
+// own cache scope, and the LFS flow's dispatch commits to its own branch. A
 // tribunal approval replaces the baseline every branch compares against, so
 // that flow declares no accept and ends at the build and the red check.
 
-import { ACCEPT_LABEL, CONTROL, FLOWS } from './flows.mjs';
+import { CONTROL, DOCKET_MARKER, FLOWS } from './flows.mjs';
 import { client, Refusal, until } from './github.mjs';
-import { acceptedProblems, buildProblems, changeProblems, commitProblems, controlProblems } from './observe.mjs';
+import {
+  acceptedProblems,
+  buildProblems,
+  changeProblems,
+  commentWith,
+  commitProblems,
+  controlProblems,
+} from './observe.mjs';
 
 /**
  * The flow's whole budget, in waits: every wait is bounded by `minutes`, and all
@@ -30,9 +37,11 @@ export function branchPrefix(name) {
   return `outer-loop/${name}/`;
 }
 
-/** What the push token must be allowed on the example repository. */
+/** What the push token must be allowed on the example repository: a dispatch writes to Actions. */
 export function pushNeeds(flow) {
-  return `contents and pull requests: write, and actions: read, on ${flow.repository}`;
+  return flow.accept === 'dispatch'
+    ? `contents, pull requests and actions: write, on ${flow.repository}`
+    : `contents and pull requests: write, and actions: read, on ${flow.repository}`;
 }
 
 /**
@@ -46,7 +55,7 @@ export function preflight(name, env) {
   }
   if (!env.VARIANCE_PUSH_TOKEN) {
     throw new Refusal(
-      `VARIANCE_PUSH_TOKEN is not set. The outer loop opens, labels and closes pull ` +
+      `VARIANCE_PUSH_TOKEN is not set. The outer loop opens, accepts and closes pull ` +
         `requests in ${flow.repository} with it, so it needs ${pushNeeds(flow)}`,
     );
   }
@@ -242,34 +251,50 @@ async function gate(context, sha, seen) {
   return { run, annotations };
 }
 
-async function label(context, pull) {
-  const { repo, gh, flow } = context;
-  await gh('POST', `/repos/${repo}/issues/${pull.number}/labels`, {
-    body: { labels: [ACCEPT_LABEL] },
-    needs: pushNeeds(flow),
-  });
+/** The unticked box `tick-to-accept` puts in the docket, bound to the run on `head`. */
+const BOX = /^- \[ \] .*<!-- variance-tick head=([0-9a-f]{40}) job=\d+ -->[ \t\r]*$/m;
+
+/** A wait that timed out, told why with `why`; any other failure as it was. */
+async function explained(waiting, why) {
+  try {
+    return await waiting;
+  } catch (error) {
+    if (error instanceof Refusal && error.message.startsWith('timed out')) throw new Refusal(`${error.message}. ${why}`);
+    throw error;
+  }
 }
 
 const ACCEPTS = {
-  // The label's run promotes what it renders, and takes the label off again.
-  async label(context, change, seen) {
-    const { repo, gh } = context;
-    await label(context, change);
-    const accepted = await gate(context, change.sha, seen);
-    const labels = await gh('GET', `/repos/${repo}/issues/${change.number}/labels`);
-    if (labels.some((l) => l.name === ACCEPT_LABEL)) {
-      throw new Refusal(`the \`${ACCEPT_LABEL}\` label is still on #${change.number} after its run`);
+  // A reviewer's tick: the example's tick workflow runs the check again, and
+  // that run saves what it renders into the pull request's cache scope.
+  async tick(context, change, seen) {
+    const { flow, repo, gh } = context;
+    const comments = await gh('GET', `/repos/${repo}/issues/${change.number}/comments?per_page=100`);
+    const docket = commentWith(comments, DOCKET_MARKER);
+    const box = BOX.exec(docket?.body ?? '');
+    if (box === null || box[1] !== change.sha) {
+      throw new Refusal(
+        `the docket on #${change.number} carries no box to tick for ${change.sha}; ` +
+          `${repo}'s workflow sets the action's \`tick-to-accept\``,
+      );
     }
-    return accepted;
+    await gh('PATCH', `/repos/${repo}/issues/comments/${docket.id}`, {
+      body: { body: docket.body.replace(BOX, (line) => line.replace('- [ ]', '- [x]')) },
+      needs: pushNeeds(flow),
+    });
+    return explained(gate(context, change.sha, seen), flow.untouched);
   },
 
-  // The label's run commits the accepted images to the branch and stays red,
-  // because it found the change it committed; the commit's own run is the
+  // The dispatched run commits the accepted images to the branch and stays
+  // red, because it found the change it committed; the commit's own run is the
   // green one.
-  async commit(context, change, seen) {
+  async dispatch(context, change, seen) {
     const { flow, repo, gh, wait } = context;
-    await label(context, change);
-    const labelled = await gate(context, change.sha, seen);
+    await gh('POST', `/repos/${repo}/actions/workflows/${flow.dispatch.workflow}/dispatches`, {
+      body: { ref: change.branch, inputs: flow.dispatch.inputs },
+      needs: pushNeeds(flow),
+    });
+    const dispatched = await gate(context, change.sha, seen);
     const moved = await until(
       async () => {
         const sha = (await gh('GET', `/repos/${repo}/pulls/${change.number}`)).head.sha;
@@ -277,20 +302,13 @@ const ACCEPTS = {
       },
       {
         ...wait,
-        waiting: `no commit reached ${change.branch} after the label; its run concluded ${labelled.run.conclusion}`,
+        waiting: `no commit reached ${change.branch} after the dispatch; its run concluded ${dispatched.run.conclusion}`,
       },
     );
     const commit = await gh('GET', `/repos/${repo}/commits/${moved}`);
     const problems = commitProblems(flow, commit, change.sha);
     if (problems.length > 0) throw new Refusal(problems.join('\n'));
-    try {
-      return await gate(context, moved, seen);
-    } catch (error) {
-      if (error instanceof Refusal && error.message.startsWith('timed out')) {
-        throw new Refusal(`${error.message}. ${flow.unchecked}`);
-      }
-      throw error;
-    }
+    return explained(gate(context, moved, seen), flow.unchecked);
   },
 };
 

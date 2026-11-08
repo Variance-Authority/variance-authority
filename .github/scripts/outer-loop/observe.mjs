@@ -117,7 +117,7 @@ export function acceptedProblems(flow, run, annotations) {
 }
 
 /**
- * The commit the label's run pushed back to the branch: the action's bot, its
+ * The commit the dispatched run pushed back to the branch: the action's bot, its
  * message, on top of the change, touching the changed page's images and
  * nothing else.
  */
@@ -133,10 +133,6 @@ export function commitProblems(flow, commit, parent) {
   if (commit.parents[0]?.sha !== parent) {
     problems.push(`the accept commit's parent is ${commit.parents[0]?.sha}, not the change ${parent}`);
   }
-  // FIXME: asserts the layout cli 0.15.0 writes. The readable, collocated
-  // baseline paths change (on its own branch) moves where an accepted image
-  // lands; when the examples install the release that carries it, `files` in
-  // flows.mjs follows.
   const names = commit.files.map((file) => file.filename);
   for (const pattern of expected.files) {
     if (!names.some((name) => pattern.test(name))) problems.push(`the accept commit touches nothing matching ${pattern}`);

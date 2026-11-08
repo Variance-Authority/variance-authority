@@ -12,9 +12,6 @@ export const DOCKET_MARKER = '<!-- variance-authority: pr-docket v1 -->';
 /** The annotation the action's verdict step writes when the run returns 1. */
 export const NEEDS_REVIEW = 'variance found changes that need review';
 
-/** The label the examples' workflows read. */
-export const ACCEPT_LABEL = 'variance: accept';
-
 /**
  * A change no subject reaches, for the control pull request: an HTML comment
  * appended to the README, which no route, story or test reads.
@@ -25,7 +22,8 @@ export const CONTROL = {
 };
 
 export const FLOWS = {
-  // Baselines in the Actions cache; a label accepts. The one example that also
+  // Baselines in the Actions cache; a tick of the box in the docket accepts,
+  // through the example's `variance-tick.yml`. The one example that also
   // records its unit tests, so the coverage and selection comments are read
   // here.
   cache: {
@@ -44,11 +42,17 @@ export const FLOWS = {
       untouched: ['src/Button.test.jsx'],
       selected: 'variance-authority: selected 1 of 2',
     },
-    accept: 'label',
+    accept: 'tick',
+    // The tick workflow answers only a person's edit: the action's tick refuses
+    // an edit a bot made, so a GitHub App's token ticks and nothing runs.
+    untouched:
+      "the tick workflow answers a person's edit, and refuses a bot's. Set VARIANCE_PUSH_TOKEN " +
+      'here to a fine-grained token a person with write access on Variance-Authority/example-storybook holds',
   },
 
-  // Baselines committed through git-LFS; the label's run commits the accepted
-  // images back to the pull request's branch.
+  // Baselines committed through git-LFS; a dispatch of the workflow with
+  // `accept` on the pull request's branch commits the accepted images back to
+  // it, through the action's `commit-baselines`.
   lfs: {
     repository: 'Variance-Authority/example-static-site',
     minutes: 15,
@@ -56,15 +60,23 @@ export const FLOWS = {
     checks: ['variance'],
     gate: 'variance',
     docket: ['pricing'],
-    accept: 'commit',
+    accept: 'dispatch',
+    dispatch: { workflow: 'variance.yml', inputs: { accept: 'true' } },
     commit: {
       author: 'github-actions[bot]',
       message: 'chore(variance): regenerate baselines',
-      // The layout cli 0.15.0 writes: `baselines/v1-<identity digest>/` and the
-      // page without `.html`. `commitProblems` carries the marker for the
-      // change that moves it. The image is a `.webp` from the release that
-      // keeps baselines as WebP, and a `.png` from the releases before it.
-      files: [/^baselines\/v1-[0-9a-f]{32}\/pricing\.(?:webp|png)$/, /^baselines\/v1-[0-9a-f]{32}\/pricing\.json$/],
+      // The example installs 0.26.0, which writes `{title}/{name}-{engine}`:
+      // the page as `baselines/pricing-chromium.*`. Its `main` still holds
+      // pricing where 0.15.0 wrote it, under `baselines/v1-<identity digest>/`,
+      // and an accept moves the pair it painted, so the old pair goes in the
+      // same commit. Once an accept of pricing lands on `main`, the last two
+      // patterns go.
+      files: [
+        /^baselines\/pricing-chromium\.webp$/,
+        /^baselines\/pricing-chromium\.json$/,
+        /^baselines\/v1-[0-9a-f]{32}\/pricing\.png$/,
+        /^baselines\/v1-[0-9a-f]{32}\/pricing\.json$/,
+      ],
     },
     // The accept commit is pushed with the example's VARIANCE_PUSH_TOKEN; a
     // commit pushed with GITHUB_TOKEN starts no workflow, so it gets no check.

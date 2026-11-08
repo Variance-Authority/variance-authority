@@ -3,15 +3,17 @@ name: outer loop
 # The three review flows, driven end to end the way a consumer meets them, each
 # against the example repository that carries it:
 #
-#   cache     Variance-Authority/example-storybook   a label accepts on the pull request
-#   lfs       Variance-Authority/example-static-site the label's run commits the images to its branch
+#   cache     Variance-Authority/example-storybook   a tick in the docket accepts on the pull request
+#   lfs       Variance-Authority/example-static-site a dispatch with accept commits the images to its branch
 #   tribunal  Variance-Authority/example-tribunal    the deployment holds the build; nothing accepts
 #
 # Per flow, `.github/scripts/outer-loop.mjs` opens two pull requests there: one
 # that changes what a subject renders, and a control that changes nothing any
 # subject reaches. It waits for their checks, holds what they posted against
-# `outer-loop/flows.mjs`. For cache and lfs it then adds the label, whose accept
-# lands only on that pull request, and waits for the check to turn green. It
+# `outer-loop/flows.mjs`. For cache it then ticks the docket's box, and for lfs
+# dispatches the example's workflow with accept on the change's branch; either
+# accept lands only on that pull request, and it waits for the check to turn
+# green. It
 # closes both pull requests and deletes their branches whatever happened. It
 # never approves and never merges: a tribunal approval replaces the baseline
 # every branch compares against, so that flow ends at the build and the red
@@ -39,7 +41,7 @@ permissions:
   contents: read
   issues: write
 
-# One outer loop at a time: two would race each other's label runs in the
+# One outer loop at a time: two would race each other's accept runs in the
 # examples.
 concurrency:
   group: outer-loop
