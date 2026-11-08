@@ -53,7 +53,9 @@ It reports rather than blocks: a change it finds is a warning on a green check,
 with its docket and report as on the other two, and its box still accepts it. It turns red when the run did not happen, when a subject
 could not be observed, an observation errored or the report cannot be read, and
 when an accept the comparison after it did not hold. The action's
-`exit-zero-on-changes` input does that for any job.
+`exit-zero-on-changes` input does that for any job. Off a pull request the same
+row also builds everything again under `variance job`, and the record of what it
+read and wrote is the run's `site-job-record` artifact.
 Two more jobs run the case's Storybook under the other two ways of keeping a
 baseline, each with its own config and comment: `lfs` commits the
 baselines to the pull request's branch through git-LFS, and `tribunal-service`
@@ -200,7 +202,7 @@ parent, replaced by every run that finds a change. It is not a branch, so a
 clone does not fetch it and the branch list does not show it. The comment links
 the commit rather than the ref, so an image cache never shows a previous run's
 pictures. When the pull request closes, merged or not, a second job deletes
-every project's ref for the branch.
+every project's ref for the branch with `Variance-Authority/action/images`.
 
 That ref and the report's share lines below are why `variance.yml` asks for
 `contents: write`. Anyone who can read the repository can read the images. A

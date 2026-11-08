@@ -467,9 +467,6 @@
   "packages/cli/src/commands/comment-images.ts docblock": [
     12
   ],
-  "packages/cli/src/commands/comment.ts docblock": [
-    16
-  ],
   "packages/cli/src/commands/comment.ts overview": [
     71
   ],
@@ -836,11 +833,7 @@
     24
   ],
   "packages/cli/src/dispatch.ts block": [
-    7,
     7
-  ],
-  "packages/cli/src/dispatch.ts docblock": [
-    11
   ],
   "packages/cli/src/exit.test.ts block": [
     6

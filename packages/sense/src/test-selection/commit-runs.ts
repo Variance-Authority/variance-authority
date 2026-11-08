@@ -440,7 +440,7 @@ function recordedTexts(coverageFile: string): ModuleTexts | undefined {
 }
 
 /** The snapshot at `coverageFile` as the runs record reads it, or `undefined` when there is none to read. */
-async function recordedSnapshot(coverageFile: string): Promise<RecordedTests | undefined> {
+export async function recordedSnapshot(coverageFile: string): Promise<RecordedTests | undefined> {
   try {
     return await askCoverageFile(coverageFile, (coverage) => ({
       instrumentation: coverage.instrumentation,

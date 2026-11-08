@@ -281,7 +281,8 @@ export async function answerConfigless(
     // the runner prints next. `0` either way. An empty skip list is the answer
     // "run everything", which is a correct answer and not a failure.
     case 'select': {
-      const { selectOutput } = await import('./select-command.js');
+      const [{ selectOutput }, { parseAtDistance }] = await Promise.all([import('./select-command.js'), import('./select-leg.js')]);
+      const atDistance = parseAtDistance(parsed.atDistance);
       const said = await selectOutput({
         cwd: process.cwd(),
         format: parsed.format,
@@ -290,7 +291,7 @@ export async function answerConfigless(
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
-        ...(parsed.atDistance === undefined ? {} : { atDistance: parsed.atDistance }),
+        ...(atDistance === undefined ? {} : { atDistance }),
       });
       streams.err(said.err);
       streams.out(said.out);
@@ -300,9 +301,10 @@ export async function answerConfigless(
     // `select`'s reason: asked by a CI job planning the shards a seam's runner
     // splits by, in a repository that may configure this tool for nothing else.
     case 'shards': {
-      const { shardsOutput } = await import('./shards-command.js');
-      const { command: _shards, ...asked } = parsed;
-      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked }));
+      const [{ shardsOutput }, { parseAtDistance }] = await Promise.all([import('./shards-command.js'), import('./select-leg.js')]);
+      const { command: _shards, atDistance: hops, ...asked } = parsed;
+      const atDistance = parseAtDistance(hops);
+      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked, ...(atDistance === undefined ? {} : { atDistance }) }));
       return EXIT_CLEAN;
     }
 

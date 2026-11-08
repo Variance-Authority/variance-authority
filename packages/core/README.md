@@ -159,6 +159,7 @@ specifier exports only the capture artifact.
 | `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
 | `core/segment` | columnar bytes: named columns, interned strings, and the validation a decode performs before it believes a file |
 | `core/share` | leaving those bytes where another machine finds them, as the latest of a mainline or a branch |
+| `core/nearest` | `didYouMean` and `nearest`: the one name close enough to what was typed, for a refusal that suggests it |
 | `core/shard` | which shard runs which group of a suite, by recorded time, and how many shards it is worth: `shardCount` weighs each shard's `setup` against the time it saves, within a `budget` or up to a `max`, with `workers` running a shard's groups at once |
 
 Five of those are the order an answer travels through: `format`, `rules`,

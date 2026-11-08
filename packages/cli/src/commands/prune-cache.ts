@@ -44,7 +44,8 @@ import {
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import { headPast } from '../share-lines.js';
-import { cacheOf, sharedReportRoot, shareRoot, suiteIndexRoot } from './resources.js';
+import { cacheOf, shareRoot } from './cache-of.js';
+import { sharedReportRoot, suiteIndexRoot } from './resources.js';
 
 /** How far behind `HEAD` a commit's entry may fall before a question about it stops being likely. */
 export const COMMITS_BEHIND = 200;

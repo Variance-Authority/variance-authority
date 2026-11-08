@@ -172,13 +172,3 @@ export function nothingRecorded(root: string, suites?: readonly string[]): Opera
     { kind: 'unrecorded' },
   );
 }
-
-/**
- * Refuse `--suite` beside a flag that names the record by path: both say which
- * record, and honouring one would read or write where the operator did not look.
- */
-export function oneRecord(suite: string | undefined, path: string | undefined, flag: string): void {
-  if (suite !== undefined && path !== undefined) {
-    throw new OperatorError(`\`--suite\` and \`${flag}\` both name the record; pass one`);
-  }
-}

@@ -30,7 +30,7 @@ import { createDirectoryLineCell, createGitLineCell, gitDescends } from '@varian
 import { countPast } from './clone-cut.js';
 import type { Config } from './config.js';
 import { ConfigError } from './config-values.js';
-import { shareRoot } from './commands/resources.js';
+import { shareRoot } from './commands/cache-of.js';
 
 /** The environment a CI host describes the run in. `process.env` unless a caller says otherwise. */
 export type Env = Readonly<Record<string, string | undefined>>;
