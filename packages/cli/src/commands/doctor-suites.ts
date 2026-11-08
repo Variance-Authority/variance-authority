@@ -5,18 +5,10 @@ import { asOperator } from './suite-record.js';
 import { recordHeld, selectedMainline } from './mainline-selected.js';
 
 /**
- * Whether each suite the root config declares has recorded, as this machine
- * holds it.
- *
- * Setup ends at a first run: a runner's config wrapped by its seam's
- * `withTestSelection` writes the suite's record when it runs, and nothing
- * before a run can say the wrap is there without loading that runner's config,
- * which is the runner's to read. A record on disk is what a wrapped run leaves,
- * so it is the observation doctor reports. The record is the one a reader would
- * read, by sense's lookup: this checkout's own, else the mainline's as last
- * fetched, else the primary checkout's. Nothing is fetched, and a suite not
- * recorded yet is the state before a first run, so this never moves the exit
- * code.
+ * Whether each declared suite has recorded, as this machine holds it. Only a
+ * runner's config says whether it is wrapped, so the record a wrapped run leaves
+ * is what is observed. Not recorded yet is the state before a first run, so this
+ * never moves the exit code.
  */
 export interface SuitesFinding {
   readonly suites: readonly SuiteReading[];
