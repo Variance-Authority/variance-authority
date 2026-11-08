@@ -28,6 +28,12 @@ step to a page.
 <p>Connect the harness you have, keep comparisons steady, read a change down to its line, explain the rest, and gate the build.</p>
 <em>Connect, attribute, gate →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="path-code-review.md">
+<span>Code review</span>
+<strong>Review a pull request</strong>
+<p>Put what the tests ran beside the diff: the cases under each changed function, the part none ran, what CI's run did, the layering, and what blocks the merge.</p>
+<em>Hand over, read, gate →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="path-lean-suite.md">
 <span>Test suite</span>
 <strong>Keep a test suite lean</strong>

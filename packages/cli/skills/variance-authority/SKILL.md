@@ -151,6 +151,10 @@ latest release. Below, each path names the references that cover its steps.
   All four start from the record main publishes.
 - **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
   [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
+- **Review a pull request** ([path](https://variance-authority.dev/docs/path-code-review)):
+  the handover, then [covering](references/covering.md) for a function it flags
+  🔴 and [the whole change](references/covering.md#ask-about-the-whole-change-at-review-time),
+  then `variance layers`, then `review --fail-on-uncovered` or `--fail-on-lost` as the [gate](#what-each-command-needs).
 - **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):
   [covering](references/covering.md), then
   [case preconditions](references/case-preconditions.md), then

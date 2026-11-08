@@ -13,6 +13,7 @@ import agentWorkspaceApi from "../../../docs/agent-workspace-api.md?raw";
 import attribution from "../../../docs/attribution.md?raw";
 import pathFasterCi from "../../../docs/path-faster-ci.md?raw";
 import pathVisualReview from "../../../docs/path-visual-review.md?raw";
+import pathCodeReview from "../../../docs/path-code-review.md?raw";
 import pathLeanSuite from "../../../docs/path-lean-suite.md?raw";
 import pathAgentOrientation from "../../../docs/path-agent-orientation.md?raw";
 import pathTestFailure from "../../../docs/path-test-failure.md?raw";
@@ -126,6 +127,7 @@ const documents = [
   ["extend-what-you-use", extendWhatYouUse, "docs/extend-what-you-use.md"],
   ["path-faster-ci", pathFasterCi, "docs/path-faster-ci.md"],
   ["path-visual-review", pathVisualReview, "docs/path-visual-review.md"],
+  ["path-code-review", pathCodeReview, "docs/path-code-review.md"],
   ["path-lean-suite", pathLeanSuite, "docs/path-lean-suite.md"],
   ["path-agent-orientation", pathAgentOrientation, "docs/path-agent-orientation.md"],
   ["path-test-failure", pathTestFailure, "docs/path-test-failure.md"],

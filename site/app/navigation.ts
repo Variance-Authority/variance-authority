@@ -37,6 +37,7 @@ export const NAVIGATION = [
     items: [
       { href: "/docs/path-faster-ci", label: "Make CI faster" },
       { href: "/docs/path-visual-review", label: "Review a visual change" },
+      { href: "/docs/path-code-review", label: "Review a pull request" },
       { href: "/docs/path-lean-suite", label: "Keep a test suite lean" },
       { href: "/docs/path-agent-orientation", label: "Orient a coding agent in a codebase" },
       { href: "/docs/path-test-failure", label: "Find out why a test failed or hangs" },

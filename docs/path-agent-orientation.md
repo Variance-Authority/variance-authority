@@ -53,4 +53,5 @@ A diff cannot show whether the changed lines are watched. The
 each changed region, so the agent knows what a passing suite actually checked
 before it forms an opinion.
 
-[Review a change against what the code did](agent-code-review.md)
+[Review a change against what the code did](agent-code-review.md), and
+[Review a pull request](path-code-review.md) for the whole review in order.
