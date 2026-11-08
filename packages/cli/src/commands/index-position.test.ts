@@ -21,7 +21,7 @@ const { commitOfIndex } = vi.hoisted(() => ({ commitOfIndex: vi.fn() }));
 vi.mock('@variance-authority/sense/test-selection', () => ({
   declaredSuites: () => undefined,
   onlySuite: () => undefined,
-  readableTestCoverage: async () => '/nowhere/coverage.bin',
+  nearestRecord: () => ({ file: '/nowhere/coverage.bin', origin: 'own' }),
   recordedCommit: commitOfIndex,
   testCoverageFile: () => '/nowhere/own/coverage.bin',
 }));
