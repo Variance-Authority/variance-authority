@@ -35,6 +35,17 @@
         "site/wrangler.jsonc",
         "site/yarn.lock"
       ]
+    },
+    "site-job": {
+      "kind": "job",
+      "relations": false,
+      "before": [
+        ".github/actions/build/action.yml",
+        ".github/actions/variance/action.yml",
+        ".github/workflows/variance.yml",
+        "docker/ci.Dockerfile",
+        "site/wrangler.jsonc"
+      ]
     }
   },
   "share": {

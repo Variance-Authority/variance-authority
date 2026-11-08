@@ -60,7 +60,7 @@ describe('the suites a repository declares', () => {
     [{}, '"suites" declares no suite'],
     [{ '../up': { kind: 'unit' } }, '"suites.../up" is not a suite name'],
     [{ '.work': { kind: 'unit' } }, '"suites..work" is not a suite name'],
-    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, "precision"?: "file" | "symbol" | "file-use" | "function-use" | "region-use" }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual" | "job", "carry"?: "actions-cache" | "share", "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, "precision"?: "file" | "symbol" | "file-use" | "function-use" | "region-use" }, not {"kind":"smoke"}'],
     [{ e2e: { kind: 'e2e', relations: 'no' } }, '"suites.e2e" must be { "kind"'],
     [{ unit: { kind: 'unit', carry: 'artifact' } }, '"suites.unit" must be { "kind"'],
     [{ unit: { kind: 'unit', precision: 'package' } }, '"suites.unit" must be { "kind"'],

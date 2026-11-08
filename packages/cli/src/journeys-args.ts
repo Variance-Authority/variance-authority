@@ -1,7 +1,6 @@
 import { resolve } from 'node:path';
-import { countOf, type Flags } from './args.js';
+import { countOf, oneRecord, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
-import { oneRecord } from './commands/suite-record.js';
 
 export type ParsedJourneys =
   | {

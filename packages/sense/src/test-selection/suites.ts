@@ -38,7 +38,7 @@ import { PRECISION_STEPS, byRelations, type Precision } from './precision.js';
  * What a suite is for. A closed list, because a reader that groups by kind, or a
  * rule that says what a kind may reach, needs to know what each one means.
  */
-export const SUITE_KINDS = ['unit', 'integration', 'e2e', 'visual'] as const;
+export const SUITE_KINDS = ['unit', 'integration', 'e2e', 'visual', 'job'] as const;
 
 /**
  * One of {@link SUITE_KINDS}: the role a declared suite plays, which is what a

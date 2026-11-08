@@ -202,6 +202,6 @@ describe('loadConfig and the suites', () => {
     const file = resolve(at, 'variance.config.json');
     await writeFile(file, JSON.stringify({ ...VALID, suites: { smoke: { kind: 'smoke' } } }));
 
-    await expect(loadConfig(file)).rejects.toThrow('`suites.smoke` must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?');
+    await expect(loadConfig(file)).rejects.toThrow('`suites.smoke` must be { "kind": "unit" | "integration" | "e2e" | "visual" | "job", "carry"?');
   });
 });

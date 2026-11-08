@@ -1,4 +1,4 @@
-import { checkoutPath } from '@variance-authority/sense';
+import { checkoutPath } from '@variance-authority/sense/checkout-path';
 import { OperatorError } from './exit.js';
 
 /**

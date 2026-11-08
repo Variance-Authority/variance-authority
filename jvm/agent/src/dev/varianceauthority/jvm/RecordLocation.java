@@ -49,7 +49,7 @@ public final class RecordLocation {
   static final String CONFIG = "variance.config.json";
   private static final Pattern GITDIR = Pattern.compile("(?m)^gitdir:\\s*(.+?)\\s*$");
   private static final Pattern SUITE_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
-  private static final List<String> KINDS = Arrays.asList("unit", "integration", "e2e", "visual");
+  private static final List<String> KINDS = Arrays.asList("unit", "integration", "e2e", "visual", "job");
 
   /** The rows' directory and the snapshot written from it, when this JVM resolved them from the layer. */
   private static volatile Path layerDirectory;
@@ -134,7 +134,7 @@ public final class RecordLocation {
             + "so it is letters, digits, \".\", \"_\" and \"-\", and starts with a letter or a digit");
       }
       if (!(value instanceof Map) || ((Map<?, ?>) value).size() != 1 || !KINDS.contains(((Map<?, ?>) value).get("kind"))) {
-        throw new IllegalStateException(file + ": \"suites." + name + "\" must be { \"kind\": \"unit\" | \"integration\" | \"e2e\" | \"visual\" }");
+        throw new IllegalStateException(file + ": \"suites." + name + "\" must be { \"kind\": \"unit\" | \"integration\" | \"e2e\" | \"visual\" | \"job\" }");
       }
       names.add(name);
     }

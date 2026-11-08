@@ -438,6 +438,33 @@ jobs:
 from the comment before adding the label. The images are pixels of your product,
 and they stay for your artifact retention period.
 
+To show the leading change's before and after on the comment's first screen as
+well, give the action `image-ref-prefix: refs/variance/project` and the job
+`contents: write`. The action pushes the pictures to a ref per project and branch,
+outside `refs/heads/`, and they stay there until a second workflow deletes them
+when the pull request closes, merged or not:
+
+```yaml
+name: variance images
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write # deleting the refs
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Variance-Authority/action/images@v1
+        with:
+          image-ref-prefix: refs/variance/project
+```
+
+It deletes every project's ref for the closed branch and no other branch's. A
+fork's pull request is skipped with a line, since its run could push nothing.
+
 `accept` reads the event, not the label. A label stays on a pull request until
 somebody takes it off, so a job that asked whether the label is present would
 accept every push after the first. `github.event.label` is the label that started
