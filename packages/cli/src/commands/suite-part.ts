@@ -279,6 +279,10 @@ export async function shareOutput(
   here: Here = {},
 ): Promise<readonly string[]> {
   const [only, ...more] = options.reports;
+  // A report is only an input to the publishing direction. Accepting one while
+  // fetching would read as "look this up as of that run", which is not what
+  // the mainline is read from and never will be.
+  if (!options.publish && only !== undefined) throw new OperatorError('`share <report>` is for `--publish`; a lookup takes `--mainline`');
   if (!options.publish) {
     return shareLines(config, { publish: false, ...(options.mainline === undefined ? {} : { mainline: options.mainline }) }, here);
   }

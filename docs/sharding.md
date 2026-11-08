@@ -55,11 +55,11 @@ place by time, your mainline has to publish one:
    one workflow; a job that checks out to another path looks under another
    name and finds nothing. Upload the `test-selection` directory whole, as
    [a suite with no run report](sharing.md#a-suite-with-no-run-report) does.
-2. Fold them into one with
-   [`variance journeys <shard>...`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too):
-   the record one unsharded run would have written.
-3. Publish it with `variance share --suite <name> --publish`, to the
-   [share](sharing.md), the store CI keeps each run's record in.
+2. Publish them with `variance share --publish <records>`, to the
+   [share](sharing.md), the store CI keeps each run's record in. It folds the
+   shards of each suite into the record one unsharded run would have written,
+   over the mainline's last one, and publishes every suite the root config
+   gives `"carry": "share"`.
    [A suite with no run report](sharing.md#a-suite-with-no-run-report) is that
    job, step by step.
 

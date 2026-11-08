@@ -168,7 +168,7 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
-variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
@@ -2959,8 +2959,10 @@ owns its own collector, renderer, storage, or review surface:
   says whether the remote is asked: `'never'` makes a read that fetches nothing
   and rewrites no record, `'always'` asks it whatever was fetched. After the shards ran,
   `landSuite(cwd, shards, suite)` lands their records on `suite`'s record in the
-  checkout, as `variance journeys <shards> --suite` does, and returns what the landing said without the reading, for a CI fan-in
-  that folds the record for the jobs after it.
+  checkout, as `variance journeys <shards> --suite` does, and returns what the
+  landing said without the reading. A CI fan-in does not compose these:
+  `variance share <record>...` lays the mainline's record and lands the records
+  over it, and `share --publish <record>...` publishes what they make.
 - `recordedExecutionFile(root, suite)` names the record `distill` and `review`
   read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,
@@ -3262,20 +3264,20 @@ no path the config already names:
 ```
 
 A suite with `"carry": "share"` gets no key: its record travels through
-[`variance share`](https://variance-authority.dev/docs/sharing). Under
-`--format github` those suites are printed as one line,
-`shared-suites=<name> <name>`, separated by spaces, so a step loops over them
-instead of naming them:
+[`variance share`](https://variance-authority.dev/docs/sharing), which lays the
+mainline's record of every such suite into the checkout, or of the one
+`--suite` names. Under `--format github` those suites are printed as one line,
+`shared-suites=<name> <name>`, separated by spaces, for a matrix of suite jobs:
 
 ```yaml
-- env:
-    SHARED: ${{ steps.carry.outputs.shared-suites }}
-  run: for suite in $SHARED; do npx variance share --suite "$suite"; done
+- run: npx variance share
 ```
 
 `variance share --suite <name> --format github` prints `commit=<sha>`, the
 commit the mainline's record of that suite was made at, and `commit=` when the
-mainline has none; the `record of "<name>":` line goes to stderr. A pull
+mainline has none, and `based=true` when the record it laid keeps its cases, so
+a selection can start from it; the `record of "<name>":` line goes to stderr.
+Without `--suite` each line is keyed by its suite, `commit-<name>=`. A pull
 request merged with that commit, rather than with the base tip, is measured
 from the record alone:
 [Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)

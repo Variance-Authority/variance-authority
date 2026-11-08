@@ -703,8 +703,10 @@ record](#a-suite-your-checkout-has-not-recorded).
   outside `refs/`;
 - `variance ask` when no line has a run report for your checkout, and
   `variance serve`, which does not start;
-- `variance share --suite <name> --publish` on a mainline that wrote nothing,
-  for a miss or a record it left out. Every checkout measures from that line's
+- `variance share --publish` of the root config's suites, with or without
+  `--suite`, on a mainline that wrote nothing for one of them, for a miss or a
+  record it left out; the last line names each suite it did not publish, as
+  `not published: integration.` Every checkout measures from that line's
   record, so an older one left in place has to show in CI.
 - `variance share --publish`, with or without `--suite`, on a mainline that
   wrote the latest and could not keep it by commit. The latest stands, and the
@@ -1028,9 +1030,10 @@ jobs:
 ### A suite with no run report
 
 `share --publish` publishes what a run report names, so a repository that runs
-only a unit suite has nothing for it to read. `share --suite <name>` takes the
-suite and the share from the root `variance.config.json` instead, and publishes
-that suite's execution record alone:
+only a unit suite has nothing for it to read. When no project config is there,
+`share` takes the suites and the share from the root `variance.config.json`
+instead, and publishes the execution record of every suite it gives
+`"carry": "share"`, or of the one `--suite <name>` names:
 
 ```json
 {
@@ -1069,7 +1072,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && github.event_name == 'push' }}
         with:
-          name: variance-record-unit
+          name: variance-records-${{ strategy.job-index }}
           path: node_modules/.cache/variance-authority/test-selection
           include-hidden-files: true
           retention-days: 1
@@ -1091,10 +1094,10 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:
-          name: variance-record-unit
-          path: node_modules/.cache/variance-authority/test-selection
+          pattern: variance-records-*
+          path: ${{ runner.temp }}/records
       - run: npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
-      - name: publish the record
+      - name: publish the records
         env:
           TOKEN: ${{ github.token }}
         run: |
@@ -1103,7 +1106,7 @@ jobs:
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
-          npx variance share --suite unit --publish --collected "$RUNNER_TEMP/collected.txt"
+          npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 ```text
@@ -1111,12 +1114,17 @@ wrote suite-v1/unit to mainline main in refs/variance on origin.
 kept the record at 3f1c9a2… beside the latest.
 ```
 
-- **The artifact path is the [cache](cache.md)'s default location.** The
-  record's directory inside it is named for the checkout's absolute path, and
-  that path is the same on every runner of one workflow, so the publish job
-  finds the record where the test job wrote it. Download it after `npm ci`,
-  which removes `node_modules`. When you set `cacheRoot`, use that directory
-  instead.
+- **The artifact path is the [cache](cache.md)'s default location**, or
+  `cacheRoot` when you set it. Each record in it sits at
+  `suites/<name>/coverage.bin`, which says the suite it is of. The publish
+  takes the records as they were downloaded: it fetches the mainline's record
+  of each suite, lands the records over it as
+  [`variance journeys <shard>... --suite`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too)
+  does, and publishes the result. A test job split into
+  [shards](sharding.md) uploads one artifact per shard, and the same step folds
+  them, so the publish job does not change.
+- **One suite takes a file for `--collected`.** With several, name a directory
+  holding one `<name>.txt` per suite.
 - **`persist-credentials: false` keeps the token out of the clone.** The
   publish step gives it to git through `GIT_CONFIG_*` variables, for that step
   alone, so the install and the build never run beside it.

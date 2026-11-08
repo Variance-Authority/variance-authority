@@ -1,7 +1,8 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs } from './bin.js';
-import { ConfigError, parseConfig } from './config.js';
+import { shareOutput } from './commands/suite-part.js';
+import { ConfigError, parseConfig, type Config } from './config.js';
 
 /**
  * The three places a sharded build is spelled: `--shard` on a run, `workers` in
@@ -48,8 +49,8 @@ describe('share --publish with several reports', () => {
     });
   });
 
-  it('refuses reports on a lookup', () => {
-    expect(() => parseArgs(['share', 'a.json'])).toThrow(/is for `--publish`/);
+  it('refuses reports on a project lookup', async () => {
+    await expect(shareOutput({} as Config, { publish: false, reports: ['a.json'] })).rejects.toThrow(/is for `--publish`/);
   });
 
   it('resolves the config beside them as usual', () => {
