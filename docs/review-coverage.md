@@ -70,7 +70,7 @@ tests once with your usual command, then name a source file one of them imports:
 npx variance covering --file src/index.ts
 ```
 
-On the first run it says it is building its source index from the checkout;
+On the first run it says it is building its [source index](source-index.md) from the checkout;
 that line is expected. Then it prints the suite, `unit (unit):`, the file with
 how many recorded ranges and named tests reached it, and how long ago that run
 landed. Named tests on the file mean the wrap recorded them; no line for `unit`
