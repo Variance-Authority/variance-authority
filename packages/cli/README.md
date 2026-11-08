@@ -3294,7 +3294,8 @@ every clone. Under `--format github` it prints `merged=true` and
 `--on-conflict stay`, the head conflicts with it. A conflict fails the step
 without `stay`; a merge stopped by anything else always fails it, and every stop
 leaves the checkout where it was. A job that passes `--expect <sha>`, the
-`checkout` another job made, fails when its own merge differs.
+`checkout` another job made, fails when its own merge differs. A checkout with
+changes nobody committed is refused before anything moves.
 [Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
 has the steps around it.
 

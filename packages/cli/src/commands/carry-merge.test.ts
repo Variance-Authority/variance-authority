@@ -170,6 +170,18 @@ describe("a pull request's head merged with the commit of the mainline's record"
     expect(git(clone, 'rev-parse', 'HEAD')).toBe(checked);
   });
 
+  it('refuses a checkout with changes nobody committed, and leaves them as they are', async () => {
+    const { at, upstream, record, head } = await pullRequest();
+    const { clone, checked } = job(at, upstream, head, 'dirty');
+    await writeFile(join(clone, 'record.ts'), 'edited\n');
+
+    const refused = await merge(clone, record, { head });
+    expect(refused.exit).toBe(2);
+    expect(refused.said).toContain('`carry merge` stands the checkout on another commit, and record.ts holds changes nobody committed');
+    expect(git(clone, 'rev-parse', 'HEAD')).toBe(checked);
+    expect(git(clone, 'status', '--porcelain')).toBe('M record.ts');
+  });
+
   it('fails a job whose merge is not the commit the deciding job made', async () => {
     const { at, upstream, record, head } = await pullRequest();
     const { clone } = job(at, upstream, head, 'differs');
