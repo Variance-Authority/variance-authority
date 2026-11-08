@@ -20,8 +20,7 @@ import type { Tree } from './tree.js';
  *
  * ## A path exists or it does not
  *
- * That is the entire rule, and the root is its one exception. A folder said
- * without its slash is read as the folder only when no file has that name. A start point is
+ * That is the entire rule, and the root is its one exception. A start point is
  * read from its root down and compared segment for whole segment:
  * `apps/web/Badge.tsx` is that file, `apps/web/` is that directory. Nothing is
  * looked for *inside* a path. `Badge.tsx` names a file at the root, and where
