@@ -166,8 +166,8 @@ latest release. Below, each path names the references that cover its steps.
   [packages](references/workspace-api.md#packages)), then `variance layers`,
   then [covering](references/covering.md) for each changed line.
 - **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
-  [ask a run](references/ask-a-run.md), then [story](references/story.md),
-  then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
+  [story](references/story.md) from the wrapped suite's record (a visual run
+  starts at [ask a run](references/ask-a-run.md)), then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
   a run that has not ended starts at [live run](references/live-run.md), then
   [interrogate the test](https://variance-authority.dev/agents/interrogate).
 

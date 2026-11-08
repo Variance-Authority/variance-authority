@@ -7,7 +7,7 @@ function before CI ran, the part of one that no case ran, what CI's run did,
 what the change did to the layering, and what may block the merge.
 
 [Variance Authority](README.md) answers from the record your suite writes once
-its runner config is wrapped, as [Jest or Vitest](start-unit.md) sets up, and
+its runner config is wrapped, as [the process](test-level-coverage.md#the-process) sets up, and
 from the [source index](source-index.md) of your checkout. Each step below links
 the page that owns its command and its rules.
 
