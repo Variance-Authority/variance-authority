@@ -527,7 +527,7 @@ jobs:
   # for behaviour it did not install. After the publish, because npm cannot be
   # taken back and a deploy can: a failed one is repaired by re-running this
   # job, or by pressing the button again, which republishes nothing and which
-  # `green` refuses while a changeset waits for a version.
+  # `green` refuses when a changeset waits for a version.
   #
   # The `site` environment holds `CLOUDFLARE_API_TOKEN`, a token allowed to edit
   # Workers on the account `site/wrangler.jsonc` names.
