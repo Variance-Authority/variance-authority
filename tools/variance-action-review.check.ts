@@ -263,13 +263,13 @@ describe('the review a project with only unit tests puts on the pull request', (
       }
     });
 
-    it('is published only when asked, on a push to the default branch, before a failure on uncovered code can skip it', () => {
+    it('is published only when asked, on a push to the default branch, before a failure the review counted can skip it', () => {
       expect(action().inputs['badge']).toMatchObject({ default: 'false' });
       expect(stepNamed('publish the badge').if).toBe(
         "inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
-      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on uncovered code'));
+      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
     });
   });
 
