@@ -1228,19 +1228,19 @@ suite, and review after it:
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
-On GitHub, `Variance-Authority/action/review` replaces that last step: it runs
-the same two commands with `--coverage` and puts the review on the pull request
-as one comment updated in place, and marks each changed function no case
-covered on the diff.
-[Its example](https://github.com/Variance-Authority/action#reviewing-a-project-with-only-unit-tests)
-has the cache steps that give the comment a mainline record to compare with:
+On GitHub, `Variance-Authority/action/review` replaces the cache steps, the
+tests and the review: it runs your command between the carry that restores the
+mainline's record and the carry that saves what it ran, runs the same two
+commands with `--coverage`, puts the review on the pull request as one comment
+updated in place, and marks each changed function no case covered on the diff.
+[Review coverage on every pull request](https://variance-authority.dev/docs/review-coverage)
+has the whole job:
 
 ```yaml
-- if: ${{ !cancelled() }}
-  uses: Variance-Authority/action/review@v1
+- uses: Variance-Authority/action/review@v1
   with:
     suite: unit
-    against: ${{ steps.take.outputs.against-unit }}
+    test: yarn test
 ```
 
 `--fail-on-uncovered` makes the review a check a project can require. It prints

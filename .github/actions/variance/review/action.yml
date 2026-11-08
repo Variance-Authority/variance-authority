@@ -3,7 +3,8 @@ description: >-
   Puts `variance review --coverage` on the pull request as one comment, updated
   in place, and marks each changed function no case covered on the diff, for a
   project with no surface for the gate to observe. It reads the
-  record your tests left. It has no verdict unless `fail-on-uncovered` or `fail-on-lost` asks for
+  record your tests left, or, given `test`, runs them between the carry that
+  restores the mainline's record and the carry that keeps what they ran. It has no verdict unless `fail-on-uncovered` or `fail-on-lost` asks for
   one: the step fails when no review could be written, or when GitHub failed the
   post; a token that cannot write only warns.
 
@@ -19,8 +20,22 @@ inputs:
   against:
     description: >-
       The mainline record to compare `suite` with: the `against-<suite>` output
-      of `variance carry take`. Left empty, a suite with `carry: share` is
-      compared with the share's record and any other reads as having no baseline.
+      of `variance carry take`, which the action reads itself when it runs
+      `test`. Left empty, a suite with `carry: share` is compared with the
+      share's record and any other reads as having no baseline.
+    required: false
+    default: ''
+
+  test:
+    description: >-
+      Your test command, run under the recorder as a `run:` step runs it, such
+      as `npx jest` or `pnpm exec jest`. Given it, the action restores the
+      record of the suite `suite` names and the pull request's last push,
+      sets the mainline's record aside, runs the command, reviews, and saves
+      what it ran, so the review compares with the mainline. Needs `suite`. A
+      red exit still reviews and saves, then fails the step with its code.
+      Left empty, the action
+      reviews the record a step before it left.
     required: false
     default: ''
 
@@ -75,6 +90,52 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry restore --format github >> "$GITHUB_OUTPUT"
 
+    # Keys from `carry`, read by the suite's name: a saved key ends in the run,
+    # so the newest prefix match wins, and a pull request searches its own
+    # scope before its base's.
+    - if: inputs.test != '' && steps.carry.outputs[format('suite-{0}-key', inputs.suite)] != ''
+      name: restore the suite's mainline record
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.carry.outputs[format('suite-{0}-path', inputs.suite)] }}
+        key: ${{ steps.carry.outputs[format('suite-{0}-key', inputs.suite)] }}
+        restore-keys: ${{ steps.carry.outputs[format('suite-{0}-restore-keys', inputs.suite)] }}
+
+    # `carry` prints a pushed key on a pull request alone.
+    - if: inputs.test != '' && steps.carry.outputs.pushed-key != ''
+      name: restore what the pull request's last push ran
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.carry.outputs.pushed-path }}
+        key: ${{ steps.carry.outputs.pushed-key }}
+        restore-keys: ${{ steps.carry.outputs.pushed-restore-keys }}
+
+    # Before the tests, which write over the record the mainline left.
+    - id: take
+      if: inputs.test != ''
+      name: set the mainline's record aside
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        SUITE: ${{ inputs.suite }}
+      run: |
+        [ -n "$SUITE" ] || { echo '::error::`test` needs `suite`: the carry restores and saves the record of one named suite.'; exit 1; }
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND carry take --format github >> "$GITHUB_OUTPUT"
+
+    # The shell a `run:` step has. A red exit is held for the last step, so the
+    # review and the saves still run on what the tests left.
+    - id: test
+      if: inputs.test != ''
+      name: run the tests
+      shell: bash
+      env:
+        VARIANCE_TEST: ${{ inputs.test }}
+      run: |
+        status=0
+        bash --noprofile --norc -eo pipefail -c "$VARIANCE_TEST" || status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+
     # The source index comes first: under CI a reader refuses to build it on
     # demand.
     - id: review
@@ -84,7 +145,7 @@ runs:
         VARIANCE_COMMAND: ${{ inputs.command }}
         SINCE: ${{ steps.carry.outputs.base }}
         SUITE: ${{ inputs.suite }}
-        AGAINST: ${{ inputs.against }}
+        AGAINST: ${{ inputs.against || steps.take.outputs[format('against-{0}', inputs.suite)] }}
         REVIEW: ${{ steps.carry.outputs.review }}
         FAIL_ON_UNCOVERED: ${{ inputs.fail-on-uncovered }}
         FAIL_ON_LOST: ${{ inputs.fail-on-lost }}
@@ -162,9 +223,53 @@ runs:
         esac
         echo "regions run: $(cat "$dir/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
 
+    # `!cancelled()`, so a red test, a review that did not happen or a post that
+    # failed still saves what the tests ran. `carry save` prints a suite key only
+    # on a push to a mainline, and a pushed key only on a pull request.
+    - id: save
+      if: ${{ !cancelled() && inputs.test != '' }}
+      name: what the host keeps
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+      run: |
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND carry save --format github >> "$GITHUB_OUTPUT"
+
+    - if: ${{ !cancelled() && inputs.test != '' && steps.save.outputs[format('suite-{0}-key', inputs.suite)] != '' }}
+      name: keep the suite's record for the next pull request
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ steps.save.outputs[format('suite-{0}-path', inputs.suite)] }}
+        key: ${{ steps.save.outputs[format('suite-{0}-key', inputs.suite)] }}
+
+    - id: keep
+      if: ${{ !cancelled() && inputs.test != '' && steps.save.outputs.pushed-key != '' }}
+      name: keep what this push ran
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+      run: |
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND carry keep
+
+    - if: ${{ !cancelled() && steps.keep.outcome == 'success' }}
+      name: save what this push ran
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ steps.save.outputs.pushed-path }}
+        key: ${{ steps.save.outputs.pushed-key }}
+
     # Last, because a step that fails skips the ones after it, and the comment
     # is what says which functions.
     - name: fail on what the review counted
       if: steps.review.outputs.exit-code == '1'
       shell: bash
       run: exit 1
+
+    - if: ${{ !cancelled() && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}
+      name: fail on the tests
+      shell: bash
+      env:
+        CODE: ${{ steps.test.outputs.exit-code }}
+      run: exit "$CODE"
