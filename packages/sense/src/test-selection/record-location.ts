@@ -251,6 +251,16 @@ export function cachedSuite(inside: string): string | undefined {
 }
 
 /**
+ * The suite whose run wrote the record at `file`, wherever the cache holding
+ * it now sits: a copy of a cache, such as a CI artifact, keeps the
+ * `suites/<suite>/coverage.bin` {@link recordPath} lays it at. Nothing for a
+ * path of any other shape.
+ */
+export function recordSuite(file: string): string | undefined {
+  return /(?:^|\/)suites\/([^/]+)\/coverage\.bin$/u.exec(file.split(sep).join('/'))?.[1];
+}
+
+/**
  * The record at `file`, as `bytes`, when a run under `instrumentation` cannot
  * be laid over it for its probes: the check `layRecord` makes first.
  * Nothing for a record that measured nothing, which a run lands over as it is,

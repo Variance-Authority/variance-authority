@@ -148,6 +148,14 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines).toEqual(['commit-integration=', `commit-unit=${first}`, 'based-unit=true']);
   });
 
+  it('keys the outputs by the suite without `--suite` when only one suite is given to the share', async () => {
+    const { ci } = await gitPublished(home, { instrumentation: instrumentationId() });
+
+    const done = await suitesShare(ci, { publish: false, records: [], format: 'github' }, { env: PUSH });
+
+    expect(done.lines.map((line) => line.split('=')[0])).toEqual(['commit-unit', 'based-unit']);
+  });
+
   it('takes records and `--collected` beside `--publish`, with or without `--suite`', () => {
     expect(parseArgs(['share', '--publish', 'ran', '--collected', 'collected'])).toMatchObject({ command: 'share', publish: true, reports: ['ran'], collected: 'collected' });
     expect(() => parseArgs(['share', '--collected', 'files.txt'])).toThrow('`--collected` is for `share --publish`, which counts a whole run against it');

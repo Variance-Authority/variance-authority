@@ -6,7 +6,7 @@
  * a CI run's jobs handed on folded in first.
  *
  * A record is attributed to its suite by where the suite's run wrote it, the
- * path `recordPath` gives the suite under a cache, which is what an uploaded
+ * path `recordSuite` reads the suite from, which is what an uploaded
  * cache directory keeps. A file named beside `--suite` is that suite's whatever its
  * path. Nothing else is guessed: a file without that shape, or of a suite the
  * root config does not give to the share, is refused before anything is read.
@@ -18,7 +18,7 @@
  */
 
 import { readdir, stat } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { ParsedShare } from '../share-args.js';
 import { loadRenderless } from '../config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
@@ -70,16 +70,12 @@ export async function runRootShare(
  */
 export async function suitesShare(root: string, options: SuitesShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const declared = selection.declaredSuites(root) ?? [];
-  const shared = declared.filter(({ carry }) => carry === 'share').map(({ name }) => name).sort();
+  const shared = (selection.declaredSuites(root) ?? []).filter(({ carry }) => carry === 'share').map(({ name }) => name).sort();
   const suites = options.suite !== undefined ? [options.suite] : shared;
   if (suites.length === 0) throw new OperatorError('the root variance.config.json gives no suite to the share: name one with `"carry": "share"`');
-  const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, suiteOfPath(root, declared.map(({ name }) => name), selection.recordPath));
+  const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, selection.recordSuite);
   const collected = options.collected === undefined ? undefined : await collectedOf(root, options.collected, suites);
-  if (suites.length === 1) {
-    const [suite] = suites as [string];
-    return suiteShare(root, suiteOptions(suite, options, records, collected), here);
-  }
+  if (options.suite !== undefined) return suiteShare(root, suiteOptions(options.suite, options, records, collected), here);
 
   const lines: string[] = [];
   const notes: string[] = [];
@@ -129,13 +125,7 @@ async function rootSuite(config: string, root: string): Promise<string | undefin
   return (await namedSuite(root)).name ?? null;
 }
 
-/** The declared suite a record's path ends in the place of, as `recordPath` lays it out. */
-function suiteOfPath(root: string, declared: readonly string[], recordPath: (root: string, suite?: string) => string) {
-  const ends = declared.map((suite) => [suite, `${sep}${recordPath(root, suite).split('/').join(sep)}`] as const);
-  return (file: string): string | undefined => ends.find(([, end]) => file.endsWith(end))?.[0];
-}
-
-/** Every record of a declared suite under `dir`, in code-unit order. */
+/** Every record of a suite under `dir`, in code-unit order. */
 async function recordsUnder(dir: string, of: (file: string) => string | undefined): Promise<string[]> {
   const found = await readdir(dir, { recursive: true });
   return found.map((path) => join(dir, path)).filter((path) => of(path) !== undefined).sort();
