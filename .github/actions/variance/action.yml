@@ -139,13 +139,15 @@ inputs:
 
   commit-baselines:
     description: >-
-      Accept every changed subject and push the regenerated baselines to the pull
-      request's head branch, as a bot. This is how a committed store accepts a
+      Accept every changed subject and push the regenerated baselines, as a bot,
+      to the pull request's head branch on a `pull_request` event, or to the
+      dispatched branch on a `workflow_dispatch`; any other run, such as a
+      dispatch on a tag, refuses. This is how a committed store accepts a
       change: the images arrive in the pull request's diff, and its review is
-      the approval. Turn it on only for a run a person asked for, such as one
-      started by a label. On every run, `accept --all` promotes the
-      regression the check was added to catch, in the run that found it. Needs
-      `contents: write` and a checkout of the head branch. Off by default.
+      the approval. Turn it on only for a run a person asked for, such as a
+      dispatch or one started by a label. On every run, `accept --all` promotes
+      the regression the check was added to catch, in the run that found it.
+      Needs `contents: write` and a checkout of that branch. Off by default.
     required: false
     default: 'false'
 
@@ -449,11 +451,12 @@ runs:
     # Only on 1: a clean run renders an empty body with nowhere to put a
     # picture, and 2 has no report of this run to take them from.
     #
-    # A repository of its own in a temporary directory, with the report's
-    # directory as its work tree: nothing here reads or writes the workspace's
-    # checkout, its index or its credentials, so this step cannot disturb the
-    # commit-back below or the tree the run observed. The paths are the report's
-    # own, so the branch holds what the comment links and nothing else.
+    # `push-ref.sh` commits from a repository of its own in a temporary
+    # directory, with the report's directory as its work tree: nothing here reads
+    # or writes the workspace's checkout, its index or its credentials, so this
+    # step cannot disturb the commit-back below or the tree the run observed.
+    # The paths are the report's own, so the branch holds what the comment links
+    # and nothing else.
     #
     # Every failure warns and leaves `root` empty, and the comment renders
     # without pictures. A fork's read-only token is the common one, and a
@@ -494,20 +497,20 @@ runs:
         ' "$VARIANCE_REPORT" > "$paths" || skip "the report could not be read"
         [ -s "$paths" ] || skip "the report names no image of a change"
 
-        git init -q --bare "$repo/git"
-        export GIT_DIR="$repo/git" GIT_WORK_TREE="$here"
-        # Literal, because a store-encoded file name is not a pathspec.
-        git --literal-pathspecs add -f --pathspec-from-file="$paths" || skip "the images could not be staged"
-        tree="$(git write-tree)" || skip "the images could not be written"
-        commit="$(git -c user.name='github-actions[bot]' \
-          -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit-tree "$tree" -m "variance: images for $VARIANCE_IMAGE_REF")" || skip "the images could not be committed"
-
-        auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
-        echo "::add-mask::$auth"
-        git -c http.extraheader="AUTHORIZATION: basic $auth" \
-          push -q --force "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$commit:$VARIANCE_IMAGE_REF" \
-          || skip "pushing $VARIANCE_IMAGE_REF was refused, which a fork's read-only token does"
+        # In a container job `github.action_path` is the runner's host path; the
+        # container mounts the same tree elsewhere, as in the post below.
+        action="${{ github.action_path }}"
+        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
+        action="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${action#"$host_root"}"
+        # `|| pushed=$?`: GitHub runs the step under errexit, which a failing
+        # assignment would end before the status is read.
+        pushed=0
+        commit="$(bash "$action/push-ref.sh" "$here" "$paths" "$VARIANCE_IMAGE_REF" "variance: images for $VARIANCE_IMAGE_REF")" || pushed=$?
+        case $pushed in
+          0) ;;
+          2) skip "pushing $VARIANCE_IMAGE_REF was refused, which a fork's read-only token does" ;;
+          *) skip "the images could not be committed" ;;
+        esac
 
         echo "root=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/raw/$commit" >> "$GITHUB_OUTPUT"
 
@@ -597,7 +600,10 @@ runs:
         VARIANCE_BASELINES: ${{ steps.carry.outputs.baselines-root }}
         VARIANCE_PATHSPECS: ${{ steps.carry.outputs.baselines-pathspecs }}
         VARIANCE_MESSAGE: ${{ inputs.commit-message }}
-        VARIANCE_BRANCH: ${{ github.head_ref }}
+        VARIANCE_EVENT: ${{ github.event_name }}
+        VARIANCE_HEAD_REF: ${{ github.head_ref }}
+        VARIANCE_REF_NAME: ${{ github.ref_name }}
+        VARIANCE_REF_TYPE: ${{ github.ref_type }}
       run: |
         set -euo pipefail
 
@@ -606,8 +612,16 @@ runs:
           exit 2
         fi
 
-        if [ -z "$VARIANCE_BRANCH" ]; then
-          echo "::error::commit-baselines needs a pull_request event; this one has no head branch"
+        # The branch a person asked about: a pull request's head, which GitHub
+        # names in `head_ref` on a pull request's events and nowhere else, or the
+        # branch a dispatch ran on, which it names in `ref_name`. A push, a
+        # schedule or a dispatch on a tag has no such branch.
+        if [ -n "$VARIANCE_HEAD_REF" ]; then
+          VARIANCE_BRANCH="$VARIANCE_HEAD_REF"
+        elif [ "$VARIANCE_EVENT" = workflow_dispatch ] && [ "$VARIANCE_REF_TYPE" = branch ]; then
+          VARIANCE_BRANCH="$VARIANCE_REF_NAME"
+        else
+          echo "::error::commit-baselines runs on a pull_request event or a workflow_dispatch of a branch; this is a $VARIANCE_EVENT run on a ${VARIANCE_REF_TYPE:-ref of no type}, which names no branch to push the accepted images to"
           exit 2
         fi
 
@@ -616,10 +630,11 @@ runs:
         # detached merge commit, and pushing from there would put the merge — not
         # the contributor's work — on their branch. The workflow has to check out
         # the head ref explicitly; refusing here is how that requirement becomes
-        # visible instead of becoming a corrupted branch.
+        # visible instead of becoming a corrupted branch. A dispatch's checkout
+        # is already on the branch it ran on.
         current="$(git rev-parse --abbrev-ref HEAD)"
         if [ "$current" != "$VARIANCE_BRANCH" ]; then
-          echo "::error::the workspace is on '$current', not '$VARIANCE_BRANCH'; give actions/checkout the pull request head ref before enabling commit-baselines, because pushing from a merge ref would rewrite the branch with the merge"
+          echo "::error::the workspace is on '$current', not '$VARIANCE_BRANCH'; check out the branch '$VARIANCE_BRANCH' before enabling commit-baselines (on a pull_request, give actions/checkout the head ref), because pushing from another commit would rewrite the branch with it"
           exit 2
         fi
 

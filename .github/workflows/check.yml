@@ -684,6 +684,17 @@ jobs:
     needs: [base, suite]
     if: ${{ !cancelled() && github.event_name != 'merge_group' }}
     runs-on: ubuntu-24.04
+    # `contents: write` is for the badge the review step publishes on a push to
+    # `main`, the way an adopter's job grants it to the action's `badge` input.
+    # A job's permissions cannot depend on its event, so a pull request's run
+    # holds it too; a fork's token is read-only whatever this says, and a
+    # branch of this repository is pushed by somebody who can already write.
+    # The clone keeps no token, as the checkout below says.
+    permissions:
+      contents: write
+      actions: read
+      issues: read
+      pull-requests: write
     outputs:
       shared: ${{ steps.carry.outputs.shared-suites }}
       # The artifact's id rather than the step's outcome: an upload with no
@@ -861,6 +872,7 @@ jobs:
           command: node packages/cli/dist/bin.js
           suite: unit
           against: ${{ steps.carried.outputs.against-unit }}
+          badge: true
 
       - name: keep the review
         if: ${{ !cancelled() && steps.review.outcome == 'success' }}
@@ -897,7 +909,8 @@ jobs:
           key: ${{ steps.save.outputs.pushed-key }}
 
       # Only a push to `main` hands its records on, to the `publish` job, which
-      # is the one job holding a token that can write to the repository. A red
+      # writes the record; this job writes only the badge, through the review
+      # step above. A red
       # suite on `main` still hands them on: the next change is reviewed against
       # what `main` ran, not against an older record that no longer describes it.
       - name: hand the records to publish
@@ -914,10 +927,9 @@ jobs:
     # The record a push to `main` made, published to `refs/variance/mainline/main`
     # on this repository, which is where every pull request and every
     # selected run reads its base from. Its own job because it is the only
-    # one that writes to the repository: `contents: write` is granted here, on
-    # a push to `main`, and to no job a pull request runs. The ref is outside
-    # `refs/heads` and `refs/tags`, so no branch rule and no tag rule governs it,
-    # and nothing that lists branches shows it.
+    # one that writes the record: the review in `record` writes only the badge.
+    # The ref is outside `refs/heads` and `refs/tags`, so no branch rule and no
+    # tag rule governs it, and nothing that lists branches shows it.
     #
     # `github.ref` is asked as well as the event, because `push` also fires for
     # a tag and for every other branch this workflow may one day be given, and

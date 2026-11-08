@@ -150,7 +150,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] 
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -1409,6 +1409,19 @@ differ, and an index that cannot be brought up counts every region run as not
 known. `--format json` gives the parts as `over.this`, `over.older` and
 `over.notKnown`, beside `run`, which counts what ran in any text. The total
 over the source carries the same split.
+
+`--format badge` prints the share `any suite` leads with as a
+[shields.io endpoint](https://shields.io/badges/endpoint-badge), for a badge
+in your `README.md`:
+
+```json
+{"schemaVersion":1,"label":"regions run","message":"90.3%","color":"blue"}
+```
+
+With no region counted there is no share to print, so it prints nothing and
+exits `2` with the reason. The review action's
+[`badge` input](https://github.com/Variance-Authority/action#publishing-a-badge)
+publishes this file on every push to your default branch.
 
 With a base, each count is printed at the base and now, beside the parts that
 add up to the change:
