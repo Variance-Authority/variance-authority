@@ -2,7 +2,9 @@
 
 import type { RecordOrigin } from '@variance-authority/sense/test-selection';
 import { asOperator } from './suite-record.js';
-import { recordHeld, selectedMainline } from './mainline-selected.js';
+import { selectedRecordOf } from './mainline-selected.js';
+import { OperatorError } from '../exit.js';
+import { messageOf } from '../config-values.js';
 
 /**
  * Whether each declared suite has recorded, as this machine holds it. Only a
@@ -30,13 +32,14 @@ export async function suitesFinding(root: string): Promise<SuitesFinding | undef
   if (declared === undefined) return undefined;
   const suites: SuiteReading[] = [];
   for (const suite of declared) {
-    const own = asOperator(() => selection.testCoverageFile(root, { suite: suite.name }));
-    // The selection is a git process or two, worked out only when the
-    // checkout's own record does not answer first, as a reader works it out.
-    const selected = (await recordHeld(own)) ? undefined : await selectedMainline(root, suite);
-    const { file, origin } = asOperator(() => selection.nearestRecord(root, { suite: suite.name, selected }));
-    const held = origin !== 'own' || (await recordHeld(file));
-    suites.push(held ? { name: suite.name, kind: suite.kind, file, origin } : { name: suite.name, kind: suite.kind, file });
+    let record: Awaited<ReturnType<typeof selectedRecordOf>>;
+    try {
+      record = await selectedRecordOf(root, suite.name, suite);
+    } catch (error) {
+      if (error instanceof OperatorError) throw error;
+      throw new OperatorError(messageOf(error), { cause: error });
+    }
+    suites.push({ name: suite.name, kind: suite.kind, ...record });
   }
   return { suites };
 }

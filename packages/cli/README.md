@@ -105,8 +105,8 @@ Run this in the same machine or CI image that will execute `variance run`.
 Doctor reports what can be checked locally and labels remote renderer checks as
 not performed, instead of pretending a network endpoint is healthy.
 
-When the root config declares `suites`, doctor ends with one line per suite: its
-kind, and whether a run has recorded it, read without fetching anything — this
+When the root config declares `suites`, doctor ends with each suite: its kind,
+and whether a run has recorded it, read without fetching anything — this
 checkout's own record, the mainline's as last fetched, or the primary
 checkout's, with the file. A suite no run has recorded says what writes its
 first record: its runner's config wrapped by the seam's `withTestSelection`, or

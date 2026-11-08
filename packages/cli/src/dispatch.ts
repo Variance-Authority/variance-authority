@@ -344,6 +344,6 @@ function selectionOf(parsed: Extract<Parsed, { command: 'accept' }>): ChangelogS
 
 /** The repository a config file is in: where doctor reads the suites its root config declares. */
 async function configRepository(config: string): Promise<string> {
-  const [{ dirname, resolve }, { repositoryRoot }] = await Promise.all([import('node:path'), import('@variance-authority/sense/test-selection')]);
+  const { repositoryRoot } = await import('@variance-authority/sense/test-selection');
   return repositoryRoot(dirname(resolve(config)));
 }
