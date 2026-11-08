@@ -12,7 +12,7 @@ export const DOCKET_MARKER = '<!-- variance-authority: pr-docket v1 -->';
 /** The annotation the action's verdict step writes when the run returns 1. */
 export const NEEDS_REVIEW = 'variance found changes that need review';
 
-/** The label `variance-accept.mjs` reads in the examples. */
+/** The label the examples' workflows read. */
 export const ACCEPT_LABEL = 'variance: accept';
 
 /**

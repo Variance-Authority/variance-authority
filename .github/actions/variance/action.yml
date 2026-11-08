@@ -146,9 +146,9 @@ inputs:
       others' baselines with it. For a store the
       host cache carries (`carry: actions-cache`); a committed store accepts
       through `commit-baselines` instead. Turn it on only for a run a person
-      asked for, such as one a label started: on every run,
-      `accept --all` promotes the regression the check was added to catch. Off
-      by default.
+      asked for, such as a push to `main` or a dispatch; the rerun a tick
+      starts accepts without it. On every run, `accept --all` promotes the
+      regression the check was added to catch. Off by default.
     required: false
     default: 'false'
 
@@ -160,7 +160,7 @@ inputs:
       dispatch on a tag, refuses. This is how a committed store accepts a
       change: the images arrive in the pull request's diff, and its review is
       the approval. Turn it on only for a run a person asked for, such as a
-      dispatch or one started by a label. On every run, `accept --all` promotes
+      dispatch. On every run, `accept --all` promotes
       the regression the check was added to catch, in the run that found it.
       Needs `contents: write` and a checkout of that branch. Off by default.
     required: false
@@ -233,7 +233,7 @@ inputs:
     description: >-
       How a reviewer accepts in this repository, printed at the foot of the
       comment as `To accept: <this>`. Markdown. Empty prints nothing: whether it
-      is a workflow to dispatch, a label or a command is your policy, and this
+      is a box to tick, a workflow to dispatch or a command is your policy, and this
       action does not guess it.
     required: false
     default: ''
@@ -254,8 +254,9 @@ inputs:
   exit-zero-on-changes:
     description: >-
       `true` for a check that reports rather than blocks: changes that need
-      review are named as a warning and the check passes, with the comment and
-      the report as they would be otherwise. It still fails when the run did
+      review are named as a warning by `variance run --exit-zero-on-changes`
+      and the check passes, with the comment and the report as they would be
+      otherwise. It still fails when the run did
       not happen, when a subject could not be observed or its observation
       errored, and when an accept the comparison after it did not hold.
     required: false
@@ -265,7 +266,10 @@ outputs:
   # The doctor step writes `exit-code` only when it refuses, so a run step it
   # skipped leaves the run's answer empty and the doctor's 2 is the one read.
   exit-code:
-    description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
+    description: >-
+      0 nothing needs review, 1 changes need review, 2 the run did not happen.
+      Under `exit-zero-on-changes` a change is 0 and 1 is a subject the run
+      could not observe.
     value: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
   report:
     description: 'Absolute path to the run report, resolved from the config.'
@@ -363,11 +367,11 @@ runs:
         marker=$($VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --marker)
         node "$here/tick/tick.mjs" read --marker "$marker"
 
-    # `--exit-zero-on-changes` because this run is not asking: the person has
-    # already decided. It suppresses 1 and never 2, so a run whose browser did
-    # not launch still fails here rather than accepting an empty report. The
-    # gate below then compares against what was promoted, which is how a subject
-    # that does not render the same way twice is found.
+    # A 1 passes because this run is not asking: the person has already
+    # decided, and a subject it could not observe is the gate run's to report.
+    # A 2 still fails here, so a run whose browser did not launch never accepts
+    # an empty report. The gate below then compares against what was promoted,
+    # which is how a subject that does not render the same way twice is found.
     - id: promote
       if: ${{ inputs.accept == 'true' || steps.tick.outputs.accept == 'true' }}
       name: promote what this run proposes
@@ -383,13 +387,13 @@ runs:
       run: |
         set -euo pipefail
 
-        args=(run --config "$VARIANCE_CONFIG" --exit-zero-on-changes)
+        args=(run --config "$VARIANCE_CONFIG")
         if [ -n "$VARIANCE_PROFILE" ]; then args+=(--profile "$VARIANCE_PROFILE"); fi
         if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
         if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
 
         # shellcheck disable=SC2086
-        $VARIANCE_COMMAND "${args[@]}"
+        $VARIANCE_COMMAND "${args[@]}" || [ $? -eq 1 ]
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all ${VARIANCE_BY:+--by "$VARIANCE_BY"}
 
@@ -404,6 +408,8 @@ runs:
         VARIANCE_SUBJECTS: ${{ inputs.subjects }}
         VARIANCE_SHARD: ${{ inputs.shard }}
         VARIANCE_INTENT: ${{ steps.tick.outputs.intent || inputs.intent }}
+        # Not after an accept: there the 1 says the accept did not hold.
+        VARIANCE_EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes == 'true' && steps.promote.outcome != 'success' }}
         VARIANCE_FLAKES: ${{ inputs.flakes }}
         VARIANCE_REPORTS: ${{ inputs.reports }}
       run: |
@@ -414,6 +420,7 @@ runs:
         if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
         if [ -n "$VARIANCE_SHARD" ]; then args+=(--shard "$VARIANCE_SHARD"); fi
         if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
+        if [ "$VARIANCE_EXIT_ZERO_ON_CHANGES" = true ]; then args+=(--exit-zero-on-changes); fi
         # Only the run takes `--flakes`: `carry` and the accept refuse it.
         if [ "$VARIANCE_FLAKES" = true ]; then args+=(--flakes); fi
 
@@ -433,7 +440,10 @@ runs:
             reports+=("${named[@]}")
           done <<< "${VARIANCE_REPORTS:-}"
           { echo 'reports<<VARIANCE_EOF'; printf '%s\n' "${reports[@]}"; echo 'VARIANCE_EOF'; } >> "$GITHUB_OUTPUT"
-          args=(report --config "$VARIANCE_CONFIG" "${reports[@]}")
+          args=(report --config "$VARIANCE_CONFIG")
+          # The flag keeps its meaning over a merge: a change is 0, a hole is 1.
+          if [ "$VARIANCE_EXIT_ZERO_ON_CHANGES" = true ]; then args+=(--exit-zero-on-changes); fi
+          args+=("${reports[@]}")
         fi
 
         # `if` rather than `set +e`: the condition of an `if` is exempt from
@@ -447,16 +457,9 @@ runs:
         if $VARIANCE_COMMAND "${args[@]}"; then code=0; else code=$?; fi
 
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        # What the code means: under the flag a change is 0, and a 1 is a hole.
+        echo "exit-zero-on-changes=$VARIANCE_EXIT_ZERO_ON_CHANGES" >> "$GITHUB_OUTPUT"
         echo "variance exited $code"
-
-        # The merged suite as one file, for the verdict to tell a change from a
-        # hole: a merge has no report of its own at the configured path.
-        if [ -n "${VARIANCE_REPORTS:-}" ] && [ "$code" = 1 ]; then
-          # shellcheck disable=SC2086
-          $VARIANCE_COMMAND report --config "$VARIANCE_CONFIG" --format json --exit-zero-on-changes \
-            "${reports[@]}" > "$RUNNER_TEMP/variance-suite.json" \
-            && echo "suite=$RUNNER_TEMP/variance-suite.json" >> "$GITHUB_OUTPUT"
-        fi
 
     # Beside the report rather than in `RUNNER_TEMP`: in a container job the
     # runner's temp path is the host's spelling, and the upload runs inside the
@@ -479,11 +482,11 @@ runs:
         mkdir -p "$(dirname "$page")"
         reports=()
         while IFS= read -r line; do [ -z "$line" ] || reports+=("$line"); done <<< "${VARIANCE_REPORTS:-}"
-        # `--exit-zero-on-changes`: this step writes a page, and the verdict is
-        # the run step's. It suppresses 1 and never 2.
+        # A 1 passes: this step writes a page, and the verdict is the run
+        # step's. A 2 still fails.
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND report --config "$VARIANCE_CONFIG" --format html --embed-images \
-          --exit-zero-on-changes ${reports[@]+"${reports[@]}"} > "$page"
+          ${reports[@]+"${reports[@]}"} > "$page" || [ $? -eq 1 ]
         echo "path=$page" >> "$GITHUB_OUTPUT"
 
     # `archive: false` uploads the one file as it is, named for the file, so the
@@ -497,7 +500,8 @@ runs:
         archive: false
         if-no-files-found: error
 
-    # Only on 1: a clean run renders an empty body with nowhere to put a
+    # Only on a run that may hold a change: 1, or 0 under the flag the run step
+    # hands on. A clean run renders an empty body with nowhere to put a
     # picture, and 2 has no report of this run to take them from.
     #
     # `push-ref.sh` commits from a repository of its own in a temporary
@@ -512,7 +516,7 @@ runs:
     # comment with no pictures is still the whole verdict.
     - id: images
       name: publish the images the comment shows
-      if: ${{ inputs.image-ref-prefix != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
+      if: ${{ inputs.image-ref-prefix != '' && inputs.comment == 'true' && (steps.run.outputs.exit-code == '1' || (steps.run.outputs.exit-code == '0' && steps.run.outputs.exit-zero-on-changes == 'true')) }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -546,7 +550,9 @@ runs:
             if (shown.every(inside)) console.log(shown.join("\n"));
           }
         ' "$VARIANCE_REPORT" > "$paths" || skip "the report could not be read"
-        [ -s "$paths" ] || skip "the report names no image of a change"
+        # A run with nothing to picture has nothing to publish, which under the
+        # flag is a clean run as often as not.
+        [ -s "$paths" ] || exit 0
 
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere, as in the post below.
@@ -828,8 +834,7 @@ runs:
       env:
         CODE: ${{ steps.run.outputs.exit-code || steps.doctor.outputs.exit-code }}
         KEPT: ${{ steps.saved.outcome == 'success' }}
-        EXIT_ZERO_ON_CHANGES: ${{ inputs.exit-zero-on-changes }}
-        REPORT: ${{ steps.run.outputs.suite || steps.carry.outputs.report }}
+        EXIT_ZERO_ON_CHANGES: ${{ steps.run.outputs.exit-zero-on-changes == 'true' }}
         DOCKET_URL: ${{ steps.post.outputs.comment-url }}
         REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
       run: |
@@ -848,7 +853,12 @@ runs:
 
         case "${CODE:-}" in
           0)
-            echo "nothing needs review."
+            # Under the flag a 0 may hold changes; the run step said so.
+            if [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
+              echo "nothing blocks this check; $WHERE"
+            else
+              echo "nothing needs review."
+            fi
             ;;
           1)
             if [ "$KEPT" = true ]; then
@@ -856,24 +866,8 @@ runs:
               # this commit's own accept.
               echo "::error::variance kept what this run accepted, and the comparison after it still failed: a subject that does not render the same way twice, an observation that errored, or a subject not observed; $WHERE"
             elif [ "$EXIT_ZERO_ON_CHANGES" = true ]; then
-              # A change is the reviewer's to look at whenever they get to it;
-              # a subject the run could not observe is a hole in what it says,
-              # often a server that died mid-run, and stays red. Of the
-              # conditions `exitFor` turns into 1, the holes are a `failed`
-              # subject, an `error` diagnostic and a report that does not say
-              # what it observed or skipped; an unreadable one is a hole too.
-              # An unabsorbed instability is left a change on purpose: on an
-              # ordinary run that subject is already `changed`.
-              if node -e '
-                const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-                const hole = report.observations === undefined || report.notObserved === undefined ||
-                  report.notObserved.some((entry) => entry.kind === "failed") ||
-                  report.observations.some(({ diagnostics }) => (diagnostics ?? []).some((d) => d.severity === "error"));
-                process.exit(hole ? 1 : 0);
-              ' "${REPORT:-}" 2>/dev/null; then
-                echo "::warning::variance found changes that need review; $WHERE"
-                exit 0
-              fi
+              # `variance run` already turned a change into 0 and kept 1 for a
+              # subject it could not observe, so a 1 here is a hole.
               echo "::error::variance could not observe every subject: a subject failed, an observation errored, or the report does not say what it skipped; $WHERE"
             else
               echo "::error::variance found changes that need review; $WHERE"

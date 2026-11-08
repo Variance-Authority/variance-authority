@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { loadConfig, loadRenderless } from './config-load.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, exitFor, sideJob, type ExitCode } from './exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, onGitHub, reported, sideJob, type ExitCode } from './exit.js';
 import type { Configless } from './commands/configless.js';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
@@ -59,7 +59,7 @@ export async function dispatch(
           { paths: parsed.reports, config, embedImages: parsed.embedImages, ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}) },
           streams,
         );
-        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+        return reported(report, parsed.exitZeroOnChanges, streams);
       }
       const report = await reportsFor(parsed.reports, config);
       streams.out(
@@ -72,7 +72,7 @@ export async function dispatch(
       // The artifact decides the code, exactly as it decided the text. A `report`
       // that exited 0 while describing a change would make the two halves of this
       // tool disagree about the same file.
-      return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+      return reported(report, parsed.exitZeroOnChanges, streams);
     }
 
     case 'ask': {
@@ -114,7 +114,7 @@ export async function dispatch(
       const result = adjudicateReport({ report, claims });
 
       streams.out(formatAdjudication(result));
-      return sideJob(exitForAdjudication(result), parsed.exitZeroOnChanges, streams);
+      return sideJob(exitForAdjudication(result), false, parsed.exitZeroOnChanges, streams, onGitHub());
     }
 
     case 'accept': {

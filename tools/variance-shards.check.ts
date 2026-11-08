@@ -18,7 +18,7 @@ const SHARDS = join(ROOT, '.github/workflows/variance-shards.yml');
 type Step = { readonly name?: string; readonly uses?: string; readonly run?: string; readonly with?: Record<string, string> };
 
 /** What the run step hands the CLI and writes as its outputs, given `reports`, in a directory holding `files`. */
-async function merge(reports: string, files: readonly string[]): Promise<{ said: string; output: string }> {
+async function merge(reports: string, files: readonly string[], exitZeroOnChanges = 'false'): Promise<{ said: string; output: string }> {
   const { runs } = parse(await readFile(ACTION, 'utf8')) as { runs: { steps: readonly Step[] } };
   const block = runs.steps.find((step) => step.name === 'variance run')!.run!;
   const at = await mkdtemp(join(tmpdir(), 'variance-action-merge-'));
@@ -30,7 +30,7 @@ async function merge(reports: string, files: readonly string[]): Promise<{ said:
     const fake = join(at, 'variance');
     await writeFile(fake, `#!/bin/bash\nprintf '%s\\n' "$@" >> "${at}/said"\n`, { mode: 0o755 });
     const unset = Object.fromEntries(['PROFILE', 'SUBJECTS', 'SHARD', 'INTENT', 'FLAKES'].map((name) => [`VARIANCE_${name}`, '']));
-    const env = { ...unset, VARIANCE_COMMAND: fake, VARIANCE_CONFIG: 'c.json', VARIANCE_REPORTS: reports, GITHUB_OUTPUT: join(at, 'output') };
+    const env = { ...unset, VARIANCE_COMMAND: fake, VARIANCE_CONFIG: 'c.json', VARIANCE_REPORTS: reports, VARIANCE_EXIT_ZERO_ON_CHANGES: exitZeroOnChanges, GITHUB_OUTPUT: join(at, 'output') };
     execFileSync('/bin/bash', ['-c', block], { cwd: at, env: { ...process.env, ...env }, stdio: 'pipe' });
     const read = (name: string) => readFile(join(at, name), 'utf8').catch(() => '');
     return { said: await read('said'), output: await read('output') };
@@ -49,6 +49,11 @@ describe('the merge of the shards', () => {
   it('hands a line that names no file to the CLI as written, for `report` to refuse', async () => {
     const { said } = await merge('shards/*/run.json\nmissing/*.json', ['shards/a/run.json']);
     expect(said).toBe('report\n--config\nc.json\nshards/a/run.json\nmissing/*.json\n');
+  });
+
+  it('keeps `exit-zero-on-changes` over a merge, so a hole in the suite still fails', async () => {
+    const { said } = await merge('shards/*/run.json', ['shards/a/run.json'], 'true');
+    expect(said).toBe('report\n--config\nc.json\n--exit-zero-on-changes\nshards/a/run.json\n');
   });
 
   it('is the matrix job and one action step, with no count and no glue of its own', async () => {
