@@ -22,8 +22,8 @@
  */
 
 import { execFile } from 'node:child_process';
-import { cp, readFile, realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
+import { copyFile, mkdir, readFile, readdir, realpath } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
@@ -166,7 +166,7 @@ export async function suiteShare(root: string, options: SuiteShareOptions, here:
  * The mainline's record of `suite`, laid into this checkout's own layer when
  * it was read, and `records` folded over the layer: what was read, what it
  * leaves the suite without, and what the fold landed. A suite's one record
- * already laid over that base is put in place instead (`laidAsLeft`).
+ * that its job's run laid is put in place instead (`laidAsLeft`).
  *
  * A read this run already handed on, as `carry receive` lays one, stands
  * without asking the line again; any other is asked now, whatever was fetched
@@ -192,7 +192,7 @@ async function baseAndFold(
   if (records !== undefined) {
     const landed = records.length === 0
       ? `${suite}: nothing was handed on, so the base stands.`
-      : (await laidAsLeft(root, suite, records, read)) ?? (await landSuite(root, records, suite));
+      : (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite));
     return { read, said, notices, landed: [landed] };
   }
   const own = selection.testCoverageFile(root, { suite });
@@ -204,18 +204,25 @@ async function baseAndFold(
 }
 
 /**
- * A suite's one record, already laid over the base `read` names, as a slice's
- * job lays its run, put in place with the runs record beside it, as that job
- * left them. Landed again, every test it holds from the base would be listed
- * as run at its commit, and a part run would publish as a whole one.
+ * A suite's one record that its job's run laid, its runs record beside it, put
+ * in place with every file named for it, as that job left them: a slice's
+ * record, laid over whatever base its job read, the mainline's or the last
+ * push's. Landed again, every test it holds from that base would be listed as
+ * run at its commit, and a part run would publish as a whole one. A record
+ * with no runs record beside it ran alone, and is landed.
  */
-async function laidAsLeft(root: string, suite: string, records: readonly string[], read: MainlineBase | undefined): Promise<string | undefined> {
+async function laidAsLeft(root: string, suite: string, records: readonly string[]): Promise<string | undefined> {
   const [record] = records;
-  if (record === undefined || records.length > 1 || read === undefined || 'miss' in read) return undefined;
+  if (record === undefined || records.length > 1) return undefined;
   const selection = await import('@variance-authority/sense/test-selection');
-  if ((await selection.readCommitRuns(record).catch(() => undefined))?.over !== read.commit) return undefined;
-  await cp(dirname(record), dirname(selection.testCoverageFile(root, { suite })), { recursive: true, force: true });
-  return `${suite}: its record, laid over the base in its job, as that job left it.`;
+  if ((await selection.readCommitRuns(record).catch(() => undefined)) === undefined) return undefined;
+  const target = selection.testCoverageFile(root, { suite });
+  const [from, to] = [record, target].map((file) => `${basename(file).replace(/\.bin$/u, '')}.`);
+  await mkdir(dirname(target), { recursive: true });
+  for (const name of await readdir(dirname(record))) {
+    if (name.startsWith(from!) && !name.endsWith('.tmp')) await copyFile(join(dirname(record), name), join(dirname(target), `${to}${name.slice(from!.length)}`));
+  }
+  return `${suite}: its record, laid by its job's run, as that job left it.`;
 }
 
 const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;

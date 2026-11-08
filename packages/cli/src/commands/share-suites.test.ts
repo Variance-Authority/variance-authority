@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { readCommitRuns, readTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, readCommitRuns, readTestCoverage, testCoverageFile, writeCommitRuns, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { PUSH, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
@@ -105,6 +105,27 @@ describe('`variance share --publish <records>`', () => {
     expect(await readCommitRuns(testCoverageFile(ci, { suite: 'unit' }))).toEqual(ledger);
     expect(done.exit).toBe(EXIT_OPERATOR);
     expect(done.lines.join('\n')).toMatch(/is not a whole run: 1 test file\(s\) the suite collects last ran before \w+, test\/other\.test\.ts among them/u);
+  });
+
+  it("lays a slice's record laid over the last push's, not the mainline's, as its job left it, whatever the file is named", async () => {
+    const { ci, second } = await nextPush();
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ran', 'variance-slice-unit'));
+    const shard = await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    await suitesShare(ci, { suite: 'unit', publish: false, records: [shard] }, { env: PUSH });
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    const laid = await readTestCoverage(record);
+    const ledger = { ...(await readCommitRuns(record))!, over: second };
+    const renamed = join(dirname(record), 'renamed.bin');
+    await rename(record, renamed);
+    await rm(commitRunsFile(record));
+    await writeCommitRuns(commitRunsFile(renamed), ledger);
+    await rm(join(home, 'ran', 'variance-shard-unit-1'), { recursive: true });
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'publish-cache'));
+
+    await suitesShare(ci, { suite: 'unit', publish: false, records: [renamed] }, { env: PUSH });
+
+    expect(await readTestCoverage(testCoverageFile(ci, { suite: 'unit' }))).toEqual(laid);
+    expect(await readCommitRuns(testCoverageFile(ci, { suite: 'unit' }))).toEqual(ledger);
   });
 
   it('publishes every suite given to the share without `--suite`, and names each it could not', async () => {
