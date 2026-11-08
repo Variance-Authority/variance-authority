@@ -137,6 +137,40 @@ when its condition holds, not before.
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
 | A Cloudflare tribunal needs setting up, a token, or its Access values; CI says the ingest token is not set | [deploy a tribunal](references/deploy-a-tribunal.md) | |
 
+## Follow a golden path
+
+When the task is an outcome rather than one question, its golden path on the
+site owns the order of the steps and links the page for each; it describes the
+latest release. Below, each path names the references that cover its steps.
+
+- **Make CI faster** ([path](https://variance-authority.dev/docs/path-faster-ci)):
+  shard by recorded time ([combine CI shard records](references/test-selection.md#combine-ci-shard-records)),
+  select on a pull request ([selection wiring](references/selection-wiring.md)),
+  carry the record to the next push (the same reference), then
+  [test an edit in a loop](references/test-selection.md#test-an-edit-in-a-loop).
+  All four start from the record main publishes.
+- **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
+  [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
+- **Review a pull request** ([path](https://variance-authority.dev/docs/path-code-review)):
+  the handover, then [covering](references/covering.md) for a function it flags
+  🔴 and [the whole change](references/covering.md#ask-about-the-whole-change-at-review-time),
+  then `variance layers`, then `review --fail-on-uncovered` or `--fail-on-lost` as the [gate](#what-each-command-needs).
+- **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):
+  [covering](references/covering.md), then
+  [case preconditions](references/case-preconditions.md), then
+  [distill](references/distill.md).
+- **Orient a coding agent in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
+  ask through [the installed binary](#run-the-installed-binary) or
+  [MCP](references/mcp.md), then [orient](references/orient.md#orient), then
+  what is installed ([stack](references/orient.md#stack) and
+  [packages](references/workspace-api.md#packages)), then `variance layers`,
+  then [covering](references/covering.md) for each changed line.
+- **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
+  [story](references/story.md) from the wrapped suite's record (a visual run
+  starts at [ask a run](references/ask-a-run.md)), then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
+  a run that has not ended starts at [live run](references/live-run.md), then
+  [interrogate the test](https://variance-authority.dev/agents/interrogate).
+
 ## Rules every answer shares
 
 **Absent is not empty.** An unavailable domain is unknown, never an empty
