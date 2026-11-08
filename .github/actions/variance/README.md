@@ -99,6 +99,25 @@ needs neither the cache steps nor `against`. Any other suite, and any suite
 before its mainline has a record, reads "No baseline available; change cannot be
 compared" on every comment.
 
+A pull request checks out as its head merged into the base tip, so a shared
+suite compares with a record made before what the base gained since. Merge the
+head with the record's commit before this step, and the comparison holds the
+pull request alone:
+
+```yaml
+- id: merge
+  if: github.event_name == 'pull_request'
+  env:
+    COMMIT: ${{ steps.record.outputs.commit }}
+  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+`steps.record` is a step that ran `npx variance share --suite <name> --format
+github`. The merge prints `merged=true` and `checkout=<sha>`, or `merged=false`
+when there was no commit or the head conflicts with it.
+[Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
+has the whole job.
+
 The review needs the commit the change starts from and a diff from it, so check
 out every commit: `fetch-depth: 0`, with `filter: tree:0` to leave the trees out.
 A clone that lacks that commit fails the step, and the CLI says what to fetch.
@@ -145,6 +164,35 @@ A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
 
+## Sweeping for flakes
+
+`flakes: 'true'` runs `variance run --flakes`: every subject is read twice,
+whatever its verdict, so a subject that agrees with its baseline and disagrees
+with itself is found before it fails a pull request. The check is red when a
+subject read differently twice, even with every verdict green, so leave
+`exit-zero-on-changes` off. It costs one
+collection per subject and no render, so it runs on a `schedule`, with no pull
+request to comment on and the report uploaded as a page:
+
+```yaml
+on:
+  schedule:
+    - cron: '17 3 * * *'
+
+steps:
+  - uses: actions/checkout@v7
+  - run: npm ci
+  - uses: Variance-Authority/action@v1
+    with:
+      config: variance.config.json
+      flakes: 'true'
+      comment: 'false'
+      report-page: 'true'
+```
+
+What a sweep finds and how a flake rate is counted from it is in
+[flakiness](https://variance-authority.dev/docs/flakiness).
+
 ## Accepting with a tick
 
 `tick-to-accept: 'true'` puts a box in the comment, under `to-accept`. A reviewer
@@ -185,3 +233,33 @@ it after that. `actions-cache` is the store this accepts into, so a git or LFS
 store leaves the input off. The box needs the docket written by a bot or an app:
 with a personal token as `github-token` the comment is a person's, the workflow
 skips the edit, and the box does nothing.
+
+## Deleting a pull request's images
+
+`image-ref-prefix: refs/variance/project` puts the leading change's before and
+after on the comment's first screen. The action pushes them to
+`refs/variance/project/<project>/images/<head branch>`, which needs
+`contents: write`, and they outlive the branch unless a job deletes them when the
+pull request closes, merged or not:
+
+```yaml
+name: variance images
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write # deleting the refs
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Variance-Authority/action/images@v1
+        with:
+          image-ref-prefix: refs/variance/project
+```
+
+It deletes every project's ref for that branch and no other branch's, so
+closing `feature` leaves `feature/x`'s images. A fork's pull request is skipped
+with a line: its run had a read-only token and pushed nothing.

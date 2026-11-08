@@ -42,7 +42,7 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
 export async function main(
   argv: readonly string[],
   streams: Streams,
-): Promise<ExitCode> {
+): Promise<number> {
   let parsed: Parsed;
   try {
     parsed = parseArgs(argv);
@@ -65,12 +65,25 @@ export async function main(
   }
 
   try {
+    // Wraps a command rather than answering about a project, so its exit is that
+    // command's, whatever it was, and nothing below has a say in it.
+    if (parsed.command === 'job') {
+      const { runJob } = await import('./commands/job.js');
+      return await runJob(parsed, streams);
+    }
     // Loaded here and not above: the version and the help answer without a
     // command, and every module a command needs is a module they would wait on.
     const [{ settleFollowUps }, { answerConfigless, constantAnswer, withoutConfig }] = await Promise.all([
       import('./commands/index-follow-ups.js'),
       import('./commands/configless.js'),
     ]);
+    // A mistyped `--at-distance` is refused before the wait below, as the parser
+    // once did. The selection library owns its spelling, so only a command given
+    // the flag loads it.
+    if ('atDistance' in parsed && parsed.atDistance !== undefined) {
+      const { parseAtDistance } = await import('./commands/select-leg.js');
+      parseAtDistance(parsed.atDistance);
+    }
     // A walk the follow-ups could not make is told while they are settled, and the
     // command still answers: it exits as the operator's once it has.
     const unwalked = await settleFollowUps(parsed, streams);

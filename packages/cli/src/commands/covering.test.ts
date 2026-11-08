@@ -7,6 +7,7 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
+import { parseAtDistance } from './select-leg.js';
 import { digestString } from '@variance-authority/core/format';
 import { encodeExecutionIndex, recordOfCases, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering, type Covering } from './covering.js';
@@ -322,15 +323,14 @@ describe('asking which cases a change covered', () => {
 
 describe('narrowing the witnesses to what is nearby', () => {
   it('reads a hop range the way a distance loop spells one', () => {
-    expect(parse(['--file', 'src/total.ts', '--at-distance', '0-3']).atDistance)
-      .toEqual({ from: 0, to: 3 });
-    expect(parse(['--file', 'src/total.ts', '--at-distance', '2']).atDistance)
-      .toEqual({ from: 2, to: 2 });
-    expect(parse(['--file', 'src/total.ts', '--at-distance', '3-']).atDistance?.from).toBe(3);
+    const band = (args: readonly string[]) => parseAtDistance(parse(['--file', 'src/total.ts', '--at-distance', ...args]).atDistance);
+    expect(band(['0-3'])).toEqual({ from: 0, to: 3 });
+    expect(band(['2'])).toEqual({ from: 2, to: 2 });
+    expect(band(['3-'])?.from).toBe(3);
   });
 
   it('refuses a hop range it cannot read rather than narrowing to nothing', () => {
-    expect(() => parse(['--file', 'src/total.ts', '--at-distance', '0-e']))
+    expect(() => parseAtDistance(parse(['--file', 'src/total.ts', '--at-distance', '0-e']).atDistance))
       .toThrow(/--at-distance takes hop counts/);
   });
 

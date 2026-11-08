@@ -1,7 +1,9 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
-import { REVIEW_ARTIFACT } from './commands/review-from-run.js';
 import { OperatorError } from './exit.js';
+
+/** The artifact `.github/workflows/check.yml` uploads the review under. */
+export const REVIEW_ARTIFACT = 'variance-review';
 
 export type ReviewFormat = 'text' | 'markdown' | 'json' | 'handover';
 

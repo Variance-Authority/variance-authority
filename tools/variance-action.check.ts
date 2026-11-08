@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 
 /**
@@ -111,6 +112,64 @@ async function runBlock(step: string, file = ACTION): Promise<string> {
   const inner = Math.min(...body.filter((line) => line.trim() !== '').map((line) => line.length - line.trimStart().length));
   return body.map((line) => line.slice(inner)).join('\n');
 }
+
+describe('the sweep', () => {
+  const SWEEP = join(ROOT, '.github/workflows/variance-sweep.yml');
+
+  /** The arguments the run step hands the CLI when `flakes` is `flakes`. */
+  async function runArgs(flakes: string): Promise<readonly string[]> {
+    const at = await mkdtemp(join(tmpdir(), 'variance-action-run-'));
+    try {
+      const fake = join(at, 'variance');
+      await writeFile(fake, `#!/bin/bash\nprintf '%s\\n' "$@" > "${at}/said"\n`, { mode: 0o755 });
+      execFileSync('/bin/bash', ['-c', await runBlock('variance run')], {
+        env: {
+          ...process.env,
+          VARIANCE_COMMAND: fake,
+          VARIANCE_CONFIG: 'c.json',
+          VARIANCE_PROFILE: '',
+          VARIANCE_SUBJECTS: '',
+          VARIANCE_SHARD: '',
+          VARIANCE_INTENT: '',
+          VARIANCE_FLAKES: flakes,
+          GITHUB_OUTPUT: join(at, 'output'),
+        },
+        stdio: 'pipe',
+      });
+      return (await readFile(join(at, 'said'), 'utf8')).split('\n').filter((line) => line !== '');
+    } finally {
+      await rm(at, { recursive: true, force: true });
+    }
+  }
+
+  it('is an input of the action, off unless a job asks for it', async () => {
+    const { inputs } = parse(await readFile(ACTION, 'utf8')) as { inputs: Record<string, { default?: string }> };
+
+    expect(inputs['flakes']?.default).toBe('false');
+    expect(await readFile(ACTION, 'utf8')).toContain('VARIANCE_FLAKES: ${{ inputs.flakes }}');
+  });
+
+  it('reads every subject twice exactly when the job says true', async () => {
+    expect(await runArgs('true')).toEqual(['run', '--config', 'c.json', '--flakes']);
+    expect(await runArgs('false')).toEqual(['run', '--config', 'c.json']);
+    expect(await runArgs('')).toEqual(['run', '--config', 'c.json']);
+  });
+
+  it('is what the nightly workflow runs, with no variance call or exit code of its own', async () => {
+    const workflow = parse(await readFile(SWEEP, 'utf8')) as {
+      jobs: Record<string, { steps: ReadonlyArray<{ uses?: string; run?: string; with?: Record<string, string> }> }>;
+    };
+    const steps = Object.values(workflow.jobs).flatMap((job) => job.steps);
+    const sweep = steps.filter((step) => step.uses === './.github/actions/variance');
+
+    expect(sweep).toHaveLength(1);
+    expect(sweep[0]?.with).toMatchObject({ flakes: 'true', comment: 'false', 'report-page': 'true' });
+    for (const { run } of steps) {
+      if (run === undefined) continue;
+      expect(run).not.toMatch(/bin\.js|(?:^|[\s;&|(])variance\s|\$\?|exit-code/m);
+    }
+  });
+});
 
 describe('the workflow that answers a tick', () => {
   const tick = () => readFile(join(ROOT, '.github/workflows/variance-tick.yml'), 'utf8');

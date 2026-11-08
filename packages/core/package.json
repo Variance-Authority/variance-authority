@@ -27,6 +27,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./nearest": {
+      "types": "./dist/nearest.d.ts",
+      "default": "./dist/nearest.js"
+    },
     "./format": {
       "types": "./dist/format/index.d.ts",
       "default": "./dist/format/index.js"

@@ -286,3 +286,13 @@ export function sideJob(
   streams.err(`${onGitHub ? '::warning::' : ''}changes need review; --exit-zero-on-changes exits 0, not 1.\n`);
   return EXIT_CLEAN;
 }
+
+/** Whether this process is a GitHub Actions step, which reads `::warning::` lines. */
+export function onGitHub(): boolean {
+  return process.env.GITHUB_ACTIONS === 'true';
+}
+
+/** A report's code, with `--exit-zero-on-changes` applied as {@link sideJob} draws it. */
+export function reported(report: ReviewableReport, suppress: boolean, streams: { err(text: string): void }): ExitCode {
+  return sideJob(exitFor(report), holeIn(report), suppress, streams, onGitHub());
+}

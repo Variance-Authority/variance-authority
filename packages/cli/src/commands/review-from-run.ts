@@ -22,8 +22,7 @@ import { jsonOfBytes } from '../json-pieces.js';
 import type { Review } from './review.js';
 import { reviewOfJson, type ReviewJson } from './review-json.js';
 
-/** The artifact `.github/workflows/check.yml` uploads the review under. */
-export const REVIEW_ARTIFACT = 'variance-review';
+export { REVIEW_ARTIFACT } from '../review-args.js';
 
 export interface RunRequest {
   /** A run id, or the URL of a run or of one of its jobs. */

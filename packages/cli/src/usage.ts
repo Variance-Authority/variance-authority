@@ -38,6 +38,7 @@ export const COMMANDS = [
   'serve',
   'doctor',
   'prune',
+  'job',
   'share',
   'collect',
   'carry',
@@ -147,10 +148,11 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   serve: ['--just-answer'],
   doctor: ['--baselines'],
   prune: [],
+  job: ['--suite', '--complete-on'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
-  carry: ['--config', '--format'],
+  carry: ['--config', '--format', '--head', '--on-conflict', '--expect'],
   comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker', '--cleared'],
 };
 
@@ -178,9 +180,10 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
+  'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
-  'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]',
+  'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared',
   '',
   '`--version` prints the version of this tool.',
@@ -190,17 +193,12 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill`, `covering`, `coverage`, `review`, `story`, `index`,
- * `select`, `shards` and `reach` do not read project configuration. One holds a live
- * listener; the next five read evidence a run left behind, named on the command line or found
- * where a run puts it; the last four are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else. `prune` reads the
- * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
- * whether or not a project is configured. `carry` is on the list
- * for the same reason and names `--config` itself: the suites it carries are
- * the repository root's, and a project is read only when one is named.
+ * These read no project configuration: they hold a listener, read evidence a run
+ * left behind, answer a repository whose tests another runner runs, or work from
+ * the repository root, as `prune`, `job` and `carry` do. `carry` still names
+ * `--config`, and reads a project only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
