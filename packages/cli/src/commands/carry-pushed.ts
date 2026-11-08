@@ -2,21 +2,12 @@
  * What a pull request's last push ran, kept for its next push and taken there.
  *
  * A selection diffs each test from the commit it last ran at, so a push that
- * reads the last push's record runs what changed since then, and every file
- * that push left incomplete, a failed one included. `keep` copies each suite's
- * own record into a directory the host cache saves under the pull request's
- * key, red or green; `take` lays it back over the mainline's. Only selection
- * reads it: `take` names each suite's mainline cases for `review --against`, the
- * restored record set aside or, where the restore laid none, the cases the share
- * holds.
- *
- * The records name earlier pushes' merge commits, which no branch holds.
- * `keep` keeps the ones the mainline lacks beside the records, and `take` reads
- * them, then fetches the rest by name. A suite whose commits cannot all be had
- * is left, and reads the mainline's record, as a first push does; so is one the
- * last push recorded under other probes than the run `take` precedes. `take`
- * removes what it left from the directory and names what it took there, so a
- * run's later jobs take the same suites from it, or stop.
+ * reads the last push's record runs what changed since then, failures included.
+ * `keep` copies each suite's own record, and the commits it names that no
+ * remote holds, into a directory the host saves under the pull request's key;
+ * `take` lays it back over the mainline's and names each suite's mainline
+ * cases for `review --against`. A suite whose commits or probes do not fit is
+ * left to the mainline's record, and `take` hands on only what it took.
  */
 
 // compass: variance-authority.retention
