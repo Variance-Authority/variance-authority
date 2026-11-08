@@ -300,8 +300,8 @@ consumer meets it, in the example repository that carries it.
 
 | Flow | Example | The accept |
 |---|---|---|
-| `cache` | `Variance-Authority/example-storybook` | the `variance: accept` label; the tick is not driven here, since it needs the example's own `variance-tick.yml` |
-| `lfs` | `Variance-Authority/example-static-site` | the label, whose run commits the images to the branch |
+| `cache` | `Variance-Authority/example-storybook` | the tick of the docket's box, which the example's `variance-tick.yml` answers by running the check again |
+| `lfs` | `Variance-Authority/example-static-site` | a dispatch of the example's `variance.yml` with `accept` on the change's branch, whose run commits the images to it |
 | `tribunal` | `Variance-Authority/example-tribunal` | none: the flow ends at the build on the deployment |
 
 For each flow it opens two pull requests there: one that changes what a subject
@@ -315,15 +315,21 @@ renders, and a control that changes nothing any subject reaches. It proves:
   selected only it;
 - on `example-tribunal`, the deployment holds exactly one build for the
   change's branch, listing the four changed product-card subjects;
-- after the label on `example-storybook` and `example-static-site` the check is
-  green, and on `example-static-site` the commit the label made touches only
-  the changed page's baseline image and its report.
+- after the tick on `example-storybook` and the dispatch on
+  `example-static-site` the check is green, and on `example-static-site` the
+  commit the dispatched run made touches only the changed page's baseline image
+  and its report, and the pair 0.15.0 left on `main` where it removes it.
+
+Each example also accepts on a push to `main`, and `example-storybook` on a
+dispatch with `accept` too. The loop drives neither: a push to `main` accepts
+into the baseline every branch compares against, and the tick is the accept a
+reviewer meets on a pull request.
 
 Then it closes both pull requests unmerged and deletes their branches, whatever
 happened.
 
-It never approves and never merges. The two labels land only on a pull request
-it is about to close: the cache flow's accept saves into that pull request's own
+It never approves and never merges. The tick and the dispatch land only on a
+pull request it is about to close: the cache flow's accept saves into that pull request's own
 cache scope, which no other branch reads, and the LFS flow's accept commits to
 that pull request's branch. An approval on the tribunal is not scoped to a
 branch: it replaces the baseline `main` and every other branch compare against,
@@ -331,8 +337,11 @@ which is a merge, so the tribunal flow leaves its check red and its build
 unreviewed. The build stays on the deployment until something calls its
 retention sweep, `POST /review/sweep`.
 
-These label accepts are made by a job, not a person, and they are the only ones
-in this repository that are. The expectations live in
+These accepts are made by a job, and they are the only ones in this repository
+that no person decides. The tick workflow refuses an edit a bot made, so
+`VARIANCE_PUSH_TOKEN` is a fine-grained token held by a person with write
+access, and the example records each tick in that person's name. On
+`example-static-site` it is also allowed `actions: write`, for the dispatch. The expectations live in
 [`../scripts/outer-loop/flows.mjs`](../scripts/outer-loop/flows.mjs), and
 `tools/outer-loop.check.ts` runs the script against a local GitHub that answers
 the way the examples do.
@@ -365,7 +374,7 @@ passed in, and in the `tribunal` job the service its config names. No command in
 bash around the same binary.
 
 **Accept without a person.** Every accept is a tick, a dispatch, a push to
-`main`, or a decision on the service. The outer loop's label accepts in the
+`main`, or a decision on the service. The outer loop's ticks and dispatches in the
 examples are the one exception: they land only on pull requests it opened to
 close. `commit-baselines` is on only in `variance.yml`'s `lfs` job, and only
 for a dispatch with `accept`. On every run it would accept what the run just found, and a check that

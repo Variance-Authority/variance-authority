@@ -19,15 +19,14 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { forge, PER_PAGE } from '../forge.mjs';
+import { BOX, box, boxIn } from './box.mjs';
 
 /** Seconds between two looks at a run still going. */
 const POLL_SECONDS = Number(process.env.VARIANCE_TICK_POLL_SECONDS ?? 15);
 
 const WRITERS = new Set(['admin', 'write']);
-const BOX = /^- \[( |x|X)\] .*<!-- variance-tick head=([0-9a-f]{40}) job=(\d+) -->[ \t\r]*$/m;
 const RECORD = /<!-- variance-accepted by=([A-Za-z0-9_-]+) head=([0-9a-f]{40}) run=(\d+) attempt=(\d+) -->/;
 
-const box = (head, job) => `- [ ] Accept this change <!-- variance-tick head=${head} job=${job} -->`;
 const record = (by, head, run, attempt) =>
   `Accepted by ${by} on \`${head.slice(0, 7)}\`; the check is running again. <!-- variance-accepted by=${by} head=${head} run=${run} attempt=${attempt} -->`;
 
@@ -37,12 +36,6 @@ const warn = (message) => console.log(`::warning::variance: ${message}`);
 function fail(message) {
   console.log(`::error::variance: ${message}`);
   process.exit(2);
-}
-
-/** The box in `body`, or nothing: whether it is ticked, and what it is bound to. */
-function boxIn(body) {
-  const found = BOX.exec(body ?? '');
-  return found ? { ticked: found[1] !== ' ', head: found[2], job: found[3] } : undefined;
 }
 
 const { request, commentPages } = forge();
