@@ -227,7 +227,7 @@ export function scopeLine(scope: Scope, indexed: number): string {
     return (
       `No search was run: ${scope.refused}. ` +
       'Say a real path from the root — `app/dispatch/page.tsx` is that file, `app/dispatch/*` ' +
-      "its folder's own files, `app/dispatch/` everything under it. A name on its own is not a " +
+      "its folder's own files, `app/dispatch/` everything under it (a bare folder name no file has is the folder). A name on its own is not a " +
       'path. To search everywhere, leave the start point out.'
     );
   }
