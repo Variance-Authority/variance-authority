@@ -65,12 +65,9 @@ export const FLOWS = {
     commit: {
       author: 'github-actions[bot]',
       message: 'chore(variance): regenerate baselines',
-      // The example installs 0.26.0, which writes `{title}/{name}-{engine}`:
-      // the page as `baselines/pricing-chromium.*`. Its `main` still holds
-      // pricing where 0.15.0 wrote it, under `baselines/v1-<identity digest>/`,
-      // and an accept moves the pair it painted, so the old pair goes in the
-      // same commit. Once an accept of pricing lands on `main`, the last two
-      // patterns go.
+      // 0.26.0 writes `baselines/pricing-chromium.*`, and its accept removes
+      // the pair 0.15.0 left on `main` under `v1-<identity digest>/`; the last
+      // two patterns go once an accept of pricing reaches `main`.
       files: [
         /^baselines\/pricing-chromium\.webp$/,
         /^baselines\/pricing-chromium\.json$/,
