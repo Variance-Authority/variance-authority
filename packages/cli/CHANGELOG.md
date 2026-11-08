@@ -1,5 +1,19 @@
 # @variance-authority/cli
 
+## 0.28.0
+
+### Minor Changes
+
+- 5d576bc: `variance doctor` names each suite the root `variance.config.json` declares, with its kind, and says whether a run has recorded it: this checkout's own record, the mainline's as last fetched, or the primary checkout's, with the file. A suite no run has recorded says what writes its first record. The exit code does not change, and nothing is fetched. `@variance-authority/sense/test-selection` exports `nearestRecord`, which says whose record a reader opens.
+- 838f5d1: `Variance-Authority/action/review` takes `test`, your test command: it restores the named suite's record and the pull request's last push from the runner cache, sets the mainline's record aside, runs the command, reviews against it, and saves what the tests ran, so a unit-only job is checkout, install and one `uses:` with `suite` and `test`. A red test still reviews and saves, then fails the step with the test's exit code. Without `test` the action reviews as before.
+
+### Patch Changes
+
+- 67f8700: The `variance-authority` skill names six golden paths — make CI faster, review
+  a visual change, review a pull request, keep a test suite lean, orient a coding agent in a codebase,
+  and find out why a test failed or hangs — with the references that cover each
+  path's steps on the site.
+
 ## 0.27.0
 
 ### Minor Changes
