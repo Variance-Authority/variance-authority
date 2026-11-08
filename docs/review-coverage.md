@@ -62,16 +62,20 @@ those files are never committed from a checkout where they were made.
 
 ## Check it on your machine
 
-The CLI needs Node 22.15 or newer, on your machine as in CI. Run your tests once
-with your usual command, then name a source file one of them imports:
+The CLI needs Node 22.15 or newer, on your machine as in CI. If your `.nvmrc` or
+the `engines` field in `package.json` names an older Node, raise it. Run your
+tests once with your usual command, then name a source file one of them imports:
 
 ```bash
 npx variance covering --file src/index.ts
 ```
 
-It names the suite, `unit (unit)`, and where its record was read from, then the
-tests that ran code in that file. Your tests in that list mean the wrap recorded
-them; no record for `unit` means the tests ran without the wrap.
+On the first run it says it is building its source index from the checkout;
+that line is expected. Then it prints the suite, `unit (unit):`, the file with
+how many recorded ranges and named tests reached it, and how long ago that run
+landed. Named tests on the file mean the wrap recorded them; no line for `unit`
+means the tests ran without the wrap. On your machine the record is kept under
+`node_modules/.cache/`, not under `.variance/`.
 
 ## Add the job
 
