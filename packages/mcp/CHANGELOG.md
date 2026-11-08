@@ -1,5 +1,13 @@
 # @variance-authority/mcp
 
+## 0.27.0
+
+### Patch Changes
+
+- 7fefcf8: A start point such as `--from packages/help` that names a folder without its
+  trailing slash is read as that folder when no file has that name, instead of
+  answering that the path is not found.
+
 ## 0.26.0
 
 ### Minor Changes

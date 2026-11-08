@@ -1,5 +1,97 @@
 # @variance-authority/cli
 
+## 0.27.0
+
+### Minor Changes
+
+- 614a696: `variance coverage --format badge` prints the share of regions the text output leads with, every suite together, as a shields.io endpoint: `{"schemaVersion":1,"label":"regions run","message":"90.3%","color":"blue"}`. With no region counted it prints nothing and exits `2` with the reason. The review action's new `badge` input publishes that file on a push to the default branch, as the one file of a parentless commit at `refs/badge/<branch>`, for a public repository's README badge; the job needs `contents: write`.
+- 540a584: `variance job --suite <name> -- <command>...` runs a command under `strace` and
+  records what it read and wrote, in any language, for a suite of the new kind `job`.
+  `variance select --suite <name>`
+  selects the whole job from that record: a change to a file it read selects it, and
+  a change to a file it only wrote does not. A job with no record, an incomplete one
+  or a failed command runs. `--complete-on <exit>` names an exit that still means the
+  command ran whole.
+- 7fa6a7a: `variance carry keep` keeps beside the records, in `commits.bundle`, the commits they name that `origin/<base>` does not hold, such as the merge `carry merge` made, and `variance carry take` reads them before fetching the rest by name, so a workflow that merges a pull request itself no longer fetches its merges before `take`. `take` removes the suites it left from the directory and names the ones it took in `taken.json`; a later `take` over that directory, in another job of the run, exits 2 when it cannot take one of them.
+- b25d306: `variance carry merge <commit>` stands a pull request's checkout on its head merged into the commit the mainline's record was made at, so `select` and the review measure the pull request alone. It reads the head from the pull request's event, or from `--head <sha>`, and makes the same commit in every clone: the parents, the author, the committer, the date and the message are fixed. Under `--format github` it prints `merged=` and `checkout=`. `--on-conflict stay` leaves a head that conflicts on the host's merge, where the default fails the step; a merge stopped by anything else always fails it, and every stop leaves the checkout where it was. `--expect <sha>` fails a job whose merge is not the one another job made. It replaces the git commands the sharing guide had a workflow paste.
+- 7c87f4e: `variance ask containment` counts how far the commits of a window reached across
+  package boundaries: the share that touched one package, and the share that
+  edited a test in another package or in a test-only tree. Each figure is a count
+  over its denominator, and `--format json` holds them all. MCP clients get the
+  same answer as `docs_containment`.
+- 6007f04: `Variance-Authority/action/review` marks each changed function no case covered
+  on its lines in the diff, as a warning, up to the ten GitHub shows for a step,
+  and says how many it left out.
+
+  A review's JSON names the lines the change wrote in each file, as `written`.
+- 89062c8: `variance report` exits 2 before it merges when the reports it is given are not every shard of one `--shard` count, and names what is wrong: `these reports are not one build: shard 3/3 is missing.`, a shard given twice, or shards cut two ways. `comment`, `ask`, `adjudicate` and `share --publish` refuse alike, since they read shards the same way, and a named report that is not there exits 2 naming its path rather than as a crash. The count comes from each shard's part beside its report, so no flag repeats it, and a `--shard` run that owns every file writes its part too. `Variance-Authority/action` takes the shards' reports as `reports` and merges, posts one docket, publishes with `share --publish` and exits 0, 1 or 2 for the suite in one step.
+- 789023a: `variance review --fail-on-lost` exits `1` when a suite no longer runs regions its base ran, so a project can require that a pull request keeps running what its mainline ran. It reads the comparison `--coverage` prints; a suite with no base is said on stderr and does not fail. A file the suite stopped loading counts when the checkout still holds it and the mainline ran it, which `SuiteChange.departed.ran` names.
+- 607f6d4: `variance review --fail-on-uncovered` exits `1` when a changed function holds
+  code no case ran, and `Variance-Authority/action/review` takes it as
+  `fail-on-uncovered`, posting the comment before the step fails, so a project can
+  require the check. It reads the count the review prints, with no percentage. It
+  exits `2` when the record does not hold the change, or when source changed and
+  nothing shows a run of it. A changed file a run of this change did not load is
+  named on stderr and not counted, whether its functions are new or edited.
+
+  The review comment now says "did" and "no case ran" for a change any suite of the
+  review ran as the tree holds it, where it said "might do" unless the named suite
+  had: a project whose named suite is stale reads the firmer wording, with or
+  without the flag.
+- 348267a: A git share on GitHub Actions is reached with the step's `GITHUB_TOKEN` when the clone keeps no header for the remote, as a checkout with `persist-credentials: false` leaves it, so `variance share --publish` needs no git header or `GIT_CONFIG_*` variables from the caller: the publish step sets `env: GITHUB_TOKEN: ${{ github.token }}`. The token is offered only on Actions and only to a remote on the host `GITHUB_SERVER_URL` names, reaches git through its environment configuration and is written to no file; a header the clone or the environment already gives git wins. The review action hands its `github-token` to its publish step the same way.
+- f76eb44: `variance share` in a repository whose root `variance.config.json` declares suites takes the records a CI run's jobs handed on, files or directories holding `suites/<suite>/coverage.bin`, and lands them over the mainline's record of each suite before it reads or publishes, so a sharded or sliced suite needs no fold of its own. Without `--suite`, it reads or publishes every suite the root config gives `"carry": "share"`, and a publish that could not publish one exits 2 and names each, as `not published: integration.`; under `--format github` each output is keyed by its suite, `commit-<suite>=`. `share --suite <name>` now lays the mainline's record into the checkout, and prints `based=true` when that record keeps its cases. `--collected` takes a directory holding one `<suite>.txt` per suite.
+- 0f0d998: `Variance-Authority/action/images` deletes the images the action pushed under
+  `image-ref-prefix` when the pull request closes, merged or not: one step, given
+  the same prefix, in a job on `pull_request` `closed`. It deletes every project's
+  ref for that branch and no other branch's, and skips a fork's pull request with
+  a line. Without it, those refs stay in the repository after the branch is gone.
+- 4461895: `Variance-Authority/action/review` runs `variance review --coverage` after your
+  tests and posts the review as one comment updated in place, so a project with
+  only unit tests needs no script of its own to put it on the pull request. Its
+  README has the cache steps that give the comment a mainline record to compare
+  with.
+
+  `variance carry take` keeps the mainline's record it sets aside out of the
+  change, in a project that does not ignore `.variance/`, and a review refused for
+  naming no start says when the clone is shallow and how to check out every
+  commit.
+- 3e2f1db: The action takes `flakes: 'true'`, which runs `variance run --flakes`: every
+  subject is read twice, whatever its verdict, and the check is red when one read
+  differently twice. A nightly sweep is one action step on a `schedule`, with
+  `comment: 'false'` and `report-page: 'true'`, after the setup the pull-request
+  job already has.
+
+### Patch Changes
+
+- 7e7d00e: `variance` loads a command's modules only when that command runs. `variance --version` now loads 43 modules, down from 440. `comment --marker` loads 432, down from 915, and none of `distill`, `report` or `vantage`. `index --no-git` loads 274, down from 445.
+
+  Two new subpaths let the flag parser load without its package roots: `@variance-authority/core/nearest` exports `didYouMean` and `nearest`, and `@variance-authority/sense/checkout-path` exports `checkoutPath`.
+- 9b9a6ee: `variance select` names a file read without importing it as one for a `/// <depends>` in the module that reads it, where it used to send that file to `preconditions`. A `preconditions` entry is declared by every test the run records, so a change to a fixture listed there ran every test. The note on a file the suite's `ignore` matches now says what each declaration runs. The `variance-authority` skill's selection references say the same.
+- facbe1c: `withTestSelection` for Jest, Vitest and Rstest refuses an entry in `preconditions` that cannot be read as a file when the run starts, before any test. The refusal names the path each entry resolved to, and says each entry is the path of one file. A glob, a directory or a missing file used to fail the run in the reporter after its tests passed. A command that runs no test, such as `jest --listTests`, `vitest list`, `rstest list` or `vite build`, is not refused, and neither is a run with no test file. A project's entries are read only when a test file of that project is in the run, so a project `--project` left out, or one with no matching test file, blocks no other. What the configuration listing the projects declares is read when any project has a test file in the run. Under Vitest, a command-line `--reporter` replaces the reporter that refuses it, so it is refused through a wrapped project with a test file in the run; a run of no wrapped project records nothing, and reads nothing. Under Rstest it replaces that reporter in any run and in `rstest merge-reports`, which then write no record and refuse nothing. Rstest cannot tell a run with no test file in a page or in a watch session, so it refuses those, and it reads a project's entries in a page or a watch session whether or not it has a test file. Rstest reaches a project through its wrap or by finding it written inline in the wrapped `projects`, so a run of nothing but an unwrapped project named by a path is treated like a merge, and records no coverage either.
+
+  A file only a test writes, absent when the run starts, is refused too, where that run used to pass: write the file before the runner starts. So is a file global setup writes under Vitest, and under Rstest in Node, which announce the first run before that setup; Jest, and Rstest in a page, announce it after global setup and still accept one, and every test declaring that file is recorded incomplete and runs again.
+
+  Under Rstest, `rstest merge-reports` and a run of nothing but an unwrapped project named by a path make no compiler, so nothing can refuse before their tests: each fails when they end, naming an entry those tests rest on that cannot be read, and writes no record without it.
+- b2c6404: The documented workflow accepts a change by the tick in the pull request's comment, by a dispatch with `accept`, and by a push to `main`, with no label and no `gh api` step. `docs/placement.md` prints that job, and shows a committed store accepting by a dispatch with `accept` on the pull request's branch, through `commit-baselines`. The descriptions of `Variance-Authority/action`'s `accept`, `commit-baselines` and `to-accept` inputs name the tick and the dispatch instead of a label.
+- 632bc86: A run with nothing before reach names the file `before` is written in, and the Jest wrap's documentation gives the same answer for its config.
+- 9fa0ecd: `variance carry take` now prints `against-<suite>` for every declared suite a
+  restore laid cases for, not only for the suites it takes, so a pull
+  request's first push, or a push whose last record could not be taken, compares
+  with the mainline.
+- 4bbb2a1: `Variance-Authority/action`'s `commit-baselines` pushes the accepted images to the dispatched branch on a `workflow_dispatch` of a branch, as it does to the head branch on a `pull_request` event, so a committed store can accept from a dispatch. Any other run, such as a push or a dispatch on a tag, still exits 2, and the error now names the event and the kind of ref it ran on. A workspace off that branch is refused as before, and the error now names the branch to check out.
+- e5205cc: `variance covering --function` puts the recorded functions that end in the name asked first in its refusal, so a method asked for by its bare name, as `isStarted`, names `FasteInstance/isStarted` before the rest of the file.
+- 7029399: `variance run` and `variance report` with `--exit-zero-on-changes` still exit 1 when a subject could not be observed, an observation errored, or the report does not say what it skipped, and say so on stderr. Only a change becomes 0. Under GitHub Actions the line saying a change was suppressed is a `::warning::` annotation.
+- 46f4160: `variance index` says in plain words that nothing has failed when it leaves its follow-ups to another process, and what a later command does if they do: it exits 2 with the reason. The line used to end in a clause about exiting "as the operator's" that a reader could not parse.
+- 49fc965: `variance review --coverage --against <file>` compares the only declared suite with that base when no `--suite` names it. It used to drop the base without saying so.
+- 33290d4: `variance journeys` and `variance share` with no `--suite`, in a repository that configures no project, take the only suite declared, and among several name them. They no longer ask for a `profile`.
+- 1342d15: `variance ask symbol` no longer calls a name unpublished when its package declares an entry the reading could not follow to a source file, as a build output no tsconfig names. It says whether the name is published is not known.
+- d948104: A run that names no suite now records into the only declared suite, as
+  `variance covering` already reads it, and a reader that names none opens it.
+  Among several declared suites both still stop. `onlySuite` is exported from
+  `@variance-authority/sense/test-selection` for readers of their own.
+- 5a19cbe: `ask orient` keeps a root package on the map beside a package nested in it, and its file count covers the root's sources. A root joins when its manifest has a `name`, it holds source, and it declares no workspaces, in `workspaces` or in the `packages:` of a `pnpm-workspace.yaml`. A root that declares workspaces stays out, and that repository's map does not change. `@variance-authority/package` exports `declaresWorkspaces(root)`, which reads what `members` reads and never throws: a declaration `members` refuses counts as declared.
+- 019c6dd: `@variance-authority/store/durable` loads `@variance-authority/png` only when a baseline is written or read, so `variance --version`, `--help`, `index`, `select`, `ask uses`, `ask symbol` and `ask search` no longer load it before they answer. They still load `@variance-authority/raster`, whose error the store refuses a config's `baselines.path` with.
+
 ## 0.26.0
 
 ### Minor Changes
