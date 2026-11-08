@@ -45,10 +45,10 @@ MIT.
 
 ## Reviewing a project with only unit tests
 
-`Variance-Authority/action/review` runs `variance review --coverage` after your
-tests and posts what it wrote as one comment of its own, updated in place on
-every push. The comment stays beside a docket and never replaces one. It needs
-no `config`: it reads the record your tests left, so `npm test` has to run under
+`Variance-Authority/action/review` runs your tests, then `variance review
+--coverage`, and posts what it wrote as one comment of its own, updated in place
+on every push. The comment stays beside a docket and never replaces one. It needs
+no `config`: the tests have to run under
 [the recorder](https://variance-authority.dev/docs/test-an-edit), for a suite the root `variance.config.json` declares with
 `"suites": { "unit": { "kind": "unit", "carry": "actions-cache" } }`.
 
@@ -62,40 +62,30 @@ steps:
     with:
       fetch-depth: 0 # the review reads the change from where it starts
   - run: npm ci
-  - id: carry
-    run: npx variance carry restore --format github >> "$GITHUB_OUTPUT"
-  - uses: actions/cache/restore@v6
-    with:
-      path: ${{ steps.carry.outputs.suite-unit-path }}
-      key: ${{ steps.carry.outputs.suite-unit-key }}
-      restore-keys: ${{ steps.carry.outputs.suite-unit-restore-keys }}
-  - id: take # sets the mainline's record aside before your tests write over it
-    run: npx variance carry take --format github >> "$GITHUB_OUTPUT"
-  - run: npm test
-  - if: ${{ !cancelled() }}
-    uses: Variance-Authority/action/review@v1
+  - uses: Variance-Authority/action/review@v1
     with:
       suite: unit
-      against: ${{ steps.take.outputs.against-unit }}
-  - id: save
-    if: ${{ !cancelled() }}
-    run: npx variance carry save --format github >> "$GITHUB_OUTPUT"
-  - if: steps.save.outputs.suite-unit-key != ''
-    uses: actions/cache/save@v6
-    with:
-      path: ${{ steps.save.outputs.suite-unit-path }}
-      key: ${{ steps.save.outputs.suite-unit-key }}
+      test: npx jest
 ```
 
-The cache steps are what the comment compares with. `carry save` prints a key
-only on a push to a mainline, so the mainline's run saves the record and a pull
-request restores it.
+`test` is your command, with your package manager: `pnpm exec jest` or `yarn
+jest` work the same. The action restores the suite's record from the runner
+cache, sets the mainline's record aside before the tests write over it, runs the
+command, reviews, and saves what the tests ran: on a push to a mainline the
+record every pull request compares with, and on a pull request what its next push
+reads. A red test still reviews and saves, then fails the step with the test's
+exit code; only tests that passed save the mainline's record.
 
-Coverage has two bases. `against` is compared with the suite `suite` names, and
-only that suite: without `suite` the coverage rows do not read it. Otherwise a suite
+Without `test` the action reviews the record a step before it left, and the
+mainline record comes from `against`: the `against-<suite>` output of a `variance
+carry take` your workflow ran before the tests.
+
+Coverage has two bases. The record `test` carries, or `against`, is compared with
+the suite `suite` names, and only that suite: without `suite` the coverage rows
+do not read it. Otherwise a suite
 declared with `"carry": "share"` is compared with the record its mainline
 published through [the share](https://variance-authority.dev/docs/sharing), and
-needs neither the cache steps nor `against`. Any other suite, and any suite
+needs neither `test` nor `against`. Any other suite, and any suite
 before its mainline has a record, reads "No baseline available; change cannot be
 compared" on every comment.
 
@@ -138,11 +128,10 @@ case ran. Name the job as a required status check in your branch rule, and a
 pull request with such a function cannot merge until a case runs it.
 
 ```yaml
-- if: ${{ !cancelled() }}
-  uses: Variance-Authority/action/review@v1
+- uses: Variance-Authority/action/review@v1
   with:
     suite: unit
-    against: ${{ steps.take.outputs.against-unit }}
+    test: npx jest
     fail-on-uncovered: 'true'
 ```
 
@@ -172,11 +161,10 @@ loads. It takes `against`: with no base nothing is compared,
 which the step says and does not fail on.
 
 ```yaml
-- if: ${{ !cancelled() }}
-  uses: Variance-Authority/action/review@v1
+- uses: Variance-Authority/action/review@v1
   with:
     suite: unit
-    against: ${{ steps.take.outputs.against-unit }}
+    test: npx jest
     fail-on-lost: 'true'
 ```
 
@@ -195,11 +183,10 @@ permissions:
 
 steps:
   # ...
-  - if: ${{ !cancelled() }}
-    uses: Variance-Authority/action/review@v1
+  - uses: Variance-Authority/action/review@v1
     with:
       suite: unit
-      against: ${{ steps.take.outputs.against-unit }}
+      test: npx jest
       badge: 'true'
 ```
 

@@ -21,8 +21,11 @@ const ACTION = `${FOLDER}/review/action.yml`;
 
 interface Step {
   readonly name: string;
+  readonly id?: string;
   readonly if?: string;
   readonly run: string;
+  readonly uses?: string;
+  readonly with?: Readonly<Record<string, string>>;
   readonly env?: Readonly<Record<string, string>>;
   readonly 'continue-on-error'?: boolean;
 }
@@ -107,7 +110,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     const { said } = await ran('review the change', { SINCE: 'abc123', SUITE: 'unit', AGAINST: '/the/mainline/coverage.bin' });
 
     expect(said[1]).toBe('review --since abc123 --suite unit --coverage --against /the/mainline/coverage.bin --out <at>/review --format markdown');
-    expect(stepNamed('review the change').env).toMatchObject({ SUITE: '${{ inputs.suite }}', AGAINST: '${{ inputs.against }}' });
+    expect(stepNamed('review the change').env).toMatchObject({ SUITE: '${{ inputs.suite }}' });
   });
 
   it('puts the review in the step summary', async () => {
@@ -175,8 +178,88 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
-    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-lost', 'fail-on-uncovered', 'github-token', 'suite']);
+    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-lost', 'fail-on-uncovered', 'github-token', 'suite', 'test']);
     expect(action().outputs).toBeUndefined();
+  });
+
+  describe('the tests the action runs, between the carry that gives them a base and the carry that keeps what they ran', () => {
+    const SUITE = "format('suite-{0}-{1}', inputs.suite";
+    const order = [
+      'what the host carries',
+      "restore the suite's mainline record",
+      "restore what the pull request's last push ran",
+      "set the mainline's record aside",
+      'run the tests',
+      'review the change',
+      'post the review',
+      'publish the badge',
+      'what the host keeps',
+      "keep the suite's record for the next pull request",
+      'keep what this push ran',
+      'save what this push ran',
+      'fail on what the review counted',
+      'fail on the tests',
+    ];
+
+    it('takes the command as `test`, which only a named suite can carry for', () => {
+      expect(action().inputs['test']).toMatchObject({ default: '' });
+    });
+
+    it('restores the suite and the last push before the take, runs the tests after it, and saves and keeps after the review', () => {
+      expect(action().runs.steps.map((step) => step.name)).toEqual(order);
+    });
+
+    it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
+      for (const name of order.slice(1, 5).concat(order.slice(8, 11), order.slice(13))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+    });
+
+    it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {
+      const suite = stepNamed("restore the suite's mainline record");
+      expect(suite.uses).toBe('actions/cache/restore@v6');
+      expect(suite.with).toEqual({
+        path: `\${{ steps.carry.outputs[${SUITE.replace('{1}', 'path')})] }}`,
+        key: `\${{ steps.carry.outputs[${SUITE.replace('{1}', 'key')})] }}`,
+        'restore-keys': `\${{ steps.carry.outputs[${SUITE.replace('{1}', 'restore-keys')})] }}`,
+      });
+      const pushed = stepNamed("restore what the pull request's last push ran");
+      expect(pushed.uses).toBe('actions/cache/restore@v6');
+      expect(pushed.if).toContain("steps.carry.outputs.pushed-key != ''");
+    });
+
+    it('sets the mainline aside before the tests write over it, and refuses a `test` with no suite to carry', async () => {
+      expect((await ran("set the mainline's record aside", { SUITE: 'unit' })).said).toEqual(['carry take --format github']);
+      const refused = await ran("set the mainline's record aside", { SUITE: '' });
+      expect(refused.status).toBe(1);
+      expect(refused.said).toEqual(['']);
+    });
+
+    it("runs the adopter's command as a `run:` step would, and holds a red exit for the end, so the review and the saves still run", async () => {
+      expect(await ran('run the tests', { TEST: 'echo ran\nexit 3' })).toMatchObject({ status: 0, printed: 'ran\n', output: 'exit-code=3\n' });
+      expect((await ran('run the tests', { TEST: 'false\necho not reached' })).output).toBe('exit-code=1\n');
+      expect(stepNamed('run the tests').env).toMatchObject({ TEST: '${{ inputs.test }}' });
+      const failing = stepNamed('fail on the tests');
+      expect(failing.if).toBe("${{ !cancelled() && inputs.test != '' && steps.test.outputs.exit-code != '0' }}");
+      expect(failing.env).toMatchObject({ CODE: '${{ steps.test.outputs.exit-code }}' });
+      expect((await ran('fail on the tests', { CODE: '3' })).status).toBe(3);
+    });
+
+    it("compares with the record the take set aside, unless the workflow named one", () => {
+      expect(stepNamed('review the change').env).toMatchObject({ AGAINST: "${{ inputs.against || steps.take.outputs[format('against-{0}', inputs.suite)] }}" });
+    });
+
+    it('saves after a red test or a failed post, keeping the mainline record only from tests that passed', async () => {
+      expect((await ran('what the host keeps')).said).toEqual(['carry save --format github']);
+      expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.test != '' }}");
+      const suite = stepNamed("keep the suite's record for the next pull request");
+      expect(suite.uses).toBe('actions/cache/save@v6');
+      expect(suite.if).toBe(`\${{ !cancelled() && inputs.test != '' && steps.test.outputs.exit-code == '0' && steps.save.outputs[${SUITE.replace('{1}', 'key')})] != '' }}`);
+      expect(suite.with).toEqual({ path: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'path')})] }}`, key: `\${{ steps.save.outputs[${SUITE.replace('{1}', 'key')})] }}` });
+      expect((await ran('keep what this push ran')).said).toEqual(['carry keep']);
+      expect(stepNamed('keep what this push ran').if).toBe("${{ !cancelled() && inputs.test != '' && steps.save.outputs.pushed-key != '' }}");
+      const pushed = stepNamed('save what this push ran');
+      expect(pushed.if).toBe("${{ !cancelled() && steps.keep.outcome == 'success' }}");
+      expect(pushed.with).toEqual({ path: '${{ steps.save.outputs.pushed-path }}', key: '${{ steps.save.outputs.pushed-key }}' });
+    });
   });
 
   describe('the badge', () => {
