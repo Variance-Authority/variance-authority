@@ -32,8 +32,8 @@ module.exports = withTestSelection({
 });
 ```
 
-A `preset` stays as it is: Jest still reads it, and nothing from it is copied
-into the wrap. In a `jest.config.mjs` or `jest.config.ts`, `import {
+A `preset` stays as it is: the wrap keeps its transform and wraps it, so copy
+nothing from it into your file. In a `jest.config.mjs` or `jest.config.ts`, `import {
 withTestSelection } from '@variance-authority/sense/jest'` and wrap the default
 export the same way. For Vitest, wrap `defineConfig` in the configuration you
 have:
@@ -62,18 +62,16 @@ those files are never committed from a checkout where they were made.
 
 ## Check it on your machine
 
-Run your tests once with your usual command, then, on a branch with a change,
-ask for the review the comment will hold:
+The CLI needs Node 22.15 or newer, on your machine as in CI. Run your tests once
+with your usual command, then name a source file one of them imports:
 
 ```bash
-npx variance review --since <default-branch> --suite unit --coverage
+npx variance covering --file src/index.ts
 ```
 
-It lists the functions the branch changed and says which of them a test ran.
-Once the wrap is in effect, a changed function one of your tests calls shows as
-run; if none does, the tests ran without it. No command
-yet confirms each declared suite and its record in one line; until one does,
-this review is the check.
+It names the suite, `unit (unit)`, and where its record was read from, then the
+tests that ran code in that file. Your tests in that list mean the wrap recorded
+them; no record for `unit` means the tests ran without the wrap.
 
 ## Add the job
 

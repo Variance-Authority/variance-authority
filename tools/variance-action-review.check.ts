@@ -234,9 +234,9 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it("runs the adopter's command as a `run:` step would, and holds a red exit for the end, so the review and the saves still run", async () => {
-      expect(await ran('run the tests', { TEST: 'echo ran\nexit 3' })).toMatchObject({ status: 0, printed: 'ran\n', output: 'exit-code=3\n' });
-      expect((await ran('run the tests', { TEST: 'false\necho not reached' })).output).toBe('exit-code=1\n');
-      expect(stepNamed('run the tests').env).toMatchObject({ TEST: '${{ inputs.test }}' });
+      expect(await ran('run the tests', { VARIANCE_TEST: 'echo ran\nexit 3' })).toMatchObject({ status: 0, printed: 'ran\n', output: 'exit-code=3\n' });
+      expect((await ran('run the tests', { VARIANCE_TEST: 'false\necho not reached' })).output).toBe('exit-code=1\n');
+      expect(stepNamed('run the tests').env).toMatchObject({ VARIANCE_TEST: '${{ inputs.test }}' });
       const failing = stepNamed('fail on the tests');
       expect(failing.if).toBe("${{ !cancelled() && inputs.test != '' && steps.test.outcome == 'success' && steps.test.outputs.exit-code != '0' }}");
       expect(failing.env).toMatchObject({ CODE: '${{ steps.test.outputs.exit-code }}' });
@@ -247,7 +247,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect(stepNamed('review the change').env).toMatchObject({ AGAINST: "${{ inputs.against || steps.take.outputs[format('against-{0}', inputs.suite)] }}" });
     });
 
-    it('saves after a red test or a failed post, keeping the mainline record only from tests that passed', async () => {
+    it('saves after a red test or a failed post, as carry saves any run on a mainline', async () => {
       expect((await ran('what the host keeps')).said).toEqual(['carry save --format github']);
       expect(stepNamed('what the host keeps').if).toBe("${{ !cancelled() && inputs.test != '' }}");
       const suite = stepNamed("keep the suite's record for the next pull request");

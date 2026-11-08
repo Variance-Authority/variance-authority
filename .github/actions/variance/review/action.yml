@@ -130,10 +130,10 @@ runs:
       name: run the tests
       shell: bash
       env:
-        TEST: ${{ inputs.test }}
+        VARIANCE_TEST: ${{ inputs.test }}
       run: |
         status=0
-        bash --noprofile --norc -eo pipefail -c "$TEST" || status=$?
+        bash --noprofile --norc -eo pipefail -c "$VARIANCE_TEST" || status=$?
         echo "exit-code=$status" >> "$GITHUB_OUTPUT"
 
     # The source index comes first: under CI a reader refuses to build it on
