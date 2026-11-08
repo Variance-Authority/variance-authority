@@ -55,7 +55,8 @@ import { fetchable } from './execution-input.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import { recordHeld } from './mainline-selected.js';
 import { recordedOrMainline } from './suite-base.js';
-import { namedSuite, oneRecord, ownRecord } from './suite-record.js';
+import { oneRecord } from '../args.js';
+import { namedSuite, ownRecord } from './suite-record.js';
 import { headOf } from './suite-share.js';
 import {
   formatSelection,

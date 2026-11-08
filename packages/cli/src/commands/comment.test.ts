@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { ObservationRecord } from '@variance-authority/report';
 import { DEFAULT_LIMITS as PUBLIC_DEFAULT_LIMITS } from '@variance-authority/cli';
-import { commentMarker, renderComment, type CommentOptions } from './comment.js';
+import { commentMarker } from './comment-marker.js';
+import { renderComment, type CommentOptions } from './comment.js';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { CliRunReport } from './run.js';
 

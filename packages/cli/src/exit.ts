@@ -250,3 +250,21 @@ export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EX
 
   return report.notObserved.some((entry) => entry.kind === 'failed') ? EXIT_REVIEW : EXIT_CLEAN;
 }
+
+/**
+ * `--exit-zero-on-changes`: a check that reports without gating the merge.
+ *
+ * Narrower than `|| true`, which also swallows exit 2 and turns a job that
+ * observed nothing into a green tick, the collapse ADR-0017 prevents. Exit 1
+ * becomes 0, exit 2 stays 2, and the stderr line is not optional: a silent
+ * suppression reads in a log like a run that found nothing.
+ */
+export function sideJob(
+  code: ExitCode,
+  suppress: boolean,
+  streams: { err(text: string): void },
+): ExitCode {
+  if (!suppress || code !== EXIT_REVIEW) return code;
+  streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
+  return EXIT_CLEAN;
+}

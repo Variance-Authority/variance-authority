@@ -121,7 +121,8 @@ export type { PushDeps, PushOptions, PushResult, Withheld } from './commands/pus
 export { serve } from './commands/serve.js';
 export type { ServeOptions } from './commands/serve.js';
 
-export { DEFAULT_LIMITS, commentMarker, renderComment } from './commands/comment.js';
+export { DEFAULT_LIMITS, renderComment } from './commands/comment.js';
+export { commentMarker } from './commands/comment-marker.js';
 export type { CommentLimits, CommentOptions } from './commands/comment.js';
 
 export { doctor, fontProbeDocument, machineProbes } from './commands/doctor.js';

@@ -162,6 +162,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./nearest": {
+          "types": "./dist/nearest.d.ts",
+          "default": "./dist/nearest.js"
+        },
         "./format": {
           "types": "./dist/format/index.d.ts",
           "default": "./dist/format/index.js"
@@ -219,6 +223,10 @@
         "LFS_POINTER_HEAD_BYTES": "const",
         "didYouMean": "function",
         "isLfsPointer": "function",
+        "nearest": "function"
+      },
+      "./nearest": {
+        "didYouMean": "function",
         "nearest": "function"
       },
       "./format": {
@@ -2699,6 +2707,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./checkout-path": {
+          "types": "./dist/checkout-path.d.ts",
+          "default": "./dist/checkout-path.js"
+        },
         "./read": {
           "types": "./dist/read.d.ts",
           "default": "./dist/read.js"
@@ -3052,6 +3064,14 @@
         "updateSourceIndex": "function",
         "wordStemsNative": "function",
         "workingTreeChanges": "function"
+      },
+      "./checkout-path": {
+        "CheckoutListing": "type",
+        "CheckoutPath": "type",
+        "checkoutListing": "function",
+        "checkoutPath": "function",
+        "existedAt": "function",
+        "existingAt": "function"
       },
       "./read": {
         "Binding": "interface",

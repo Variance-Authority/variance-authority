@@ -6,7 +6,7 @@ import {
   type RenderCacheSwept,
 } from '@variance-authority/store/durable';
 import type { Config } from '../config.js';
-import { cacheOf } from './resources.js';
+import { cacheOf } from './cache-of.js';
 
 export type { RenderCacheSwept };
 

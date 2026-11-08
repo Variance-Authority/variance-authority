@@ -77,6 +77,13 @@ export async function main(
       import('./commands/index-follow-ups.js'),
       import('./commands/configless.js'),
     ]);
+    // A mistyped `--at-distance` is refused before the wait below, as the parser
+    // once did. The selection library owns its spelling, so only a command given
+    // the flag loads it.
+    if ('atDistance' in parsed && parsed.atDistance !== undefined) {
+      const { parseAtDistance } = await import('./commands/select-leg.js');
+      parseAtDistance(parsed.atDistance);
+    }
     // A walk the follow-ups could not make is told while they are settled, and the
     // command still answers: it exits as the operator's once it has.
     const unwalked = await settleFollowUps(parsed, streams);
