@@ -234,6 +234,22 @@ store leaves the input off. The box needs the docket written by a bot or an app:
 with a personal token as `github-token` the comment is a person's, the workflow
 skips the edit, and the box does nothing.
 
+## Committing the accepted images
+
+A store committed to git, as files or through git-LFS, accepts by a commit.
+`commit-baselines: 'true'` accepts every changed subject and pushes the images to
+the branch a person asked about, so turn it on only for a run a person started:
+
+- On a `pull_request` event, the pull request's head branch. The default
+  checkout is a merge commit, so check out the head with
+  `ref: ${{ github.head_ref }}`.
+- On a `workflow_dispatch` of a branch, that branch, which the default checkout
+  already is.
+
+Any other run, such as a push or a dispatch on a tag, names no branch to push to,
+and the step exits 2 and says so. The job needs `contents: write`, and a token
+whose push starts a workflow if the commit should be checked again.
+
 ## Deleting a pull request's images
 
 `image-ref-prefix: refs/variance/project` puts the leading change's before and
