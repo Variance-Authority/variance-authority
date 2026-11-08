@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -180,6 +180,16 @@ describe("a pull request's head merged with the commit of the mainline's record"
     expect(refused.said).toContain('`carry merge` stands the checkout on another commit, and record.ts holds changes nobody committed');
     expect(git(clone, 'rev-parse', 'HEAD')).toBe(checked);
     expect(git(clone, 'status', '--porcelain')).toBe('M record.ts');
+  });
+
+  it('keeps an uncommitted edit to a file the head changes, which a merge git refused would reset', async () => {
+    const { at, upstream, record, head } = await pullRequest();
+    const { clone } = job(at, upstream, head, 'overlap');
+    git(clone, 'checkout', '-q', '--detach', record);
+    await writeFile(join(clone, 'shared.ts'), 'mine\n');
+
+    expect((await merge(clone, record, { head, onConflict: 'stay' })).exit).toBe(2);
+    expect(await readFile(join(clone, 'shared.ts'), 'utf8')).toBe('mine\n');
   });
 
   it('fails a job whose merge is not the commit the deciding job made', async () => {
