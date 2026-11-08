@@ -62,8 +62,9 @@ those files are never committed from a checkout where they were made.
 
 ## Check it on your machine
 
-The CLI needs Node 22.15 or newer, on your machine as in CI. If your `.nvmrc` or
-the `engines` field in `package.json` names an older Node, raise it. Run your
+The CLI needs Node 22.15 or newer, on your machine as in CI. Raise only the Node
+you run: `.nvmrc`, and `node-version` in the workflow. Leave `engines` in
+`package.json` alone; it says what your library asks of its users. Run your
 tests once with your usual command, then name a source file one of them imports:
 
 ```bash
@@ -79,7 +80,10 @@ means the tests ran without the wrap. On your machine the record is kept under
 
 ## Add the job
 
-This is the whole workflow, for npm and Jest:
+This is the whole workflow, for npm and Jest. If you already have a test job,
+replace its test step with the action rather than adding this workflow beside
+it, or your tests run twice. When that job runs a matrix of Node versions, keep
+it as it is and add this job beside it, once, in the same workflow:
 
 ```yaml
 name: tests
@@ -152,7 +156,7 @@ your tests ran: a region is a function, a branch, or a run of statements with no
 decision in it, so the figure is lower than line coverage. The action pushes it
 as one file to the git ref `refs/badge/<default-branch>`, replaced each time, for
 a [shields.io](https://shields.io/badges/endpoint-badge) endpoint badge. Add
-`contents: write` to the job's `permissions`, and put the badge in your README
+`contents: write` to the job's `permissions`, in place of `contents: read`, and put the badge in your README
 with your owner, repository and default branch:
 
 ```markdown
