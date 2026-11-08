@@ -182,11 +182,11 @@ Look around:
   `docs/` — gets its structure from
   [content flow](.agents/references/content-flow.md) before it is outlined: a
   brief, then a spine read cold by the `content-flow` reviewer. Detail goes to
-  the skill reference or the JSDoc that owns it. Documentation is the skill,
-  the site and the JSDoc, and nothing else. A spec, an ADR, a journal entry, a
-  `.compass/` README or an `.agents/` reference is a by-product of
-  development: it exists locally, an end user neither receives nor finds it,
-  and a subject only it covers is undocumented.
+  the skill reference or the JSDoc that owns it. Documentation is what an end
+  user receives and finds: the skill, the site — whose pages are the top-level
+  `docs/*.md` — and the JSDoc. What exists only locally, such as a spec, an ADR,
+  a journal entry, a `.compass/` README or an `.agents/` reference, is a
+  by-product of development, and a subject only it covers is undocumented.
   [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
   published sentence: a README, `docs/`, the site, CLI output or an error
   message.
