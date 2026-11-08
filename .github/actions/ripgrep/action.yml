@@ -24,6 +24,8 @@ runs:
       env:
         VERSION: 15.2.0
         SHA256: 33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+        # The release asset's id, for the API route below.
+        ASSET: 478120097
       run: |
         set -euo pipefail
         # The pinned binary is the x86-64 Linux one; a runner it does not run on
@@ -34,14 +36,15 @@ runs:
         fi
         name="ripgrep-$VERSION-x86_64-unknown-linux-musl"
         {
-          echo "RIPGREP_VERSION=$VERSION"
           echo "RIPGREP_NAME=$name"
           echo "RIPGREP_TARBALL=$RUNNER_TEMP/$name.tar.gz"
           echo "RIPGREP_SHA256=$SHA256"
+          echo "RIPGREP_ASSET=$ASSET"
         } >> "$GITHUB_ENV"
-    # GitHub's release download goes on answering 504 for minutes at a time, so
-    # the tarball is fetched once per checksum and kept in the cache, saved as
-    # soon as it checks out rather than when the job ends green.
+    # github.com's release download goes on answering 504 for minutes at a time
+    # while the API serves the same asset, so the tarball comes through the API
+    # once per checksum and is kept in the cache, saved as soon as it checks out
+    # rather than when the job ends green.
     - name: ripgrep from the cache
       id: cached
       uses: actions/cache/restore@v6
@@ -51,10 +54,13 @@ runs:
     - name: ripgrep download
       if: steps.cached.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
         curl --proto '=https' --tlsv1.2 -sSfL --retry 5 -o "$RIPGREP_TARBALL" \
-          "https://github.com/BurntSushi/ripgrep/releases/download/$RIPGREP_VERSION/$RIPGREP_NAME.tar.gz"
+          -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/octet-stream' \
+          "https://api.github.com/repos/BurntSushi/ripgrep/releases/assets/$RIPGREP_ASSET"
         echo "$RIPGREP_SHA256  $RIPGREP_TARBALL" | sha256sum --check --strict -
     - name: ripgrep to the cache
       if: steps.cached.outputs.cache-hit != 'true'
