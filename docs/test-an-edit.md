@@ -6,8 +6,6 @@ changed. Nothing goes on the command line and no script sits between you and
 the runner, so the edit-and-test loop you or your coding agent already runs
 stays the same loop, only shorter.
 
-It is the last of four steps in [Make CI faster](path-faster-ci.md).
-
 `vitest --changed` and `jest --onlyChanged` run every test that imports a file
 you changed. Edit one function in a module half the suite imports, and half the
 suite runs. A recorded run knows which of those tests executed that function,

@@ -8,8 +8,6 @@ computes the split from the record the run handed it and the files it collects,
 without talking to the others, so shards that read one record at one commit run
 every file in exactly one shard, and a shard run again takes the files it took.
 
-It is the first of four steps in [Make CI faster](path-faster-ci.md).
-
 Here is this repository's unit suite, 782 test files and 3,259 s of test time,
 on four shards:
 
