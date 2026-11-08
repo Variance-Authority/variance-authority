@@ -155,6 +155,18 @@ describe('coverage of a repository that declares suites', () => {
     ]);
   });
 
+  it('gives a badge no figure when no suite loaded a region, and says why', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'variance-coverage-badge-'));
+    execFileSync('git', ['init', '--quiet', bare]);
+    await writeFile(join(bare, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    await record(testCoverageFile(bare, { suite: 'unit' }), { tests: [UNIT], modules: [] });
+
+    const answer = await ask(['coverage', '--root', bare, '--format', 'badge']);
+    await rm(bare, { recursive: true, force: true });
+
+    expect(answer).toMatchObject({ code: 2, out: '', err: expect.stringContaining('no region') });
+  });
+
   it('prints a table for a pull request', async () => {
     const answer = await ask(['coverage', '--root', root, '--format', 'markdown']);
 

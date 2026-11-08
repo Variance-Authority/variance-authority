@@ -115,10 +115,10 @@ describes every line of the output.
   it has six tests and no evidence.
   [On testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
   covers what coverage can and cannot tell you about a suite.
-- **No hosted dashboard.** There are no badges, no hosted history and no
-  service to log in to. The share keeps one record for each branch, so the
-  report compares a pull request with its mainline and does not draw a trend.
-  If your team reads Codecov's dashboards, keep uploading to it.
+- **No hosted dashboard.** There is no hosted history and no service to log in
+  to. The share keeps one record for each branch, so the report compares a pull
+  request with its mainline and does not draw a trend. A badge shows one figure,
+  the latest. If your team reads Codecov's dashboards, keep uploading to it.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a
@@ -132,6 +132,18 @@ the job summary after the suite:
 
 ```bash
 npx variance coverage --format markdown >> "$GITHUB_STEP_SUMMARY"
+```
+
+For a badge in a public repository's `README.md`, set `badge: 'true'` on the
+[review action](https://github.com/Variance-Authority/action#publishing-a-badge)
+and give its job `contents: write`. On every push to your default branch it
+publishes the share of regions run by every suite the job's record holds, the
+figure `variance coverage` prints first, from `variance coverage --format
+badge`. The badge reads `regions run`, not `coverage`, because the number is
+not line coverage. Put your default branch in place of `main`:
+
+```markdown
+[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
 ```
 
 [Choose how tests are selected](coverage-test-selection.md) covers the record

@@ -38,6 +38,9 @@ function stepNamed(name: string): Step {
 
 describe('the review a project with only unit tests puts on the pull request', () => {
   const MARKER = '<!-- variance-authority: review -->';
+  const BADGE = '{"schemaVersion":1,"label":"regions run","message":"75.0%","color":"blue"}';
+  /** Two levels under the checkout, as a runner's workspace sits two levels under the folder that holds the actions. */
+  const WORKSPACE = join(ROOT, 'work', 'repository');
 
   /** What the step named `step` asked the CLI, wrote and exited with, under a CLI that exits `exit` on `review`. */
   async function ran(step: string, env: Readonly<Record<string, string>> = {}, exit = 0) {
@@ -46,22 +49,27 @@ describe('the review a project with only unit tests puts on the pull request', (
       const fake = join(at, 'variance');
       await writeFile(
         fake,
-        `#!/bin/bash\necho "$*" >> "${at}/said"\nif [ "$1" = review ]; then\n  [ ${exit} = 0 ] || exit ${exit}\n  mkdir -p "$REVIEW"\n  printf '${MARKER}\\nthe review\\n' > "$REVIEW/review.md"\n  echo the summary\nfi\n`,
+        `#!/bin/bash\necho "$*" >> "${at}/said"\nif [ "$1" = review ]; then\n  [ ${exit} = 0 ] || exit ${exit}\n  mkdir -p "$REVIEW"\n  printf '${MARKER}\\nthe review\\n' > "$REVIEW/review.md"\n  echo the summary\nfi\nif [ "$1" = coverage ]; then\n  [ ${exit} = 0 ] || exit ${exit}\n  echo '${BADGE}'\nfi\n`,
         { mode: 0o755 },
       );
       await writeFile(join(at, 'output'), '');
       await writeFile(join(at, 'summary'), '');
-      const { run } = stepNamed(step);
+      // The expressions GitHub fills in, filled the way a job on the host has them.
+      const run = stepNamed(step).run
+        .replaceAll('${{ github.action_path }}', join(ROOT, dirname(ACTION)))
+        .replaceAll('${{ github.workspace }}', WORKSPACE);
       let status = 0;
       let printed = '';
       try {
-        printed = execFileSync('/bin/bash', ['-c', run], {
+        // The shell GitHub runs a `shell: bash` step under, errexit and all.
+        printed = execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', run], {
           env: {
             ...process.env,
             VARIANCE_COMMAND: fake,
             REVIEW: join(at, 'review'),
             GITHUB_OUTPUT: join(at, 'output'),
             GITHUB_STEP_SUMMARY: join(at, 'summary'),
+            GITHUB_WORKSPACE: WORKSPACE,
             ...env,
           },
           stdio: 'pipe',
@@ -163,8 +171,102 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
-    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'command', 'fail-on-uncovered', 'github-token', 'suite']);
+    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'fail-on-uncovered', 'github-token', 'suite']);
     expect(action().outputs).toBeUndefined();
+  });
+
+  describe('the badge', () => {
+    const git = (dir: string, ...args: string[]) => execFileSync('git', ['--git-dir', dir, ...args], { encoding: 'utf8' }).trim();
+
+    /** Moves `main` of the bare repository to a new commit, as a push to it does, and answers the commit. */
+    const pushed = (dir: string, message: string) => {
+      const tree = execFileSync('git', ['--git-dir', dir, 'mktree'], { input: '', encoding: 'utf8' }).trim();
+      const commit = execFileSync('git', ['--git-dir', dir, '-c', 'user.name=a', '-c', 'user.email=a@a', 'commit-tree', tree, '-m', message], { encoding: 'utf8' }).trim();
+      git(dir, 'update-ref', 'refs/heads/main', commit);
+      return commit;
+    };
+
+    /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
+    async function origin(): Promise<{ readonly env: Record<string, string>; readonly dir: string; readonly done: () => Promise<void> }> {
+      const at = await mkdtemp(join(tmpdir(), 'variance-action-badge-'));
+      const dir = join(at, 'origin.git');
+      execFileSync('git', ['init', '--quiet', '--bare', dir]);
+      return {
+        dir,
+        env: { GITHUB_SERVER_URL: `file://${at}`, GITHUB_REPOSITORY: 'origin', GITHUB_TOKEN: 'token', GITHUB_SHA: pushed(dir, 'ran'), BRANCH: 'main' },
+        done: () => rm(at, { recursive: true, force: true }),
+      };
+    }
+
+    it('leaves the badge to the newer commit\'s run when the branch has moved past this one', async () => {
+      const remote = await origin();
+      try {
+        await ran('publish the badge', remote.env);
+        const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
+        pushed(remote.dir, 'newer');
+
+        const { status, printed } = await ran('publish the badge', remote.env);
+
+        expect(status).toBe(0);
+        expect(printed).toContain('::warning');
+        expect(git(remote.dir, 'rev-parse', 'refs/badge/main')).toBe(held);
+      } finally {
+        await remote.done();
+      }
+    });
+
+    it('pushes the figure as the one file of a commit with no parent at `refs/badge/<branch>`, replaced on each push', async () => {
+      const remote = await origin();
+      try {
+        const first = await ran('publish the badge', remote.env);
+        const second = await ran('publish the badge', remote.env);
+
+        expect(first.said).toEqual(['coverage --format badge']);
+        expect(second.status).toBe(0);
+        expect(git(remote.dir, 'ls-tree', '--name-only', 'refs/badge/main')).toBe('regions-run.json');
+        expect(git(remote.dir, 'show', 'refs/badge/main:regions-run.json')).toBe(BADGE);
+        expect(git(remote.dir, 'rev-list', '--count', 'refs/badge/main')).toBe('1');
+      } finally {
+        await remote.done();
+      }
+    });
+
+    it('leaves the last badge standing when coverage gives no figure, and says so', async () => {
+      const remote = await origin();
+      try {
+        await ran('publish the badge', remote.env);
+        const held = git(remote.dir, 'rev-parse', 'refs/badge/main');
+
+        const { status, printed } = await ran('publish the badge', remote.env, 2);
+
+        expect(status).toBe(0);
+        expect(printed).toContain('::warning');
+        expect(git(remote.dir, 'rev-parse', 'refs/badge/main')).toBe(held);
+      } finally {
+        await remote.done();
+      }
+    });
+
+    it('warns and fails nothing when the push is refused', async () => {
+      const remote = await origin();
+      try {
+        const { status, printed } = await ran('publish the badge', { ...remote.env, GITHUB_REPOSITORY: 'elsewhere' });
+
+        expect(status).toBe(0);
+        expect(printed).toContain('::warning');
+      } finally {
+        await remote.done();
+      }
+    });
+
+    it('is published only when asked, on a push to the default branch, before a failure on uncovered code can skip it', () => {
+      expect(action().inputs['badge']).toMatchObject({ default: 'false' });
+      expect(stepNamed('publish the badge').if).toBe(
+        "inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+      );
+      const names = action().runs.steps.map((step) => step.name);
+      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on uncovered code'));
+    });
   });
 
   it('ships with the release, the poster beside it where the step looks', () => {

@@ -487,7 +487,8 @@ async function observeAll(
 
   await deps.writeReport(config.report, report);
   // A shard's census is short; what it counts from goes beside it for the merge.
-  const part = isSlice(report) ? suitePartOf(compositions, composed.reading, options.identity?.commit, options.shard) : null;
+  // A shard that owns every file is still one of the count the merge checks.
+  const part = isSlice(report) || options.shard !== undefined ? suitePartOf(compositions, composed.reading, options.identity?.commit, options.shard) : null;
   if (part !== null) await deps.writeSuitePart?.(config.report, part);
   return report;
 }

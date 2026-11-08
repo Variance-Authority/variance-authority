@@ -98,7 +98,6 @@ describe('what reaches the site', () => {
     ['the scanner the run loads to name components', 'packages/sense/native/src/read.rs'],
     ['the workflow that runs it', '.github/workflows/variance.yml'],
     ['the action that photographs it', '.github/actions/variance/action.yml'],
-    ['the script that decides whether the run accepts', '.github/scripts/variance-accept.mjs'],
     ['what counts as a change of a package', '.changeset/config.json'],
     ['the install', 'yarn.lock'],
     ['a step of the root build', 'tools/page-agents.mjs'],
@@ -232,7 +231,6 @@ describe('whether the run observes the site', () => {
   it.each([
     ['a push', 'push', ''],
     ['a dispatch', 'workflow_dispatch', ''],
-    ['the accept label, which asks for the run by name', 'pull_request', 'labeled'],
     ['a pull request whose change cannot be read', 'pull_request', 'synchronize'],
   ])('on %s', async (_, event, action) => {
     const { code, out, outputs } = await decide(event, action, first);
@@ -259,5 +257,15 @@ describe('whether the run observes the site', () => {
     expect(code, out).toBe(0);
     expect(outputs['observe'], outputs['because']).toBe(observe);
     expect(outputs['because']).toContain(because);
+  });
+
+  // A label accepts nothing: the docket's box and a dispatch do. So labelling
+  // a pull request is read as any other of its events, by what it changes.
+  it('on a labelled pull request, by what it changes', async () => {
+    const { merge, env } = await pullRequest(['examples/readme-case/README.md']);
+    const { code, out, outputs } = await decide('pull_request', 'labeled', merge, env);
+
+    expect(code, out).toBe(0);
+    expect(outputs['observe'], outputs['because']).toBe('false');
   });
 });

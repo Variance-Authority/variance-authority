@@ -404,27 +404,16 @@ jobs:
           restore-keys: ${{ steps.plan.outputs.pushed-restore-keys }}
 
       # The record names the commits its tests last ran at, the merge commits
-      # of earlier pushes, which no ref holds. This workflow merges with the
-      # record's commit itself, so those merges are on no remote: the `record`
-      # job bundles them beside the records (`tools/bundle-carried.mjs`), and
-      # every job that takes them fetches the bundle before `carry take` fetches
-      # the rest by name. A suite whose commits cannot be had is not handed on, and
-      # reads `main`'s record; checked once here, so every job reads the same.
-      # The bundle is a file, not a suite's directory, and travels with them.
+      # of earlier pushes, which no ref holds. `carry keep` kept the ones no
+      # remote holds beside the records, and `carry take` reads them before it
+      # fetches the rest by name. A suite whose commits cannot be had is left,
+      # reads `main`'s record, and is removed from the directory, which then
+      # names what was taken; checked once here, so every job reads the same.
       - name: check what the last push ran
         id: taken
         if: steps.plan.outputs.pushed-key != ''
         shell: bash
-        env:
-          PUSHED: ${{ steps.plan.outputs.pushed-path }}
-        run: |
-          node tools/bundle-carried.mjs fetch "$PUSHED"
-          node packages/cli/dist/bin.js carry take --format github >> "$GITHUB_OUTPUT"
-          taken=$(sed -n 's/^taken=//p' "$GITHUB_OUTPUT" | tail -n 1)
-          for dir in "$PUSHED"/*/; do
-            [ -d "$dir" ] || continue
-            case " $taken " in *" $(basename "$dir") "*) ;; *) rm -rf "$dir" ;; esac
-          done
+        run: node packages/cli/dist/bin.js carry take --format github >> "$GITHUB_OUTPUT"
 
       - name: hand the last push on
         id: carry
@@ -578,7 +567,8 @@ jobs:
       # What this pull request's last push ran, as `base` checked it, laid as
       # this checkout's own layer. The step below then keeps it rather than lay
       # the mainline's, and the selection diffs each test from the commit it
-      # last ran at. A suite `base` handed on and this job cannot take stops it.
+      # last ran at. A suite `base` handed on and this job cannot take stops
+      # `carry take`, and the job with it.
       - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
         with:
@@ -588,13 +578,7 @@ jobs:
       - name: take what the last push ran
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        run: |
-          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
-          left=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github | sed -n 's/^left=//p')
-          if [ -n "$left" ]; then
-            echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
-            exit 1
-          fi
+        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried"
 
       # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
@@ -701,6 +685,17 @@ jobs:
     needs: [base, suite]
     if: ${{ !cancelled() && github.event_name != 'merge_group' }}
     runs-on: ubuntu-24.04
+    # `contents: write` is for the badge the review step publishes on a push to
+    # `main`, the way an adopter's job grants it to the action's `badge` input.
+    # A job's permissions cannot depend on its event, so a pull request's run
+    # holds it too; a fork's token is read-only whatever this says, and a
+    # branch of this repository is pushed by somebody who can already write.
+    # The clone keeps no token, as the checkout below says.
+    permissions:
+      contents: write
+      actions: read
+      issues: read
+      pull-requests: write
     outputs:
       shared: ${{ steps.carry.outputs.shared-suites }}
       # The artifact's id rather than the step's outcome: an upload with no
@@ -798,15 +793,7 @@ jobs:
         id: carried
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        run: |
-          node tools/bundle-carried.mjs fetch "$RUNNER_TEMP/carried"
-          moved=$(node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github)
-          left=$(printf '%s\n' "$moved" | sed -n 's/^left=//p')
-          if [ -n "$left" ]; then
-            echo "::error::base took $left from the last push and this job cannot; stopping rather than read another record than the other jobs read."
-            exit 1
-          fi
-          printf '%s\n' "$moved" | sed -n 's/^against-unit=/against=/p' >> "$GITHUB_OUTPUT"
+        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
 
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. `share`, handed every record the suite jobs handed on,
@@ -846,7 +833,8 @@ jobs:
         with:
           command: node packages/cli/dist/bin.js
           suite: unit
-          against: ${{ steps.carried.outputs.against }}
+          against: ${{ steps.carried.outputs.against-unit }}
+          badge: true
 
       - name: keep the review
         if: ${{ !cancelled() && steps.review.outcome == 'success' }}
@@ -860,8 +848,8 @@ jobs:
       # too, since the files it left incomplete are what the next push reruns.
       # Saved only when the copy finished: a part-copied record is not one.
       # A checkout merged with the record's commit is a commit no remote
-      # holds, so it is bundled beside the records, with every commit it
-      # needs that `main` does not have.
+      # holds, so `carry keep` keeps it beside the records, with every commit
+      # it needs that the pull request's base does not have.
       - name: what this push keeps
         id: save
         if: ${{ !cancelled() && steps.records.outcome == 'success' }}
@@ -874,9 +862,7 @@ jobs:
         shell: bash
         env:
           PUSHED: ${{ steps.save.outputs.pushed-path }}
-        run: |
-          node packages/cli/dist/bin.js carry keep "$PUSHED"
-          node tools/bundle-carried.mjs bundle "$PUSHED" refs/remotes/origin/main
+        run: node packages/cli/dist/bin.js carry keep "$PUSHED"
 
       - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v6
@@ -885,11 +871,12 @@ jobs:
           key: ${{ steps.save.outputs.pushed-key }}
 
       # Only a push to `main` hands its records on, to the `publish` job, which
-      # is the one job holding a token that can write to the repository: the
-      # records the suite jobs handed on, as they handed them, for the publish
-      # to fold over the mainline's record itself. A red suite on `main` still
-      # hands them on: the next change is reviewed against what `main` ran,
-      # not against an older record that no longer describes it.
+      # writes the record; this job writes only the badge, through the review
+      # step above. It hands on the records the suite jobs handed on, as they
+      # handed them, for the publish to fold over the mainline's record itself.
+      # A red suite on `main` still hands them on: the next change is reviewed
+      # against what `main` ran, not against an older record that no longer
+      # describes it.
       - name: hand the records to publish
         id: hand
         if: ${{ !cancelled() && github.event_name == 'push' && steps.records.outcome == 'success' }}
@@ -904,10 +891,9 @@ jobs:
     # The record a push to `main` made, published to `refs/variance/mainline/main`
     # on this repository, which is where every pull request and every
     # selected run reads its base from. Its own job because it is the only
-    # one that writes to the repository: `contents: write` is granted here, on
-    # a push to `main`, and to no job a pull request runs. The ref is outside
-    # `refs/heads` and `refs/tags`, so no branch rule and no tag rule governs it,
-    # and nothing that lists branches shows it.
+    # one that writes the record: the review in `record` writes only the badge.
+    # The ref is outside `refs/heads` and `refs/tags`, so no branch rule and no
+    # tag rule governs it, and nothing that lists branches shows it.
     #
     # `github.ref` is asked as well as the event, because `push` also fires for
     # a tag and for every other branch this workflow may one day be given, and

@@ -5,9 +5,6 @@
   ".github/actions/variance/post-comment.mjs overview": [
     35
   ],
-  ".github/scripts/variance-accept.mjs overview": [
-    31
-  ],
   "cases/event-announcement-case/src/spec/announcement.spec.mjs block": [
     6
   ],
@@ -3975,7 +3972,7 @@
     20
   ],
   "tools/site-reach.mjs overview": [
-    40
+    39
   ],
   "tools/skips.check.ts block": [
     7,

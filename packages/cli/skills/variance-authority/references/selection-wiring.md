@@ -93,9 +93,12 @@ scan has no reader for.
 
 A build is selected whole, by what it touched, rather than by a list of its
 inputs. Declare a suite of kind `job` with `"relations": false`, and wrap every
-command of the job with `variance job --suite <name> -- <command>...` on a Linux CI
-machine with `strace`. `variance select --suite <name>` then runs the job when a
-file it read changes. A changed file it only wrote does not run it.
+command of the job with `variance job --suite <name> -- <command>...` on Linux with
+`strace`. On a Mac, record in a Docker container rather than waiting for CI: a
+clean clone of the commit at the primary checkout's path, with the cache mounted,
+as the `job` section of the CLI reference describes.
+`variance select --suite <name>` then runs the job when a file it read changes. A
+changed file it only wrote does not run it.
 
 A job is atomic and its recording reproducible: it builds from nothing, with no
 cache of its own, and every skip happens before it or through `variance select`. A
@@ -199,6 +202,24 @@ event, or from `--head <sha>`. The step prints `merged=true` and
 conflicts with it under `stay`; install again after a merge. Every clone makes
 the same merge, and another job of the run passes `--expect <checkout>` to fail
 when its own differs.
+
+The merge is on no remote, and the record a pull request's push keeps for its
+next push names it. Keep and take that record with `carry`, which carries the
+merge with it:
+
+```bash
+npx variance carry keep                                 # after the run: the records, and the commits no remote holds
+npx variance carry take --format github >> "$GITHUB_OUTPUT"   # next push, before the run
+npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"   # each other job, over the directory the first take handed on
+```
+
+`keep` writes `commits.bundle` beside the records, holding the commits they
+name that `origin/<base>` lacks, and `take` reads it before fetching the rest
+by name; the bundle reads only in a clone that holds `origin/<base>`, so check
+out with `fetch-depth: 0`. `take` removes the suites it left from the directory and names the
+ones it took; a later `take` over that directory exits 2 when it leaves one of
+them. `carry save` and `carry restore` print the cache path and key, as
+[What the next job reads](https://variance-authority.dev/reference/packages/cli#what-the-next-job-reads) shows.
 
 ## What selection refuses to narrow
 

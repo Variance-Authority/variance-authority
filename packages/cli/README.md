@@ -150,7 +150,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] 
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -1410,6 +1410,19 @@ known. `--format json` gives the parts as `over.this`, `over.older` and
 `over.notKnown`, beside `run`, which counts what ran in any text. The total
 over the source carries the same split.
 
+`--format badge` prints the share `any suite` leads with as a
+[shields.io endpoint](https://shields.io/badges/endpoint-badge), for a badge
+in your `README.md`:
+
+```json
+{"schemaVersion":1,"label":"regions run","message":"90.3%","color":"blue"}
+```
+
+With no region counted there is no share to print, so it prints nothing and
+exits `2` with the reason. The review action's
+[`badge` input](https://github.com/Variance-Authority/action#publishing-a-badge)
+publishes this file on every push to your default branch.
+
 With a base, each count is printed at the base and now, beside the parts that
 add up to the change:
 
@@ -1972,9 +1985,14 @@ refused by `accept`. `strict` absorbs nothing.
 
 ### Reporting without gating
 
-`--exit-zero-on-changes` turns exit 1 into exit 0 on `run` and `report`, for a
-job that reports instead of blocking the merge — which is how most of this
-category is actually run.
+`--exit-zero-on-changes` turns a change's exit 1 into exit 0 on `run` and
+`report`, for a job that reports instead of blocking the merge — which is how
+most of this category is actually run. A subject that could not be observed
+still exits 1, and so do an `error` diagnostic and a report that does not say
+what it skipped: each is a hole in what the run says, not a change for a
+reviewer, and a job that reports rather than blocks still has to see it. On
+GitHub Actions the line saying a change was suppressed is a `::warning::`
+annotation, since a passing step no longer carries it to the check.
 
 The reason it is a flag and not a line of shell: `|| true` swallows exit **2** as
 well. A job whose browser never launched observed nothing and therefore found
@@ -2488,8 +2506,17 @@ it reads through something else is not seen: a tool asking `git`, `watchman` or
 `variance` for an answer opens their stores, not your files. Declare those files
 under `before`.
 
-It needs `strace`, so it records on Linux. Where `strace` is not installed the
-command still runs and its exit is the job's: a record from another commit stands,
+It needs `strace`, so it records on Linux. On a Mac, start from Docker rather than
+waiting for CI: run the same commands in a Linux container with `strace`, in a
+clean clone of the commit placed at the primary checkout's own path, with that
+checkout's cache directory mounted and named by `VARIANCE_AUTHORITY_CACHE`. A
+config that names `cacheRoot` wins over the variable, so there the mount goes
+where that `cacheRoot` resolves inside the container. The cache is keyed by the
+path, so the record lands where the checkout and its worktrees read, and
+`variance select` answers from it at once. The clone builds the commit, not your
+edits, and the record holds what the Linux build read, as CI's does.
+
+Where `strace` is not installed the command still runs and its exit is the job's: a record from another commit stands,
 and one this job wrote at this commit is held incomplete. Where `strace` cannot
 trace the command, or a file it read differs from the commit, the record is held
 incomplete. A job with an
@@ -2725,10 +2752,11 @@ under the commit the shards share:
 variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
 
-It publishes nothing, and says why, when a report has no part beside it, a
-part cannot be read, a shard is missing or given twice, or an unsharded run is
-named with shards or beside another unsharded run. An unsharded run publishes
-its own index and needs no merge.
+It publishes nothing, and says why, when a report has no part beside it, or an
+unsharded run is named with shards or beside another unsharded run. It exits
+`2` when a part cannot be read, or a shard is missing, given twice or cut two
+ways, and one shard's report named alone is a build with the rest missing. An
+unsharded run publishes its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
@@ -2757,6 +2785,22 @@ The merge refuses shards whose renderer identity, retention, or `--intent`
 (the free-text label recorded for what a run was meant to do) differ, naming
 both files — those were not one run. Two shards observing the same subject
 means the slices overlapped, which only the operator can resolve.
+
+`report` exits `2`, before it merges, when the shards named are not every shard
+of one `--shard` count, and so does every command that reads shards' reports:
+`comment`, `ask`, `adjudicate` and `share --publish`. `report` over one
+shard's report alone exits `2` too, and so does a named report that is not
+there. Each shard's part beside its report names its `k/n`, so
+the count is never typed again: a shard that never uploaded, a shard given
+twice, or shards cut two ways are named in the refusal:
+
+```text
+these reports are not one build: shard 3/3 is missing.
+```
+
+In CI, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
+does the merge in one step: given the shards' reports as `reports`, it runs
+`report`, posts the `comment` body and publishes with `share --publish`.
 
 What it does accept is the arithmetic nobody wants to do by hand. Each shard
 records every subject outside its slice as `excluded`, so three shards report
@@ -3186,7 +3230,8 @@ On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/a
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
 [`carry`](#what-the-next-job-reads) names, and accepts when the job sets its
-`accept` input, which the workflow ties to a label. A project with no surface
+`accept` input, which the workflow ties to a push or a dispatch, or when a
+reviewer ticks the box in the comment. A project with no surface
 to observe uses `Variance-Authority/action/review` instead, which
 [posts the review](#review-what-a-change-did-for-the-person-merging-it) and runs
 no gate. `v1`
@@ -3374,10 +3419,11 @@ review reads a shared suite from the share, and any other needs the restore
 before `take`.
 
 The record names the commits its tests last ran at: the merge commits of
-earlier pushes, which no branch holds. `take` fetches the ones the clone lacks
-from `origin` by name, each alone in a shallow clone. A workflow that merges a
-pull request itself, rather than checking out GitHub's merge, makes commits no
-remote holds, and fetches them into the clone before `take`. A suite whose
+earlier pushes, which no branch holds. A workflow that merges a pull request
+itself, as `carry merge` does, makes commits no remote holds, so `keep` keeps
+them beside the records in `commits.bundle`, with every commit they need that
+`origin/<base>` does not hold, and `take` reads them from there. It fetches the
+rest from `origin` by name, each alone in a shallow clone. A suite whose
 commits cannot all be had keeps the mainline's record and `take` names it, so
 that push runs as a first push does. So does a suite the last push recorded
 under other probes than this build records under, after an upgrade of
@@ -3385,6 +3431,35 @@ variance: no run here could be laid over it. Both read `.variance/pushed` unless
 name another directory: `variance carry take <dir>`. Under `--format github`,
 `take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
 prints `kept=<suite> <suite>`; the lines saying why go to stderr.
+
+`take` removes the suites it left from the directory and names the ones it
+took there, in `taken.json`, so one job can take the last push and hand the
+directory to the run's other jobs as an artifact. Each of them runs
+`variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
+the first job took, so no job reads another record than the rest. The bundle
+reads only in a clone that holds `origin/<base>` where `keep` cut it, so check
+out with `fetch-depth: 0`; elsewhere `take` says it did not read and fetches by
+name:
+
+```yaml
+# the job that restored the cache, after `take`, when it took a suite:
+- if: steps.take.outputs.taken != ''
+  uses: actions/upload-artifact@v7
+  with:
+    name: variance-carried
+    path: ${{ steps.carry.outputs.pushed-path }}
+    include-hidden-files: true
+# …and its job exports `carried: ${{ steps.take.outputs.taken != '' }}`.
+# every other job, which `needs` it, before its tests run:
+- if: needs.base.outputs.carried == 'true'
+  uses: actions/download-artifact@v8
+  with:
+    name: variance-carried
+    path: ${{ runner.temp }}/carried
+- id: take
+  if: needs.base.outputs.carried == 'true'
+  run: npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
+```
 
 Jobs of one run read one record, and a re-run of one of them reads it too. The
 share moves while a run goes on: two jobs that each ask it can read two records
@@ -3481,13 +3556,13 @@ Two flags make the body something a reviewer can act on from a phone.
 `--run-url` links the report you published, and `variance report --format html
 --embed-images` makes that report one file a browser opens. `--to-accept` sets
 how accepting works in your repository, because the comment has no way to find
-out whether that is a workflow to dispatch, a label, or `variance accept` on a
-checkout:
+out whether that is a workflow to dispatch, a box to tick, or `variance accept`
+on a checkout:
 
 ```bash
 variance comment --body-file body.md \
   --run-url "$REPORT_URL" \
-  --to-accept 'add the **variance: accept** label to this pull request'
+  --to-accept 'run the **variance** workflow on this branch with **accept** ticked'
 ```
 
 `--image-root` puts pictures in the comment: the leading cause's change on the

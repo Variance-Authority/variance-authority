@@ -38,8 +38,20 @@ inputs:
     required: false
     default: npx --no-install variance
 
+  badge:
+    description: >-
+      'true' publishes the figure `variance coverage` leads with, on a push to
+      the default branch, as `regions-run.json` at `refs/badge/<branch>`, for a
+      shields.io endpoint badge. The job then needs `contents: write`. For a
+      public repository: raw.githubusercontent.com serves a private one to
+      nobody a badge is shown to.
+    required: false
+    default: 'false'
+
   github-token:
-    description: 'Token for the comment. It needs `pull-requests: write`.'
+    description: >-
+      Token for the comment, which needs `pull-requests: write`, and for the
+      badge, which needs `contents: write`.
     required: false
     default: ${{ github.token }}
 
@@ -104,6 +116,42 @@ runs:
           --marker "$(head -n 1 "$REVIEW/review.md")" \
           --adopt-unkeyed false
         node "$here/../diff-marks.mjs" "$REVIEW/review.json" || echo '::warning::The diff carries no marks: the comment holds what they would say.'
+
+    # The figure the text of `variance coverage` leads with, every suite
+    # together, in shields.io's endpoint schema, as the one file of a commit with
+    # no parent: the ref is replaced on every push and never grows a history.
+    # No figure, or a refused push, warns, and the last badge stands. Before the
+    # failure on uncovered code, which would skip it.
+    - name: publish the badge
+      if: inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        BRANCH: ${{ github.ref_name }}
+      run: |
+        set -uo pipefail
+        skip() { echo "::warning title=badge not updated::$1, so the last badge stands."; exit 0; }
+        dir="$(mktemp -d)"
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND coverage --format badge > "$dir/regions-run.json" || skip '`variance coverage` gave no figure'
+        echo regions-run.json > "$dir/paths"
+        # In a container job `github.action_path` is the runner's host path; the
+        # container mounts the same tree elsewhere, as in the post above.
+        here="${{ github.action_path }}"
+        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
+        here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
+        # `|| pushed=$?`: GitHub runs the step under errexit, as in the images step.
+        pushed=0
+        bash "$here/../push-ref.sh" "$dir" "$dir/paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" \
+          "refs/heads/$BRANCH" "$GITHUB_SHA" > /dev/null || pushed=$?
+        case $pushed in
+          0) ;;
+          2) skip "pushing refs/badge/$BRANCH was refused: the job needs \`contents: write\`" ;;
+          3) skip "$BRANCH has moved past $GITHUB_SHA, and the newer commit's run publishes the badge" ;;
+          *) skip "the badge could not be committed" ;;
+        esac
+        echo "regions run: $(cat "$dir/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
 
     # Last, because a step that fails skips the ones after it, and the comment
     # is what says which functions.

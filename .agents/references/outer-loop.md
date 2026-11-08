@@ -13,7 +13,7 @@ for it. A red `site` is a run that did not happen, a subject it could not
 observe, or an accept the comparison after it did not hold, and that is yours
 like any other red check; one that goes red after you handed over reaches the
 person, and the next cycle picks it up. Its docket is the person's to read, and
-accepting what it found is their label, `variance: accept site`.
+accepting what it found is their tick, in the box it carries.
 
 ## Labels
 
@@ -69,7 +69,7 @@ Before any step here and before reporting a PR's status, run `gh pr view <n>
 A pushed PR that needs `origin/main` merges it and is never rebased: a rebase
 needs a force push, which moves the head a reviewer read out of the branch. A
 draft is never `agent:done`, because a draft is not handed over. `site` is not a
-gate and no agent adds the label that accepts its report, but what the site says
+gate and no agent ticks the box that accepts its report, but what the site says
 is still reviewed: the public pages are the project's face.
 
 ## 6. Validate

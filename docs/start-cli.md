@@ -304,10 +304,13 @@ Five things take a completed run to `1`:
   subject — a stylesheet served cross-origin and skipped on both sides compares
   clean while the styling was missing from both images.
 
-`--exit-zero-on-changes` turns `1` into `0` on `run` and `report`, for a job
-that reports rather than blocks a merge. It leaves `2` alone, which `|| true`
-does not: a job whose browser never launched observed nothing, and `|| true`
-reports it as passed anyway.
+`--exit-zero-on-changes` turns a change into `0` on `run` and `report`, for a
+job that reports rather than blocks a merge, and says so on stderr. A subject
+the run could not observe, an `error` diagnostic and a report that does not say
+what it skipped still exit `1`: those are holes in what the run says, not
+changes for a reviewer. It leaves `2` alone, which `|| true` does not: a job
+whose browser never launched observed nothing, and `|| true` reports it as
+passed anyway.
 
 ## Go deeper
 

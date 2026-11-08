@@ -430,7 +430,7 @@ export async function runCarry(
 ): Promise<ExitCode> {
   const root = repositoryRoot(process.cwd());
   if (parsed.direction === 'take' || parsed.direction === 'keep') {
-    return movePushed(parsed, root, streams);
+    return movePushed(parsed, root, streams, lineOf(hostRunOf(env)));
   }
   if (parsed.direction === 'hand' || parsed.direction === 'receive') {
     return moveBase(parsed, root, streams);

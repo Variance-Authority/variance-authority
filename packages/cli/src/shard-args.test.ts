@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs } from './bin.js';
-import { shareOutput } from './commands/suite-part.js';
+import { shareOutput } from './commands/share-output.js';
 import { ConfigError, parseConfig, type Config } from './config.js';
 
 /**

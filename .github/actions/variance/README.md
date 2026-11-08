@@ -6,8 +6,8 @@ action does the three things a command line cannot do for itself:
 
 - It posts the result to the pull request as one comment, updated in place.
 - It restores and saves the baselines the Actions cache carries.
-- It accepts a change on a run a person asked for, such as one a label or a
-  [tick](#accepting-with-a-tick) started.
+- It accepts a change on a run a person asked for, such as a dispatch or the
+  run a [tick](#accepting-with-a-tick) starts.
 
 A project with only unit tests has nothing to observe, and
 [`Variance-Authority/action/review`](#reviewing-a-project-with-only-unit-tests)
@@ -164,6 +164,106 @@ A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
 
+### Publishing a badge
+
+`badge: 'true'` publishes the figure `variance coverage` prints first, on a push
+to your default branch, for a [shields.io](https://shields.io/badges/endpoint-badge)
+endpoint badge. The step writes `regions-run.json` as the one file of a commit
+with no parent and pushes it to `refs/badge/<branch>`, replacing what was there,
+so the ref never grows a history. The job needs `contents: write` for that push:
+
+```yaml
+permissions:
+  contents: write # the badge, on a push to the default branch
+  pull-requests: write # the comment
+
+steps:
+  # ...
+  - if: ${{ !cancelled() }}
+    uses: Variance-Authority/action/review@v1
+    with:
+      suite: unit
+      against: ${{ steps.take.outputs.against-unit }}
+      badge: 'true'
+```
+
+Then put the badge in your `README.md`, with your owner, repository and branch
+in the URL:
+
+```markdown
+[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
+```
+
+The badge is for a public repository: raw.githubusercontent.com serves a private
+repository's files only to a request with a token, and shields.io sends none. A
+run with no region counted, or a token that cannot push, warns and leaves the
+last badge in place. On a pull request the step does nothing.
+
+## Sharding a visual review
+
+`shard: k/n` runs one slice of the suite. A slice is not the suite, so each
+shard comments nothing and uploads its report; a last job hands every report
+to `reports` and gets the suite's one docket and one check colour:
+
+```yaml
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - id: variance
+        uses: Variance-Authority/action@v1
+        with:
+          config: variance.config.json
+          shard: ${{ matrix.shard }}
+          comment: 'false'
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: variance-shard-${{ strategy.job-index }}
+          include-hidden-files: true
+          path: |
+            ${{ steps.variance.outputs.report }}
+            .variance/report.suite-part.json
+            ${{ steps.variance.outputs.images }}
+  merge:
+    needs: shard
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the published suite index and costs
+      pull-requests: write # the comment
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: variance-shard-*
+          path: shards
+      - uses: Variance-Authority/action@v1
+        with:
+          config: variance.config.json
+          reports: shards/*/report.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`reports` takes one path or glob per line. Given it, the action runs nothing:
+it merges the reports with `variance report`, posts one docket, publishes the
+suite index and the costs the next build splits by with `variance share
+--publish`, and exits 0, 1 or 2 for the whole suite. The count is written once,
+in the matrix. Every report names its shard as `k/n`, so a shard that never
+uploaded, a shard given twice, or shards cut two ways exit 2 naming which.
+`if: always()` keeps the merge running when a shard found a change and failed
+its own job.
+
+How the suite is split is in
+[sharding](https://variance-authority.dev/docs/sharding#split-stories-and-routes-the-same-way).
+
 ## Sweeping for flakes
 
 `flakes: 'true'` runs `variance run --flakes`: every subject is read twice,
@@ -225,7 +325,7 @@ jobs:
 The person needs write access, and the box must go from unticked to ticked on the
 head the pull request is still at. Anything else accepts nothing and says why in
 that job's log. The tick waits for a run still going, then reruns it: the rerun
-renders that commit again and accepts what it renders, as the label's run does.
+renders that commit again and accepts what it renders, as `accept: true` would.
 The approval row names the person where a history is kept, as `by`. The rerun's
 intent ends `accepted: ticked by @them`, and its log names them; the name in the
 comment lasts until the next run rewrites it, and the comment's edit history keeps
