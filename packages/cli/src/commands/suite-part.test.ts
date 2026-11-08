@@ -280,3 +280,73 @@ describe('a part on disk', () => {
     expect(await openSuitePart(suitePartPath(report))).toBe(`${suitePartPath(report)} is not JSON`);
   });
 });
+
+describe('report over the shards it is given', () => {
+  let home: string;
+
+  beforeEach(async () => {
+    home = await mkdtemp(join(tmpdir(), 'variance-suite-part-report-'));
+  });
+
+  afterEach(async () => {
+    await rm(home, { recursive: true, force: true });
+  });
+
+  const IDS = ['story:ds-button--danger', 'story:page--default', 'story:card--default'];
+
+  /** Shard `k` of `n`, beside its part: it observed the subjects it owns and left the rest to theirs. */
+  async function shard(k: number, n: number): Promise<string> {
+    const path = join(home, `shard-${String(k)}-of-${String(n)}`, 'run.json');
+    const owner = (i: number) => (i % n) + 1;
+    await writeCliRunReport(path, {
+      runVersion: 1,
+      at: '2026-09-27T10:00:00.000Z',
+      identity: IDENTITY,
+      retention: 'durable',
+      run: { id: 'build-1', commit: COMMIT },
+      observations: IDS.filter((_, i) => owner(i) === k).map((subject) => ({ subject, verdict: 'unchanged', because: 'nothing moved', regions: [] })),
+      notObserved: IDS.flatMap((subject, i) =>
+        owner(i) === k ? [] : [{ subject, kind: 'excluded', because: shardOwnedBecause(owner(i), n, 'count') }],
+      ),
+    } as CliRunReport);
+    await writeSuitePart(path, parts(SUITE.slice(0, 3), n, owner)[k - 1]!);
+    return path;
+  }
+
+  async function report(paths: readonly string[]): Promise<{ code: number; err: string }> {
+    const config = join(home, 'variance.config.json');
+    await writeFile(
+      config,
+      JSON.stringify({
+        project: 'web',
+        profile: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        retention: 'ephemeral',
+        subjects: { kind: 'list', ids: IDS, collector: './collector.mjs' },
+        fonts: [],
+        report: 'run.json',
+      }),
+    );
+    let err = '';
+    const code = await main(['report', ...paths, '--config', config], { out: () => {}, err: (text) => (err += text) });
+    return { code, err: err.split('\n')[0]! };
+  }
+
+  it('is the suite when every shard of one count is there', async () => {
+    expect(await report([await shard(1, 3), await shard(2, 3), await shard(3, 3)])).toEqual({ code: 0, err: '' });
+  });
+
+  it('refuses a shard that is missing, by its number, with no count given to it', async () => {
+    expect(await report([await shard(1, 3), await shard(2, 3)])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: shard 3/3 is missing.',
+    });
+  });
+
+  it('refuses shards cut two ways, naming both cuts', async () => {
+    expect(await report([await shard(1, 2), await shard(2, 2), await shard(3, 3)])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: the shards were cut 2 ways and 3 ways.',
+    });
+  });
+});

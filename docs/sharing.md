@@ -387,10 +387,26 @@ writes its part of the index beside its run report instead, as
 suite index: not kept from one shard; its part is .variance/report.suite-part.json, for the merge
 ```
 
-Name every shard's run report to `share --publish`. It composes the index one
-run over the whole suite would have written — the same census, the same
-lexicon, counted across every shard — keeps it, and publishes it with the costs
-of the merged run report:
+In CI the merge is one step of
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action),
+in the job after the shards, with every shard's artifact downloaded under
+`shards/`:
+
+```yaml
+- uses: Variance-Authority/action@v1
+  with:
+    reports: shards/*/report.json
+```
+
+Given `reports`, the action runs nothing: it merges the shards' run reports,
+posts one docket, publishes, and exits 0, 1 or 2 for the whole suite. Each run
+report names its shard as `k/n`, so the step is never told the count, and a
+missing shard, a shard named twice, or shards cut two ways exits 2 naming which.
+
+Outside the action, name every shard's run report to `share --publish`. It
+composes the index one run over the whole suite would have written — the same
+census, the same lexicon, counted across every shard — keeps it, and publishes
+it with the costs of the merged run report:
 
 ```bash
 npx variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json

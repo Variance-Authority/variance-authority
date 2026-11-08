@@ -22,7 +22,6 @@ import { NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 const ROOT = resolve(import.meta.dirname, '..');
 const ACTION = join(ROOT, '.github/actions/variance/action.yml');
 const WORKFLOW = join(ROOT, '.github/workflows/variance.yml');
-const SHARDS = join(ROOT, '.github/workflows/variance-shards.yml');
 
 /** The `if:` of the step whose `name:` or `id:` is `step`. */
 async function conditionOf(step: string): Promise<string> {
@@ -98,8 +97,8 @@ describe('the variance action', () => {
 });
 
 /** The `run:` block of the step whose `name:` is `step`, unindented. */
-async function runBlock(step: string, file = ACTION): Promise<string> {
-  const lines = (await readFile(file, 'utf8')).split('\n');
+async function runBlock(step: string): Promise<string> {
+  const lines = (await readFile(ACTION, 'utf8')).split('\n');
   const named = lines.findIndex((line) => line.trim().replace(/^- /u, '') === `name: ${step}`);
   if (named < 0) throw new Error(`the action has no step ${step}`);
   const run = lines.findIndex((line, at) => at > named && line.trim() === 'run: |');
@@ -375,33 +374,9 @@ async function projectRows(): Promise<ReadonlyArray<Record<string, string>>> {
   return JSON.parse(listed[1]) as ReadonlyArray<Record<string, string>>;
 }
 
-describe('the verdict over the shards', () => {
-  const merged = async (docketUrl: string): Promise<string> => {
-    try {
-      execFileSync('/bin/bash', ['-c', await runBlock('verdict', SHARDS)], {
-        env: { ...process.env, CODE: '1', DOCKET_URL: docketUrl },
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-      throw new Error('a run that needs review passed');
-    } catch (error) {
-      return (error as { stdout: string }).stdout;
-    }
-  };
-
-  it('leads the reader to the comment', async () => {
-    expect(await merged(DOCKET_URL)).toContain(`::error::${NEEDS_REVIEW}; the docket is in the pull request comment at ${DOCKET_URL}\n`);
-    expect(await readFile(SHARDS, 'utf8')).toContain('DOCKET_URL: ${{ steps.post.outputs.comment-url }}');
-  });
-
-  it('names no comment when none was written', async () => {
-    expect(await merged('')).toContain(`::error::${NEEDS_REVIEW}; the report is in the variance report step above\n`);
-  });
-});
-
 describe('the cleared comment', () => {
-  it.each([['the action', ACTION], ['the shards', SHARDS]])('reaches the poster from the renderer in %s', async (_, file) => {
-    const text = await readFile(file, 'utf8');
+  it('reaches the poster from the renderer', async () => {
+    const text = await readFile(ACTION, 'utf8');
 
     expect(text).toMatch(/--cleared > "\$RUNNER_TEMP\/variance-cleared\.md"/);
     expect(text).toContain('--cleared-file "$RUNNER_TEMP/variance-cleared.md"');

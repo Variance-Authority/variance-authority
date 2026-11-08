@@ -2758,6 +2758,19 @@ The merge refuses shards whose renderer identity, retention, or `--intent`
 both files — those were not one run. Two shards observing the same subject
 means the slices overlapped, which only the operator can resolve.
 
+`report` exits `2`, before it merges, when the shards named are not every shard
+of one `--shard` count. Each shard's part beside its report names its `k/n`, so
+the count is never typed again: a shard that never uploaded, a shard given
+twice, or shards cut two ways are named in the refusal:
+
+```text
+these reports are not one build: shard 3/3 is missing.
+```
+
+In CI, [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
+does the merge in one step: given the shards' reports as `reports`, it runs
+`report`, posts the `comment` body and publishes with `share --publish`.
+
 What it does accept is the arithmetic nobody wants to do by hand. Each shard
 records every subject outside its slice as `excluded`, so three shards report
 each subject as excluded twice and observed once; the merge resolves those

@@ -145,6 +145,69 @@ A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
 
+## Sharding a visual review
+
+`shard: k/n` runs one slice of the suite. A slice is not the suite, so each
+shard comments nothing and uploads its report; a last job hands every report
+to `reports` and gets the suite's one docket and one check colour:
+
+```yaml
+jobs:
+  shard:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - id: variance
+        uses: Variance-Authority/action@v1
+        with:
+          config: variance.config.json
+          shard: ${{ matrix.shard }}
+          comment: 'false'
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: variance-shard-${{ strategy.job-index }}
+          include-hidden-files: true
+          path: |
+            ${{ steps.variance.outputs.report }}
+            .variance/report.suite-part.json
+            ${{ steps.variance.outputs.images }}
+  merge:
+    needs: shard
+    if: ${{ always() }}
+    permissions:
+      contents: write # the published suite index and costs
+      pull-requests: write # the comment
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: variance-shard-*
+          path: shards
+      - uses: Variance-Authority/action@v1
+        with:
+          config: variance.config.json
+          reports: shards/*/report.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`reports` takes one path or glob per line. Given it, the action runs nothing:
+it merges the reports with `variance report`, posts one docket, publishes the
+suite index and the costs the next build splits by with `variance share
+--publish`, and exits 0, 1 or 2 for the whole suite. The count is written once,
+in the matrix. Every report names its shard as `k/n`, so a shard that never
+uploaded, a shard given twice, or shards cut two ways exit 2 naming which.
+`if: always()` keeps the merge running when a shard found a change and failed
+its own job.
+
+How the suite is split is in
+[sharding](https://variance-authority.dev/docs/sharding#split-stories-and-routes-the-same-way).
+
 ## Sweeping for flakes
 
 `flakes: 'true'` runs `variance run --flakes`: every subject is read twice,

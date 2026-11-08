@@ -191,6 +191,28 @@ export function missingShards(parts: readonly SuitePart[]): string | undefined {
 }
 
 /**
+ * Refuse reports named as one suite that are not every shard of one count.
+ *
+ * The count is the parts' own `shard.total`, so the caller types none. Reports
+ * whose parts name no shard — `--subjects` slices, or runs that wrote no part —
+ * are left to the merge, which judges them by what they observed. Once any part
+ * names a shard, a report with no part beside it is one the check cannot place.
+ */
+export async function refuseMissingShards(reports: readonly string[]): Promise<void> {
+  const found = await Promise.all(reports.map(async (path) => ({ path, part: await openSuitePart(suitePartPath(path)) })));
+  const torn = found.find(({ part }) => typeof part === 'string');
+  if (torn !== undefined) throw new OperatorError(`these reports are not one build: ${torn.part as string}.`);
+  const read = found as readonly { readonly path: string; readonly part: SuitePart | undefined }[];
+  if (!read.some(({ part }) => part?.shard !== undefined)) return;
+  const bare = read.find(({ part }) => part === undefined);
+  if (bare !== undefined) {
+    throw new OperatorError(`these reports are not one build: ${bare.path} has no ${suitePartPath(bare.path)} beside it.`);
+  }
+  const missing = missingShards(read.map(({ part }) => part!));
+  if (missing !== undefined) throw new OperatorError(`these reports are not one build: ${missing}.`);
+}
+
+/**
  * Where each component is declared, across shards.
  *
  * Every shard scanned the same source, and each laid over it what its own
