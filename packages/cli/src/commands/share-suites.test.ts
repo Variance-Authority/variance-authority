@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { readTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { readCommitRuns, readTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { PUSH, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
@@ -87,21 +87,24 @@ describe('`variance share --publish <records>`', () => {
     expect(testCoverageFile(ci, { suite: 'unit' })).toContain(join(home, 'publish-cache'));
   });
 
-  it("publishes a slice's record, already laid over the base in its job, as that job left it", async () => {
+  it("lays a slice's record, already laid over the base in its job, as that job left it, and refuses it when the slice ran part of the suite", async () => {
     const { ci, second } = await nextPush();
     const slice = join(home, 'ran', 'variance-slice-unit');
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', slice);
     const shard = await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
     expect((await suitesShare(ci, { suite: 'unit', publish: false, records: [shard] }, { env: PUSH })).exit).toBe(EXIT_CLEAN);
     const laid = await readTestCoverage(testCoverageFile(ci, { suite: 'unit' }));
+    const ledger = await readCommitRuns(testCoverageFile(ci, { suite: 'unit' }));
     expect(laid.commit).toBe(second);
     await rm(join(home, 'ran', 'variance-shard-unit-1'), { recursive: true });
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'publish-cache'));
 
     const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [slice], collected: join(await collectedEach(), 'unit.txt') }, { env: PUSH });
 
-    expect(done.exit).toBe(EXIT_CLEAN);
     expect(await readTestCoverage(testCoverageFile(ci, { suite: 'unit' }))).toEqual(laid);
+    expect(await readCommitRuns(testCoverageFile(ci, { suite: 'unit' }))).toEqual(ledger);
+    expect(done.exit).toBe(EXIT_OPERATOR);
+    expect(done.lines.join('\n')).toMatch(/is not a whole run: 1 test file\(s\) the suite collects last ran before \w+, test\/other\.test\.ts among them/u);
   });
 
   it('publishes every suite given to the share without `--suite`, and names each it could not', async () => {

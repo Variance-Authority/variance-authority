@@ -22,8 +22,8 @@
  */
 
 import { execFile } from 'node:child_process';
-import { readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, posix, relative, resolve, sep } from 'node:path';
+import { cp, readFile, realpath } from 'node:fs/promises';
+import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
@@ -165,7 +165,8 @@ export async function suiteShare(root: string, options: SuiteShareOptions, here:
 /**
  * The mainline's record of `suite`, laid into this checkout's own layer when
  * it was read, and `records` folded over the layer: what was read, what it
- * leaves the suite without, and what the fold landed.
+ * leaves the suite without, and what the fold landed. A suite's one record
+ * already laid over that base is put in place instead (`laidAsLeft`).
  *
  * A read this run already handed on, as `carry receive` lays one, stands
  * without asking the line again; any other is asked now, whatever was fetched
@@ -189,7 +190,9 @@ async function baseAndFold(
   const laid = read === undefined || 'miss' in read ? undefined : await layMainline(root, read, instrumentationId());
   const notices = laid !== undefined && 'passed' in laid ? [`${mainlinePassedOver(laid.passed)}. ${noBase(suite)}`] : [];
   if (records !== undefined) {
-    const landed = records.length === 0 ? `${suite}: nothing was handed on, so the base stands.` : await landSuite(root, records, suite);
+    const landed = records.length === 0
+      ? `${suite}: nothing was handed on, so the base stands.`
+      : (await laidAsLeft(root, suite, records, read)) ?? (await landSuite(root, records, suite));
     return { read, said, notices, landed: [landed] };
   }
   const own = selection.testCoverageFile(root, { suite });
@@ -198,6 +201,21 @@ async function baseAndFold(
     ? `The ${suite} base record was read without its case index, so ${suite} has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison.`
     : `The mainline's ${suite} record was not read. ${noBase(suite)}`;
   return { read, said, notices: [unbased], landed: [] };
+}
+
+/**
+ * A suite's one record, already laid over the base `read` names, as a slice's
+ * job lays its run, put in place with the runs record beside it, as that job
+ * left them. Landed again, every test it holds from the base would be listed
+ * as run at its commit, and a part run would publish as a whole one.
+ */
+async function laidAsLeft(root: string, suite: string, records: readonly string[], read: MainlineBase | undefined): Promise<string | undefined> {
+  const [record] = records;
+  if (record === undefined || records.length > 1 || read === undefined || 'miss' in read) return undefined;
+  const selection = await import('@variance-authority/sense/test-selection');
+  if ((await selection.readCommitRuns(record).catch(() => undefined))?.over !== read.commit) return undefined;
+  await cp(dirname(record), dirname(selection.testCoverageFile(root, { suite })), { recursive: true, force: true });
+  return `${suite}: its record, laid over the base in its job, as that job left it.`;
 }
 
 const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;

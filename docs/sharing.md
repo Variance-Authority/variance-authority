@@ -1120,7 +1120,9 @@ kept the record at 3f1c9a2… beside the latest.
   takes the records as they were downloaded: it fetches the mainline's record
   of each suite, lands the records over it as
   [`variance journeys <shard>... --suite`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too)
-  does, and publishes the result. A test job split into
+  does, and publishes the result. A suite's one record that its job already
+  laid over that same base is put in place as the job left it, so a test that
+  only the base ran is not counted as run again. A test job split into
   [shards](sharding.md) uploads one artifact per shard, and the same step folds
   them, so the publish job does not change.
 - **One suite takes a file for `--collected`.** With several, name a directory
