@@ -3506,7 +3506,6 @@
         "recordJob": "function",
         "recordOfCases": "function",
         "recordStorageAt": "function",
-        "recordSuite": "function",
         "recordedCases": "function",
         "recordedCommit": "function",
         "recordedEyesAt": "function",

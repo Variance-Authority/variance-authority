@@ -122,7 +122,6 @@ export {
   type PassedOver,
   readableTestCoverage,
   recordFileFor,
-  recordSuite,
   seedTestCoverage,
   type Seeded,
   testCoverageFile,

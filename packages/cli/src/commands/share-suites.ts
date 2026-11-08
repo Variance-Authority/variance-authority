@@ -6,7 +6,7 @@
  * a CI run's jobs handed on folded in first.
  *
  * A record is attributed to its suite by where the suite's run wrote it, the
- * path `recordSuite` reads the suite from, which is what an uploaded
+ * path `cachedSuite` reads the suite from, which is what an uploaded
  * cache directory keeps. A file named beside `--suite` is that suite's whatever its
  * path. Nothing else is guessed: a file without that shape, or of a suite the
  * root config does not give to the share, is refused before anything is read.
@@ -73,7 +73,7 @@ export async function suitesShare(root: string, options: SuitesShareOptions, her
   const shared = (selection.declaredSuites(root) ?? []).filter(({ carry }) => carry === 'share').map(({ name }) => name).sort();
   const suites = options.suite !== undefined ? [options.suite] : shared;
   if (suites.length === 0) throw new OperatorError('the root variance.config.json gives no suite to the share: name one with `"carry": "share"`');
-  const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, selection.recordSuite);
+  const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, selection.cachedSuite);
   const collected = options.collected === undefined ? undefined : await collectedOf(root, options.collected, suites);
   if (options.suite !== undefined) return suiteShare(root, suiteOptions(options.suite, options, records, collected), here);
 

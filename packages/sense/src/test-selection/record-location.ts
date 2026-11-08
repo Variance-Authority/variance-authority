@@ -245,18 +245,8 @@ export function cachedRecord(file: string, root: string, cacheRoot?: string): st
   return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
 }
 
-/** The suite a record's path inside a layer names, as {@link cachedRecord} says it: none for the repository's one record. */
-export function cachedSuite(inside: string): string | undefined {
-  return /^suites\/([^/]+)\//u.exec(inside)?.[1];
-}
-
-/**
- * The suite whose run wrote the record at `file`, wherever the cache holding
- * it now sits: a copy of a cache, such as a CI artifact, keeps the
- * `suites/<suite>/coverage.bin` {@link recordPath} lays it at. Nothing for a
- * path of any other shape.
- */
-export function recordSuite(file: string): string | undefined {
+/** The suite whose run wrote `file`, inside a layer or a copied cache (a CI artifact): none for the one record. */
+export function cachedSuite(file: string): string | undefined {
   return /(?:^|\/)suites\/([^/]+)\/coverage\.bin$/u.exec(file.split(sep).join('/'))?.[1];
 }
 
