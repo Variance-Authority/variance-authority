@@ -555,9 +555,10 @@ const cell = createGitLineCell({
 it never touches your clone. `namespace` is where the refs sit, `refs/variance`
 unless you set it. `reuseMs` is how long a fetched line is read again without
 fetching, 0 unless you set it. `timeoutMs` bounds each git command, 60 seconds
-unless you set it. `extraHeader` is the `http.extraheader` your clone sends to
-`url`: `actions/checkout` writes its token there, in the clone's own
-configuration, so pass it on. The cell gives it to git through the environment
+unless you set it. `extraHeader` is the header git sends to `url`: the
+`http.extraheader` your clone has, where `actions/checkout` writes its token,
+or one `variance share` builds from the step's `GITHUB_TOKEN` when the clone
+keeps none. The cell gives it to git through the environment
 and never writes it to disk.
 
 `gitDescends(options, branch)` answers the question a mainline publish needs

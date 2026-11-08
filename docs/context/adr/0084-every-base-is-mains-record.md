@@ -139,11 +139,17 @@ fetched here, and a reader that asks `suiteBase` says so.**
   pull request measures from this record, so an older one left in place must
   be seen. A branch line, or a run with no line, stays clean.
 - **The token is the publish step's alone.** The checkout runs with
-  `persist-credentials: false`, and the step hands git the header through
-  `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0`, git's own
-  configuration from the environment. Install scripts and the build never see
-  it, and the share's `headerEnv` does not add the same header twice. No
-  config field was added for it: git already carries it.
+  `persist-credentials: false`, and the step holds the token as
+  `GITHUB_TOKEN` in its `env:`. Install scripts and the build never see it.
+  When the clone keeps no header for the remote, `share` builds the one
+  `actions/checkout` would have written, `AUTHORIZATION: basic` over
+  `x-access-token:<token>`, for a remote on the host `GITHUB_SERVER_URL` names
+  and no other, and the share's `headerEnv` hands it to git through git's
+  environment configuration, never to disk and never twice. A header the clone
+  or the environment already gives git wins. *Amended 2026-11-08 (#1151):* the
+  step first handed git the header itself through `GIT_CONFIG_*` variables, a
+  block every adopter had to paste; the owner's rule that no workflow carries
+  custom code overturned it.
 
 ## Alternatives
 

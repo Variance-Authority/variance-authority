@@ -375,10 +375,11 @@ function remoteOf(config: Pick<Config, 'share'> | undefined): string {
 }
 
 /**
- * The remote's URL, the share's own repository for it, and the header your
- * clone authenticates to it with, when the clone has one. A CI checkout keeps
- * its token in the clone's configuration, so the share's repository is given
- * it rather than asking for one of its own.
+ * The remote's URL, the share's own repository for it, and the header it
+ * authenticates to it with. A CI checkout keeps its token in the clone's
+ * configuration, so the share's repository is given it rather than asking for
+ * one of its own. A clone checked out with `persist-credentials: false` keeps
+ * none, and then the step's `GITHUB_TOKEN` is the header.
  */
 async function remoteOfClone(
   config: Pick<Config, 'share' | 'cacheRoot'>,
@@ -387,8 +388,23 @@ async function remoteOfClone(
   const remote = remoteOf(config);
   const url = (await git(['remote', 'get-url', remote], cwd))?.trim();
   if (url === undefined || url === '') return { kind: 'unreachable', detail: `this clone has no remote named ${remote}` };
-  const header = (await git(['config', '--get-urlmatch', 'http.extraheader', url], cwd))?.trim();
-  return { url, gitDir: gitDirOf(config, url), ...(header !== undefined && header !== '' ? { extraHeader: header } : {}) };
+  const cloned = (await git(['config', '--get-urlmatch', 'http.extraheader', url], cwd))?.trim();
+  const header = cloned !== undefined && cloned !== '' ? cloned : tokenHeader(url, process.env);
+  return { url, gitDir: gitDirOf(config, url), ...(header !== undefined ? { extraHeader: header } : {}) };
+}
+
+/**
+ * The header `actions/checkout` writes for the step's `GITHUB_TOKEN`, when it
+ * holds one and `url` is on the host the token is for: `GITHUB_SERVER_URL`, or
+ * `https://github.com` where the host names none. A token is never offered to
+ * another host.
+ */
+function tokenHeader(url: string, env: Env): string | undefined {
+  const token = env['GITHUB_TOKEN'];
+  if (token === undefined || token === '') return undefined;
+  const server = (env['GITHUB_SERVER_URL'] || 'https://github.com').replace(/\/+$/u, '');
+  if (!url.startsWith(`${server}/`)) return undefined;
+  return `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`;
 }
 
 /** One bare repository per remote URL, so two checkouts of one repository share their fetches. */

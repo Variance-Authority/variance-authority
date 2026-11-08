@@ -255,7 +255,9 @@ jobs:
 `reports` takes one path or glob per line. Given it, the action runs nothing:
 it merges the reports with `variance report`, posts one docket, publishes the
 suite index and the costs the next build splits by with `variance share
---publish`, and exits 0, 1 or 2 for the whole suite. The count is written once,
+--publish`, and exits 0, 1 or 2 for the whole suite. The publish pushes with
+`github-token`, so a checkout with `persist-credentials: false` still
+publishes, and nothing writes the token to the clone. The count is written once,
 in the matrix. Every report names its shard as `k/n`, so a shard that never
 uploaded, a shard given twice, or shards cut two ways exit 2 naming which.
 `if: always()` keeps the merge running when a shard found a change and failed
