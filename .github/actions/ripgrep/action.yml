@@ -33,7 +33,8 @@ runs:
           exit 1
         fi
         name="ripgrep-$VERSION-x86_64-unknown-linux-musl"
-        curl --proto '=https' --tlsv1.2 -sSfL -o "$RUNNER_TEMP/$name.tar.gz" \
+        # GitHub's release download answers a 504 now and then; retry it.
+        curl --proto '=https' --tlsv1.2 -sSfL --retry 5 -o "$RUNNER_TEMP/$name.tar.gz" \
           "https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/$name.tar.gz"
         echo "$SHA256  $RUNNER_TEMP/$name.tar.gz" | sha256sum --check --strict -
         tar -xzf "$RUNNER_TEMP/$name.tar.gz" -C "$RUNNER_TEMP"
