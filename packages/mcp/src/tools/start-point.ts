@@ -20,7 +20,8 @@ import type { Tree } from './tree.js';
  *
  * ## A path exists or it does not
  *
- * That is the entire rule, and the root is its one exception. A start point is
+ * That is the entire rule, and the root is its one exception. A folder said
+ * without its slash is read as the folder only when no file has that name. A start point is
  * read from its root down and compared segment for whole segment:
  * `apps/web/Badge.tsx` is that file, `apps/web/` is that directory. Nothing is
  * looked for *inside* a path. `Badge.tsx` names a file at the root, and where
@@ -75,7 +76,8 @@ type Width = 'file' | 'under' | 'own';
  * Which width the caller asked for, or nothing when what they wrote is not a
  * path at all.
  *
- * Three forms and no others. `apps/web/Badge.tsx` is that file;
+ * Three forms and no others, and one reading of the first: a bare path that no
+ * file has the name of is read as the folder of that name, in `entryPoints`. `apps/web/Badge.tsx` is that file;
  * `apps/web/` is everything under it at any depth; `apps/web/*` is that
  * directory's own files and nothing deeper. Say nothing about depth and you
  * mean any depth, which is why the folder is the wider of the two and the
@@ -185,22 +187,15 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
     const width = said === undefined ? undefined : widthOf(said);
     let here = false;
     if (said !== undefined && width !== undefined) {
+      // A file-width path that is no file is the folder of that name, said
+      // without its slash. A tree holds no file and folder at one path, so the
+      // one predicate never turns a file into a folder.
       const named = at(said, width);
+      const folder = width === 'file' ? at(`${said}/`, 'under') : undefined;
       for (const file of tree.files) {
-        if (!named(file)) continue;
+        if (!named(file) && !folder?.(file)) continue;
         files.add(file);
         here = true;
-      }
-      // A file-width path that is no file is the folder of that name, said
-      // without its slash: the one repair, and only when the tree holds no
-      // file by that name, so it never turns a file into a folder.
-      if (!here && width === 'file') {
-        const folder = at(`${said}/`, 'under');
-        for (const file of tree.files) {
-          if (!folder(file)) continue;
-          files.add(file);
-          here = true;
-        }
       }
     }
     if (here) found.push(term);
@@ -271,7 +266,7 @@ export const START_POINT_SCHEMA = {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
       'Optional. Repo-relative path, or an array of them: `app/dispatch/page.tsx` a file, ' +
-      "`app/dispatch/*` that folder's own files, `app/dispatch/` everything under it. Exact " +
+      "`app/dispatch/*` that folder's own files, `app/dispatch/` everything under it (a bare folder name no file has is the folder). Exact " +
       'case, from the root, no other globs; a path the repository does not hold is rejected. ' +
       'Scope: everything it imports, transitively. `to` is the other direction.',
   },

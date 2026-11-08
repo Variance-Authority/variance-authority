@@ -442,6 +442,10 @@ describe('a start point is grounded in a file, at whatever width the caller has'
     ]);
   });
 
+  it('a path that is a file stays that file, whatever folder shares its spelling', () => {
+    expect([...scopeOf(APP, 'app/about-us/page.tsx', APP_TREE).subjects]).toEqual(['story:about-page']);
+  });
+
   it('the folder alone is everything underneath it', () => {
     expect([...scopeOf(APP, 'app/about-us/', APP_TREE).subjects].sort()).toEqual([
       'story:about-layout',
