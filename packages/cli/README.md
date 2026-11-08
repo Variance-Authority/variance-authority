@@ -150,7 +150,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] 
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -170,7 +170,7 @@ variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]
+variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -1409,6 +1409,19 @@ differ, and an index that cannot be brought up counts every region run as not
 known. `--format json` gives the parts as `over.this`, `over.older` and
 `over.notKnown`, beside `run`, which counts what ran in any text. The total
 over the source carries the same split.
+
+`--format badge` prints the share `any suite` leads with as a
+[shields.io endpoint](https://shields.io/badges/endpoint-badge), for a badge
+in your `README.md`:
+
+```json
+{"schemaVersion":1,"label":"regions run","message":"90.3%","color":"blue"}
+```
+
+With no region counted there is no share to print, so it prints nothing and
+exits `2` with the reason. The review action's
+[`badge` input](https://github.com/Variance-Authority/action#publishing-a-badge)
+publishes this file on every push to your default branch.
 
 With a base, each count is printed at the base and now, beside the parts that
 add up to the change:
@@ -3292,9 +3305,27 @@ instead of naming them:
 commit the mainline's record of that suite was made at, and `commit=` when the
 mainline has none; the `record of "<name>":` line goes to stderr. A pull
 request merged with that commit, rather than with the base tip, is measured
-from the record alone:
+from the record alone, and `variance carry merge <commit>` makes that merge:
+
+```yaml
+- id: merge
+  if: github.event_name == 'pull_request'
+  env:
+    COMMIT: ${{ steps.record.outputs.commit }}
+  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+It reads the head from the pull request's event, or from `--head <sha>`, and
+stands the checkout on the head merged into `<commit>`, the same commit in
+every clone. Under `--format github` it prints `merged=true` and
+`checkout=<sha>`, or `merged=false` when `<commit>` is empty or, under
+`--on-conflict stay`, the head conflicts with it. A conflict fails the step
+without `stay`; a merge stopped by anything else always fails it, and every stop
+leaves the checkout where it was. A job that passes `--expect <sha>`, the
+`checkout` another job made, fails when its own merge differs. A checkout with
+changes nobody committed is refused before anything moves.
 [Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
-has the steps.
+has the steps around it.
 
 With a config, `--format github` also prints `project=<segment>`: the config's
 `project` as one path segment that a git ref and an Actions artifact name both

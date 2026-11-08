@@ -85,13 +85,6 @@
   },
   {
     "files": [
-      "packages/cli/src/coverage-args.ts",
-      "packages/cli/src/layers-args.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/core/src/compare/cascade.ts",
       "packages/core/src/compare/holding-diff.ts"
     ],

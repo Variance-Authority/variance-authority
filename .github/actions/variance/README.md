@@ -99,6 +99,25 @@ needs neither the cache steps nor `against`. Any other suite, and any suite
 before its mainline has a record, reads "No baseline available; change cannot be
 compared" on every comment.
 
+A pull request checks out as its head merged into the base tip, so a shared
+suite compares with a record made before what the base gained since. Merge the
+head with the record's commit before this step, and the comparison holds the
+pull request alone:
+
+```yaml
+- id: merge
+  if: github.event_name == 'pull_request'
+  env:
+    COMMIT: ${{ steps.record.outputs.commit }}
+  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+`steps.record` is a step that ran `npx variance share --suite <name> --format
+github`. The merge prints `merged=true` and `checkout=<sha>`, or `merged=false`
+when there was no commit or the head conflicts with it.
+[Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
+has the whole job.
+
 The review needs the commit the change starts from and a diff from it, so check
 out every commit: `fetch-depth: 0`, with `filter: tree:0` to leave the trees out.
 A clone that lacks that commit fails the step, and the CLI says what to fetch.
@@ -144,6 +163,41 @@ of a step's warnings, so a longer list ends with a note of how many it left out.
 A file no suite ran as the tree holds it marks nothing: a record older than the
 change has not run what the change wrote. With several suites, a suite that has not run the change answers for
 nothing, so a function only that suite reaches is marked until it does.
+
+### Publishing a badge
+
+`badge: 'true'` publishes the figure `variance coverage` prints first, on a push
+to your default branch, for a [shields.io](https://shields.io/badges/endpoint-badge)
+endpoint badge. The step writes `regions-run.json` as the one file of a commit
+with no parent and pushes it to `refs/badge/<branch>`, replacing what was there,
+so the ref never grows a history. The job needs `contents: write` for that push:
+
+```yaml
+permissions:
+  contents: write # the badge, on a push to the default branch
+  pull-requests: write # the comment
+
+steps:
+  # ...
+  - if: ${{ !cancelled() }}
+    uses: Variance-Authority/action/review@v1
+    with:
+      suite: unit
+      against: ${{ steps.take.outputs.against-unit }}
+      badge: 'true'
+```
+
+Then put the badge in your `README.md`, with your owner, repository and branch
+in the URL:
+
+```markdown
+[![regions run](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F<owner>%2F<repo>%2Frefs%2Fbadge%2Fmain%2Fregions-run.json)](https://github.com/<owner>/<repo>/actions)
+```
+
+The badge is for a public repository: raw.githubusercontent.com serves a private
+repository's files only to a request with a token, and shields.io sends none. A
+run with no region counted, or a token that cannot push, warns and leaves the
+last badge in place. On a pull request the step does nothing.
 
 ## Sharding a visual review
 
@@ -279,6 +333,22 @@ it after that. `actions-cache` is the store this accepts into, so a git or LFS
 store leaves the input off. The box needs the docket written by a bot or an app:
 with a personal token as `github-token` the comment is a person's, the workflow
 skips the edit, and the box does nothing.
+
+## Committing the accepted images
+
+A store committed to git, as files or through git-LFS, accepts by a commit.
+`commit-baselines: 'true'` accepts every changed subject and pushes the images to
+the branch a person asked about, so turn it on only for a run a person started:
+
+- On a `pull_request` event, the pull request's head branch. The default
+  checkout is a merge commit, so check out the head with
+  `ref: ${{ github.head_ref }}`.
+- On a `workflow_dispatch` of a branch, that branch, which the default checkout
+  already is.
+
+Any other run, such as a push or a dispatch on a tag, names no branch to push to,
+and the step exits 2 and says so. The job needs `contents: write`, and a token
+whose push starts a workflow if the commit should be checked again.
 
 ## Deleting a pull request's images
 

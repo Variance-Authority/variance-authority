@@ -48,6 +48,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { moveBase } from './carry-handed.js';
+import { mergeHead } from './carry-merge.js';
 import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
@@ -64,6 +65,9 @@ export type CarryMove = 'take' | 'keep';
 
 /** What moves one read of the line to a run's other jobs. */
 export type CarryHand = 'hand' | 'receive';
+
+/** What merges a pull request's head with the commit that read was made at. */
+export type CarryMerge = 'merge';
 
 /**
  * Where a host run keeps `review`'s files, for the steps after it to upload
@@ -431,6 +435,7 @@ export async function runCarry(
   if (parsed.direction === 'hand' || parsed.direction === 'receive') {
     return moveBase(parsed, root, streams);
   }
+  if (parsed.direction === 'merge') return mergeHead(parsed, root, streams, env);
   const direction = parsed.direction;
   const config = parsed.config === undefined ? undefined : await loadConfig(parsed.config);
   let suites: readonly DeclaredSuite[] | undefined;

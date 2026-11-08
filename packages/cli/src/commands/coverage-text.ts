@@ -12,10 +12,11 @@
 import type { MovedRegion, RunOver, TestFileMotion } from '@variance-authority/sense/test-selection';
 import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
-import { coverageHead, coverageParts as parts, coverageRows, coverageSum, grouped, ratio, signed, table } from './coverage-summary.js';
+import { coverageHead, coverageParts as parts, coverageRows, coverageSum, grouped, leading, ratio, signed, table } from './coverage-summary.js';
 import { historyCell, notKnownLines, overCell, overClause, overMarkdown, recordedClause } from './coverage-over-lines.js';
 import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
+import { OperatorError } from '../exit.js';
 import type { CoverageFormat } from '../coverage-args.js';
 import type { CoverageSource } from './coverage-source.js';
 import type { Coverage, CoverageSuite, UnloadedChange } from './coverage.js';
@@ -29,7 +30,19 @@ const NAMED_DIRECTORIES = 5;
 
 export function formatCoverage(answer: Coverage, format: CoverageFormat): string {
   if (format === 'json') return `${JSON.stringify(answer, null, 2)}\n`;
+  if (format === 'badge') return badge(answer);
   return format === 'markdown' ? markdown(answer) : text(answer);
+}
+
+/**
+ * The figure the text leads with, in the endpoint schema shields.io reads. It
+ * is labelled `regions run`, never `coverage`, so it is not read as line
+ * coverage. No region counted is no figure, never `0%`.
+ */
+function badge(answer: Coverage): string {
+  const { count } = answer;
+  if (count.regions === 0) throw new OperatorError('no region was counted, so there is no figure for a badge: no suite loaded a file the recordings hold');
+  return `${JSON.stringify({ schemaVersion: 1, label: 'regions run', message: ratio(leading(count), count.regions), color: 'blue' })}\n`;
 }
 
 function text(answer: Coverage): string {
@@ -96,7 +109,7 @@ function text(answer: Coverage): string {
  * what ran, with no arrow, since the base was never parted; else of what ran.
  */
 function headline(count: { readonly run: number; readonly over?: RunOver }, regions: number, wasRun: number | undefined, wasRegions: number | undefined): readonly string[] {
-  if (count.over !== undefined) return [grouped(count.over.this), ratio(count.over.this, regions)];
+  if (count.over !== undefined) return [grouped(leading(count)), ratio(leading(count), regions)];
   return [countCell(count.run, wasRun), ratioCell(count.run, regions, wasRun, wasRegions)];
 }
 
