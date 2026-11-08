@@ -318,7 +318,7 @@ renders, and a control that changes nothing any subject reaches. It proves:
 - after the tick on `example-storybook` and the dispatch on
   `example-static-site` the check is green, and on `example-static-site` the
   commit the dispatched run made touches only the changed page's baseline image
-  and its report.
+  and its report, and the pair 0.15.0 left on `main` that it moves.
 
 Each example also accepts on a push to `main`, and `example-storybook` on a
 dispatch with `accept` too. The loop drives neither: a push to `main` accepts
@@ -337,11 +337,11 @@ which is a merge, so the tribunal flow leaves its check red and its build
 unreviewed. The build stays on the deployment until something calls its
 retention sweep, `POST /review/sweep`.
 
-These accepts are made by a job, not a person, and they are the only ones in
-this repository that are. The tick still has to come from a person's token: the
-tick workflow refuses an edit a bot made, so `VARIANCE_PUSH_TOKEN` is a
-fine-grained token a person with write access holds, allowed `actions: write`
-on `example-static-site` for the dispatch. The expectations live in
+These accepts are made by a job, and they are the only ones in this repository
+that no person decides. The tick workflow refuses an edit a bot made, so
+`VARIANCE_PUSH_TOKEN` is a fine-grained token held by a person with write
+access, and the example records each tick in that person's name. On
+`example-static-site` it is also allowed `actions: write`, for the dispatch. The expectations live in
 [`../scripts/outer-loop/flows.mjs`](../scripts/outer-loop/flows.mjs), and
 `tools/outer-loop.check.ts` runs the script against a local GitHub that answers
 the way the examples do.
@@ -374,7 +374,7 @@ passed in, and in the `tribunal` job the service its config names. No command in
 bash around the same binary.
 
 **Accept without a person.** Every accept is a tick, a dispatch, a push to
-`main`, or a decision on the service. The outer loop's label accepts in the
+`main`, or a decision on the service. The outer loop's ticks and dispatches in the
 examples are the one exception: they land only on pull requests it opened to
 close. `commit-baselines` is on only in `variance.yml`'s `lfs` job, and only
 for a dispatch with `accept`. On every run it would accept what the run just found, and a check that

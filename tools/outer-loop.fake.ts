@@ -1,7 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { DOCKET_MARKER, FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
+import { box as tickBox, ticked } from '../.github/actions/variance/tick/box.mjs';
+import { FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 
 /**
  * A local GitHub holding one example repository, and the review deployment
@@ -87,7 +88,7 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
   const comment = (pull: number, body: string) =>
     comments.set(pull, [...(comments.get(pull) ?? []), { id: next++, body }]);
   const box = (sha: string, job: number) =>
-    behaviour.boxless ? '' : `\n**To accept** check the report, then tick the box below\n\n- [ ] Accept this change <!-- variance-tick head=${sha} job=${job} -->\n`;
+    behaviour.boxless ? '' : `\n**To accept** check the report, then tick the box below\n\n${tickBox(sha, job)}\n`;
 
   const opened = (pull: Json) => {
     const change = pull.head.ref.includes('/change-');
@@ -98,8 +99,8 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     comment(
       pull.number,
       change && gate === 'failure'
-        ? `${DOCKET_MARKER}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\n${flow.docket.map((d: string) => `\`${d}\``).join(' ')}\n${flow.accept === 'tick' ? box(sha, job) : ''}`
-        : `${DOCKET_MARKER}\n## Visual variance in project \`case\` — nothing needs review\n`,
+        ? `${flow.marker}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\n${flow.docket.map((d: string) => `\`${d}\``).join(' ')}\n${flow.accept === 'tick' ? box(sha, job) : ''}`
+        : `${flow.marker}\n## Visual variance in project \`case\` — nothing needs review\n`,
     );
     if (flow.unit !== undefined) {
       const unit = flow.unit;
@@ -123,11 +124,12 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     }
   };
 
-  // The example's tick workflow: a ticked box runs the check again, and the
-  // run accepts.
+  // The example's tick workflow: the box ticked, and nothing else edited, runs
+  // the check again, and the run accepts.
   const edited = (pull: number, comment: Json, body: string) => {
+    const tick = body === ticked(comment.body) && body !== comment.body;
     comment.body = body;
-    if (!/^- \[x\] .*<!-- variance-tick /m.test(body)) return;
+    if (!tick) return;
     state.ticked.push(pull);
     if (!behaviour.untouched) check(state.pulls.get(pull)!.head.sha, flow.gate, 'success');
   };

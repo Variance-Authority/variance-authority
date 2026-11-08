@@ -9,7 +9,8 @@
 // tribunal approval replaces the baseline every branch compares against, so
 // that flow declares no accept and ends at the build and the red check.
 
-import { CONTROL, DOCKET_MARKER, FLOWS } from './flows.mjs';
+import { boxIn, ticked } from '../../actions/variance/tick/box.mjs';
+import { CONTROL, FLOWS } from './flows.mjs';
 import { client, Refusal, until } from './github.mjs';
 import {
   acceptedProblems,
@@ -37,11 +38,9 @@ export function branchPrefix(name) {
   return `outer-loop/${name}/`;
 }
 
-/** What the push token must be allowed on the example repository: a dispatch writes to Actions. */
+/** What the push token must be allowed on the example repository. */
 export function pushNeeds(flow) {
-  return flow.accept === 'dispatch'
-    ? `contents, pull requests and actions: write, on ${flow.repository}`
-    : `contents and pull requests: write, and actions: read, on ${flow.repository}`;
+  return `${flow.needs}, on ${flow.repository}`;
 }
 
 /**
@@ -251,9 +250,6 @@ async function gate(context, sha, seen) {
   return { run, annotations };
 }
 
-/** The unticked box `tick-to-accept` puts in the docket, bound to the run on `head`. */
-const BOX = /^- \[ \] .*<!-- variance-tick head=([0-9a-f]{40}) job=\d+ -->[ \t\r]*$/m;
-
 /** A wait that timed out, told why with `why`; any other failure as it was. */
 async function explained(waiting, why) {
   try {
@@ -270,16 +266,16 @@ const ACCEPTS = {
   async tick(context, change, seen) {
     const { flow, repo, gh } = context;
     const comments = await gh('GET', `/repos/${repo}/issues/${change.number}/comments?per_page=100`);
-    const docket = commentWith(comments, DOCKET_MARKER);
-    const box = BOX.exec(docket?.body ?? '');
-    if (box === null || box[1] !== change.sha) {
+    const docket = commentWith(comments, flow.marker);
+    const box = boxIn(docket?.body);
+    if (box === undefined || box.ticked || box.head !== change.sha) {
       throw new Refusal(
         `the docket on #${change.number} carries no box to tick for ${change.sha}; ` +
           `${repo}'s workflow sets the action's \`tick-to-accept\``,
       );
     }
     await gh('PATCH', `/repos/${repo}/issues/comments/${docket.id}`, {
-      body: { body: docket.body.replace(BOX, (line) => line.replace('- [ ]', '- [x]')) },
+      body: { body: ticked(docket.body) },
       needs: pushNeeds(flow),
     });
     return explained(gate(context, change.sha, seen), flow.untouched);

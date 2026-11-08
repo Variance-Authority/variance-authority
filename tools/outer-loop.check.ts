@@ -6,7 +6,8 @@ import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { jobMinutes } from '../.github/scripts/outer-loop/drive.mjs';
-import { DOCKET_MARKER, FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
+import { FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
+import { commentMarker } from '../packages/cli/src/commands/comment-marker.js';
 import { buildProblems, changeProblems, commitProblems } from '../.github/scripts/outer-loop/observe.mjs';
 import { fake, type Behaviour } from './outer-loop.fake.js';
 
@@ -270,7 +271,7 @@ describe('what a consumer sees, held against the flow', () => {
     checks: { variance: { conclusion: 'failure' }, tests: { conclusion: 'success' } },
     annotations: { variance: [{ message: `${NEEDS_REVIEW}; see the comment` }], tests: [] },
     comments: [
-      { body: `${DOCKET_MARKER}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\`panel--settings\` \`src/Panel.jsx\`` },
+      { body: `${cache.marker}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\`panel--settings\` \`src/Panel.jsx\`` },
       { body: `${cache.unit.might}\n${might}` },
       { body: `${cache.unit.evidence}\n${row('src/Panel.test.jsx')}` },
     ],
@@ -296,6 +297,7 @@ describe('what a consumer sees, held against the flow', () => {
     const moved = [`baselines/v1-${digest}/pricing.png`, `baselines/v1-${digest}/pricing.json`];
     const right = ['baselines/pricing-chromium.webp', 'baselines/pricing-chromium.json', ...moved];
     expect(commitProblems(FLOWS.lfs, commit(right), 'p')).toEqual([]);
+    expect(commitProblems(FLOWS.lfs, commit(right.slice(0, 2)), 'p')).toEqual([]);
     expect(commitProblems(FLOWS.lfs, commit(moved), 'p')).toEqual([
       'the accept commit touches nothing matching /^baselines\\/pricing-chromium\\.webp$/',
       'the accept commit touches nothing matching /^baselines\\/pricing-chromium\\.json$/',
@@ -304,6 +306,11 @@ describe('what a consumer sees, held against the flow', () => {
       'the accept commit\'s parent is p, not the change q',
       'the accept commit touches `baselines/checkout-chromium.webp`, which the change did not reach',
     ]);
+  });
+
+  it('finds the docket by the marker the release each example installs prints', () => {
+    expect(FLOWS.cache.marker).toBe(commentMarker('example-storybook'));
+    expect(FLOWS.lfs.marker).toBe(commentMarker('example-static-site'));
   });
 
   it('holds the deployment to exactly the declared subjects', () => {

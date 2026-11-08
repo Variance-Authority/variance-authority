@@ -6,8 +6,11 @@
 // When an example changes what it renders, this file changes with it, in the
 // same review.
 
-/** Every comment the composite action posts opens with this marker. */
-export const DOCKET_MARKER = '<!-- variance-authority: pr-docket v1 -->';
+/**
+ * The marker the docket opens with, as `variance comment --marker` prints it for
+ * `project`: keyed by project from 0.16.0, unkeyed `v1` before it.
+ */
+const docket = (project) => `<!-- variance-authority: pr-docket v2 project=${project} -->`;
 
 /** The annotation the action's verdict step writes when the run returns 1. */
 export const NEEDS_REVIEW = 'variance found changes that need review';
@@ -28,10 +31,12 @@ export const FLOWS = {
   // here.
   cache: {
     repository: 'Variance-Authority/example-storybook',
+    needs: 'contents and pull requests: write, and actions: read',
     minutes: 20,
     change: { path: 'src/Panel.jsx', from: 'padding: 20,', to: 'padding: 28,' },
     checks: ['variance', 'tests'],
     gate: 'variance',
+    marker: docket('example-storybook'),
     docket: ['panel--settings', 'src/Panel.jsx'],
     unit: {
       check: 'tests',
@@ -55,25 +60,24 @@ export const FLOWS = {
   // it, through the action's `commit-baselines`.
   lfs: {
     repository: 'Variance-Authority/example-static-site',
+    // The dispatch writes to Actions.
+    needs: 'contents, pull requests and actions: write',
     minutes: 15,
     change: { path: 'site/pricing.html', from: '$12 per seat', to: '$14 per seat' },
     checks: ['variance'],
     gate: 'variance',
+    marker: docket('example-static-site'),
     docket: ['pricing'],
     accept: 'dispatch',
     dispatch: { workflow: 'variance.yml', inputs: { accept: 'true' } },
     commit: {
       author: 'github-actions[bot]',
       message: 'chore(variance): regenerate baselines',
-      // 0.26.0 writes `baselines/pricing-chromium.*`, and its accept removes
-      // the pair 0.15.0 left on `main` under `v1-<identity digest>/`; the last
-      // two patterns go once an accept of pricing reaches `main`.
-      files: [
-        /^baselines\/pricing-chromium\.webp$/,
-        /^baselines\/pricing-chromium\.json$/,
-        /^baselines\/v1-[0-9a-f]{32}\/pricing\.png$/,
-        /^baselines\/v1-[0-9a-f]{32}\/pricing\.json$/,
-      ],
+      // The layout 0.26.0 writes: `{title}/{name}-{engine}`.
+      files: [/^baselines\/pricing-chromium\.webp$/, /^baselines\/pricing-chromium\.json$/],
+      // The pair 0.15.0 left on `main`, which an accept may remove; this goes
+      // once an accept of pricing reaches `main`.
+      removes: [/^baselines\/v1-[0-9a-f]{32}\/pricing\.(?:png|json)$/],
     },
     // The accept commit is pushed with the example's VARIANCE_PUSH_TOKEN; a
     // commit pushed with GITHUB_TOKEN starts no workflow, so it gets no check.
@@ -90,6 +94,7 @@ export const FLOWS = {
   // and declares no accept.
   tribunal: {
     repository: 'Variance-Authority/example-tribunal',
+    needs: 'contents and pull requests: write, and actions: read',
     minutes: 40,
     change: {
       path: 'overlay/stories/ProductCard.stories.jsx',
@@ -98,6 +103,8 @@ export const FLOWS = {
     },
     checks: ['variance'],
     gate: 'variance',
+    // The example installs 0.15.0.
+    marker: '<!-- variance-authority: pr-docket v1 -->',
     docket: ['product-card--control'],
     endpoint: 'https://tribunal-example.variance-authority.dev',
     subjects: [

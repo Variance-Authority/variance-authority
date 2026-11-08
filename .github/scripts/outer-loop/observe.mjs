@@ -5,7 +5,7 @@
 // them at once, so one red run names every broken promise rather than the
 // first.
 
-import { DOCKET_MARKER, NEEDS_REVIEW } from './flows.mjs';
+import { NEEDS_REVIEW } from './flows.mjs';
 
 /** The comment that opens with `marker`, or `undefined`. */
 export function commentWith(comments, marker) {
@@ -33,9 +33,9 @@ export function changeProblems(flow, { checks, annotations, comments, logs }) {
     problems.push(`check \`${flow.gate}\` is red, but not because changes need review${said(gate)}`);
   }
 
-  const docket = commentWith(comments, DOCKET_MARKER);
+  const docket = commentWith(comments, flow.marker);
   if (docket === undefined) {
-    problems.push(`no docket comment (${DOCKET_MARKER}) on the pull request`);
+    problems.push(`no docket comment (${flow.marker}) on the pull request`);
   } else {
     if (!docket.body.includes('need review')) {
       problems.push(`the docket does not say anything needs review: ${firstLine(docket.body)}`);
@@ -102,7 +102,7 @@ export function controlProblems(flow, { checks, annotations, comments, head, ope
     }
   }
   if (head !== opened) problems.push(`control: the branch moved from ${opened} to ${head}; nothing should push to it`);
-  const docket = commentWith(comments, DOCKET_MARKER);
+  const docket = commentWith(comments, flow.marker);
   if (docket?.body.includes('need review')) {
     problems.push(`control: the docket asks for review: ${firstLine(docket.body)}`);
   }
@@ -119,7 +119,7 @@ export function acceptedProblems(flow, run, annotations) {
 /**
  * The commit the dispatched run pushed back to the branch: the action's bot, its
  * message, on top of the change, touching the changed page's images and
- * nothing else.
+ * nothing else but what `removes` lets it.
  */
 export function commitProblems(flow, commit, parent) {
   const problems = [];
@@ -138,7 +138,7 @@ export function commitProblems(flow, commit, parent) {
     if (!names.some((name) => pattern.test(name))) problems.push(`the accept commit touches nothing matching ${pattern}`);
   }
   for (const name of names) {
-    if (!expected.files.some((pattern) => pattern.test(name))) {
+    if (![...expected.files, ...(expected.removes ?? [])].some((pattern) => pattern.test(name))) {
       problems.push(`the accept commit touches \`${name}\`, which the change did not reach`);
     }
   }
