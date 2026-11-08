@@ -19,7 +19,7 @@ description: >-
 runs:
   using: composite
   steps:
-    - name: ripgrep
+    - name: name the ripgrep release
       shell: bash
       env:
         VERSION: 15.2.0
@@ -33,10 +33,40 @@ runs:
           exit 1
         fi
         name="ripgrep-$VERSION-x86_64-unknown-linux-musl"
-        # GitHub's release download answers a 504 now and then; retry it.
-        curl --proto '=https' --tlsv1.2 -sSfL --retry 5 -o "$RUNNER_TEMP/$name.tar.gz" \
-          "https://github.com/BurntSushi/ripgrep/releases/download/$VERSION/$name.tar.gz"
-        echo "$SHA256  $RUNNER_TEMP/$name.tar.gz" | sha256sum --check --strict -
-        tar -xzf "$RUNNER_TEMP/$name.tar.gz" -C "$RUNNER_TEMP"
-        echo "$RUNNER_TEMP/$name" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/$name/rg" --version
+        {
+          echo "RIPGREP_VERSION=$VERSION"
+          echo "RIPGREP_NAME=$name"
+          echo "RIPGREP_TARBALL=$RUNNER_TEMP/$name.tar.gz"
+          echo "RIPGREP_SHA256=$SHA256"
+        } >> "$GITHUB_ENV"
+    # GitHub's release download goes on answering 504 for minutes at a time, so
+    # the tarball is fetched once per checksum and kept in the cache, saved as
+    # soon as it checks out rather than when the job ends green.
+    - name: ripgrep from the cache
+      id: cached
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ env.RIPGREP_TARBALL }}
+        key: ripgrep-${{ env.RIPGREP_SHA256 }}
+    - name: ripgrep download
+      if: steps.cached.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl --proto '=https' --tlsv1.2 -sSfL --retry 5 -o "$RIPGREP_TARBALL" \
+          "https://github.com/BurntSushi/ripgrep/releases/download/$RIPGREP_VERSION/$RIPGREP_NAME.tar.gz"
+        echo "$RIPGREP_SHA256  $RIPGREP_TARBALL" | sha256sum --check --strict -
+    - name: ripgrep to the cache
+      if: steps.cached.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ env.RIPGREP_TARBALL }}
+        key: ripgrep-${{ env.RIPGREP_SHA256 }}
+    - name: ripgrep
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "$RIPGREP_SHA256  $RIPGREP_TARBALL" | sha256sum --check --strict -
+        tar -xzf "$RIPGREP_TARBALL" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/$RIPGREP_NAME" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/$RIPGREP_NAME/rg" --version
