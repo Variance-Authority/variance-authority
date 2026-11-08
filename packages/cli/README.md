@@ -3389,7 +3389,10 @@ prints `kept=<suite> <suite>`; the lines saying why go to stderr.
 took there, in `taken.json`, so one job can take the last push and hand the
 directory to the run's other jobs as an artifact. Each of them runs
 `variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
-the first job took, so no job reads another record than the rest:
+the first job took, so no job reads another record than the rest. The bundle
+reads only in a clone that holds `origin/<base>` where `keep` cut it, so check
+out with `fetch-depth: 0`; elsewhere `take` says it did not read and fetches by
+name:
 
 ```yaml
 # the job that restored the cache, after `take`, when it took a suite:
@@ -3399,12 +3402,16 @@ the first job took, so no job reads another record than the rest:
     name: variance-carried
     path: ${{ steps.carry.outputs.pushed-path }}
     include-hidden-files: true
-# every other job, before its tests run:
-- uses: actions/download-artifact@v8
+# …and its job exports `carried: ${{ steps.take.outputs.taken != '' }}`.
+# every other job, which `needs` it, before its tests run:
+- if: needs.base.outputs.carried == 'true'
+  uses: actions/download-artifact@v8
   with:
     name: variance-carried
     path: ${{ runner.temp }}/carried
-- run: npx variance carry take "$RUNNER_TEMP/carried"
+- id: take
+  if: needs.base.outputs.carried == 'true'
+  run: npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
 ```
 
 Jobs of one run read one record, and a re-run of one of them reads it too. The

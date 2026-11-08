@@ -207,12 +207,13 @@ merge with it:
 ```bash
 npx variance carry keep                                 # after the run: the records, and the commits no remote holds
 npx variance carry take --format github >> "$GITHUB_OUTPUT"   # next push, before the run
-npx variance carry take "$RUNNER_TEMP/carried"          # each other job, over the directory the first take handed on
+npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"   # each other job, over the directory the first take handed on
 ```
 
 `keep` writes `commits.bundle` beside the records, holding the commits they
 name that `origin/<base>` lacks, and `take` reads it before fetching the rest
-by name. `take` removes the suites it left from the directory and names the
+by name; the bundle reads only in a clone that holds `origin/<base>`, so check
+out with `fetch-depth: 0`. `take` removes the suites it left from the directory and names the
 ones it took; a later `take` over that directory exits 2 when it leaves one of
 them. `carry save` and `carry restore` print the cache path and key, as
 [What the next job reads](https://variance-authority.dev/reference/packages/cli#what-the-next-job-reads) shows.
