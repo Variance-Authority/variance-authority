@@ -1,5 +1,9 @@
 # @variance-authority/png-sharp
 
+## 0.28.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.27.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
