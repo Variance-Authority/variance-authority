@@ -93,9 +93,12 @@ scan has no reader for.
 
 A build is selected whole, by what it touched, rather than by a list of its
 inputs. Declare a suite of kind `job` with `"relations": false`, and wrap every
-command of the job with `variance job --suite <name> -- <command>...` on a Linux CI
-machine with `strace`. `variance select --suite <name>` then runs the job when a
-file it read changes. A changed file it only wrote does not run it.
+command of the job with `variance job --suite <name> -- <command>...` on Linux with
+`strace`. On a Mac, record in a Docker container rather than waiting for CI: a
+clean clone of the commit at the primary checkout's path, with the cache mounted,
+as the `job` section of the CLI reference describes.
+`variance select --suite <name>` then runs the job when a file it read changes. A
+changed file it only wrote does not run it.
 
 A job is atomic and its recording reproducible: it builds from nothing, with no
 cache of its own, and every skip happens before it or through `variance select`. A
