@@ -69,7 +69,7 @@ Before any step here and before reporting a PR's status, run `gh pr view <n>
 A pushed PR that needs `origin/main` merges it and is never rebased: a rebase
 needs a force push, which moves the head a reviewer read out of the branch. A
 draft is never `agent:done`, because a draft is not handed over. `site` is not a
-gate and no agent adds the label that accepts its report, but what the site says
+gate and no agent ticks the box that accepts its report, but what the site says
 is still reviewed: the public pages are the project's face.
 
 ## 6. Validate

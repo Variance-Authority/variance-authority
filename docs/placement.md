@@ -533,7 +533,8 @@ A reviewer runs the workflow from the Actions tab on the pull request's branch,
 with **accept** ticked. That run accepts every changed subject and pushes the
 images to the branch as `github-actions[bot]`. The images are then in the pull
 request's diff beside the change that caused them, and the merge takes them to
-`main` with the code. Nothing runs on `main` to accept them again.
+`main` with the code. Never dispatch it with **accept** on `main`: that run
+would push the images to `main` itself.
 
 The job is [the whole job](#the-whole-job) with a write token, the pull request's
 branch checked out, and the action's commit in place of `accept` and the tick:
