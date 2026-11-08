@@ -814,8 +814,8 @@ jobs:
       # share, the one the suite jobs laid, passed over as they passed it over,
       # and lands the records of that suite over it as `variance journeys
       # --suite` lands shards, printing only the landing: nobody reads a whole
-      # journal in a log. A slice, laid by its job's run, is put in place as
-      # the job left it. A slice nothing handed on keeps the base, and on a
+      # journal in a log. A slice, laid over a base in its job, is put in
+      # place as the job left it. A slice nothing handed on keeps the base, and on a
       # push the publish refuses it as recorded at another commit.
       - name: fold the slices
         id: records

@@ -166,7 +166,7 @@ export async function suiteShare(root: string, options: SuiteShareOptions, here:
  * The mainline's record of `suite`, laid into this checkout's own layer when
  * it was read, and `records` folded over the layer: what was read, what it
  * leaves the suite without, and what the fold landed. A suite's one record
- * that its job's run laid is put in place instead (`laidAsLeft`).
+ * that its job laid over a base is put in place instead (`laidAsLeft`).
  *
  * A read this run already handed on, as `carry receive` lays one, stands
  * without asking the line again; any other is asked now, whatever was fetched
@@ -204,25 +204,27 @@ async function baseAndFold(
 }
 
 /**
- * A suite's one record that its job's run laid, its runs record beside it, put
- * in place with every file named for it, as that job left them: a slice's
- * record, laid over whatever base its job read, the mainline's or the last
- * push's. Landed again, every test it holds from that base would be listed as
- * run at its commit, and a part run would publish as a whole one. A record
- * with no runs record beside it ran alone, and is landed.
+ * A suite's one record whose runs record says it was laid over a base, put in
+ * place with every file named for it, as its job left them: a slice's record,
+ * laid over whatever base its job read, the mainline's or the last push's.
+ * Landed again, every test it holds from that base would be listed as run at
+ * its commit, and a part run would publish as a whole one. A shard's runs
+ * record names no base, since it ran in a cache of its own, and it is landed.
  */
 async function laidAsLeft(root: string, suite: string, records: readonly string[]): Promise<string | undefined> {
   const [record] = records;
   if (record === undefined || records.length > 1) return undefined;
   const selection = await import('@variance-authority/sense/test-selection');
-  if ((await selection.readCommitRuns(record).catch(() => undefined)) === undefined) return undefined;
+  if ((await selection.readCommitRuns(record).catch(() => undefined))?.over === undefined) return undefined;
   const target = selection.testCoverageFile(root, { suite });
   const [from, to] = [record, target].map((file) => `${basename(file).replace(/\.bin$/u, '')}.`);
   await mkdir(dirname(target), { recursive: true });
+  await copyFile(record, target);
   for (const name of await readdir(dirname(record))) {
-    if (name.startsWith(from!) && !name.endsWith('.tmp')) await copyFile(join(dirname(record), name), join(dirname(target), `${to}${name.slice(from!.length)}`));
+    const beside = name !== basename(record) && name.startsWith(from!) && !name.endsWith('.tmp');
+    if (beside) await copyFile(join(dirname(record), name), join(dirname(target), `${to}${name.slice(from!.length)}`));
   }
-  return `${suite}: its record, laid by its job's run, as that job left it.`;
+  return `${suite}: its record, laid over a base in its job, as that job left it.`;
 }
 
 const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;

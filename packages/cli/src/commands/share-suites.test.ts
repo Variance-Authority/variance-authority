@@ -128,6 +128,25 @@ describe('`variance share --publish <records>`', () => {
     expect(await readCommitRuns(testCoverageFile(ci, { suite: 'unit' }))).toEqual(ledger);
   });
 
+  it("lands a lone shard, whose runs record names no base, over the base, and a record named by any file", async () => {
+    const { ci, second } = await nextPush();
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ran', 'variance-slice-unit'));
+    const first = await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    await suitesShare(ci, { suite: 'unit', publish: false, records: [first] }, { env: PUSH });
+    const { over: _over, standing: _standing, ...alone } = (await readCommitRuns(testCoverageFile(ci, { suite: 'unit' })))!;
+    const shard = await handedOn('variance-shard-unit-2', 'unit', 'test/total.test.ts', second);
+    const dat = join(dirname(shard), 'record.dat');
+    await rename(shard, dat);
+    await writeCommitRuns(commitRunsFile(dat), alone);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'publish-cache'));
+
+    await suitesShare(ci, { suite: 'unit', publish: false, records: [dat] }, { env: PUSH });
+
+    const runs = await readCommitRuns(testCoverageFile(ci, { suite: 'unit' }));
+    expect(runs?.standing?.flatMap(({ files }) => files)).toContain('test/other.test.ts');
+    expect(runs?.commit).toBe(second);
+  });
+
   it('publishes every suite given to the share without `--suite`, and names each it could not', async () => {
     const { ci, second } = await nextPush();
     await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
