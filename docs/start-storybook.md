@@ -264,7 +264,7 @@ painter and use it for both:
   control.
 
 A third way paints only in CI: keep the baselines in the runner's cache, and
-accept with a label. [Baseline placement](placement.md#the-whole-job) prints that
+accept by the tick in its comment. [Baseline placement](placement.md#the-whole-job) prints that
 job whole.
 
 ## Go deeper

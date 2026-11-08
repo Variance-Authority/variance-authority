@@ -301,7 +301,7 @@ describe('post-comment', () => {
       }
     }
 
-    expect(commands.length).toBeGreaterThanOrEqual(3);
+    expect(commands.length).toBeGreaterThanOrEqual(2);
     expect(commands.filter((command) => !/--adopt-unkeyed (true|false|"\$[A-Z_]+")/u.test(command))).toEqual([]);
   });
 });

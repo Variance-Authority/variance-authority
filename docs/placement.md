@@ -16,7 +16,7 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 
 `directory` can also use a root git ignores, which your CI keeps in its cache, so
 nothing lands in git history and a pull request goes red on a change and green
-on a label: [the whole job](#the-whole-job) prints that workflow. [Who accepts a
+on a tick: [the whole job](#the-whole-job) prints that workflow. [Who accepts a
 change](#who-accepts-a-change) compares all three by who approves.
 
 ## Durable baselines
@@ -280,16 +280,18 @@ arrangements, and each puts the approval somewhere else:
 
 | baselines live in | config | a change is accepted by | the record of it is |
 |---|---|---|---|
-| the CI cache | `directory`, root ignored by git | a label on the pull request, and a push to `main` | the label in the pull request's timeline, and the push |
-| git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, reviewed with the code | the commit and the pull-request review |
+| the CI cache | `directory`, root ignored by git | a tick in the pull request's comment, a dispatch of the workflow with `accept`, and a push to `main` | the accepting run's log, which names who ticked; the run's page, which names who dispatched; and the push |
+| git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, pushed by a dispatch with `accept` on that branch and reviewed with the code | the commit and the pull-request review |
 | a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
 
 On GitHub, `Variance-Authority/action` runs any of the three, and the config's
-`baselines` section chooses. With the CI cache, the action's `accept` input
-accepts, on the run a label started. With git, its `commit-baselines` input
-pushes the accepted images to the pull request's branch, which needs a token
-whose push starts a workflow. With a review service, a `variance push` step after
-the action sends the run there. The
+`baselines` section chooses. With the CI cache, the action accepts on the run a
+tick starts, and its `accept` input on a dispatch or a push to `main`. With git,
+its `commit-baselines` input pushes the accepted images to the pull request's
+branch on a `pull_request` event, or to the dispatched branch on a
+`workflow_dispatch`, and refuses any other run, such as a dispatch on a tag.
+The push needs a token whose push starts a workflow. With a review service, a
+`variance push` step after the action sends the run there. The
 [CLI reference](../packages/cli/README.md#run-it-in-ci) has the step.
 
 ### The CI cache
@@ -304,48 +306,55 @@ If the same repository publishes packages, read
 [Keep the cache out of your release](#keep-the-cache-out-of-your-release) before
 you copy the job.
 
-A reviewer reads the report and adds the `variance: accept` label. That starts a
-run that accepts every changed subject, compares again, and saves the baseline
-root into the pull request's own cache scope. A subject that is still unstable,
-an observation that errored, or a subject that was not observed fails that
-second comparison even right after an accept. The check is then red and names
-it, and the accept is saved all the same, so one such subject costs no other
-subject its baseline. The pull request's later runs read
+A reviewer reads the report and ticks the box the comment carries under **To
+accept**, which the action's `tick-to-accept` input puts there. The tick runs the
+pull request's check again, and that run accepts every changed subject, compares
+again, and saves the baseline root into the pull request's own cache scope. A
+subject that is still unstable, an observation that errored, or a subject that
+was not observed fails that second comparison even right after an accept. The
+check is then red and names it, and the accept is saved all the same, so one such
+subject costs no other subject its baseline. The pull request's later runs read
 that scope first, so they compare against what you accepted there even after
 `main` moves.
 
-With `tick-to-accept` on, the comment also carries a box, and ticking it does what
-the label does, without leaving the comment. Only a reviewer with write access
-counts, and the accepting run's log names them. The box belongs to the head it was
-written for, so a push brings a new one. The
-[action's README](https://github.com/Variance-Authority/action#accepting-with-a-tick)
-has the workflow it needs.
+Only a reviewer with write access counts, and the accepting run's log names them.
+The box belongs to the head it was written for, so a push brings a new one, and a
+box ticked after a push accepts nothing. The tick arrives as an edit of the
+comment, outside the pull request's check, so it needs a second workflow, which
+the [action's README](https://github.com/Variance-Authority/action#accepting-with-a-tick)
+prints.
 
 Merging is the second accept. A push to `main` accepts what `main` renders,
 whether the pull request's check was green, red, unfinished, or never run because
 the project is new: you judge a change on its pull request, and what you merge is
-what `main` draws. The push saves as the label's run does, so a push whose
+what `main` draws. The push saves as the tick's run does, so a push whose
 second comparison fails is red and still records what `main` renders. Every
 pull request that holds no accept of its own compares against the newest store
 saved on `main`, including one that was already open when that push landed.
 
-Nothing lands in git history, and approval is a label or a tick rather than a
-review of a diff. A push after an accept does not dismiss a reviewer's approval of the pull
-request, and it does not need to: a push that changes a pixel turns the check red again. The
-store lasts as long as GitHub keeps the cache entry. GitHub removes an entry
-nothing has restored for seven days, and after that every subject reports `new`
-until the next push to `main` records it again. A pull request from a fork runs
-with a read-only
-token: the label run still accepts, but it cannot take the label off again, and
-the pull request gets no comment.
+A dispatch is the third. Run the workflow from the Actions tab with **accept**
+ticked, and it accepts what that branch renders into the branch's own cache
+scope. A pull request's run reads its own scope and its base branch's, not its
+head branch's, so on a pull request the tick is the accept. A dispatch on `main`
+records what `main` renders without waiting for the next push.
+
+Nothing lands in git history, and approval is a tick rather than a review of a
+diff. A push after an accept does not dismiss a reviewer's approval of the pull
+request, and it does not need to: a push that changes a pixel turns the check red
+again. The store lasts as long as GitHub keeps the cache entry. GitHub removes an
+entry nothing has restored for seven days, and after that every subject reports
+`new` until a push to `main`, or a dispatch on it, records it again. A pull
+request from a fork runs with a read-only token, so it gets no comment and no
+box: its change is accepted by the push to `main` after the merge, and a
+required `variance` check that is red blocks that merge.
 
 #### The whole job
 
-This job goes red on a change, green on the label, and compares the next push
-again. It needs three things in place first. The config you already run keeps
-its `subjects`, and sets these two keys. `carry` names who keeps the root between
-jobs, and `actions-cache` is the runner's cache, which the action restores before
-the run and saves after an accept:
+This job goes red on a change, green once a reviewer ticks the box, and compares
+the next push again. It needs three things in place first. The config you
+already run keeps its `subjects`, and sets these two keys. `carry` names who
+keeps the root between jobs, and `actions-cache` is the runner's cache, which the
+action restores before the run and saves after an accept:
 
 ```json
 "retention": "durable",
@@ -361,11 +370,9 @@ Git ignores the root, on purpose here, since the cache holds it:
 Git keeps tracking a root you already committed, and every checkout then restores
 those files, so run `git rm -r --cached .variance` once.
 
-And the repository has the label:
-
-```bash
-gh label create 'variance: accept'
-```
+And the repository has the tick workflow, from
+[the action's README](https://github.com/Variance-Authority/action#accepting-with-a-tick),
+which runs this job again when a reviewer ticks the box.
 
 Then the workflow, as `.github/workflows/variance.yml` in your repository:
 
@@ -376,31 +383,27 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
   merge_group: # a merge queue's own commit
+  workflow_dispatch: # Run workflow, in the Actions tab
+    inputs:
+      accept:
+        description: Accept what this branch renders
+        type: boolean
+        default: false
 
 permissions:
   contents: read # the checkout: a declared block sets the rest to none
-  pull-requests: write # the comment, and taking the label off
+  pull-requests: write # the comment
 
 jobs:
   variance:
     if: github.event_name != 'merge_group' # a skipped job reports success
     concurrency:
       group: variance-${{ github.ref }} # one comment, written by one run at a time
-      queue: max # every run waits, and none replaces a label's
+      cancel-in-progress: "${{ github.event_name == 'pull_request' }}" # a push replaces its pull request's run
     runs-on: ubuntu-24.04 # a pinned image: the runner paints the baselines
     steps:
       - uses: actions/checkout@v7
-
-      - name: take the label off
-        if: "github.event.label.name == 'variance: accept'"
-        continue-on-error: true # a fork's token is read-only
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-        run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PULL_REQUEST/labels/variance%3A%20accept"
-
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -409,82 +412,61 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run build-storybook
 
-      - name: ask whether this run is still the head
-        id: head
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PULL_REQUEST: ${{ github.event.pull_request.number }}
-          THIS_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          if [ -n "$PULL_REQUEST" ]; then
-            head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST" --jq .head.sha)
-          else
-            head=$(gh api "repos/$GITHUB_REPOSITORY/commits/heads/$GITHUB_REF_NAME" --jq .sha)
-          fi
-          if [ "$head" != "$THIS_HEAD" ]; then echo 'superseded=true' >> "$GITHUB_OUTPUT"; fi
-
       - uses: Variance-Authority/action@v1
-        if: "steps.head.outputs.superseded != 'true' || github.event.label.name == 'variance: accept'"
         with:
           config: variance.config.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           report-page: true # the report the comment links to, images included
-          comment: "${{ steps.head.outputs.superseded != 'true' }}" # the comment is the head's
-          accept: "${{ github.event_name == 'push' || github.event.label.name == 'variance: accept' }}"
-          to-accept: 'check the report, then add the **variance: accept** label to this pull request'
+          accept: "${{ github.event_name == 'push' || inputs.accept }}"
+          tick-to-accept: 'true'
+          to-accept: 'check the report, then tick the box below'
 ```
 
 `report-page` uploads the report as an artifact of the run, so a reviewer opens it
-from the comment before adding the label. The images are pixels of your product,
+from the comment before ticking the box. The images are pixels of your product,
 and they stay for your artifact retention period.
 
-`accept` reads the event, not the label. A label stays on a pull request until
-somebody takes it off, so a job that asked whether the label is present would
-accept every push after the first. `github.event.label` is the label that started
-this run, and the step that takes it off means the next change needs the next
-label.
+`accept` is on for a push to `main` and for a dispatch with **accept** ticked. On
+a pull request's own runs it is off, and the tick accepts: the run it starts
+reads the tick and accepts as `accept` would. Keep `accept` off every other run.
+A run that accepts on every push promotes the regression the check was added to
+catch.
 
-Any other label compares again and accepts nothing, so a red check stays red. The
-job does not skip on that label, because a skipped job reports success and would
-cover the red.
+To show the leading change's before and after on the comment's first screen as
+well, give the action `image-ref-prefix: refs/variance/project` and the job
+`contents: write`. The action pushes the pictures to a ref per project and branch,
+outside `refs/heads/`, and they stay there until a second workflow deletes them
+when the pull request closes, merged or not:
 
-`queue: max` is what keeps the label's run. By default GitHub holds one waiting
-run per `concurrency` group and cancels it for the next event, so a second label
-or a push would drop the accept and leave the label on. With it every run waits,
-so a burst of pushes or labels runs them all, where the default would skip to the
-last. GitHub starts them in the order they began waiting, which need not be the
-order of their events, and it does not guarantee even that. A push can then
-compare before an accept that came first: the accept is saved, the label is off
-and the check stays red. Re-run the failed job, and it compares against the accept.
+```yaml
+name: variance images
+on:
+  pull_request:
+    types: [closed]
 
-Any run can also start after a newer one. An older push would save its commit's
-store over the newer one, and an older comparison would replace the head's report
-in the comment. The `head` step stops both. Once a run holds the group it asks
-GitHub for the head of its branch or pull request, and a run that is no longer the
-head skips the action and stays green, because the newer commit has a run of its
-own. A run that is still the head cannot be overtaken: any newer run waits behind
-it and writes after it. If GitHub does not answer, the step fails, the run saves
-nothing, and re-running the job asks again.
+permissions:
+  contents: write # deleting the refs
 
-The label's run is the exception, because the accept exists nowhere else. It
-accepts what its commit renders and leaves the comment to the head. The next
-comparison reads that accept, and a head that compared first stays red until you
-re-run its job.
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Variance-Authority/action/images@v1
+        with:
+          image-ref-prefix: refs/variance/project
+```
 
-A label accepts the head the pull request is at when you add it, and nothing ties
-that to the report you read. A push lands, its run waits, and the comment still
-shows the commit before it. So before adding the label, check that the `variance`
-check on the pull request's latest commit has finished, and open the report from
-that run. A [tick](https://github.com/Variance-Authority/action#accepting-with-a-tick)
-is tied: its box names the head it was written for, and a push makes it accept
-nothing.
+It deletes every project's ref for the closed branch and no other branch's. A
+fork's pull request is skipped with a line, since its run could push nothing.
 
-Leave `cancel-in-progress` out: GitHub refuses `true` beside `queue: max`, and
-`true` would stop a running accept. A group holds 100 waiting runs and cancels any
-past that. If one of those was the label's, take the label off and add it again.
-If it was the head of `main`, the next push records what `main` renders.
-On GitHub Enterprise Server, check that your version's workflow syntax lists
-`queue` before you rely on it.
+The group is the ref, so one pull request's runs, or `main`'s, go one at a time
+and two never write the comment or the store at once. On a pull request, a push
+cancels the run still going for the commit before it: its report is of a head
+nobody reviews, and its box would accept nothing. A run the tick started is
+cancelled the same way, and the push brings a new box. On `main` a running push
+finishes, so each one records what `main` renders. A run that is still waiting
+gives way to a newer one in its group, as GitHub does for every group, and on
+`main` that newer run accepts as well.
 
 A [merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)
 waits for the required check, `variance` here, on its own commit, and only
@@ -573,16 +555,47 @@ Subjects then report `new` until the next push to `main` records the store.
 
 ### Git
 
-The root is tracked, as plain files or through git-LFS. Accepting is a commit:
-the label starts a run that accepts every changed subject and pushes the images
-to the pull request's branch as `github-actions[bot]`. The images are then in
-the pull request's diff beside the change that caused them, and the merge takes
-them to `main` with the code. Nothing runs on `main` to accept them again.
+The root is tracked, as plain files or through git-LFS. Accepting is a commit.
+A reviewer runs the workflow from the Actions tab on the pull request's branch,
+with **accept** ticked. That run accepts every changed subject and pushes the
+images to the branch as `github-actions[bot]`. The images are then in the pull
+request's diff beside the change that caused them, and the merge takes them to
+`main` with the code. Never dispatch it with **accept** on `main`: that run
+would push the images to `main` itself.
+
+The job is [the whole job](#the-whole-job) with a write token, the pull request's
+branch checked out, and the action's commit in place of `accept` and the tick:
+
+```yaml
+permissions:
+  contents: write # the commit with the accepted images
+  pull-requests: write # the comment
+```
+
+and in the job's steps:
+
+```yaml
+- uses: actions/checkout@v7
+  with:
+    repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+    ref: ${{ github.head_ref }} # the branch, not the merge commit; a dispatch is on its branch already
+    token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
+- uses: Variance-Authority/action@v1
+  with:
+    config: variance.config.json
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    commit-baselines: "${{ inputs.accept }}"
+    exit-zero-on-changes: "${{ github.event_name == 'push' }}"
+    to-accept: 'run the **variance** workflow on this branch with **accept** ticked'
+```
+
+The box accepts into the CI cache, so a committed store leaves `tick-to-accept`
+off.
 
 Merging accepts the images the pull request committed, whatever its check said.
 A push to `main` compares what `main` renders against them, and names a
 difference as a warning rather than failing on it: `main` has no branch to
-commit new images to, so the next pull request's label commits them. It goes
+commit new images to, so the next pull request's dispatch commits them. It goes
 red only where it could not observe a subject.
 
 The approval is the pull-request review you already require. Whether the bot's
@@ -598,8 +611,8 @@ Three things this needs from the repository:
   that requires the check blocks the merge. Save a GitHub App token or a
   fine-grained token with `contents: write` as the `VARIANCE_PUSH_TOKEN` secret.
 - **A branch in this repository.** A pull request from a fork runs with no
-  secrets and a read-only token, so its label run cannot push. Its baselines are
-  committed by hand.
+  secrets and a read-only token, and a dispatch runs only on a branch of this
+  repository. Its baselines are committed by hand.
 - **git-lfs in the job, for `lfs`.** The Playwright image has none, so install
   it, and after the checkout run `git lfs install --local --skip-smudge`: an
   installed git-lfs does nothing until git is told to run it, and a commit
@@ -621,7 +634,8 @@ review service you host, with a database of builds and decisions and a review
 page. Every run's report and images are sent there with `npx variance push`, and a person approves or
 rejects each subject on the service's review page. Approving makes that build's
 image the baseline in the service, so the next run compares against it. Nothing
-in git or in the CI cache changes, and the label accepts nothing.
+in git or in the CI cache changes, and neither a tick nor a dispatch accepts
+there.
 
 The service keeps the decisions: who approved which subject and when, each
 rejection, and every subject's history across builds. The check does not run

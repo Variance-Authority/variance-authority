@@ -12,7 +12,6 @@ import {
   type RenderIdentity,
 } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { refuseUnkept } from '@variance-authority/png/header';
 import {
   REFUSAL,
   RasterStoreError,
@@ -321,7 +320,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // Checked, never encoded: the caller encodes before `put` (`keptRaster`),
       // so this store runs no codec. Before the first write, so bytes it must
       // not keep are refused with the tree as it was.
-      const kept = raster.bytes === undefined ? undefined : unkeptRefused(Buffer.from(raster.bytes, 'base64'), path);
+      const kept = raster.bytes === undefined ? undefined : await unkeptRefused(Buffer.from(raster.bytes, 'base64'), path);
       await mkdir(dirname(places.record), { recursive: true });
       const record = `${JSON.stringify(
         { ...raster, bytes: undefined, ...(kept === undefined ? {} : { image: KEPT_AS }), placedFor: placedForOf(key) },
@@ -454,7 +453,9 @@ async function rawRecord(places: Places): Promise<unknown> {
 }
 
 /** The bytes, once they are an image this store keeps; refused by name otherwise. */
-function unkeptRefused(bytes: Buffer, path: string): Buffer {
+async function unkeptRefused(bytes: Buffer, path: string): Promise<Buffer> {
+  // Loaded by the write that checks bytes, so a reader of the config never loads the codec's package.
+  const { refuseUnkept } = await import('@variance-authority/png/header');
   try {
     refuseUnkept(bytes);
   } catch (error) {

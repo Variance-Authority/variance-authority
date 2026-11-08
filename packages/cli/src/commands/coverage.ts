@@ -43,6 +43,7 @@ import {
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
 import { selectedRecord } from './mainline-selected.js';
+import { parseAtDistance } from './select-leg.js';
 import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
@@ -141,6 +142,7 @@ export interface CoverageEntry {
  * it counts what ran, never over which text, which is `variance coverage`'s.
  */
 export async function coverage(request: ParsedCoverage, over: typeof textOver | undefined): Promise<Coverage> {
+  const band = parseAtDistance(request.atDistance);
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
   if (request.suite !== undefined) asOperator(() => testCoverageFile(request.root, { suite: request.suite }));
@@ -228,9 +230,9 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   const walked: TestHops | undefined = relations === undefined ? undefined : testHops(now.map((one) => one.index), { relations });
   // In and out are a distance split of their own: out is any other test, so they count every crossing, band or not.
   const unbanded = [...now];
-  const narrowed = request.atDistance === undefined || walked === undefined
+  const narrowed = band === undefined || walked === undefined
     ? { indexes: now.map((one) => one.index), unplaced: [], unmeasured: 0 }
-    : coverageAtDistance(now.map((one) => one.index), request.atDistance, walked);
+    : coverageAtDistance(now.map((one) => one.index), band, walked);
   narrowed.indexes.forEach((index, at) => (now[at] = { ...now[at]!, index }));
   const at = await head(request.root);
   const count = countCoverage(now);
@@ -245,10 +247,10 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
     ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
-    ...(request.atDistance === undefined ? {} : {
+    ...(band === undefined ? {} : {
       atDistance: {
-        from: request.atDistance.from,
-        ...(request.atDistance.to === Number.MAX_SAFE_INTEGER ? {} : { to: request.atDistance.to }),
+        from: band.from,
+        ...(band.to === Number.MAX_SAFE_INTEGER ? {} : { to: band.to }),
         unplaced: narrowed.unplaced,
         unmeasured: narrowed.unmeasured,
       },

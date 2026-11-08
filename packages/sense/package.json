@@ -29,6 +29,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./checkout-path": {
+      "types": "./dist/checkout-path.d.ts",
+      "default": "./dist/checkout-path.js"
+    },
     "./read": {
       "types": "./dist/read.d.ts",
       "default": "./dist/read.js"

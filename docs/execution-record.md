@@ -72,9 +72,9 @@ kind, under `suites` in the `variance.config.json` at the repository root:
 }
 ```
 
-The kind is one of `unit`, `integration`, `e2e` and `visual`. Nothing infers it
-from the runner, because a Playwright suite can be `e2e` or `visual` and only
-you know which one you meant.
+The kind is one of `unit`, `integration`, `e2e`, `visual` and `job`, the last for
+a build that `variance job` records. Nothing infers it from the runner, because a
+Playwright suite can be `e2e` or `visual` and only you know which one you meant.
 
 Each declared suite has its own record, at
 `<repository-digest>/suites/<name>/coverage.bin`, with its runs log beside it. Name the suite in the runner integration with the `suite`

@@ -44,19 +44,20 @@ installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, because the marker names the config's
 `project` and the two run one config, so on the same event the two would
 overwrite each other. The gate runs three configs, each its own check with its
-own comment and its own accept label: the case's Storybook, and a matrix over
+own comment and its own box to tick: the case's Storybook, and a matrix over
 this project's own surfaces, the review surface's Storybook and the site. The
 site's check photographs on a pull request only when the change reaches what
 the site is built from or photographed with, which `tools/site-reach.mjs`
 reads out of the checkout; otherwise it ends green and its summary says why.
 It reports rather than blocks: a change it finds is a warning on a green check,
-with its docket and report as on the other two, and `variance: accept site`
-still accepts it. It turns red when the run did not happen, when a subject
+with its docket and report as on the other two, and its box still accepts it. It turns red when the run did not happen, when a subject
 could not be observed, an observation errored or the report cannot be read, and
 when an accept the comparison after it did not hold. The action's
-`exit-zero-on-changes` input does that for any job.
+`exit-zero-on-changes` input does that for any job. Off a pull request the same
+row also builds everything again under `variance job`, and the record of what it
+read and wrote is the run's `site-job-record` artifact.
 Two more jobs run the case's Storybook under the other two ways of keeping a
-baseline, each with its own config, label and comment: `lfs` commits the
+baseline, each with its own config and comment: `lfs` commits the
 baselines to the pull request's branch through git-LFS, and `tribunal-service`
 deploys this commit's review service to workers.dev and pushes the build to it.
 That one needs the `CLOUDFLARE_API_TOKEN` secret and fails without it.
@@ -103,35 +104,33 @@ nothing else.
 ## Who accepts a change
 
 Accepting a change writes a new baseline, so where the baselines live decides
-who accepts and how. `variance.yml` chooses with one value at the top of the
-file, `VARIANCE_REVIEW`. This repository runs `cache` for both subjects, and
-the other two each in a job of its own over the case.
+who accepts and how.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
-three arrangements. This is what each one needs:
+three arrangements. This repository runs the CI cache for the case and its own
+surfaces, and a committed store in the `lfs` job. This is what each one needs:
 
-| `VARIANCE_REVIEW` | `baselines` in the config | the baseline root | secret |
+| store | `baselines` in the config | the baseline root | secret |
 |---|---|---|---|
-| `cache` | `directory` | ignored by git | none |
-| `git` | `directory` or `lfs` | tracked | `VARIANCE_PUSH_TOKEN` |
-| `tribunal` | `remote`, and a `review` section | not in the work tree | `VARIANCE_INGEST_TOKEN` |
+| CI cache | `directory`, `carry: actions-cache` | ignored by git | none |
+| git | `directory` or `lfs` | tracked | `VARIANCE_PUSH_TOKEN` |
+| Tribunal | `remote`, and a `review` section | not in the work tree | `VARIANCE_INGEST_TOKEN` |
 
-- **`cache`** is what the rest of this page describes: a label accepts, the
-  store is saved to the runner's cache, and every push to `main` accepts what
-  `main` renders.
-- **`git`** checks out the pull request's branch instead of the merge, skips the
-  cache, and turns on the action's `commit-baselines` for the run the label
-  started. That run stays red, because it found the change it then committed.
-  The push starts the run that checks the new commit, which is why the token
-  has to be one whose push starts a workflow. The first baseline comes from the
-  label on the pull request that adds the suite: a dispatch with `accept` is
-  refused, because it has no branch to commit to. For `lfs`, install git-lfs in
-  a step before the checkout, leave the checkout's `lfs` off, and run `git lfs
-  install --local --skip-smudge` after it: the run fetches the images it
-  compares, and a commit stores pointers.
-- **`tribunal`** skips the cache and sends every run to the service with
-  `variance push`, red or green. The label accepts nothing, and the comment
-  sends the reviewer to the service's page. A dispatch with `accept` writes
-  through to the service, which is how it gets a first baseline.
+- **The CI cache** is what the rest of this page describes: a tick in the
+  docket accepts on a pull request, a dispatch with `accept` accepts on its
+  branch, the store is saved to the runner's cache, and every push to `main`
+  accepts what `main` renders.
+- **git**, the `lfs` job, checks out the pull request's branch instead of the
+  merge, skips the cache, and turns on the action's `commit-baselines` for a
+  dispatch with `accept` on that branch. That run stays red, because it found
+  the change it then committed. The push starts the run that checks the new
+  commit, which is why the token has to be one whose push starts a workflow.
+  On `main` a change is a warning, since the images merged with the code. For
+  `lfs`, install git-lfs in a step before the checkout, leave the checkout's
+  `lfs` off, and run `git lfs install --local --skip-smudge` after it: the run
+  fetches the images it compares, and a commit stores pointers.
+- **Tribunal** skips the cache and sends every run to the service with
+  `variance push`, red or green. The comment sends the reviewer to the
+  service's page, where each subject is approved or rejected.
 
 ## Getting a first baseline
 
@@ -139,52 +138,47 @@ The first run of any subject reports `new`, and the comment lists it as NEW,
 apart from anything that needs review. `new` does not turn the check red —
 nothing moved — but an image nobody has approved is not a pass either.
 
-Under `cache`, the push to `main` that lands a subject's config records its
+With the CI cache, the push to `main` that lands a subject's config records its
 baseline: every push to `main` accepts what `main` renders, as [Accepting a
 change on a pull request](#accepting-a-change-on-a-pull-request) describes. To
 record one without waiting for a push, run `variance.yml` from the Actions tab
 on `main`, tick `accept: true`, and let it finish. Either run executes
-`variance run --exit-zero-on-changes`, then `variance accept --all`, compares
-again, and saves the baseline store to the runner cache. Every run after it
+`variance run`, then `variance accept --all` whether or not it found changes,
+compares again, and saves the baseline store to the runner cache. Every run after it
 restores that store and compares against it.
 
 `accept --all` promotes every candidate the run produced — both the subjects
 nobody has ever reviewed and the subjects whose component just changed. The CLI
 cannot yet tell those two apart, so a job that ran it on a schedule would
 promote the regression it was added to catch. That is why every accept is a
-person's act: a label, a dispatch, or a merge or push to `main`, each made by
+person's act: a tick, a dispatch, or a merge or push to `main`, each made by
 somebody who could read the report first.
 
 ## Accepting a change on a pull request
 
 A pull request that moves pixels is red, and its comment links the report. To
-accept, add the `variance: accept` label. That starts a run on the pull request
-that promotes what it rendered, compares again, and saves the store into the
-pull request's own cache scope, which its later runs read before `main`'s. The
-run takes the label off again, so a later push that moves pixels needs a new
-label, and the timeline keeps who accepted and when.
-
-The docket carries a box that does the same in one click. Ticking it starts
+accept, tick the box the docket carries. Ticking it starts
 `variance-tick.yml` on the default branch, which reads no code from the pull
 request. It asks the API whether the person has write access, replaces the box
-with their name, and reruns the check. The rerun finds that name, accepts as the
-label's run does, and says who in its log. A rerun replays the commit its run
+with their name, and reruns the check. The rerun finds that name, promotes what
+it rendered, compares again, and saves the store into the pull request's own
+cache scope, which its later runs read before `main`'s, and says who in its log. A rerun replays the commit its run
 started on and renders it again, so what it accepts is that render. A tick from
 anyone without write access, on a head the pull request has left, or that takes
 the mark off accepts nothing and says why in the tick's log. A push brings a new box for the
 new head, and the rewritten comment drops the name: the accepting run's log, the
-comment's edit history and, where a history is kept, the approval row hold it. The box is on the `cache` rows, since
-what it accepts into is the runner's cache.
+comment's edit history and, where a history is kept, the approval row hold it.
+The box is on the CI cache's checks, since what it accepts into is the runner's
+cache; the `lfs` job's docket names the dispatch instead.
 
 Merging is an accept too. A pull request is where a change is judged, and what
 lands on `main` is `main`: every push to `main` promotes what it renders,
 whatever the pull request's check said, whether it finished, and whether `main`
-was green before. Like the label's run, it compares again and keeps the store
+was green before. Like the tick's run, it compares again and keeps the store
 whatever that finds: a subject still unstable, an observation that errored or a subject not
 observed leaves `main` red and names it, and every other subject's baseline is
 kept all the same. A pull request that holds no accept of its own then compares
-against the newest push to `main`. The run's log names the pull request that
-merged, or the pusher.
+against the newest push to `main`.
 
 Runs on `main` wait for each other instead of cancelling each other, so each
 run's store is saved after the one before it and the newest commit's render is
@@ -208,7 +202,7 @@ parent, replaced by every run that finds a change. It is not a branch, so a
 clone does not fetch it and the branch list does not show it. The comment links
 the commit rather than the ref, so an image cache never shows a previous run's
 pictures. When the pull request closes, merged or not, a second job deletes
-every project's ref for the branch.
+every project's ref for the branch with `Variance-Authority/action/images`.
 
 That ref and the report's share lines below are why `variance.yml` asks for
 `contents: write`. Anyone who can read the repository can read the images. A
@@ -272,7 +266,8 @@ A verdict and a crash never share a code, which is why none of these files greps
 the CLI's output and why `|| true` appears in none of them — it would swallow `2`
 and post a green tick over a run whose browser never launched. `run` and `report`
 take `--exit-zero-on-changes` for a job that reports rather than blocks; it
-suppresses `1` only, and says so on stderr.
+turns a change's `1` into `0` and says so on stderr, and leaves a subject it
+could not observe at `1` and a crash at `2`.
 
 Each file ends by turning that integer into a line in the job log:
 
@@ -285,7 +280,7 @@ nothing needs review.
 The address comes from the step that posted the comment, so a run whose comment
 GitHub refused, such as a fork's, names the report instead. The comment's heading
 names the config's `project`: the `tribunal` and `site` checks each post one, and
-each is a run in this repository, accepted by its label. The check called
+each is a run in this repository, accepted by its box. The check called
 `tribunal` observes that package's Storybook, and no review service holds it.
 
 What differs is what reaching `1` *means*:
@@ -365,13 +360,13 @@ opens anything, naming the secret and what it has to be allowed.
 
 **Post anything you did not configure.** Beyond the checkout, they call the
 GitHub API of the instance already running the job, with the token the workflow
-passed in, and under `VARIANCE_REVIEW: tribunal` the service your config names. No command in the CLI posts anywhere;
+passed in, and in the `tribunal` job the service its config names. No command in the CLI posts anywhere;
 [`../actions/variance`](../actions/variance) is what sends the body, and it is
 bash around the same binary.
 
-**Accept without a person.** Every accept is a label, a dispatch, or a decision
-on the service. The outer loop's label accepts are the one exception: they land
-only on pull requests it opened to close. `commit-baselines` is on only in
-`variance.yml` under `VARIANCE_REVIEW: git`, and only for the run a label
-started. On every run it would accept what the run just found, and a check that
+**Accept without a person.** Every accept is a tick, a dispatch, a push to
+`main`, or a decision on the service. The outer loop's label accepts in the
+examples are the one exception: they land only on pull requests it opened to
+close. `commit-baselines` is on only in `variance.yml`'s `lfs` job, and only
+for a dispatch with `accept`. On every run it would accept what the run just found, and a check that
 does that has stopped being a gate.

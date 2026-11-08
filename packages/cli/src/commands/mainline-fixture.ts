@@ -141,11 +141,13 @@ export const GIT_SHARE = { kind: 'git', mainlines: ['main'] } as const;
  * The CI checkout for {@link GIT_SHARE}: `unit` given to it, one commit pushed
  * to a bare `origin`, and the record a run of the whole suite made there, in
  * which only `total.test.ts` runs `applyDiscount`. Published with a push's
- * environment unless told not to, from a cache at `ci-cache` under `home`.
+ * environment unless told not to, from a cache at `ci-cache` under `home`,
+ * under the probes `instrumentation`, `fixture` unless named. `suites` are
+ * declared in place of `unit` alone.
  */
 export async function gitPublished(
   home: string,
-  options: { readonly publish?: boolean } = {},
+  options: { readonly publish?: boolean; readonly instrumentation?: string; readonly suites?: Readonly<Record<string, unknown>> } = {},
 ): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
   const origin = join(home, 'origin.git');
   const ci = join(home, 'ci');
@@ -158,7 +160,8 @@ export async function gitPublished(
   await writeFile(join(ci, 'src/total.ts'), BEFORE);
   await writeFile(join(ci, 'test/total.test.ts'), "it('discounts', () => {});\n");
   await writeFile(join(ci, 'test/other.test.ts'), "it('stands alone', () => {});\n");
-  await writeFile(join(ci, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: GIT_SHARE }));
+  const suites = options.suites ?? { unit: { kind: 'unit', carry: 'share' } };
+  await writeFile(join(ci, 'variance.config.json'), JSON.stringify({ suites, share: GIT_SHARE }));
   await git(ci, 'add', '-A');
   await git(ci, 'commit', '--quiet', '-m', 'first');
   const first = await git(ci, 'rev-parse', 'HEAD');
@@ -167,7 +170,7 @@ export async function gitPublished(
   await git(ci, 'fetch', '--quiet', 'origin');
 
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
-  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
+  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS], options.instrumentation);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
   if (options.publish !== false) {

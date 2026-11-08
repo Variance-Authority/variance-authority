@@ -335,7 +335,7 @@ approved image is a diff in the pull request, reviewed and merged like any other
 change. A remote baseline store moves that approval out of the repository;
 [baseline placement](placement.md) covers what it costs. A third way keeps the
 baselines in the runner's cache, and [the whole job](placement.md#the-whole-job)
-accepts with a label.
+accepts by the tick in its comment.
 
 ## Go deeper
 

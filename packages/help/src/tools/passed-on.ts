@@ -14,6 +14,7 @@
 import type { Help, Named } from '@variance-authority/package/help';
 import type { ExportedDeclaration } from '@variance-authority/sense';
 import { textAsRead } from './as-read.js';
+import { UNFOLLOWED, unfollowedEntry } from './by-path.js';
 import { boundOf, originKey, SLOT } from './declaration-key.js';
 import { textRows } from './declared.js';
 
@@ -39,18 +40,23 @@ export function passesOn(origin: ExportedDeclaration, named: string): string {
  * another file, `It passes on …:` says which. The line itself, as the checkout
  * holds it, when the walk reaches no declaration; neither when no checkout is
  * named. `declared` is where the declaration is, `held` when it passes none
- * on.
+ * on. A package whose entry leads to no source may publish it, and the first
+ * row says that is not known.
  */
 export function exportedRows(help: Help, root: string | undefined, name: string, held: Named): { readonly declared: Named; readonly rows: readonly string[] } {
   const bound = boundOf(root, held);
   const origin = elsewhere(bound, held);
   const declared: Named = origin === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
   const text = root === undefined ? [] : bound === undefined ? lineOf(help, root, declared) : textRows(help, root, bound);
+  const owner = help.packages.find((published) => published.name === held.by);
+  const at = `at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`;
   return {
     declared,
     rows: [
       bound === undefined ? name : `${name} [${bound.kind}]`,
-      `exported, without being published, at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`,
+      owner !== undefined && unfollowedEntry(owner)
+        ? `exported ${at}; whether it is published is not known: the package declares an entry ${UNFOLLOWED}`
+        : `exported, without being published, ${at}`,
       ...(origin === undefined ? [] : [`It ${passesOn(origin, originKey(help, root, origin).named)}:`]),
       ...text,
     ],

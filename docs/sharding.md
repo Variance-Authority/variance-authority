@@ -55,11 +55,11 @@ place by time, your mainline has to publish one:
    one workflow; a job that checks out to another path looks under another
    name and finds nothing. Upload the `test-selection` directory whole, as
    [a suite with no run report](sharing.md#a-suite-with-no-run-report) does.
-2. Fold them into one with
-   [`variance journeys <shard>...`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too):
-   the record one unsharded run would have written.
-3. Publish it with `variance share --suite <name> --publish`, to the
-   [share](sharing.md), the store CI keeps each run's record in.
+2. Publish them with `variance share --publish <records>`, to the
+   [share](sharing.md), the store CI keeps each run's record in. It folds the
+   shards of each suite into the record one unsharded run would have written,
+   over the mainline's last one, and publishes every suite the root config
+   gives `"carry": "share"`.
    [A suite with no run report](sharing.md#a-suite-with-no-run-report) is that
    job, step by step.
 
@@ -378,9 +378,58 @@ shard takes work from another. A shard finishes last for one of four reasons:
 browser ([your first run](start.md) sets one up). `variance run --shard k/n`
 places them by the same rule: each
 story file, and each route with all its widths, goes to one job, by the time it
-took on the mainline's last run. A last job merges the shards' reports with
-`variance report`, fails any story no shard observed, and publishes the times
-the next build splits by. [A sharded build](sharing.md#a-sharded-build) covers
-the merge job and what the publish writes, and
+took on the mainline's last run. A last job merges the shards' reports, fails
+any story no shard observed, and publishes the times the next build splits by.
+With [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
+that is the matrix job and one merge step:
+
+```yaml
+jobs:
+  shard:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      # check out, install and build the Storybook
+      - id: variance
+        uses: Variance-Authority/action@v1
+        with:
+          shard: ${{ matrix.shard }}
+          comment: 'false'
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: variance-shard-${{ strategy.job-index }}
+          include-hidden-files: true
+          path: |
+            ${{ steps.variance.outputs.report }}
+            .variance/report.suite-part.json
+            ${{ steps.variance.outputs.images }}
+  merge:
+    needs: shard
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # check out and install
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: variance-shard-*
+          path: shards
+      - uses: Variance-Authority/action@v1
+        with:
+          reports: shards/*/report.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+The count is written once, in the matrix: every report names its shard as
+`k/n`, and the merge step exits 2, naming which, when a shard is missing or the
+shards were cut two ways. `if: always()` is what lets the suite be judged when a
+shard found a change and failed its own job.
+[A sharded build](sharing.md#a-sharded-build) covers what the publish writes, and
 [Sharding: `report` takes more than one file](../packages/cli/README.md#sharding-report-takes-more-than-one-file)
 covers the merge itself.

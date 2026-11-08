@@ -219,7 +219,7 @@ export async function deletedAt(point: DiffPoint): Promise<readonly string[]> {
 }
 
 /** What git wrote to stderr when it failed, or the error's own message when it wrote nothing. */
-function gitSaid(error: unknown): string {
+export function gitSaid(error: unknown): string {
   const stderr = (error as { stderr?: unknown }).stderr;
   const said = typeof stderr === 'string' ? stderr.trim() : '';
   return said !== '' ? said : error instanceof Error ? error.message : String(error);

@@ -194,6 +194,8 @@ export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-r
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { commitRunsIn } from './commit-runs-text.js';
+export { readJobWrites, type JobWrites } from './job-record.js';
+export { recordJob, type JobRun } from './job-recording.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { ago, whatLanded, type WhatLanded } from './landings.js';

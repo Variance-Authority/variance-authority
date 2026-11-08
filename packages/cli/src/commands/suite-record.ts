@@ -1,5 +1,6 @@
 // compass: variance-authority.reach
 
+import { loadRenderless } from '../config-load.js';
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -142,6 +143,11 @@ export async function namedSuite(root: string, suite?: string): Promise<{ readon
   return named === undefined ? { name } : { name, declared: named };
 }
 
+/** The suite a command that names none means, in a file that configures no project: the only one declared, and refused among several. */
+export async function onlySuiteOf(config: string): Promise<string | undefined> {
+  return (await loadRenderless(config)) === undefined ? undefined : (await namedSuite(process.cwd())).name;
+}
+
 /** Run a read whose refusal is the operator's: whatever it throws is said as an {@link OperatorError}. */
 export function asOperator<T>(read: () => T): T {
   try {
@@ -165,14 +171,4 @@ export function nothingRecorded(root: string, suites?: readonly string[]): Opera
         }, has a per-case index, so no case can be named.`,
     { kind: 'unrecorded' },
   );
-}
-
-/**
- * Refuse `--suite` beside a flag that names the record by path: both say which
- * record, and honouring one would read or write where the operator did not look.
- */
-export function oneRecord(suite: string | undefined, path: string | undefined, flag: string): void {
-  if (suite !== undefined && path !== undefined) {
-    throw new OperatorError(`\`--suite\` and \`${flag}\` both name the record; pass one`);
-  }
 }

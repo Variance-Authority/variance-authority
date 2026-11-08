@@ -1,65 +1,10 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import type { Config } from './config.js';
 import { loadConfig, loadRenderless } from './config-load.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor, type ExitCode } from './exit.js';
-import {
-  collectorPath,
-  loadCollector,
-  planFor,
-  affectedProjects,
-  historyFor,
-  identityOf,
-  relationsFor,
-  run,
-  suiteJourney,
-  narrowingFor,
-  recordedJourneys,
-  scanSourceDirs,
-  storeFor,
-  writeArtifactToDisk,
-  writeCliRunReport,
-} from './commands/run.js';
-import { renderCacheLine, sweepRenders } from './commands/renders.js';
-import { pruneWhenDueLines } from './commands/prune-cache.js';
-import { ask, costsSubject } from './commands/ask.js';
-import { reviewSubject } from './commands/ask-review.js';
-import { said } from './here.js';
-import { formatReport } from './commands/report.js';
-import { writeReportPage } from './commands/report-page.js';
-import {
-  adjudicateReport,
-  exitForAdjudication,
-  formatAdjudication,
-  readClaims,
-} from './commands/adjudicate.js';
-import { withLiveIgnores } from './commands/ignores.js';
-import { reportsFor } from './commands/report-read.js';
-import { costsToPlace, publishedCostsLine } from './commands/costs.js';
-import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
-import { writeAcceptMessage } from './commands/accept-message.js';
-import { changelog, changelogStoreFor, formatChangelog } from './commands/changelog.js';
-import { formatRemoteChangelog, readRemoteChangelog } from './commands/changelog-remote.js';
-import { runJourneys } from './commands/journeys-command.js';
-import { refiningRecord } from './commands/suite-record.js';
-import { suiteIgnore } from './commands/select-before.js';
-import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
-import { formatPush, push, pushTicker } from './commands/push.js';
-import { serve } from './commands/serve.js';
-import { clearedComment, commentMarker, renderComment } from './commands/comment.js';
-import { baselineFinding, doctor, machineProbes, renderlessDoctor } from './commands/doctor.js';
-import { mainlinesOf, publishedLine } from './commands/share.js';
-import { shareOutput, writeSuitePart } from './commands/suite-part.js';
-import { runCarry } from './commands/carry.js';
-import { runCollect, runCollectMerge } from './commands/collect-command.js';
-import { runSharePurge } from './commands/share-purge.js';
-import { runSuiteShare } from './commands/suite-share.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, onGitHub, reported, sideJob, type ExitCode } from './exit.js';
 import type { Configless } from './commands/configless.js';
-import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis, formatRenderless } from './commands/doctor-report.js';
-import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
-import { rendererFor } from './renderer.js';
 /**
  * What each command *does*, and the two things every one of them needs.
  *
@@ -71,22 +16,31 @@ import { rendererFor } from './renderer.js';
  * which is exactly the point of parsing into a value first.
  */
 export async function dispatch(
-  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | Configless>,
+  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | { command: 'job' } | Configless>,
   streams: { out(text: string): void; err(text: string): void; detach?(argv: readonly string[], log: string): number | undefined },
 ): Promise<ExitCode> {
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
-    return runJourneyArtifactCommand(parsed, streams);
-  if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
+    return (await import('./commands/journey-artifact-command.js')).runJourneyArtifactCommand(parsed, streams);
+  if (parsed.command === 'carry') {
+    const [{ runCarry }, { mainlinesOf }] = await Promise.all([import('./commands/carry.js'), import('./commands/share.js')]);
+    return runCarry(parsed, streams, mainlinesOf);
+  }
   // The parts say how they were collected; a merge reads no project.
-  if (parsed.command === 'collect' && parsed.operation === 'merge') return runCollectMerge(parsed, streams);
-  // A suite's record alone: the root config declares the suite and its share,
-  // and no project config is read.
-  if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
-  if (parsed.command === 'share' && parsed.purgeOlderThan !== undefined) return runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
-  if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
+  if (parsed.command === 'collect' && parsed.operation === 'merge') return (await import('./commands/collect-command.js')).runCollectMerge(parsed, streams);
+  if (parsed.command === 'share' && parsed.suite === undefined && parsed.purgeOlderThan !== undefined)
+    return (await import('./commands/share-purge.js')).runSharePurge({ ...parsed, purgeOlderThan: parsed.purgeOlderThan }, streams);
+  if (parsed.command === 'share') {
+    const rooted = await (await import('./commands/share-suites.js')).runRootShare(parsed, streams);
+    if (rooted !== undefined) return rooted;
+  }
+  if (parsed.command === 'journeys') {
+    const suite = parsed.suite ?? (await (await import('./commands/suite-record.js')).onlySuiteOf(parsed.config));
+    if (suite !== undefined) return (await import('./commands/journeys-command.js')).runJourneys({ ...parsed, suite }, streams);
+  }
 
   const renderless = parsed.command === 'doctor' && parsed.baselines !== true ? await loadRenderless(parsed.config) : undefined;
   if (renderless !== undefined) {
+    const [{ formatRenderless }, { renderlessDoctor }] = await Promise.all([import('./commands/doctor-report.js'), import('./commands/doctor.js')]);
     streams.out(`${formatRenderless(await renderlessDoctor(renderless))}\n`);
     return EXIT_CLEAN;
   }
@@ -94,126 +48,19 @@ export async function dispatch(
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
     case 'collect':
-      return runCollect(parsed, config, streams);
+      return (await import('./commands/collect-command.js')).runCollect(parsed, config, streams);
 
-    case 'run': {
-      const effective: Config =
-        parsed.profile === undefined ? config : { ...config, profile: parsed.profile };
-      const plan = await planFor(effective);
-      const scanRelations = async (dirs: readonly string[]) =>
-        relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before);
-
-      const collector = await loadCollector(collectorPath(effective.subjects), {
-        config: withLiveIgnores(effective, new Date().toISOString()),
-        ...(plan !== undefined ? { plan } : {}),
-      });
-
-      // Resolved here, from the flags and the process environment, so that `run`
-      // itself stays free of both — it is handed an identity or it is not, and a
-      // test can hand it one without setting environment variables that outlive
-      // the test.
-      const history = await historyFor(effective);
-
-      // One fetch for both verbs when they name the same ref, and `--since`
-      // implies `--against` wherever a graph is configured: the walk has already
-      // happened by then, and a run that narrowed itself and could not say why is
-      // the one shape this is worth avoiding.
-      const narrowing = await narrowingFor(
-        {
-          ...(parsed.since !== undefined ? { since: parsed.since } : {}),
-          ...(parsed.against !== undefined ? { against: parsed.against } : {}),
-          relations: effective.source?.relations === true,
-          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
-        },
-        effective.source?.dirs ?? [],
-      );
-
-      const identity = identityOf(
-        {
-          ...(parsed.run !== undefined ? { run: parsed.run } : {}),
-          ...(parsed.commit !== undefined ? { commit: parsed.commit } : {}),
-        },
-        process.env,
-      );
-
-      const ignore = await suiteIgnore(process.cwd(), parsed.suite);
-
-      try {
-        const report = await run({
-          config: effective,
-          ...(ignore !== undefined ? { ignore } : {}),
-          ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
-          ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
-          ...(await costsToPlace(effective)),
-          ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
-          ...(parsed.flakes ? { flakes: true } : {}),
-          ...(identity !== undefined ? { identity } : {}),
-          ...narrowing,
-          deps: {
-            collector,
-            store: await storeFor(effective),
-            renderer: () => rendererFor(effective),
-            now: () => new Date().toISOString(),
-            elapsed: () => performance.now(),
-            writeArtifact: writeArtifactToDisk,
-            writeReport: writeCliRunReport,
-            writeSuitePart,
-            scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
-            scanRelations,
-            // A suite with no `source` is read over the checkout, as `variance select` reads it.
-            readJourney: async (diff, relations) =>
-              suiteJourney(process.cwd(), diff, relations, parsed.suite, async () => scanRelations(effective.source?.dirs ?? ['.'])),
-            readJourneys: async (subjects) => {
-              const at = await refiningRecord(process.cwd(), parsed.suite);
-              return at === undefined ? undefined : recordedJourneys(process.cwd(), subjects, at);
-            },
-            ...(effective.source?.changes === undefined
-              ? {}
-              : {
-                  changedProjects: async (base) =>
-                    (
-                      await affectedProjects({
-                        source: effective.source!.changes!,
-                        base,
-                        cwd: process.cwd(),
-                      })
-                    ).dirs,
-                }),
-            ...(history !== undefined ? { history } : {}),
-          },
-        });
-
-        // After the report is on disk and before the exit code is decided:
-        // publishing is the last thing a run does for somebody else, and the
-        // first thing that must not change what this run concluded.
-        const shared =
-          (await publishedLine(effective, report, effective.report)) + (await publishedCostsLine(effective, report));
-
-        // Last, and for the same reason: the cache this run may have added to
-        // is regenerable, so nothing it does here can reach a verdict. It runs
-        // on every run rather than on a command of its own — an operator who
-        // knew to prune was never the one whose disk filled up — and on every
-        // run rather than on the durable ones, because a machine that has moved
-        // to a tribunal is the machine whose leftover cache nothing else will
-        // ever come back for.
-        const renders = renderCacheLine(await sweepRenders(effective)) + (await pruneWhenDueLines(effective));
-
-        streams.out(
-          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
-        );
-        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
-      } finally {
-        await collector.close();
-      }
-    }
+    case 'run':
+      return (await import('./commands/run-command.js')).runCommand(parsed, config, streams);
 
     case 'report': {
+      const [{ formatReport }, { reportsFor }] = await Promise.all([import('./commands/report.js'), import('./commands/report-read.js')]);
       if (parsed.format === 'html') {
-        const report = await writeReportPage(
+        const report = await (await import('./commands/report-page.js')).writeReportPage(
           { paths: parsed.reports, config, embedImages: parsed.embedImages, ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}) },
           streams,
         );
-        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+        return reported(report, parsed.exitZeroOnChanges, streams);
       }
       const report = await reportsFor(parsed.reports, config);
       streams.out(
@@ -226,10 +73,16 @@ export async function dispatch(
       // The artifact decides the code, exactly as it decided the text. A `report`
       // that exited 0 while describing a change would make the two halves of this
       // tool disagree about the same file.
-      return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+      return reported(report, parsed.exitZeroOnChanges, streams);
     }
 
     case 'ask': {
+      const [{ VANTAGE_VARIABLE }, { ask, costsSubject }, { reviewSubject }, { reportsFor }] = await Promise.all([
+        import('@variance-authority/vantage'),
+        import('./commands/ask.js'),
+        import('./commands/ask-review.js'),
+        import('./commands/report-read.js'),
+      ]);
       // The watcher address defaults to the variable the suite was started with,
       // so a shell that has one exported asks a live question with no flag — and
       // one that has not is told, by the question itself, what is missing.
@@ -251,6 +104,10 @@ export async function dispatch(
     }
 
     case 'adjudicate': {
+      const [{ adjudicateReport, exitForAdjudication, formatAdjudication, readClaims }, { reportsFor }] = await Promise.all([
+        import('./commands/adjudicate.js'),
+        import('./commands/report-read.js'),
+      ]);
       // Both halves before either is used, so a broken declaration is reported
       // as a broken declaration rather than as a run with nothing in it.
       const claims = await readClaims(parsed.claims);
@@ -258,10 +115,14 @@ export async function dispatch(
       const result = adjudicateReport({ report, claims });
 
       streams.out(formatAdjudication(result));
-      return sideJob(exitForAdjudication(result), parsed.exitZeroOnChanges, streams);
+      return sideJob(exitForAdjudication(result), false, parsed.exitZeroOnChanges, streams, onGitHub());
     }
 
     case 'accept': {
+      const [{ accept, formatAcceptance, readCandidate, reportToPromoteFrom }, { historyFor, storeFor }] = await Promise.all([
+        import('./commands/accept.js'),
+        import('./commands/run.js'),
+      ]);
       const report = await reportToPromoteFrom(config.report);
       const acceptHistory = await historyFor(config);
       const result = await accept({
@@ -289,7 +150,7 @@ export async function dispatch(
       // not be written does not look like an accept that did not happen.
       if (parsed.messageFile !== undefined) {
         streams.out(
-          `${await writeAcceptMessage({
+          `${await (await import('./commands/accept-message.js')).writeAcceptMessage({
             report,
             result,
             selection: selectionOf(parsed),
@@ -305,6 +166,7 @@ export async function dispatch(
     }
 
     case 'changelog': {
+      const { changelog, changelogStoreFor, formatChangelog } = await import('./commands/changelog.js');
       const view = {
         ...(parsed.component !== undefined ? { component: parsed.component } : {}),
         ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
@@ -313,6 +175,7 @@ export async function dispatch(
       const bounds = { ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}), ...since };
       const store = changelogStoreFor(config);
       if ('deployment' in store) {
+        const { formatRemoteChangelog, readRemoteChangelog } = await import('./commands/changelog-remote.js');
         const read = await readRemoteChangelog({
           config,
           deployment: store.deployment,
@@ -334,7 +197,7 @@ export async function dispatch(
     }
 
     case 'journeys':
-      return runJourneys(parsed, streams, config.report);
+      return (await import('./commands/journeys-command.js')).runJourneys(parsed, streams, config.report);
 
     case 'push': {
       if (config.review === undefined) {
@@ -345,18 +208,18 @@ export async function dispatch(
         );
       }
 
+      const [{ identityOf }, { formatPush, push, pushTicker }, { reportsFor }] = await Promise.all([
+        import('./commands/run.js'),
+        import('./commands/push.js'),
+        import('./commands/report-read.js'),
+      ]);
+
       // The same resolution `run` uses, and deliberately the same one: a build
       // pushed under an id the history record never heard of is a build nobody
       // can join to anything. `--branch` is separate because no CI system agrees
       // on where it lives, and a wrong guess would attribute a decision to the
       // wrong branch.
-      const identity = identityOf(
-        {
-          ...(parsed.run !== undefined ? { run: parsed.run } : {}),
-          ...(parsed.commit !== undefined ? { commit: parsed.commit } : {}),
-        },
-        process.env,
-      );
+      const identity = identityOf(parsed, process.env);
 
       if (identity === undefined) {
         throw new OperatorError(
@@ -397,13 +260,17 @@ export async function dispatch(
     }
 
     case 'serve':
-      await serve(config, parsed.justAnswer === true ? { justAnswer: true } : {});
+      await (await import('./commands/serve.js')).serve(config, parsed.justAnswer === true ? { justAnswer: true } : {});
       // The server owns the process from here; stdio is the protocol. Returning
       // would close it, so this resolves only when the stream does.
       await new Promise<void>(() => undefined);
       return EXIT_CLEAN;
 
     case 'doctor': {
+      const [{ baselineFinding, doctor, machineProbes }, { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis }] = await Promise.all([
+        import('./commands/doctor.js'),
+        import('./commands/doctor-report.js'),
+      ]);
       // The store alone: no browser launched, no font measured, so the action
       // can ask it before every run for the price of reading the store's heads.
       if (parsed.baselines === true) {
@@ -417,13 +284,14 @@ export async function dispatch(
     }
 
     case 'share': {
-      streams.out(`${(await shareOutput(config, parsed)).join('\n')}\n`);
+      streams.out(`${(await (await import('./commands/share-output.js')).shareOutput(config, parsed)).join('\n')}\n`);
       return EXIT_CLEAN;
     }
 
     case 'comment': {
       // The poster's question, asked where no body may exist to find it in: a
       // clean run, whose previous docket has to be located and cleared.
+      const { clearedComment, commentMarker } = await import('./commands/comment-marker.js');
       if (parsed.marker) {
         streams.out(`${commentMarker(config.project)}\n`);
         return EXIT_CLEAN;
@@ -432,8 +300,8 @@ export async function dispatch(
         streams.out(`${clearedComment(config.project)}\n`);
         return EXIT_CLEAN;
       }
-      const report = await reportsFor(parsed.reports, config);
-      const body = renderComment({
+      const report = await (await import('./commands/report-read.js')).reportsFor(parsed.reports, config);
+      const body = (await import('./commands/comment.js')).renderComment({
         project: config.project,
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
@@ -472,29 +340,4 @@ function selectionOf(parsed: Extract<Parsed, { command: 'accept' }>): ChangelogS
   if (parsed.all) return 'all';
   if (parsed.shapes.length > 0) return 'shape';
   return 'named';
-}
-
-/**
- * `--exit-zero-on-changes`: a check that reports without gating the merge.
- *
- * The alternative an operator reaches for is `|| true`, and it is worse than it
- * looks: it swallows exit 2 along with exit 1, so a job whose browser never
- * launched — which observed nothing and therefore found nothing — becomes a
- * green tick. That is the precise collapse ADR-0017 exists to prevent, arrived
- * at by a shell operator rather than by this code, which does not make it less
- * of a green check over an unwatched surface.
- *
- * So the suppression is narrow: exit 1 becomes exit 0, exit 2 stays exit 2, and
- * the line to stderr is not optional. A run whose code was suppressed silently
- * is indistinguishable in a log from a run that found nothing, and the whole
- * value of a non-blocking check is that somebody still reads it.
- */
-function sideJob(
-  code: ExitCode,
-  suppress: boolean,
-  streams: { err(text: string): void },
-): ExitCode {
-  if (!suppress || code !== EXIT_REVIEW) return code;
-  streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
-  return EXIT_CLEAN;
 }

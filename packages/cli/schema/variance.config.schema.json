@@ -146,8 +146,8 @@
         "required": ["kind"],
         "properties": {
           "kind": {
-            "enum": ["unit", "integration", "e2e", "visual"],
-            "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide."
+            "enum": ["unit", "integration", "e2e", "visual", "job"],
+            "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide. A job suite holds what `variance job` recorded, and only `variance job` writes it."
           },
           "carry": {
             "$ref": "#/$defs/carry",

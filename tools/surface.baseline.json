@@ -162,6 +162,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./nearest": {
+          "types": "./dist/nearest.d.ts",
+          "default": "./dist/nearest.js"
+        },
         "./format": {
           "types": "./dist/format/index.d.ts",
           "default": "./dist/format/index.js"
@@ -219,6 +223,10 @@
         "LFS_POINTER_HEAD_BYTES": "const",
         "didYouMean": "function",
         "isLfsPointer": "function",
+        "nearest": "function"
+      },
+      "./nearest": {
+        "didYouMean": "function",
         "nearest": "function"
       },
       "./format": {
@@ -2699,6 +2707,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./checkout-path": {
+          "types": "./dist/checkout-path.d.ts",
+          "default": "./dist/checkout-path.js"
+        },
         "./read": {
           "types": "./dist/read.d.ts",
           "default": "./dist/read.js"
@@ -3053,6 +3065,14 @@
         "wordStemsNative": "function",
         "workingTreeChanges": "function"
       },
+      "./checkout-path": {
+        "CheckoutListing": "type",
+        "CheckoutPath": "type",
+        "checkoutListing": "function",
+        "checkoutPath": "function",
+        "existedAt": "function",
+        "existingAt": "function"
+      },
       "./read": {
         "Binding": "interface",
         "DEFAULT_NAME": "const",
@@ -3193,6 +3213,8 @@
         "ImporterReason": "interface",
         "IndexLock": "class",
         "IndexedCut": "interface",
+        "JobRun": "interface",
+        "JobWrites": "interface",
         "JourneyArtifactResult": "interface",
         "JourneyDivergence": "interface",
         "JourneyDivergenceOptions": "interface",
@@ -3466,6 +3488,7 @@
         "readCommitRuns": "function",
         "readDistillRecords": "function",
         "readFetchedMainline": "function",
+        "readJobWrites": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
         "readRowlessFromView": "function",
@@ -3480,6 +3503,7 @@
         "recordBase": "function",
         "recordDigestAt": "function",
         "recordFileFor": "function",
+        "recordJob": "function",
         "recordOfCases": "function",
         "recordStorageAt": "function",
         "recordedCases": "function",

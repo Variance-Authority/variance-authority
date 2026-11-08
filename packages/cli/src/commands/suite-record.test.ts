@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, test } from 'vitest';
+import { oneRecord } from '../args.js';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { selectOutput } from './select-command.js';
-import { landingRecord, oneRecord, refiningRecord, selectingRecord, suiteRecord } from './suite-record.js';
+import { landingRecord, refiningRecord, selectingRecord, suiteRecord } from './suite-record.js';
 
 async function repository(config?: unknown): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-'));

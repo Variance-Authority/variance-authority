@@ -5,9 +5,6 @@
   ".github/actions/variance/post-comment.mjs overview": [
     35
   ],
-  ".github/scripts/variance-accept.mjs overview": [
-    31
-  ],
   "cases/event-announcement-case/src/spec/announcement.spec.mjs block": [
     6
   ],
@@ -470,9 +467,6 @@
   "packages/cli/src/commands/comment-images.ts docblock": [
     12
   ],
-  "packages/cli/src/commands/comment.ts docblock": [
-    16
-  ],
   "packages/cli/src/commands/comment.ts overview": [
     71
   ],
@@ -839,11 +833,7 @@
     24
   ],
   "packages/cli/src/dispatch.ts block": [
-    7,
     7
-  ],
-  "packages/cli/src/dispatch.ts docblock": [
-    11
   ],
   "packages/cli/src/exit.test.ts block": [
     6
@@ -3931,9 +3921,6 @@
   "tools/documented.check.ts overview": [
     20
   ],
-  "tools/keep-base.mjs overview": [
-    18
-  ],
   "tools/native-grammars.check.ts docblock": [
     14
   ],
@@ -3985,7 +3972,7 @@
     20
   ],
   "tools/site-reach.mjs overview": [
-    40
+    39
   ],
   "tools/skips.check.ts block": [
     7,

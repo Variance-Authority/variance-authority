@@ -245,9 +245,9 @@ export function cachedRecord(file: string, root: string, cacheRoot?: string): st
   return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
 }
 
-/** The suite a record's path inside a layer names, as {@link cachedRecord} says it: none for the repository's one record. */
-export function cachedSuite(inside: string): string | undefined {
-  return /^suites\/([^/]+)\//u.exec(inside)?.[1];
+/** The suite whose run wrote `file`, inside a layer or a copied cache (a CI artifact): none for the one record. */
+export function cachedSuite(file: string): string | undefined {
+  return /(?:^|\/)suites\/([^/]+)\/coverage\.bin$/u.exec(file.split(sep).join('/'))?.[1];
 }
 
 /**

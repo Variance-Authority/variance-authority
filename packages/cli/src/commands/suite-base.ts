@@ -162,9 +162,9 @@ export async function recordedOrMainline(
  * of a runs record the entry did not carry.
  *
  * A seam lays it on its own before a run lands, so a checkout needs this only
- * when something reads the own layer before the first run: CI's
- * `keep the base record` step copies the base aside before the suite layers
- * the change onto it. Nothing is laid over a record the checkout already has.
+ * when something reads the own layer before the first run: `variance share
+ * --suite` lays it so the suite's run selects from it and the shards a CI run
+ * hands on fold over it. Nothing is laid over a record the checkout already has.
  *
  * `instrumentation` is the probes of the run that lands next. A record written
  * under other probes is passed over and returned as such, because that run

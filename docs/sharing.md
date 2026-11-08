@@ -48,7 +48,7 @@ npm install --save-dev @variance-authority/cli
 | `suite-index-v2` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
 | `subject-costs-v1` | what each subject took to collect, in whole milliseconds, and the file that declares it | the run report timed a subject, and is not one shard of a sharded build |
 | `report-v1` | the run report byte for byte, and a table from each image path it names to that image's digest | `report.carry` is `"share"` |
-| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --suite`](#a-suite-with-no-run-report) |
+| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --publish`](#a-suite-with-no-run-report) |
 
 Every publish includes `suite-index-v2`, which is what `variance share` reads,
 and the other entries are published only beside it. A line that still holds
@@ -387,10 +387,27 @@ writes its part of the index beside its run report instead, as
 suite index: not kept from one shard; its part is .variance/report.suite-part.json, for the merge
 ```
 
-Name every shard's run report to `share --publish`. It composes the index one
-run over the whole suite would have written — the same census, the same
-lexicon, counted across every shard — keeps it, and publishes it with the costs
-of the merged run report:
+In CI the merge is one step of
+[`Variance-Authority/action`](https://github.com/Variance-Authority/action),
+in the job after the shards, with every shard's artifact downloaded under
+`shards/`:
+
+```yaml
+- uses: Variance-Authority/action@v1
+  with:
+    reports: shards/*/report.json
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Given `reports`, the action runs nothing: it merges the shards' run reports,
+posts one docket, publishes, and exits 0, 1 or 2 for the whole suite. The part
+beside each run report names its shard as `k/n`, so the step is never told the count, and a
+missing shard, a shard named twice, or shards cut two ways exits 2 naming which.
+
+Outside the action, name every shard's run report to `share --publish`. It
+composes the index one run over the whole suite would have written — the same
+census, the same lexicon, counted across every shard — keeps it, and publishes
+it with the costs of the merged run report:
 
 ```bash
 npx variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
@@ -404,9 +421,10 @@ kept the record at 3f1c9a2… beside the latest.
 
 Keep each part beside its run report when you move the reports between jobs.
 The command publishes nothing, and says why, when a run report
-has no part beside it, when a part cannot be read, when a shard is missing or
-named twice, when you name one shard's run report alone, and when the reports
-mix an unsharded run with shards or name two unsharded runs. A build that does
+has no part beside it, and when the reports mix an unsharded run with shards or
+name two unsharded runs. It exits 2 when a part cannot be read, a shard is
+missing or named twice, or the shards were cut two ways, and one shard's run
+report named alone is a build with the rest missing. A build that does
 not shard publishes from its own run and needs no extra job.
 
 ## Looking up mainline's record
@@ -695,7 +713,8 @@ record](#a-suite-your-checkout-has-not-recorded).
   not parse;
 - `variance share --publish` over shard reports when a suite part beside one
   cannot be read, for example
-  `nothing published: shard-2/report.suite-part.json is not a suite part this version reads.`;
+  `these reports are not one build: shard-2/report.suite-part.json is not a suite part this version reads.`,
+  or when a shard is missing, named twice, or cut two ways;
 - a run report whose commit is not a commit id, for example
   `cannot publish suite-index-v2: "HEAD" is not a commit`;
 - a config the CLI refuses, such as `"mainlines": []`, a `share` carrier with no
@@ -703,8 +722,10 @@ record](#a-suite-your-checkout-has-not-recorded).
   outside `refs/`;
 - `variance ask` when no line has a run report for your checkout, and
   `variance serve`, which does not start;
-- `variance share --suite <name> --publish` on a mainline that wrote nothing,
-  for a miss or a record it left out. Every checkout measures from that line's
+- `variance share --publish` of the root config's suites, with or without
+  `--suite`, on a mainline that wrote nothing for one of them, for a miss or a
+  record it left out; the last line names each suite it did not publish, as
+  `not published: integration.` Every checkout measures from that line's
   record, so an older one left in place has to show in CI.
 - `variance share --publish`, with or without `--suite`, on a mainline that
   wrote the latest and could not keep it by commit. The latest stands, and the
@@ -1020,7 +1041,7 @@ jobs:
   integration](execution-record.md#one-record-for-each-suite), and only to a
   branch line. This step cannot determine which test files the runner collects,
   so a push to a mainline leaves the suite out and prints that you need to pass
-  `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
+  `--collected`, which [`share --publish`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
   `suite-v1/<name>`, while `report-v1` and `suite-index-v2` are one per line,
   from the job that published last.
@@ -1028,9 +1049,10 @@ jobs:
 ### A suite with no run report
 
 `share --publish` publishes what a run report names, so a repository that runs
-only a unit suite has nothing for it to read. `share --suite <name>` takes the
-suite and the share from the root `variance.config.json` instead, and publishes
-that suite's execution record alone:
+only a unit suite has nothing for it to read. When no project config is there,
+`share` takes the suites and the share from the root `variance.config.json`
+instead, and publishes the execution record of every suite it gives
+`"carry": "share"`, or of the one `--suite <name>` names:
 
 ```json
 {
@@ -1069,7 +1091,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && github.event_name == 'push' }}
         with:
-          name: variance-record-unit
+          name: variance-records-${{ strategy.job-index }}
           path: node_modules/.cache/variance-authority/test-selection
           include-hidden-files: true
           retention-days: 1
@@ -1091,10 +1113,10 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:
-          name: variance-record-unit
-          path: node_modules/.cache/variance-authority/test-selection
+          pattern: variance-records-*
+          path: ${{ runner.temp }}/records
       - run: npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
-      - name: publish the record
+      - name: publish the records
         env:
           TOKEN: ${{ github.token }}
         run: |
@@ -1103,7 +1125,7 @@ jobs:
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
-          npx variance share --suite unit --publish --collected "$RUNNER_TEMP/collected.txt"
+          npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 ```text
@@ -1111,12 +1133,19 @@ wrote suite-v1/unit to mainline main in refs/variance on origin.
 kept the record at 3f1c9a2… beside the latest.
 ```
 
-- **The artifact path is the [cache](cache.md)'s default location.** The
-  record's directory inside it is named for the checkout's absolute path, and
-  that path is the same on every runner of one workflow, so the publish job
-  finds the record where the test job wrote it. Download it after `npm ci`,
-  which removes `node_modules`. When you set `cacheRoot`, use that directory
-  instead.
+- **The artifact path is the [cache](cache.md)'s default location**, or
+  `cacheRoot` when you set it. Each record in it sits at
+  `suites/<name>/coverage.bin`, which says the suite it is of. The publish
+  takes the records as they were downloaded: it fetches the mainline's record
+  of each suite, lands the records over it as
+  [`variance journeys <shard>... --suite`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too)
+  does, and publishes the result. A suite's one record that its job laid over
+  a base, as its runs record says, is put in place as the job left it, so a test that
+  only the base ran is not counted as run again. A test job split into
+  [shards](sharding.md) uploads one artifact per shard, and the same step folds
+  them, so the publish job does not change.
+- **One suite takes a file for `--collected`.** With several, name a directory
+  holding one `<name>.txt` per suite.
 - **`persist-credentials: false` keeps the token out of the clone.** The
   publish step gives it to git through `GIT_CONFIG_*` variables, for that step
   alone, so the install and the build never run beside it.
@@ -1201,22 +1230,21 @@ received.
       - id: record
         if: github.event_name == 'pull_request'
         run: npx variance share --suite unit --format github >> "$GITHUB_OUTPUT"
-      - name: merge with the record's commit
-        if: steps.record.outputs.commit != ''
+      - id: merge
+        if: github.event_name == 'pull_request'
         env:
           COMMIT: ${{ steps.record.outputs.commit }}
-          HEAD_COMMIT: ${{ github.event.pull_request.head.sha }}
-        run: |
-          later=$(git show -s --format=%ct "$COMMIT" "$HEAD_COMMIT" | sort -n | tail -n 1)
-          git checkout --quiet --detach "$COMMIT"
-          GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@localhost \
-          GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@localhost \
-          GIT_AUTHOR_DATE="$later +0000" GIT_COMMITTER_DATE="$later +0000" \
-            git merge --no-ff --no-edit -m "Merge $HEAD_COMMIT into $COMMIT" "$HEAD_COMMIT" \
-            || { git merge --abort; git checkout --quiet --detach "$GITHUB_SHA"; }
-          git diff --quiet "$GITHUB_SHA" HEAD -- package-lock.json || npm ci
+        run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+      - if: steps.merge.outputs.merged == 'true'
+        run: npm ci
       - run: npx vitest run
 ```
+
+`carry merge` stands the checkout on the head merged into that commit, reading
+the head from the pull request's event, or from `--head <sha>`. It prints
+`merged=true` and `checkout=<sha>`, the merge it made, or `merged=false` when
+it made none: no commit was named, or the head conflicts with it. The install
+runs again after a merge, because the merge can take a different lockfile.
 
 - **The run tests your change on the record's commit, not on the base tip.**
   What the mainline gained since is checked where your branch is brought up to
@@ -1224,15 +1252,18 @@ received.
   rebase. A merge queue checks it only as far as the tests it runs; one that runs
   part of the suite leaves the rest to the whole run on the mainline after the
   merge.
-- **A head that conflicts with the record's commit stays on GitHub's merge**,
-  and the run measures what the mainline gained since the record as well.
+- **A head that conflicts with the record's commit stays on GitHub's merge**
+  under `--on-conflict stay`, and the run measures what the mainline gained
+  since the record as well. Without it, a conflict fails the step. A merge
+  stopped by anything else, a hook or a commit the clone lacks, always fails it,
+  and every stop leaves the checkout where it was.
 - **Shards read the commit once and share it.** A publish can land between
   two jobs of one run, and two jobs that each ask can merge with two commits.
-  Read it in one job, pass `commit` to the others as a job output, and every
-  shard makes the same merge: the author, committer, date and message are
-  fixed. Shards then record at one commit, and their records fold into one.
-- **The install runs again only when the lockfile differs** from GitHub's
-  merge, because the merge can take a different one.
+  Read it in one job and pass `commit` and `checkout` to the others as job
+  outputs. Every clone makes the same merge, because its author, committer,
+  date and message are fixed, and a shard that passes `--expect <checkout>`
+  fails when its merge differs. Shards then record at one commit, and their
+  records fold into one.
 
 ## S3 and Google Cloud Storage
 
