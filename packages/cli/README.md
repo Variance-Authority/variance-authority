@@ -1985,9 +1985,14 @@ refused by `accept`. `strict` absorbs nothing.
 
 ### Reporting without gating
 
-`--exit-zero-on-changes` turns exit 1 into exit 0 on `run` and `report`, for a
-job that reports instead of blocking the merge — which is how most of this
-category is actually run.
+`--exit-zero-on-changes` turns a change's exit 1 into exit 0 on `run` and
+`report`, for a job that reports instead of blocking the merge — which is how
+most of this category is actually run. A subject that could not be observed
+still exits 1, and so do an `error` diagnostic and a report that does not say
+what it skipped: each is a hole in what the run says, not a change for a
+reviewer, and a job that reports rather than blocks still has to see it. On
+GitHub Actions the line saying a change was suppressed is a `::warning::`
+annotation, since a passing step no longer carries it to the check.
 
 The reason it is a flag and not a line of shell: `|| true` swallows exit **2** as
 well. A job whose browser never launched observed nothing and therefore found
@@ -3206,7 +3211,8 @@ On GitHub, [`Variance-Authority/action`](https://github.com/Variance-Authority/a
 does the rest of the job around that step: it posts the result to the pull
 request as one comment updated in place, restores and saves what
 [`carry`](#what-the-next-job-reads) names, and accepts when the job sets its
-`accept` input, which the workflow ties to a label. A project with no surface
+`accept` input, which the workflow ties to a push or a dispatch, or when a
+reviewer ticks the box in the comment. A project with no surface
 to observe uses `Variance-Authority/action/review` instead, which
 [posts the review](#review-what-a-change-did-for-the-person-merging-it) and runs
 no gate. `v1`
@@ -3394,10 +3400,11 @@ review reads a shared suite from the share, and any other needs the restore
 before `take`.
 
 The record names the commits its tests last ran at: the merge commits of
-earlier pushes, which no branch holds. `take` fetches the ones the clone lacks
-from `origin` by name, each alone in a shallow clone. A workflow that merges a
-pull request itself, rather than checking out GitHub's merge, makes commits no
-remote holds, and fetches them into the clone before `take`. A suite whose
+earlier pushes, which no branch holds. A workflow that merges a pull request
+itself, as `carry merge` does, makes commits no remote holds, so `keep` keeps
+them beside the records in `commits.bundle`, with every commit they need that
+`origin/<base>` does not hold, and `take` reads them from there. It fetches the
+rest from `origin` by name, each alone in a shallow clone. A suite whose
 commits cannot all be had keeps the mainline's record and `take` names it, so
 that push runs as a first push does. So does a suite the last push recorded
 under other probes than this build records under, after an upgrade of
@@ -3405,6 +3412,35 @@ variance: no run here could be laid over it. Both read `.variance/pushed` unless
 name another directory: `variance carry take <dir>`. Under `--format github`,
 `take` prints `taken=<suite> <suite>` and `left=<suite> <suite>`, and `keep`
 prints `kept=<suite> <suite>`; the lines saying why go to stderr.
+
+`take` removes the suites it left from the directory and names the ones it
+took there, in `taken.json`, so one job can take the last push and hand the
+directory to the run's other jobs as an artifact. Each of them runs
+`variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
+the first job took, so no job reads another record than the rest. The bundle
+reads only in a clone that holds `origin/<base>` where `keep` cut it, so check
+out with `fetch-depth: 0`; elsewhere `take` says it did not read and fetches by
+name:
+
+```yaml
+# the job that restored the cache, after `take`, when it took a suite:
+- if: steps.take.outputs.taken != ''
+  uses: actions/upload-artifact@v7
+  with:
+    name: variance-carried
+    path: ${{ steps.carry.outputs.pushed-path }}
+    include-hidden-files: true
+# …and its job exports `carried: ${{ steps.take.outputs.taken != '' }}`.
+# every other job, which `needs` it, before its tests run:
+- if: needs.base.outputs.carried == 'true'
+  uses: actions/download-artifact@v8
+  with:
+    name: variance-carried
+    path: ${{ runner.temp }}/carried
+- id: take
+  if: needs.base.outputs.carried == 'true'
+  run: npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
+```
 
 Jobs of one run read one record, and a re-run of one of them reads it too. The
 share moves while a run goes on: two jobs that each ask it can read two records
@@ -3501,13 +3537,13 @@ Two flags make the body something a reviewer can act on from a phone.
 `--run-url` links the report you published, and `variance report --format html
 --embed-images` makes that report one file a browser opens. `--to-accept` sets
 how accepting works in your repository, because the comment has no way to find
-out whether that is a workflow to dispatch, a label, or `variance accept` on a
-checkout:
+out whether that is a workflow to dispatch, a box to tick, or `variance accept`
+on a checkout:
 
 ```bash
 variance comment --body-file body.md \
   --run-url "$REPORT_URL" \
-  --to-accept 'add the **variance: accept** label to this pull request'
+  --to-accept 'run the **variance** workflow on this branch with **accept** ticked'
 ```
 
 `--image-root` puts pictures in the comment: the leading cause's change on the

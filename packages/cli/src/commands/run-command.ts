@@ -1,5 +1,5 @@
 import type { Config } from '../config.js';
-import { exitFor, sideJob, type ExitCode } from '../exit.js';
+import { reported, type ExitCode } from '../exit.js';
 import { said } from '../here.js';
 import type { Parsed } from '../parse.js';
 import { rendererFor } from '../renderer.js';
@@ -136,7 +136,7 @@ export async function runCommand(
     streams.out(
       `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
     );
-    return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+    return reported(report, parsed.exitZeroOnChanges, streams);
   } finally {
     await collector.close();
   }

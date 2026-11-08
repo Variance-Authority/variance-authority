@@ -27,7 +27,7 @@
 //   counts as a change of that package to changesets: `.changeset/config.json`'s
 //   `changedFilePatterns` already says that a test, a fixture or a README is not
 //   the package.
-// - **What runs it**: this workflow, the actions and the script its steps use,
+// - **What runs it**: this workflow, the actions its steps use,
 //   the configs the job reads, this file, the root's checkout attributes and
 //   install, and every file a step of the root build reaches. The first ones
 //   are written down, because nothing in the repository says which of its
@@ -35,9 +35,8 @@
 //
 // The change is the pull request's whole, its merge commit against the base it
 // merges into, not the last push: a test-only push to a branch that already
-// changed a docs page still has that page to show. A push, a dispatch and the
-// accept label always run, and so does a pull request whose change cannot be
-// read. Not running is the claim that needs the evidence.
+// changed a docs page still has that page to show. A push and a dispatch
+// always run, and so does a pull request whose change cannot be read.
 //
 // Reads the source index `variance index` publishes; in CI that step runs first.
 // Writes `observe` and `because` to `$GITHUB_OUTPUT`. To ask it by hand about a
@@ -56,14 +55,13 @@ import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
 
 /**
- * The files of the job itself: the workflow, the actions and the script its
- * steps use, the configs those read, and this.
+ * The files of the job itself: the workflow, the actions its steps use, the
+ * configs those read, and this.
  */
 const MACHINERY = [
   '.github/workflows/variance.yml',
   '.github/actions/build/**',
   '.github/actions/variance/**',
-  '.github/scripts/variance-accept.mjs',
   '.changeset/config.json',
   'variance.config.json',
   'tools/site-reach.mjs',
@@ -237,9 +235,6 @@ export async function siteReach(root, changed, runner) {
 async function decide(root, commit) {
   const event = process.env['GITHUB_EVENT_NAME'];
   if (event !== 'pull_request') return { observe: true, because: `a \`${event}\` always runs the site.` };
-  if (process.env['VARIANCE_EVENT_ACTION'] === 'labeled') {
-    return { observe: true, because: 'the accept label asks for this run by name.' };
-  }
   try {
     const changed = changedBy(root, commit);
     if (changed === undefined) {
