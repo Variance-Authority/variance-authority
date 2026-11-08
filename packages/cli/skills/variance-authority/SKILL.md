@@ -139,8 +139,9 @@ when its condition holds, not before.
 
 ## Follow a golden path
 
-When the task is an outcome rather than one question, take its steps in this
-order; each golden path on the site links the page that owns each step.
+When the task is an outcome rather than one question, its golden path on the
+site owns the order of the steps and links the page for each; it describes the
+latest release. Below, each path names the references that cover its steps.
 
 - **Make CI faster** ([path](https://variance-authority.dev/docs/path-faster-ci)):
   shard by recorded time ([combine CI shard records](references/test-selection.md#combine-ci-shard-records)),

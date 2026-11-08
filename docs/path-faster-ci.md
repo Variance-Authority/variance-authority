@@ -33,10 +33,8 @@ job keeps the wrap and leaves out `--shard`.
 A pull request then reads the record main saved and leaves out every test file
 that ran none of the changed code. The selection reads which lines each test
 covered, not which files import which, so a one-line edit to a shared module
-runs the few tests that executed that line. Every doubt about the record —
-none is there, it covers no test file in full, or the change touched what every
-test rests on — runs more of the suite, never less, and the run says which
-doubt it was.
+runs the few tests that executed that line. When the record leaves a doubt,
+the run either widens or stops, and says which doubt it was.
 
 [Coverage-based test selection](coverage-test-selection.md) says why this
 selects less than an import graph. [How test selection works](selecting.md)

@@ -8,7 +8,7 @@ recorded and as your diff leaves it before it selects a test. On an unmodified
 Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
 rerunning every file that loads the changed module selects 197.
 
-It is the second of four steps in [Make CI faster](path-faster-ci.md).
+It is a step in [Make CI faster](path-faster-ci.md).
 
 This page compares that approach with other selectors: what each one records,
 where each one widens, and what each one costs to run on every change.
