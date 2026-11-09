@@ -22,9 +22,12 @@ const ask = async (files: Record<string, string>, query: string, from?: string):
   return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, treeOf(from === undefined ? [] : [{ file: from }], root), root);
 };
 
+/** `count` declarations, each written by `line`. */
+const each = (count: number, line: (at: number) => string): string => Array.from({ length: count }, (_, at) => line(at)).join('');
+
 /** Thirty names holding `file`, so the word is common among what was reached. */
 const FILES = {
-  'src/paths.ts': Array.from({ length: 30 }, (_, at) => `export const fileAt${at} = ${at};\n`).join(''),
+  'src/paths.ts': each(30, (at) => `export const fileAt${at} = ${at};\n`),
 };
 
 describe('a concept nothing implements', () => {
@@ -72,7 +75,6 @@ describe('a question whose words are not equally rare', () => {
   it('names the two files that measure the probes in the first ten rows of the probe census question', async () => {
     // The two files as this repository writes them, `cost.measure.ts` lacking `overhead`, among more than ten rows
     // that also pass the cut and names holding only the common words, which do not.
-    const each = (count: number, line: (at: number) => string): string => Array.from({ length: count }, (_, at) => line(at)).join('');
     const said = await ask({
       'scripts/overhead.mjs': '#!/usr/bin/env node\n\n/**\n * What the probes cost, measured on a real subsystem rather than a loop.\n */\n\nconst staging = 1;\nexport { staging };\n',
       'src/cost.measure.ts': "import { describe } from 'vitest';\n\n/**\n * The cost argument, measured rather than asserted. A count is exact, and the\n * suite instruments every module it loads, so probes land in one half.\n */\n\ndescribe('cost', () => {});\n",
@@ -101,7 +103,7 @@ describe('a question asked from an area', () => {
   it('cuts by how the whole repository holds the words, so a row answering it everywhere answers it here', async () => {
     const alone = {
       ...FILES,
-      'src/filler.ts': Array.from({ length: 300 }, (_, at) => `export const filler${at} = ${at};\n`).join(''),
+      'src/filler.ts': each(300, (at) => `export const filler${at} = ${at};\n`),
       'src/here.ts': '/** Plays a xylophone. */\nexport const played = 1;\n',
     };
     const everywhere = await ask(alone, 'xylophone file');
