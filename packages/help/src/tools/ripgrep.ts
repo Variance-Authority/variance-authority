@@ -83,14 +83,19 @@ function rg(root: string, pattern: string, files: readonly string[]): Searched {
   return { hits, errors };
 }
 
-/** Every matching line in these files, in ripgrep's order, and what it could not read. */
+/**
+ * Every matching line in these files, in ripgrep's order, and what it could not read.
+ *
+ * A batch is appended one item at a time: `push(...items)` passes each item as
+ * an argument, and past about 120,000 of them V8 runs out of stack.
+ */
 export function ripgrep(root: string, pattern: string, files: readonly string[]): Searched {
   const hits: Hit[] = [];
   const errors: string[] = [];
   for (const batch of batches(files)) {
     const searched = rg(root, pattern, batch);
-    hits.push(...searched.hits);
-    errors.push(...searched.errors);
+    for (const hit of searched.hits) hits.push(hit);
+    for (const error of searched.errors) errors.push(error);
   }
   return { hits, errors };
 }
