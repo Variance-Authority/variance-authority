@@ -76,9 +76,11 @@ small.
 You are given the task sentence, a worktree and the path of the PR body. Do not
 open the body until step 3: the body is the author's case, and you build yours
 first. Read the diff with `git diff origin/main...HEAD` and the repository as
-`origin/main` holds it. Ask the code with `yarn variance ask
-symbol|uses|search` before you grep; a code question `variance` could not
-answer is a defect in it, and you name it in your report.
+`origin/main` holds it. Ask the code with
+`yarn variance ask symbol|uses|search` before you grep. A miss is a defect in
+`variance` only on a file of a kind its index parses, as
+[`AGENTS.md`](../../AGENTS.md#ask-before-you-grep) draws the line, and you name
+that one in your report.
 
 Work in this order, and write each step into your report before starting the
 next:

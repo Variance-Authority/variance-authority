@@ -13,8 +13,10 @@ Install this if you maintain a repository and want a person or a
 coding agent to be able to ask what a name in it is, where it is declared, who
 imports it, and where the repository already writes it.
 
-Use `rg` when the answer is text outside the source, and `git grep <tree>` when
-the answer is an arbitrary string in committed source. Use this package when the answer depends on parsed names or relations: which
+Use `rg` when the answer is text outside the source — a YAML, JSON, Markdown or
+shell file no parsed file imports — beside this package rather than after it,
+and `git grep <tree>` when the answer is an arbitrary string in committed
+source. Use this package when the answer depends on parsed names or relations: which
 export matches a description, which exact signature it has, who imports it,
 which names are used by the files reachable from one path, or which of those
 files hold a string. `search --from` and
@@ -245,7 +247,7 @@ import-site count, so they are admitted by the declaring file instead.
 
 A path is a path, at three widths and no others — `src/a/File.ts` is that file,
 `src/a/*` is that folder's own files, `src/a/` is everything under it. A path
-that is not in the checkout is refused by name. You are never quietly answered
+that holds no source file is refused by name. You are never quietly answered
 about the whole repository under a heading you would read as *your area*. That
 vocabulary is one rule for every question here that takes a path, spelled out
 in full under [say where to

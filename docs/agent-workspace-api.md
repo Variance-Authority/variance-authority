@@ -133,8 +133,10 @@ manager runs a local binary:
 
 Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
+`ask search --query <words>` finds a name by what it does. They answer from the
+code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
+them, and an empty answer says nothing about a file they did not search. The
+`variance-authority` skill lists what the index parses, and has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
@@ -161,8 +163,8 @@ search, indexed source search and observed-subject search.
 
 | You need | Start with |
 | --- | --- |
-| Text outside the source: prose, configuration, logs | `rg`; it needs no index and reads the working tree now. |
-| An exact string or a pattern in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; it matches only the files that path reaches, nearest first, and a top folder is the widest path it takes. |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep`, beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
+| An exact string or a pattern in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
