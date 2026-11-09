@@ -47,8 +47,8 @@ and every claim that somebody was hurt, wherever it sits: Perceived, Evidence or
 once you print it, Impact. Evidence that does not open, or does not say what the
 issue claims, is **nobody asked**, and so is a harm claim with nothing to open,
 or one that only an agent's own report of its trouble carries. Code lines show
-the mechanism, not that anybody hit it: when nothing else shows a sighting, the
-problem is **nobody asked**. Do step 1 below from what you read, chain
+the mechanism, not the problem: when nothing else shows it — an ask, a failing
+run, a reproduction — the problem is **nobody asked**. Do step 1 below from what you read, chain
 included. Only then print the rest, the labels last:
 
 ```bash
@@ -73,15 +73,18 @@ settle it, neither wins, and the difference is named in your verdict.
 
 Last, ask the brief the five questions under "What problem we solve" in
 `.agents/references/refine.md`, each answered from what opens. **What** is
-**nobody asked** when no sighting opens, as above. **Which** is **too much for
+**nobody asked** when nothing opens to show the problem, as above. **Which** is **too much for
 what it buys** when the Change picks one way and does not say why it beats what
 already answers part of it. **Problem** is **not the problem** when the issue
-holds more than one. **We** is **not ours** when Affected names no package of
-ours whose purpose covers the question the Situation asks, and the "Not ours"
-table in `.compass/COMPASS.md`, a position in
-`.agents/references/positions.md` or an escape names another owner.
-**Solve** is **not the problem** when a test in Done when could pass while the
-harm the Evidence shows still stands — run on this repository for a harm seen in
+holds more than one. **We** asks the chart first: which `.compass/` block's
+responsibility covers the question the Situation asks, then whether variance
+should answer it at all, and only then which package implements it. It is **not
+ours** when no block of ours covers the question and the "Not ours" table in
+`.compass/COMPASS.md`, a position in `.agents/references/positions.md` or an
+escape names another owner; an integration with that owner's answer is weighed,
+not rejected, on this reason.
+**Solve** is **not the problem** when every item in Done when could pass while
+the problem the Evidence shows still stands — run on this repository for a harm seen in
 an adopter's, say — or when the Change only eases that harm and does not say why
 the rest is not worth solving.
 
@@ -135,8 +138,8 @@ Reasons you reject on, and you name the one you use:
   answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
-- **Not ours.** Idea mode only: no package of ours is for the question, and
-  another owner is named, as "What problem we solve" draws it. In diff mode
+- **Not ours.** Idea mode only: no block of the architecture chart covers the
+  question, and another owner is named, as "What problem we solve" draws it. In diff mode
   ownership is the `alignment` reviewer's.
 - **Not the root.** Escape 5: links a reader can open show a lower cause or
   another one, or the change stops above the cause without a reason that holds.

@@ -51,7 +51,8 @@ when an entry is added.
    absorbed only through the record: a red-first gate or a record-drawn map,
    never a second source of truth beside the test, a driver loop or an editor
    canvas.
-14. **Did it happen?** Name the run or the transcript line where somebody hit it.
-   A brief built on an agent's list of its own complaints, with code lines that
-   show the message but nobody misled by it, passed review on a premise its
-   transcript contradicts. #1202, #1205.
+14. **Did it happen as told?** A claim that somebody hit the problem names the
+   run or the transcript line where they did; without one, the brief claims no
+   harm and stands on an ask or a reproduction. A brief built on an agent's list
+   of its own complaints said the agent was misled, and its transcript shows it
+   naming the cause and moving on. #1202, #1205.

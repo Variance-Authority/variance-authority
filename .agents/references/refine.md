@@ -6,26 +6,31 @@ is, whether it should be done at all, and what would make it done.
 ## Look around
 
 **What problem we solve.** For a `feat`, `fix` or `perf`, one question, read
-five ways, before anything else here. Each word becomes something a reader can open, and a problem where one of
-them cannot be named is not ours to chase, however well the rest reads.
+five ways, before anything else here. Each word becomes something a reader
+can open, and a problem where one of them cannot be named is not ours to chase,
+however well the rest reads.
 
-- **What** becomes a sighting, and worth solving here: a quoted ask, a run or a
-  transcript line in the Evidence, and the Impact it carries.
+- **What** becomes something that opens to show the problem: an ask quoted, a
+  failing run or a reproduction in the Evidence, and the Impact it carries. A
+  claim that somebody was hurt opens to where they were.
 - **Which** becomes the particular way we pick. A problem comes in variants and
   each has several answers: the Change names the one it takes, why that one, and
   what already answers part of it, here or in a neighbour.
 - **Problem** becomes an issue: one behavioural problem to one issue, with
   somebody better off once it is closed: the title and the Situation.
-- **We** becomes a package: the package, and its `.compass/` block, that owns
-  the answer, named in Affected. The project is one problem at depth
-  ([what comes first](#what-comes-first)). When no package of ours is for it —
+- **We** becomes a block of the architecture chart: the `.compass/` block whose
+  responsibility covers the question, named in Affected before the packages
+  that implement it, since the chart does not follow the package graph. The
+  project is one problem at depth ([what comes first](#what-comes-first)). A
+  neighbour owning the underlying answer leaves an integration with it ours to
+  weigh. When no block of ours is for the question —
   the "Not ours" table of `.compass/COMPASS.md`, a [position](positions.md) or
   an [escape](escapes.md) names another owner — the issue is closed, naming
   that owner.
-- **Solve** becomes a test: each Done when item is a test or a check that fails
-  today where the Evidence saw the harm — an adopter's project, a CI run, a
-  stranger's first command, not only this repository — and passes once the harm
-  is gone. A Change that only eases the harm says why the rest is not worth
+- **Solve** becomes a test: the Done when items, taken together, fail today
+  where the Evidence saw the problem — an adopter's project, a CI run, a
+  stranger's first command, not only this repository — and pass only once it is
+  gone. Each item checks one part; no item has to prove the whole. A Change that only eases the harm says why the rest is not worth
   solving.
 
 The pattern is Anton Korzunov's
@@ -119,23 +124,28 @@ section to a heading:
   something a reader can observe, never the mechanism that produces it.
 - **Evidence**: who has the problem, each item something a reader can open —
   the owner's ask quoted, an issue, a failing run, a measurement, a spec in
-  `docs/specs/`. At least one item shows somebody hitting the Perceived: their
-  ask quoted, a failing run, or a transcript's path and line. A code line shows
-  the mechanism, not the harm, and belongs in Root cause; an agent's report of
-  its own trouble is a claim, checked against its transcript before it is cited.
+  `docs/specs/`. At least one item shows the problem outside the code that
+  causes it: an ask quoted, a failing run or a reproduction. A claim that
+  somebody hit it — misled, blocked, wasting a run — names the run or the
+  transcript's path and line where they did, or is not made. A code line shows
+  the mechanism, not the problem, and belongs in Root cause; an agent's report
+  of its own trouble is a claim, checked against its transcript before it is
+  cited.
   "Users may want", "for completeness" and "it was easy" are not evidence.
 - **Root cause**: why the Perceived happens, and why that does, one link to a
   line, down to the root. Each link is something a reader can open, as Evidence
   is, or says it is a guess.
 - **Affected**: the commands, packages, runners and `.compass/` blocks the
-  scenario crosses, and the one package that owns the answer.
+  scenario crosses, and the one `.compass/` block whose responsibility owns the
+  answer.
 - **Impact**: who is hurt, how often, what it costs them, and what happens if
   this is never done, and why each RICE label holds.
 - **Change**: the smallest change that answers it at the root, in the project's
   concepts, and the way it picks among the answers, with why. A Change that
   acts above the root says why it stops there.
-- **Done when**: a checklist, each item a test or a check that fails on today's
-  code where the Evidence saw the harm. Each `Then` is one of them.
+- **Done when**: a checklist of tests or checks that, together, fail on today's
+  code where the Evidence saw the problem and pass only once it is gone. Each
+  `Then` is one of them.
 
 **The whys come before the Change.** A problem is often the output of something
 that should not stand, and a fix to it keeps that thing alive. Start at the
