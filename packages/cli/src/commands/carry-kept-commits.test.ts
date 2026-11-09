@@ -3,6 +3,7 @@ import { readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { OperatorError } from '../exit.js';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { BUNDLE } from './carry-bundle.js';
 import { keepPushed, movePushed, takePushed } from './carry-pushed.js';
 import { carry, commitIn, git, pullRequest, runsAt, streams } from './carry-pushed.fixture.js';
@@ -33,7 +34,6 @@ async function mergedPush(): Promise<{ clone: string; earlier: string; kept: str
 async function recorded(clone: string, suite: string, runs: object): Promise<void> {
   const at = join(clone, '.recorded');
   await carry(at, suite, runs);
-  const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
   const own = dirname(testCoverageFile(clone, { suite }));
   const { cp } = await import('node:fs/promises');
   await cp(join(at, suite), own, { recursive: true });
@@ -50,6 +50,7 @@ describe('a merge no remote holds travels beside the records', () => {
     expect(await keepPushed(earlier, pushed, MAINLINE)).toEqual({ kept: ['unit'], bundled: [merge] });
     expect(git(earlier, 'for-each-ref', 'refs/carried/')).toBe('');
     expect(() => git(clone, 'cat-file', '-e', `${merge}^{commit}`)).toThrow();
+    git(clone, 'remote', 'set-url', 'origin', join(dirname(clone), 'nowhere'));
 
     expect(await takePushed(clone, pushed)).toEqual({ taken: ['unit'], left: [] });
     expect(git(clone, 'rev-parse', `${merge}^2`)).toBe(head);
@@ -161,5 +162,23 @@ describe('a run of several jobs takes one push', () => {
     git(dirname(clone), 'clone', '-q', '--no-local', join(dirname(clone), 'upstream'), later);
 
     expect(await takePushed(later, pushed)).toEqual({ taken: ['unit'], left: [] });
+  });
+});
+
+describe("`carry take` is the next push's first step", () => {
+  it('takes a push kept with nothing beyond the mainline, with no bundle, no remote and no fetch', async () => {
+    const { clone, earlier, kept } = await mergedPush();
+    await recorded(earlier, 'unit', runsAt(kept));
+    const pushed = join(earlier, '.pushed');
+    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'github' }, earlier, streams().streams, 'main');
+    git(clone, 'remote', 'set-url', 'origin', join(dirname(clone), 'nowhere'));
+    expect(existsSync(join(pushed, BUNDLE))).toBe(false);
+    const { said, streams: to } = streams();
+
+    await movePushed({ command: 'carry', direction: 'take', dir: pushed, format: 'github' }, clone, to);
+
+    expect(said.out).toBe('taken=unit\nleft=\n');
+    expect(existsSync(testCoverageFile(clone, { suite: 'unit' }))).toBe(true);
+    expect(existsSync(join(clone, '.git', 'FETCH_HEAD'))).toBe(false);
   });
 });
