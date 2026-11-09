@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import nextConfig from "../next.config";
+import { generateMetadata } from "./(docs)/docs/[slug]/page";
+
+vi.mock("next/navigation", () => ({ notFound: () => {} }));
+vi.mock("next/link", () => ({ default: () => null }));
 
 /**
  * The framework serves a page's generated metadata after `</head>` to every
@@ -16,5 +20,21 @@ describe("generated metadata", () => {
     "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot",
   ])("htmlLimitedBots matches %s", (userAgent) => {
     expect(nextConfig.htmlLimitedBots?.test(userAgent)).toBe(true);
+  });
+
+  /**
+   * The head is the framework's to render, and its install is the site's own,
+   * which no suite here loads: this pins what the site hands it for a page
+   * whose metadata is generated, every tag a reader takes from the head.
+   */
+  it("gives /docs/tests a title, description, canonical, og:title and Markdown alternate", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ slug: "tests" }) });
+
+    expect(metadata).toMatchObject({
+      title: expect.stringMatching(/\S/),
+      description: expect.stringMatching(/\S/),
+      alternates: { canonical: "/docs/tests", types: { "text/markdown": "/docs/tests/index.md" } },
+      openGraph: { title: expect.stringMatching(/\S/) },
+    });
   });
 });

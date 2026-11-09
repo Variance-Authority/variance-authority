@@ -36,3 +36,26 @@ describe("the proxy", () => {
     expect(response.headers.get("vary")).toBeNull();
   });
 });
+
+describe("the address a Markdown reader is sent to", () => {
+  /** The route each rewritten address names, as the framework's file routes resolve it. */
+  async function answered(path: string): Promise<Response> {
+    const { rewrittenTo } = proxy(requested(path, "text/markdown")) as unknown as { rewrittenTo: string };
+    const { pathname } = new URL(rewrittenTo);
+    if (pathname === "/docs/index.md") return (await import("./(docs)/docs/index.md/route")).GET();
+    const slug = /^\/docs\/([^/]+)\/index\.md$/.exec(pathname)?.[1];
+    expect(slug, pathname).toBeDefined();
+    const route = await import("./(docs)/docs/[slug]/index.md/route");
+    return route.GET(new Request(rewrittenTo), { params: Promise.resolve({ slug: slug! }) });
+  }
+
+  it.each(["/docs", "/docs/tests"])("answers %s with its Markdown, typed text/markdown", async (path) => {
+    const response = await answered(path);
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(body).toMatch(/^# \S/m);
+    expect(body).not.toMatch(/<html|<head|<body/i);
+  });
+});
