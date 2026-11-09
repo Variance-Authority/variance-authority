@@ -1577,14 +1577,16 @@ run only by other packages' tests
 Every share is over the package's own regions, test files left out, and the
 four middle columns part them: *own ≤1 hop* is what a test of the package ran
 from a file that imports the code directly, *own further* what only its tests
-further away ran, *consumers only* what only other packages' tests ran, and
-*nothing* what no test ran. *Coverage* is the *own* figure of the table above;
-a region that ran only while its module loaded, or before reach, is in it and
-in no part, and a line under the table counts those. Each kind of suite the
-config declares gets a column of what the package's own tests of that kind
-ran. The hops are the import walk `--at-distance` uses: without `relations` in
-the suites, and under `--at-distance`, whose band is already the distance, the
-two own columns are one. With more than one package, `all` adds them up.
+further away, or at a distance the walk did not measure, ran, *consumers only*
+what only other packages' tests ran, and *nothing* what no test ran, a region
+that ran only while its module loaded among it. *Coverage* is the *own* figure
+of the table above, so a region that ran before reach is in it and in no part,
+and a line under the table counts those. Each kind of suite the config declares
+gets a column of what the package's own tests of that kind ran. The hops are
+the import walk `--at-distance` uses: without `relations` in the suites, and
+under `--at-distance`, whose band is already the distance, the two own columns
+are one. With more than one package, `all` adds up every package the run
+covers, a package no test ran among them, though that package gets no row.
 
 A region is the package's own when one of the package's tests ran it, whoever
 else did too. A region that only other packages' tests ran is counted apart,

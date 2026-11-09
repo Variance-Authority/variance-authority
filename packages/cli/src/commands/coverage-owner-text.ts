@@ -42,10 +42,10 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
   const { header, cells } = columns(ownership);
   const lines = [
     "coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, what nothing ran, and each kind of suite's own tests",
-    ...table([['', ...header, 'by'], ...withAll(ran).map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
+    ...table([['', ...header, 'by'], ...withAll(ran, packages).map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
   ];
-  const loading = ran.reduce((sum, row) => sum + atLoad(row), 0);
-  if (loading > 0) lines.push(`  ${grouped(loading)} region${loading === 1 ? '' : 's'} ran only while ${loading === 1 ? 'its module' : 'their modules'} loaded or before reach: in coverage, in no part`);
+  const before = beforeReach(ran);
+  if (before > 0) lines.push(`  ${beforeSentence(before)}`);
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push(`  and ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran`);
   const { rows, more } = trees(packages, ownership);
@@ -69,9 +69,11 @@ export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFil
     '',
     `| Package | ${header.join(' | ')} | By |`,
     `|---|${header.map(() => '--:').join('|')}|---|`,
-    ...withAll(ran).map((row) =>
+    ...withAll(ran, packages).map((row) =>
       `| \`${row.from}\` | ${cells(row).join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
+  const before = beforeReach(ran);
+  if (before > 0) lines.push('', `${beforeSentence(before)[0]!.toUpperCase()}${beforeSentence(before).slice(1)}.`);
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push('', `And ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran.`);
   const { rows, more } = trees(packages, ownership);
@@ -148,6 +150,8 @@ interface PackageRow {
   /** The package's own count: its regions, a file no suite loaded among them, and what ran, as the `own` table counts them. */
   readonly regions: number;
   readonly ran: number;
+  /** Of `ran`, the regions that ran before reach: in the coverage, and in no part. */
+  readonly before: number;
   /** Regions some case called into. */
   readonly run: number;
   readonly own: number;
@@ -165,25 +169,25 @@ function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly Pa
   return entries.flatMap((entry) => {
     if ('missed' in entry) return [];
     const files = ownership.filter((file) => file.owner === entry.from);
-    return [summed(entry.from, entry.own, files.map((file) => ({
+    return [summed(entry.from, { regions: entry.own.regions, ran: entry.own.ran, before: entry.own.before?.regions ?? 0 }, files.map((file) => ({
       ...file, near: file.near ?? 0,
     })))];
   });
 }
 
-/** The rows, and when there are several, every package added together under `all`. */
-function withAll(rows: readonly PackageRow[]): readonly PackageRow[] {
+/** The rows shown, and when there are several, every package listed added together under `all`, the ones no test ran among them. */
+function withAll(rows: readonly PackageRow[], every: readonly PackageRow[]): readonly PackageRow[] {
   if (rows.length < 2) return rows;
-  const own = { regions: rows.reduce((sum, row) => sum + row.regions, 0), ran: rows.reduce((sum, row) => sum + row.ran, 0) };
-  return [...rows, summed('all', own, rows.map((row) => ({ ...row, by: Object.fromEntries(row.by), kinds: Object.fromEntries(row.kinds) })))];
+  const sum = (field: 'regions' | 'ran' | 'before') => every.reduce((total, row) => total + row[field], 0);
+  return [...rows, summed('all', { regions: sum('regions'), ran: sum('ran'), before: sum('before') }, every.map((row) => ({ ...row, by: Object.fromEntries(row.by), kinds: Object.fromEntries(row.kinds) })))];
 }
 
 /** What one file, or one package, adds to a row. */
 type Part = Pick<OwnedFile, 'run' | 'own' | 'others' | 'by' | 'kinds'> & { readonly near: number };
 
 /** A row over the given own count, its parts added up. */
-function summed(from: string, { regions, ran }: { readonly regions: number; readonly ran: number }, parts: readonly Part[]): PackageRow {
-  const row = { from, regions, ran, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), near: 0 };
+function summed(from: string, { regions, ran, before }: { readonly regions: number; readonly ran: number; readonly before: number }, parts: readonly Part[]): PackageRow {
+  const row = { from, regions, ran, before, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), near: 0 };
   for (const part of parts) {
     row.run += part.run;
     row.own += part.own;
@@ -195,9 +199,13 @@ function summed(from: string, { regions, ran }: { readonly regions: number; read
   return row;
 }
 
-/** The regions in the coverage that no case called into: run while a module loaded, or before reach. */
-function atLoad(row: PackageRow): number {
-  return Math.max(0, row.ran - row.own - row.others);
+/** The regions run before reach in the given rows: in the coverage, and in no part. */
+function beforeReach(rows: readonly PackageRow[]): number {
+  return rows.reduce((sum, row) => sum + row.before, 0);
+}
+
+function beforeSentence(regions: number): string {
+  return `${grouped(regions)} region${regions === 1 ? '' : 's'} ran before reach: in coverage, in no part`;
 }
 
 /**

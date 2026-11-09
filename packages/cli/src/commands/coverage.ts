@@ -47,7 +47,7 @@ import { selectedRecord } from './mainline-selected.js';
 import { parseAtDistance } from './select-leg.js';
 import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
-import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
+import { coverageSource, harnessReach, readSource, within, type CoverageSource, type EntryReading, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
 import type { textOver } from './coverage-over-text.js';
@@ -273,12 +273,22 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
             }),
             ...(reading.ownerOf === undefined ? {} : {
               // Under a band the band is the distance: the hop columns would only repeat it.
-              ownership: coverageByOwner(now, reading.ownerOf, band === undefined ? walked : undefined),
+              ownership: ownScoped(coverageByOwner(now, reading.ownerOf, band === undefined ? walked : undefined), reading.entries),
               ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
             }),
           }),
         }),
   };
+}
+
+/**
+ * The files each package's own count holds: a file outside its owner's scope
+ * is in no row's regions, so its parts would add to a row that does not count it.
+ */
+function ownScoped(ownership: readonly OwnedFile[], entries: readonly (EntryReading | MissedEntry)[]): readonly OwnedFile[] {
+  const scopes = new Map<string, ReadonlySet<string> | undefined>();
+  for (const entry of entries) if (!('missed' in entry)) scopes.set(entry.from, entry.own.scope);
+  return ownership.filter((file) => scopes.get(file.owner)?.has(file.file) ?? true);
 }
 
 /**

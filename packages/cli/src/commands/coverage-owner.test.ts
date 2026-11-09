@@ -58,26 +58,32 @@ async function ask(argv: readonly string[]) {
 // only the label, and `libs/specs`, a package of nothing but tests, runs the
 // icon too. So three of the four `libs/ui` regions that ran are run only
 // by a test in another package.
+/** A repository of `tree`, indexed, with the `unit` suite's record of `index`. */
+async function recorded(tree: Record<string, string>, index: Index): Promise<string> {
+  const at = await mkdtemp(join(tmpdir(), 'variance-coverage-owner-'));
+  execFileSync('git', ['init', '--quiet', at]);
+  for (const [file, text] of Object.entries(tree)) {
+    await mkdir(dirname(join(at, file)), { recursive: true });
+    await writeFile(join(at, file), text);
+  }
+  execFileSync('git', ['add', '.'], { cwd: at });
+  const cwd = process.cwd();
+  process.chdir(at);
+  try {
+    const indexed = await ask(['index']);
+    if (indexed.code !== 0) throw new Error(`variance index failed in ${at}: ${indexed.err}`);
+  } finally {
+    process.chdir(cwd);
+  }
+  await record(testCoverageFile(at, { suite: 'unit' }), index);
+  return at;
+}
+
 beforeAll(async () => {
   cache = await mkdtemp(join(tmpdir(), 'variance-coverage-owner-cache-'));
   previous = process.env['VARIANCE_AUTHORITY_CACHE'];
   process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
-  repo = await mkdtemp(join(tmpdir(), 'variance-coverage-owner-'));
-  execFileSync('git', ['init', '--quiet', repo]);
-  for (const [file, text] of Object.entries(files)) {
-    await mkdir(dirname(join(repo, file)), { recursive: true });
-    await writeFile(join(repo, file), text);
-  }
-  execFileSync('git', ['add', '.'], { cwd: repo });
-  const cwd = process.cwd();
-  process.chdir(repo);
-  try {
-    const indexed = await ask(['index']);
-    if (indexed.code !== 0) throw new Error(`variance index failed in ${repo}: ${indexed.err}`);
-  } finally {
-    process.chdir(cwd);
-  }
-  await record(testCoverageFile(repo, { suite: 'unit' }), {
+  repo = await recorded(files, {
     tests: [MAIN, LABEL, SPECS],
     modules: [
       { file: 'apps/main/src/main.test.ts', blocks: [region('module', [0])] },
@@ -215,5 +221,43 @@ describe('coverage counted from the tests near the code they ran', () => {
 
     expect(answer.code).not.toBe(0);
     expect(answer.err).toContain('--at-distance takes hop counts');
+  });
+});
+
+// `libs/kit` declares `index.ts` its entry point, and `stray.ts` is reached by no
+// import from it, so the package's own count holds `index.ts` alone. `apps/main`'s
+// entry point imports `stray.ts`, so the run counts it, and its test runs both.
+describe('coverage of a package whose entry points reach only part of it', () => {
+  let scoped: string;
+
+  beforeAll(async () => {
+    scoped = await recorded({
+      'package.json': files['package.json']!,
+      'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit' } }, entrypoints: { 'apps/main': ['src/main.ts'], 'libs/kit': ['index.ts'] } }),
+      'apps/main/package.json': files['apps/main/package.json']!,
+      'apps/main/src/main.ts': "import '../../../libs/kit/stray';\n",
+      'apps/main/src/main.test.ts': "import './main';\nimport '../../../libs/kit/index';\n",
+      'libs/kit/package.json': JSON.stringify({ name: 'kit' }),
+      'libs/kit/index.ts': 'export function kit() {\n  return 1;\n}\n',
+      'libs/kit/stray.ts': 'export function stray() {\n  return 1;\n}\n',
+    }, {
+      tests: [MAIN],
+      modules: [
+        { file: 'libs/kit/index.ts', blocks: [region('kit', [0])] },
+        { file: 'libs/kit/stray.ts', blocks: [region('stray', [0])] },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await rm(scoped, { recursive: true, force: true });
+  });
+
+  it('parts only the files its own count holds, so the parts add up to its coverage', async () => {
+    const answer = await ask(['coverage', '--root', scoped, '--packages']);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toMatch(/^ {2}libs\/kit\s+1\s+100\.0%\s+0\.0%\s+0\.0%\s+100\.0%\s+0\.0%\s+0\.0%\s+apps\/main 1$/mu);
+    expect(answer.out).not.toContain('stray.ts');
   });
 });

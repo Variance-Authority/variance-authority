@@ -3,7 +3,7 @@ import type { OwnedFile } from '@variance-authority/sense/test-selection';
 import { ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
 import type { CoverageSource } from './coverage-source.js';
 
-const SOURCE = { unloaded: { regions: 0 } } as CoverageSource;
+const SOURCE = { regions: 0, ran: 0, unloaded: { regions: 0 } } as CoverageSource;
 
 function owned(file: string, owner: string, others: number, by: Record<string, number> = { 'apps/main': others }): OwnedFile {
   return { file, owner, regions: others + 1, run: others + 1, own: 1, others, by, kinds: {} };
@@ -57,7 +57,7 @@ describe('the ownership report at size', () => {
 
 describe('the coverage of each package', () => {
   // The package's own count, which the coverage and every share read: 10 regions, 5 run.
-  const ui = [{ from: 'libs/ui', own: { regions: 10, ran: 5, unloaded: { regions: 4 } } as CoverageSource, uses: SOURCE }];
+  const ui = [{ from: 'libs/ui', own: { regions: 10, ran: 5, before: { regions: 1 }, unloaded: { regions: 4 } } as CoverageSource, uses: SOURCE }];
   const file: OwnedFile = {
     file: 'libs/ui/a.ts', owner: 'libs/ui', regions: 6, run: 4, own: 3, others: 1, by: { 'apps/main': 1 },
     kinds: { unit: 3, e2e: 2, integration: 0 }, near: 2,
@@ -71,8 +71,9 @@ describe('the coverage of each package', () => {
     expect(ownershipMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 50.0% | 20.0% | 10.0% | 10.0% | 50.0% | 30.0% | 0.0% | 20.0% | `apps/main` 1 |');
   });
 
-  it('names what ran only while loading, which is in the coverage and in no part of it', () => {
-    expect(ownershipLines(ui, [file])).toContain('  1 region ran only while its module loaded or before reach: in coverage, in no part');
+  it('names what ran before reach, which is in the coverage and in no part of it', () => {
+    expect(ownershipLines(ui, [file])).toContain('  1 region ran before reach: in coverage, in no part');
+    expect(ownershipMarkdown(ui, [file])).toContain('1 region ran before reach: in coverage, in no part.');
   });
 
   it('adds every package together under `all` when there are several', () => {
@@ -81,6 +82,16 @@ describe('the coverage of each package', () => {
 
     expect(ownershipLines(api, [file, other]).find((line) => line.startsWith('  all'))!.split(/\s{2,}/u))
       .toEqual(['', 'all', '20', '75.0%', '60.0%', '5.0%', '5.0%', '25.0%', '65.0%', '0.0%', '10.0%', 'apps/main 1']);
+  });
+
+  it('counts a package no test ran into `all`, though it has no row of its own', () => {
+    const idle = { from: 'libs/idle', own: { regions: 10, ran: 0, unloaded: { regions: 10 } } as CoverageSource, uses: SOURCE };
+    const api = [...ui, { from: 'libs/api', own: { regions: 10, ran: 10, unloaded: { regions: 0 } } as CoverageSource, uses: SOURCE }, idle];
+    const other: OwnedFile = { file: 'libs/api/b.ts', owner: 'libs/api', regions: 10, run: 10, own: 10, others: 0, by: {}, kinds: { unit: 10, e2e: 0, integration: 0 }, near: 10 };
+    const lines = ownershipLines(api, [file, other]);
+
+    expect(lines.some((line) => line.startsWith('  libs/idle'))).toBe(false);
+    expect(lines.find((line) => line.startsWith('  all'))!.split(/\s{2,}/u).slice(0, 4)).toEqual(['', 'all', '30', '50.0%']);
   });
 
   it('counts its own tests whole when no walk measured a distance', () => {
