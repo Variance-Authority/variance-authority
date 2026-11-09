@@ -30,6 +30,14 @@ how to choose among them.
 After the edit, `yarn variance select --suite <slice>` answers the same
 question for the diff. [Pre-verify](pre-verify.md) says how that selection is made.
 
+**What a record holds.** A record is read through a command — `covering`,
+`select`, `story`, `share` — never through a decoder in `packages/`, whose error
+names its own premise rather than what the record lacks. A claim about the
+shared record is checked before anything is built on it: `yarn variance share
+--format github` prints `commit-<suite>=`, the mainline record that suite
+reads, empty when there is none, and `based-<suite>=true` when the record laid
+carries its cases.
+
 **What moved on `main`.** `git fetch` and `git log HEAD..origin/main`. A fix
 that landed after your branch point may already answer the task, or change the
 code under it.

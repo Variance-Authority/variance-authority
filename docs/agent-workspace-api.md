@@ -164,7 +164,7 @@ search, indexed source search and observed-subject search.
 | You need | Start with |
 | --- | --- |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep`, beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
-| An exact string or a pattern in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. |
+| A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |

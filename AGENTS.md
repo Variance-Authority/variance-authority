@@ -73,7 +73,9 @@ checkout, which lags it: an instruction read there may already be replaced.
 The primary checkout — the first row of `git worktree list` — is shared: people
 commit on `main` in it while you work, and anything you stage there lands in
 their next commit. Never stage in it. Work in a worktree on a branch cut from
-`origin/main`, and give the worktree its own `yarn install && yarn build`.
+`origin/main`, and give the worktree its own `yarn install && yarn build`. Run
+nothing there until both have finished: a command started earlier answered from
+a half-built checkout, and is run again.
 
 ## Ask before you grep
 
@@ -93,6 +95,10 @@ yarn variance covering --file <path>       # which tests entered a file
 Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
 local name, a string or a pattern to `grep`, from the file or folder you are
 working in, or a top folder such as `packages/` or `tools/` at the widest.
+
+Read an answer whole: widen it with `--limit` where it says rows were not
+shown, and never cut it with `head` or `tail`, whose dropped rows read later as
+a defect `variance` does not have.
 
 `symbol`, `uses` and `search` answer from the files the index parses: JavaScript
 and TypeScript, stylesheets, Python, Rust, Java, Kotlin and Swift. Those files
