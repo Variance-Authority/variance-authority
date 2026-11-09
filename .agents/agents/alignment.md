@@ -15,8 +15,10 @@ open the body until step 4. Read the diff with
 `git show origin/main:.compass/COMPASS.md` and the **Code rules** section of
 `git show origin/main:.agents/references/change.md` — so a change that edits a
 rule is judged by the rule it found, and its edit is one more hunk to judge. Ask the code with
-`yarn variance ask symbol|uses|search` before you grep; a code question
-`variance` could not answer is a defect in it, and you name it in your report.
+`yarn variance ask symbol|uses|search` before you grep. A miss is a defect in
+`variance` only on a file it searched, as
+[`AGENTS.md`](../../AGENTS.md#ask-before-you-grep) draws the line, and you name
+that one in your report.
 
 Work in this order, and write each step into your report before starting the
 next, so the design can be read apart from what the diff made of it:

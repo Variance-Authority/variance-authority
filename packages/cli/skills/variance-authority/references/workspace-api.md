@@ -110,11 +110,13 @@ Ask by what you hold:
 | A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
 
-The source is the files the index parses: JavaScript and TypeScript,
-stylesheets, Python, Rust, Java, Kotlin and Swift. `variance` reads nothing
-else, so an empty answer says nothing about any other file. Search those with
-`rg` or `git grep` alongside it, without waiting for `variance` to come back
-empty.
+The source is the files the index parses — JavaScript and TypeScript,
+stylesheets, Python, Rust, Java, Kotlin and Swift — and any other file one of
+them imports. `symbol`, `uses` and `search` answer from the declarations in the
+first; `grep` searches both, along the imports from its start point. A YAML,
+JSON, Markdown or shell file nothing imports is outside the source, and an empty
+answer says nothing about it: search it with `rg` or `git grep` alongside
+`variance`, not after `variance` comes back empty.
 
 `search` turns the words you have into candidate names. When the editor, ticket
 or stack trace already gives you a path, pass it on that first search as a start
@@ -516,8 +518,8 @@ packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.
 
-**A start point removes names; it does not rank them down.** A path the
-checkout does not have is refused by name, so you are never answered about the
+**A start point removes names; it does not rank them down.** A path that
+holds no source file is refused by name, so you are never answered about the
 whole repository without knowing it. An empty answer under a start point is a
 fact about that area; ask again without it for the whole workspace.
 
@@ -527,11 +529,11 @@ counts.
 ### `grep`
 
 Use it when there is no name to ask for: a local variable, a string literal, an
-error message, a comment. It needs `--from` or `--to`, and searches the source
-files that start point names and reaches along the imports, so say the file or
-folder you are working in, or a top folder at the widest. The root is no start
-point. A file the index does not parse is never searched, and a path that holds
-only such files is refused as not found: run `rg` on it. `rg` must be on `PATH`. Lines come grouped by how many imports away from the start point their
+error message, a comment. It needs `--from` or `--to`, and searches the files
+that start point names and reaches along the imports, so say the file or folder
+you are working in, or a top folder at the widest. The root is no start point.
+A file outside the source is never searched, and a path that holds only such
+files is refused as not found: run `rg` on it. `rg` must be on `PATH`. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
 ### `discover`

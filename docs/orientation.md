@@ -70,10 +70,11 @@ flowchart LR
 Looking for a declaration, search declarations. Holding the name, search names.
 Holding a file or a package, scope the search to it. Holding only the concept,
 translate it into the words the repository is likely to use. Holding only a
-string in code, ask for it from a top folder. `rg` is for what no import reaches:
-prose, configuration and logs. A narrow search that comes back empty is either a
-true answer about that area or a sign that something you assumed is wrong. Widen
-one step to find out which, not all the way to `rg`.
+string in code, ask for it from a top folder. `rg` is for what no import
+reaches — prose, configuration, workflows and logs — and runs beside Variance,
+not after it. A narrow search that comes back empty on code is either a true
+answer about that area or a sign that something you assumed is wrong. Widen one
+step to find out which, not all the way to `rg`.
 
 ## What Variance searches
 
@@ -120,17 +121,18 @@ way every time and keeps the answer inside the area the graph connects. If the
 repository calls sign-in `CredentialGate`, that name comes back when a word you
 supplied is part of it, and you can always say why a hit is a hit.
 
-Use `rg` when the text is outside the source, and `git grep` when the committed
-tree is the answer. Both are exact and need no Variance index. In code, `ask
-grep` matches the same text in the files a path reaches, nearest first, and a
-top folder is the widest path it takes.
+Use `rg` when the text is outside the source — a YAML, JSON, Markdown or shell
+file no code imports — and `git grep` when the committed tree is the answer.
+Both are exact and need no Variance index. In code, `ask grep` matches the same
+text in the files a path reaches, nearest first, and a top folder is the widest
+path it takes.
 
 ## Choose the entrance from what you have
 
 | What you have | Ask | What you get |
 | --- | --- | --- |
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
-| Text outside the source: prose, configuration, logs | `rg -n <text> .` | Current files containing that text |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg -n <text> .` | Current files containing that text |
 | An exact string or a pattern in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
