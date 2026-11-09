@@ -13,6 +13,7 @@ import {
   seedTestCoverage,
   testCoverageFile,
   withIndexLock,
+  writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
@@ -22,7 +23,7 @@ import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { EXIT_CLEAN } from '../exit.js';
 import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
-import { DISCOUNTS, GIT_SHARE, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, GIT_SHARE, cloneOf, gitPublished, publishRaw, published, recordIn, selectedIn, totalCoverage, totalModule } from './mainline-fixture.js';
 import { layMainline, mainlinePassedOver, suiteBase } from './suite-base.js';
 import { runRootShare } from './share-suites.js';
 import { suiteShare, suiteShareLines } from './suite-share.js';
@@ -311,6 +312,58 @@ describe('`variance share --suite unit` reads the mainline', () => {
       ],
       exit: EXIT_CLEAN,
     });
+  });
+
+  it("names the checkout's own record when it keeps no cases and stood in the mainline's way, and the step that takes the mainline's", async () => {
+    const ci = await mainline({ instrumentation: instrumentationId() });
+    const { worktree } = await laptop(ci.origin, ci.first);
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeTestCoverage(own, totalCoverage(ci.first, ['test/total.test.ts'], [totalModule(['test/total.test.ts'])]));
+
+    const lines = await suiteShareLines(worktree, { suite: 'unit', publish: false }, { env: LOCAL });
+
+    expect(lines).toEqual([
+      expect.stringMatching(/^record of "unit": read from mainline main, published at /u),
+      `This checkout already holds a record of "unit" at ${own}, and it keeps no cases, so unit has nothing to select from or compare with: ` +
+        "it runs whole, and its coverage is printed without a comparison. The mainline's record is not laid over a record this checkout holds; " +
+        'to take it instead, delete that file, which drops what this checkout ran into it, and run `variance share --suite unit` again.',
+    ]);
+    await rm(own);
+    await suiteShareLines(worktree, { suite: 'unit', publish: false }, { env: LOCAL });
+    expect(keepsCases(own)).toBe(true);
+  });
+
+  it("names the checkout's own record, and no step, when it keeps no cases and the mainline's was not read", async () => {
+    const ci = await mainline({ publish: false });
+    const { worktree } = await laptop(ci.origin, ci.first);
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await mkdir(dirname(own), { recursive: true });
+    await writeTestCoverage(own, totalCoverage(ci.first, ['test/total.test.ts'], [totalModule(['test/total.test.ts'])]));
+
+    expect(await suiteShareLines(worktree, { suite: 'unit', publish: false }, { env: LOCAL })).toEqual([
+      'record of "unit": the share has none either; mainline main: nothing is published there.',
+      `This checkout already holds a record of "unit" at ${own}, and it keeps no cases, so unit has nothing to select from or compare with: ` +
+        'it runs whole, and its coverage is printed without a comparison.',
+    ]);
+  });
+
+  it('says the base record was read without its case index when the record it laid keeps none', async () => {
+    const uncased = (dir: string, commit: string) => writeTestCoverage(testCoverageFile(dir, { suite: 'unit' }), {
+      ...totalCoverage(commit, ['test/total.test.ts'], [totalModule(['test/total.test.ts'])]),
+      instrumentation: instrumentationId(),
+    });
+    const ci = await published(home, { publish: false, record: async (dir) => uncased(dir, await git(dir, 'rev-parse', 'HEAD')) });
+    await publishRaw(home, ci.dir, ci.first);
+    const clone = await cloneOf(home, ci.origin);
+    cacheOf('laptop-cache');
+
+    const lines = await suiteShareLines(clone, { suite: 'unit', publish: false }, { env: LOCAL });
+
+    expect(lines).toEqual([
+      expect.stringMatching(/^record of "unit": read from mainline main, published at /u),
+      'The unit base record was read without its case index, so unit has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison.',
+    ]);
   });
 
   it('takes `--format` only to read the mainline', () => {
