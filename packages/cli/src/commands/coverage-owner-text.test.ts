@@ -58,6 +58,15 @@ describe('the ownership report at size', () => {
     expect(ownershipMarkdown(idle, files)).toContainEqual(expect.stringMatching(/^\| `all` \| 20 \| 0\.0% \|/u));
   });
 
+  it('gives no row, and adds nothing to all, for a package the record missed', () => {
+    const own = { regions: 10, ran: 5, unloaded: { regions: 0 } } as CoverageSource;
+    const listed = [{ from: 'libs/a', own, uses: SOURCE }, { from: 'libs/b', missed: 'no entry point' }, { from: 'libs/c', own, uses: SOURCE }] as Parameters<typeof ownershipLines>[0];
+    const files = ['libs/a', 'libs/c'].map((owner): OwnedFile => ({ file: `${owner}/x.ts`, owner, regions: 10, run: 5, own: 5, others: 0, by: {} }));
+
+    expect(ownershipLines(listed, files).join('\n')).not.toContain('libs/b');
+    expect(ownershipMarkdown(listed, files)).toContainEqual(expect.stringMatching(/^\| `all` \| 20 \| 50\.0% \|/u));
+  });
+
   it('says nothing when no file was counted', () => {
     expect(ownershipLines(entries('libs/ui'), [])).toEqual([]);
     expect(ownershipMarkdown(entries('libs/ui'), [])).toEqual([]);
