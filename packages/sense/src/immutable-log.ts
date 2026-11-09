@@ -22,6 +22,8 @@ import { digestBytes, type Digest } from './digest.js';
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;
 const HEADER_BYTES = MAGIC.length + 4;
+/** How many manifests a reader follows while writers keep moving it, before it keeps what it read. */
+const MOVED_ATTEMPTS = 8;
 
 interface SegmentReference {
   readonly digest: Digest;
@@ -59,40 +61,46 @@ export interface ImmutableLog {
  */
 export async function openImmutableLog(path: string): Promise<ImmutableLog> {
   named(path);
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(path);
-  } catch (error) {
-    if (!missing(error)) throw error;
-    return logAt(path, [], [], false, false);
-  }
-
-  if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) {
-    return logAt(path, [], [bytes], true, true);
-  }
-
-  const references = decodeManifest(bytes);
-  const directory = segmentDirectory(path);
-  const read = await Promise.all(references.map(async (reference) => {
+  for (let attempt = 1; ; attempt += 1) {
+    let bytes: Buffer;
     try {
-      const segment = await readFile(join(directory, fileName(reference.digest)));
-      return segment.length === reference.length && digestBytes(segment) === reference.digest
-        ? segment
-        : undefined;
-    } catch {
-      return undefined;
+      bytes = await readFile(path);
+    } catch (error) {
+      if (!missing(error)) throw error;
+      return logAt(path, [], [], false, false);
     }
-  }));
-  const valid = read.findIndex((segment) => segment === undefined);
-  const count = valid === -1 ? read.length : valid;
-  return logAt(
-    path,
-    references.slice(0, count),
-    read.slice(0, count) as Buffer[],
-    false,
-    true,
-    references.length - count,
-  );
+
+    if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) {
+      return logAt(path, [], [bytes], true, true);
+    }
+
+    const references = decodeManifest(bytes);
+    const directory = segmentDirectory(path);
+    const read = await Promise.all(references.map(async (reference) => {
+      try {
+        const segment = await readFile(join(directory, fileName(reference.digest)));
+        return segment.length === reference.length && digestBytes(segment) === reference.digest
+          ? segment
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    }));
+    const valid = read.findIndex((segment) => segment === undefined);
+    // A writer removes the segments its manifest stopped naming, so a segment
+    // missing under a manifest that has since moved is a read that lost the
+    // race, not a damaged chain.
+    if (valid !== -1 && attempt < MOVED_ATTEMPTS && await moved(path, bytes)) continue;
+    const count = valid === -1 ? read.length : valid;
+    return logAt(
+      path,
+      references.slice(0, count),
+      read.slice(0, count) as Buffer[],
+      false,
+      true,
+      references.length - count,
+    );
+  }
 }
 
 /**
@@ -107,23 +115,30 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
  */
 export function readImmutableLog(path: string): readonly Buffer[] {
   named(path);
-  let bytes: Buffer;
-  try {
-    bytes = readFileSync(path);
-  } catch (error) {
-    if (!missing(error)) throw error;
-    return [];
-  }
-  if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) return [bytes];
-
-  const directory = segmentDirectory(path);
-  return decodeManifest(bytes).map((reference) => {
-    const segment = readFileSync(join(directory, fileName(reference.digest)));
-    if (segment.length !== reference.length || digestBytes(segment) !== reference.digest) {
-      throw new Error('invalid immutable log segment');
+  for (let attempt = 1; ; attempt += 1) {
+    let bytes: Buffer;
+    try {
+      bytes = readFileSync(path);
+    } catch (error) {
+      if (!missing(error)) throw error;
+      return [];
     }
-    return segment;
-  });
+    if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) return [bytes];
+
+    const directory = segmentDirectory(path);
+    try {
+      return decodeManifest(bytes).map((reference) => {
+        const segment = readFileSync(join(directory, fileName(reference.digest)));
+        if (segment.length !== reference.length || digestBytes(segment) !== reference.digest) {
+          throw new Error('invalid immutable log segment');
+        }
+        return segment;
+      });
+    } catch (error) {
+      if (attempt < MOVED_ATTEMPTS && movedSync(path, bytes)) continue;
+      throw error;
+    }
+  }
 }
 
 /** No chain at `path`: what a save writes over state that could not be opened. */
@@ -212,6 +227,24 @@ function named(path: string): void {
     throw new BadLogPath(
       `immutable log path must be a non-empty string, received ${typeof path}`,
     );
+  }
+}
+
+async function moved(path: string, read: Buffer): Promise<boolean> {
+  try {
+    return !(await readFile(path)).equals(read);
+  } catch (error) {
+    if (!missing(error)) throw error;
+    return true;
+  }
+}
+
+function movedSync(path: string, read: Buffer): boolean {
+  try {
+    return !readFileSync(path).equals(read);
+  } catch (error) {
+    if (!missing(error)) throw error;
+    return true;
   }
 }
 
