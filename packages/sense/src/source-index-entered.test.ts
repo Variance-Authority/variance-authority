@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -10,7 +10,7 @@ import { scanRelations } from './scan.js';
  * A repository's parses are read once, whichever way it is entered.
  *
  * A parse is keyed by the bytes it came from, so a scan started in a
- * subdirectory, in a worktree's subdirectory or in a copy of the checkout asks
+ * subdirectory or in a worktree's subdirectory asks
  * for parses the cache already holds. Reading any of them again is a miss the
  * cache had the answer to.
  */
@@ -83,13 +83,4 @@ describe('a source index entered from elsewhere in its repository', () => {
     }
   });
 
-  it('reads nothing again for a copy of the checkout', async () => {
-    await updateSourceIndex(root);
-    const copy = join(cache, 'copy');
-    await cp(root, copy, { recursive: true });
-
-    expect(await updateSourceIndex(copy)).toMatchObject({ was: 'missing', files: 3, reread: 0 });
-    expect((await readPublishedSources((await updateSourceIndex(copy)).path)).records)
-      .toEqual(await scanRelations({ root: copy, dirs: ['.'] }));
-  });
 });

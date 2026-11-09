@@ -63,8 +63,25 @@ impl Chain {
     }
 }
 
-/// The chain at `path`, or `None` when nothing was ever published there.
+/// How many manifests a reader follows while writers keep moving it, before it
+/// keeps what it read: `MOVED_ATTEMPTS` in `immutable-log.ts`.
+const MOVED_ATTEMPTS: usize = 8;
+
+/// The chain at `path`, or `None` when nothing was ever published there. A
+/// segment missing because a writer published past it is read again from the
+/// manifest that writer left, so only damage costs segments.
 pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
+    let mut attempt = 1;
+    loop {
+        let chain = read_chain_once(path)?;
+        let Some(read) = &chain else { return Ok(chain) };
+        if read.dropped == 0 || attempt == MOVED_ATTEMPTS { return Ok(chain) }
+        if std::fs::read(path).ok().as_deref() == read.manifest.as_deref() { return Ok(chain) }
+        attempt += 1;
+    }
+}
+
+fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),

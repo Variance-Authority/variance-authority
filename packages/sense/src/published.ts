@@ -125,8 +125,7 @@ export interface SourceUpdateOptions {
    */
   readonly dirs?: readonly string[];
   /**
-   * The generation a missing `index` starts from, when it names one of its own.
-   * The nearest of `sourceIndexDonors` that holds a chain, when `index` is absent.
+   * The generation a missing `index` tries first, before `sourceIndexDonors`.
    */
   readonly primary?: string;
 }
@@ -208,9 +207,8 @@ export async function updateSourceIndex(
   const written = source.written;
   // An index with no chain starts from the nearest one that has one, and pays
   // only for what differs: parses are keyed by content, never by where.
-  const donors = was !== 'missing' ? [] : options.index === undefined
-    ? sourceIndexDonors(where)
-    : options.primary === undefined ? [] : [options.primary];
+  const donors = was !== 'missing' ? [] : [options.primary, ...sourceIndexDonors(where)]
+    .filter((donor): donor is string => donor !== undefined && donor !== path);
   const from = donors.find((donor) => seedSourceIndex(path, donor));
   if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its

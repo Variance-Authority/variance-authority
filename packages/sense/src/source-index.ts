@@ -7,13 +7,12 @@
  * never existed together.
  */
 
-import { readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
-import { cacheLayers, cacheRootFor, checkoutKey } from './test-selection/cache-layers.js';
+import { cacheLayers, checkoutKey } from './test-selection/cache-layers.js';
 import { repositoryRoot } from './test-selection/repository-root.js';
 import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
@@ -77,26 +76,19 @@ export function primarySourceIndexPath(root: string, cacheRoot?: string): string
 }
 
 /**
- * The indexes a missing one at `root` may start from, nearest first.
- *
- * A parse is keyed by the bytes it came from and never by a path, so any chain
- * holds parses a scan of this checkout can use, and a record is checked against
- * the tree before it is used; what a donor holds that this scan does not use is
- * dropped by its first save. Nearest first because the nearest shares the most:
- * the primary checkout's index of the same scan root, then the checkout's own
- * whole index, then the primary checkout's, then the newest one in the cache,
- * which is how a copy of a checkout finds the one it was copied with.
+ * The indexes a missing one at `root` may start from, nearest first: the
+ * primary checkout's index of the same scan root, then the checkout's whole
+ * index, then the primary checkout's. A parse is keyed by its bytes, and a
+ * record is checked against the tree before it is used, so a donor's parses
+ * serve any scan root within its repository.
  */
 export function sourceIndexDonors(root: string, cacheRoot?: string): readonly string[] {
-  const own = sourceIndexPath(root, cacheRoot);
   const { checkout } = scanOf(root);
-  const near = [
+  return [
     primarySourceIndexPath(root, cacheRoot),
     sourceIndexPath(checkout, cacheRoot),
     primarySourceIndexPath(checkout, cacheRoot),
-    newestSourceIndex(resolve(cacheRoot ?? cacheRootFor(checkout), 'test-selection')),
-  ];
-  return [...new Set(near.filter((path): path is string => path !== undefined && path !== own))];
+  ].filter((path): path is string => path !== undefined);
 }
 
 function scanOf(root: string): { readonly checkout: string; readonly within: string } {
@@ -106,27 +98,6 @@ function scanOf(root: string): { readonly checkout: string; readonly within: str
   return { checkout, within: path === '' ? '.' : join('scans', checkoutKey(path)) };
 }
 
-/** The most recently published whole-checkout index under a cache's `test-selection` directory. */
-function newestSourceIndex(directory: string): string | undefined {
-  let newest: { readonly path: string; readonly at: number } | undefined;
-  let repositories: string[];
-  try {
-    repositories = readdirSync(directory);
-  } catch {
-    return undefined;
-  }
-  for (const repository of repositories) {
-    const path = resolve(directory, repository, 'source-index.bin');
-    let at: number;
-    try {
-      at = statSync(path).mtimeMs;
-    } catch {
-      continue;
-    }
-    if (newest === undefined || at > newest.at) newest = { path, at };
-  }
-  return newest?.path;
-}
 
 /**
  * Open one versioned binary source-index generation from its immutable segments.

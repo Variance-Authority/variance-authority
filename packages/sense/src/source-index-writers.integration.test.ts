@@ -98,8 +98,14 @@ describe('writers saving one source index at once', () => {
     }));
     let running = true;
     const states = new Set<string>();
+    const dropped = new Set<number>();
     const reading = (async () => {
-      while (running) states.add((await openSourceIndexFile(at)).state);
+      while (running) {
+        states.add((await openSourceIndexFile(at)).state);
+        const oriented = native()!.orientPackages!(roots[0]!, at, [], 1, 1);
+        if (oriented) dropped.add(oriented.dropped);
+        await new Promise((tick) => setImmediate(tick));
+      }
     })();
     const exits = await Promise.all(writers);
     running = false;
@@ -107,6 +113,7 @@ describe('writers saving one source index at once', () => {
 
     expect(exits).toEqual(payloads.map(() => 0));
     expect([...states].filter((state) => state !== 'published' && state !== 'missing')).toEqual([]);
+    expect([...dropped].filter((count) => count > 0)).toEqual([]);
     const stored = (await openSourceIndexFile(at)).stored;
     expect(payloads.map(({ digest }) => stored.parses.has(digest))).toContain(true);
   });
