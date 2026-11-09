@@ -228,32 +228,23 @@ files into a shared package. Coverage stays at 100%, and the shared package has
 no test of its own: everything in it runs because a test in another package
 imports it, often several imports away. `variance coverage --packages` reads
 the same per-case [execution index](execution-record.md) the first section
-records, and counts each workspace package two ways:
+records, and parts each workspace package's coverage:
 
 ```bash
 npx variance coverage --packages
 ```
 
-The first table is each package's coverage, parted over its own regions: by
-any test, by its own tests, by each kind of suite, and by how near the nearest
-test that ran a region stood. One figure of 90% says none of that; this row
-says whether the 90% is the package's unit tests or an end-to-end run passing
-through:
+The table is each package's coverage, parted over its own regions: by any
+test, by its own tests, by each kind of suite, by how near the nearest test
+that ran a region stood, and by what only other packages' tests ran. One figure
+of 90% says none of that; this row says whether the 90% is the package's unit
+tests or an end-to-end run passing through. The figures are illustrative:
 
 ```text
-coverage of each package, over its own regions: by any test, by its own, per kind of suite, and from the nearest test
-                 regions  coverage  own tests  unit   e2e    ≤1 hop  ≤2 hops  ≤3 hops
-  packages/cli   9,790    81.9%     81.9%      72.4%  41.0%  38.2%   61.5%    74.0%
-  packages/help  2,327    88.9%     79.1%      79.1%  12.3%  21.4%   52.0%    80.6%
-```
-
-The second counts the same regions by whose tests ran them:
-
-```text
-which package's tests ran each package
-                 ran    own tests  only others'         by
-  packages/cli   8,020  100.0%     0             0.0%
-  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+coverage of each package, over its own regions: by any test, its own, each kind of suite, the nearest test, and only other packages'
+                 regions  coverage  own tests  unit   e2e    ≤1 hop  ≤2 hops  ≤3 hops  only others'        by
+  packages/cli   9,790    81.9%     81.9%      72.4%  41.0%  38.2%   61.5%    74.0%    0             0.0%
+  packages/help  2,327    88.9%     79.1%      79.1%  12.3%  21.4%   52.0%    80.6%    229           9.8%  packages/cli 229
 run only by other packages' tests
   packages/help/src/  229  packages/cli 229
     tools/            210  packages/cli 210

@@ -42,8 +42,6 @@ export interface OwnedFile {
    * ran them, in any suite, stood that many imports away.
    */
   readonly nearest?: Readonly<Record<string, number>>;
-  /** Given the walked hops, regions run only by tests no walk placed. */
-  readonly unmeasured?: number;
 }
 
 /**
@@ -81,7 +79,6 @@ export function coverageByOwner(
     const owner = ownerOf(file);
     let run = 0;
     let own = 0;
-    let unmeasured = 0;
     const by = new Map<string, number>();
     const kinds = new Map<SuiteKind, number>(counted.map((kind) => [kind, 0]));
     const nearest = new Map<number, number>();
@@ -89,8 +86,7 @@ export function coverageByOwner(
       if (ran.owners.size === 0) continue;
       run += 1;
       for (const kind of ran.kinds) kinds.set(kind, kinds.get(kind)! + 1);
-      if (ran.nearest === undefined) unmeasured += 1;
-      else nearest.set(ran.nearest, (nearest.get(ran.nearest) ?? 0) + 1);
+      if (ran.nearest !== undefined) nearest.set(ran.nearest, (nearest.get(ran.nearest) ?? 0) + 1);
       if (ran.owners.has(owner)) {
         own += 1;
         continue;
@@ -99,7 +95,7 @@ export function coverageByOwner(
     }
     files.push({
       file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by), kinds: Object.fromEntries(kinds),
-      ...(walked === undefined ? {} : { nearest: Object.fromEntries([...nearest].sort(([left], [right]) => left - right)), unmeasured }),
+      ...(walked === undefined ? {} : { nearest: Object.fromEntries([...nearest].sort(([left], [right]) => left - right)) }),
     });
   }
   return files.sort((left, right) => codeUnitOrder(left.file, right.file));

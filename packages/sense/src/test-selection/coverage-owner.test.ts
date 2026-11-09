@@ -122,13 +122,12 @@ describe('how each region ran: by which kind of suite, and how near', () => {
       { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('drop', [2]), block('idle', []))) },
     ], ownerOf, walked);
 
-    expect(store).toMatchObject({ regions: 4, run: 3, nearest: { 1: 1, 3: 1 }, unmeasured: 1 });
+    expect(store).toMatchObject({ regions: 4, run: 3, nearest: { 1: 1, 3: 1 } });
   });
 
   it('says nothing of distance when no walk was given', () => {
     const [store] = coverageByOwner([{ kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) }], ownerOf);
 
     expect(store).not.toHaveProperty('nearest');
-    expect(store).not.toHaveProperty('unmeasured');
   });
 });

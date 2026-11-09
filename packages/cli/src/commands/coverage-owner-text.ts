@@ -1,17 +1,14 @@
 // compass: variance-authority.reach.crossings
 /**
- * `variance coverage --packages`, by whose tests ran the code: each package's
- * own, or only other packages'.
+ * `variance coverage --packages`: the coverage of each package over its own
+ * regions, parted the ways one total hides.
  *
  * A package at full coverage can be run entirely by the tests of whatever
- * imports it, and nothing in its own coverage says so. The table puts that
- * share beside each package, and the tree under it walks a package down to the
- * files only other packages' tests reach, largest first, so the place a test
- * belongs is the first line read.
- *
- * Before both, the coverage of each package over its own regions, parted the
- * ways one total hides: by its own tests, by each kind of suite, and by how
- * near the nearest test that ran a region stood.
+ * imports it, and nothing in its own coverage says so. One row per package puts
+ * beside its coverage the share its own tests ran, each kind of suite's, how
+ * near the nearest test stood, and what only other packages' tests ran; the
+ * tree under it walks a package down to the files only other packages' tests
+ * reach, largest first, so the place a test belongs is the first line read.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -39,65 +36,15 @@ interface Node {
 /** The import hops each distance column counts within. */
 const HOPS = [1, 2, 3] as const;
 
-/** One row per package: its coverage, and the same regions by its own tests, by each kind of suite and within each distance. */
-export function coverageLines(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
-  const { header, rows } = coverageTable(entries, ownership);
-  if (rows.length === 0) return [];
-  return [
-    'coverage of each package, over its own regions: by any test, by its own, per kind of suite, and from the nearest test',
-    ...table([['', ...header], ...rows.map(([from, ...cells]) => [`  ${from!}`, ...cells])]),
-  ];
-}
-
-/** The same table for a pull request. */
-export function coverageMarkdown(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
-  const { header, rows } = coverageTable(entries, ownership);
-  if (rows.length === 0) return [];
-  return [
-    '', `<details><summary>📦 Coverage of each of ${grouped(rows.length)} packages</summary>`, '',
-    'Every share is over the package\'s own regions. A distance counts a region under the nearest test that ran it, in any suite.', '',
-    `| Package | ${header.map((cell) => cell[0]!.toUpperCase() + cell.slice(1)).join(' | ')} |`,
-    `|---|${header.map(() => '--:').join('|')}|`,
-    ...rows.map(([from, ...cells]) => `| \`${from!}\` | ${cells.join(' | ')} |`),
-    '', '</details>',
-  ];
-}
-
-function coverageTable(entries: Entries, ownership: readonly OwnedFile[]): { header: readonly string[]; rows: readonly (readonly string[])[] } {
-  const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds[kind] !== undefined));
-  const walked = ownership.some((file) => file.nearest !== undefined);
-  const header = ['regions', 'coverage', 'own tests', ...kinds, ...(walked ? HOPS.map((hop) => `≤${hop} hop${hop === 1 ? '' : 's'}`) : [])];
-  const rows = entries.flatMap((entry) => {
-    if ('missed' in entry || ownership.length === 0) return [];
-    const { regions, ran } = entry.own;
-    let own = 0;
-    const byKind = new Map<SuiteKind, number>();
-    const within = HOPS.map(() => 0);
-    for (const file of ownership) {
-      if (file.owner !== entry.from) continue;
-      own += file.own;
-      for (const kind of kinds) byKind.set(kind, (byKind.get(kind) ?? 0) + (file.kinds[kind] ?? 0));
-      for (const [hop, count] of Object.entries(file.nearest ?? {})) HOPS.forEach((most, at) => (within[at]! += Number(hop) <= most ? count : 0));
-    }
-    return [[
-      entry.from, grouped(regions), ratio(ran, regions), ratio(own, regions),
-      ...kinds.map((kind) => ratio(byKind.get(kind) ?? 0, regions)), ...(walked ? within.map((count) => ratio(count, regions)) : []),
-    ]];
-  });
-  return { header, rows };
-}
-
 /** One row per package, then the tree of what only other packages' tests ran. */
 export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
   const packages = counted(entries, ownership);
   if (packages.length === 0) return [];
   const ran = packages.filter((row) => row.run > 0);
+  const { header, cells } = columns(ownership);
   const lines = [
-    "which package's tests ran each package",
-    ...table([
-      ['', 'ran', 'own tests', "only others'", '', 'by'],
-      ...ran.map((row) => [`  ${row.from}`, grouped(row.run), ratio(row.own, row.run), grouped(row.others), ratio(row.others, row.run), testers(row.by)]),
-    ]),
+    "coverage of each package, over its own regions: by any test, its own, each kind of suite, the nearest test, and only other packages'",
+    ...table([['', ...header, "only others'", '', 'by'], ...ran.map((row) => [`  ${row.from}`, ...cells(row), grouped(row.others), ratio(row.others, row.regions), testers(row.by)])]),
   ];
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push(`  and ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran`);
@@ -113,16 +60,17 @@ export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFil
   const packages = counted(entries, ownership);
   const ran = packages.filter((row) => row.run > 0);
   if (ran.length === 0) return [];
+  const { header, cells } = columns(ownership);
   const lines = [
     '',
-    `<details><summary>🧭 How much of each of ${grouped(ran.length)} packages only other packages' tests ran</summary>`,
+    `<details><summary>📦 Coverage of each of ${grouped(ran.length)} packages</summary>`,
     '',
-    'A region counts as its own when a test in its package ran it, whoever else did.',
+    'Every share is over the package\'s own regions. A region is its own tests\' when a test in its package ran it, whoever else did; a distance counts it under the nearest test that ran it, in any suite.',
     '',
-    "| Package | Regions ran | By its own tests | Only by others' | | By |",
-    '|---|--:|--:|--:|--:|---|',
+    `| Package | ${header.join(' | ')} | Only others' | | By |`,
+    `|---|${header.map(() => '--:').join('|')}|--:|--:|---|`,
     ...ran.map((row) =>
-      `| \`${row.from}\` | ${grouped(row.run)} | ${ratio(row.own, row.run)} | ${grouped(row.others)} | ${ratio(row.others, row.run)} | ${testers(row.by, (name) => `\`${name}\``)} |`),
+      `| \`${row.from}\` | ${[...cells(row), grouped(row.others), ratio(row.others, row.regions)].join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push('', `And ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran.`);
@@ -197,26 +145,49 @@ export function earnedMarkdown(earned: EarnedCoverage | undefined): readonly str
 
 interface PackageRow {
   readonly from: string;
+  /** The package's own regions, a file no suite loaded among them, a test file not. */
+  readonly regions: number;
   readonly run: number;
   readonly own: number;
   readonly others: number;
   readonly by: Map<string, number>;
+  readonly kinds: Map<SuiteKind, number>;
+  /** Per hop band, the regions whose nearest test stood within it. */
+  readonly within: number[];
 }
 
 /** Each package the reading listed, summed over the files it owns. */
 function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly PackageRow[] {
   if (ownership.length === 0) return [];
-  return entries.filter((entry) => !('missed' in entry)).map(({ from }) => {
-    const row = { from, run: 0, own: 0, others: 0, by: new Map<string, number>() };
+  return entries.flatMap((entry) => {
+    if ('missed' in entry) return [];
+    const regions = (entry.own.before?.regions ?? 0) + entry.own.unloaded.regions;
+    const row = { from: entry.from, regions, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), within: HOPS.map(() => 0) };
     for (const file of ownership) {
-      if (file.owner !== from) continue;
+      if (file.owner !== entry.from) continue;
+      row.regions += file.regions;
       row.run += file.run;
       row.own += file.own;
       row.others += file.others;
       add(row.by, file.by);
+      add(row.kinds, file.kinds);
+      for (const [hop, count] of Object.entries(file.nearest ?? {})) HOPS.forEach((most, at) => (row.within[at]! += Number(hop) <= most ? count : 0));
     }
-    return row;
+    return [row];
   });
+}
+
+/** The columns every suite kind and, when the hops were walked, every hop band adds, each a share of the package's regions. */
+function columns(ownership: readonly OwnedFile[]): { header: readonly string[]; cells: (row: PackageRow) => readonly string[] } {
+  const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds[kind] !== undefined));
+  const walked = ownership.some((file) => file.nearest !== undefined);
+  return {
+    header: ['regions', 'coverage', 'own tests', ...kinds, ...(walked ? HOPS.map((hop) => `≤${hop} hop${hop === 1 ? '' : 's'}`) : [])],
+    cells: (row) => [
+      grouped(row.regions), ratio(row.run, row.regions), ratio(row.own, row.regions),
+      ...kinds.map((kind) => ratio(row.kinds.get(kind) ?? 0, row.regions)), ...(walked ? row.within.map((count) => ratio(count, row.regions)) : []),
+    ],
+  };
 }
 
 /** The rows of the packages with the most regions only others' tests ran, each walked down to its files. */
@@ -276,8 +247,8 @@ function node(name: string): Node {
   return { name, others: 0, by: new Map(), children: new Map() };
 }
 
-function add(into: Map<string, number>, counts: Readonly<Record<string, number>>): void {
-  for (const [owner, regions] of Object.entries(counts)) into.set(owner, (into.get(owner) ?? 0) + regions);
+function add<Key extends string>(into: Map<Key, number>, counts: Readonly<Partial<Record<Key, number>>>): void {
+  for (const [key, regions] of Object.entries(counts) as [Key, number][]) into.set(key, (into.get(key) ?? 0) + regions);
 }
 
 function larger(left: Node, right: Node): number {

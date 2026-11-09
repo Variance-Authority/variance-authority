@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { OwnedFile } from '@variance-authority/sense/test-selection';
-import { coverageLines, coverageMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
+import { ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
 import type { CoverageSource } from './coverage-source.js';
 
-const SOURCE = {} as CoverageSource;
+const SOURCE = { unloaded: { regions: 0 } } as CoverageSource;
 
 function owned(file: string, owner: string, others: number, by: Record<string, number> = { 'apps/main': others }): OwnedFile {
   return { file, owner, regions: others + 1, run: others + 1, own: 1, others, by, kinds: {} };
@@ -56,23 +56,23 @@ describe('the ownership report at size', () => {
 });
 
 describe('the coverage of each package', () => {
-  const ui = [{ from: 'libs/ui', own: { regions: 10, ran: 6 } as CoverageSource, uses: SOURCE }];
+  const ui = [{ from: 'libs/ui', own: { unloaded: { regions: 4 } } as CoverageSource, uses: SOURCE }];
   const file: OwnedFile = {
     file: 'libs/ui/a.ts', owner: 'libs/ui', regions: 6, run: 4, own: 3, others: 1, by: { 'apps/main': 1 },
-    kinds: { unit: 3, e2e: 2, integration: 0 }, nearest: { 0: 1, 1: 1, 3: 1 }, unmeasured: 1,
+    kinds: { unit: 3, e2e: 2, integration: 0 }, nearest: { 0: 1, 1: 1, 3: 1 },
   };
 
-  it('shares every count over the package\'s regions: by any test, by its own, per kind of suite, and within each distance', () => {
-    const lines = coverageLines(ui, [file]);
+  it('shares every count over the package\'s regions: by any test, by its own, per kind of suite, within each distance, and only by others', () => {
+    const lines = ownershipLines(ui, [file]);
 
-    expect(lines[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', 'integration', 'e2e', '≤1 hop', '≤2 hops', '≤3 hops']);
-    expect(lines[2]!.split(/\s{2,}/u)).toEqual(['', 'libs/ui', '10', '60.0%', '30.0%', '30.0%', '0.0%', '20.0%', '20.0%', '20.0%', '30.0%']);
-    expect(coverageMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 60.0% | 30.0% | 30.0% | 0.0% | 20.0% | 20.0% | 20.0% | 30.0% |');
+    expect(lines[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', 'integration', 'e2e', '≤1 hop', '≤2 hops', '≤3 hops', "only others'", 'by']);
+    expect(lines[2]!.split(/\s{2,}/u)).toEqual(['', 'libs/ui', '10', '40.0%', '30.0%', '30.0%', '0.0%', '20.0%', '20.0%', '20.0%', '30.0%', '1', '10.0%', 'apps/main 1']);
+    expect(ownershipMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 40.0% | 30.0% | 30.0% | 0.0% | 20.0% | 20.0% | 20.0% | 30.0% | 1 | 10.0% | `apps/main` 1 |');
   });
 
   it('leaves the distance columns out when no walk measured one', () => {
-    const { nearest: _, unmeasured: __, ...unwalked } = file;
+    const { nearest: _, ...unwalked } = file;
 
-    expect(coverageLines(ui, [unwalked])[1]).not.toContain('hop');
+    expect(ownershipLines(ui, [unwalked])[1]).not.toContain('hop');
   });
 });

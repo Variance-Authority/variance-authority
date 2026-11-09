@@ -97,23 +97,16 @@ afterAll(async () => {
 });
 
 describe("coverage by the package whose tests ran it", () => {
-  it('counts each workspace by its own tests and by other packages\' alone', async () => {
+  it('gives each package one row over its own regions: by any test, its own, each kind of suite, each distance and only other packages\'', async () => {
     const answer = await ask(['coverage', '--root', repo, '--packages']);
 
     expect(answer.code).toBe(0);
-    expect(answer.out).toMatch(/^ {2}apps\/main\s+1\s+100\.0%\s+0\s+0\.0%$/mu);
-    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+25\.0%\s+3\s+75\.0%\s+apps\/main 3 · libs\/specs 1$/mu);
-  });
-
-  it('gives each package its coverage over its own regions, by its own tests, per kind of suite and within each distance', async () => {
-    const answer = await ask(['coverage', '--root', repo, '--packages']);
-
     const lines = answer.out.split('\n');
     const header = lines.findIndex((line) => line.startsWith('coverage of each package'));
-    expect(lines[header + 1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', '≤1 hop', '≤2 hops', '≤3 hops']);
+    expect(lines[header + 1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', '≤1 hop', '≤2 hops', '≤3 hops', "only others'", 'by']);
     expect(lines.slice(header + 2, header + 4)).toEqual([
-      expect.stringMatching(/^ {2}apps\/main\s+2\s+100\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+50\.0%$/u),
-      expect.stringMatching(/^ {2}libs\/ui\s+4\s+100\.0%\s+25\.0%\s+100\.0%\s+50\.0%\s+100\.0%\s+100\.0%$/u),
+      expect.stringMatching(/^ {2}apps\/main\s+1\s+100\.0%\s+100\.0%\s+100\.0%\s+100\.0%\s+100\.0%\s+100\.0%\s+0\s+0\.0%$/u),
+      expect.stringMatching(/^ {2}libs\/ui\s+4\s+100\.0%\s+25\.0%\s+100\.0%\s+50\.0%\s+100\.0%\s+100\.0%\s+3\s+75\.0%\s+apps\/main 3 · libs\/specs 1$/u),
     ]);
   });
 
@@ -144,8 +137,8 @@ describe("coverage by the package whose tests ran it", () => {
   it('puts the packages in the pull request comment', async () => {
     const answer = await ask(['coverage', '--root', repo, '--packages', '--format', 'markdown']);
 
-    expect(answer.out).toContain("only other packages' tests");
-    expect(answer.out).toContain('| `libs/ui` | 4 | 25.0% | 3 | 75.0% | `apps/main` 3 · `libs/specs` 1 |');
+    expect(answer.out).toContain('Coverage of each of 2 packages');
+    expect(answer.out).toContain('| `libs/ui` | 4 | 100.0% | 25.0% | 100.0% | 50.0% | 100.0% | 100.0% | 3 | 75.0% | `apps/main` 3 · `libs/specs` 1 |');
   });
 
   // In: main.ts by its own test one hop away, and the label by its own.
@@ -196,7 +189,7 @@ describe('coverage counted from the tests near the code they ran', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toMatch(/^coverage .* counted where the nearest test that ran the code is 0-1 import hops away$/mu);
-    expect(answer.out).toMatch(/^ {2}libs\/ui\s+2\s+50\.0%\s+1\s+50\.0%\s+libs\/specs 1$/mu);
+    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+50\.0%\s+25\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+1\s+25\.0%\s+libs\/specs 1$/mu);
   });
 
   it('gives a program the band beside the counts it narrowed, and no comparison over a base it was not measured on', async () => {
