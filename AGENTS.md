@@ -94,9 +94,18 @@ Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
 local name, a string or a pattern to `grep`, from the file or folder you are
 working in, or a top folder such as `packages/` or `tools/` at the widest.
 
-Text is `rg`'s: prose, configuration, workflows, logs, session transcripts, and
-a line in a file you already have open. So is a code question `variance` could
-not answer, and that miss is a defect in `variance`: name it in your report.
+`variance` reads only the files its index parses: JavaScript and TypeScript,
+stylesheets, Python, Rust, Java, Kotlin and Swift. `grep` reads fewer still: the
+ones its start point reaches along the imports. Every other file is text, and
+text is `rg`'s and `git grep`'s: YAML, JSON, Markdown, shell, workflows and
+actions, logs, session transcripts, and a line in a file you already have open.
+Run them beside `variance` whenever the answer may sit in such a file, without
+asking first. An empty `variance` answer says nothing about a file it never
+read.
+
+A miss is a defect in `variance` only on a file it read: a code question about
+those files that it could not answer. Name that one in your report, and take
+the answer from `rg` meanwhile.
 
 A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the

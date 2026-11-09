@@ -108,7 +108,13 @@ Ask by what you hold:
 | A name | `symbol`, then `uses` |
 | A meaning, in words | `search`, with each likely spelling |
 | A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
-| Text outside the source: prose, configuration, logs | `rg` |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
+
+The source is the files the index parses: JavaScript and TypeScript,
+stylesheets, Python, Rust, Java, Kotlin and Swift. `variance` reads nothing
+else, so an empty answer says nothing about any other file. Search those with
+`rg` or `git grep` alongside it, without waiting for `variance` to come back
+empty.
 
 `search` turns the words you have into candidate names. When the editor, ticket
 or stack trace already gives you a path, pass it on that first search as a start
@@ -521,9 +527,11 @@ counts.
 ### `grep`
 
 Use it when there is no name to ask for: a local variable, a string literal, an
-error message, a comment. It needs `--from` or `--to`, and searches the files
-that start point reaches, so say the file or folder you are working in, or a top
-folder at the widest. The root is no start point. `rg` must be on `PATH`. Lines come grouped by how many imports away from the start point their
+error message, a comment. It needs `--from` or `--to`, and searches the source
+files that start point names and reaches along the imports, so say the file or
+folder you are working in, or a top folder at the widest. The root is no start
+point. A file the index does not parse is never searched, and a path that holds
+only such files is refused as not found: run `rg` on it. `rg` must be on `PATH`. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
 ### `discover`
