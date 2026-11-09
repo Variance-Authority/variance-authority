@@ -58,12 +58,12 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
 /** The same table for a pull request, the tree behind a disclosure of its own. */
 export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
   const packages = counted(entries, ownership);
+  if (packages.length === 0) return [];
   const ran = packages.filter((row) => row.run > 0);
-  if (ran.length === 0) return [];
   const { header, cells } = columns(ownership, banded);
   const lines = [
     '',
-    `<details><summary>📦 Coverage of each of ${grouped(ran.length)} packages</summary>`,
+    `<details><summary>📦 Coverage of each of ${grouped(packages.length)} packages</summary>`,
     '',
     'Every share is over the package\'s own regions. A region is its own tests\' when a test in its package ran it, whoever else did, and within one hop when the nearest of them imports its file; consumers only is what only other packages\' tests ran. The kinds count its own tests alone.',
     '',

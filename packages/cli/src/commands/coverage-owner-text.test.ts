@@ -49,6 +49,15 @@ describe('the ownership report at size', () => {
     expect(lines).toContainEqual(expect.stringMatching(/^ {2}\.\/tools\/\s+2/u));
   });
 
+  it('keeps a coverage of nothing in both tables when packages were counted and no test ran them', () => {
+    const own = { regions: 10, ran: 0, unloaded: { regions: 0 } } as CoverageSource;
+    const idle = ['libs/a', 'libs/b'].map((from) => ({ from, own, uses: SOURCE }));
+    const files = ['libs/a', 'libs/b'].map((owner): OwnedFile => ({ file: `${owner}/x.ts`, owner, regions: 10, run: 0, own: 0, others: 0, by: {} }));
+
+    expect(ownershipLines(idle, files)).toContainEqual(expect.stringMatching(/^ {2}all\s+20\s+0\.0%/u));
+    expect(ownershipMarkdown(idle, files)).toContainEqual(expect.stringMatching(/^\| `all` \| 20 \| 0\.0% \|/u));
+  });
+
   it('says nothing when no file was counted', () => {
     expect(ownershipLines(entries('libs/ui'), [])).toEqual([]);
     expect(ownershipMarkdown(entries('libs/ui'), [])).toEqual([]);
