@@ -68,6 +68,28 @@ describe('a question whose words are not equally rare', () => {
     }, 'file probes measure overhead');
     expect(said).toMatch(/^census .*\[holds: file, measure, probes\]/mu);
   });
+
+  it('names the two files that measure the probes in the first ten rows of the probe census question', async () => {
+    // The two files as this repository writes them, `cost.measure.ts` lacking `overhead`, among more than ten rows
+    // that also pass the cut and names holding only the common words, which do not.
+    const each = (count: number, line: (at: number) => string): string => Array.from({ length: count }, (_, at) => line(at)).join('');
+    const said = await ask({
+      'scripts/overhead.mjs': '#!/usr/bin/env node\n\n/**\n * What the probes cost, measured on a real subsystem rather than a loop.\n */\n\nconst staging = 1;\nexport { staging };\n',
+      'src/cost.measure.ts': "import { describe } from 'vitest';\n\n/**\n * The cost argument, measured rather than asserted. A count is exact, and the\n * suite instruments every module it loads, so probes land in one half.\n */\n\ndescribe('cost', () => {});\n",
+      'src/filler.ts': each(300, (at) => `export const filler${at} = ${at};\n`),
+      'src/counts.ts': each(30, (at) => `/** Counts the lines of a file. */\nexport const counted${at} = ${at};\n`),
+      'src/measures.ts': each(30, (at) => `/** Measures how wide a box is. */\nexport const measured${at} = ${at};\n`),
+      'src/tally.ts': each(12, (at) => `/** Counts the boxes and measures them. */\nexport const tally${at} = ${at};\n`),
+      'src/sampled.ts': each(8, (at) => `/** Measures a sample. */\nexport function sampled${at}(probes: number, count: number): number {\n  return probes + count;\n}\n`),
+      'src/census.ts': each(4, (at) => `/** Counts the probes a run measures. */\nexport const census${at} = ${at};\n`),
+    }, 'count probes and measure their overhead');
+    const rows = said.split('\n').filter((line) => line.includes('[holds:'));
+    expect(rows.length).toBeGreaterThan(10);
+    expect(rows.some((row) => /^(?:counted|measured|tally)\d/u.test(row))).toBe(false);
+    rows.splice(10);
+    expect(rows.some((row) => row.startsWith('scripts/overhead.mjs '))).toBe(true);
+    expect(rows.some((row) => row.startsWith('src/cost.measure.ts '))).toBe(true);
+  });
 });
 
 describe('a question asked from an area', () => {
