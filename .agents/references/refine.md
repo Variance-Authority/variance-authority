@@ -5,6 +5,33 @@ is, whether it should be done at all, and what would make it done.
 
 ## Look around
 
+**What problem we solve.** One question, read five ways, before anything else
+here. Each word becomes something a reader can open, and a problem where one of
+them cannot be named is not ours to chase, however well the rest reads.
+
+- **What**: is it worth solving here, and who has it? The Evidence and the
+  Impact.
+- **Which** becomes the particular way we pick. A problem comes in variants and
+  each has several answers: the Change names the one it takes, why that one, and
+  what already answers part of it, here or in a neighbour.
+- **Problem** becomes an issue: one behavioural problem to one issue, with
+  somebody better off once it is closed, as the brief below lays out.
+- **We** becomes a package: the package, and its `.compass/` block, that owns
+  the answer, named in Affected. The project is one problem at depth
+  ([what comes first](#what-comes-first)). When no package of ours is for it —
+  the "Not ours" table of `.compass/COMPASS.md`, a [position](positions.md) or
+  an [escape](escapes.md) names another owner — the issue routes to that owner,
+  or is closed.
+- **Solve** becomes a test: each Done when item is a test or a check that fails
+  today where the Evidence saw the harm — an adopter's project, a CI run, a
+  stranger's first command, not only this repository — and passes once the harm
+  is gone. A Change that only eases the harm says why the rest is not worth
+  solving.
+
+The pattern is Anton Korzunov's
+[What Problem We Solve](https://dev.to/thekashey/what-problem-we-solve-21no),
+after The API Book's chapter on an application's field.
+
 **The ask.** Restate it as one sentence that somebody else could check: what is
 true when the task is done, and which gate says so — a test, a check, a
 measurement, a CI comment. If you cannot write that sentence, the task is not
@@ -98,13 +125,14 @@ section to a heading:
   line, down to the root. Each link is something a reader can open, as Evidence
   is, or says it is a guess.
 - **Affected**: the commands, packages, runners and `.compass/` blocks the
-  scenario crosses.
+  scenario crosses, and the one package that owns the answer.
 - **Impact**: who is hurt, how often, what it costs them, and what happens if
   this is never done, and why each RICE label holds.
 - **Change**: the smallest change that answers it at the root, in the project's
-  concepts. A Change that acts above the root says why it stops there.
-- **Done when**: a checklist, each item a gate that fails on today's code. Each
-  `Then` is one of them.
+  concepts, and the way it picks among the answers, with why. A Change that
+  acts above the root says why it stops there.
+- **Done when**: a checklist, each item a test or a check that fails on today's
+  code where the Evidence saw the harm. Each `Then` is one of them.
 
 **The whys come before the Change.** A problem is often the output of something
 that should not stand, and a fix to it keeps that thing alive. Start at the

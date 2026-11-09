@@ -65,7 +65,21 @@ it would make `main` carry for ever. Where links a reader can open show a cause
 lower than the brief's or other than it, that is **not the root**, unless a
 reason the Change gives for stopping above that cause still holds; a reason they
 defeat is **not the root** too. Where the chains differ and nothing opens to
-settle it, neither wins, and the difference is named in your verdict. Your verdict is **build** when no rejection with evidence stands, and
+settle it, neither wins, and the difference is named in your verdict.
+
+Last, ask the brief the five questions under "What problem we solve" in
+`.agents/references/refine.md`, each answered from what opens. **Which** is
+**incomplete** when the Change does not name the way it picks and why. **Problem**
+is **not the problem** when the issue holds more than one. **We** is **not
+ours** when Affected names no package of ours whose purpose covers the question
+the Situation asks, or when the "Not ours" table in `.compass/COMPASS.md`, a
+position in `.agents/references/positions.md` or an escape names another owner.
+**Solve** is **not the problem** when a test in Done when could pass while the
+harm the Evidence shows still stands — run on this repository for a harm seen in
+an adopter's, say — or when the Change only eases that harm and does not say why
+the rest is not worth solving.
+
+Your verdict is **build** when no rejection with evidence stands, and
 otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is a
 verdict you may give, as is **incomplete**; it is the only place they are.
 
@@ -115,6 +129,9 @@ Reasons you reject on, and you name the one you use:
   answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
+- **Not ours.** Idea mode only: no package of ours is for the question, and
+  another owner is named, as "What problem we solve" draws it. In diff mode
+  ownership is the `alignment` reviewer's.
 - **Not the root.** Escape 5: links a reader can open show a lower cause or
   another one, or the change stops above the cause without a reason that holds.
   Your chain is a hypothesis as the author's is, so every link it stands on is
@@ -136,8 +153,8 @@ touches it. A measured gain that is real but still small for its cost does not
 defeat **too much for what it buys**. Name the evidence that defeated a
 rejection, and drop the rejection from your findings. A rejection with no
 evidence for it stays in the verdict and is not a finding: it is the argument
-the author reads, not a line the body has to answer. Whether a neighbour owns
-the answer, whether two modules implement the same thing and whether an
+the author reads, not a line the body has to answer. In diff mode, whether a
+neighbour owns the answer, whether two modules implement the same thing and whether an
 abstraction has one caller are the `alignment` reviewer's questions, not yours.
 End with the one cut you would make first, when a blocking rejection backs it;
 when none does, say that no cut was substantiated.
