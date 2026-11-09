@@ -429,6 +429,18 @@ describe('a server over a generation it reuses', () => {
     expect(after).not.toBe(before);
   });
 
+  it('lists a row found by its doc under the name the checkout gives it now, dated after the rename', async () => {
+    const root = await fixture.published({ 'packages/kit/src/tax.ts': '/** The levy on an amount. */\nexport function taxOf(amount: number): number {\n  return amount / 5;\n}\n' });
+    expect(await asked(root, 'docs_search', { query: 'levy' })).toMatch(/^taxOf .*packages\/kit\/src\/tax\.ts/mu);
+    const renamedAt = Date.now();
+    await rename(root);
+
+    const after = await asked(root, 'docs_search', { query: 'levy' });
+    expect(after).toMatch(/^dutyOf .*packages\/kit\/src\/tax\.ts/mu);
+    expect(after).not.toContain('taxOf');
+    expect(Date.parse(/Snapshot (\S+)\.$/u.exec(after.trimEnd())?.[1] ?? '')).toBeGreaterThanOrEqual(renamedAt);
+  });
+
   it('reads the checkout again before `docs_symbol` answers a name renamed since it', async () => {
     const root = await fixture.published();
     await rename(root);
