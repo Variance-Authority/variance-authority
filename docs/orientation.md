@@ -136,7 +136,7 @@ path it takes.
 | --- | --- | --- |
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg -n <text> .` | Current files containing that text |
-| An exact string or a pattern in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first |
+| An exact string or a pattern in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first; the query is a ripgrep regular expression, so a literal escapes `.()[]+*?` with a backslash |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
 | Words for a source name | `variance ask search --query <words>` | Candidate names, not every match |

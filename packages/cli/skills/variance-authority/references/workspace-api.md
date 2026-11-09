@@ -533,7 +533,9 @@ error message, a comment. It needs `--from` or `--to`, and searches the files
 that start point names and reaches along the imports, so say the file or folder
 you are working in, or a top folder at the widest. The root is no start point.
 A file outside the source is never searched, and a path that holds only such
-files is refused as not found: run `rg` on it. `rg` must be on `PATH`. Lines come grouped by how many imports away from the start point their
+files is refused as not found: run `rg` on it. `rg` must be on `PATH`. The query
+is a ripgrep regular expression, so a literal escapes `.()[]+*?` with a
+backslash: `--query 'a\(b'` matches `a(b`. Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
 ### `discover`
