@@ -67,17 +67,15 @@ were source, where `rg` and `git grep` skip it as ignored. The shell may be zsh,
 where an unquoted glob such as `--include=*.ts` fails with `no matches found`
 before grep runs.
 
-Run nothing in a worktree until its `yarn install && yarn build` has finished.
-A command started while either runs answers from a half-built checkout, and
-what it said is run again once they finish, not believed.
-
 Read this file and `.agents/references/` from `origin/main`, not the primary
 checkout, which lags it: an instruction read there may already be replaced.
 
 The primary checkout — the first row of `git worktree list` — is shared: people
 commit on `main` in it while you work, and anything you stage there lands in
 their next commit. Never stage in it. Work in a worktree on a branch cut from
-`origin/main`, and give the worktree its own `yarn install && yarn build`.
+`origin/main`, and give the worktree its own `yarn install && yarn build`. Run
+nothing there until both have finished: a command started earlier answered from
+a half-built checkout, and is run again.
 
 ## Ask before you grep
 
@@ -98,13 +96,9 @@ Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
 local name, a string or a pattern to `grep`, from the file or folder you are
 working in, or a top folder such as `packages/` or `tools/` at the widest.
 
-Read an answer whole. `variance` has no `--limit`, and `head` or `tail` on its
-output drops rows that read later as a defect it does not have. A record is
-read through a command — `covering`, `select`, `story`, `share` — never through
-a decoder in `packages/`, whose error names its own premise rather than what the
-record lacks. A claim about the shared record is checked before anything is
-built on it: `yarn variance share --format github` prints `based-<suite>=`, which
-says whether that suite stands on the mainline's record.
+Read an answer whole: widen it with `--limit` where it says rows were not
+shown, and never cut it with `head` or `tail`, whose dropped rows read later as
+a defect `variance` does not have.
 
 `symbol`, `uses` and `search` answer from the files the index parses: JavaScript
 and TypeScript, stylesheets, Python, Rust, Java, Kotlin and Swift. Those files
@@ -243,10 +237,8 @@ Look around:
 - What the change reached: the `read` lines of `yarn variance select --suite
   <slice>`. A slice it skips nothing of is the whole suite, not a wave; leave it
   to CI.
-- Whether the machine is quiet before you believe a failure: count the agents
-  and runs you started, which are most of the load, then read `uptime`. A load
-  average above the core count means re-run later, and a timeout under that
-  load is not the test's defect: its limit stays.
+- Whether the machine is quiet before you believe a failure: a load average in
+  `uptime` above the core count means re-run later.
 
 Verify in waves, nearest first. Each wave starts only when the one before it is
 green, and a red wave sends you back to the edit, then to wave 1:
