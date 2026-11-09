@@ -198,6 +198,8 @@ describe('coverage counted from the tests near the code they ran', () => {
     expect(answer.out).toMatch(/^coverage .* counted where the nearest test that ran the code is 0-1 import hops away$/mu);
     // The band is the distance, so the table keeps one own column, never parted by a distance it would only repeat.
     expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+50\.0%\s+25\.0%\s+25\.0%\s+50\.0%\s+25\.0%\s+libs\/specs 1$/mu);
+    // What ran outside the band is not what nothing ran, so the last part says which it is.
+    expect(answer.out).toMatch(/^\s+regions\s+coverage\s+own\s+consumers only\s+not in band\s+unit\s+by$/mu);
   });
 
   it('gives a program the band beside the counts it narrowed, and no comparison over a base it was not measured on', async () => {
@@ -259,5 +261,36 @@ describe('coverage of a package whose entry points reach only part of it', () =>
     expect(answer.code).toBe(0);
     expect(answer.out).toMatch(/^ {2}libs\/kit\s+1\s+100\.0%\s+0\.0%\s+0\.0%\s+100\.0%\s+0\.0%\s+0\.0%\s+apps\/main 1$/mu);
     expect(answer.out).not.toContain('stray.ts');
+  });
+});
+
+describe('coverage of a package whose test files are not named as tests', () => {
+  let stories: string;
+
+  beforeAll(async () => {
+    stories = await recorded({
+      'package.json': files['package.json']!,
+      'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit' } } }),
+      'libs/kit/package.json': JSON.stringify({ name: 'kit' }),
+      'libs/kit/index.ts': 'export function kit() {\n  return 1;\n}\n',
+      'libs/kit/kit.stories.ts': "import { kit } from './index';\nexport const Default = () => kit();\n",
+    }, {
+      tests: [{ id: 'k', file: 'libs/kit/kit.stories.ts', name: 'Default', stopped: false }],
+      modules: [
+        { file: 'libs/kit/index.ts', blocks: [region('kit', [0])] },
+        { file: 'libs/kit/kit.stories.ts', blocks: [region('Default', [0])] },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await rm(stories, { recursive: true, force: true });
+  });
+
+  it('counts a file a suite runs as a test as no region of its package, whatever its name', async () => {
+    const answer = await ask(['coverage', '--root', stories, '--packages']);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toMatch(/^ {2}libs\/kit\s+1\s+100\.0%/mu);
   });
 });

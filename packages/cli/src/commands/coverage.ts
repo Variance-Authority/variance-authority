@@ -240,6 +240,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   const indexes = now.map((one) => one.index);
   // A test file is the test, not the package's code: each package's own and uses count leave it out.
   const sources = withoutTests(now);
+  const tests = new Set(now.flatMap((one) => one.index.tests.map((test) => test.file)));
   const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
   for (const entry of harness) loaded.add(entry);
   const unloadedChange = await changeNoSuiteLoads(request.root, suites, loaded);
@@ -267,7 +268,9 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
               if ('missed' in entry) return entry;
               const counted = (part: Scoped) => {
                 const narrowed = sources.map((one) => ({ ...one, index: within(one.index, part.scope) }));
-                return coverageSource(part, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
+                // A file a suite runs as a test is no source the package failed to load, whatever its name.
+                const sized = { ...part, sizes: part.sizes.filter((size) => !tests.has(size.file)) };
+                return coverageSource(sized, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),

@@ -35,16 +35,16 @@ interface Node {
 }
 
 /** One row per package, then the tree of what only other packages' tests ran. */
-export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
+export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
   const packages = counted(entries, ownership);
   if (packages.length === 0) return [];
   const ran = packages.filter((row) => row.run > 0);
-  const { header, cells } = columns(ownership);
+  const { header, cells } = columns(ownership, banded);
   const lines = [
-    "coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, what nothing ran, and each kind of suite's own tests",
+    `coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, ${banded ? 'what no test in the band ran' : 'what nothing ran'}, and each kind of suite's own tests`,
     ...table([['', ...header, 'by'], ...withAll(ran, packages).map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
   ];
-  const before = beforeReach(ran);
+  const before = beforeReach(packages);
   if (before > 0) lines.push(`  ${beforeSentence(before)}`);
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push(`  and ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran`);
@@ -56,11 +56,11 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
 }
 
 /** The same table for a pull request, the tree behind a disclosure of its own. */
-export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
+export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
   const packages = counted(entries, ownership);
   const ran = packages.filter((row) => row.run > 0);
   if (ran.length === 0) return [];
-  const { header, cells } = columns(ownership);
+  const { header, cells } = columns(ownership, banded);
   const lines = [
     '',
     `<details><summary>📦 Coverage of each of ${grouped(ran.length)} packages</summary>`,
@@ -72,7 +72,7 @@ export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFil
     ...withAll(ran, packages).map((row) =>
       `| \`${row.from}\` | ${cells(row).join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
-  const before = beforeReach(ran);
+  const before = beforeReach(packages);
   if (before > 0) lines.push('', `${beforeSentence(before)[0]!.toUpperCase()}${beforeSentence(before).slice(1)}.`);
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push('', `And ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran.`);
@@ -177,7 +177,7 @@ function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly Pa
 
 /** The rows shown, and when there are several, every package listed added together under `all`, the ones no test ran among them. */
 function withAll(rows: readonly PackageRow[], every: readonly PackageRow[]): readonly PackageRow[] {
-  if (rows.length < 2) return rows;
+  if (every.length < 2) return rows;
   const sum = (field: 'regions' | 'ran' | 'before') => every.reduce((total, row) => total + row[field], 0);
   return [...rows, summed('all', { regions: sum('regions'), ran: sum('ran'), before: sum('before') }, every.map((row) => ({ ...row, by: Object.fromEntries(row.by), kinds: Object.fromEntries(row.kinds) })))];
 }
@@ -211,13 +211,14 @@ function beforeSentence(regions: number): string {
 /**
  * The parts of the coverage, which with what ran at load add up to the package's
  * regions, then one column per kind of suite; each a share of the package's
- * regions. Its own tests are one part when no walk measured a distance.
+ * regions. Its own tests are one part when no walk measured a distance. Under a
+ * band, the last part is what no test in the band ran, whatever ran outside it.
  */
-function columns(ownership: readonly OwnedFile[]): { header: readonly string[]; cells: (row: PackageRow) => readonly string[] } {
+function columns(ownership: readonly OwnedFile[], banded: boolean): { header: readonly string[]; cells: (row: PackageRow) => readonly string[] } {
   const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds?.[kind] !== undefined));
   const walked = ownership.some((file) => file.near !== undefined);
   return {
-    header: ['regions', 'coverage', ...(walked ? [`own ≤${NEAR_HOPS} hop`, 'own further'] : ['own']), 'consumers only', 'nothing', ...kinds],
+    header: ['regions', 'coverage', ...(walked ? [`own ≤${NEAR_HOPS} hop`, 'own further'] : ['own']), 'consumers only', banded ? 'not in band' : 'nothing', ...kinds],
     cells: (row) => [
       grouped(row.regions), ratio(row.ran, row.regions),
       ...(walked ? [ratio(row.near, row.regions), ratio(row.own - row.near, row.regions)] : [ratio(row.own, row.regions)]),

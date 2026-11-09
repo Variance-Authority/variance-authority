@@ -51,6 +51,16 @@ export interface OwnedFile {
 export const NEAR_HOPS = 1;
 
 /**
+ * Whether a test ran a file from next to it, within {@link NEAR_HOPS}, or from
+ * further away; absent when no walk measured the distance, which is not a
+ * short one. The one answer both {@link coverageByOwner} and `earnedCoverage` read.
+ */
+export function nearness(walked: TestHops | undefined, test: string, file: string): 'near' | 'far' | undefined {
+  const hop = walked?.hops.get(test)?.get(file);
+  return hop === undefined ? undefined : hop <= NEAR_HOPS ? 'near' : 'far';
+}
+
+/**
  * Every module any suite recorded, with its regions counted by the package of
  * the cases that ran them. `ownerOf` names the package of a source file and of
  * a test file alike; files are in code-unit order. A region counts as run when
@@ -81,8 +91,7 @@ export function coverageByOwner(
       ran.owners.add(tester);
       if (tester !== owner) continue;
       if (kinded) ran.kinds.add(kind!);
-      const hop = walked?.hops.get(test)?.get(file);
-      if (hop !== undefined && hop <= NEAR_HOPS) ran.near = true;
+      if (nearness(walked, test, file) === 'near') ran.near = true;
     }
   }
 

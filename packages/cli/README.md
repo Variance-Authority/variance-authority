@@ -1585,7 +1585,8 @@ and a line under the table counts those. Each kind of suite the config declares
 gets a column of what the package's own tests of that kind ran. The hops are
 the import walk `--at-distance` uses: without `relations` in the suites, and
 under `--at-distance`, whose band is already the distance, the two own columns
-are one. With more than one package, `all` adds up every package the run
+are one, and *nothing* reads *not in band*: a region a test outside the band
+ran is in it. With more than one package, `all` adds up every package the run
 covers, a package no test ran among them, though that package gets no row.
 
 A region is the package's own when one of the package's tests ran it, whoever
