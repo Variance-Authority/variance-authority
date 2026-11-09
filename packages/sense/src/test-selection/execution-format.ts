@@ -231,7 +231,8 @@ export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[
  * Returns the index {@link encodeExecutionIndex} was handed, field for field,
  * the optional `loaded` included. Throws on a file this did not write, on a
  * layout version it does not know, and on a bound that does not agree with the
- * column it indexes. A record that carries a case index is read as that index.
+ * column it indexes. A record that carries a case index is read as that index,
+ * and one that kept none is refused as a coverage record.
  */
 export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   bytes = recordedCases(bytes);

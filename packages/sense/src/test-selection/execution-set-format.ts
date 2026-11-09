@@ -413,12 +413,8 @@ export function executionTestsOf(bytes: Uint8Array, rows: readonly number[]): re
 }
 
 /**
- * Why bytes of header version `version` do not read as a case index. A
- * coverage record's format is no index version: a record that carries a case
- * index is read as that index before it gets here (`recordedCases`), so one of
- * those formats is a record that kept none, and naming it as an index of
- * another version would send the reader after a build mismatch that is not
- * there.
+ * Why a header of `version` is no case index. A coverage format here is a record
+ * that kept none, since `recordedCases` unwraps one that kept it.
  */
 function unreadIndex(version: number): Error {
   if (readableFormat(version)) return new Error(`these bytes are a coverage record (format ${version}) that kept no case index, not a case index`);
