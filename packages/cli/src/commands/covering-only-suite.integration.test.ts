@@ -10,6 +10,7 @@ import { committedCheckout, repository } from './committed-checkout.fixture.js';
 
 // #1074: a wrap that names no suite records into the only one declared, the
 // record `variance covering` reads, and stops naming every suite among several.
+// Vitest stands in for Jest: both wraps reach the suite through sense's `declaredSuite`.
 const CONFIG = `import { fileURLToPath } from 'node:url';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { defineConfig } from 'vitest/config';
