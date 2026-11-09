@@ -98,7 +98,6 @@ function scanOf(root: string): { readonly checkout: string; readonly within: str
   return { checkout, within: path === '' ? '.' : join('scans', checkoutKey(path)) };
 }
 
-
 /**
  * Open one versioned binary source-index generation from its immutable segments.
  *
