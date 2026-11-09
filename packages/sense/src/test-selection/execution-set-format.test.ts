@@ -141,9 +141,10 @@ describe('the journey set spelling', () => {
   });
 
   it('refuses a version it did not write', () => {
-    const bytes = sections({ 'tests.id': column(Uint32Array.of(0)) }, 9);
+    // 6 is no version of an index nor of a coverage record, whose formats are refused as what they are.
+    const bytes = sections({ 'tests.id': column(Uint32Array.of(0)) }, 6);
 
-    expect(() => decodeExecutionIndex(bytes)).toThrow('unsupported execution index version: 9');
+    expect(() => decodeExecutionIndex(bytes)).toThrow('unsupported execution index version: 6');
   });
 
   it('keeps each case\'s duration as its runner reported it, and a case with none without one', () => {

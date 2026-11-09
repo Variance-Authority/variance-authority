@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesOf, sharedRecord, withCaseSections } from './case-record.js';
-import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
+import { decodeExecutionIndex, decodeExecutionTests, encodeExecutionIndex } from './execution-format.js';
 import { decodeRecordedEyes, encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import type { ExecutionIndex } from './execution-format.js';
@@ -101,8 +101,11 @@ describe('a record that kept no cases', () => {
     expect(keepsEyes(at(Buffer.alloc(0)))).toBe(false);
   });
 
-  it('is handed to the index reader as it is, which refuses it on its own terms', () => {
+  it('is handed to the index reader as it is, which refuses it as a coverage record rather than an index of another version', () => {
     expect(recordedCases(record)).toBe(record);
+    const refusal = 'these bytes are a coverage record (format 12) that kept no case index, not a case index';
+    expect(() => decodeExecutionIndex(record)).toThrow(refusal);
+    expect(() => decodeExecutionTests(record)).toThrow(refusal);
   });
 
   it('keeps no Eyes, as a case index on its own keeps none', () => {

@@ -1,4 +1,4 @@
-import { blob, column, NO_OWNER, sections } from './format-layout.js';
+import { blob, column, NO_OWNER, readableFormat, sections } from './format-layout.js';
 import { type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
@@ -270,9 +270,7 @@ export function openSetColumns(bytes: Uint8Array): SetColumns | undefined {
 export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const opened = sectionsOf(bytes);
   const version = opened.header.version;
-  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) {
-    throw new Error(`unsupported execution index version: ${opened.header.version}`);
-  }
+  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) throw unreadIndex(version);
   const { tests, modules, sets } = openedSets(setColumns(opened));
   return {
     tests,
@@ -410,10 +408,21 @@ function decodedStrings(table: StringTable): string[] {
 export function executionTestsOf(bytes: Uint8Array, rows: readonly number[]): readonly ExecutionTest[] {
   const opened = sectionsOf(bytes);
   const version = opened.header.version;
-  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT && !rows.includes(version)) {
-    throw new Error(`unsupported execution index version: ${version}`);
-  }
+  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT && !rows.includes(version)) throw unreadIndex(version);
   return testsOf(opened, stringsOf(opened));
+}
+
+/**
+ * Why bytes of header version `version` do not read as a case index. A
+ * coverage record's format is no index version: a record that carries a case
+ * index is read as that index before it gets here (`recordedCases`), so one of
+ * those formats is a record that kept none, and naming it as an index of
+ * another version would send the reader after a build mismatch that is not
+ * there.
+ */
+function unreadIndex(version: number): Error {
+  if (readableFormat(version)) return new Error(`these bytes are a coverage record (format ${version}) that kept no case index, not a case index`);
+  return new Error(`unsupported execution index version: ${version}`);
 }
 
 function testsOf(opened: OpenedSections, strings: readonly string[]): ExecutionTest[] {
