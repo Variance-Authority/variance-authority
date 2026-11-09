@@ -12,7 +12,7 @@ import type { Config } from '../config.js';
 import { EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { commentMarker } from './comment-marker.js';
 import { composeReports } from './compose.js';
-import { SOURCE, SUITE, instance } from './compose-fixture.js';
+import { SOURCE, SUITE, causedByButton, instance, observation } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
 import { suitePartPath, writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishedLine, suiteIndexPath } from './share.js';
@@ -301,7 +301,7 @@ describe('report over the shards it is given', () => {
     const owner = (i: number) => (i % n) + 1;
     const observed = (subject: string) =>
       subject === changed
-        ? { subject, verdict: 'changed', because: '40 pixel(s) differ across 1 region(s)', changedPixels: 40, regions: [{ x: 0, y: 0, width: 8, height: 5, pixels: 40, cause: true }] }
+        ? observation({ subject, regions: [causedByButton] })
         : { subject, verdict: 'unchanged', because: 'nothing moved', regions: [] };
     await writeCliRunReport(path, {
       runVersion: 1,
