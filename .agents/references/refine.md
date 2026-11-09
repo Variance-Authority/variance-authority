@@ -5,23 +5,23 @@ is, whether it should be done at all, and what would make it done.
 
 ## Look around
 
-**What problem we solve.** One question, read five ways, before anything else
-here. Each word becomes something a reader can open, and a problem where one of
+**What problem we solve.** For a `feat`, `fix` or `perf`, one question, read
+five ways, before anything else here. Each word becomes something a reader can open, and a problem where one of
 them cannot be named is not ours to chase, however well the rest reads.
 
-- **What** becomes a sighting, and worth solving here: the Evidence and the
-  Impact.
+- **What** becomes a sighting, and worth solving here: a quoted ask, a run or a
+  transcript line in the Evidence, and the Impact it carries.
 - **Which** becomes the particular way we pick. A problem comes in variants and
   each has several answers: the Change names the one it takes, why that one, and
   what already answers part of it, here or in a neighbour.
 - **Problem** becomes an issue: one behavioural problem to one issue, with
-  somebody better off once it is closed, as the brief below lays out.
+  somebody better off once it is closed: the title and the Situation.
 - **We** becomes a package: the package, and its `.compass/` block, that owns
   the answer, named in Affected. The project is one problem at depth
   ([what comes first](#what-comes-first)). When no package of ours is for it —
   the "Not ours" table of `.compass/COMPASS.md`, a [position](positions.md) or
-  an [escape](escapes.md) names another owner — the issue routes to that owner,
-  or is closed.
+  an [escape](escapes.md) names another owner — the issue is closed, naming
+  that owner.
 - **Solve** becomes a test: each Done when item is a test or a check that fails
   today where the Evidence saw the harm — an adopter's project, a CI run, a
   stranger's first command, not only this repository — and passes once the harm

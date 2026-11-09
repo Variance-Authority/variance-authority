@@ -48,8 +48,8 @@ once you print it, Impact. Evidence that does not open, or does not say what the
 issue claims, is **nobody asked**, and so is a harm claim with nothing to open,
 or one that only an agent's own report of its trouble carries. Code lines show
 the mechanism, not that anybody hit it: when nothing else shows a sighting, the
-problem is **nobody asked**. Do step 1 below from what you read, chain included. Only then print the
-rest, the labels last:
+problem is **nobody asked**. Do step 1 below from what you read, chain
+included. Only then print the rest, the labels last:
 
 ```bash
 gh issue view <n> --json body,labels --jq '.body, .labels[].name' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { on = 1 } on'
@@ -72,12 +72,14 @@ defeat is **not the root** too. Where the chains differ and nothing opens to
 settle it, neither wins, and the difference is named in your verdict.
 
 Last, ask the brief the five questions under "What problem we solve" in
-`.agents/references/refine.md`, each answered from what opens. **Which** is
-**incomplete** when the Change does not name the way it picks and why. **Problem**
-is **not the problem** when the issue holds more than one. **We** is **not
-ours** when Affected names no package of ours whose purpose covers the question
-the Situation asks, or when the "Not ours" table in `.compass/COMPASS.md`, a
-position in `.agents/references/positions.md` or an escape names another owner.
+`.agents/references/refine.md`, each answered from what opens. **What** is
+**nobody asked** when no sighting opens, as above. **Which** is **too much for
+what it buys** when the Change picks one way and does not say why it beats what
+already answers part of it. **Problem** is **not the problem** when the issue
+holds more than one. **We** is **not ours** when Affected names no package of
+ours whose purpose covers the question the Situation asks, and the "Not ours"
+table in `.compass/COMPASS.md`, a position in
+`.agents/references/positions.md` or an escape names another owner.
 **Solve** is **not the problem** when a test in Done when could pass while the
 harm the Evidence shows still stands — run on this repository for a harm seen in
 an adopter's, say — or when the Change only eases that harm and does not say why
@@ -157,8 +159,9 @@ touches it. A measured gain that is real but still small for its cost does not
 defeat **too much for what it buys**. Name the evidence that defeated a
 rejection, and drop the rejection from your findings. A rejection with no
 evidence for it stays in the verdict and is not a finding: it is the argument
-the author reads, not a line the body has to answer. In diff mode, whether a
-neighbour owns the answer, whether two modules implement the same thing and whether an
-abstraction has one caller are the `alignment` reviewer's questions, not yours.
+the author reads, not a line the body has to answer. Whether two modules
+implement the same thing and whether an abstraction has one caller are the
+`alignment` reviewer's questions, not yours, and in diff mode so is whether a
+neighbour owns the answer.
 End with the one cut you would make first, when a blocking rejection backs it;
 when none does, say that no cut was substantiated.
