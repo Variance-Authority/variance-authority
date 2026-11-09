@@ -221,6 +221,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
 /** What {@link scanCount} counted, and the listing it took of the checkout. */
 export interface ScanCounted {
   readonly files: number;
+  /** The files built again from a parse the cache held, so their bytes were not read. */
+  readonly held: number;
   /** The listing git gave the scan; absent when git could not list the checkout, or the addon did not hold it. */
   readonly listing?: NativeGitTree;
 }
@@ -234,8 +236,8 @@ export interface ScanCounted {
  * publishes the index never turns the closure into objects just to count them.
  */
 export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
-  const { built, graph, listing } = await scanning(options);
-  const counted = (files: number): ScanCounted => (listing === undefined ? { files } : { files, listing });
+  const { built, graph, listing, held } = await scanning(options);
+  const counted = (files: number): ScanCounted => (listing === undefined ? { files, held } : { files, held, listing });
   if (graph === undefined) return counted(built.size);
   let both = 0;
   for (const file of built.keys()) if (graph.has(file)) both += 1;
@@ -249,6 +251,8 @@ interface Scanned {
   readonly graph?: NativeIndexGraph;
   /** The listing of the checkout the scan took, when the addon holds it. */
   readonly listing?: NativeGitTree;
+  /** The records built from a parse the cache held rather than from the file. */
+  readonly held: number;
 }
 
 async function scanning(asked: ScanOptions): Promise<Scanned> {
@@ -269,6 +273,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   }
 
   const built = new Map<string, FileRecord>();
+  let held = 0;
   const cache = options.cache ?? memoryParseCache();
   const tree =
     options.digests === false
@@ -391,11 +396,14 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         acceptRemembered(file, digest, way, remembered);
         continue;
       }
+      // A parse is keyed by the bytes it came from, so one held from another
+      // path, scan root or checkout is resolved here without reading the file.
+      const parsed = digest !== undefined && cache.get(keyFor(digest, way)) !== undefined;
       // The native side reads modules and nothing else, so what it is handed is
       // named positively rather than as everything that is not a stylesheet: a
       // language it has never heard of must go to `recordFor`, not be passed to
       // it because it failed to be CSS.
-      if (languageFor(way) === 'module') {
+      if (languageFor(way) === 'module' && !parsed) {
         pending.push(file);
         pendingDigests.push(digest);
         pendingSet.add(file);
@@ -413,6 +421,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         remembering: reuse !== undefined,
         ...(digest === undefined ? {} : { digest }),
       });
+      if (parsed) held += 1;
       accept(file, way, fresh);
     }
 
@@ -475,7 +484,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   }
 
   const listing = tree?.native;
-  return { built, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
+  return { built, held, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
 }
 
 /** Whether a path is there to be opened, without opening it. */

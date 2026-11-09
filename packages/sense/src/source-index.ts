@@ -7,12 +7,14 @@
  * never existed together.
  */
 
-import { resolve } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
-import { cacheLayers } from './test-selection/cache-layers.js';
+import { cacheLayers, cacheRootFor, checkoutKey } from './test-selection/cache-layers.js';
+import { repositoryRoot } from './test-selection/repository-root.js';
 import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import {
@@ -54,27 +56,83 @@ export interface PersistentSourceIndex {
  * Named here rather than chosen by each caller, because the saving is only real
  * if two callers agree: a tool that picks its own path re-scans a repository
  * another tool already scanned, and both of them report a cold start as normal.
- * The directory is the checkout's own cache layer, so a worktree writes beside
- * the primary checkout rather than into it ([`cache-layers.ts`](./test-selection/cache-layers.ts)).
- * Keyed by the root the scan itself reads from, links followed: a checkout
- * reached through `/var` and through `/private/var` is one checkout, and a
- * key spelled from the caller's argument would give it two indexes and let the
- * one nobody updated answer.
+ * The directory is the cache layer of the checkout git names for `root`, so a
+ * scan started in a subdirectory stays in its repository's cache and a worktree
+ * writes beside the primary checkout rather than into it
+ * ([`cache-layers.ts`](./test-selection/cache-layers.ts)). A scan root below
+ * the checkout keeps its own index under the scan root's path within it, since
+ * its records are spelled from that root; links are followed, so a checkout
+ * reached through `/var` and through `/private/var` is one checkout.
  */
 export function sourceIndexPath(root: string, cacheRoot?: string): string {
-  return resolve(cacheLayers(realPath(resolve(root)), cacheRoot).top, 'source-index.bin');
+  const { checkout, within } = scanOf(root);
+  return resolve(cacheLayers(checkout, cacheRoot).top, within, 'source-index.bin');
 }
 
 /**
- * The primary checkout's source index, when `root` is a worktree cut from it.
+ * The primary checkout's source index for the same scan root, when `root` is in
+ * a worktree cut from it.
  *
  * A worktree's own index starts where the primary checkout's last update left
  * off, so its first update reads only what differs between the two checkouts.
  * `undefined` in the primary checkout itself, which has no other layer to start from.
  */
 export function primarySourceIndexPath(root: string, cacheRoot?: string): string | undefined {
-  const layers = cacheLayers(realPath(resolve(root)), cacheRoot);
-  return layers.top === layers.base ? undefined : resolve(layers.base, 'source-index.bin');
+  const { checkout, within } = scanOf(root);
+  const layers = cacheLayers(checkout, cacheRoot);
+  return layers.top === layers.base ? undefined : resolve(layers.base, within, 'source-index.bin');
+}
+
+/**
+ * The indexes a missing one at `root` may start from, nearest first.
+ *
+ * A parse is keyed by the bytes it came from and never by a path, so any chain
+ * holds parses a scan of this checkout can use, and a record is checked against
+ * the tree before it is used; what a donor holds that this scan does not use is
+ * dropped by its first save. Nearest first because the nearest shares the most:
+ * the primary checkout's index of the same scan root, then the checkout's own
+ * whole index, then the primary checkout's, then the newest one in the cache,
+ * which is how a copy of a checkout finds the one it was copied with.
+ */
+export function sourceIndexDonors(root: string, cacheRoot?: string): readonly string[] {
+  const own = sourceIndexPath(root, cacheRoot);
+  const { checkout } = scanOf(root);
+  const near = [
+    primarySourceIndexPath(root, cacheRoot),
+    sourceIndexPath(checkout, cacheRoot),
+    primarySourceIndexPath(checkout, cacheRoot),
+    newestSourceIndex(resolve(cacheRoot ?? cacheRootFor(checkout), 'test-selection')),
+  ];
+  return [...new Set(near.filter((path): path is string => path !== undefined && path !== own))];
+}
+
+function scanOf(root: string): { readonly checkout: string; readonly within: string } {
+  const scan = realPath(resolve(root));
+  const checkout = repositoryRoot(scan);
+  const path = relative(checkout, scan).split(sep).join('/');
+  return { checkout, within: path === '' ? '.' : join('scans', checkoutKey(path)) };
+}
+
+/** The most recently published whole-checkout index under a cache's `test-selection` directory. */
+function newestSourceIndex(directory: string): string | undefined {
+  let newest: { readonly path: string; readonly at: number } | undefined;
+  let repositories: string[];
+  try {
+    repositories = readdirSync(directory);
+  } catch {
+    return undefined;
+  }
+  for (const repository of repositories) {
+    const path = resolve(directory, repository, 'source-index.bin');
+    let at: number;
+    try {
+      at = statSync(path).mtimeMs;
+    } catch {
+      continue;
+    }
+    if (newest === undefined || at > newest.at) newest = { path, at };
+  }
+  return newest?.path;
 }
 
 /**
