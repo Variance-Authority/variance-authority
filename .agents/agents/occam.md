@@ -42,9 +42,13 @@ without them, and print only the first part:
 gh issue view <n> --json title,body --jq '.title, .body' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { exit } { print }'
 ```
 
-Open every item of Evidence — the quote, the issue, the run, the measurement.
-Evidence that does not open, or does not say what the issue claims, is **nobody
-asked**. Do step 1 below from what you read, chain included. Only then print the
+Open every item of Evidence — the quote, the issue, the run, the measurement —
+and every claim that somebody was hurt, wherever it sits: Perceived, Evidence or,
+once you print it, Impact. Evidence that does not open, or does not say what the
+issue claims, is **nobody asked**, and so is a harm claim with nothing to open,
+or one that only an agent's own report of its trouble carries. Code lines show
+the mechanism, not that anybody hit it: when nothing else shows a sighting, the
+problem is **nobody asked**. Do step 1 below from what you read, chain included. Only then print the
 rest, the labels last:
 
 ```bash

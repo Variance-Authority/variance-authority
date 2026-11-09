@@ -51,3 +51,7 @@ when an entry is added.
    absorbed only through the record: a red-first gate or a record-drawn map,
    never a second source of truth beside the test, a driver loop or an editor
    canvas.
+14. **Did it happen?** Name the run or the transcript line where somebody hit it.
+   A brief built on an agent's list of its own complaints, with code lines that
+   show the message but nobody misled by it, passed review on a premise its
+   transcript contradicts. #1202, #1205.

@@ -9,8 +9,8 @@ is, whether it should be done at all, and what would make it done.
 here. Each word becomes something a reader can open, and a problem where one of
 them cannot be named is not ours to chase, however well the rest reads.
 
-- **What**: is it worth solving here, and who has it? The Evidence and the
-  Impact.
+- **What** becomes a sighting: somebody hit it, in a run or a transcript line a
+  reader can open, and it is worth solving here. The Evidence and the Impact.
 - **Which** becomes the particular way we pick. A problem comes in variants and
   each has several answers: the Change names the one it takes, why that one, and
   what already answers part of it, here or in a neighbour.
@@ -119,8 +119,11 @@ section to a heading:
   something a reader can observe, never the mechanism that produces it.
 - **Evidence**: who has the problem, each item something a reader can open —
   the owner's ask quoted, an issue, a failing run, a measurement, a spec in
-  `docs/specs/`. "Users may want", "for completeness" and "it was easy" are not
-  evidence.
+  `docs/specs/`. At least one item shows somebody hitting the Perceived: their
+  ask quoted, a failing run, or a transcript's path and line. A code line shows
+  the mechanism, not the harm, and belongs in Root cause; an agent's report of
+  its own trouble is a claim, checked against its transcript before it is cited.
+  "Users may want", "for completeness" and "it was easy" are not evidence.
 - **Root cause**: why the Perceived happens, and why that does, one link to a
   line, down to the root. Each link is something a reader can open, as Evidence
   is, or says it is a guess.
