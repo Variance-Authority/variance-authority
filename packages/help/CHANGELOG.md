@@ -1,5 +1,11 @@
 # @variance-authority/help
 
+## 0.29.0
+
+### Patch Changes
+
+- 6f9f94a: `ask grep` and `docs_grep` answer a query that matches more than about 120,000 lines, where they had stopped with `Maximum call stack size exceeded`. `ask discover --text` and `ask intersection` answer such a query the same way.
+
 ## 0.28.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
