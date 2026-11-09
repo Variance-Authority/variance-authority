@@ -1,18 +1,15 @@
-import { execFile, execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { run } from './ask-packages.fixture.js';
+import { committedCheckout, repository } from './committed-checkout.fixture.js';
 
 // #1074: a wrap that names no suite records into the only one declared, the
 // record `variance covering` reads, and stops naming every suite among several.
-const here = dirname(fileURLToPath(import.meta.url));
-const repository = resolve(here, '../../../..');
-
 const CONFIG = `import { fileURLToPath } from 'node:url';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { defineConfig } from 'vitest/config';
@@ -20,31 +17,15 @@ import { defineConfig } from 'vitest/config';
 export default withTestSelection(defineConfig({ root: fileURLToPath(new URL('.', import.meta.url)), test: { include: ['src/*.test.ts'] } }));
 `;
 
-const git = (at: string, args: readonly string[]): string =>
-  execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
-
-/** A committed checkout beside the repository's modules, declaring `suites`, its Vitest config wrapped with no suite named. */
-async function checkout(suites: Readonly<Record<string, { readonly kind: string }>>): Promise<string> {
-  // The runner names files by their real path, and a temporary directory is a link on some systems.
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-covering-only-suite-')));
-  await mkdir(join(root, 'src'));
-  await symlink(join(repository, 'node_modules'), join(root, 'node_modules'), 'dir');
-  const files = {
-    '.gitignore': 'node_modules\n',
+/** A committed checkout declaring `suites`, its Vitest config wrapped with no suite named. */
+const checkout = (suites: Readonly<Record<string, { readonly kind: string }>>): Promise<string> =>
+  committedCheckout('variance-covering-only-suite-', {
     'package.json': '{ "name": "only-suite-fixture", "private": true, "type": "module" }\n',
     'variance.config.json': JSON.stringify({ suites }),
     'vitest.config.ts': CONFIG,
     'src/total.ts': 'export function total(): number {\n  return 1;\n}\n',
     'src/total.test.ts': "import { expect, it } from 'vitest';\nimport { total } from './total.js';\n\nit('totals', () => expect(total()).toBe(1));\n",
-  };
-  await Promise.all(Object.entries(files).map(([path, text]) => writeFile(join(root, path), text)));
-  git(root, ['init', '--quiet', '--initial-branch', 'main']);
-  git(root, ['config', 'user.email', 'fixture@example.test']);
-  git(root, ['config', 'user.name', 'Fixture']);
-  git(root, ['add', '-A']);
-  git(root, ['commit', '--quiet', '-m', 'first']);
-  return root;
-}
+  });
 
 /** `vitest run` in `root`, its exit code and both streams. */
 async function vitest(root: string): Promise<{ readonly code: number; readonly output: string }> {
@@ -81,6 +62,7 @@ describe('a wrapped run that names no suite', () => {
     expect((await vitest(root)).code).toBe(0);
 
     process.chdir(root);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const { code, out } = await run(['covering', '--file', 'src/total.ts']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('unit (unit):');

@@ -1,8 +1,7 @@
-import { execFile, execFileSync } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
@@ -13,14 +12,14 @@ import { main } from '../bin.fixture.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { formatCovering, type Covering } from './covering.js';
 import { coveringAnswer } from './covering-suites.js';
+import { committedCheckout, repository } from './committed-checkout.fixture.js';
+import { git } from './review-fixture.js';
 
 // A full run, then an edit inside `beta`, a run of the one case that does not
 // enter it, and a checkout back to the committed text. The run in part lays
 // the record in the edited text, where the edit reached `beta`'s region, so
 // the case that ran it at the commit, `beta adds`, did not land there. Which
 // case runs `beta` now is not known: no line of it is measured absence.
-const here = dirname(fileURLToPath(import.meta.url));
-const repository = resolve(here, '../../../..');
 
 const SOURCE = `export function alpha(value: number): number {
   return value * 2;
@@ -59,9 +58,6 @@ export default withTestSelection(
 
 const UNKNOWN = 'is in a text a case ran over, but a run over another text has landed there since, so which case ran it is not known.';
 
-const git = (at: string, args: readonly string[]): string =>
-  execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
-
 const ask = async (root: string, ...argv: string[]): Promise<{ readonly answer: Covering; readonly text: string }> => {
   const answer = await coveringAnswer(parseCoveringArgs(readFlags(['--root', root, ...argv], 'covering', flagsFor('covering'), synopsisFor('covering')))) as Covering;
   return { answer, text: formatCovering(answer, 'text', Date.now()) };
@@ -74,22 +70,12 @@ const vitest = (root: string, ...argv: string[]) => promisify(execFile)(
 );
 
 /** A committed checkout of `files` beside the repository's modules, with a vitest config that records the source. */
-async function checkout(files: Readonly<Record<string, string>>): Promise<string> {
-  // The temporary directory is a link on some systems, and the runner names files by their real path.
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'variance-covering-overwritten-')));
-  await mkdir(join(root, 'src'));
-  await symlink(join(repository, 'node_modules'), join(root, 'node_modules'), 'dir');
-  await writeFile(join(root, 'package.json'), '{ "name": "overwritten-fixture", "private": true, "type": "module" }\n');
-  await writeFile(join(root, '.gitignore'), 'node_modules\n');
-  await writeFile(join(root, 'vitest.config.ts'), CONFIG);
-  await Promise.all(Object.entries(files).map(([path, text]) => writeFile(join(root, path), text)));
-  git(root, ['init', '--quiet', '--initial-branch', 'main']);
-  git(root, ['config', 'user.email', 'fixture@example.test']);
-  git(root, ['config', 'user.name', 'Fixture']);
-  git(root, ['add', '-A']);
-  git(root, ['commit', '--quiet', '-m', 'first']);
-  return root;
-}
+const checkout = (files: Readonly<Record<string, string>>): Promise<string> =>
+  committedCheckout('variance-covering-overwritten-', {
+    'package.json': '{ "name": "overwritten-fixture", "private": true, "type": "module" }\n',
+    'vitest.config.ts': CONFIG,
+    ...files,
+  });
 
 describe('a region a run in part cut to another text, with a case that ran it at the commit', () => {
   const cwd = process.cwd();
