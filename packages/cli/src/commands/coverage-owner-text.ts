@@ -36,10 +36,9 @@ interface Node {
 
 /** One row per package, then the tree of what only other packages' tests ran. */
 export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
-  const packages = counted(entries, ownership);
-  if (packages.length === 0) return [];
-  const ran = packages.filter((row) => row.run > 0);
-  const { header, cells } = columns(ownership, banded);
+  const report = packageReport(entries, ownership, banded);
+  if (report === undefined) return [];
+  const { packages, ran, header, cells } = report;
   const lines = [
     `coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, ${banded ? 'what no test in the band ran' : 'what nothing ran'}, and each kind of suite's own tests`,
     ...table([['', ...header, 'by'], ...withAll(ran, packages).map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
@@ -55,12 +54,18 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
   return lines;
 }
 
+/** Every package counted, those a test ran, and the table's columns; absent when no package was counted. */
+function packageReport(entries: Entries, ownership: readonly OwnedFile[], banded: boolean) {
+  const packages = counted(entries, ownership);
+  if (packages.length === 0) return undefined;
+  return { packages, ran: packages.filter((row) => row.run > 0), ...columns(ownership, banded) };
+}
+
 /** The same table for a pull request, the tree behind a disclosure of its own. */
 export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
-  const packages = counted(entries, ownership);
-  if (packages.length === 0) return [];
-  const ran = packages.filter((row) => row.run > 0);
-  const { header, cells } = columns(ownership, banded);
+  const report = packageReport(entries, ownership, banded);
+  if (report === undefined) return [];
+  const { packages, ran, header, cells } = report;
   const lines = [
     '',
     `<details><summary>📦 Coverage of each of ${grouped(packages.length)} packages</summary>`,
