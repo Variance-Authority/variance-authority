@@ -125,10 +125,10 @@ supplied is part of it, and you can always say why a hit is a hit.
 
 Use `rg` when the text is outside the source — a YAML, JSON, Markdown or shell
 file no code imports — and `git grep` when the committed tree is the answer.
-Both need no Variance index. In code, `ask grep` matches the same regular
-expression in the files a path names and reaches along the imports, a Markdown or JSON
-file that code imports among them, nearest first, and a top folder is the widest
-path it takes.
+Both need no Variance index. In code, `ask grep` matches a regular expression
+in the files a path names and reaches along the imports, a Markdown or JSON file
+that code imports among them, nearest first, and a top folder is the widest path
+it takes.
 
 ## Choose the entrance from what you have
 
