@@ -213,9 +213,9 @@ const uncased = (suite: string): string =>
  * lays nothing over it, so when the mainline's was read the line says how to
  * take that one instead.
  */
-function ownUncased(suite: string, own: string, mainlineRead: boolean): string {
+function ownUncased(suite: string, own: string, offered: boolean): string {
   const held = `This checkout already holds a record of "${suite}" at ${own}, and it keeps no cases, ${uncased(suite)}`;
-  if (!mainlineRead) return held;
+  if (!offered) return held;
   return `${held} The mainline's record is not laid over a record this checkout holds; to take it instead, delete that file, ` +
     `which drops what this checkout ran into it, and run \`variance share --suite ${suite}\` again.`;
 }
