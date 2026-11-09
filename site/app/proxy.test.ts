@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { proxy } from "../proxy";
+import { GET as documentMarkdown } from "./(docs)/docs/[slug]/index.md/route";
+import { GET as docsMarkdown } from "./(docs)/docs/index.md/route";
+import { markdownAddress } from "./content/routed-docs";
 
 vi.mock("next/server", () => ({
   NextResponse: {
@@ -38,23 +41,21 @@ describe("the proxy", () => {
 });
 
 describe("the address a Markdown reader is sent to", () => {
-  /** The route each rewritten address names, as the framework's file routes resolve it. */
-  async function answered(path: string): Promise<Response> {
-    const { rewrittenTo } = proxy(requested(path, "text/markdown")) as unknown as { rewrittenTo: string };
-    const { pathname } = new URL(rewrittenTo);
-    if (pathname === "/docs/index.md") return (await import("./(docs)/docs/index.md/route")).GET();
-    const slug = /^\/docs\/([^/]+)\/index\.md$/.exec(pathname)?.[1];
-    expect(slug, pathname).toBeDefined();
-    const route = await import("./(docs)/docs/[slug]/index.md/route");
-    return route.GET(new Request(rewrittenTo), { params: Promise.resolve({ slug: slug! }) });
-  }
+  it.each(["/docs", "/docs/tests"])("is the Markdown address the site names for %s", (path) => {
+    const response = proxy(requested(path, "text/markdown"));
 
-  it.each(["/docs", "/docs/tests"])("answers %s with its Markdown, typed text/markdown", async (path) => {
-    const response = await answered(path);
-    const body = await response.text();
+    expect(response).toMatchObject({ rewrittenTo: new URL(markdownAddress(path)!, "https://variance-authority.dev").href });
+  });
+
+  it.each([
+    ["/docs/index.md", () => docsMarkdown()],
+    ["/docs/tests/index.md", () => documentMarkdown(new Request("https://variance-authority.dev/docs/tests/index.md"), { params: Promise.resolve({ slug: "tests" }) })],
+  ])("%s answers with Markdown, typed text/markdown", async (_address, get) => {
+    const response = await get();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    const body = await response.text();
     expect(body).toMatch(/^# \S/m);
     expect(body).not.toMatch(/<html|<head|<body/i);
   });
