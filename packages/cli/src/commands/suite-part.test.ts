@@ -10,6 +10,7 @@ import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/s
 import { main } from '../bin.fixture.js';
 import type { Config } from '../config.js';
 import { EXIT_OPERATOR, OperatorError } from '../exit.js';
+import { commentMarker } from './comment-marker.js';
 import { composeReports } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
@@ -295,16 +296,20 @@ describe('report over the shards it is given', () => {
   const IDS = ['story:ds-button--danger', 'story:page--default', 'story:card--default'];
 
   /** Shard `k` of `n`, beside its part: it observed the subjects it owns and left the rest to theirs. */
-  async function shard(k: number, n: number): Promise<string> {
+  async function shard(k: number, n: number, changed?: string): Promise<string> {
     const path = join(home, `shard-${String(k)}-of-${String(n)}`, 'run.json');
     const owner = (i: number) => (i % n) + 1;
+    const observed = (subject: string) =>
+      subject === changed
+        ? { subject, verdict: 'changed', because: '40 pixel(s) differ across 1 region(s)', changedPixels: 40, regions: [{ x: 0, y: 0, width: 8, height: 5, pixels: 40, cause: true }] }
+        : { subject, verdict: 'unchanged', because: 'nothing moved', regions: [] };
     await writeCliRunReport(path, {
       runVersion: 1,
       at: '2026-09-27T10:00:00.000Z',
       identity: IDENTITY,
       retention: 'durable',
       run: { id: 'build-1', commit: COMMIT },
-      observations: IDS.filter((_, i) => owner(i) === k).map((subject) => ({ subject, verdict: 'unchanged', because: 'nothing moved', regions: [] })),
+      observations: IDS.filter((_, i) => owner(i) === k).map(observed),
       notObserved: IDS.flatMap((subject, i) =>
         owner(i) === k ? [] : [{ subject, kind: 'excluded', because: shardOwnedBecause(owner(i), n, 'count') }],
       ),
@@ -313,7 +318,7 @@ describe('report over the shards it is given', () => {
     return path;
   }
 
-  async function report(paths: readonly string[], command = 'report'): Promise<{ code: number; err: string }> {
+  async function report(paths: readonly string[], command = 'report', ...flags: string[]): Promise<{ code: number; err: string }> {
     const config = join(home, 'variance.config.json');
     await writeFile(
       config,
@@ -328,12 +333,41 @@ describe('report over the shards it is given', () => {
       }),
     );
     let err = '';
-    const code = await main([command, ...paths, '--config', config], { out: () => {}, err: (text) => (err += text) });
+    const code = await main([command, ...paths, '--config', config, ...flags], { out: () => {}, err: (text) => (err += text) });
     return { code, err: err.split('\n')[0]! };
   }
 
   it('is the suite when every shard of one count is there', async () => {
     expect(await report([await shard(1, 3), await shard(2, 3), await shard(3, 3)])).toEqual({ code: 0, err: '' });
+  });
+
+  it("judges a change one shard saw as the suite's, 1, and 0 under --exit-zero-on-changes, as a run does", async () => {
+    const shards = [await shard(1, 3), await shard(2, 3, IDS[1]), await shard(3, 3)];
+    expect(await report(shards)).toEqual({ code: 1, err: '' });
+    expect(await report(shards, 'report', '--exit-zero-on-changes')).toEqual({
+      code: 0,
+      err: 'changes need review; --exit-zero-on-changes exits 0, not 1.',
+    });
+  });
+
+  it("renders one docket for every shard, under the project's marker once, naming the change a shard saw", async () => {
+    const body = join(home, 'docket.md');
+    const shards = [await shard(1, 3), await shard(2, 3, IDS[1]), await shard(3, 3)];
+
+    expect(await report(shards, 'comment', '--body-file', body)).toEqual({ code: 0, err: '' });
+
+    const docket = await readFile(body, 'utf8');
+    expect(docket.split(commentMarker('web'))).toHaveLength(2);
+    expect(docket.startsWith(commentMarker('web'))).toBe(true);
+    expect(docket).toContain(IDS[1]);
+  });
+
+  it('renders an empty docket over every shard of a clean suite, which clears the last one rather than posting', async () => {
+    const body = join(home, 'docket.md');
+    const shards = [await shard(1, 3), await shard(2, 3), await shard(3, 3)];
+
+    expect(await report(shards, 'comment', '--body-file', body)).toEqual({ code: 0, err: '' });
+    expect(await readFile(body, 'utf8')).toBe('');
   });
 
   it('refuses a shard that is missing, by its number, with no count given to it', async () => {

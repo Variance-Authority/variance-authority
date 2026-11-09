@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { OperatorError } from '../exit.js';
 import { BUNDLE } from './carry-bundle.js';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { keepPushed, movePushed, takePushed } from './carry-pushed.js';
 import { carry, commitIn, git, pullRequest, runsAt, streams } from './carry-pushed.fixture.js';
 
@@ -161,5 +162,42 @@ describe('a run of several jobs takes one push', () => {
     git(dirname(clone), 'clone', '-q', '--no-local', join(dirname(clone), 'upstream'), later);
 
     expect(await takePushed(later, pushed)).toEqual({ taken: ['unit'], left: [] });
+  });
+});
+
+describe("`carry take` is the next push's first step", () => {
+  /** Keep what `earlier` recorded, then cut the clone off from every remote, so nothing but the kept directory can give it a commit. */
+  async function keptThenCutOff(clone: string, earlier: string): Promise<string> {
+    const pushed = join(earlier, '.pushed');
+    await movePushed({ command: 'carry', direction: 'keep', dir: pushed, format: 'github' }, earlier, streams().streams, 'main');
+    git(clone, 'remote', 'set-url', 'origin', join(dirname(clone), 'nowhere'));
+    return pushed;
+  }
+
+  it('takes a push kept with nothing beyond the mainline, with no bundle, no remote and no fetch', async () => {
+    const { clone, earlier, kept } = await mergedPush();
+    await recorded(earlier, 'unit', runsAt(kept));
+    const pushed = await keptThenCutOff(clone, earlier);
+    expect(existsSync(join(pushed, BUNDLE))).toBe(false);
+    const { said, streams: to } = streams();
+
+    await movePushed({ command: 'carry', direction: 'take', dir: pushed, format: 'github' }, clone, to);
+
+    expect(said.out).toBe('taken=unit\nleft=\n');
+    expect(existsSync(testCoverageFile(clone, { suite: 'unit' }))).toBe(true);
+    expect(existsSync(join(clone, '.git', 'FETCH_HEAD'))).toBe(false);
+  });
+
+  it('lays a merge no remote holds from the kept directory alone, with no step before it', async () => {
+    const { clone, earlier, kept, merge, head } = await mergedPush();
+    await recorded(earlier, 'unit', runsAt(merge, [kept]));
+    const pushed = await keptThenCutOff(clone, earlier);
+    const { said, streams: to } = streams();
+
+    await movePushed({ command: 'carry', direction: 'take', dir: pushed, format: 'github' }, clone, to);
+
+    expect(said.out).toBe('taken=unit\nleft=\n');
+    expect(git(clone, 'rev-parse', `${merge}^2`)).toBe(head);
+    expect(existsSync(testCoverageFile(clone, { suite: 'unit' }))).toBe(true);
   });
 });
