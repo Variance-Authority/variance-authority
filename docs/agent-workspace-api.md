@@ -132,14 +132,11 @@ manager runs a local binary:
 ## Finding your way in the code
 
 Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` prints what it is and where it is declared,
-`ask search --query <words>` finds a name by what it does, and `ask grep --query
-<pattern> --from <path>` finds a string in the code that path reaches. They
-answer from the JavaScript, TypeScript, stylesheet, Python, Rust, Java, Kotlin
-and Swift files the index parses. Any other file is `rg`'s, run beside them. An
-empty answer is not proof of absence: it says nothing about a file they did not
-search, and `search` names candidates, not every match. The `variance-authority`
-skill has the rest.
+name, `ask symbol --name <name>` prints what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. They answer from the
+code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
+them, and an empty answer says nothing about a file they did not search. The
+`variance-authority` skill lists what the index parses, and has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at

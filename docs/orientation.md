@@ -71,12 +71,12 @@ Looking for a declaration, search declarations. Holding the name, search names.
 Holding a file or a package, scope the search to it. Holding only the concept,
 translate it into the words the repository is likely to use. Holding only a
 string in code, run `variance ask grep` from the folder you are working in, a
-top folder at the widest. A string in a file no import reaches — prose,
-configuration, workflows and logs — is `rg`'s. When you cannot tell which kind
-of file holds it, run both at once: neither answers for the other's files. An
-`ask grep` that comes back empty is either a true answer about the files it
-searched or a sign that something you assumed is wrong. Widen its start point
-one step to find out which.
+top folder at the widest. A string in a YAML, JSON, Markdown or shell file no
+code imports — prose, configuration, workflows and logs — is `rg`'s. When you
+cannot tell which kind of file holds it, run both at once: each reads files the
+other does not. An `ask grep` that comes back empty is either a true answer
+about the files it searched or a sign that something you assumed is wrong. Widen
+its start point one step to find out which.
 
 ## What Variance searches
 

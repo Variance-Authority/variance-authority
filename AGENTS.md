@@ -94,19 +94,19 @@ Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
 local name, a string or a pattern to `grep`, from the file or folder you are
 working in, or a top folder such as `packages/` or `tools/` at the widest.
 
-`symbol`, `uses` and `search` answer from the declarations in the files the index
-parses: JavaScript and TypeScript, stylesheets, Python, Rust, Java, Kotlin and
-Swift. `grep` searches the files its start point names and reaches along the
-imports, and its answer counts them. A file outside both — most often YAML,
-JSON, Markdown, shell, a workflow, an action's `action.yml`, a log or a session
-transcript — is text, and text is `rg`'s and `git grep`'s, as is a line in a
-file you already have open. Run them beside `variance` whenever the answer may
-sit in such a file, not after `variance` comes back empty: its empty answer says
-nothing about a file it did not search.
+`symbol`, `uses` and `search` answer from the files the index parses: JavaScript
+and TypeScript, stylesheets, Python, Rust, Java, Kotlin and Swift. `grep`
+searches the parsed files its start point names and what they import, and its
+answer counts them; a path that names no parsed file is refused. A file outside
+both — most often YAML, JSON, Markdown, shell, a workflow, an action's
+`action.yml`, a log or a session transcript — is text, and text is `rg`'s and
+`git grep`'s, as is a line in a file you already have open. Run them beside
+`variance` whenever the answer may sit in such a file, not after `variance`
+comes back empty: its empty answer says nothing about a file it did not search.
 
-A miss is a defect in `variance` only on a file it searched: a code question it
-could not answer from those files. Name that one in your report, and take the
-answer from `rg` meanwhile.
+A miss is a defect in `variance` only on a file of a kind its index parses: a
+code question about such a file that it could not answer, a wrong refusal or a
+crash. Name that one in your report, and take the answer from `rg` meanwhile.
 
 A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the

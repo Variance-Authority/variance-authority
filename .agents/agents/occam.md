@@ -78,7 +78,7 @@ open the body until step 3: the body is the author's case, and you build yours
 first. Read the diff with `git diff origin/main...HEAD` and the repository as
 `origin/main` holds it. Ask the code with
 `yarn variance ask symbol|uses|search` before you grep. A miss is a defect in
-`variance` only on a file it searched, as
+`variance` only on a file of a kind its index parses, as
 [`AGENTS.md`](../../AGENTS.md#ask-before-you-grep) draws the line, and you name
 that one in your report.
 
