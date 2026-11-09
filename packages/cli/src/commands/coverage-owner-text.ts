@@ -38,14 +38,12 @@ interface Node {
 export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
   const report = packageReport(entries, ownership, banded);
   if (report === undefined) return [];
-  const { packages, ran, header, cells } = report;
+  const { packages, shown, header, cells, before, idle } = report;
   const lines = [
     `coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, ${banded ? 'what no test in the band ran' : 'what nothing ran'}, and each kind of suite's own tests`,
-    ...table([['', ...header, 'by'], ...withAll(ran, packages).map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
+    ...table([['', ...header, 'by'], ...shown.map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
   ];
-  const before = beforeReach(packages);
   if (before > 0) lines.push(`  ${beforeSentence(before)}`);
-  const idle = packages.length - ran.length;
   if (idle > 0) lines.push(`  and ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran`);
   const { rows, more } = trees(packages, ownership);
   if (rows.length === 0) return lines;
@@ -54,34 +52,35 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
   return lines;
 }
 
-/** Every package counted, those a test ran, and the table's columns; absent when no package was counted. */
+/**
+ * Every package counted, the rows the table shows, its columns, what ran before
+ * reach and how many packages no test ran; absent when no package was counted.
+ */
 function packageReport(entries: Entries, ownership: readonly OwnedFile[], banded: boolean) {
   const packages = counted(entries, ownership);
   if (packages.length === 0) return undefined;
-  return { packages, ran: packages.filter((row) => row.run > 0), ...columns(ownership, banded) };
+  const ran = packages.filter((row) => row.run > 0);
+  return { packages, shown: withAll(ran, packages), ...columns(ownership, banded), before: beforeReach(packages), idle: packages.length - ran.length };
 }
 
 /** The same table for a pull request, the tree behind a disclosure of its own. */
 export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFile[], banded = false): readonly string[] {
   const report = packageReport(entries, ownership, banded);
   if (report === undefined) return [];
-  const { packages, ran, header, cells } = report;
   const lines = [
     '',
-    `<details><summary>📦 Coverage of each of ${grouped(packages.length)} packages</summary>`,
+    `<details><summary>📦 Coverage of each of ${grouped(report.packages.length)} packages</summary>`,
     '',
     'Every share is over the package\'s own regions. A region is its own tests\' when a test in its package ran it, whoever else did, and within one hop when the nearest of them imports its file; consumers only is what only other packages\' tests ran. The kinds count its own tests alone.',
     '',
-    `| Package | ${header.join(' | ')} | By |`,
-    `|---|${header.map(() => '--:').join('|')}|---|`,
-    ...withAll(ran, packages).map((row) =>
-      `| \`${row.from}\` | ${cells(row).join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
+    `| Package | ${report.header.join(' | ')} | By |`,
+    `|---|${report.header.map(() => '--:').join('|')}|---|`,
+    ...report.shown.map((row) =>
+      `| \`${row.from}\` | ${report.cells(row).join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
-  const before = beforeReach(packages);
-  if (before > 0) lines.push('', `${beforeSentence(before)[0]!.toUpperCase()}${beforeSentence(before).slice(1)}.`);
-  const idle = packages.length - ran.length;
-  if (idle > 0) lines.push('', `And ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran.`);
-  const { rows, more } = trees(packages, ownership);
+  if (report.before > 0) lines.push('', `${beforeSentence(report.before)[0]!.toUpperCase()}${beforeSentence(report.before).slice(1)}.`);
+  if (report.idle > 0) lines.push('', `And ${grouped(report.idle)} package${report.idle === 1 ? '' : 's'} no test ran.`);
+  const { rows, more } = trees(report.packages, ownership);
   if (rows.length > 0) {
     lines.push('', '```', "run only by other packages' tests", ...table(rows));
     if (more > 0) lines.push(`  and ${grouped(more)} more packages`);
