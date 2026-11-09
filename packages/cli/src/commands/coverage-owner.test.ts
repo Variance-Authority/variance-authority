@@ -189,7 +189,8 @@ describe('coverage counted from the tests near the code they ran', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toMatch(/^coverage .* counted where the nearest test that ran the code is 0-1 import hops away$/mu);
-    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+50\.0%\s+25\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+1\s+25\.0%\s+libs\/specs 1$/mu);
+    // The band is the distance, so the table leaves out the hop columns it would only repeat.
+    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+50\.0%\s+25\.0%\s+50\.0%\s+1\s+25\.0%\s+libs\/specs 1$/mu);
   });
 
   it('gives a program the band beside the counts it narrowed, and no comparison over a base it was not measured on', async () => {

@@ -262,14 +262,20 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
           ...(reading.entries === undefined ? {} : {
             entries: reading.entries.map((entry) => {
               if ('missed' in entry) return entry;
+              // A test file is the test, not the package's code: a suite that runs it would count it run.
+              const tests = new Set(now.flatMap((one) => one.index.tests.map((test) => test.file)));
               const counted = (part: Scoped) => {
-                const narrowed = now.map((one) => ({ ...one, index: within(one.index, part.scope) }));
+                const narrowed = now.map((one) => {
+                  const index = within(one.index, part.scope);
+                  return { ...one, index: { ...index, modules: index.modules.filter((module) => !tests.has(module.file)) } };
+                });
                 return coverageSource(part, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
             ...(reading.ownerOf === undefined ? {} : {
-              ownership: coverageByOwner(now, reading.ownerOf, walked),
+              // Under a band the band is the distance: the hop columns would only repeat it.
+              ownership: coverageByOwner(now, reading.ownerOf, band === undefined ? walked : undefined),
               ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
             }),
           }),

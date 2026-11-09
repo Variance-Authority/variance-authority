@@ -145,8 +145,10 @@ export function earnedMarkdown(earned: EarnedCoverage | undefined): readonly str
 
 interface PackageRow {
   readonly from: string;
-  /** The package's own regions, a file no suite loaded among them, a test file not. */
+  /** The package's own count: its regions, a file no suite loaded among them, and what ran, as the `own` table counts them. */
   readonly regions: number;
+  readonly ran: number;
+  /** Regions some case called into. */
   readonly run: number;
   readonly own: number;
   readonly others: number;
@@ -161,11 +163,9 @@ function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly Pa
   if (ownership.length === 0) return [];
   return entries.flatMap((entry) => {
     if ('missed' in entry) return [];
-    const regions = (entry.own.before?.regions ?? 0) + entry.own.unloaded.regions;
-    const row = { from: entry.from, regions, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), within: HOPS.map(() => 0) };
+    const row = { from: entry.from, regions: entry.own.regions, ran: entry.own.ran, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), within: HOPS.map(() => 0) };
     for (const file of ownership) {
       if (file.owner !== entry.from) continue;
-      row.regions += file.regions;
       row.run += file.run;
       row.own += file.own;
       row.others += file.others;
@@ -184,7 +184,7 @@ function columns(ownership: readonly OwnedFile[]): { header: readonly string[]; 
   return {
     header: ['regions', 'coverage', 'own tests', ...kinds, ...(walked ? HOPS.map((hop) => `≤${hop} hop${hop === 1 ? '' : 's'}`) : [])],
     cells: (row) => [
-      grouped(row.regions), ratio(row.run, row.regions), ratio(row.own, row.regions),
+      grouped(row.regions), ratio(row.ran, row.regions), ratio(row.own, row.regions),
       ...kinds.map((kind) => ratio(row.kinds.get(kind) ?? 0, row.regions)), ...(walked ? row.within.map((count) => ratio(count, row.regions)) : []),
     ],
   };

@@ -56,18 +56,19 @@ describe('the ownership report at size', () => {
 });
 
 describe('the coverage of each package', () => {
-  const ui = [{ from: 'libs/ui', own: { unloaded: { regions: 4 } } as CoverageSource, uses: SOURCE }];
+  // The package's own count, which the coverage and every share read: 10 regions, 5 run.
+  const ui = [{ from: 'libs/ui', own: { regions: 10, ran: 5, unloaded: { regions: 4 } } as CoverageSource, uses: SOURCE }];
   const file: OwnedFile = {
     file: 'libs/ui/a.ts', owner: 'libs/ui', regions: 6, run: 4, own: 3, others: 1, by: { 'apps/main': 1 },
     kinds: { unit: 3, e2e: 2, integration: 0 }, nearest: { 0: 1, 1: 1, 3: 1 },
   };
 
-  it('shares every count over the package\'s regions: by any test, by its own, per kind of suite, within each distance, and only by others', () => {
+  it('takes the coverage from the package\'s own count and shares every other count over its regions: by any test, by its own, per kind of suite, within each distance, and only by others', () => {
     const lines = ownershipLines(ui, [file]);
 
     expect(lines[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', 'integration', 'e2e', '≤1 hop', '≤2 hops', '≤3 hops', "only others'", 'by']);
-    expect(lines[2]!.split(/\s{2,}/u)).toEqual(['', 'libs/ui', '10', '40.0%', '30.0%', '30.0%', '0.0%', '20.0%', '20.0%', '20.0%', '30.0%', '1', '10.0%', 'apps/main 1']);
-    expect(ownershipMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 40.0% | 30.0% | 30.0% | 0.0% | 20.0% | 20.0% | 20.0% | 30.0% | 1 | 10.0% | `apps/main` 1 |');
+    expect(lines[2]!.split(/\s{2,}/u)).toEqual(['', 'libs/ui', '10', '50.0%', '30.0%', '30.0%', '0.0%', '20.0%', '20.0%', '20.0%', '30.0%', '1', '10.0%', 'apps/main 1']);
+    expect(ownershipMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 50.0% | 30.0% | 30.0% | 0.0% | 20.0% | 20.0% | 20.0% | 30.0% | 1 | 10.0% | `apps/main` 1 |');
   });
 
   it('leaves the distance columns out when no walk measured one', () => {

@@ -86,8 +86,42 @@ export function coverageAtDistance(
 ): CoverageAtDistance {
   const distance = (index: ExecutionIndex, test: number, module: string): number | undefined =>
     walked.hops.get(index.tests[test]?.file ?? '')?.get(module);
+  const { keyOf, regions, ran, nearest } = nearestTests(indexes, walked);
 
-  // A source region joins across suites by its address; any other block is its own region.
+  const inBand = (hop: number | undefined): boolean => hop !== undefined && hop >= band.from && hop <= band.to;
+  return {
+    indexes: indexes.map((index) => ({
+      ...index,
+      modules: index.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => inBand(nearest.get(keyOf.get(block)!))
+          ? { ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true || inBand(distance(index, crossing.test, module.file))) }
+          : { ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true) }),
+      })),
+    })),
+    unplaced: walked.unplaced,
+    unmeasured: [...ran].filter((key) => regions.has(key) && !nearest.has(key)).length,
+  };
+}
+
+/** Every region and how near the nearest test that called into it stood. */
+export interface NearestTests {
+  /** Each block's key: a source region's file and address, which joins it across suites; any other block's own. */
+  readonly keyOf: ReadonlyMap<ExecutionBlock, string>;
+  /** The keys of the source regions. */
+  readonly regions: ReadonlySet<string>;
+  /** The keys some case called into. */
+  readonly ran: ReadonlySet<string>;
+  /** Per key, the fewest hops from a test that called into it to its module, when a walk placed one. */
+  readonly nearest: ReadonlyMap<string, number>;
+}
+
+/**
+ * The nearest test of every region, across every suite: the one answer both a
+ * band and the per-package distance columns read. A crossing made while the
+ * module loaded places nothing, and neither does one over another text.
+ */
+export function nearestTests(indexes: readonly ExecutionIndex[], walked: TestHops): NearestTests {
   const keyOf = new Map<ExecutionBlock, string>();
   const regions = new Set<string>();
   indexes.forEach((index, at) => {
@@ -112,25 +146,11 @@ export function coverageAtDistance(
           // and a case that ran the region in another text is not known to run this one.
           if (crossing.loaded === true || crossing.overwritten === true) continue;
           ran.add(key);
-          const hop = distance(index, crossing.test, module.file);
+          const hop = walked.hops.get(index.tests[crossing.test]?.file ?? '')?.get(module.file);
           if (hop !== undefined && hop < (nearest.get(key) ?? Infinity)) nearest.set(key, hop);
         }
       }
     }
   }
-
-  const inBand = (hop: number | undefined): boolean => hop !== undefined && hop >= band.from && hop <= band.to;
-  return {
-    indexes: indexes.map((index) => ({
-      ...index,
-      modules: index.modules.map((module) => ({
-        ...module,
-        blocks: module.blocks.map((block) => inBand(nearest.get(keyOf.get(block)!))
-          ? { ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true || inBand(distance(index, crossing.test, module.file))) }
-          : { ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true) }),
-      })),
-    })),
-    unplaced: walked.unplaced,
-    unmeasured: [...ran].filter((key) => regions.has(key) && !nearest.has(key)).length,
-  };
+  return { keyOf, regions, ran, nearest };
 }

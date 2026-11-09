@@ -1573,13 +1573,14 @@ run only by other packages' tests
       uses.ts         28   packages/cli 28
 ```
 
-Every share is over the package's own regions. *Coverage* counts a region a
-case of any test called into, the same "ran" as every column, *own tests* one a
-test of the package ran, and each kind of suite the config declares gets a
-column of what its suites ran. The hop columns count a region under the nearest
-test that ran it, in any suite: `≤1 hop` is code a test imports directly. They
-need the import walk `--at-distance` uses, and are left out when the suites
-declare no `relations`.
+Every share is over the package's own regions, test files left out.
+*Coverage* is the *own* figure of the table above, *own tests* counts a
+region a case of a test of the package called into, and each kind of suite the
+config declares gets a column of what its suites' cases called into. The hop
+columns count a region under the nearest test that ran it, in any suite:
+`≤1 hop` is code a test imports directly. They need the import walk
+`--at-distance` uses, and are left out when the suites declare no `relations`,
+and under `--at-distance`, whose band is already the distance.
 
 A region is the package's own when one of the package's tests ran it, whoever
 else did too. A region that only other packages' tests ran is counted apart,

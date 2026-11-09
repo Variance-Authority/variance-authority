@@ -9,7 +9,7 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { joinedRegions, type CountedSuite } from './coverage-count.js';
-import type { TestHops } from './coverage-distance.js';
+import { nearestTests, type TestHops } from './coverage-distance.js';
 import type { SuiteKind } from './suites.js';
 
 /** One recorded source file, and which package's tests ran its regions. */
@@ -60,18 +60,15 @@ export function coverageByOwner(
   const counted = [...new Set(suites.flatMap((suite) => (suite.kind === undefined ? [] : [suite.kind])))];
   // file → address and kind → who ran the region, how, and from how near.
   const joined = new Map<string, Map<string, Ran>>();
+  const near = walked === undefined ? undefined : nearestTests(suites.map((suite) => suite.index), walked).nearest;
   for (const { suite, file, key, tests } of calledRegions(suites)) {
     let regions = joined.get(file);
     if (regions === undefined) joined.set(file, (regions = new Map()));
     let ran = regions.get(key);
-    if (ran === undefined) regions.set(key, (ran = { owners: new Set(), kinds: new Set() }));
+    if (ran === undefined) regions.set(key, (ran = { owners: new Set(), kinds: new Set(), nearest: near?.get(`${file}\0${key}`) }));
     const kind = suites[suite]!.kind;
     if (tests.length > 0 && kind !== undefined) ran.kinds.add(kind);
-    for (const test of tests) {
-      ran.owners.add(ownerOf(test));
-      const hop = walked?.hops.get(test)?.get(file);
-      if (hop !== undefined && (ran.nearest === undefined || hop < ran.nearest)) ran.nearest = hop;
-    }
+    for (const test of tests) ran.owners.add(ownerOf(test));
   }
 
   const files: OwnedFile[] = [];
@@ -108,7 +105,7 @@ interface Ran {
   /** The kinds of the suites whose cases called into it. */
   readonly kinds: Set<SuiteKind>;
   /** The fewest hops from a test that called into it to its file, when a walk placed one. */
-  nearest?: number;
+  readonly nearest: number | undefined;
 }
 
 /** One suite's source region, and the test files whose cases called into it. */
