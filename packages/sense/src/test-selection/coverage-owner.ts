@@ -1,24 +1,10 @@
 // compass: variance-authority.reach.crossings
 /**
- * Whose tests ran each module's regions: its own package's, or only others'.
- *
- * A line coverage total cannot tell a package that tests itself from one that
- * is run by the tests of whatever imports it, and the two read the same at
- * 100%. The case index can, because it names the case that called into each
- * region and the case names its file. The owner of a file is the caller's
- * answer, not this module's: the package boundary is the manifest's, and only
- * the reader that has the manifests in hand can say which one holds a file.
- *
- * A region counts as run the way {@link countCoverage} counts it: a case
- * called into it. A crossing made while the module evaluated names an import
- * order, not a test aimed at the code, so it counts no package as running the
- * region. A test file is left out, in every suite, once any suite runs it as one: its
- * own tests run it by being it.
- *
- * The same pass says which kind of suite ran each region, and, given the hops
- * {@link testHops} walked, how near the nearest test that ran it stood: one
- * total cannot tell code its unit tests import from code an end-to-end run
- * passed through.
+ * Who ran each module's regions: its own package's tests or only others', which
+ * kind of suite, and from how near. One coverage total reads the same whether a
+ * package tests itself or is run by whatever imports it; the case index tells
+ * them apart. The owner of a file is the caller's answer: only the reader that
+ * holds the manifests can say which package holds a file.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -63,7 +49,10 @@ export interface OwnedFile {
 /**
  * Every module any suite recorded, with its regions counted by the package of
  * the cases that ran them. `ownerOf` names the package of a source file and of
- * a test file alike; files are in code-unit order.
+ * a test file alike; files are in code-unit order. A region counts as run when
+ * a case called into it, as {@link countCoverage} counts: a crossing made while
+ * the module loaded names an import order, not a test aimed at the code. A test
+ * file is left out of every suite once one runs it as a test.
  */
 export function coverageByOwner(
   suites: readonly CountedSuite[],
