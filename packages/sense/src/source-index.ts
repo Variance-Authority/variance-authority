@@ -51,18 +51,11 @@ export interface PersistentSourceIndex {
 }
 
 /**
- * Where a checkout keeps its source index.
- *
- * Named here rather than chosen by each caller, because the saving is only real
- * if two callers agree: a tool that picks its own path re-scans a repository
- * another tool already scanned, and both of them report a cold start as normal.
- * The directory is the cache layer of the checkout git names for `root`, so a
- * scan started in a subdirectory stays in its repository's cache and a worktree
- * writes beside the primary checkout rather than into it
- * ([`cache-layers.ts`](./test-selection/cache-layers.ts)). A scan root below
- * the checkout keeps its own index under the scan root's path within it, since
- * its records are spelled from that root; links are followed, so a checkout
- * reached through `/var` and through `/private/var` is one checkout.
+ * Where a checkout keeps its source index: one path every tool agrees on, in
+ * the cache layer of the repository `root` is in, so a subdirectory or a
+ * worktree never splits the cache ([`cache-layers.ts`](./test-selection/cache-layers.ts)).
+ * A scan root below the checkout keeps its own index there, since its records
+ * are spelled from that root.
  */
 export function sourceIndexPath(root: string, cacheRoot?: string): string {
   const { checkout, within } = scanOf(root);
