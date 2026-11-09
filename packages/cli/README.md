@@ -1554,6 +1554,23 @@ table:
 files reach, including the other workspaces they import. Each is followed by
 how much of what ran is before reach.
 
+One coverage figure hides how the code was run, so the next table parts each
+package's coverage over the same regions:
+
+```text
+coverage of each package, over its own regions: by any test, by its own, per kind of suite, and from the nearest test
+                 regions  coverage  own tests  unit   e2e    ≤1 hop  ≤2 hops  ≤3 hops
+  packages/cli   9,790    81.9%     81.9%      72.4%  41.0%  38.2%   61.5%    74.0%
+  packages/help  2,327    88.9%     79.1%      79.1%  12.3%  21.4%   52.0%    80.6%
+```
+
+Every share is over the package's own regions. *Coverage* counts a region any
+test ran, *own tests* one a test of the package ran, and each kind of suite the
+config declares gets a column of what its suites ran. The hop columns count a
+region under the nearest test that ran it, in any suite: `≤1 hop` is code a
+test imports directly. They need the import walk `--at-distance` uses, and are
+left out when the suites declare no `relations`.
+
 A package at 100% can be run entirely by the tests of the packages that import
 it. Split a component into three files and move two of them to a shared
 package, and the coverage stays where it was while the shared package has no

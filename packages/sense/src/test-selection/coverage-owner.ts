@@ -14,10 +14,17 @@
  * order, not a test aimed at the code, so it counts no package as running the
  * region. A test file is left out, in every suite, once any suite runs it as one: its
  * own tests run it by being it.
+ *
+ * The same pass says which kind of suite ran each region, and, given the hops
+ * {@link testHops} walked, how near the nearest test that ran it stood: one
+ * total cannot tell code its unit tests import from code an end-to-end run
+ * passed through.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { joinedRegions, type CountedSuite } from './coverage-count.js';
+import type { TestHops } from './coverage-distance.js';
+import type { SuiteKind } from './suites.js';
 
 /** One recorded source file, and which package's tests ran its regions. */
 export interface OwnedFile {
@@ -38,6 +45,19 @@ export interface OwnedFile {
    * up to `others`.
    */
   readonly by: Readonly<Record<string, number>>;
+  /**
+   * Per kind of a counted suite, the regions a case of a suite of that kind
+   * called into; a kind whose suites ran none of them is `0`. A suite with no
+   * kind is in no entry.
+   */
+  readonly kinds: Readonly<Partial<Record<SuiteKind, number>>>;
+  /**
+   * Given the walked hops, per hop count, the regions whose nearest test that
+   * ran them, in any suite, stood that many imports away.
+   */
+  readonly nearest?: Readonly<Record<string, number>>;
+  /** Given the walked hops, regions run only by tests no walk placed. */
+  readonly unmeasured?: number;
 }
 
 /**
@@ -45,15 +65,26 @@ export interface OwnedFile {
  * the cases that ran them. `ownerOf` names the package of a source file and of
  * a test file alike; files are in code-unit order.
  */
-export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file: string) => string): readonly OwnedFile[] {
-  // file → address and kind → the packages whose cases called into the region.
-  const joined = new Map<string, Map<string, Set<string>>>();
-  for (const { file, key, tests } of calledRegions(suites)) {
+export function coverageByOwner(
+  suites: readonly CountedSuite[],
+  ownerOf: (file: string) => string,
+  walked?: TestHops,
+): readonly OwnedFile[] {
+  const counted = [...new Set(suites.flatMap((suite) => (suite.kind === undefined ? [] : [suite.kind])))];
+  // file → address and kind → who ran the region, how, and from how near.
+  const joined = new Map<string, Map<string, Ran>>();
+  for (const { suite, file, key, tests } of calledRegions(suites)) {
     let regions = joined.get(file);
     if (regions === undefined) joined.set(file, (regions = new Map()));
     let ran = regions.get(key);
-    if (ran === undefined) regions.set(key, (ran = new Set()));
-    for (const test of tests) ran.add(ownerOf(test));
+    if (ran === undefined) regions.set(key, (ran = { owners: new Set(), kinds: new Set() }));
+    const kind = suites[suite]!.kind;
+    if (tests.length > 0 && kind !== undefined) ran.kinds.add(kind);
+    for (const test of tests) {
+      ran.owners.add(ownerOf(test));
+      const hop = walked?.hops.get(test)?.get(file);
+      if (hop !== undefined && (ran.nearest === undefined || hop < ran.nearest)) ran.nearest = hop;
+    }
   }
 
   const files: OwnedFile[] = [];
@@ -61,19 +92,38 @@ export function coverageByOwner(suites: readonly CountedSuite[], ownerOf: (file:
     const owner = ownerOf(file);
     let run = 0;
     let own = 0;
+    let unmeasured = 0;
     const by = new Map<string, number>();
+    const kinds = new Map<SuiteKind, number>(counted.map((kind) => [kind, 0]));
+    const nearest = new Map<number, number>();
     for (const ran of regions.values()) {
-      if (ran.size === 0) continue;
+      if (ran.owners.size === 0) continue;
       run += 1;
-      if (ran.has(owner)) {
+      for (const kind of ran.kinds) kinds.set(kind, kinds.get(kind)! + 1);
+      if (ran.nearest === undefined) unmeasured += 1;
+      else nearest.set(ran.nearest, (nearest.get(ran.nearest) ?? 0) + 1);
+      if (ran.owners.has(owner)) {
         own += 1;
         continue;
       }
-      for (const other of ran) by.set(other, (by.get(other) ?? 0) + 1);
+      for (const other of ran.owners) by.set(other, (by.get(other) ?? 0) + 1);
     }
-    files.push({ file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by) });
+    files.push({
+      file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by), kinds: Object.fromEntries(kinds),
+      ...(walked === undefined ? {} : { nearest: Object.fromEntries([...nearest].sort(([left], [right]) => left - right)), unmeasured }),
+    });
   }
   return files.sort((left, right) => codeUnitOrder(left.file, right.file));
+}
+
+/** What ran one region, joined across suites. */
+interface Ran {
+  /** The packages whose cases called into it. */
+  readonly owners: Set<string>;
+  /** The kinds of the suites whose cases called into it. */
+  readonly kinds: Set<SuiteKind>;
+  /** The fewest hops from a test that called into it to its file, when a walk placed one. */
+  nearest?: number;
 }
 
 /** One suite's source region, and the test files whose cases called into it. */

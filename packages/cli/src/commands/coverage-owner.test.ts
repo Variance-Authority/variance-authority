@@ -105,6 +105,18 @@ describe("coverage by the package whose tests ran it", () => {
     expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+25\.0%\s+3\s+75\.0%\s+apps\/main 3 · libs\/specs 1$/mu);
   });
 
+  it('gives each package its coverage over its own regions, by its own tests, per kind of suite and within each distance', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--packages']);
+
+    const lines = answer.out.split('\n');
+    const header = lines.findIndex((line) => line.startsWith('coverage of each package'));
+    expect(lines[header + 1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', '≤1 hop', '≤2 hops', '≤3 hops']);
+    expect(lines.slice(header + 2, header + 4)).toEqual([
+      expect.stringMatching(/^ {2}apps\/main\s+2\s+100\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+50\.0%\s+50\.0%$/u),
+      expect.stringMatching(/^ {2}libs\/ui\s+4\s+100\.0%\s+25\.0%\s+100\.0%\s+50\.0%\s+100\.0%\s+100\.0%$/u),
+    ]);
+  });
+
   it('names where in a package only other packages\' tests reach, directory by directory', async () => {
     const answer = await ask(['coverage', '--root', repo, '--packages']);
 

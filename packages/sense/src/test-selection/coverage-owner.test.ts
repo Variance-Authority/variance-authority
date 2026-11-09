@@ -32,7 +32,7 @@ describe('which package\'s tests ran each region', () => {
   it('counts a region its own package\'s tests ran as its own, whoever else ran it', () => {
     const [store] = coverageByOwner([{ index: index(module('packages/core/src/store.ts', block('put', [0, 1]))) }], ownerOf);
 
-    expect(store).toEqual({ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {} });
+    expect(store).toEqual({ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {}, kinds: {} });
   });
 
   it('counts a region only other packages\' tests ran apart, with every package that ran it', () => {
@@ -60,7 +60,7 @@ describe('which package\'s tests ran each region', () => {
       { index: index(module('packages/core/src/store.ts', block('put', [0]))) },
     ], ownerOf);
 
-    expect(files).toEqual([{ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {} }]);
+    expect(files).toEqual([{ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {}, kinds: {} }]);
   });
 
   it('skips a synthesized region, and lists files in code-unit order', () => {
@@ -95,5 +95,40 @@ describe('which package\'s tests ran each region', () => {
     const [file] = coverageByOwner([{ index: { tests, modules: [module('x.ts', block('x', [0, 1]))] } }], (at) => names[at]!);
 
     expect(Object.entries(file!.by)).toEqual([['__proto__', 1], ['constructor', 1]]);
+  });
+});
+
+describe('how each region ran: by which kind of suite, and how near', () => {
+  const hops = (entries: Record<string, Record<string, number>>, unplaced: readonly string[] = []) => ({
+    hops: new Map(Object.entries(entries).map(([test, modules]) => [test, new Map(Object.entries(modules))])),
+    unplaced,
+  });
+
+  it('counts the regions each kind of suite ran, joined across suites of one kind, and a kind that ran nothing as none', () => {
+    const [store] = coverageByOwner([
+      { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]), block('get', []))) },
+      { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [1]), block('drop', [1]))) },
+      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('get', []))) },
+    ], ownerOf);
+
+    expect(store).toMatchObject({ regions: 3, run: 2, kinds: { unit: 2, e2e: 0 } });
+  });
+
+  it('counts each region under the nearest test that ran it, in any suite, and apart when no walk placed one', () => {
+    const walked = hops({ [CORE.file]: { 'packages/core/src/store.ts': 1 }, [CLI.file]: { 'packages/core/src/store.ts': 3 } }, [ROOT.file]);
+
+    const [store] = coverageByOwner([
+      { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0, 1]), block('get', [1]))) },
+      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('drop', [2]), block('idle', []))) },
+    ], ownerOf, walked);
+
+    expect(store).toMatchObject({ regions: 4, run: 3, nearest: { 1: 1, 3: 1 }, unmeasured: 1 });
+  });
+
+  it('says nothing of distance when no walk was given', () => {
+    const [store] = coverageByOwner([{ kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) }], ownerOf);
+
+    expect(store).not.toHaveProperty('nearest');
+    expect(store).not.toHaveProperty('unmeasured');
   });
 });

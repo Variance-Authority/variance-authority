@@ -8,10 +8,14 @@
  * share beside each package, and the tree under it walks a package down to the
  * files only other packages' tests reach, largest first, so the place a test
  * belongs is the first line read.
+ *
+ * Before both, the coverage of each package over its own regions, parted the
+ * ways one total hides: by its own tests, by each kind of suite, and by how
+ * near the nearest test that ran a region stood.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { EarnedCount, EarnedCoverage, OwnedFile } from '@variance-authority/sense/test-selection';
+import { SUITE_KINDS, type EarnedCount, type EarnedCoverage, type OwnedFile, type SuiteKind } from '@variance-authority/sense/test-selection';
 import { grouped, ratio, table } from './coverage-summary.js';
 import type { Coverage } from './coverage.js';
 
@@ -30,6 +34,57 @@ interface Node {
   others: number;
   readonly by: Map<string, number>;
   readonly children: Map<string, Node>;
+}
+
+/** The import hops each distance column counts within. */
+const HOPS = [1, 2, 3] as const;
+
+/** One row per package: its coverage, and the same regions by its own tests, by each kind of suite and within each distance. */
+export function coverageLines(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
+  const { header, rows } = coverageTable(entries, ownership);
+  if (rows.length === 0) return [];
+  return [
+    'coverage of each package, over its own regions: by any test, by its own, per kind of suite, and from the nearest test',
+    ...table([['', ...header], ...rows.map(([from, ...cells]) => [`  ${from!}`, ...cells])]),
+  ];
+}
+
+/** The same table for a pull request. */
+export function coverageMarkdown(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
+  const { header, rows } = coverageTable(entries, ownership);
+  if (rows.length === 0) return [];
+  return [
+    '', `<details><summary>📦 Coverage of each of ${grouped(rows.length)} packages</summary>`, '',
+    'Every share is over the package\'s own regions. A distance counts a region under the nearest test that ran it, in any suite.', '',
+    `| Package | ${header.map((cell) => cell[0]!.toUpperCase() + cell.slice(1)).join(' | ')} |`,
+    `|---|${header.map(() => '--:').join('|')}|`,
+    ...rows.map(([from, ...cells]) => `| \`${from!}\` | ${cells.join(' | ')} |`),
+    '', '</details>',
+  ];
+}
+
+function coverageTable(entries: Entries, ownership: readonly OwnedFile[]): { header: readonly string[]; rows: readonly (readonly string[])[] } {
+  const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds[kind] !== undefined));
+  const walked = ownership.some((file) => file.nearest !== undefined);
+  const header = ['regions', 'coverage', 'own tests', ...kinds, ...(walked ? HOPS.map((hop) => `≤${hop} hop${hop === 1 ? '' : 's'}`) : [])];
+  const rows = entries.flatMap((entry) => {
+    if ('missed' in entry || ownership.length === 0) return [];
+    const { regions, ran } = entry.own;
+    let own = 0;
+    const byKind = new Map<SuiteKind, number>();
+    const within = HOPS.map(() => 0);
+    for (const file of ownership) {
+      if (file.owner !== entry.from) continue;
+      own += file.own;
+      for (const kind of kinds) byKind.set(kind, (byKind.get(kind) ?? 0) + (file.kinds[kind] ?? 0));
+      for (const [hop, count] of Object.entries(file.nearest ?? {})) HOPS.forEach((most, at) => (within[at]! += Number(hop) <= most ? count : 0));
+    }
+    return [[
+      entry.from, grouped(regions), ratio(ran, regions), ratio(own, regions),
+      ...kinds.map((kind) => ratio(byKind.get(kind) ?? 0, regions)), ...(walked ? within.map((count) => ratio(count, regions)) : []),
+    ]];
+  });
+  return { header, rows };
 }
 
 /** One row per package, then the tree of what only other packages' tests ran. */

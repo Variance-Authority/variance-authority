@@ -269,7 +269,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
             ...(reading.ownerOf === undefined ? {} : {
-              ownership: coverageByOwner(now, reading.ownerOf),
+              ownership: coverageByOwner(now, reading.ownerOf, walked),
               ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
             }),
           }),
