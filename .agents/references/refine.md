@@ -9,8 +9,8 @@ is, whether it should be done at all, and what would make it done.
 here. Each word becomes something a reader can open, and a problem where one of
 them cannot be named is not ours to chase, however well the rest reads.
 
-- **What** becomes a sighting: somebody hit it, in a run or a transcript line a
-  reader can open, and it is worth solving here. The Evidence and the Impact.
+- **What** becomes a sighting, and worth solving here: the Evidence and the
+  Impact.
 - **Which** becomes the particular way we pick. A problem comes in variants and
   each has several answers: the Change names the one it takes, why that one, and
   what already answers part of it, here or in a neighbour.
