@@ -3570,6 +3570,7 @@
         "withIndexLock": "function",
         "withoutCoverage": "function",
         "withoutFiles": "function",
+        "withoutTests": "function",
         "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
         "writeFetchedMainline": "function",
