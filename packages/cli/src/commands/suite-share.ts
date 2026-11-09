@@ -197,10 +197,27 @@ async function baseAndFold(
   }
   const own = selection.testCoverageFile(root, { suite });
   if (notices.length > 0 || read === undefined || selection.keepsCases(own)) return { read, said, notices, landed: [] };
-  const unbased = (await recordHeld(own))
-    ? `The ${suite} base record was read without its case index, so ${suite} has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison.`
-    : `The mainline's ${suite} record was not read. ${noBase(suite)}`;
+  const unbased = laid !== undefined
+    ? `The ${suite} base record was read without its case index, ${uncased(suite)}`
+    : (await recordHeld(own))
+      ? ownUncased(suite, own, !('miss' in read))
+      : `The mainline's ${suite} record was not read. ${noBase(suite)}`;
   return { read, said, notices: [unbased], landed: [] };
+}
+
+const uncased = (suite: string): string =>
+  `so ${suite} has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison.`;
+
+/**
+ * A record this checkout already held, which keeps no cases: `layMainline`
+ * lays nothing over it, so when the mainline's was read the line says how to
+ * take that one instead.
+ */
+function ownUncased(suite: string, own: string, offered: boolean): string {
+  const held = `This checkout already holds a record of "${suite}" at ${own}, and it keeps no cases, ${uncased(suite)}`;
+  if (!offered) return held;
+  return `${held} The mainline's record is not laid over a record this checkout holds; to take it instead, delete that file, ` +
+    `which drops what this checkout ran into it, and run \`variance share --suite ${suite}\` again.`;
 }
 
 /**
