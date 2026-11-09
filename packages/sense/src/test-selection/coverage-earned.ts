@@ -22,7 +22,7 @@
 import type { SuiteKind } from './suites.js';
 import type { TestHops } from './coverage-distance.js';
 import type { CountedSuite } from './coverage-count.js';
-import { calledRegions } from './coverage-owner.js';
+import { calledRegions, NEAR_HOPS } from './coverage-owner.js';
 
 /** In and out over one set of regions. */
 export interface EarnedCount {
@@ -62,7 +62,7 @@ export function earnedCoverage(suites: readonly CountedSuite[], ownerOf: (file: 
     for (const test of tests) {
       const hop = walked.hops.get(test)?.get(file);
       if (hop !== undefined) mark |= MEASURED;
-      mark |= hop !== undefined && hop <= 1 && ownerOf(test) === owner ? IN : OUT;
+      mark |= hop !== undefined && hop <= NEAR_HOPS && ownerOf(test) === owner ? IN : OUT;
     }
     marks[suite]!.push(mark);
     const at = `${file}\0${key}`;

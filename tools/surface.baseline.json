@@ -3240,6 +3240,7 @@
         "ModuleTexts": "type",
         "MovedRegion": "interface",
         "NAME_BOUNDARY": "const",
+        "NEAR_HOPS": "const",
         "NO_BLOB": "const",
         "NO_DURATION": "const",
         "NameGrammar": "interface",

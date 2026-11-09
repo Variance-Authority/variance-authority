@@ -60,7 +60,7 @@ describe('the coverage of each package', () => {
   const ui = [{ from: 'libs/ui', own: { regions: 10, ran: 5, unloaded: { regions: 4 } } as CoverageSource, uses: SOURCE }];
   const file: OwnedFile = {
     file: 'libs/ui/a.ts', owner: 'libs/ui', regions: 6, run: 4, own: 3, others: 1, by: { 'apps/main': 1 },
-    kinds: { unit: 3, e2e: 2, integration: 0 }, nearest: { 0: 1, 1: 1, 3: 1 },
+    kinds: { unit: 3, e2e: 2, integration: 0 }, near: 2,
   };
 
   it('parts the coverage the way its own tests contain it: within one hop, further, only by consumers, and nothing, then each kind\'s own tests', () => {
@@ -77,14 +77,14 @@ describe('the coverage of each package', () => {
 
   it('adds every package together under `all` when there are several', () => {
     const api = [...ui, { from: 'libs/api', own: { regions: 10, ran: 10, unloaded: { regions: 0 } } as CoverageSource, uses: SOURCE }];
-    const other: OwnedFile = { file: 'libs/api/b.ts', owner: 'libs/api', regions: 10, run: 10, own: 10, others: 0, by: {}, kinds: { unit: 10, e2e: 0, integration: 0 }, nearest: { 1: 10 } };
+    const other: OwnedFile = { file: 'libs/api/b.ts', owner: 'libs/api', regions: 10, run: 10, own: 10, others: 0, by: {}, kinds: { unit: 10, e2e: 0, integration: 0 }, near: 10 };
 
     expect(ownershipLines(api, [file, other]).find((line) => line.startsWith('  all'))!.split(/\s{2,}/u))
       .toEqual(['', 'all', '20', '75.0%', '60.0%', '5.0%', '5.0%', '25.0%', '65.0%', '0.0%', '10.0%', 'apps/main 1']);
   });
 
   it('counts its own tests whole when no walk measured a distance', () => {
-    const { nearest: _, ...unwalked } = file;
+    const { near: _, ...unwalked } = file;
 
     expect(ownershipLines(ui, [unwalked])[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own', 'consumers only', 'nothing', 'unit', 'integration', 'e2e', 'by']);
   });

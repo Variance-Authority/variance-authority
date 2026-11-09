@@ -32,7 +32,7 @@ describe('which package\'s tests ran each region', () => {
   it('counts a region its own package\'s tests ran as its own, whoever else ran it', () => {
     const [store] = coverageByOwner([{ index: index(module('packages/core/src/store.ts', block('put', [0, 1]))) }], ownerOf);
 
-    expect(store).toEqual({ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {}, kinds: {} });
+    expect(store).toEqual({ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {} });
   });
 
   it('counts a region only other packages\' tests ran apart, with every package that ran it', () => {
@@ -60,7 +60,7 @@ describe('which package\'s tests ran each region', () => {
       { index: index(module('packages/core/src/store.ts', block('put', [0]))) },
     ], ownerOf);
 
-    expect(files).toEqual([{ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {}, kinds: {} }]);
+    expect(files).toEqual([{ file: 'packages/core/src/store.ts', owner: 'packages/core', regions: 1, run: 1, own: 1, others: 0, by: {} }]);
   });
 
   it('skips a synthesized region, and lists files in code-unit order', () => {
@@ -114,29 +114,39 @@ describe('how its own package\'s tests ran each region: by which kind of suite, 
     expect(store).toMatchObject({ regions: 3, run: 3, own: 1, kinds: { unit: 1, e2e: 0 } });
   });
 
-  it('counts each region its own tests ran under the nearest of them, however near another package\'s test stood', () => {
-    const walked = hops({ [CORE.file]: { 'packages/core/src/store.ts': 2 }, [CLI.file]: { 'packages/core/src/store.ts': 1 } }, [ROOT.file]);
-
+  it('counts no kind when a counted suite has none', () => {
     const [store] = coverageByOwner([
-      { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0, 1]), block('get', [1]))) },
-      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('put', [0]), block('drop', [2]), block('idle', []))) },
-    ], ownerOf, walked);
+      { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) },
+      { index: index(module('packages/core/src/store.ts', block('get', [0]))) },
+    ], ownerOf);
 
-    expect(store).toMatchObject({ regions: 4, run: 3, own: 1, nearest: { 2: 1 } });
+    expect(store).not.toHaveProperty('kinds');
   });
 
-  it('leaves out of the distances a region only its own tests at no measured distance ran', () => {
+  it('counts a region near when its own test ran it from one hop, however near another package\'s test stood', () => {
+    const regions = [
+      { kind: 'unit' as const, index: index(module('packages/core/src/store.ts', block('put', [0, 1]), block('get', [1]))) },
+      { kind: 'e2e' as const, index: index(module('packages/core/src/store.ts', block('put', [0]), block('drop', [2]), block('idle', []))) },
+    ];
+    const far = hops({ [CORE.file]: { 'packages/core/src/store.ts': 2 }, [CLI.file]: { 'packages/core/src/store.ts': 1 } }, [ROOT.file]);
+    const next = hops({ [CORE.file]: { 'packages/core/src/store.ts': 1 } });
+
+    expect(coverageByOwner(regions, ownerOf, far)[0]).toMatchObject({ regions: 4, run: 3, own: 1, near: 0 });
+    expect(coverageByOwner(regions, ownerOf, next)[0]).toMatchObject({ own: 1, near: 1 });
+  });
+
+  it('counts no region near that only its own tests at no measured distance ran', () => {
     const walked = hops({}, [CORE.file]);
 
     const [store] = coverageByOwner([{ kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) }], ownerOf, walked);
 
-    expect(store).toMatchObject({ own: 1, nearest: {} });
+    expect(store).toMatchObject({ own: 1, near: 0 });
   });
 
   it('says nothing of distance when no walk was given', () => {
     const [store] = coverageByOwner([{ kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) }], ownerOf);
 
-    expect(store).not.toHaveProperty('nearest');
+    expect(store).not.toHaveProperty('near');
   });
 });
 

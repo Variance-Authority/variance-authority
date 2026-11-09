@@ -13,7 +13,7 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { SUITE_KINDS, type EarnedCount, type EarnedCoverage, type OwnedFile, type SuiteKind } from '@variance-authority/sense/test-selection';
+import { NEAR_HOPS, SUITE_KINDS, type EarnedCount, type EarnedCoverage, type OwnedFile, type SuiteKind } from '@variance-authority/sense/test-selection';
 import { grouped, ratio, table } from './coverage-summary.js';
 import type { Coverage } from './coverage.js';
 
@@ -33,9 +33,6 @@ interface Node {
   readonly by: Map<string, number>;
   readonly children: Map<string, Node>;
 }
-
-/** The import hops a test of the package stands within to contain what it ran. */
-const NEAR = 1;
 
 /** One row per package, then the tree of what only other packages' tests ran. */
 export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
@@ -169,7 +166,7 @@ function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly Pa
     if ('missed' in entry) return [];
     const files = ownership.filter((file) => file.owner === entry.from);
     return [summed(entry.from, entry.own, files.map((file) => ({
-      ...file, near: Object.entries(file.nearest ?? {}).reduce((near, [hop, count]) => near + (Number(hop) <= NEAR ? count : 0), 0),
+      ...file, near: file.near ?? 0,
     })))];
   });
 }
@@ -193,7 +190,7 @@ function summed(from: string, { regions, ran }: { readonly regions: number; read
     row.others += part.others;
     row.near += part.near;
     add(row.by, part.by);
-    add(row.kinds, part.kinds);
+    add(row.kinds, part.kinds ?? {});
   }
   return row;
 }
@@ -209,10 +206,10 @@ function atLoad(row: PackageRow): number {
  * regions. Its own tests are one part when no walk measured a distance.
  */
 function columns(ownership: readonly OwnedFile[]): { header: readonly string[]; cells: (row: PackageRow) => readonly string[] } {
-  const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds[kind] !== undefined));
-  const walked = ownership.some((file) => file.nearest !== undefined);
+  const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds?.[kind] !== undefined));
+  const walked = ownership.some((file) => file.near !== undefined);
   return {
-    header: ['regions', 'coverage', ...(walked ? [`own ≤${NEAR} hop`, 'own further'] : ['own']), 'consumers only', 'nothing', ...kinds],
+    header: ['regions', 'coverage', ...(walked ? [`own ≤${NEAR_HOPS} hop`, 'own further'] : ['own']), 'consumers only', 'nothing', ...kinds],
     cells: (row) => [
       grouped(row.regions), ratio(row.ran, row.regions),
       ...(walked ? [ratio(row.near, row.regions), ratio(row.own - row.near, row.regions)] : [ratio(row.own, row.regions)]),

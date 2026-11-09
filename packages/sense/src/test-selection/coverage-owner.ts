@@ -34,18 +34,21 @@ export interface OwnedFile {
   /**
    * Per kind of a counted suite, the regions a case of the file's own package,
    * in a suite of that kind, called into; a kind whose suites ran none of them
-   * is `0`. A suite with no kind is in no entry.
+   * is `0`. Absent when a counted suite has no kind, as the overlap of
+   * {@link countCoverage} is.
    */
-  readonly kinds: Readonly<Partial<Record<SuiteKind, number>>>;
+  readonly kinds?: Readonly<Partial<Record<SuiteKind, number>>>;
   /**
-   * Given the walked hops, per hop count, the `own` regions whose nearest test
-   * of the file's own package that ran them, in any suite, stood that many
-   * imports away. A region only its own tests at no measured distance ran is in
-   * no entry. Another package's test says nothing of how near the package
-   * tests itself, however near it stood.
+   * Given the walked hops, the `own` regions a test of the file's own package
+   * called into from at most {@link NEAR_HOPS} imports away: the package
+   * contains them next to the code. Another package's test says nothing of how
+   * near the package tests itself, however near it stood.
    */
-  readonly nearest?: Readonly<Record<string, number>>;
+  readonly near?: number;
 }
+
+/** The most import hops a test stands from a file it runs and still sits next to it: the test imports the code. */
+export const NEAR_HOPS = 1;
 
 /**
  * Every module any suite recorded, with its regions counted by the package of
@@ -60,48 +63,51 @@ export function coverageByOwner(
   ownerOf: (file: string) => string,
   walked?: TestHops,
 ): readonly OwnedFile[] {
-  const counted = [...new Set(suites.flatMap((suite) => (suite.kind === undefined ? [] : [suite.kind])))];
-  // file → address and kind → who ran the region, and how and from how near its own package's tests did.
+  const kinded = suites.every((suite) => suite.kind !== undefined);
+  const counted = kinded ? [...new Set(suites.map((suite) => suite.kind!))] : [];
+  // file → address and kind → who ran the region, and how and how near its own package's tests did.
   const joined = new Map<string, Map<string, Ran>>();
+  const owners = new Map<string, string>();
   for (const { suite, file, key, tests } of calledRegions(suites)) {
     let regions = joined.get(file);
     if (regions === undefined) joined.set(file, (regions = new Map()));
     let ran = regions.get(key);
-    if (ran === undefined) regions.set(key, (ran = { owners: new Set(), kinds: new Set(), nearest: undefined }));
-    const owner = ownerOf(file);
+    if (ran === undefined) regions.set(key, (ran = { owners: new Set(), kinds: new Set(), near: false }));
+    let owner = owners.get(file);
+    if (owner === undefined) owners.set(file, (owner = ownerOf(file)));
     const kind = suites[suite]!.kind;
     for (const test of tests) {
       const tester = ownerOf(test);
       ran.owners.add(tester);
       if (tester !== owner) continue;
-      if (kind !== undefined) ran.kinds.add(kind);
+      if (kinded) ran.kinds.add(kind!);
       const hop = walked?.hops.get(test)?.get(file);
-      if (hop !== undefined && hop < (ran.nearest ?? Infinity)) ran.nearest = hop;
+      if (hop !== undefined && hop <= NEAR_HOPS) ran.near = true;
     }
   }
 
   const files: OwnedFile[] = [];
   for (const [file, regions] of joined) {
-    const owner = ownerOf(file);
+    const owner = owners.get(file)!;
     let run = 0;
     let own = 0;
+    let near = 0;
     const by = new Map<string, number>();
     const kinds = new Map<SuiteKind, number>(counted.map((kind) => [kind, 0]));
-    const nearest = new Map<number, number>();
     for (const ran of regions.values()) {
       if (ran.owners.size === 0) continue;
       run += 1;
       for (const kind of ran.kinds) kinds.set(kind, kinds.get(kind)! + 1);
       if (ran.owners.has(owner)) {
-        if (ran.nearest !== undefined) nearest.set(ran.nearest, (nearest.get(ran.nearest) ?? 0) + 1);
+        if (ran.near) near += 1;
         own += 1;
         continue;
       }
       for (const other of ran.owners) by.set(other, (by.get(other) ?? 0) + 1);
     }
     files.push({
-      file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by), kinds: Object.fromEntries(kinds),
-      ...(walked === undefined ? {} : { nearest: Object.fromEntries([...nearest].sort(([left], [right]) => left - right)) }),
+      file, owner, regions: regions.size, run, own, others: run - own, by: sortedKeys(by),
+      ...(kinded ? { kinds: Object.fromEntries(kinds) } : {}), ...(walked === undefined ? {} : { near }),
     });
   }
   return files.sort((left, right) => codeUnitOrder(left.file, right.file));
@@ -113,8 +119,8 @@ interface Ran {
   readonly owners: Set<string>;
   /** The kinds of the suites whose cases of its own package called into it. */
   readonly kinds: Set<SuiteKind>;
-  /** The fewest hops from a test of its own package that called into it to its file, when a walk placed one. */
-  nearest: number | undefined;
+  /** Whether a test of its own package called into it from at most {@link NEAR_HOPS} hops. */
+  near: boolean;
 }
 
 /** One suite's source region, and the test files whose cases called into it. */
