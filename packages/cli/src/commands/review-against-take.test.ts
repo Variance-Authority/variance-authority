@@ -1,10 +1,10 @@
-import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeAsSetExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.fixture.js';
+import { block, git } from './review-fixture.js';
 
 /**
  * The comment `Variance-Authority/action/review` posts, given `test`, compares
@@ -21,24 +21,16 @@ const UNIT = { id: 'u', file: 'src/pay.test.ts', name: 'charges once', stopped: 
 
 const TEXT = ['export function pick() {', '  return 0;', '}', '', 'export function refund() {', '  return 1;', '}', ''].join('\n');
 
-const region = (name: string, startLine: number, endLine: number, called: boolean) => ({
-  kind: 'function', name, path: 'entry', startLine, endLine, source: true,
-  crossings: called ? [{ test: 0, distance: 0 }] : [],
-});
-
 /** The mainline's run: the case ran both functions. */
-const MAINLINE: Index = { tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [region('pick', 1, 3, true), region('refund', 5, 7, true)] }] };
+const MAINLINE: Index = { tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [block('pick', 1, 3, [0]), block('refund', 5, 7, [0])] }] };
 
 /** The pull request's run: the case no longer reaches `refund`. */
-const PULL_REQUEST: Index = { tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [region('pick', 1, 3, true), region('refund', 5, 7, false)] }] };
+const PULL_REQUEST: Index = { tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [block('pick', 1, 3, [0]), block('refund', 5, 7, [])] }] };
 
 let cache: string;
 let previous: string | undefined;
 let repo: string;
 let commit: string;
-
-const git = (...args: string[]) =>
-  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo, encoding: 'utf8' }).trim();
 
 async function record(index: Index): Promise<void> {
   const at = testCoverageFile(repo, { suite: 'unit' });
@@ -80,13 +72,15 @@ beforeAll(async () => {
   previous = process.env['VARIANCE_AUTHORITY_CACHE'];
   process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
   repo = await realpath(await mkdtemp(join(tmpdir(), 'variance-review-against-take-')));
-  execFileSync('git', ['init', '--quiet', repo]);
+  git(repo, ['init', '--quiet']);
+  git(repo, ['config', 'user.email', 'fixture@example.test']);
+  git(repo, ['config', 'user.name', 'Fixture']);
   await writeFile(join(repo, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'actions-cache' } } }));
   await mkdir(join(repo, 'src'));
   await writeFile(join(repo, 'src/pay.ts'), TEXT);
-  git('add', '.');
-  git('commit', '--quiet', '-m', 'base');
-  commit = git('rev-parse', 'HEAD');
+  git(repo, ['add', '.']);
+  git(repo, ['commit', '--quiet', '-m', 'base']);
+  commit = git(repo, ['rev-parse', 'HEAD']);
   // The cache restore lays the mainline's record where the suite's own goes.
   await record(MAINLINE);
   const taken = await step(['carry', 'take', '--format', 'github']);

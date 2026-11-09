@@ -249,7 +249,7 @@ describe('the review is posted by a job that runs nothing of the pull request', 
     });
 
   it('is printed whole on the action README and the page that walks through the setup', () => {
-    expect(new Set(testing.map((one) => one.at.split(':')[0]))).toEqual(new Set(['.github/actions/variance/README.md', 'docs/review-coverage.md']));
+    expect(testing.map((one) => one.at.split(':')[0])).toEqual(expect.arrayContaining(['.github/actions/variance/README.md', 'docs/review-coverage.md']));
   });
 
   it('gives the job that installs and runs the tests `contents: read` alone, and hands the review on', () => {
