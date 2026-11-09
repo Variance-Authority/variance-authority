@@ -226,3 +226,46 @@ describe('the whole job accepts by the tick, a dispatch and a push', () => {
     expect(printedJob().jobs.variance.if).toBe("github.event_name != 'merge_group'");
   });
 });
+
+// The action cannot hold or drop a scope: `permissions` is the workflow's. So
+// the split (#1180) is held where an adopter copies it from, every whole
+// workflow a page prints with the review action.
+describe('the review is posted by a job that runs nothing of the pull request', () => {
+  interface PrintedJob {
+    readonly needs?: string | readonly string[];
+    readonly permissions?: Node;
+    readonly steps?: readonly Node[];
+  }
+
+  const reviews = (step: Node): boolean => String(step['uses']).startsWith('Variance-Authority/action/review@');
+  const given = (step: Node): Node => (isNode(step['with']) ? step['with'] : {});
+  const testing = EXAMPLES.filter((fence) => fence.code.includes('Variance-Authority/action/review@'))
+    .map((fence) => ({ at: `${fence.file}:${fence.line}`, document: parse(fence.code) as { jobs?: Readonly<Record<string, PrintedJob>> } }))
+    .flatMap(({ at, document }) => {
+      const jobs = Object.entries(document.jobs ?? {});
+      return jobs
+        .filter(([, job]) => (job.steps ?? []).some((step) => reviews(step) && 'test' in given(step)))
+        .map(([name, job]) => ({ at, name, job, jobs }));
+    });
+
+  it('is printed whole on the action README and the page that walks through the setup', () => {
+    expect(new Set(testing.map((one) => one.at.split(':')[0]))).toEqual(new Set(['.github/actions/variance/README.md', 'docs/review-coverage.md']));
+  });
+
+  it('gives the job that installs and runs the tests `contents: read` alone, and hands the review on', () => {
+    for (const { at, name, job } of testing) {
+      expect(job.permissions, `${at} ${name}`).toEqual({ contents: 'read' });
+      expect(job.steps!.filter(reviews).map((step) => given(step)['comment']), `${at} ${name}`).toEqual(['false']);
+    }
+  });
+
+  it('posts from one job that needs it, with write scopes and one step: the action with `from`', () => {
+    for (const { at, name, jobs } of testing) {
+      const posting = jobs.filter(([, job]) => [job.needs ?? []].flat().includes(name)).map(([, job]) => job);
+
+      expect(posting, `${at} ${name}`).toHaveLength(1);
+      expect(posting[0]!.steps, at).toEqual([{ uses: expect.stringMatching(/^Variance-Authority\/action\/review@/u), with: { from: 'variance-review' } }]);
+      expect(posting[0]!.permissions, at).toMatchObject({ 'pull-requests': 'write' });
+    }
+  });
+});
