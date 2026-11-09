@@ -1,5 +1,15 @@
 # @variance-authority/cli
 
+## 0.29.0
+
+### Minor Changes
+
+- 03ea5d0: `Variance-Authority/action/review` takes `comment: 'false'`, which uploads the review and the badge's figure as the artifact `variance-review` instead of posting, and `from: variance-review`, which posts the comment, marks the diff and pushes the badge from a job that checks nothing out and runs none of the pull request's code. The job that runs the tests then needs `contents: read` alone, and the write token lives in a job no test can reach. One job with both still works.
+
+### Patch Changes
+
+- 127ea3f: The `variance-authority` skill says which files `variance` answers from: `symbol`, `uses` and `search` from the files its index parses, and `ask grep` from the files its start point reaches along the imports. A YAML, JSON, Markdown or shell file outside them is text, and the skill sends it to `rg` or `git grep` alongside `variance`, since an empty answer says nothing about a file `variance` did not search.
+
 ## 0.28.0
 
 ### Minor Changes
