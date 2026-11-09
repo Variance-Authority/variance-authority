@@ -70,8 +70,9 @@ flowchart LR
 Looking for a declaration, search declarations. Holding the name, search names.
 Holding a file or a package, scope the search to it. Holding only the concept,
 translate it into the words the repository is likely to use. Holding only a
-string in code, ask for it from a top folder. `rg` is for what no import
-reaches — prose, configuration, workflows and logs — and runs beside Variance,
+string in code, run `variance ask grep` from the folder you are working in, a
+top folder at the widest. A string in a file no import reaches — prose,
+configuration, workflows and logs — is `rg`'s, and `rg` runs beside Variance,
 not after it. A narrow search that comes back empty on code is either a true
 answer about that area or a sign that something you assumed is wrong. Widen one
 step to find out which, not all the way to `rg`.
@@ -124,7 +125,8 @@ supplied is part of it, and you can always say why a hit is a hit.
 Use `rg` when the text is outside the source — a YAML, JSON, Markdown or shell
 file no code imports — and `git grep` when the committed tree is the answer.
 Both are exact and need no Variance index. In code, `ask grep` matches the same
-text in the files a path reaches, nearest first, and a top folder is the widest
+text in the files a path names and reaches along the imports, a Markdown or JSON
+file that code imports among them, nearest first, and a top folder is the widest
 path it takes.
 
 ## Choose the entrance from what you have
