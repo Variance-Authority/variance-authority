@@ -224,7 +224,7 @@ export {
 export { coverageAtDistance, testHops, type CoverageAtDistance, type TestHops } from './coverage-distance.js';
 export { earnedCoverage, type EarnedCount, type EarnedCoverage } from './coverage-earned.js';
 export { coverageFanIn, type FanIn, type FanInFile, type FanInKind } from './coverage-fan-in.js';
-export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
+export { coverageByOwner, withoutTests, type OwnedFile } from './coverage-owner.js';
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.

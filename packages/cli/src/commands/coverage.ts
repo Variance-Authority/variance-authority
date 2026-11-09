@@ -30,6 +30,7 @@ import {
   sharedPreconditions,
   testCoverageFile,
   testHops,
+  withoutTests,
   type CountedSuite,
   type CoverageCount,
   type DeclaredSuite,
@@ -237,6 +238,8 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   const at = await head(request.root);
   const count = countCoverage(now);
   const indexes = now.map((one) => one.index);
+  // A test file is the test, not the package's code: each package's own and uses count leave it out.
+  const sources = withoutTests(now);
   const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
   for (const entry of harness) loaded.add(entry);
   const unloadedChange = await changeNoSuiteLoads(request.root, suites, loaded);
@@ -262,13 +265,8 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
           ...(reading.entries === undefined ? {} : {
             entries: reading.entries.map((entry) => {
               if ('missed' in entry) return entry;
-              // A test file is the test, not the package's code: a suite that runs it would count it run.
-              const tests = new Set(now.flatMap((one) => one.index.tests.map((test) => test.file)));
               const counted = (part: Scoped) => {
-                const narrowed = now.map((one) => {
-                  const index = within(one.index, part.scope);
-                  return { ...one, index: { ...index, modules: index.modules.filter((module) => !tests.has(module.file)) } };
-                });
+                const narrowed = sources.map((one) => ({ ...one, index: within(one.index, part.scope) }));
                 return coverageSource(part, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };

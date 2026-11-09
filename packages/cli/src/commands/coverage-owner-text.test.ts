@@ -63,17 +63,29 @@ describe('the coverage of each package', () => {
     kinds: { unit: 3, e2e: 2, integration: 0 }, nearest: { 0: 1, 1: 1, 3: 1 },
   };
 
-  it('takes the coverage from the package\'s own count and shares every other count over its regions: by any test, by its own, per kind of suite, within each distance, and only by others', () => {
+  it('parts the coverage the way its own tests contain it: within one hop, further, only by consumers, and nothing, then each kind\'s own tests', () => {
     const lines = ownershipLines(ui, [file]);
 
-    expect(lines[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', 'integration', 'e2e', '≤1 hop', '≤2 hops', '≤3 hops', "only others'", 'by']);
-    expect(lines[2]!.split(/\s{2,}/u)).toEqual(['', 'libs/ui', '10', '50.0%', '30.0%', '30.0%', '0.0%', '20.0%', '20.0%', '20.0%', '30.0%', '1', '10.0%', 'apps/main 1']);
-    expect(ownershipMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 50.0% | 30.0% | 30.0% | 0.0% | 20.0% | 20.0% | 20.0% | 30.0% | 1 | 10.0% | `apps/main` 1 |');
+    expect(lines[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own ≤1 hop', 'own further', 'consumers only', 'nothing', 'unit', 'integration', 'e2e', 'by']);
+    expect(lines[2]!.split(/\s{2,}/u)).toEqual(['', 'libs/ui', '10', '50.0%', '20.0%', '10.0%', '10.0%', '50.0%', '30.0%', '0.0%', '20.0%', 'apps/main 1']);
+    expect(ownershipMarkdown(ui, [file])).toContain('| `libs/ui` | 10 | 50.0% | 20.0% | 10.0% | 10.0% | 50.0% | 30.0% | 0.0% | 20.0% | `apps/main` 1 |');
   });
 
-  it('leaves the distance columns out when no walk measured one', () => {
+  it('names what ran only while loading, which is in the coverage and in no part of it', () => {
+    expect(ownershipLines(ui, [file])).toContain('  1 region ran only while its module loaded or before reach: in coverage, in no part');
+  });
+
+  it('adds every package together under `all` when there are several', () => {
+    const api = [...ui, { from: 'libs/api', own: { regions: 10, ran: 10, unloaded: { regions: 0 } } as CoverageSource, uses: SOURCE }];
+    const other: OwnedFile = { file: 'libs/api/b.ts', owner: 'libs/api', regions: 10, run: 10, own: 10, others: 0, by: {}, kinds: { unit: 10, e2e: 0, integration: 0 }, nearest: { 1: 10 } };
+
+    expect(ownershipLines(api, [file, other]).find((line) => line.startsWith('  all'))!.split(/\s{2,}/u))
+      .toEqual(['', 'all', '20', '75.0%', '60.0%', '5.0%', '5.0%', '25.0%', '65.0%', '0.0%', '10.0%', 'apps/main 1']);
+  });
+
+  it('counts its own tests whole when no walk measured a distance', () => {
     const { nearest: _, ...unwalked } = file;
 
-    expect(ownershipLines(ui, [unwalked])[1]).not.toContain('hop');
+    expect(ownershipLines(ui, [unwalked])[1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own', 'consumers only', 'nothing', 'unit', 'integration', 'e2e', 'by']);
   });
 });

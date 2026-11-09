@@ -97,16 +97,17 @@ afterAll(async () => {
 });
 
 describe("coverage by the package whose tests ran it", () => {
-  it('gives each package one row over its own regions: by any test, its own, each kind of suite, each distance and only other packages\'', async () => {
+  it('gives each package one row over its own regions: what its own tests ran near and further, what only consumers ran, what nothing ran, and all of them added', async () => {
     const answer = await ask(['coverage', '--root', repo, '--packages']);
 
     expect(answer.code).toBe(0);
     const lines = answer.out.split('\n');
     const header = lines.findIndex((line) => line.startsWith('coverage of each package'));
-    expect(lines[header + 1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own tests', 'unit', '≤1 hop', '≤2 hops', '≤3 hops', "only others'", 'by']);
-    expect(lines.slice(header + 2, header + 4)).toEqual([
-      expect.stringMatching(/^ {2}apps\/main\s+1\s+100\.0%\s+100\.0%\s+100\.0%\s+100\.0%\s+100\.0%\s+100\.0%\s+0\s+0\.0%$/u),
-      expect.stringMatching(/^ {2}libs\/ui\s+4\s+100\.0%\s+25\.0%\s+100\.0%\s+50\.0%\s+100\.0%\s+100\.0%\s+3\s+75\.0%\s+apps\/main 3 · libs\/specs 1$/u),
+    expect(lines[header + 1]!.split(/\s{2,}/u)).toEqual(['', 'regions', 'coverage', 'own ≤1 hop', 'own further', 'consumers only', 'nothing', 'unit', 'by']);
+    expect(lines.slice(header + 2, header + 5)).toEqual([
+      expect.stringMatching(/^ {2}apps\/main\s+1\s+100\.0%\s+100\.0%\s+0\.0%\s+0\.0%\s+0\.0%\s+100\.0%$/u),
+      expect.stringMatching(/^ {2}libs\/ui\s+4\s+100\.0%\s+25\.0%\s+0\.0%\s+75\.0%\s+0\.0%\s+25\.0%\s+apps\/main 3 · libs\/specs 1$/u),
+      expect.stringMatching(/^ {2}all\s+5\s+100\.0%\s+40\.0%\s+0\.0%\s+60\.0%\s+0\.0%\s+40\.0%\s+apps\/main 3 · libs\/specs 1$/u),
     ]);
   });
 
@@ -138,7 +139,7 @@ describe("coverage by the package whose tests ran it", () => {
     const answer = await ask(['coverage', '--root', repo, '--packages', '--format', 'markdown']);
 
     expect(answer.out).toContain('Coverage of each of 2 packages');
-    expect(answer.out).toContain('| `libs/ui` | 4 | 100.0% | 25.0% | 100.0% | 50.0% | 100.0% | 100.0% | 3 | 75.0% | `apps/main` 3 · `libs/specs` 1 |');
+    expect(answer.out).toContain('| `libs/ui` | 4 | 100.0% | 25.0% | 0.0% | 75.0% | 0.0% | 25.0% | `apps/main` 3 · `libs/specs` 1 |');
   });
 
   // In: main.ts by its own test one hop away, and the label by its own.
@@ -189,8 +190,8 @@ describe('coverage counted from the tests near the code they ran', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toMatch(/^coverage .* counted where the nearest test that ran the code is 0-1 import hops away$/mu);
-    // The band is the distance, so the table leaves out the hop columns it would only repeat.
-    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+50\.0%\s+25\.0%\s+50\.0%\s+1\s+25\.0%\s+libs\/specs 1$/mu);
+    // The band is the distance, so the table keeps one own column, never parted by a distance it would only repeat.
+    expect(answer.out).toMatch(/^ {2}libs\/ui\s+4\s+50\.0%\s+25\.0%\s+25\.0%\s+50\.0%\s+25\.0%\s+libs\/specs 1$/mu);
   });
 
   it('gives a program the band beside the counts it narrowed, and no comparison over a base it was not measured on', async () => {

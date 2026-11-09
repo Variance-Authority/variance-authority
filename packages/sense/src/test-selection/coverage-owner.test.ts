@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coverageByOwner } from './coverage-owner.js';
+import { coverageByOwner, withoutTests } from './coverage-owner.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule } from './reverse.js';
 
 const CORE = { id: 'core', file: 'packages/core/src/store.test.ts', name: 'stores', stopped: false };
@@ -98,36 +98,57 @@ describe('which package\'s tests ran each region', () => {
   });
 });
 
-describe('how each region ran: by which kind of suite, and how near', () => {
+describe('how its own package\'s tests ran each region: by which kind of suite, and how near', () => {
   const hops = (entries: Record<string, Record<string, number>>, unplaced: readonly string[] = []) => ({
     hops: new Map(Object.entries(entries).map(([test, modules]) => [test, new Map(Object.entries(modules))])),
     unplaced,
   });
 
-  it('counts the regions each kind of suite ran, joined across suites of one kind, and a kind that ran nothing as none', () => {
+  it('counts the regions each kind of suite\'s own tests ran, joined across suites of one kind, and a kind that ran none as none', () => {
     const [store] = coverageByOwner([
       { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]), block('get', []))) },
       { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [1]), block('drop', [1]))) },
-      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('get', []))) },
+      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('get', [1]))) },
     ], ownerOf);
 
-    expect(store).toMatchObject({ regions: 3, run: 2, kinds: { unit: 2, e2e: 0 } });
+    expect(store).toMatchObject({ regions: 3, run: 3, own: 1, kinds: { unit: 1, e2e: 0 } });
   });
 
-  it('counts each region under the nearest test that ran it, in any suite, and apart when no walk placed one', () => {
-    const walked = hops({ [CORE.file]: { 'packages/core/src/store.ts': 1 }, [CLI.file]: { 'packages/core/src/store.ts': 3 } }, [ROOT.file]);
+  it('counts each region its own tests ran under the nearest of them, however near another package\'s test stood', () => {
+    const walked = hops({ [CORE.file]: { 'packages/core/src/store.ts': 2 }, [CLI.file]: { 'packages/core/src/store.ts': 1 } }, [ROOT.file]);
 
     const [store] = coverageByOwner([
       { kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0, 1]), block('get', [1]))) },
-      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('drop', [2]), block('idle', []))) },
+      { kind: 'e2e', index: index(module('packages/core/src/store.ts', block('put', [0]), block('drop', [2]), block('idle', []))) },
     ], ownerOf, walked);
 
-    expect(store).toMatchObject({ regions: 4, run: 3, nearest: { 1: 1, 3: 1 } });
+    expect(store).toMatchObject({ regions: 4, run: 3, own: 1, nearest: { 2: 1 } });
+  });
+
+  it('leaves out of the distances a region only its own tests at no measured distance ran', () => {
+    const walked = hops({}, [CORE.file]);
+
+    const [store] = coverageByOwner([{ kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) }], ownerOf, walked);
+
+    expect(store).toMatchObject({ own: 1, nearest: {} });
   });
 
   it('says nothing of distance when no walk was given', () => {
     const [store] = coverageByOwner([{ kind: 'unit', index: index(module('packages/core/src/store.ts', block('put', [0]))) }], ownerOf);
 
     expect(store).not.toHaveProperty('nearest');
+  });
+});
+
+describe('the suites with their test files left out', () => {
+  it('leaves out a module one suite runs as a test from every suite, and keeps the rest of each', () => {
+    // The core test is a test in the first suite alone; the second loaded it as code.
+    const first = { index: { tests: [CORE], modules: [module(CORE.file, block('stores', [0])), module('packages/core/src/store.ts', block('store', [0]))] } };
+    const second = { kind: 'e2e' as const, index: { tests: [CLI], modules: [module(CORE.file, block('stores', [0])), module('packages/cli/src/run.ts', block('run', [0]))] } };
+
+    expect(withoutTests([first, second]).map((suite) => suite.index.modules.map((one) => one.file))).toEqual([
+      ['packages/core/src/store.ts'],
+      ['packages/cli/src/run.ts'],
+    ]);
   });
 });

@@ -1,14 +1,15 @@
 // compass: variance-authority.reach.crossings
 /**
  * `variance coverage --packages`: the coverage of each package over its own
- * regions, parted the ways one total hides.
+ * regions, parted by how well its own tests contain it.
  *
  * A package at full coverage can be run entirely by the tests of whatever
- * imports it, and nothing in its own coverage says so. One row per package puts
- * beside its coverage the share its own tests ran, each kind of suite's, how
- * near the nearest test stood, and what only other packages' tests ran; the
- * tree under it walks a package down to the files only other packages' tests
- * reach, largest first, so the place a test belongs is the first line read.
+ * imports it, and nothing in its own coverage says so. One row per package
+ * parts its regions four ways that add up: its own tests ran them from within
+ * one import hop, its own tests ran them only from further, only its consumers'
+ * tests ran them, or nothing did; then each kind of suite's own tests. The tree
+ * under it walks a package down to the files only other packages' tests reach,
+ * largest first, so the place a test belongs is the first line read.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -33,8 +34,8 @@ interface Node {
   readonly children: Map<string, Node>;
 }
 
-/** The import hops each distance column counts within. */
-const HOPS = [1, 2, 3] as const;
+/** The import hops a test of the package stands within to contain what it ran. */
+const NEAR = 1;
 
 /** One row per package, then the tree of what only other packages' tests ran. */
 export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]): readonly string[] {
@@ -43,9 +44,11 @@ export function ownershipLines(entries: Entries, ownership: readonly OwnedFile[]
   const ran = packages.filter((row) => row.run > 0);
   const { header, cells } = columns(ownership);
   const lines = [
-    "coverage of each package, over its own regions: by any test, its own, each kind of suite, the nearest test, and only other packages'",
-    ...table([['', ...header, "only others'", '', 'by'], ...ran.map((row) => [`  ${row.from}`, ...cells(row), grouped(row.others), ratio(row.others, row.regions), testers(row.by)])]),
+    "coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, what nothing ran, and each kind of suite's own tests",
+    ...table([['', ...header, 'by'], ...withAll(ran).map((row) => [`  ${row.from}`, ...cells(row), testers(row.by)])]),
   ];
+  const loading = ran.reduce((sum, row) => sum + atLoad(row), 0);
+  if (loading > 0) lines.push(`  ${grouped(loading)} region${loading === 1 ? '' : 's'} ran only while ${loading === 1 ? 'its module' : 'their modules'} loaded or before reach: in coverage, in no part`);
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push(`  and ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran`);
   const { rows, more } = trees(packages, ownership);
@@ -65,12 +68,12 @@ export function ownershipMarkdown(entries: Entries, ownership: readonly OwnedFil
     '',
     `<details><summary>📦 Coverage of each of ${grouped(ran.length)} packages</summary>`,
     '',
-    'Every share is over the package\'s own regions. A region is its own tests\' when a test in its package ran it, whoever else did; a distance counts it under the nearest test that ran it, in any suite.',
+    'Every share is over the package\'s own regions. A region is its own tests\' when a test in its package ran it, whoever else did, and within one hop when the nearest of them imports its file; consumers only is what only other packages\' tests ran. The kinds count its own tests alone.',
     '',
-    `| Package | ${header.join(' | ')} | Only others' | | By |`,
-    `|---|${header.map(() => '--:').join('|')}|--:|--:|---|`,
-    ...ran.map((row) =>
-      `| \`${row.from}\` | ${[...cells(row), grouped(row.others), ratio(row.others, row.regions)].join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
+    `| Package | ${header.join(' | ')} | By |`,
+    `|---|${header.map(() => '--:').join('|')}|---|`,
+    ...withAll(ran).map((row) =>
+      `| \`${row.from}\` | ${cells(row).join(' | ')} | ${testers(row.by, (name) => `\`${name}\``)} |`),
   ];
   const idle = packages.length - ran.length;
   if (idle > 0) lines.push('', `And ${grouped(idle)} package${idle === 1 ? '' : 's'} no test ran.`);
@@ -153,9 +156,10 @@ interface PackageRow {
   readonly own: number;
   readonly others: number;
   readonly by: Map<string, number>;
+  /** Per kind of suite, the regions its own tests of that kind ran. */
   readonly kinds: Map<SuiteKind, number>;
-  /** Per hop band, the regions whose nearest test stood within it. */
-  readonly within: number[];
+  /** The regions the nearest of its own tests that ran them stood within one hop of. */
+  readonly near: number;
 }
 
 /** Each package the reading listed, summed over the files it owns. */
@@ -163,29 +167,57 @@ function counted(entries: Entries, ownership: readonly OwnedFile[]): readonly Pa
   if (ownership.length === 0) return [];
   return entries.flatMap((entry) => {
     if ('missed' in entry) return [];
-    const row = { from: entry.from, regions: entry.own.regions, ran: entry.own.ran, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), within: HOPS.map(() => 0) };
-    for (const file of ownership) {
-      if (file.owner !== entry.from) continue;
-      row.run += file.run;
-      row.own += file.own;
-      row.others += file.others;
-      add(row.by, file.by);
-      add(row.kinds, file.kinds);
-      for (const [hop, count] of Object.entries(file.nearest ?? {})) HOPS.forEach((most, at) => (row.within[at]! += Number(hop) <= most ? count : 0));
-    }
-    return [row];
+    const files = ownership.filter((file) => file.owner === entry.from);
+    return [summed(entry.from, entry.own, files.map((file) => ({
+      ...file, near: Object.entries(file.nearest ?? {}).reduce((near, [hop, count]) => near + (Number(hop) <= NEAR ? count : 0), 0),
+    })))];
   });
 }
 
-/** The columns every suite kind and, when the hops were walked, every hop band adds, each a share of the package's regions. */
+/** The rows, and when there are several, every package added together under `all`. */
+function withAll(rows: readonly PackageRow[]): readonly PackageRow[] {
+  if (rows.length < 2) return rows;
+  const own = { regions: rows.reduce((sum, row) => sum + row.regions, 0), ran: rows.reduce((sum, row) => sum + row.ran, 0) };
+  return [...rows, summed('all', own, rows.map((row) => ({ ...row, by: Object.fromEntries(row.by), kinds: Object.fromEntries(row.kinds) })))];
+}
+
+/** What one file, or one package, adds to a row. */
+type Part = Pick<OwnedFile, 'run' | 'own' | 'others' | 'by' | 'kinds'> & { readonly near: number };
+
+/** A row over the given own count, its parts added up. */
+function summed(from: string, { regions, ran }: { readonly regions: number; readonly ran: number }, parts: readonly Part[]): PackageRow {
+  const row = { from, regions, ran, run: 0, own: 0, others: 0, by: new Map<string, number>(), kinds: new Map<SuiteKind, number>(), near: 0 };
+  for (const part of parts) {
+    row.run += part.run;
+    row.own += part.own;
+    row.others += part.others;
+    row.near += part.near;
+    add(row.by, part.by);
+    add(row.kinds, part.kinds);
+  }
+  return row;
+}
+
+/** The regions in the coverage that no case called into: run while a module loaded, or before reach. */
+function atLoad(row: PackageRow): number {
+  return Math.max(0, row.ran - row.own - row.others);
+}
+
+/**
+ * The parts of the coverage, which with what ran at load add up to the package's
+ * regions, then one column per kind of suite; each a share of the package's
+ * regions. Its own tests are one part when no walk measured a distance.
+ */
 function columns(ownership: readonly OwnedFile[]): { header: readonly string[]; cells: (row: PackageRow) => readonly string[] } {
   const kinds = SUITE_KINDS.filter((kind) => ownership.some((file) => file.kinds[kind] !== undefined));
   const walked = ownership.some((file) => file.nearest !== undefined);
   return {
-    header: ['regions', 'coverage', 'own tests', ...kinds, ...(walked ? HOPS.map((hop) => `≤${hop} hop${hop === 1 ? '' : 's'}`) : [])],
+    header: ['regions', 'coverage', ...(walked ? [`own ≤${NEAR} hop`, 'own further'] : ['own']), 'consumers only', 'nothing', ...kinds],
     cells: (row) => [
-      grouped(row.regions), ratio(row.ran, row.regions), ratio(row.own, row.regions),
-      ...kinds.map((kind) => ratio(row.kinds.get(kind) ?? 0, row.regions)), ...(walked ? row.within.map((count) => ratio(count, row.regions)) : []),
+      grouped(row.regions), ratio(row.ran, row.regions),
+      ...(walked ? [ratio(row.near, row.regions), ratio(row.own - row.near, row.regions)] : [ratio(row.own, row.regions)]),
+      ratio(row.others, row.regions), ratio(row.regions - row.ran, row.regions),
+      ...kinds.map((kind) => ratio(row.kinds.get(kind) ?? 0, row.regions)),
     ],
   };
 }
