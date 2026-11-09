@@ -228,17 +228,26 @@ files into a shared package. Coverage stays at 100%, and the shared package has
 no test of its own: everything in it runs because a test in another package
 imports it, often several imports away. `variance coverage --packages` reads
 the same per-case [execution index](execution-record.md) the first section
-records, and counts each workspace package by whose tests ran it:
+records, and parts each workspace package's coverage:
 
 ```bash
 npx variance coverage --packages
 ```
 
+The table parts each package's coverage over its own regions into what its
+own tests ran from a file that imports the code, what only its own tests
+further away ran, what only its consumers' tests ran, and what nothing ran.
+One figure of 90% says none of that; this row says whether the package's own
+tests contain a change to it, or whether only a consumer would notice. Each
+kind of suite gets a column of what the package's own tests of that kind ran.
+The figures are illustrative:
+
 ```text
-which package's tests ran each package
-                 ran    own tests  only others'         by
-  packages/cli   8,020  100.0%     0             0.0%
-  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, what nothing ran, and each kind of suite's own tests
+                 regions  coverage  own ≤1 hop  own further  consumers only  nothing  unit   e2e    by
+  packages/cli   9,790    81.9%     38.2%       43.7%        0.0%            18.1%    72.4%  41.0%
+  packages/help  2,327    88.9%     21.4%       57.7%        9.8%            11.1%    79.1%  12.3%  packages/cli 229
+  all            12,117   83.2%     35.0%       46.4%        1.9%            16.8%    73.7%  35.5%  packages/cli 229
 run only by other packages' tests
   packages/help/src/  229  packages/cli 229
     tools/            210  packages/cli 210

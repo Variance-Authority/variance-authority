@@ -84,7 +84,7 @@ function text(answer: Coverage): string {
   lines.push(...table(tail));
   if (count.unjoined > 0) lines.push(`not joined across suites: ${grouped(count.unjoined)} region${count.unjoined === 1 ? '' : 's'}`);
   lines.push(...notKnownLines(answer));
-  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? []), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn));
+  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? [], answer.atDistance !== undefined), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn));
 
   if (base !== undefined) {
     for (const suite of answer.suites) {
@@ -174,7 +174,7 @@ function markdown(answer: Coverage): string {
   if (answer.source !== undefined || answer.sourceMissed !== undefined) {
     lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
   }
-  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? []), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn));
+  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? [], answer.atDistance !== undefined), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn));
   return `${lines.join('\n')}\n`;
 }
 

@@ -1554,23 +1554,40 @@ table:
 files reach, including the other workspaces they import. Each is followed by
 how much of what ran is before reach.
 
-A package at 100% can be run entirely by the tests of the packages that import
-it. Split a component into three files and move two of them to a shared
-package, and the coverage stays where it was while the shared package has no
-test of its own. So `--packages` also counts each package by whose tests ran
-it:
+One coverage figure hides how the code was run. A package at 100% can be run
+entirely by the tests of the packages that import it: split a component into
+three files and move two of them to a shared package, and the coverage stays
+where it was while the shared package has no test of its own. So the next table
+parts each package's coverage over its own regions (the figures are
+illustrative):
 
 ```text
-which package's tests ran each package
-                 ran    own tests  only others'         by
-  packages/cli   8,020  100.0%     0             0.0%
-  packages/help  2,069  88.9%      229           11.1%  packages/cli 229
+coverage of each package, over its own regions: what its own tests ran within one import hop and further, what only its consumers' tests ran, what nothing ran, and each kind of suite's own tests
+                 regions  coverage  own ≤1 hop  own further  consumers only  nothing  unit   e2e    by
+  packages/cli   9,790    81.9%     38.2%       43.7%        0.0%            18.1%    72.4%  41.0%
+  packages/help  2,327    88.9%     21.4%       57.7%        9.8%            11.1%    79.1%  12.3%  packages/cli 229
+  all            12,117   83.2%     35.0%       46.4%        1.9%            16.8%    73.7%  35.5%  packages/cli 229
 run only by other packages' tests
   packages/help/src/  229  packages/cli 229
     tools/            210  packages/cli 210
       uses-of.ts      32   packages/cli 32
       uses.ts         28   packages/cli 28
 ```
+
+Every share is over the package's own regions, test files left out, and the
+four middle columns part them: *own ≤1 hop* is what a test of the package ran
+from a file that imports the code directly, *own further* what only its tests
+further away, or at a distance the walk did not measure, ran, *consumers only*
+what only other packages' tests ran, and *nothing* what no test ran, a region
+that ran only while its module loaded among it. *Coverage* is the *own* figure
+of the table above, so a region that ran before reach is in it and in no part,
+and a line under the table counts those. Each kind of suite the config declares
+gets a column of what the package's own tests of that kind ran. The hops are
+the import walk `--at-distance` uses: without `relations` in the suites, and
+under `--at-distance`, whose band is already the distance, the two own columns
+are one, and *nothing* reads *not in band*: a region a test outside the band
+ran is in it. With more than one package, `all` adds up every package the run
+covers, a package no test ran among them, though that package gets no row.
 
 A region is the package's own when one of the package's tests ran it, whoever
 else did too. A region that only other packages' tests ran is counted apart,
