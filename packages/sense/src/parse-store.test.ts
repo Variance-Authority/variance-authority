@@ -202,6 +202,21 @@ describe('the parse store a cache keeps', () => {
     expect(whole.parsed).toBe(0);
   });
 
+  it('heals a store that lost a segment on the next write, so the root after it parses nothing', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/a'));
+    await updateSourceIndex(join(root, 'packages/b'));
+    const segments = `${parseStorePath(cache)}.segments`;
+    const [lost] = await readdir(segments);
+    await rm(join(segments, lost!));
+
+    // This root reads the store as far as the gap, parses what it lost, and writes the store whole again.
+    expect((await updateSourceIndex(root)).parsed).toBeGreaterThan(0);
+    const after = await updateSourceIndex(join(root, 'packages'));
+    expect(after.files).toBeGreaterThan(0);
+    expect(after.parsed).toBe(0);
+  });
+
   it('keeps every parse through a compaction, and reclaims one no root names once it is old', async () => {
     const root = await checkout();
     await updateSourceIndex(join(root, 'packages/b'));

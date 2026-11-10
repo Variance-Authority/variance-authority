@@ -8,12 +8,14 @@ import {
   applyPrune,
   planPrune,
   prunedLine,
+  pruneSelection,
   pruneWhenDue,
   machineOwners,
   scratchPid,
   PRUNE_EVERY_MS,
   type PruneOwners,
 } from './prune.js';
+import { parseStorePath } from '../parse-store.js';
 import { testCoverageFile } from './record-location.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -209,6 +211,20 @@ describe('applyPrune and pruneWhenDue', () => {
     expect(existsSync(kept)).toBe(true);
     expect(prunedLine(pruned)).toMatch(/^cache: freed \d+\.\d MiB in .*test-selection: 1 checkout that no longer exists$/u);
     expect(prunedLine({ root, removed: [], unremoved: [], freed: 0 })).toBe('');
+  });
+
+  test('pruneSelection removes what the plan names though the parse store cannot be read, and leaves the store to the next prune', async () => {
+    const root = await cache();
+    const gone = join(root, 'test-selection', 'aaa');
+    await marker(gone, '/gone', '/gone', DAY);
+    // A manifest whose header names more bytes than follow it: the store's reader refuses it.
+    const store = await put(parseStorePath(root), 0, 'VAIDXLSM\xff\xff\xff\x7f{}');
+
+    const pruned = await pruneSelection(root, owners({ exists: () => false }));
+
+    expect(pruned.removed.map((entry) => entry.path)).toEqual([gone]);
+    expect(existsSync(gone)).toBe(false);
+    expect(existsSync(store)).toBe(true);
   });
 
   test('an entry that could not be removed is reported with its path and the error, and is not counted as freed', async () => {
