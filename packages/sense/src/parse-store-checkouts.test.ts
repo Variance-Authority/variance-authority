@@ -44,7 +44,8 @@ describe('the checkouts a parse store answers', () => {
 
   async function records(root: string): Promise<string> {
     const file = await openSourceIndexFile(sourceIndexPath(root));
-    return JSON.stringify([...file.stored.records].sort((left, right) => (left[0] < right[0] ? -1 : 1)));
+    const sorted = (entries: Iterable<[string, unknown]>) => [...entries].sort((left, right) => (left[0] < right[0] ? -1 : 1));
+    return JSON.stringify([sorted(file.stored.records), sorted(file.stored.parses)]);
   }
 
   /** A workspace whose package `a` holds an `entry.ts` importing `./<target>.js`, committed through `setup`. */
@@ -93,5 +94,25 @@ describe('the checkouts a parse store answers', () => {
     await updateSourceIndex(left);
     await updateSourceIndex(right);
     expect(await records(right)).toBe(alone);
+  });
+
+  it("takes no parse of another checkout's line endings that `core.eol=crlf` writes out of one blob", async () => {
+    // `text=auto` keeps LF in the blob; `core.eol=crlf` writes the crlf
+    // checkout's files with CRLF once git checks them out again.
+    const text = async (root: string) => write(root, '.gitattributes', '* text=auto\n');
+    const lf = await checkout('left', text);
+    const crlf = await checkout('left', text);
+    git(crlf, 'config', 'core.eol', 'crlf');
+    git(crlf, 'rm', '--quiet', '--cached', '-r', '.');
+    git(crlf, 'reset', '--quiet', '--hard');
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(crlf);
+    const alone = await records(crlf);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(lf);
+    await updateSourceIndex(crlf);
+    expect(await records(crlf)).toBe(alone);
   });
 });

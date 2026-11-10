@@ -42,21 +42,30 @@ export function parseStoresFor(root: string): readonly string[] | undefined {
 
 /**
  * Whether git writes a file the store would parse as other bytes than its blob:
- * a filter, `ident` or `working-tree-encoding` on it, `eol=crlf`, or
- * `core.autocrlf=true`. A parse is kept under the blob's name and read off the
- * disk, so there two checkouts holding one blob can hold different modules, and
- * one would answer the other. A git that cannot answer is taken to rewrite.
+ * a filter, `ident` or `working-tree-encoding` on it, `eol=crlf`,
+ * `core.autocrlf=true`, or a `text` file under `core.eol=crlf` (`native` on
+ * Windows). A parse is kept under the blob's name and read off the disk, so
+ * there two checkouts holding one blob can hold different modules, and one
+ * would answer the other. A git that cannot answer is taken to rewrite.
  */
 function rewritesParsed(repository: string): boolean {
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const config = new Map<string, string>();
   try {
-    if (git('config', '--get', '--type=bool', 'core.autocrlf').trim() === 'true') return true;
+    for (const line of git('config', '--get-regexp', '^core\\.(autocrlf|eol)$').split('\n')) {
+      const [key, value = ''] = line.trim().toLowerCase().split(/\s+/);
+      if (key) config.set(key, value);
+    }
   } catch {
-    // unset, or `input`, which rewrites nothing on the way out
+    // neither is set
   }
+  const autocrlf = config.get('core.autocrlf');
+  if (autocrlf !== undefined && ['true', 'yes', 'on', '1'].includes(autocrlf)) return true;
+  const eol = config.get('core.eol') ?? 'native';
+  const crlf = autocrlf !== 'input' && (eol === 'crlf' || (eol === 'native' && process.platform === 'win32'));
   try {
     const rewritten = [
-      git('ls-files', '-z', '--', ':(top,attr:eol=crlf)'),
+      git('ls-files', '-z', '--', ':(top,attr:eol=crlf)', ...(crlf ? [':(top,attr:text)', ':(top,attr:text=auto)'] : [])),
       git('ls-files', '-z', '--', ':(top)', ':(top,exclude,attr:!filter !ident !working-tree-encoding)'),
     ];
     return rewritten.join('\0').split('\0').some((file) => READABLE.has(extname(file)));
