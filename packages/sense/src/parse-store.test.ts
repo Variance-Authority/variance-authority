@@ -382,25 +382,30 @@ describe('the parse store a cache keeps', () => {
     expect(await entryRecord(second, { stored: true, ...limit }, entry)).toEqual(fresh);
   });
 
-  it('declines a module over the default limit when a scan names no limit and the store holds its parse from a larger one', async () => {
-    const big = async () => {
+  it.each([
+    ['a module over the default limit whose parse a larger one kept', 'big.ts', `export const big = '${'x'.repeat(LARGEST_FILE)}';\n`, true],
+    ['a stylesheet absent from disk, whose parse carries no size', 'entry.css', 'a { color: red; }\n', false],
+  ])('declines, when a scan names no limit, %s', async (_, name, text, present) => {
+    const file = `packages/a/src/${name}`;
+    const committed = async () => {
       const root = await checkout();
-      await write(root, 'packages/a/src/big.ts', `export const big = '${'x'.repeat(LARGEST_FILE)}';\n`);
+      await write(root, file, text);
       git(root, 'add', '.');
-      git(root, 'commit', '--quiet', '-m', 'big');
+      git(root, 'commit', '--quiet', '-m', name);
       return root;
     };
     const path = join(await temporary('variance-parse-store-index-'), 'index.bin');
     const source = await openSourceIndex(path);
-    await scanRelations({ root: await big(), dirs: ['packages/a'], cache: source.cache, largestFile: 2 * LARGEST_FILE });
+    await scanRelations({ root: await committed(), dirs: ['packages/a'], cache: source.cache, largestFile: 2 * LARGEST_FILE });
     await source.save();
     fillParseStore([parseStorePath(cache)], path);
-    const second = await big();
-    const scan = (largestFile?: number) => {
-      const batch = gitTreeOf(second, ['packages/a']).then((tree) => tree!.native!.scanGraph(second, ['packages/a/src/big.ts'], largestFile, 1, false, undefined, false, [parseStorePath(cache)]));
-      return batch.then(({ files, kept }) => kept[files.indexOf('packages/a/src/big.ts')]);
+    const second = await committed();
+    const scan = async (largestFile?: number) => {
+      const { files, kept } = (await gitTreeOf(second, ['packages/a']))!.native!.scanGraph(second, [file], largestFile, 1, false, undefined, false, [parseStorePath(cache)]);
+      return kept[files.indexOf(file)];
     };
     expect(await scan(2 * LARGEST_FILE)).toBe(1);
+    if (!present) await rm(join(second, file)).then(() => git(second, 'update-index', '--skip-worktree', file));
     expect(await scan()).toBe(0);
   });
 
