@@ -342,6 +342,19 @@ describe('the parse store a cache keeps', () => {
     expect((await updateSourceIndex(join(root, 'packages'))).parsed).toBe(4);
   });
 
+  it('counts a file a resolver parsed before the scan reached it', async () => {
+    const root = await temporary('variance-parse-count-');
+    await write(root, 'Cargo.toml', '[package]\nname = "crate"\nversion = "0.1.0"\n');
+    // `x.rs` and `y.rs` sort after `lib.rs`: the resolver parses them before the scan reaches them.
+    await write(root, 'src/lib.rs', 'mod x;\nmod y;\n');
+    await write(root, 'src/x.rs', 'pub fn x() {}\n');
+    await write(root, 'src/y.rs', 'pub fn y() {}\n');
+    git(root, 'init', '--quiet');
+    git(root, 'add', '.');
+    git(root, 'commit', '--quiet', '-m', 'crate');
+    expect((await updateSourceIndex(root)).parsed).toBe(3);
+  });
+
   it('keeps every parse through a compaction, and reclaims one no root names once it is old', async () => {
     const root = await checkout();
     await updateSourceIndex(join(root, 'packages/b'));

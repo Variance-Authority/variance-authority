@@ -45,6 +45,8 @@ export interface NativeIndexGraphOptions {
 export interface NativeIndexGraph {
   /** How many files the closure holds. */
   readonly size: number;
+  /** How many of them it parsed: a module declined for its bytes holds a record and no parse. */
+  readonly parsed: number;
   has(file: string): boolean;
   /** Every file an edge reaches that the closure does not hold, sorted by code unit. */
   following(): string[];

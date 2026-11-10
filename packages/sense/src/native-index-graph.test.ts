@@ -146,6 +146,22 @@ describe('a cold closure held by the addon', () => {
     expect([...parses.values()].filter((each) => each.harvested !== true)).toEqual([]);
   });
 
+  // `scanCount` reports what the closure parsed: a module it declined for its
+  // size holds a record but was never parsed.
+  it.runIf(available)('counts the modules it parsed, not the ones it declined', async () => {
+    const seeds = ['packages/sense/src/source-index.ts'];
+    const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
+    const { shape, aliases } = await shapeOf({ root, tree });
+    const closure = (largestFile: number) => nativeIndexGraph(tree.native!, {
+      root, seeds, largestFile, remembering: true, aliases, directories: shape.directories,
+    })!;
+    const declined = closure(1);
+    expect(declined.size).toBe(1);
+    expect(declined.parsed).toBe(0);
+    const read = closure(LARGEST_FILE);
+    expect(read.parsed).toBe(decodeSourceIndex(read.parseSegment()).parses.size);
+  });
+
   it('throws a closure the addon failed to build to the scan that asked for it', () => {
     const tree = {
       indexGraph: () => {

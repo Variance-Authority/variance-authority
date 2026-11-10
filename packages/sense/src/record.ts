@@ -39,6 +39,8 @@ export interface RecordSubject {
   readonly remembering: boolean;
   /** This file's content digest, when it was known without opening the file. */
   readonly digest?: Digest;
+  /** Told of each parse this record's read makes, where it makes it. */
+  readonly counted?: () => void;
 }
 
 export interface BuiltRecord {
@@ -47,8 +49,6 @@ export interface BuiltRecord {
   readonly targets?: readonly (string | undefined)[];
   /** What the bytes said, absent when the file could not be read. */
   readonly read?: Parsed;
-  /** The bytes were parsed by this call: neither a cache nor a store held them. */
-  readonly parsed?: true;
 }
 
 /** Read, parse and resolve one file through the implementation of record. */
@@ -73,7 +73,6 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   // A digest from git names a cache entry before the file is opened; only a
   // miss falls through to I/O.
   let digest = subject.digest;
-  let parsed = false;
   let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
   // A parse is kept whatever limit read it, so one over this scan's is read again, to be declined.
   if (read !== undefined && (read.size?.bytes ?? (await sized(absolute)) ?? 0) > largestFile) read = undefined;
@@ -111,7 +110,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     read = cache.get(keyFor(digest, way));
     if (read === undefined) {
       read = parsedFrom(file, contents, way, language);
-      parsed = true;
+      subject.counted?.();
       cache.set(keyFor(digest, way), read);
     }
   }
@@ -183,7 +182,6 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
     },
     read,
-    ...(parsed ? { parsed: true as const } : {}),
     targets,
     witnesses: subject.remembering
       ? witnessesOf({
@@ -212,6 +210,8 @@ export function parsedOnce(input: {
   readonly cache?: ParseCache;
   readonly digest?: Digest | undefined;
   readonly largestFile?: number;
+  /** Told of each parse made here, where it is made. */
+  readonly counted?: () => void;
 }): Parsed | undefined {
   const { root, file, cache, largestFile } = input;
   const way = parseWay(file);
@@ -228,7 +228,11 @@ export function parsedOnce(input: {
     return undefined;
   }
   const key = keyFor(input.digest ?? digestString(contents), way);
-  const read = cache?.get(key) ?? parsedFrom(file, contents, way, language);
+  let read = cache?.get(key);
+  if (read === undefined) {
+    read = parsedFrom(file, contents, way, language);
+    input.counted?.();
+  }
   cache?.set(key, read);
   return read;
 }

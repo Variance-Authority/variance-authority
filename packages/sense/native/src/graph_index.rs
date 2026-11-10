@@ -64,6 +64,7 @@ pub struct IndexGraph {
     parse_segment: Vec<u8>,
     keys: HashSet<String>,
     following: Vec<String>,
+    parsed: u32,
 }
 
 pub(crate) fn index_graph(
@@ -96,6 +97,7 @@ pub(crate) fn index_graph(
         listing,
     );
     let segment = parse_segment(&files, &identities, &read, &[]);
+    let parsed = read.iter().filter(|(_, _, outcome)| outcome.parsed()).count() as u32;
     let settling = Settling {
         builtins: &builtins,
         code: &code,
@@ -136,7 +138,7 @@ pub(crate) fn index_graph(
         .into_iter()
         .collect();
     following.sort_by(|left, right| code_unit(left, right));
-    Ok(IndexGraph { records, at: held, parse_segment: segment, keys, following })
+    Ok(IndexGraph { records, at: held, parse_segment: segment, keys, following, parsed })
 }
 
 #[napi]
@@ -145,6 +147,12 @@ impl IndexGraph {
     #[napi(getter, catch_unwind)]
     pub fn size(&self) -> u32 {
         self.records.len() as u32
+    }
+
+    /// How many of its files the closure parsed: one declined for its bytes was not.
+    #[napi(getter, catch_unwind)]
+    pub fn parsed(&self) -> u32 {
+        self.parsed
     }
 
     /// Whether the closure holds this file.

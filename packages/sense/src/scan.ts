@@ -252,7 +252,7 @@ export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
   let both = 0;
   for (const file of built.keys()) if (graph.has(file)) both += 1;
   // A closure the addon holds read every module it names.
-  return counted(built.size + graph.size - both, parsed + graph.size - both);
+  return counted(built.size + graph.size - both, parsed + graph.parsed);
 }
 
 interface Scanned {
@@ -262,7 +262,7 @@ interface Scanned {
   readonly graph?: NativeIndexGraph;
   /** The listing of the checkout the scan took, when the addon holds it. */
   readonly listing?: NativeGitTree;
-  /** The modules whose bytes JavaScript's side of the scan had parsed. */
+  /** The modules whose bytes the scan had parsed, but for a closure the addon holds. */
   readonly parsed: number;
 }
 
@@ -296,7 +296,9 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
   // scan already holds the answer for every path it knows, and every parse.
   const largestFile = options.largestFile ?? LARGEST_FILE;
-  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, digest: tree?.getAll([file])[0] });
+  let parsed = 0; // counted where JavaScript parses, whichever of a resolver and the scan asks first
+  const counted = (): void => { parsed += 1; };
+  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, counted, digest: tree?.getAll([file])[0] });
   const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;
 
@@ -342,7 +344,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
   let nativeGraphUsed = false;
   let graph: NativeIndexGraph | undefined;
-  let parsed = 0;
   const unheld: Unheld[] = []; // kept by the scan, after the cache read the stores without it
 
   const follow = (record: FileRecord): void => {
@@ -423,6 +424,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         directories: shape?.shape.directories ?? new Map(),
         largestFile,
         remembering: reuse !== undefined,
+        counted,
         ...(digest === undefined ? {} : { digest }),
       });
       accept(file, way, fresh);
