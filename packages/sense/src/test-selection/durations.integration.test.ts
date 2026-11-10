@@ -130,7 +130,7 @@ describe('the duration a recording keeps', () => {
       expect(test.limit, `${test.file} > ${test.name}`).toBe(said[0]!.limit);
     }
     expect(new Set(cases.map((test) => test.limit))).toEqual(new Set([3210, 4321]));
-  }, 20_000);
+  });
 
   it('is scoped by the readers `variance covering` asks, and the two records agree on who entered a module', async () => {
     const { coverageFile } = await recorded();
@@ -154,5 +154,5 @@ describe('the duration a recording keeps', () => {
       // A case that entered the module sits in a file that did.
       for (const test of cases) expect(files.entered).toContain(index.tests[test]!.file);
     }
-  }, 20_000);
+  });
 });

@@ -46,7 +46,7 @@ beforeAll(async () => {
     env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   relations = relationsOfFiles(await scanRelations({ root: repository, dirs: [relative(repository, fixture)] }));
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

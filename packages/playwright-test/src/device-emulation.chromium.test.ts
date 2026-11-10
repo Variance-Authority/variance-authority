@@ -89,11 +89,11 @@ chromium_('a page the suite opened with device emulation', () => {
   it('leaves a desktop baseline painted without the rules its stylesheet keeps for touch', async () => {
     const { drawn, stored } = await acceptedOn({ viewport: WINDOW });
     expect(stored).toEqual(drawn);
-  }, 60_000);
+  });
 
   it('leaves a touch baseline with the rules for the width the page laid out at, not the window it was given', async () => {
     const { drawn, stored } = await acceptedOn(TOUCH);
     expect(drawn.width).toBeGreaterThan(WINDOW.width);
     expect(stored).toEqual(drawn);
-  }, 60_000);
+  });
 });

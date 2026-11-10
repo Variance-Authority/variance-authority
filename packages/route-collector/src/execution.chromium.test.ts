@@ -68,7 +68,7 @@ let server: Server | undefined;
 
 beforeAll(async () => {
   root = await mkdtemp(resolve(tmpdir(), 'variance-route-execution-'));
-}, 30_000);
+});
 
 afterAll(async () => {
   server?.closeAllConnections();

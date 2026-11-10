@@ -108,7 +108,7 @@ beforeAll(async () => {
     )}\n`,
     'utf8',
   );
-}, 30_000);
+});
 
 afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });

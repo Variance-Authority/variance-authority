@@ -78,7 +78,7 @@ it('keeps no cases in the record of a run that recorded no case and finished no 
   expect(keepsCases(coverageFile)).toBe(false);
   expect(caseSectionsAt(coverageFile)).toEqual({ base: new Uint8Array(Buffer.from('none')) });
   expect(existsSync(shimDirectory)).toBe(false);
-}, 30_000);
+});
 
 it('leaves the cases an earlier run kept in the record and their layers as they were, and the directory the project already had', async () => {
   const earlier = earlierIndex();
@@ -94,7 +94,7 @@ it('leaves the cases an earlier run kept in the record and their layers as they 
   expect(last).toBeUndefined();
   expect(before).toBeUndefined();
   expect(await readdir(shimDirectory)).toEqual([]);
-}, 30_000);
+});
 
 it('retires what an earlier run recorded for a case whose file finished and which entered nothing this time', async () => {
   const covering = async (): Promise<readonly string[]> =>
@@ -110,6 +110,6 @@ it('retires what an earlier run recorded for a case whose file finished and whic
   expect(await covering()).toEqual([]);
   // The case still ran, so the run names it, with nothing under it.
   expect(lastCaseRunOf(caseSectionsAt(coverageFile))).toMatchObject({ cases: [at(idle, 'test/add.case.ts > adds when asked')] });
-}, 60_000);
+});
 
 it.todo('a Vitest 4 run whose configuration lists its projects in `test.projects`, none of them wrapped, keeps no cases in the record and leaves the cases of an earlier run and their layers as they were — needs a Vitest 4 fixture with `test.projects`');

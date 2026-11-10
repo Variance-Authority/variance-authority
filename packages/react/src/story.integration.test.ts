@@ -46,5 +46,5 @@ describe('a story of a React tree', () => {
     const handed = said.filter((line) => line.startsWith('handed theme='));
     expect(handed.length).toBeGreaterThanOrEqual(2);
     expect(new Set(handed).size).toBe(1);
-  }, 60_000);
+  });
 });

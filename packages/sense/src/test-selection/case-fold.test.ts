@@ -325,7 +325,7 @@ describe('the bounded case fold', () => {
     expect(folded.bytes.byteLength).toBeLessThan(folded.crossings / 20);
     await writeFile(resolve(cases, 'journeys.bin'), folded.bytes);
     expect((await readFile(resolve(cases, 'journeys.bin'))).byteLength).toBe(folded.bytes.byteLength);
-  }, 30_000);
+  });
 
   it.runIf(nativeAvailable())('refuses a repeated name numbered onto a case literally named so, as the native fold does', async () => {
     const cases = await directory();

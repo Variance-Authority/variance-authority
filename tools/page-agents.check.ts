@@ -29,7 +29,7 @@ describe('the page-agent bundles rest under the chromium suite', () => {
   beforeAll(async () => {
     bundles = await Promise.all(AGENTS.map(inputsOf));
     relations = relationsOfFiles(await scanRelations({ root: ROOT, dirs: ['packages'] }));
-  }, 60_000);
+  });
 
   it('declares the entry of every bundle the build writes', () => {
     expect(bundles.map((bundle) => bundle.entry).filter((entry) => !declared.includes(entry))).toEqual([]);

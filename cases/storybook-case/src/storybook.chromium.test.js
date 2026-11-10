@@ -169,7 +169,7 @@ live('a story whose subject only exists after its play function', () => {
 
     expect(outcome.status).toBe('rendered');
     expect(markup).toContain('Shipping to Wollongong');
-  }, 60_000);
+  });
 });
 
 live('a subject that settles after the framework says it is done', () => {
@@ -187,7 +187,7 @@ live('a subject that settles after the framework says it is done', () => {
     });
 
     expect(markup).toContain('loading');
-  }, 60_000);
+  });
 
   it('captures the component when the subject declares readiness itself', async () => {
     // The same story, the same page, one option different. This is the whole
@@ -204,7 +204,7 @@ live('a subject that settles after the framework says it is done', () => {
     expect(outcome.readiness).toBe('declared');
     expect(markup).not.toContain('loading');
     expect(markup).toContain('Grace');
-  }, 60_000);
+  });
 
   it('fails loudly when a promised marker never arrives', async () => {
     // The property that makes the option worth having. A story that does not
@@ -219,7 +219,7 @@ live('a subject that settles after the framework says it is done', () => {
     expect(outcome.status).toBe('timeout');
     expect(outcome.readiness).not.toBe('storyRendered');
     expect(JSON.stringify(outcome)).toContain('never-attached');
-  }, 60_000);
+  });
 });
 
 // Top level on purpose: `live` is `describe.skip` without a build or a browser,

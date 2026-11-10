@@ -149,7 +149,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a subject set in a web font', () => {
     // Pruning still holds for faces: one nothing in the subject is set in is
     // not the subject's, and carrying it would key the subject on its file.
     expect(css).not.toContain('Unused Face');
-  }, 60_000);
+  });
 
   it('carries the face a box the frame generates is set in, and keys the subject on it', async () => {
     // The frame is rendered, and so are the boxes its rules generate: a
@@ -159,13 +159,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('a subject set in a web font', () => {
 
     expect(document.css.join('\n')).toMatch(/@font-face\s*\{[^}]*"Frame Face"[^}]*url\("\/fonts\/frame\.woff2"\)/);
     expect(Object.keys(document.assets ?? {})).toContain('/fonts/frame.woff2');
-  }, 60_000);
+  });
 
   it('keys the subject on the bytes of its face', async () => {
     // A font file replaced under the same name repaints every glyph and changes
     // no rule; only its digest in the asset key can say so.
     expect(Object.keys((await collect()).assets ?? {})).toContain('/fonts/brand.woff2');
-  }, 60_000);
+  });
 
   it('paints the face rather than the fallback', async () => {
     const document = await collect();

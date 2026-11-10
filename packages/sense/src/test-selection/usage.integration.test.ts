@@ -52,7 +52,7 @@ beforeAll(async () => {
     env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   for (const file of [limits, slider]) recorded.set(file, readFileSync(resolve(repository, file), 'utf8'));
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

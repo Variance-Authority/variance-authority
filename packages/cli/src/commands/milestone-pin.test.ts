@@ -99,9 +99,7 @@ function crossers(record: TestCoverage): readonly string[] {
   return record.modules.find((module) => module.file === 'src/total.ts')?.blocks.flatMap((block) => block.testFiles) ?? [];
 }
 
-// Each test publishes two mainline records to a git share (`milestone-pin.fixture.ts`),
-// and each publish keeps its record at its commit too: a push and a listing more apiece.
-describe('the milestone under a checkout', { timeout: 15_000 }, () => {
+describe('the milestone under a checkout', () => {
   it('is never written by a local run, and the ledger lists exactly the tests that ran here', async () => {
     const { first, worktree, own } = await laidWorktree(home);
     const milestone = join(home, 'laptop-cache', 'share', 'read', 'unit', first, 'coverage.bin');

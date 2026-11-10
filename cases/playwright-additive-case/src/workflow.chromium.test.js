@@ -73,5 +73,5 @@ live('native Playwright Test consumer', () => {
     } finally {
       await rm(baselines, { recursive: true, force: true });
     }
-  }, 60_000);
+  });
 });

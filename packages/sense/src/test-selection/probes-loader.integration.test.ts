@@ -63,7 +63,7 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
       ['shade', 'if#0/after', 9, 9, []],
     ]);
     expect(module?.sourceDigest).toBe(digestString(await readFile(resolve(fixture, 'src/tone.ts'), 'utf8')));
-  }, 60_000);
+  });
 
   it('probes the page with the loader in Rspack\'s worker threads, `include` being the rule\'s own condition', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rspack-'));
@@ -77,7 +77,7 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
     runInContext(await readFile(resolve(directory, 'out/page.js'), 'utf8'), page);
     const collector = runInContext(`globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`, page) as ExecutionCollector;
     expect(collector.drain().modules.map((module) => module.id.split('@')[0]).sort()).toEqual([named('src/cls.ts'), named('src/tone.ts')]);
-  }, 60_000);
+  });
 
   it('places the probes ahead of the loaders with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rspack-'));
@@ -90,7 +90,7 @@ describe('a page Rspack built, a syntax-reading compiler among its loaders', () 
       (error: { stdout: string; stderr: string }) => `${error.stdout}${error.stderr}`,
     );
     expect(failed).toMatch(/extractor: `[^`]*__va\([^`]*` is unable to have its styles extracted/);
-  }, 60_000);
+  });
 });
 
 describe('a CommonJS module Rspack bundles', () => {
@@ -141,7 +141,7 @@ describe('a CommonJS module Rspack bundles', () => {
       expect(runInContext('globalThis.pressed', context)).toBe('red');
       const journal = (runInContext(`globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`, context) as ExecutionCollector).drain();
       expect(journal.modules.map((module) => module.id.split('@')[0]).sort()).toEqual([`src/lib${extension}`, `src/main${extension}`]);
-    }, 60_000);
+    });
   }
 
   it('keeps a script that opens with "use strict" strict', async () => {
@@ -150,7 +150,7 @@ describe('a CommonJS module Rspack bundles', () => {
     runInContext(page, context);
     expect(runInContext('globalThis.pressed', context)).toBe('red');
     expect(runInContext('globalThis.strict', context)).toBe(true);
-  }, 60_000);
+  });
 
   it('keeps a script it marks rather than probes a script, its exports read', async () => {
     const { page } = await bundled('.cjs', '', true);
@@ -159,5 +159,5 @@ describe('a CommonJS module Rspack bundles', () => {
     expect(runInContext('globalThis.pressed', context)).toBe('red');
     const journal = (runInContext(`globalThis[${JSON.stringify(EXECUTION_GLOBAL)}]`, context) as ExecutionCollector).drain();
     expect(journal.modules.map((module) => module.id.split('@')[0]).sort()).toEqual(['src/lib.cjs', 'src/main.cjs']);
-  }, 60_000);
+  });
 });

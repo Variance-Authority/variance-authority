@@ -43,7 +43,7 @@ beforeAll(async () => {
     [vitest, 'run', '--config', resolve(fixture, 'vitest.config.ts')],
     { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
   );
-}, 20_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

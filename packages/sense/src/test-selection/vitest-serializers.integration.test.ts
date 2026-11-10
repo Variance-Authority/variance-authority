@@ -37,7 +37,7 @@ beforeAll(async () => {
   );
   coverage = decodeTestCoverage(await readFile(coverageFile));
   index = decodeExecutionIndex(await readFile(coverageFile));
-}, 30_000);
+});
 
 afterAll(async () => {
   if (directory !== undefined) await rm(directory, { recursive: true, force: true });

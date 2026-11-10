@@ -37,7 +37,7 @@ it('records a custom environment dependency as an input, while recording its tes
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 60_000);
+});
 
 it('runs a project on Jest\'s default transformer, whose Babel 8 leaves JSON in require.cache with no children', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-default-transform-'));
@@ -62,7 +62,7 @@ it('runs a project on Jest\'s default transformer, whose Babel 8 leaves JSON in 
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 60_000);
+});
 
 it('names a JSON file an environment requires after an import cached it, as it names one a require loaded', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-imported-json-'));
@@ -89,7 +89,7 @@ it('names a JSON file an environment requires after an import cached it, as it n
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 60_000);
+});
 
 it('refuses an environment that evicted a JSON file an import cached rather than claiming complete inputs', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-evicted-json-'));
@@ -108,7 +108,7 @@ it('refuses an environment that evicted a JSON file an import cached rather than
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 60_000);
+});
 
 it.each(['native-environment.mjs', 'native/environment.js', 'mixed-environment.cjs'])('refuses unobservable native inputs in %s rather than claiming complete inputs', async (environment) => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-native-environment-'));
@@ -125,7 +125,7 @@ it.each(['native-environment.mjs', 'native/environment.js', 'mixed-environment.c
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-}, 60_000);
+});
 
 it.each([
   ['Jest\'s runtime', {}],
@@ -174,4 +174,4 @@ it.each([
     await rm(installed, { recursive: true, force: true });
     await rm(directory, { recursive: true, force: true });
   }
-}, 60_000);
+});

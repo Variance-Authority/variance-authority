@@ -23,8 +23,7 @@ const descends = async (): Promise<boolean> => false;
  * Against a real bare repository over `file://`, which speaks the same
  * protocol a hosted remote does, filters and leases included.
  */
-// Every mainline publish here also keeps its record at its commit: a push and a listing more apiece.
-describe('createGitLineCell', { timeout: 15_000 }, () => {
+describe('createGitLineCell', () => {
   beforeEach(() => variancePrecondition('fixture', { remote: 'accepts' }));
   let home = '';
   let url = '';

@@ -60,7 +60,7 @@ describe('the Jest integration', () => {
 @@ -${line},1 +${line},1 @@
 -    return 'A';
 +    return 'Alpha';`)).resolves.toEqual([at('test/alpha.case.ts'), at('test/beta.case.ts'), at('test/delta.case.ts')]);
-  }, 60_000);
+  });
 
   it('records tests transformed by @swc/jest beside the project\'s own setup file and reporter, and selects the one that covered a changed line', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-'));

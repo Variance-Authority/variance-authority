@@ -73,7 +73,7 @@ describe.each(Object.entries(runners))('a module a syntax-reading compiler rewri
       ['shade', 'if#0/after', 9, 9, tests],
     ]);
     expect(module?.sourceDigest).toBe(digestString(await readFile(resolve(fixture, 'src/tone.ts'), 'utf8')));
-  }, 60_000);
+  });
 
   it('places the probes ahead of the transforms with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-compilers-'));
@@ -84,7 +84,7 @@ describe.each(Object.entries(runners))('a module a syntax-reading compiler rewri
     );
     // The run fails, and on the probe the extractor found in the arrow.
     expect(failed).toMatch(/extractor: `[^`]*__va\([^`]*` is unable to have its styles extracted/);
-  }, 60_000);
+  });
 });
 
 describe('a module a syntax-reading compiler rewrites at `enforce: \'post\'`, under rstest', () => {
@@ -101,5 +101,5 @@ describe('a module a syntax-reading compiler rewrites at `enforce: \'post\'`, un
       (candidate) => candidate.file === named('src/tone.ts'),
     );
     expect(module?.blocks.find((block) => block.name === 'css.arg0')?.testFiles).toEqual([named('test/tone.case.ts')]);
-  }, 60_000);
+  });
 });

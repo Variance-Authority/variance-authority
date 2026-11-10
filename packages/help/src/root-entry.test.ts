@@ -40,7 +40,7 @@ describe('the root entry', () => {
     expect(typeof root.serveWorkspace).toBe('function');
     expect(evaluated).toEqual([]);
     // The import is the entry's whole graph, transformed cold when this file draws first place.
-  }, 60_000);
+  });
 
   it('evaluates the report server’s served sets once they are asked for', async () => {
     await import('@variance-authority/mcp/protocol');

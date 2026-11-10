@@ -66,7 +66,7 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect(own).not.toEqual(own.toSorted());
 
     expect(await started('vitest.default.config.ts', ...flags)).toEqual(own);
-  }, 60_000);
+  });
 
   it('names the seed it shuffled with in the banner, where Vitest names its own, and that seed runs the files in the same order', async () => {
     const lines = (await run(await scratch(), 'vitest.default.config.ts', '--sequence.shuffle')).split('\n');
@@ -77,7 +77,7 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     const order = lines.flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
 
     expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
-  }, 60_000);
+  });
 
   // A reporter named on the command line replaces the configured ones, the
   // seam's among them. From Vitest 3.1 a plugin reaches the banner as well, so
@@ -90,7 +90,7 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     const order = stdout.split('\n').flatMap((line) => /✓ test\/(\S+)/.exec(line)?.[1] ?? []);
 
     expect(await started('vitest.default.config.ts', '--sequence.shuffle', `--sequence.seed=${seed}`)).toEqual(order);
-  }, 60_000);
+  });
 
   // Selection removes files before Vitest orders them, so a shuffled selected
   // run is the run Vitest gives the files it kept, with the same seed.
@@ -100,7 +100,7 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect(own.toSorted()).toEqual(['alpha.case.ts', 'beta.case.ts', 'delta.case.ts']);
 
     expect(await startedWith({ FIXTURE_SKIP: JSON.stringify(['packages/sense/test/fixtures/external-vitest/test/gamma.case.ts']) }, 'vitest.default.config.ts', ...flags)).toEqual(own);
-  }, 60_000);
+  });
 
   // A reporter that prints no banner prints no seed, as Vitest's own do.
   it('leaves stdout to a reporter that prints no banner', async () => {
@@ -110,7 +110,7 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
 
     expect(stdout).not.toContain('seed');
     expect((JSON.parse(await readFile(report, 'utf8')) as Report).testResults).toHaveLength(4);
-  }, 60_000);
+  });
 
   // Vitest folds `{ files, tests }` into `shuffle: tests` once it has picked
   // its sequencer, so the resolved config reads `--sequence.shuffle.tests` as
@@ -122,7 +122,7 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     const own = await started('vitest.plain.config.ts', ...flags);
 
     expect(await started('vitest.default.config.ts', ...flags)).toEqual(own);
-  }, 60_000);
+  });
 
   // A file's tests are shuffled in the worker, by the seed the config hands it.
   it.each(['--sequence.shuffle', '--sequence.shuffle.tests'])('runs the tests in a file in the order Vitest gives them under `%s`', async (shuffle) => {
@@ -135,5 +135,5 @@ describe('the selecting sequencer under `sequence.shuffle`', () => {
     expect(own).not.toEqual(own.toSorted());
 
     expect(await ran('vitest.default.config.ts')).toEqual(own);
-  }, 60_000);
+  });
 });

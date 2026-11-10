@@ -134,7 +134,7 @@ beforeAll(async () => {
   });
   base = `http://127.0.0.1:${port}`;
   browser = await chromium.launch({ headless: true });
-}, 60_000);
+});
 
 afterAll(async () => {
   await browser?.close();
@@ -162,7 +162,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a request the page only speculates on', () 
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('an image the server never answers', () => {
@@ -186,7 +186,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the server never answers', () => {
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 
   // One page serves a whole Storybook run and is never reset, so the stalled
   // request outlives its story. It was named in that story's refusal; the next
@@ -208,7 +208,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the server never answers', () => {
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('an animated GIF, which no CSS reaches', () => {
@@ -234,7 +234,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animated GIF, which no CSS reaches', () 
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 
   it('leaves a page alone when freezing is off, and still hashes it', async () => {
     const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
@@ -250,7 +250,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animated GIF, which no CSS reaches', () 
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 });
 
 /**
@@ -313,7 +313,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image served as nothing', () => {
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 
   it('records the blank in the environment key instead of the bytes it threw away', async () => {
     const page = await browser!.newPage({ viewport: { width: 400, height: 300 } });
@@ -333,7 +333,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image served as nothing', () => {
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 });
 
 // A Storybook run's worker pages share a context so that each boots from what
@@ -365,7 +365,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already f
     } finally {
       await context.close();
     }
-  }, 60_000);
+  });
 
   // The control: the same two pages with the wire watched through routing. If
   // this fetched once too, the test above would show nothing about the cache.
@@ -385,7 +385,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already f
     } finally {
       await context.close();
     }
-  }, 60_000);
+  });
 
   it('names an image the server never answers, and closes with it still open', async () => {
     const page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
@@ -403,5 +403,5 @@ describe.skipIf(!BROWSER_AVAILABLE)('a page whose context another page already f
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 });

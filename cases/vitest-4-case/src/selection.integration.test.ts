@@ -61,21 +61,21 @@ describe('a Vitest 4 run handed a selection', () => {
     expect(stderr).toContain('variance-authority: selected none of 2, so none of them runs');
     expect(code).toBe(0);
     expect(ran).toEqual([]);
-  }, 60_000);
+  });
 
   it('passes the shard the selection left nothing to run', async () => {
     const { code, stderr } = await run('shard', [at('two.case.ts')], '--shard', '2/2');
 
     expect(stderr).toContain('variance-authority: selected 1 of 2');
     expect(code).toBe(0);
-  }, 60_000);
+  });
 
   it('runs what the selection kept', async () => {
     const { code, ran } = await run('kept', [at('two.case.ts')]);
 
     expect(code).toBe(0);
     expect(ran).toEqual([at('one.case.ts')]);
-  }, 60_000);
+  });
 });
 
 describe('a Vitest 4 run under --shard', () => {
@@ -84,7 +84,7 @@ describe('a Vitest 4 run under --shard', () => {
 
     expect(stderr).toContain('variance-authority: shard 3/3 by file count: 0 of 2 files');
     expect(code).toBe(0);
-  }, 60_000);
+  });
 });
 
 describe('a Vitest 4 run whose configuration describes it', () => {
@@ -100,7 +100,7 @@ describe('a Vitest 4 run whose configuration describes it', () => {
     expect(stdout).not.toContain('passed');
     expect(code).toBe(1);
     expect(ran).toEqual([]);
-  }, 60_000);
+  });
 
   it('refuses what a project declares before any test', async () => {
     const { code, stdout, stderr, ran } = await projects('project', { FIXTURE_PROJECT_PRECONDITIONS: missing });
@@ -109,7 +109,7 @@ describe('a Vitest 4 run whose configuration describes it', () => {
     expect(stdout).not.toContain('passed');
     expect(code).toBe(1);
     expect(ran).toEqual([]);
-  }, 60_000);
+  });
 
   it('reads nothing of a project with no test file in the run', async () => {
     const { code, stdout, stderr, ran } = await projects('empty', { FIXTURE_PROJECT_PRECONDITIONS: missing, FIXTURE_TWO_INCLUDE: 'no-such.case.ts' });
@@ -117,7 +117,7 @@ describe('a Vitest 4 run whose configuration describes it', () => {
     expect(`${stdout}${stderr}`).not.toContain('missing.json');
     expect(code).toBe(0);
     expect(ran).toEqual([at('one.case.ts')]);
-  }, 60_000);
+  });
 
   it('refuses what the root declares when one project has a test file and the other none', async () => {
     const { code, stdout, stderr } = await projects('root-empty', { FIXTURE_ROOT_PRECONDITIONS: missing, FIXTURE_TWO_INCLUDE: 'no-such.case.ts' });
@@ -125,5 +125,5 @@ describe('a Vitest 4 run whose configuration describes it', () => {
     expect(`${stdout}${stderr}`).toContain('which cannot be read as a file');
     expect(stdout).not.toContain('passed');
     expect(code).toBe(1);
-  }, 60_000);
+  });
 });

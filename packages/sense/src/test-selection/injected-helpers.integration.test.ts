@@ -75,5 +75,5 @@ describe('a helper the transform injected', () => {
     await expect(selectTestFiles(coverageFile, edit(24, '  total += 9;', '  total += 900;'))).resolves.toEqual([
       named('test/later.test.js'),
     ]);
-  }, 20_000);
+  });
 });

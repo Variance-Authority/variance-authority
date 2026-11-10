@@ -28,7 +28,7 @@ beforeAll(async () => {
     decodeTestCoverage(await readFile(coverageFile)).tests
       .map((test) => [test.file, test.preconditions.map((precondition) => precondition.name)]),
   );
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

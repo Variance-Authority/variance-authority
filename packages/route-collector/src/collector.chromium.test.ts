@@ -131,7 +131,7 @@ chromium_('a run over routes', () => {
     expect(collected.document.subject).toEqual({ id: 'page/ready', kind: 'route' });
     expect(collected.document.html).toContain('Checkout');
     expect(collected.snapshot).toBeDefined();
-  }, 60_000);
+  });
 
   it('bounds the subject to the declared root, so page chrome stays out', async () => {
     const collected = await collector!.collect(PLAN.subjects[0]!);
@@ -142,7 +142,7 @@ chromium_('a run over routes', () => {
     // `#app`, not `body`. If the root were ignored the document would carry the
     // whole page, and every subject would move whenever anything outside it did.
     expect(collected.document.html).not.toContain('<body');
-  }, 60_000);
+  });
 
   it('waits for a declared marker, and captures what arrived after load', async () => {
     // The reason `ready` is per route. `load` fires when the document is parsed,
@@ -154,7 +154,7 @@ chromium_('a run over routes', () => {
     if (!collected.ok) return;
     expect(collected.document.html).toContain('Arrived');
     expect(collected.document.html).not.toContain('loading…');
-  }, 60_000);
+  });
 
   it('says where the read spent its time, the page\'s own steps in place of the answer they ran inside', async () => {
     // Away first, so this read navigates: the page already showing is not loaded again.
@@ -173,7 +173,7 @@ chromium_('a run over routes', () => {
     expect(names.filter((name) => named.includes(name))).toEqual(named);
     expect(names).not.toContain('read');
     expect(steps.every((step) => step.ms >= 0)).toBe(true);
-  }, 60_000);
+  });
 
   it('keeps a route\'s readiness marker when widths split it into several subjects', async () => {
     // `widths` renames the subject and not the route, and the marker belongs to
@@ -210,7 +210,7 @@ chromium_('a run over routes', () => {
     } finally {
       await widened.close();
     }
-  }, 60_000);
+  });
 
   it('accepts a pattern where every page carries the same marker', async () => {
     // A framework that attaches one readiness marker to every page it renders
@@ -244,7 +244,7 @@ chromium_('a run over routes', () => {
     } finally {
       await patterned.close();
     }
-  }, 60_000);
+  });
 
   it('reports an id with no route rather than dropping it', async () => {
     // A run that observes two of three subjects and says nothing about the third
@@ -255,7 +255,7 @@ chromium_('a run over routes', () => {
     expect(collected.ok).toBe(false);
     if (collected.ok) return;
     expect(collected.because).toContain('page/missing');
-  }, 60_000);
+  });
 
   it('leaves out a page that marks itself excluded, naming its reason, and photographs nothing', async () => {
     // The page knows it is prose; a list in the config would have to be kept in
@@ -268,7 +268,7 @@ chromium_('a run over routes', () => {
       excluded: true,
       because: 'the page excludes itself (`data-variance-exclude`): a long markdown document',
     });
-  }, 60_000);
+  });
 });
 
 it.todo(

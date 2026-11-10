@@ -71,5 +71,5 @@ describe.each(Object.entries(runners))('an inline snapshot under %s', (runner, a
     expect(uncut).toMatch(/expect\(value\)\.toMatchInlineSnapshot\(`[^`]*"answer": 42[^`]*`\);/);
     expect(uncut).toMatch(/toMatchInlineSnapshot\(`[^`]*"answer": 7[^`]*`\)\);/);
     expect(await updated(runner, args, 'on')).toBe(uncut);
-  }, 60_000);
+  });
 });
