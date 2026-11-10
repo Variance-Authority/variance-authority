@@ -47,7 +47,7 @@ describe('the checkouts a parse store answers', () => {
     return JSON.stringify([...file.stored.records].sort((left, right) => (left[0] < right[0] ? -1 : 1)));
   }
 
-  /** A workspace whose `packages/a/src/entry.ts` imports `./<target>.js`, committed through `setup`. */
+  /** A workspace whose package `a` holds an `entry.ts` importing `./<target>.js`, committed through `setup`. */
   async function checkout(target: string, setup: (root: string) => Promise<void> = async () => {}): Promise<string> {
     const root = await temporary('variance-parse-store-checkout-');
     await write(root, 'package.json', '{ "name": "fixture", "private": true, "workspaces": ["packages/*"] }');
