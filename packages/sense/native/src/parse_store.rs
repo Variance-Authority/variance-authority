@@ -230,6 +230,17 @@ fn aged(path: &str, bytes: &[u8], oldest: Option<SystemTime>) {
     }
 }
 
+impl<'r, 's, 'c> Parse<'r, 's, 'c> {
+    /// The keyed parse a walk's row of `file` puts in the index it publishes:
+    /// the store's, whole, when the store answered it (`kept`), else the one
+    /// read now. `None` when the store no longer holds a kept row.
+    pub(crate) fn of(store: Option<&'s Opened<'c>>, digest: &str, file: &str, kept: bool, read: &'r Read) -> Option<(String, Self)> {
+        let way = crate::index::way(file);
+        let parse = if kept { Parse::Kept(store?.view(digest, &way)?) } else { Parse::Read(read) };
+        Some((key(digest, &way), parse))
+    }
+}
+
 /// The row key the encoder writes for `digest` and `way`.
 pub(crate) fn key(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }

@@ -31,7 +31,7 @@ use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Delta, Generation};
 use crate::git::Oid;
 use crate::index::{parses_only, way};
-use crate::parse_store::{key, Opened, Parse};
+use crate::parse_store::{Opened, Parse};
 use crate::order::code_unit;
 use crate::record::{built, Indexed, Settling};
 use crate::witness::AliasTable;
@@ -109,11 +109,7 @@ pub(crate) fn index_graph(
     // whole, from the store, as a warm update writes one (`source_update.rs`).
     let mut rows: Vec<(String, Parse)> = (0..files.len())
         .filter(|&index| read[index].2.parsed() && !identities[index].is_empty())
-        .filter_map(|index| {
-            let (file, identity) = (&files[index], &identities[index]);
-            let parse = if answered[index] { Parse::Kept(store?.view(identity, &way(file))?) } else { Parse::Read(&read[index].0) };
-            Some((key(identity, &way(file)), parse))
-        })
+        .filter_map(|index| Parse::of(store, &identities[index], &files[index], answered[index], &read[index].0))
         .collect();
     rows.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
     rows.dedup_by(|left, right| left.0 == right.0);

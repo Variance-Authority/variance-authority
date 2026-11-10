@@ -356,11 +356,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         .iter()
         .map(|file| (file, &walked[file.as_str()]))
         .filter(|(_, row)| row.parsed && !row.identity.is_empty())
-        .filter_map(|(file, row)| {
-            let way = way(file);
-            let parse = if row.kept { Parse::Kept(store.view(&row.identity, &way)?) } else { Parse::Read(&row.read) };
-            Some((parse_store::key(&row.identity, &way), parse))
-        })
+        .filter_map(|(file, row)| Parse::of(Some(&store), &row.identity, file, row.kept, &row.read))
         .collect();
     // What this update parsed that no store holds, for every root after it.
     let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
