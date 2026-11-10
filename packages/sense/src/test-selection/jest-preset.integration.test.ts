@@ -45,7 +45,7 @@ it.each([
     expect(record.tests.map((test) => test.complete)).toEqual([true]);
     expect(record.modules.find((module) => module.file === relative(root, resolve(fixture, 'src/add.ts')))?.instrumented).toBe(true);
   });
-}, 60_000);
+});
 
 it('names a preset only the config file\'s directory can read, under a relative `rootDir`, before any test runs', async () => {
   await inDirectory(async (directory) => {
@@ -55,7 +55,7 @@ it('names a preset only the config file\'s directory can read, under a relative 
     });
     await expect(run).rejects.not.toMatchObject({ stderr: expect.stringContaining('Test Suites:') });
   });
-}, 60_000);
+});
 
 it('names a preset a sibling directory also holds, under a relative `rootDir`, and runs no transformer of that other preset', async () => {
   await inDirectory(async (directory) => {
@@ -72,7 +72,7 @@ it('names a preset a sibling directory also holds, under a relative `rootDir`, a
     await expect(run).rejects.not.toMatchObject({ stderr: expect.stringContaining('Test Suites:') });
     await expect(access(ran)).rejects.toMatchObject({ code: 'ENOENT' });
   });
-}, 60_000);
+});
 
 it('sends a run whose test file fails to compile to the failure, and to no setting Jest does not have', async () => {
   await inDirectory(async (directory) => {
@@ -85,4 +85,4 @@ it('sends a run whose test file fails to compile to the failure, and to no setti
     expect(note).toContain('With no failures, check that a `transform` pattern matches');
     expect(note).not.toMatch(/`include`|plugin/u);
   });
-}, 60_000);
+});

@@ -297,7 +297,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 
   it('stamps every raster with its own document digest', async () => {
     // The cheaper half of the same guarantee, and the one that would survive a
@@ -317,7 +317,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 
   it('returns a page to the pool when a render throws, rather than deadlocking', async () => {
     // A pool of one, and the first render fails. Without a release on the failure
@@ -346,7 +346,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 
   it('releases focus with `waitForFonts: false`, since only the waits are what it turns off', async () => {
     // `no-focus` is a settle trick like the two waits, and a renderer that skips
@@ -366,7 +366,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 
   it('records a subject that occupies no pixels instead of refusing it', async () => {
     // A quarter of Material UI's unit tier is this shape: `describeConformance`
@@ -393,7 +393,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 });
 
 if (!BROWSER_AVAILABLE) {
@@ -420,7 +420,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — steps', () => 
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 
   it('closes the pages it opened in a browser something else still holds', async () => {
     // The renderer no longer owns its browser: a collector launched the same way
@@ -440,5 +440,5 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — steps', () => 
     } finally {
       await held.release();
     }
-  }, 60_000);
+  });
 });

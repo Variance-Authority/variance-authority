@@ -128,7 +128,7 @@ chromium_('deferred capture after a recipe-only upgrade', () => {
 
     const compared = await observeCart('v1:54323cded938fde38b41cdd3865368fe', 'none');
     expect(compared.verdict).toBe('unchanged');
-  }, 60_000);
+  });
 
   it('adopts a moved document under =changed, naming the recipe that moved with it', async () => {
     // The recipe moved and so did the cart. The pair is compared, the change is
@@ -143,7 +143,7 @@ chromium_('deferred capture after a recipe-only upgrade', () => {
     expect(adopted.because).toContain('accepted under --update-snapshots');
     expect(adopted.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect((await observeCart(recipe, 'none', 'cart/moved')).verdict).toBe('unchanged');
-  }, 60_000);
+  });
 });
 
 chromium_('a kept baseline', () => {
@@ -166,5 +166,5 @@ chromium_('a kept baseline', () => {
       accepting: 'unchanged',
       again: 0,
     });
-  }, 60_000);
+  });
 });

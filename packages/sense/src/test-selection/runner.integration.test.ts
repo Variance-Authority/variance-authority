@@ -114,7 +114,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       at('test/alpha.case.mjs'),
       at('worker.mjs'),
     ]);
-  }, 60_000);
+  });
 
   it('selects every file that loaded a module named unprobed, for an edit to a line none of them ran', async () => {
     const { coverageFile } = await record('--weigh-unprobed');
@@ -126,7 +126,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([at('test/alpha.case.mjs'), at('test/beta.case.mjs')]);
     expect(decodeTestCoverage(await readFile(coverageFile)).modules.find((module) => module.file === at('src/weigh.mts')))
       .toEqual(expect.objectContaining({ instrumented: false, blocks: [] }));
-  }, 60_000);
+  });
 
   it.todo('marks a module a runner with its own transform must not probe — needs a marking sibling of `instrumentModule` published on `./runner`');
 
@@ -157,7 +157,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       at('test/alpha.case.mjs > decide > waits, then takes the alpha path'),
     ]);
     expect(walking('took B')).toEqual([at('test/beta.case.mjs > decide > takes the beta path')]);
-  }, 60_000);
+  });
 
   it('says which line of each case reached the branch it took, unless the run turns cuts off', async () => {
     const source = await readFile(resolve(fixture, 'src/label.cjs'), 'utf8');
@@ -182,7 +182,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
 
     const uncut = await record('--no-cadence');
     expect(await reaching(uncut.coverageFile, 'decide > takes the alpha path')).toBeUndefined();
-  }, 60_000);
+  });
 
   it('writes a story for each case it runs under `VARIANCE_AUTHORITY_STORY=1`, and none without it', async () => {
     const written = async (asked: Record<string, string>): Promise<string[]> => {
@@ -198,7 +198,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       'decide > takes the beta path',
       'decide > waits, then takes the alpha path',
     ]);
-  }, 60_000);
+  });
 
   it('keeps the duration the runner passed to `finish` for each file and for each case it named', async () => {
     const { coverageFile } = await record();
@@ -210,14 +210,14 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     // The case that waits five milliseconds on a timer is the one the worker timed at five or more.
     const waited = cases.find((test) => test.name.includes('waits'));
     expect(waited?.duration).toBeGreaterThanOrEqual(5);
-  }, 60_000);
+  });
 
   it('keeps the limit the runner passed to `finish` for each case it named', async () => {
     const { coverageFile } = await record();
 
     const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
     expect(cases.map((test) => test.limit)).toEqual([5_000, 5_000, 5_000]);
-  }, 60_000);
+  });
 
   it('says so when no process instrumented anything, rather than writing a record that reaches nothing quietly', async () => {
     const { coverageFile, stderr } = await record('--no-hooks');
@@ -226,13 +226,13 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     expect(() => decodeTestCoverage(bytes)).toThrow(RecordWithoutCoverage);
     expect(stderr).toContain('instrumented 0 modules across 2 test file(s)');
     expect(stderr).toContain('check that registerRecording() or instrumentModule() runs in every process');
-  }, 60_000);
+  });
 
   it('names a precondition\'s call site from the checkout in what it warns, as the row would', async () => {
     const { stderr } = await record('--says-a-wrong-value');
 
     expect(stderr).toMatch(new RegExp(`variancePrecondition at ${at('worker.mjs')}:\\d+ takes a dimension and a record of keys to values`));
-  }, 60_000);
+  });
 
   it('keeps a file incomplete when its probes fired and nothing the run reads says what they meant', async () => {
     const { coverageFile } = await record('--names-another-root');
@@ -243,7 +243,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       [at('test/alpha.case.mjs'), false],
       [at('test/beta.case.mjs'), false],
     ]);
-  }, 60_000);
+  });
 
   it('leaves what other runs left in the cache where it is, however long ago the cache was pruned', async () => {
     const cache = await mkdtemp(resolve(tmpdir(), 'variance-authority-runner-'));
@@ -261,7 +261,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
     await recordInto(cache);
 
     expect(existsSync(dead)).toBe(true);
-  }, 60_000);
+  });
 
   it('does nothing outside a recording, so the runner code is the same either way', () => {
     const { [RECORDING_VARIABLE]: open } = process.env;

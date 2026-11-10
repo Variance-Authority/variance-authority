@@ -49,7 +49,7 @@ beforeAll(async () => {
   const records = await scanRelations({ root: repository, dirs: [relative(repository, fixture)] });
   const tainted = await taintRecords(records, [mockTaint()], { root: repository });
   relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

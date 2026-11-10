@@ -113,5 +113,5 @@ describe('a function handed to a page', () => {
 
     const otherCase = edited(33, '        return document.items.length;', '        return document.items.length - 1;');
     await expect(selectTestFiles(coverageFile, otherCase)).resolves.toEqual([named('test/kind.test.js')]);
-  }, 20_000);
+  });
 });

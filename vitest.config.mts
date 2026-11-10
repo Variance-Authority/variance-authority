@@ -3,6 +3,7 @@ import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
+import { HANG } from './tools/hang-limit.mjs';
 import { nativeSources } from './tools/native-sources.mjs';
 import { marked, probeable } from './tools/page-side.mjs';
 import { MARKERS, PLACES, excludeOf, includeOf } from './tools/slices.mjs';
@@ -119,6 +120,9 @@ const shared = defineConfig({
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
     // DOM-free (ADR-0001) and nothing accidentally acquires a `document`.
     environment: 'node',
+    // A limit that calls a test hung, never one that times how fast it is.
+    testTimeout: HANG,
+    hookTimeout: HANG,
     // A cache of the run's own, for the workers only. A test that folds, saves
     // or indexes a fixture it made in a temporary directory otherwise writes a
     // layer keyed by that directory into this machine's cache, and the

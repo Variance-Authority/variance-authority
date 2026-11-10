@@ -43,7 +43,7 @@ describe('a run whose reporters were replaced on the command line', () => {
       .toEqual(['decide > takes the alpha branch']);
     // Nothing the run staged is left beside the record.
     expect((await readdir(directory)).filter((name) => name.startsWith('.run-'))).toEqual([]);
-  }, 20_000);
+  });
 
   // With the project's own runner no worker writes which files passed, and a
   // journal alone cannot say it: a record that called every file complete
@@ -62,5 +62,5 @@ describe('a run whose reporters were replaced on the command line', () => {
     expect(stderr).toContain('variance-authority: this run recorded nothing.');
     expect(existsSync(coverageFile)).toBe(false);
     expect((await readdir(directory)).filter((name) => name.startsWith('.run-'))).toEqual([]);
-  }, 20_000);
+  });
 });

@@ -96,7 +96,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
 
   beforeAll(async () => {
     harness = await createHarness(OPTIONS);
-  }, 60_000);
+  });
 
   afterAll(async () => {
     await harness?.close();
@@ -136,7 +136,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
 
     expect(capture.subject.id).toBe('fixture:one-shot');
     expect(capture.profile.id).toBe('chromium');
-  }, 60_000);
+  });
 
   it('observes real geometry, which is the whole reason this profile exists', async () => {
     const capture = await harness.capture('alpha', 'base');
@@ -173,7 +173,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — text settings', () => {
       launch.mockRestore();
       await harness.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — what the page painted before', () => {
@@ -205,7 +205,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — what the page painted bef
     } finally {
       await harness.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a declared timezone and locale', () => {
@@ -217,7 +217,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a declared timezone and l
     } finally {
       await harness.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a document the harness did not open', () => {
@@ -255,7 +255,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a document the harness di
     } finally {
       await harness.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — failures', () => {
@@ -263,13 +263,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — failures', () => {
     await expect(
       createHarness({ ...OPTIONS, bundle: '/* installs nothing */' }),
     ).rejects.toThrow(AGENT_GLOBAL);
-  }, 60_000);
+  });
 
   it('surfaces a page-side throw instead of swallowing it', async () => {
     await expect(
       createHarness({ ...OPTIONS, bundle: 'throw new Error("bundle exploded");' }),
     ).rejects.toThrow(/bundle exploded/);
-  }, 60_000);
+  });
 });
 
 // Announced at module scope, because that is the only place a reader of a

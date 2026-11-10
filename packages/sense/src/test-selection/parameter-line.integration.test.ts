@@ -76,5 +76,5 @@ describe('a parameter line', () => {
     ]);
 
     await expect(selectTestFiles(coverageFile, addedParameter)).resolves.toEqual([named('test/calls.test.js')]);
-  }, 20_000);
+  });
 });

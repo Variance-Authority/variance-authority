@@ -60,4 +60,4 @@ it('a Vitest run that fails before any file runs leaves no shim behind', async (
   expect(code, output).not.toBe(0);
   expect(output).toContain('variance-authority-no-such-checker');
   expect(shimsOf(pid)).toEqual([]);
-}, 30_000);
+});

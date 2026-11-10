@@ -81,7 +81,7 @@ beforeAll(async () => {
     env: environment,
     stdio: 'pipe',
   });
-}, 30_000);
+});
 
 afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
@@ -117,5 +117,5 @@ live('unit capture in one process, browser rendering in another', () => {
         verdict: 'unchanged',
       });
     });
-  }, 60_000);
+  });
 });

@@ -81,7 +81,7 @@ describe('a Vitest 5 run that shares a module graph and runs its cases concurren
       [at('one.case.ts'), true],
       [at('two.case.ts'), true],
     ]);
-  }, 60_000);
+  });
 
   it('names the case that walked each branch, across the awaits concurrent cases interleave on, cold and warm', async () => {
     // Vitest 5 serves a module it transformed in an earlier run from its
@@ -119,5 +119,5 @@ describe('a Vitest 5 run that shares a module graph and runs its cases concurren
       ? decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file)
       : [];
     expect(ran).toEqual([at('one.case.ts')]);
-  }, 60_000);
+  });
 });

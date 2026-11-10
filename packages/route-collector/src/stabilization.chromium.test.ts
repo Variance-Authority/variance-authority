@@ -252,13 +252,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animation in flight, observed twice', ()
     // that a stationary page stays stationary, and the fix it guards has
     // silently stopped being needed for a reason nobody wrote down.
     expect(first).not.toBe(second);
-  }, 60_000);
+  });
 
   it('holds still under the default collection recipe', async () => {
     const [first, second] = hashesOf(await collectTwice());
 
     expect(first).toBe(second);
-  }, 60_000);
+  });
 
   it('records the recipe in the environment, so the two are not compared', async () => {
     const [held] = await collectTwice();
@@ -275,7 +275,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animation in flight, observed twice', ()
     expect(held.snapshot?.environment.semanticDigest).not.toBe(
       untouched.snapshot?.environment.semanticDigest,
     );
-  }, 60_000);
+  });
 
   it('costs what it is worth, per subject, and says so', async () => {
     // The other half of a stabilization claim, and the one nobody publishes.
@@ -349,7 +349,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animation in flight, observed twice', ()
     const style = JSON.stringify(held.snapshot?.root ?? {});
     expect(style).not.toContain('animation-play-state');
     expect(style).not.toContain('scroll-behavior');
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', () => {
@@ -378,7 +378,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe leaves waiting', ()
     } finally {
       await collector.close();
     }
-  }, 60_000);
+  });
 });
 
 /**
@@ -422,7 +422,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and wh
     const [first, second] = hashesOf(await collectTwice(undefined, '/motion'));
 
     expect(first).toBe(second);
-  }, 60_000);
+  });
 
   it('reads `@media (prefers-reduced-motion)` as the browser it emulated answers it', async () => {
     const reading = await collectOnce('/preference');
@@ -434,7 +434,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and wh
       'prefers-reduced-motion': 'reduce',
     });
     expect(JSON.stringify(reading.document)).not.toContain('200px');
-  }, 60_000);
+  });
 
   it('reads the same date on two runs of a page that prints the wall clock', async () => {
     const first = await collectOnce('/clock');
@@ -443,7 +443,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and wh
 
     expect(printed(first)).toBe('2024-06-15T12:00:00.000Z');
     expect(hashesOf([first])[0]).toBe(hashesOf([second])[0]);
-  }, 60_000);
+  });
 
   it('paints the same pixels for the two runs', async () => {
     const renderer = await createPlaywrightRenderer();
@@ -457,13 +457,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and wh
     } finally {
       await renderer.close();
     }
-  }, 60_000);
+  });
 
   it('reads the instant a project chose instead', async () => {
     expect(printed(await collectOnce('/clock', { now: '2031-01-02T03:04:05Z' }))).toBe(
       '2031-01-02T03:04:05.000Z',
     );
-  }, 60_000);
+  });
 
   it('reads the real clock when the default list is given without `freeze-clock`', async () => {
     const reading = await collectOnce('/clock', {
@@ -472,7 +472,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and wh
 
     expect(printed(reading)).not.toBe('2024-06-15T12:00:00.000Z');
     expect(new Date(printed(reading)).getFullYear()).toBeGreaterThan(2024);
-  }, 60_000);
+  });
 
   it('refuses an instant with no zone, before a browser opens', async () => {
     const opening = routeCollector({ routes: {}, now: '2031-01-02T03:04' })({
@@ -487,7 +487,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('what the default recipe holds still, and wh
     const [focused, unfocused] = [await collectOnce('/focused'), await collectOnce('/unfocused')];
 
     expect(hashesOf([focused])[0]).toBe(hashesOf([unfocused])[0]);
-  }, 60_000);
+  });
 });
 
 // Column 0, because the describe above is skipped on a machine with no browser

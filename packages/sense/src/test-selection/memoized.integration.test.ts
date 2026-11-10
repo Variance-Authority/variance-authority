@@ -75,13 +75,13 @@ describe('a function behind a cache the recording does not instrument', () => {
     const { readers } = await record([]);
 
     expect(readers(price, body)).toEqual(['computes the price', 'prints the price']);
-  }, 20_000);
+  });
 
   it('is read by the second case when it runs alone, which is the journey the record is missing', async () => {
     const { readers } = await record(['-t', 'reads the price again', 'test/cart.case.ts']);
 
     expect(readers(price, body)).toEqual(['reads the price again']);
-  }, 20_000);
+  });
 
   it.each([
     ['test/cart.case.ts', 'test/receipt.case.ts'],
@@ -93,7 +93,7 @@ describe('a function behind a cache the recording does not instrument', () => {
     const { files } = await record(['--no-isolate', '--no-file-parallelism'], undefined, [first, second]);
 
     expect(files()).toEqual([memoized(first)]);
-  }, 20_000);
+  });
 
   it('is read again by each file that evaluates its own module graph', async () => {
     // Vitest's default: each file evaluates `price.ts` again, so the cache is
@@ -101,7 +101,7 @@ describe('a function behind a cache the recording does not instrument', () => {
     const { files } = await record([]);
 
     expect(files(body)).toEqual([memoized('test/cart.case.ts'), memoized('test/receipt.case.ts')]);
-  }, 20_000);
+  });
 });
 
 describe('a cache filled while a case mocked what the function calls', () => {
@@ -112,7 +112,7 @@ describe('a cache filled while a case mocked what the function calls', () => {
     expect(output.text).toContain("expected '€5.00' to be '$5.00'");
     expect(readers(price, body)).toEqual(['prices in euros']);
     expect(readers(locale, symbol)).toEqual([]);
-  }, 20_000);
+  });
 
   it('passes alone, and runs the function the other case mocked', async () => {
     const { output, readers } = await record(['-t', 'prices in dollars'], 'test/checkout.mocked.ts');
@@ -120,7 +120,7 @@ describe('a cache filled while a case mocked what the function calls', () => {
     expect(output.passed).toBe(true);
     expect(readers(price, body)).toEqual(['prices in dollars']);
     expect(readers(locale, symbol)).toEqual(['prices in dollars']);
-  }, 20_000);
+  });
 });
 
 it.todo('a case recorded whole and then alone, as case selection runs it, is named unstable on the price body, and the cases the focused run skipped keep their readings — needs the case index to record each module\'s git object name, and the fold to compare a case\'s previous reading before it replaces only the cases it ran (spec 0063)');

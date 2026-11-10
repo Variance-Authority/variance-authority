@@ -35,7 +35,7 @@ beforeAll(async () => {
   );
   await updateSourceIndex(repository);
   text = written(await distillFiles({ file: `${at}/test/dialog.case.ts`, execution, root: repository }), 'text');
-}, 60_000);
+});
 
 afterAll(async () => {
   if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];

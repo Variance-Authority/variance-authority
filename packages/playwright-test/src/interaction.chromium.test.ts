@@ -118,7 +118,7 @@ chromium_('what a test leaves behind before it observes', () => {
     });
 
     expect(hovered.verdict).toBe('unchanged');
-  }, 60_000);
+  });
 
   it('observes a focused field as it looks with nothing focused', async () => {
     const subject = page!.locator('#subject');
@@ -132,7 +132,7 @@ chromium_('what a test leaves behind before it observes', () => {
     });
 
     expect(focused.verdict).toBe('unchanged');
-  }, 60_000);
+  });
 
   it('hands focus back to the field once it has observed, so the test types where it left off', async () => {
     await page!.locator('input').focus();
@@ -143,7 +143,7 @@ chromium_('what a test leaves behind before it observes', () => {
     });
 
     expect(await page!.evaluate(() => document.activeElement?.tagName)).toBe('INPUT');
-  }, 60_000);
+  });
 
   it('keeps the hover a test asked for, when its recipe leaves the pointer alone', async () => {
     const subject = page!.locator('#subject');
@@ -166,7 +166,7 @@ chromium_('what a test leaves behind before it observes', () => {
     await page!.mouse.move(-1, -1);
 
     expect((await observe(page!, subject, info('none'), options)).verdict).toBe('changed');
-  }, 60_000);
+  });
 
   it('keeps the focus a test gave, when its recipe leaves focus alone', async () => {
     const subject = page!.locator('#subject');
@@ -184,5 +184,5 @@ chromium_('what a test leaves behind before it observes', () => {
 
     await page!.locator('input').blur();
     expect((await observe(page!, subject, info('none'), options)).verdict).toBe('changed');
-  }, 60_000);
+  });
 });

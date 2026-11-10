@@ -29,12 +29,6 @@ import { whole } from '../vitest.config.mjs';
  */
 export default mergeConfig(whole, {
   test: {
-    // Counting costs time, and the browser arms are the only tests in this
-    // suite that measure their own wall clock. Under v8's counters three of
-    // them cross a timeout they clear comfortably without it, so this arm
-    // gives them room. It is the only thing this config changes about the run.
-    testTimeout: 30_000,
-    hookTimeout: 60_000,
     coverage: {
       enabled: true,
       provider: 'v8',

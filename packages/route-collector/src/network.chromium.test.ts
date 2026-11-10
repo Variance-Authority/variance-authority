@@ -262,7 +262,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
 
     expect(Object.keys(assets).sort()).toEqual(['/logo.png', '/spinner.gif']);
     for (const digest of Object.values(assets)) expect(digest).toMatch(/^v1:[0-9a-f]{32}$/);
-  }, 60_000);
+  });
 
   it('moves the environment key when an image changes behind its URL', async () => {
     logoRed = 0x00;
@@ -280,7 +280,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     expect(after.snapshot?.environment.semanticDigest).not.toBe(
       before.snapshot?.environment.semanticDigest,
     );
-  }, 60_000);
+  });
 
   it('records only the assets the subject itself references', async () => {
     // The page fetches a header image that is outside `#app`. Folding it in
@@ -290,7 +290,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     const assets = assetsOf(await collect());
 
     expect(Object.keys(assets)).not.toContain('/outside.png');
-  }, 60_000);
+  });
 
   it('hands the same assets to the document, which is what decides to skip a render', async () => {
     // The half that was missing and had no symptom. `settle` compares this run's
@@ -310,13 +310,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
 
     expect(before.document.assets?.['/logo.png']).toMatch(/^v1:[0-9a-f]{32}$/);
     expect(documentDigest(after.document)).not.toBe(documentDigest(before.document));
-  }, 60_000);
+  });
 
   it('leaves the map empty, and visibly so, when the watch is off', async () => {
     // Not "absent". An empty asset map is a run that recorded nothing about its
     // assets, and it should be possible to tell that from a run that had none.
     expect(assetsOf(await collect({ network: false }))).toEqual({});
-  }, 60_000);
+  });
 
   it('drops the digests for `hashAssets: false` and keeps everything else the wire does', async () => {
     // The distinction `docs/flakiness.md` sends a reader here for. A build whose
@@ -332,7 +332,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     // says which run was blanked. Its neighbour, hashed on any other run, is
     // gone. Both facts come from the same routing being alive.
     expect(assets).toEqual({ '/logo.png': 'blank:logo:1x1' });
-  }, 60_000);
+  });
 });
 
 /**

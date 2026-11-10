@@ -162,5 +162,5 @@ chromium_('one route at several widths', () => {
     if (refused.ok) return;
     expect(refused.because).toContain('deviceScaleFactor 2');
     expect(refused.because).toContain('run it as its own run');
-  }, 60_000);
+  });
 });

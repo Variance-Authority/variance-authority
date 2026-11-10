@@ -85,7 +85,7 @@ describe('the Vitest integration', () => {
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.tests.map((test) => test.file)).toEqual([ext('test/browser.dom.ts')]);
     expect(coverage.modules[0]?.blocks[0]?.testFiles).toEqual([ext('test/browser.dom.ts')]);
-  }, 20_000);
+  });
 
   it('counts a module every file consumed when the runner shares one module graph across files', async () => {
     // `--no-isolate` evaluates `src/decide.ts` once, for the first file; the
@@ -209,7 +209,7 @@ describe('the Vitest integration', () => {
       ['function', 'warm', [entries('test/eager.case.ts')], [entries('test/eager.case.ts')]],
       ['function', 'cold', [entries('test/eager.case.ts')], undefined],
     ]);
-  }, 20_000);
+  });
 
   it('separates a module the test loaded from a module the test entered', async () => {
     // Two spellings of one shape, and the shape is what a reduction reader
@@ -250,7 +250,7 @@ describe('the Vitest integration', () => {
       ['module', '', [unentered('test/branch.dom.tsx')], [unentered('test/branch.dom.tsx')]],
       ['function', 'Panel', [unentered('test/branch.dom.tsx')], undefined],
     ]);
-  }, 20_000);
+  });
 
   it('records external tests and selects only the test file that covered a changed path', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
@@ -356,7 +356,7 @@ describe('the Vitest integration', () => {
         },
       ],
     });
-  }, 20_000);
+  });
 
   describe('recording which case entered a region, rather than which file', () => {
     /** The fixture run once, under either recipe, with whatever it wrote. */
@@ -414,7 +414,7 @@ describe('the Vitest integration', () => {
         'decide > takes the alpha branch',
         'decide > takes the gamma branch',
       ]);
-    }, 20_000);
+    });
 
     it('names the same cases without an async context, which is the default', async () => {
       // No `continuations`: the case running now is a variable the probe reads
@@ -426,7 +426,7 @@ describe('the Vitest integration', () => {
       expect(named(index, 3)).toEqual(['decide > takes the alpha branch']);
       expect(named(index, 6)).toEqual(['decide > takes the gamma branch']);
       expect(named(index, 8)).toEqual(['decide > falls through to B']);
-    }, 20_000);
+    });
 
     it('records a concurrent file whole rather than charging one case to another', async () => {
       // A variable cannot hold two cases, and guessing which one owns a
@@ -439,7 +439,7 @@ describe('the Vitest integration', () => {
       expect(index === undefined ? [] : named(index, 14)).toEqual([]);
       expect(output).toContain('takes the alpha branch while the other case is open was still running');
       expect(output).toContain('continuations: true');
-    }, 20_000);
+    });
 
     it('keeps two concurrent cases apart across the awaits they interleave on', async () => {
       const { index } = await record('vitest.config.ts');
@@ -451,7 +451,7 @@ describe('the Vitest integration', () => {
       // branches here — see `cases.concurrency.test.ts`.
       expect(named(index, 14)).toEqual(['slowly > takes the alpha branch while the other case is open']);
       expect(named(index, 17)).toEqual(['slowly > takes the fallthrough while the other case is open']);
-    }, 20_000);
+    });
 
     it('costs one crossing per case and region where a file costs one per file', async () => {
       const { coverage, index } = await record('vitest.config.ts');
@@ -469,7 +469,7 @@ describe('the Vitest integration', () => {
       // recorded more than once.
       expect(files).toBe(17);
       expect(countCrossings(index)).toBe(27);
-    }, 20_000);
+    });
 
     it('names a case declared with the realm\'s registrars under `globals: true`', async () => {
       const { index } = await record('vitest.injected.config.ts');
@@ -484,6 +484,6 @@ describe('the Vitest integration', () => {
         'takes the gamma path with the registrars on the realm',
       ]);
       expect(named(index, 6)).toEqual(['takes the gamma path with the registrars on the realm']);
-    }, 20_000);
+    });
   });
 });

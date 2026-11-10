@@ -41,7 +41,7 @@ beforeAll(async () => {
   const { modules } = decodeTestCoverage(written);
   cases = decodeExecutionIndex(written);
   cart = modules.find((module) => module.file === named('src/cart.ts'));
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

@@ -130,12 +130,12 @@ chromium_('a snapshot taken inside a case', () => {
       // Said all the same: the case holds it for its row.
       row: ['fixture:network', 'fixture:seeded'],
     });
-  }, 60_000);
+  });
 
   it('does not name a precondition said while the accessibility tree was still being read', async () => {
     expect(await namedWhenSaid('reading the accessibility tree')).toEqual({
       snapshot: [['fixture:network', 'mocked']],
       row: ['fixture:network', 'fixture:seeded'],
     });
-  }, 60_000);
+  });
 });

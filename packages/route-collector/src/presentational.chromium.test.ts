@@ -201,7 +201,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the page marked decorative', () =>
     // markup, and nothing about this trick may decide otherwise on its behalf.
     expect(hero?.style['visibility']).toBe('hidden');
     expect(chevron?.style['visibility']).not.toBe('hidden');
-  }, 60_000);
+  });
 
   it('keeps the box it was holding open, to the pixel', async () => {
     const held = imagesOf(await collect(WITH_TRICK));
@@ -214,7 +214,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the page marked decorative', () =>
     expect(held[0]?.rect).toEqual(untouched[0]?.rect);
     expect(held[1]?.rect).toEqual(untouched[1]?.rect);
     expect(held[0]?.rect?.width).toBe(HERO.width);
-  }, 60_000);
+  });
 
   it('still moves the environment key when its bytes change, and should', async () => {
     heroGrey = 0x40;
@@ -234,5 +234,5 @@ describe.skipIf(!BROWSER_AVAILABLE)('an image the page marked decorative', () =>
     expect(after.snapshot?.environment.inputs.assets[url]).not.toBe(
       before.snapshot?.environment.inputs.assets[url],
     );
-  }, 60_000);
+  });
 });

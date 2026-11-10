@@ -59,21 +59,21 @@ describe('a Vitest run over two projects, handed a selection', () => {
 
     expect(ran).toEqual([at('dom/dom.case.ts')]);
     expect(stderr).toContain('variance-authority: selected 1 of 2');
-  }, 30_000);
+  });
 
   it('splits what the selection kept across shards, never what it skipped', async () => {
     const first = await run('first', [at('unit/unit.case.ts')], '--shard', '1/2');
     const second = await run('second', [at('unit/unit.case.ts')], '--shard', '2/2');
 
     expect([...first.ran, ...second.ran]).toEqual([at('dom/dom.case.ts')]);
-  }, 30_000);
+  });
 
   it('runs nothing and passes when the selection skips every file', async () => {
     const { stderr, ran } = await run('none', [at('unit/unit.case.ts'), at('dom/dom.case.ts')]);
 
     expect(ran).toEqual([]);
     expect(stderr).toContain('variance-authority: selected none of 2, so none of them runs');
-  }, 30_000);
+  });
 
   it('fails the run, exiting 1, when the selection refuses the record it read', async () => {
     const refused = execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts'], {
@@ -86,7 +86,7 @@ describe('a Vitest run over two projects, handed a selection', () => {
       stderr: expect.stringContaining('the record at coverage.bin could not be read'),
     });
     expect(existsSync(resolve(directory, 'refused.bin'))).toBe(false);
-  }, 30_000);
+  });
 });
 
 describe('a Vitest run handed the cases to skip in a file it runs', () => {
@@ -114,7 +114,7 @@ describe('a Vitest run handed the cases to skip in a file it runs', () => {
     expect(recorded.map(({ file, complete }) => ({ file, complete }))).toEqual([
       { file: at('unit/unit.case.ts'), complete: false },
     ]);
-  }, 30_000);
+  });
 });
 
 describe('a Vitest run under --shard, with the times a record holds', () => {
@@ -145,7 +145,7 @@ describe('a Vitest run under --shard, with the times a record holds', () => {
     expect(first.stdout).not.toContain('dom.case.ts');
     expect(second.stdout).toContain('dom.case.ts');
     expect(second.stdout).not.toContain('unit.case.ts');
-  }, 30_000);
+  });
 });
 
 describe('a Vitest run under --shard, in a cache holding a fetched mainline', () => {
@@ -197,7 +197,7 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(first.ran).toHaveLength(1);
     expect(first.layer?.pinned).toBeUndefined();
-  }, 30_000);
+  });
 
   it('records alone when a command-line `--reporter` replaces the seam\'s reporter', async () => {
     const first = await shard(1, false, ['--reporter', 'dot']);
@@ -205,12 +205,12 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
 
     expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(first.layer?.pinned).toBeUndefined();
-  }, 30_000);
+  });
 
   it('records over the mainline it was laid on when it selects', async () => {
     const { ran, layer } = await shard(1, true);
 
     expect(ran).toContain(at('elsewhere/only.case.ts'));
     expect(layer?.pinned).toEqual({ mainline: 'main', commit: 'a'.repeat(40) });
-  }, 30_000);
+  });
 });
