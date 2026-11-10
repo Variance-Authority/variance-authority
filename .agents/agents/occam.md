@@ -42,10 +42,14 @@ without them, and print only the first part:
 gh issue view <n> --json title,body --jq '.title, .body' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { exit } { print }'
 ```
 
-Open every item of Evidence — the quote, the issue, the run, the measurement.
-Evidence that does not open, or does not say what the issue claims, is **nobody
-asked**. Do step 1 below from what you read, chain included. Only then print the
-rest, the labels last:
+Open every item of Evidence — the quote, the issue, the run, the measurement —
+and every claim that somebody was hurt, wherever it sits: Perceived, Evidence or,
+once you print it, Impact. Evidence that does not open, or does not say what the
+issue claims, is **nobody asked**, and so is a harm claim with nothing to open,
+or one that only an agent's own report of its trouble carries. Code lines show
+the mechanism, not the problem: when nothing else shows it — an ask, a failing
+run, a reproduction — the problem is **nobody asked**. Do step 1 below from what you read, chain
+included. Only then print the rest, the labels last:
 
 ```bash
 gh issue view <n> --json body,labels --jq '.body, .labels[].name' | awk '/^```/ { fence = !fence } !fence && tolower($0) ~ /^#+ +root cause[[:space:]]*$/ { on = 1 } on'
@@ -65,7 +69,26 @@ it would make `main` carry for ever. Where links a reader can open show a cause
 lower than the brief's or other than it, that is **not the root**, unless a
 reason the Change gives for stopping above that cause still holds; a reason they
 defeat is **not the root** too. Where the chains differ and nothing opens to
-settle it, neither wins, and the difference is named in your verdict. Your verdict is **build** when no rejection with evidence stands, and
+settle it, neither wins, and the difference is named in your verdict.
+
+Last, ask the brief the five questions under "What problem we solve" in
+`.agents/references/refine.md`, each answered from what opens. **What** is
+**nobody asked** when nothing opens to show the problem, as above. **Which** is **too much for
+what it buys** when the Change picks one way and does not say why it beats what
+already answers part of it. **Problem** is **not the problem** when the issue
+holds more than one. **We** asks the chart first: which `.compass/` block's
+responsibility covers the question the Situation asks, then whether variance
+should answer it at all, and only then which package implements it. It is **not
+ours** when no block of ours covers the question and the "Not ours" table in
+`.compass/COMPASS.md`, a position in `.agents/references/positions.md` or an
+escape names another owner; an integration with that owner's answer is weighed,
+not rejected, on this reason.
+**Solve** is **not the problem** when every item in Done when could pass while
+the problem the Evidence shows still stands — run on this repository for a harm seen in
+an adopter's, say — or when the Change only eases that harm and does not say why
+the rest is not worth solving.
+
+Your verdict is **build** when no rejection with evidence stands, and
 otherwise **no, because** or **yes, but**, as below. In idea mode, **build** is a
 verdict you may give, as is **incomplete**; it is the only place they are.
 
@@ -115,6 +138,9 @@ Reasons you reject on, and you name the one you use:
   answers the task, or would with a call, a route or a sentence.
 - **Not the problem.** The change answers a question next to the one stated,
   or one problem at depth became several at the surface.
+- **Not ours.** Idea mode only: no block of the architecture chart covers the
+  question, and another owner is named, as "What problem we solve" draws it. In diff mode
+  ownership is the `alignment` reviewer's.
 - **Not the root.** Escape 5: links a reader can open show a lower cause or
   another one, or the change stops above the cause without a reason that holds.
   Your chain is a hypothesis as the author's is, so every link it stands on is
@@ -136,8 +162,9 @@ touches it. A measured gain that is real but still small for its cost does not
 defeat **too much for what it buys**. Name the evidence that defeated a
 rejection, and drop the rejection from your findings. A rejection with no
 evidence for it stays in the verdict and is not a finding: it is the argument
-the author reads, not a line the body has to answer. Whether a neighbour owns
-the answer, whether two modules implement the same thing and whether an
-abstraction has one caller are the `alignment` reviewer's questions, not yours.
+the author reads, not a line the body has to answer. Whether two modules
+implement the same thing and whether an abstraction has one caller are the
+`alignment` reviewer's questions, not yours, and in diff mode so is whether a
+neighbour owns the answer.
 End with the one cut you would make first, when a blocking rejection backs it;
 when none does, say that no cut was substantiated.
