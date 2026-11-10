@@ -61,9 +61,10 @@ pub(crate) struct Chain {
 
 impl Chain {
     /// Segments lost to damage: a manifest that held still while one it named
-    /// was missing. A read that lost the race to writers lost none.
+    /// was missing. A read that lost the race to writers lost none, unless it
+    /// kept nothing, which is no answer, late or not.
     pub(crate) fn damaged(&self) -> u32 {
-        if self.moved { 0 } else { self.dropped }
+        if self.moved && !self.segments.is_empty() { 0 } else { self.dropped }
     }
 
     /// The bytes published at the chain's path, read once with the segments
@@ -82,19 +83,23 @@ const MOVED_ATTEMPTS: usize = 8;
 /// manifest that writer left, so only damage costs segments; a read the
 /// manifest moved under on every attempt keeps its prefix as `moved`.
 pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
-    follow(|| read_chain_once(path), || std::fs::read(path).ok())
+    follow(|| read_chain_once(path), || match std::fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("{path}: {error}")),
+    })
 }
 
 /// `read_chain`'s retry, over a reader of the chain and of the manifest's
 /// current bytes.
 fn follow(
     mut read: impl FnMut() -> Result<Option<Chain>, String>,
-    mut current: impl FnMut() -> Option<Vec<u8>>,
+    mut current: impl FnMut() -> Result<Option<Vec<u8>>, String>,
 ) -> Result<Option<Chain>, String> {
     let mut attempt = 1;
     loop {
         let Some(mut chain) = read()? else { return Ok(None) };
-        if chain.dropped == 0 || current().as_deref() == chain.manifest.as_deref() {
+        if chain.dropped == 0 || current()?.as_deref() == chain.manifest.as_deref() {
             return Ok(Some(chain));
         }
         if attempt == MOVED_ATTEMPTS {
@@ -178,7 +183,7 @@ mod tests {
     use super::*;
 
     fn chain(manifest: &[u8], dropped: u32) -> Chain {
-        Chain { segments: Vec::new(), dropped, moved: false, manifest: Some(manifest.to_vec()), references: Vec::new(), working: 0 }
+        Chain { segments: vec![Vec::new()], dropped, moved: false, manifest: Some(manifest.to_vec()), references: Vec::new(), working: 0 }
     }
 
     #[test]
@@ -186,7 +191,7 @@ mod tests {
         let mut generation = 0u8;
         let read = follow(
             || { generation += 1; Ok(Some(chain(&[generation], 1))) },
-            || Some(vec![u8::MAX]),
+            || Ok(Some(vec![u8::MAX])),
         ).unwrap().unwrap();
         assert_eq!((read.moved, read.dropped, read.damaged()), (true, 1, 0));
     }
@@ -194,7 +199,7 @@ mod tests {
     #[test]
     fn a_missing_segment_under_a_manifest_that_held_still_is_damage() {
         let mut reads = 0;
-        let read = follow(|| { reads += 1; Ok(Some(chain(b"m", 1))) }, || Some(b"m".to_vec())).unwrap().unwrap();
+        let read = follow(|| { reads += 1; Ok(Some(chain(b"m", 1))) }, || Ok(Some(b"m".to_vec()))).unwrap().unwrap();
         assert_eq!((reads, read.moved, read.damaged()), (1, false, 1));
     }
 
@@ -203,8 +208,18 @@ mod tests {
         let mut reads = 0u32;
         let read = follow(
             || { reads += 1; Ok(Some(chain(b"m", if reads < 3 { 1 } else { 0 }))) },
-            || Some(b"next".to_vec()),
+            || Ok(Some(b"next".to_vec())),
         ).unwrap().unwrap();
         assert_eq!((reads, read.moved, read.damaged()), (3, false, 0));
+    }
+
+    #[test]
+    fn a_moved_read_that_kept_nothing_is_damage() {
+        let mut generation = 0u8;
+        let read = follow(
+            || { generation += 1; Ok(Some(Chain { segments: Vec::new(), ..chain(&[generation], 2) })) },
+            || Ok(Some(vec![u8::MAX])),
+        ).unwrap().unwrap();
+        assert_eq!((read.moved, read.damaged()), (true, 2));
     }
 }

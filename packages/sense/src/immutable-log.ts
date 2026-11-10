@@ -55,6 +55,11 @@ export interface ImmutableLog {
    * its segments was missing is damaged.
    */
   readonly moved: boolean;
+  /**
+   * Segments lost to damage: `dropped`, less those a moved read lost to writers.
+   * What `keep` cuts later, and a moved read that kept nothing, count in full.
+   */
+  readonly damaged: number;
   /** The same chain cut to its first `count` segments, for a caller that rejects one further on. */
   keep(count: number): ImmutableLog;
 }
@@ -98,6 +103,8 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
     const raced = valid !== -1 && await moved(path, bytes);
     if (raced && attempt < MOVED_ATTEMPTS) continue;
     const count = valid === -1 ? read.length : valid;
+    // Nothing left is no answer, late or not.
+    const late = raced && count > 0 ? references.length - count : 0;
     return logAt(
       path,
       references.slice(0, count),
@@ -105,7 +112,7 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
       false,
       true,
       references.length - count,
-      raced,
+      late,
     );
   }
 }
@@ -123,7 +130,7 @@ function logAt(
   legacy: boolean,
   committed: boolean,
   dropped = 0,
-  raced = false,
+  late = 0,
 ): ImmutableLog {
   return {
     path,
@@ -132,9 +139,10 @@ function logAt(
     legacy,
     committed,
     dropped,
-    moved: raced,
+    moved: late > 0,
+    damaged: dropped - late,
     keep: (count) => count >= segments.length
-      ? logAt(path, references, segments, legacy, committed, dropped, raced)
+      ? logAt(path, references, segments, legacy, committed, dropped, late)
       : logAt(
           path,
           references.slice(0, count),
@@ -142,7 +150,7 @@ function logAt(
           legacy,
           committed,
           dropped + segments.length - count,
-          raced,
+          late,
         ),
   };
 }
