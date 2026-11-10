@@ -42,7 +42,15 @@ const SEGMENTS: usize = 16;
 
 /// The stores an update reads, opened: the first is the one it appends to.
 pub(crate) struct Stores {
-    chains: Vec<(String, Option<Chain>)>,
+    chains: Vec<(String, Held)>,
+}
+
+/// One store as it was read.
+enum Held {
+    Read(Chain),
+    Missing,
+    /// A manifest that names no chain: its bytes, so a writer replaces only them.
+    Unreadable(Vec<u8>),
 }
 
 /// Every key the stores hold, to the layer and row that hold it.
@@ -54,13 +62,18 @@ pub(crate) struct Opened<'c> {
 impl Stores {
     /// The stores at `paths`; one that cannot be read holds nothing.
     pub(crate) fn read(paths: &[String]) -> Self {
-        Stores { chains: paths.iter().map(|path| (path.clone(), read_chain(path).ok().flatten())).collect() }
+        let held = |path: &String| match read_chain(path) {
+            Ok(Some(chain)) => Held::Read(chain),
+            Ok(None) => Held::Missing,
+            Err(_) => std::fs::read(path).map_or(Held::Missing, Held::Unreadable),
+        };
+        Stores { chains: paths.iter().map(|path| (path.clone(), held(path))).collect() }
     }
 
     pub(crate) fn open(&self) -> Opened<'_> {
         let mut layers = Vec::new();
         for (_, chain) in &self.chains {
-            let Some(chain) = chain else { continue };
+            let Held::Read(chain) = chain else { continue };
             layers.extend(opened(chain));
         }
         let keys = folded(&layers);
@@ -77,8 +90,12 @@ impl Stores {
             return Ok(false);
         }
         let segment = parses_only(rows);
-        let Some(chain) = chain else {
-            return written(path, Over::Nothing, &[], &[&segment], &[], 0);
+        // A manifest that cannot be read is written over, as long as it is still the one read:
+        // left in place, it would refuse every append after, and every root would parse again.
+        let chain = match chain {
+            Held::Read(chain) => chain,
+            Held::Missing => return written(path, Over::Nothing, &[], &[&segment], &[], 0),
+            Held::Unreadable(bytes) => return written(path, Over::Published(bytes), &[], &[&segment], &[], 0),
         };
         let references = references(chain);
         // A damaged store is written whole from what reads: appending past the gap would add

@@ -315,7 +315,11 @@ fn read_kept(
         .zip(&oids)
         .map(|(file, oid)| {
             let identity = git::spell(oid.as_ref()?);
-            kept(&identity, file).map(|read| (read, identity))
+            let read = kept(&identity, file)?;
+            // A link's object is the path it holds, not the bytes behind it: a link to other
+            // bytes in another root has the same name, so a parse is never kept for a link.
+            let linked = std::fs::symlink_metadata(Path::new(root).join(file)).map_or(true, |entry| entry.file_type().is_symlink());
+            (!linked).then_some((read, identity))
         })
         .collect();
     let (unread, unread_oids): (Vec<String>, Vec<Option<Oid>>) = files

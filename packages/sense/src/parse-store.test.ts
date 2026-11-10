@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, mkdir, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { appendFile, cp, mkdtemp, mkdir, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -215,6 +215,40 @@ describe('the parse store a cache keeps', () => {
     const after = await updateSourceIndex(join(root, 'packages'));
     expect(after.files).toBeGreaterThan(0);
     expect(after.parsed).toBe(0);
+  });
+
+  it('writes over a store whose manifest cannot be read, so the root after it parses nothing', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/a'));
+    // The header names a length the manifest no longer has.
+    await appendFile(parseStorePath(cache), 'x');
+
+    expect((await updateSourceIndex(root)).parsed).toBeGreaterThan(0);
+    const after = await updateSourceIndex(join(root, 'packages'));
+    expect(after.files).toBeGreaterThan(0);
+    expect(after.parsed).toBe(0);
+  });
+
+  it('answers a symbolic link by the bytes behind it, not by the path it holds', async () => {
+    // Git names a link by the path it holds, so two checkouts with one link to different bytes share its name.
+    const linked = async (body: string): Promise<string> => {
+      const root = await checkout();
+      await write(root, 'packages/a/src/other.ts', 'export const other = 3;\n');
+      await write(root, 'packages/a/src/impl.ts', body);
+      await symlink('impl.ts', join(root, 'packages/a/src/entry.ts'));
+      git(root, 'add', '.');
+      git(root, 'commit', '--quiet', '-m', 'link');
+      return root;
+    };
+    const first = await linked("import { lens } from './lens.js';\nexport const impl = lens;\n");
+    const second = await linked("import { other } from './other.js';\nexport const impl = other;\n");
+    await updateSourceIndex(first);
+    await updateSourceIndex(second);
+    const shared = await records(second);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-link-cache-');
+    await updateSourceIndex(second);
+    expect(shared).toEqual(await records(second));
   });
 
   it('keeps every parse through a compaction, and reclaims one no root names once it is old', async () => {
