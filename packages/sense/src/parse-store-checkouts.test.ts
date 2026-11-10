@@ -73,6 +73,8 @@ describe('the checkouts a parse store answers', () => {
     const part = await updateSourceIndex(join(second, 'packages/a'));
     expect(part.files).toBeGreaterThan(0);
     expect(part.parsed).toBe(0);
+    // Only the parses are shared: the directory's own index stays in the worktree.
+    expect(sourceIndexPath(join(second, 'packages/a')).startsWith(`${second}/`)).toBe(true);
   });
 
   it("takes no parse of another checkout's bytes that a clean filter makes the same blob", async () => {

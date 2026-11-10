@@ -125,13 +125,11 @@ export function cacheRootFor(root: string): string {
  * A worktree's primary checkout is read from git's own layout — the directory
  * holding the git directory the worktree points into — so it is that
  * checkout's root already, and git is not started to say so a second time.
- * `here` may be any directory in a checkout: only its top holds the `.git` that
- * names the lineage.
  */
 export function primaryCacheRoot(here: string): string {
-  const repository = repositoryRoot(here);
+  const primary = primaryCheckout(here);
 
-  return cacheRootOf(primaryCheckout(repository));
+  return primary === here ? cacheRootFor(here) : cacheRootOf(primary);
 }
 
 /** {@link cacheRootFor} for a directory known to be a checkout's root. */

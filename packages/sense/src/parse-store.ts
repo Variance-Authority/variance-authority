@@ -34,19 +34,23 @@ export function parseStorePath(cacheRoot: string): string {
  * git rewrites the bytes of a file the store parses.
  */
 export function parseStoresFor(root: string): readonly string[] | undefined {
-  if (rewritesParsed(repositoryRoot(root))) return undefined;
-  const own = cacheRootFor(root);
-  const primary = primaryCacheRoot(root);
+  // The top, not `root`: only it holds the `.git` that names a worktree's primary.
+  const repository = repositoryRoot(root);
+  if (rewritesParsed(repository)) return undefined;
+  const own = cacheRootFor(repository);
+  const primary = primaryCacheRoot(repository);
   return primary === own ? [parseStorePath(own)] : [parseStorePath(own), parseStorePath(primary)];
 }
 
 /**
  * Whether git writes a file the store would parse as other bytes than its blob:
  * a filter, `ident` or `working-tree-encoding` on it, `eol=crlf`,
- * `core.autocrlf=true`, or a `text` file under `core.eol=crlf` (`native` on
+ * `core.autocrlf=true`, or a `text` (or legacy `crlf`) file under `core.eol=crlf` (`native` on
  * Windows). A parse is kept under the blob's name and read off the disk, so
  * there two checkouts holding one blob can hold different modules, and one
- * would answer the other. A git that cannot answer is taken to rewrite.
+ * would answer the other. A git that cannot answer is taken to rewrite. The
+ * `FIXME` in `scan.ts` is the same question for one checkout's own index: a fix
+ * keyed by the bytes read replaces this gate.
  */
 function rewritesParsed(repository: string): boolean {
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -60,12 +64,12 @@ function rewritesParsed(repository: string): boolean {
     // neither is set
   }
   const autocrlf = config.get('core.autocrlf');
-  if (autocrlf !== undefined && ['true', 'yes', 'on', '1'].includes(autocrlf)) return true;
+  if (autocrlf !== undefined && ['', 'true', 'yes', 'on', '1'].includes(autocrlf)) return true;
   const eol = config.get('core.eol') ?? 'native';
   const crlf = autocrlf !== 'input' && (eol === 'crlf' || (eol === 'native' && process.platform === 'win32'));
   try {
     const rewritten = [
-      git('ls-files', '-z', '--', ':(top,attr:eol=crlf)', ...(crlf ? [':(top,attr:text)', ':(top,attr:text=auto)'] : [])),
+      git('ls-files', '-z', '--', ':(top,attr:eol=crlf)', ...(crlf ? [':(top,attr:text)', ':(top,attr:text=auto)', ':(top,attr:crlf)'] : [])),
       git('ls-files', '-z', '--', ':(top)', ':(top,exclude,attr:!filter !ident !working-tree-encoding)'),
     ];
     return rewritten.join('\0').split('\0').some((file) => READABLE.has(extname(file)));
