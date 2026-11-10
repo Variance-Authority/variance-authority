@@ -177,7 +177,7 @@ npm install --save-dev @variance-authority/cli
 ```
 
 ```bash
-variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
 ```
 
 `accept` promotes an image the run already produced — it re-renders nothing, so

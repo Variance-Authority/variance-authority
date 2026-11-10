@@ -173,7 +173,7 @@ renders a replacement. The rerun exits `0` and reports `unchanged`.
 The full signature:
 
 ```
-variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
 ```
 
 `--shape` takes a **fingerprint** — the shape digest the report attaches to each

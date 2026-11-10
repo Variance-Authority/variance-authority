@@ -144,7 +144,7 @@ The second run exits `0` and reports every story `unchanged`.
 full form is:
 
 ```
-variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
 ```
 
 Keep `--all` for the first run and for deliberate re-baselines; it does not
