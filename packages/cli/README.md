@@ -1224,8 +1224,8 @@ suite, and review after it:
 - run: yarn test
 - if: ${{ !cancelled() }}
   run: |
-    npx variance index
-    npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
+    variance index
+    variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
 On GitHub, `Variance-Authority/action/review` replaces the cache steps, the
@@ -2625,10 +2625,10 @@ plan:
     - id: count
       run: |
         set -o pipefail
-        npx variance carry hand "$RUNNER_TEMP/base"
-        npx variance index
+        variance carry hand "$RUNNER_TEMP/base"
+        variance index
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
-        shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
+        shards=$(variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
         echo "shards=$shards" >> "$GITHUB_OUTPUT"
     - uses: actions/upload-artifact@v7
       with:
@@ -2647,8 +2647,8 @@ test:
       with:
         name: variance-base
         path: ${{ runner.temp }}/base
-    - run: npx variance carry receive "$RUNNER_TEMP/base"
-    - run: npx variance index
+    - run: variance carry receive "$RUNNER_TEMP/base"
+    - run: variance index
     - run: VARIANCE_AUTHORITY_SINCE= npx vitest run --shard ${{ matrix.shard }}
 ```
 
@@ -3253,7 +3253,7 @@ has the gate. On GitHub Actions that is one step:
 
 ```yaml
 - run: npx playwright install --with-deps chromium
-- run: npx variance run --config variance.config.json
+- run: variance run --config variance.config.json
 ```
 
 `run` exits `0` when nothing needs review, `1` when it found something a person
@@ -3333,14 +3333,14 @@ no path the config already names:
 
 ```yaml
 - id: carry
-  run: npx variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
+  run: variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
 - if: steps.carry.outputs.baselines-key != ''
   uses: actions/cache/restore@v6
   with:
     path: ${{ steps.carry.outputs.baselines-path }}
     key: ${{ steps.carry.outputs.baselines-key }}
     restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
-- run: npx variance run --config variance.config.json
+- run: variance run --config variance.config.json
 ```
 
 A suite with `"carry": "share"` gets no key: its record travels through
@@ -3350,7 +3350,7 @@ mainline's record of every such suite into the checkout, or of the one
 `shared-suites=<name> <name>`, separated by spaces, for a matrix of suite jobs:
 
 ```yaml
-- run: npx variance share
+- run: variance share
 ```
 
 `variance share --suite <name> --format github` prints `commit=<sha>`, the
@@ -3366,7 +3366,7 @@ from the record alone, and `variance carry merge <commit>` makes that merge:
   if: github.event_name == 'pull_request'
   env:
     COMMIT: ${{ steps.record.outputs.commit }}
-  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+  run: variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
 ```
 
 It reads the head from the pull request's event, or from `--head <sha>`, and
@@ -3415,7 +3415,7 @@ ran, red or green:
 
 ```yaml
 - id: carry
-  run: npx variance carry restore --format github >> "$GITHUB_OUTPUT"
+  run: variance carry restore --format github >> "$GITHUB_OUTPUT"
 # … restore the suites' caches, or read the share, as above …
 - if: steps.carry.outputs.pushed-key != ''
   uses: actions/cache/restore@v6
@@ -3425,17 +3425,17 @@ ran, red or green:
     restore-keys: ${{ steps.carry.outputs.pushed-restore-keys }}
 - id: take
   if: steps.carry.outputs.pushed-key != ''
-  run: npx variance carry take --format github >> "$GITHUB_OUTPUT"
-- run: npx variance run --since "${{ steps.carry.outputs.base }}" --suite unit
+  run: variance carry take --format github >> "$GITHUB_OUTPUT"
+- run: variance run --since "${{ steps.carry.outputs.base }}" --suite unit
 - if: ${{ !cancelled() }}
   env:
     AGAINST: ${{ steps.take.outputs.against-unit }}
-  run: npx variance review --since "${{ steps.carry.outputs.base }}" --suite unit ${AGAINST:+--against "$AGAINST"}
+  run: variance review --since "${{ steps.carry.outputs.base }}" --suite unit ${AGAINST:+--against "$AGAINST"}
 - id: keep
   if: ${{ !cancelled() }}
-  run: npx variance carry save --format github >> "$GITHUB_OUTPUT"
+  run: variance carry save --format github >> "$GITHUB_OUTPUT"
 - if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
-  run: npx variance carry keep
+  run: variance carry keep
 - if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
   uses: actions/cache/save@v6
   with:
@@ -3493,7 +3493,7 @@ name:
     path: ${{ runner.temp }}/carried
 - id: take
   if: needs.base.outputs.carried == 'true'
-  run: npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
+  run: variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
 ```
 
 Jobs of one run read one record, and a re-run of one of them reads it too. The

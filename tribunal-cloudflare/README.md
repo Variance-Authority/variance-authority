@@ -16,7 +16,7 @@ Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt)
 
 The console is the page where a person looks at what a run changed and decides
 it, one **subject** at a time — one named UI state, under the id the run used. A
-run (`npx variance run`) sends each fresh image, the **candidate**, to this
+run (`variance run`) sends each fresh image, the **candidate**, to this
 service; that is **ingest**. A reviewer opens the page, puts the candidate beside
 the **baseline** it was judged against, and approving promotes that candidate to
 be the baseline the next run is judged against.

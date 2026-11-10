@@ -78,7 +78,7 @@ live](placement.md) covers what each does to identity.
 `variance report`, `variance accept`, `variance doctor`. The Playwright Test and
 Vitest browser surfaces run their loop inside the existing test run and do not
 need it; the collector-based surfaces do. Installed as a devDependency, the
-binary is not on your `PATH`, so call it as `npx variance …`.
+binary is not on your `PATH`, so call it as `variance …`.
 
 ## 2. By suite
 
@@ -126,7 +126,7 @@ Point the run config at the built index and that module:
 ```
 
 ```bash
-npx variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 Storybook subject ids begin with `story:`, so a story whose Storybook id is
@@ -268,8 +268,8 @@ Then declare the same ids in the run config, with the application running:
 ```
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 An id named in the config with no matching route in the collector is a
@@ -472,14 +472,14 @@ report as HTML beside its JSON source, so the relative image links work, and
 look at the candidate:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 If the candidate is the state you intended, approve it by id and rerun:
 
 ```bash
-npx variance accept --config variance.config.json cart/empty
-npx variance run --config variance.config.json
+variance accept --config variance.config.json cart/empty
+variance run --config variance.config.json
 ```
 
 `accept` promotes exactly the image the run under review produced; it never

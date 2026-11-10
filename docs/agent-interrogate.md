@@ -28,7 +28,7 @@ file behind. Start the watcher in its own terminal:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/playwright-test
-npx variance watch
+variance watch
 ```
 
 It takes an ephemeral loopback port and prints the one line the suite needs:
@@ -132,7 +132,7 @@ variance_continue { "test": "t-1f4c" }
 ```
 
 Call it with no argument to release everything that is waiting. Only MCP offers
-it: `npx variance ask` runs in a process that owns no run, so there is nothing
+it: `variance ask` runs in a process that owns no run, so there is nothing
 in it to release.
 
 ## Stop somewhere other than the test body

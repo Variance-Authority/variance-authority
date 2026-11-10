@@ -265,7 +265,7 @@ ignore the contents and keep the baselines:
 
 ```bash
 npx vitest run
-npx variance run
+variance run
 ```
 
 The suite passes as it did, having written one capture per subject. `variance
@@ -286,7 +286,7 @@ Print that again from the stored report, or write the page with the images in
 it, with `variance report`:
 
 ```bash
-npx variance report --format html > .variance/report.html
+variance report --format html > .variance/report.html
 ```
 
 The HTML is one self-contained file that fetches nothing, so it reads the same
@@ -302,7 +302,7 @@ a pass: it stays `new` until you accept it.
 When the change is the one you meant, approve it:
 
 ```bash
-npx variance accept button/save
+variance accept button/save
 ```
 
 `accept` takes one or more subject ids, or `--all`. It promotes the image the

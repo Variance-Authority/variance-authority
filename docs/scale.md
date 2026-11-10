@@ -687,7 +687,7 @@ it would have skipped:
 ```bash
 npx vitest run
 git switch <a recent pull-request branch>
-npx variance select --format json
+variance select --format json
 ```
 
 The counts it reports are the skip list that diff would have had.

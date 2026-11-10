@@ -130,7 +130,7 @@ jobs:
         with:
           fetch-depth: 0
       - run: npm ci
-      - run: npx variance carry hand "$RUNNER_TEMP/base"
+      - run: variance carry hand "$RUNNER_TEMP/base"
       - uses: actions/upload-artifact@v7
         with:
           name: variance-base
@@ -154,7 +154,7 @@ jobs:
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
-      - run: npx variance carry receive "$RUNNER_TEMP/base"
+      - run: variance carry receive "$RUNNER_TEMP/base"
       - run: npx vitest run --shard ${{ matrix.shard }}
 ```
 
@@ -188,7 +188,7 @@ malformed value, such as `--setup 1m`, so a plan job fails only on a typo.
 shard's runner runs at once.
 
 ```bash
-npx variance shards --suite unit --setup 90 --workers 8
+variance shards --suite unit --setup 90 --workers 8
 ```
 
 ```text
@@ -269,14 +269,14 @@ jobs:
       - id: count
         run: |
           set -o pipefail
-          npx variance carry hand "$RUNNER_TEMP/base"
+          variance carry hand "$RUNNER_TEMP/base"
           npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
           since=()
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            npx variance index
+            variance index
             since=(--since origin/main --collected "$RUNNER_TEMP/collected.txt")
           fi
-          shards=$(npx variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
+          shards=$(variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
@@ -302,10 +302,10 @@ jobs:
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
-      - run: npx variance carry receive "$RUNNER_TEMP/base"
+      - run: variance carry receive "$RUNNER_TEMP/base"
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            npx variance index
+            variance index
             export VARIANCE_AUTHORITY_SINCE=
           fi
           npx vitest run --shard ${{ matrix.shard }}

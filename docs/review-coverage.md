@@ -70,7 +70,7 @@ tests once with your usual command, then name a source file they import, in
 place of `src/index.ts`:
 
 ```bash
-npx variance covering --file src/index.ts
+variance covering --file src/index.ts
 ```
 
 On the first run it says it is building its [source index](source-index.md) from the checkout;

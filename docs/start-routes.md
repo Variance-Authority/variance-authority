@@ -273,8 +273,8 @@ get absorbed and which you see as findings.
 With the application still running:
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `npx` because you installed the CLI as a devDependency, so `variance` is not on
@@ -300,14 +300,14 @@ Reviewing is you looking at that candidate. Write the report as HTML beside its
 JSON source, so its relative image links work, and open it:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 If the candidate is the route state you intended, approve that id and rerun:
 
 ```bash
-npx variance accept --config variance.config.json checkout/empty
-npx variance run --config variance.config.json
+variance accept --config variance.config.json checkout/empty
+variance run --config variance.config.json
 ```
 
 `accept` promotes exactly the image the run under review produced; it never

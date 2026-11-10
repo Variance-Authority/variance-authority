@@ -69,7 +69,7 @@ starts any of them, and prints one line to stderr first:
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
-To check the wrap took, run `npx variance doctor --config variance.config.json`
+To check the wrap took, run `variance doctor --config variance.config.json`
 after one run. For each of the
 [`suites`](../packages/cli/README.md#configuration) the repository's root
 `variance.config.json` declares, it names the record a run left and its file. A
@@ -230,7 +230,7 @@ reads the same change with nothing run, given the same range, and `--suite` with
 the name of the suite when `variance.config.json` declares suites:
 
 ```bash
-npx variance select --suite unit --at-distance 0-1
+variance select --suite unit --at-distance 0-1
 ```
 
 Its stdout lists every test file it skips, one path per line, so a test missing

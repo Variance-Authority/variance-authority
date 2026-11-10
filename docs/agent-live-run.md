@@ -45,7 +45,7 @@ From a shell, with the CLI installed as a devDependency:
 
 ```bash
 npm install --save-dev @variance-authority/cli
-npx variance watch
+variance watch
 ```
 
 From an MCP client, install the server and add it to the client's server list,
@@ -75,7 +75,7 @@ may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance-live": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp --watch"]
+      "args": ["-c", "cd /path/to/repo && exec variance-authority-mcp --watch"]
     }
   }
 }
@@ -106,10 +106,10 @@ Start with identity, then narrow to the test:
 
 | Question | Shell | MCP |
 | --- | --- | --- |
-| Is this the watcher the suite reported to? | `npx variance ask self` | `variance_self` |
-| Which tests opened, and which is still running? | `npx variance ask run-signals` | `variance_run_signals` |
-| What did one test announce, in order? | `npx variance ask test-signals --test <id>` | `variance_test_signals` |
-| What arrived since the previous reading? | `npx variance ask diff` | `variance_diff` |
+| Is this the watcher the suite reported to? | `variance ask self` | `variance_self` |
+| Which tests opened, and which is still running? | `variance ask run-signals` | `variance_run_signals` |
+| What did one test announce, in order? | `variance ask test-signals --test <id>` | `variance_test_signals` |
+| What arrived since the previous reading? | `variance ask diff` | `variance_diff` |
 | Which tests have stopped for me to look at them? | — | `variance_waiting` |
 | Let a stopped test go on. | — | `variance_continue` |
 
@@ -140,7 +140,7 @@ The watcher's state is limited in four ways:
 - Stop the watcher and the state is gone.
 
 When the question is about what a test queried, clicked, rendered or covered,
-collect portable evidence and use [`npx variance distill`](distill.md). The full
+collect portable evidence and use [`variance distill`](distill.md). The full
 route from a question to the evidence that answers it is in [everything an agent
 can ask](agent-questions.md).
 

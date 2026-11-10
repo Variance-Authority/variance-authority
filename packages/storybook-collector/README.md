@@ -13,7 +13,7 @@ You already have a Storybook. Each story is a UI state somebody deliberately
 named, mounted and made ready — which is the expensive half of visual regression
 testing, and you have paid for it.
 
-This package hands that catalogue to `npx variance run` without a browser harness of
+This package hands that catalogue to `variance run` without a browser harness of
 your own. It reads the `index.json` your Storybook build writes, opens the
 preview once, switches stories over Storybook's own channel, and produces one
 **subject** per story — one named UI state you asked for and can ask for again,
@@ -120,8 +120,8 @@ the contents rather than the directory:
 ### 4. Check the machine, run, accept, run again
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `doctor` opens a browser, measures the fonts your config asserts, and lists
@@ -134,8 +134,8 @@ The first durable run exits `0` and reports every story `new`. Nothing moved,
 and an image nobody approved is not a pass either. Promote the candidates the run already produced:
 
 ```bash
-npx variance accept --config variance.config.json --all
-npx variance run --config variance.config.json
+variance accept --config variance.config.json --all
+variance run --config variance.config.json
 ```
 
 The second run exits `0` and reports every story `unchanged`.
@@ -144,7 +144,7 @@ The second run exits `0` and reports every story `unchanged`.
 full form is:
 
 ```
-npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
 ```
 
 Keep `--all` for the first run and for deliberate re-baselines; it does not
@@ -152,7 +152,7 @@ separate a story nobody looked at from one that changed. After setup, name
 subject ids:
 
 ```bash
-npx variance accept --config variance.config.json story:checkout--empty story:checkout--one-item
+variance accept --config variance.config.json story:checkout--empty story:checkout--one-item
 ```
 
 `--shape` takes a **fingerprint** — an identifier the report gives every changed
@@ -162,7 +162,7 @@ refuses by name any subject where something else changed too.
 
 ### What you get
 
-`npx variance run` prints its summary to the terminal and writes the same facts to
+`variance run` prints its summary to the terminal and writes the same facts to
 `.variance/report.json`, which every other command reads. Abridged, a run after
 one edit to `Button`:
 
@@ -186,7 +186,7 @@ For the before, diff and after images per changed story, grouped by cause rather
 than by story:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 The page references its images relatively, so write it beside the `report` path
@@ -510,10 +510,10 @@ same story shown again at another size.
   response bodies participate in the environment key. Disable it only when the
   URL already identifies the bytes.
 - **The browser is missing:** run `npx playwright install chromium`, then
-  `npx variance doctor` again.
+  `variance doctor` again.
 - **A rerun reports every story `changed`, a moved identity first:** the
   approved image was stored under a different identity than this machine
-  produces. `npx variance doctor` lists the
+  produces. `variance doctor` lists the
   identities the baseline root stores.
 
 ## Boundaries

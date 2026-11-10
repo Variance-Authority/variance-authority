@@ -143,10 +143,14 @@ To drive the whole loop from a config file instead of from inside a test, use
 npm install --save-dev @variance-authority/cli
 ```
 
+The package installs one command, `variance`. Run it through your package
+manager (`yarn variance`, `pnpm exec variance`, or a `package.json` script),
+which finds the installed copy and never fetches another.
+
 ```bash
-npx variance run --config variance.config.json
-npx variance accept --config variance.config.json cart/empty
-npx variance run --config variance.config.json
+variance run --config variance.config.json
+variance accept --config variance.config.json cart/empty
+variance run --config variance.config.json
 ```
 
 The first durable run exits `0` and reports its subjects as `new`. Accept the
@@ -180,14 +184,14 @@ stylesheets, Python, Rust, Java, Kotlin and Swift are read into one graph, and a
 diff that spans several of them is answered in one walk.
 
 ```bash
-npx variance reach --since origin/main
+variance reach --since origin/main
 ```
 
 That prints the files the change reaches, one per line, so you can hand them to
 whatever runs them:
 
 ```bash
-npx variance reach --since origin/main | grep '_test\.py$' | xargs pytest
+variance reach --since origin/main | grep '_test\.py$' | xargs pytest
 ```
 
 There is no framework integration behind this and none is implied: the answer is

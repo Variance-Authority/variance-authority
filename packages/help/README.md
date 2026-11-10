@@ -88,8 +88,8 @@ the path under `npx`:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help search viewport
-npx variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport
+variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
@@ -105,7 +105,7 @@ answer over MCP says `limit` and `docs_symbol`.
 
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — and, with a
+is installed — `variance ask search --query viewport` — and, with a
 `variance.config.json`, the same tools are on `variance serve`, beside the ones
 about a run. A workspace that runs the visual suite needs nothing from this
 package over either transport. This package is for the workspace that does not
@@ -146,7 +146,7 @@ A published name is API and comes with the specifier you would import it from.
 An exported name shows a file and a line, because nothing else was read for it.
 
 `symbol` answers with the one thing you asked about, in full.
-Run `npx variance-authority-help symbol Viewport`:
+Run `variance-authority-help symbol Viewport`:
 
 ```
 Viewport [interface]
@@ -232,7 +232,7 @@ docs_search  query: order  from: src/fulfilment/
 Spelled `--from` on the command line, and the same on `variance ask search`:
 
 ```bash
-npx variance-authority-help search order --from src/fulfilment/
+variance-authority-help search order --from src/fulfilment/
 ```
 
 `from` follows the imports at any depth, then answers with published names those
@@ -309,7 +309,7 @@ labelled with the file and line it was read from. The passage is never presented
 as the symbol's documentation, and it never removes the name from `gaps`.
 
 `gaps` turns the same ranking into a work queue.
-Run `npx variance-authority-help gaps`, abridged to the first three lines:
+Run `variance-authority-help gaps`, abridged to the first three lines:
 
 ```
 111 names cross a package boundary with nothing written above the declaration:
@@ -332,7 +332,7 @@ above: it is not a start point, it filters nothing, and every site of the name
 still comes back. It only decides which of them you read first.
 
 ```bash
-npx variance-authority-help uses collect --from packages/cli/src/index.ts
+variance-authority-help uses collect --from packages/cli/src/index.ts
 ```
 
 ```
@@ -384,7 +384,7 @@ With no verb, the binary speaks the protocol on stdio:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help .
+variance-authority-help .
 ```
 
 ```json
@@ -416,7 +416,7 @@ person:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help write . --out docs/api
+variance-authority-help write . --out docs/api
 ```
 
 Four files, and the command prints each with its size:
