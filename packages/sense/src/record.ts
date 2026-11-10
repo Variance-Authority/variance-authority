@@ -72,6 +72,8 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   // miss falls through to I/O.
   let digest = subject.digest;
   let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
+  // A parse is kept whatever limit read it, so one over this scan's is read again, to be declined.
+  if (read !== undefined && (read.size?.bytes ?? (await sized(absolute)) ?? 0) > largestFile) read = undefined;
 
   if (read === undefined) {
     const size = await sized(absolute);
@@ -211,10 +213,11 @@ export function parsedOnce(input: {
   const language = languageFor(way);
   if (language === undefined) return undefined;
   const held = input.digest === undefined ? undefined : cache?.get(keyFor(input.digest, way));
-  if (held !== undefined) return held;
   let contents: string;
   try {
-    if (largestFile !== undefined && statSync(join(root, file)).size > largestFile) return undefined;
+    // A held parse answers only under this limit, which is not the one that read it.
+    if (largestFile !== undefined && (held?.size?.bytes ?? statSync(join(root, file)).size) > largestFile) return undefined;
+    if (held !== undefined) return held;
     contents = readFileSync(join(root, file), 'utf8');
   } catch {
     return undefined;

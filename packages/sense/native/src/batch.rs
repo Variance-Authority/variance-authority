@@ -316,10 +316,13 @@ fn read_kept(
         .map(|(file, oid)| {
             let identity = git::spell(oid.as_ref()?);
             let read = kept(&identity, file)?;
-            // A link's object is the path it holds, not the bytes behind it: a link to other
-            // bytes in another root has the same name, so a parse is never kept for a link.
-            let linked = std::fs::symlink_metadata(Path::new(root).join(file)).map_or(true, |entry| entry.file_type().is_symlink());
-            (!linked).then_some((read, identity))
+            // A parse is kept whatever limit read it, so one over this scan's is read again, to be
+            // declined; a reader that measured nothing leaves the size to the file on disk.
+            let over = largest_file.is_some_and(|limit| {
+                let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
+                bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_some_and(|bytes| bytes > u64::from(limit))
+            });
+            (!over).then_some((read, identity))
         })
         .collect();
     let (unread, unread_oids): (Vec<String>, Vec<Option<Oid>>) = files

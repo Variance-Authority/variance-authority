@@ -6,8 +6,9 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseStorePath, pruneParseStore } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
+import { scanRelations } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
-import { sourceIndexPath } from './source-index.js';
+import { openSourceIndex, sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 
 /**
@@ -249,6 +250,47 @@ describe('the parse store a cache keeps', () => {
     process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-link-cache-');
     await updateSourceIndex(second);
     expect(shared).toEqual(await records(second));
+  });
+
+  /** A checkout whose `packages/a` holds `impl.css` with `body`, `entry.css` made by `hold`, committed. */
+  async function styled(body: string, hold: (root: string) => Promise<void>): Promise<string> {
+    const root = await checkout();
+    await write(root, 'packages/a/src/base.css', 'a { color: red; }\n');
+    await write(root, 'packages/a/src/other.css', 'b { color: blue; }\n');
+    await write(root, 'packages/a/src/impl.css', body);
+    await hold(root);
+    git(root, 'add', '.');
+    git(root, 'commit', '--quiet', '-m', 'style');
+    return root;
+  }
+
+  /** What a scan answers for `entry.css`, reading the cache's store or, with none, fresh. */
+  async function entryRecord(root: string, options: { readonly stored: boolean; readonly largestFile?: number }): Promise<unknown> {
+    const stores = options.stored ? [parseStorePath(cache)] : [];
+    const source = await openSourceIndex(join(await temporary('variance-parse-store-index-'), 'index.bin'), { stores });
+    const found = await scanRelations({
+      root,
+      dirs: ['packages/a'],
+      cache: source.cache,
+      stores,
+      ...(options.largestFile === undefined ? {} : { largestFile: options.largestFile }),
+    });
+    const { digest: _digest, ...record } = found.find((record) => record.file === 'packages/a/src/entry.css') ?? { file: 'none' };
+    return record;
+  }
+
+  it('answers a stylesheet behind a symbolic link by its bytes when a scan reads the store', async () => {
+    const linked = (body: string) => styled(body, (root) => symlink('impl.css', join(root, 'packages/a/src/entry.css')));
+    await updateSourceIndex(await linked("@import './base.css';\n"));
+    const second = await linked("@import './other.css';\n");
+    expect(await entryRecord(second, { stored: true })).toEqual(await entryRecord(second, { stored: false }));
+  });
+
+  it('declines a module over the size limit when the store holds its parse from a larger limit', async () => {
+    const plain = () => styled('', (root) => write(root, 'packages/a/src/entry.css', "@import './base.css';\n"));
+    await updateSourceIndex(await plain());
+    const second = await plain();
+    expect(await entryRecord(second, { stored: true, largestFile: 1 })).toEqual(await entryRecord(second, { stored: false, largestFile: 1 }));
   });
 
   it('keeps every parse through a compaction, and reclaims one no root names once it is old', async () => {
