@@ -24,8 +24,8 @@ import {
 } from '@variance-authority/sense/test-selection';
 
 const root = process.cwd();
-// Name the suite when the root variance.config.json declares `suites`;
-// leave the option out when it declares none.
+// Name the suite when the root variance.config.json declares several `suites`;
+// leave the option out when it declares one or none.
 const file = await readableTestCoverage(root, { suite: 'unit' });
 const commit = await recordedCommit(file);
 
@@ -76,7 +76,7 @@ Read it by these rules:
 - `unread` names a changed path the recording has no row for and the graph
   does not list. It selects nothing, and the skip list is still `whole` minus
   `entered`. Print it: [selection wiring](selection-wiring.md#what-selection-refuses-to-narrow)
-  says when such a path is a precondition to declare.
+  says how a test that reads such a path names it.
 - `because` has one entry per selected test, in the order of `entered`. Its
   `via` lists every fact that selected the test: a `region` for each recorded
   block a changed line fell in (file, declaration, path in it, lines), a

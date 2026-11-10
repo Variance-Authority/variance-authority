@@ -69,10 +69,14 @@ flowchart LR
 
 Looking for a declaration, search declarations. Holding the name, search names.
 Holding a file or a package, scope the search to it. Holding only the concept,
-translate it into the words the repository is likely to use. Knowing none of that, use `rg`: it
-assumes the least. A narrow search that comes back empty is either a true answer
-about that area or a sign that something you assumed is wrong. Widen one step to
-find out which, not all the way to `rg`.
+translate it into the words the repository is likely to use. Holding only a
+string in code, run `variance ask grep` from the folder you are working in, a
+top folder at the widest. A string in a YAML, JSON, Markdown or shell file no
+code imports — prose, configuration, workflows and logs — is `rg`'s. When you
+cannot tell which kind of file holds it, run both at once: each reads files the
+other does not. An `ask grep` that comes back empty is either a true answer
+about the files it searched or a sign that something you assumed is wrong. Widen
+its start point one step to find out which.
 
 ## What Variance searches
 
@@ -82,9 +86,9 @@ names and descriptions of installed packages, so a question about `createStore`
 does not list every file that imports or mentions it. It adds one step an IDE
 does not take by default: the module graph keeps the candidates connected to a
 path you already have. A few words of what the code does reach it too: when no
-name holds them as written, the names and files holding any of them, matched by
-stem and ranked by how many they hold, come back before any installed package
-that says the same words.
+name holds them as written, the names and files holding most of them, matched by
+stem and with rarer words counting for more, come back before any installed
+package that says the same words.
 
 ```bash
 variance ask search --query createStore --from src/checkout/ --just-answer
@@ -119,15 +123,20 @@ way every time and keeps the answer inside the area the graph connects. If the
 repository calls sign-in `CredentialGate`, that name comes back when a word you
 supplied is part of it, and you can always say why a hit is a hit.
 
-Use `rg` when the text itself is the answer, and `git grep` when the committed
-tree is the answer. Both are exact and need no Variance index.
+Use `rg` when the text is outside the source — a YAML, JSON, Markdown or shell
+file no code imports — and `git grep` when the committed tree is the answer.
+Both need no Variance index. In code, `ask grep` matches a regular expression
+in the files a path names and reaches along the imports, a Markdown or JSON file
+that code imports among them, nearest first, and a top folder is the widest path
+it takes.
 
 ## Choose the entrance from what you have
 
 | What you have | Ask | What you get |
 | --- | --- | --- |
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
-| An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg -n <text> .` | Current files containing that text |
+| A string or a regular expression in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b` |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
 | Words for a source name | `variance ask search --query <words>` | Candidate names, not every match |
@@ -158,14 +167,15 @@ variance ask orient
 variance ask orient --area 2
 ```
 
-The first page puts every package the manifests name into a few areas, apart
-from a manifest under a directory the [source index](source-index.md) skips, such as
-`node_modules` or `dist`. A package joins the packages that sit in the same
+The first page puts every package the manifests name into a few areas. It
+leaves out a manifest under a directory the [source index](source-index.md) skips, such
+as `node_modules` or `dist`, and a root package that has no name, holds no
+source or declares workspaces, or has no package nested in it. A package joins the packages that sit in the same
 directory, share words in their names, and import each other. An area of more
 than twelve packages is split again, into at most twelve areas of at least
 three packages, none starting larger than a third of it. A package no area
 takes joins the area holding a third or more of its connections, or is listed
-after the rows, so every package is on some page. An area page lists smaller
+after the rows, so every package on the map is on some page. An area page lists smaller
 areas until an area is a short list of packages. Each row gives:
 
 - how many packages and source files the area has;
@@ -202,7 +212,8 @@ beside the source index, and the import requests each source file writes in
 to the second file. The catalogue is written again only when a manifest, an
 installed package or a specifier no source file imported before changes, and
 then it keeps the declaration readings whose files are unchanged. `ask search`
-uses this catalogue alongside local names; `--from` and `--to` constrain which
+uses this catalogue alongside local names and the test cases the last run
+recorded; `--from` and `--to` constrain which
 workspace's available packages it shows. `orient --files` keeps the dependency
 graph concise. Ask for a name when its third-party API detail matters.
 [Use the packages your project already installed](tech-stack.md) covers the

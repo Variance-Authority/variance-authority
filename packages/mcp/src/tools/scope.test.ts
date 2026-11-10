@@ -379,6 +379,12 @@ describe('an absolute path is the same question, asked from the root', () => {
     // an answer rather than an error.
     expect(scopeOf(REPORT, '/Users/somebody/site/src/billing/', TREE).refused).toContain('not found');
   });
+
+  it.each(['.', './', './.', './/', '/repo', '/repo/'])('refuses %s as the root, however it is spelled', (root) => {
+    const { refused } = scopeOf(REPORT, root, TREE);
+    expect(refused).toContain(`\`${root}\` is the root`);
+    expect(refused).not.toContain('not found');
+  });
 });
 
 describe('a start point is grounded in a file, at whatever width the caller has', () => {
@@ -426,6 +432,18 @@ describe('a start point is grounded in a file, at whatever width the caller has'
     // `app` holds no file of its own, so its own files are nothing at all —
     // which is not found, and not an empty answer about a folder that is there.
     expect(scopeOf(APP, 'app/*', APP_TREE).refused).toContain('not found');
+  });
+
+  it('a folder said without its trailing slash is the folder', () => {
+    expect([...scopeOf(APP, 'app/about-us', APP_TREE).subjects].sort()).toEqual([
+      'story:about-layout',
+      'story:about-page',
+      'story:about-team',
+    ]);
+  });
+
+  it('a path that is a file stays that file, whatever folder shares its spelling', () => {
+    expect([...scopeOf(APP, 'app/about-us/page.tsx', APP_TREE).subjects]).toEqual(['story:about-page']);
   });
 
   it('the folder alone is everything underneath it', () => {

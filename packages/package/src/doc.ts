@@ -39,7 +39,8 @@ export interface Writing {
    *
    * The key is the first non-whitespace offset after the comment — which is the
    * `export` keyword, not the declaration behind it, because that is where
-   * somebody writing a doc comment puts it.
+   * somebody writing a doc comment puts it. A block a blank line parts from the
+   * file's first statement is the file's banner, and that statement's doc is not it.
    */
   readonly docs: ReadonlyMap<number, string>;
   /** The offset each line begins at, ascending. */
@@ -60,8 +61,8 @@ function undent(value: string): string {
     .trim();
 }
 
-/** Read a file's comments and line starts, once. */
-export function readWriting(text: string, comments: readonly Comment[]): Writing {
+/** Read a file's comments and line starts, once; `first` is where its first statement that is not an import starts. */
+export function readWriting(text: string, comments: readonly Comment[], first: number | undefined): Writing {
   const lines: number[] = [0];
   for (let at = text.indexOf('\n'); at !== -1; at = text.indexOf('\n', at + 1)) lines.push(at + 1);
 
@@ -73,6 +74,7 @@ export function readWriting(text: string, comments: readonly Comment[]): Writing
 
     let subject = comment.end;
     while (subject < text.length && /\s/.test(text.charAt(subject))) subject += 1;
+    if (subject === first && text.slice(comment.end, subject).split('\n').length > 2) continue;
     docs.set(subject, undent(comment.value));
   }
 

@@ -30,8 +30,8 @@ import { declaredSuite } from './suites.js';
 
 export interface RecordLocationOptions {
   /**
-   * The declared suite whose record this is. Required once the root config
-   * declares any suite, and refused when it declares none.
+   * The declared suite whose record this is. Required among several, the only
+   * one when one is declared, and refused when none is.
    */
   readonly suite?: string | undefined;
   /** The cache directory, when the caller already knows it. */
@@ -43,8 +43,8 @@ export interface RecordLocationOptions {
 /**
  * The record's path inside a layer, checked against the declaration.
  *
- * Throws for a suite the root config does not declare, and for no suite once
- * any is declared: see {@link declaredSuite}.
+ * Throws for a suite the root config does not declare, and for no suite among
+ * several declared: see {@link declaredSuite}.
  */
 export function recordPath(root: string, suite?: string): string {
   const declared = declaredSuite(root, suite);
@@ -245,9 +245,9 @@ export function cachedRecord(file: string, root: string, cacheRoot?: string): st
   return inside === 'coverage.bin' || /^suites\/[^/]+\/coverage\.bin$/u.test(inside) ? inside : undefined;
 }
 
-/** The suite a record's path inside a layer names, as {@link cachedRecord} says it: none for the repository's one record. */
-export function cachedSuite(inside: string): string | undefined {
-  return /^suites\/([^/]+)\//u.exec(inside)?.[1];
+/** The suite whose run wrote `file`, inside a layer or a copied cache (a CI artifact): none for the one record. */
+export function cachedSuite(file: string): string | undefined {
+  return /(?:^|\/)suites\/([^/]+)\/coverage\.bin$/u.exec(file.split(sep).join('/'))?.[1];
 }
 
 /**

@@ -1,9 +1,8 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
-import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 
-export type CoverageFormat = 'text' | 'markdown' | 'json';
+export type CoverageFormat = 'text' | 'markdown' | 'json' | 'badge';
 
 export interface ParsedCoverage {
   readonly command: 'coverage';
@@ -15,8 +14,8 @@ export interface ParsedCoverage {
   readonly from?: string;
   /** `--packages`: count each package the manifests name on its own, and with what it imports. */
   readonly packages?: true;
-  /** `--at-distance <hops>`: count a region as run only when a test file this many import hops from it ran it; an open end is `Number.MAX_SAFE_INTEGER`. */
-  readonly atDistance?: { readonly from: number; readonly to: number };
+  /** `--at-distance <hops>`: count a region as run only when a test file this many import hops from it ran it; the text as typed, read by `parseAtDistance`. */
+  readonly atDistance?: string;
   /** `--fan-in`: count, for every region and every file, the test files that called into it. */
   readonly fanIn?: true;
   readonly root: string;
@@ -26,8 +25,8 @@ export interface ParsedCoverage {
 export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   noPositionals(flags.positionals, 'coverage');
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'markdown' && format !== 'json') {
-    throw new OperatorError(`--format must be text, markdown or json, not \`${format}\``);
+  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'badge') {
+    throw new OperatorError(`--format must be text, markdown, json or badge, not \`${format}\``);
   }
   const against = flags.values.get('--against');
   const suite = flags.values.get('--suite');
@@ -35,7 +34,7 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   if (from === '') throw new OperatorError('`--from` takes a directory, spelled from the repository root.');
   const packages = flags.present.has('--packages');
   if (packages && from !== undefined) throw new OperatorError('`--from` counts one directory and `--packages` counts every package; pass one of them.');
-  const atDistance = parseAtDistance(flags);
+  const atDistance = flags.values.get('--at-distance');
   return {
     command: 'coverage',
     ...(against === undefined ? {} : { against: resolve(against) }),

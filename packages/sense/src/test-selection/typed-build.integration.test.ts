@@ -43,7 +43,7 @@ async function run(files: readonly string[] = []) {
 beforeAll(async () => {
   directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-typed-build-'));
   coverageFile = resolve(directory, 'coverage.bin');
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
@@ -58,7 +58,7 @@ describe('a build of a module of types, recorded under its own name', () => {
       ['module', [named('test/shapes.case.ts')]],
     ]);
     expect(row?.sourceDigest).toBe(digestString(await readFile(resolve(fixture, 'build/shapes.js'), 'utf8')));
-  }, 30_000);
+  });
 
   it('keeps the test that loaded it whole when a run that did not load it lands', async () => {
     const coverage = await run(['test/scale.case.ts']);
@@ -67,5 +67,5 @@ describe('a build of a module of types, recorded under its own name', () => {
       [named('test/scale.case.ts'), true],
       [named('test/shapes.case.ts'), true],
     ]);
-  }, 30_000);
+  });
 });

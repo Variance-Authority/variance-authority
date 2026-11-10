@@ -12,6 +12,7 @@ for itself and runs its real CLI.
 
 ```
 fixture/vitest.config.ts               withTestSelection() over two case files, the skip list read from FIXTURE_SKIP
+fixture/projects.config.ts             withTestSelection() over a configuration that describes the run, and two wrapped projects
 fixture/add.ts                         the source both cases import
 fixture/one.case.ts, two.case.ts       one test each
 src/selection.integration.test.ts      the outer test: runs Vitest 4 on the fixture and reads its exit, stderr and record
@@ -38,9 +39,13 @@ yarn vitest run --config vitest.integration.config.mts cases/vitest-4-case/src/s
 - `--shard 2/2` over a selection that kept one file leaves the second shard
   nothing to run, and it exits 0.
 - A selection that skips one file runs the other, and records only that one.
+- Vitest 4 calls no `configureVitest` of a configuration that lists projects, so
+  what it declares is refused by a reporter: before any test, and through a
+  wrapped project under a `--reporter` of the command line.
+- A project with no test file in the run reads nothing of what it declares.
 
 ## What it does not test
 
-A run over several projects is tested under Vitest 5 only, in
+A selection over several projects is tested under Vitest 5 only, in
 `packages/sense/src/test-selection/vitest-selection.integration.test.ts`. The
 Jest seam is not run here.

@@ -1,5 +1,6 @@
 // compass: variance-authority.reach
 
+import { loadRenderless } from '../config-load.js';
 import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -12,13 +13,12 @@ import { selectedMainline, selectedRecord } from './mainline-selected.js';
  *
  * `select`, `run --since` and `journeys` each answer for one runner's cases, so
  * they read one suite, and with more than one declared, picking one for the
- * operator would read a record they did not ask about. The declaration and
- * the path are sense's; the default is this reader's, because it is a rule
- * about what a person typed, not about where a run records.
+ * operator would read a record they did not ask about. The declaration, the
+ * path and the default are sense's.
  *
  * The path is the nearest record, which in a checkout that has not run is the
  * mainline's as last fetched on this machine, else, in a worktree, the primary
- * checkout's: sense's `readableTestCoverage` owns that lookup, and it never
+ * checkout's: sense's `nearestRecord` owns that lookup, and it never
  * fetches. The case index is read beside this path, so from the same
  * layer as the record it was written with. The runs log is not: it says where
  * this checkout's change starts and which files this checkout ran, so it is
@@ -124,11 +124,6 @@ export async function recordedSuite(root: string, suite?: string): Promise<{ rea
   }
 }
 
-/** The one suite a root config declares, which a reader that names none reads. */
-export function onlySuite(declared: readonly { readonly name: string }[] | undefined): string | undefined {
-  return declared?.length === 1 ? declared[0]!.name : undefined;
-}
-
 /**
  * The suite a command scoped to one runner reads, and its declaration when it
  * has one: `--suite`, or the only one declared, and refused where several are
@@ -137,7 +132,7 @@ export function onlySuite(declared: readonly { readonly name: string }[] | undef
 export async function namedSuite(root: string, suite?: string): Promise<{ readonly name: string | undefined; readonly declared?: DeclaredSuite }> {
   const selection = await import('@variance-authority/sense/test-selection');
   const declared = asOperator(() => selection.declaredSuites(root));
-  const name = suite ?? onlySuite(declared);
+  const name = suite ?? selection.onlySuite(declared);
   if (name === undefined && declared !== undefined) {
     throw new OperatorError(
       `the root variance.config.json declares the suites ${declared.map((one) => `"${one.name}"`).join(', ')}, ` +
@@ -146,6 +141,11 @@ export async function namedSuite(root: string, suite?: string): Promise<{ readon
   }
   const named = declared?.find((one) => one.name === name);
   return named === undefined ? { name } : { name, declared: named };
+}
+
+/** The suite a command that names none means, in a file that configures no project: the only one declared, and refused among several. */
+export async function onlySuiteOf(config: string): Promise<string | undefined> {
+  return (await loadRenderless(config)) === undefined ? undefined : (await namedSuite(process.cwd())).name;
 }
 
 /** Run a read whose refusal is the operator's: whatever it throws is said as an {@link OperatorError}. */
@@ -171,14 +171,4 @@ export function nothingRecorded(root: string, suites?: readonly string[]): Opera
         }, has a per-case index, so no case can be named.`,
     { kind: 'unrecorded' },
   );
-}
-
-/**
- * Refuse `--suite` beside a flag that names the record by path: both say which
- * record, and honouring one would read or write where the operator did not look.
- */
-export function oneRecord(suite: string | undefined, path: string | undefined, flag: string): void {
-  if (suite !== undefined && path !== undefined) {
-    throw new OperatorError(`\`--suite\` and \`${flag}\` both name the record; pass one`);
-  }
 }

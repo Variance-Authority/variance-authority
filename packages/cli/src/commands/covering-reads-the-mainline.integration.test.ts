@@ -69,7 +69,7 @@ describe('`covering` through the CLI, in a checkout that never ran the suite', (
     expect(answer.at).toBe(second);
     expect(answer.changed.map((change) => change.file)).toEqual(['src/total.ts']);
     expect(answer.source.from).toBe('mainline');
-  }, 60_000);
+  });
 
   it('answers `--since` for a committed change the checkout recorded, the tree clean', async () => {
     asCi();
@@ -88,5 +88,5 @@ describe('`covering` through the CLI, in a checkout that never ran the suite', (
 
     expect(answer.at).toBe(head);
     expect(answer.changed.map((change) => change.file)).toEqual(['src/total.ts']);
-  }, 60_000);
+  });
 });

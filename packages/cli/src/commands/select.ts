@@ -57,8 +57,8 @@
  * it, and a module with no row is answered by the nearest measured files that
  * import it. What is left is a file the suite does not import — prose, a
  * workflow, a fixture read with `fs`, a script it spawns — and for the last two
- * the suite's own declaration is the fix, because only the suite knows it
- * reads them.
+ * a `/// <depends>` in the module that reads them is the fix, because only that
+ * module knows it reads them.
  *
  * Widening on it would put the cost on the wrong commit. Every change that
  * touches a README would run the whole suite, which empties the skip list on

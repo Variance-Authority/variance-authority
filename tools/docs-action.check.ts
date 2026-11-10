@@ -163,7 +163,7 @@ interface Job {
 }
 
 interface Workflow {
-  readonly on: Node & { readonly pull_request: { readonly types: readonly string[] } };
+  readonly on: Node & { readonly pull_request?: Node | null; readonly workflow_dispatch?: Node };
   readonly concurrency?: unknown;
   readonly jobs: { readonly variance: Job };
 }
@@ -178,69 +178,42 @@ function printedJob(): Workflow {
   return found as Workflow;
 }
 
-describe('the whole job keeps a person’s decision', () => {
-  it('starts on the label, and has no group but the job’s', () => {
-    expect(printedJob().on.pull_request.types).toContain('labeled');
+const theAction = (): Node | undefined =>
+  printedJob().jobs.variance.steps.find((step) => String(step['uses']).startsWith('Variance-Authority/action@'));
+
+describe('the whole job accepts by the tick, a dispatch and a push', () => {
+  // A label is a second accept beside the tick, and one tied to no report: it
+  // accepts whatever head the pull request is at when somebody adds it.
+  it('starts on no label, and has no group but the job’s', () => {
+    expect(JSON.stringify(printedJob().on.pull_request ?? {})).not.toContain('labeled');
     expect(printedJob().concurrency).toBeUndefined();
   });
 
-  // The accept is the event, so a label's run is the only run that holds it.
-  // `single`, the default, cancels the waiting run for the next one, whatever
-  // `cancel-in-progress` says, and any label on the pull request is a next one.
-  it('lets every run wait, so no later event displaces the label’s', () => {
-    expect(printedJob().jobs.variance.concurrency).toMatchObject({ queue: 'max' });
+  it('accepts on a push, a dispatch with accept ticked, and the tick', () => {
+    expect(printedJob().on.workflow_dispatch).toMatchObject({ inputs: { accept: { type: 'boolean' } } });
+    expect(theAction()?.['with']).toMatchObject({
+      accept: "${{ github.event_name == 'push' || inputs.accept }}",
+      'tick-to-accept': 'true',
+    });
   });
 
-  // GitHub refuses `true` beside `queue: max`, and `true` would cancel a running accept.
-  it('cancels nothing that is running', () => {
-    expect(printedJob().jobs.variance.concurrency).not.toHaveProperty('cancel-in-progress');
+  // One ref's runs one at a time, so two never write the comment or the store
+  // at once. A push to a pull request leaves its running check reporting a head
+  // nobody will read, so that run is cancelled; a push to `main` records what
+  // `main` renders, so it runs to the end.
+  it('keys the group on the ref, and cancels only a pull request’s older run', () => {
+    expect(printedJob().jobs.variance.concurrency).toEqual({
+      group: 'variance-${{ github.ref }}',
+      'cancel-in-progress': "${{ github.event_name == 'pull_request' }}",
+    });
   });
 
-  // One pull request's runs one at a time, so two never write the comment or the store at once.
-  it('keys the group on the pull request', () => {
-    expect(printedJob().jobs.variance.concurrency?.['group']).toBe('variance-${{ github.ref }}');
-  });
-
-  // `queue: max` lets any run start after a newer one, and GitHub does not
-  // guarantee their order. So a run asks for its ref's head once it holds the
-  // group: a newer run that went first has moved it.
-  const stepsOfTheJob = (): { head: Node | undefined; action: Node | undefined; order: number[] } => {
+  it('wraps the action in no call to GitHub’s API', () => {
     const steps = printedJob().jobs.variance.steps;
-    const head = steps.findIndex((step) => step['id'] === 'head');
-    const action = steps.findIndex((step) => String(step['uses']).startsWith('Variance-Authority/action@'));
-    return { head: steps[head], action: steps[action], order: [head, action] };
-  };
 
-  it('asks for the head of whatever ref started the run, before the action', () => {
-    const { head, order } = stepsOfTheJob();
-
-    expect(order[0]).toBeGreaterThanOrEqual(0);
-    expect(order[0]).toBeLessThan(order[1]!);
-    expect(head).not.toHaveProperty('if');
-    expect(head?.['env']).toMatchObject({
-      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
-      PULL_REQUEST: '${{ github.event.pull_request.number }}',
-      THIS_HEAD: '${{ github.event.pull_request.head.sha || github.sha }}',
-    });
-    expect(head?.['run']).toContain('/pulls/$PULL_REQUEST');
-    expect(head?.['run']).toContain('/commits/heads/$GITHUB_REF_NAME');
-    expect(head?.['run']).toContain('"$THIS_HEAD"');
-  });
-
-  // An older push would save over a newer one, and an older comparison would
-  // replace the report of the head a reviewer is about to label.
-  it('stops a superseded run, except the label’s', () => {
-    expect(stepsOfTheJob().action).toMatchObject({
-      if: "steps.head.outputs.superseded != 'true' || github.event.label.name == 'variance: accept'",
-    });
-  });
-
-  // The accept is what the person meant, so it is kept. Its report is of a commit
-  // the pull request has left, so it leaves the head's comment alone.
-  it('keeps a superseded label’s accept and off the head’s comment', () => {
-    expect(stepsOfTheJob().action?.['with']).toMatchObject({
-      comment: "${{ steps.head.outputs.superseded != 'true' }}",
-    });
+    expect(steps.map((step) => step['id'])).not.toContain('head');
+    expect(steps.filter((step) => /\bgh\b/.test(String(step['run'] ?? '')))).toEqual([]);
+    expect(theAction()).not.toHaveProperty('if');
   });
 
   it('reports to a merge queue, which waits on a check nothing else would start', () => {
@@ -251,5 +224,48 @@ describe('the whole job keeps a person’s decision', () => {
   // comparing there goes red on every change a person accepted.
   it('answers the queue by skipping, which reports success', () => {
     expect(printedJob().jobs.variance.if).toBe("github.event_name != 'merge_group'");
+  });
+});
+
+// The action cannot hold or drop a scope: `permissions` is the workflow's. So
+// the split (#1180) is held where an adopter copies it from, every whole
+// workflow a page prints with the review action.
+describe('the review is posted by a job that runs nothing of the pull request', () => {
+  interface PrintedJob {
+    readonly needs?: string | readonly string[];
+    readonly permissions?: Node;
+    readonly steps?: readonly Node[];
+  }
+
+  const reviews = (step: Node): boolean => String(step['uses']).startsWith('Variance-Authority/action/review@');
+  const given = (step: Node): Node => (isNode(step['with']) ? step['with'] : {});
+  const testing = EXAMPLES.filter((fence) => fence.code.includes('Variance-Authority/action/review@'))
+    .map((fence) => ({ at: `${fence.file}:${fence.line}`, document: parse(fence.code) as { jobs?: Readonly<Record<string, PrintedJob>> } }))
+    .flatMap(({ at, document }) => {
+      const jobs = Object.entries(document.jobs ?? {});
+      return jobs
+        .filter(([, job]) => (job.steps ?? []).some((step) => reviews(step) && 'test' in given(step)))
+        .map(([name, job]) => ({ at, name, job, jobs }));
+    });
+
+  it('is printed whole on the action README and the page that walks through the setup', () => {
+    expect(testing.map((one) => one.at.split(':')[0])).toEqual(expect.arrayContaining(['.github/actions/variance/README.md', 'docs/review-coverage.md']));
+  });
+
+  it('gives the job that installs and runs the tests `contents: read` alone, and hands the review on', () => {
+    for (const { at, name, job } of testing) {
+      expect(job.permissions, `${at} ${name}`).toEqual({ contents: 'read' });
+      expect(job.steps!.filter(reviews).map((step) => given(step)['comment']), `${at} ${name}`).toEqual(['false']);
+    }
+  });
+
+  it('posts from one job that needs it, with write scopes and one step: the action with `from`', () => {
+    for (const { at, name, jobs } of testing) {
+      const posting = jobs.filter(([, job]) => [job.needs ?? []].flat().includes(name)).map(([, job]) => job);
+
+      expect(posting, `${at} ${name}`).toHaveLength(1);
+      expect(posting[0]!.steps, at).toEqual([{ uses: expect.stringMatching(/^Variance-Authority\/action\/review@/u), with: { from: 'variance-review' } }]);
+      expect(posting[0]!.permissions, at).toMatchObject({ 'pull-requests': 'write' });
+    }
   });
 });

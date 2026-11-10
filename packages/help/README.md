@@ -13,11 +13,13 @@ Install this if you maintain a repository and want a person or a
 coding agent to be able to ask what a name in it is, where it is declared, who
 imports it, and where the repository already writes it.
 
-Use `rg` when the answer is an arbitrary string in a file, and `git grep
-<tree>` when the answer is an arbitrary string in committed source. Use this
-package when the answer depends on parsed names or relations: which export
-matches a description, which exact signature it has, who imports it, or which
-names are used by the files reachable from one path. `search --from` and
+Use `rg` when the answer is text outside the source — a YAML, JSON, Markdown or
+shell file no parsed file imports — beside this package rather than after it,
+and `git grep <tree>` when the answer is an arbitrary string in committed
+source. Use this package when the answer depends on parsed names or relations: which
+export matches a description, which exact signature it has, who imports it,
+which names are used by the files reachable from one path, or which of those
+files hold a string. `search --from` and
 `search --to` remove names outside that import closure; they do not merely put
 nearby text first.
 
@@ -92,7 +94,7 @@ npx variance-authority-help search viewport --from packages/app/ --just-answer
 
 The verbs each take the same arguments as the tool of the same name below:
 `packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`,
-`intersection`, `orient`, `slowest-tests`, `journey-map`, `test-composition`, `stack`, `gaps`. An entrypoint is
+`intersection`, `orient`, `slowest-tests`, `journey-map`, `test-composition`, `containment`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -179,7 +181,7 @@ and the rows on a page are reordered by that label.
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Then the files whose import the source index resolved to no file and could take the name, since a use there is not listed: the first three, and how many more, whatever `limit` says. For a name no file here declares that a file imports from a package outside the workspace or a runtime module, each source and the `discover --imports <source>#<name>` question that lists those files. Twelve rows of each list, unless `limit` says more |
-| `search` / `docs_search` | a string, optionally a path to answer from | candidates, not every match: published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding any of its words by stem and the names only a looser reading finds |
+| `search` / `docs_search` | a string, optionally a path to answer from | candidates, not every match: published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding most of its words by stem, the rarer words counting for more, and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
@@ -187,6 +189,7 @@ and the rows on a page are reordered by that label.
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have run (`to`), a time the cases ran at least (`over`), and how many rows to list | the record it read, whose run, at which commit and how old; the cases closest to their limit, each as its run and its limit; then the test files and cases that run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have no duration or limit; with `over`, cases alone |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
+| `containment` / `docs_containment` | optionally the first day counted (`after`), two weeks ago when left out | from `git log` and the workspace list: the share of source-changing commits that touched one package, that edited a test in another package, among commits that did and did not edit their own tests, and that edited a test in a test-only tree, each as a count over its denominator, with what was left out counted by reason |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version, how many times the code imports it, and each agent skill it ships in `skills/<name>/SKILL.md`, with the file to read. [Use the packages your project already installed](https://variance-authority.dev/docs/tech-stack) |
 | `gaps` / `docs_gaps` | nothing | names other packages import that carry no documentation |
 
@@ -244,7 +247,7 @@ import-site count, so they are admitted by the declaring file instead.
 
 A path is a path, at three widths and no others — `src/a/File.ts` is that file,
 `src/a/*` is that folder's own files, `src/a/` is everything under it. A path
-that is not in the checkout is refused by name. You are never quietly answered
+that holds no source file is refused by name. You are never quietly answered
 about the whole repository under a heading you would read as *your area*. That
 vocabulary is one rule for every question here that takes a path, spelled out
 in full under [say where to
@@ -269,6 +272,8 @@ first, as a miss of the text you typed rather than of the code:
 ```
 No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `meesure`. The nearest follow.
 
+No recorded case was read: no run kept its cases there.
+
 1 more name matches loosely — your words apart, or within a character of the
 ones written. Nothing above was reordered by this.
 
@@ -282,6 +287,13 @@ a word that was written stays exactly as short as it was. It obeys `from` and
 `to` as they are: the looser reading runs over the files the area allows, so it
 can find a name you did not type and never a file you ruled out. A name its file
 declares and does not export is reached the same way, after every exported one.
+
+Search also reads the case names each suite's last run recorded, one row per case
+whose full name holds every word, as a word, the start of one or its stem, printed
+as `<name> [test] — <file>`. They are what ran, not what the source spells, so a
+title is found however it was registered. A case added since that run is missing
+and one removed since is still listed, until a run of that suite writes its
+record; a suite with no record is named under the answer, with the reason.
 
 Inside it the order is the order above — by the other packages that import the
 name by a published path, then within the page by the places and packages its
@@ -388,7 +400,7 @@ npx variance-authority-help .
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`,
-`docs_journey_map`, `docs_test_composition`, `docs_stack` and `docs_gaps`, and they answer in the same
+`docs_journey_map`, `docs_test_composition`, `docs_containment`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `docs_orient` with no files needs the code map `variance
 index` makes, so install the CLI beside this package: [connect your
 agent](https://variance-authority.dev/agents/workspace-api#connect-your-agent)
@@ -592,10 +604,16 @@ after the last as in the query. A function word such as `of`, or a word under th
 letters, holds its place and any word fills it; a possessive or punctuation holds
 none. So "installs the page's sink" matches `page sink`, "a page and its sink"
 does not, and "the text of the file" matches `text of a file`. A match is a
-fact about the text rather than an opinion about the query. When it matches nothing, the names holding any of
-the query's words, stemmed as installed packages are, in any order
+fact about the text rather than an opinion about the query. When it matches nothing, the names holding most of
+the query, stemmed as installed packages are, in any order
 across the name and its doc, follow under their own heading, each with the
-words it holds. A name its file declares and does not export is among them, and
+words it holds. Most is a weight: the words a row holds, each counted by how few
+names in the repository hold it, come to at least half of what the whole query
+comes to, and a word nothing holds counts for the most. So a row sharing one
+common word is left out, and a query of two words, one of which the repository
+never writes, is told as a none; two common words still outweigh a third word
+nothing holds, because a word's weight varies little across a large repository. A start point narrows the rows and not the weight: a
+row carrying the query everywhere carries it there. A name its file declares and does not export is among them, and
 so is a file, by its own name and the doc it opens with. They are ordered by
 the words each holds, each counted by how few of the names and files found
 hold it, three times over when the name holds it and twice when a doc of the
@@ -615,9 +633,8 @@ you meant, so `stopwords of a package` puts `describedNames`, whose doc says
 one name holding a rare word is shown however many holding a common one sort
 before it. A word only a signature holds reaches no name and shows no row on its
 own: it adds weight to a name the name or a doc reached. A type alias writes no
-signature, since what follows its `=` is its body. A name weighed through a row holding fewer than half the words,
-which the loose reading reaches by every word, is told there instead, so on three words or
-more, names holding one common word never sort it out of sight.
+signature, since what follows its `=` is its body. A name holding less than most of the query,
+which the loose reading reaches by every word, is told there instead.
 The words every package says about itself — `package`, `module`, `use`,
 `tool`, `get` and the like — are stopwords for an installed package and words
 for your own code, which is named in them.

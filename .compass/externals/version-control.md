@@ -27,7 +27,7 @@ run over an unobserved surface.
 ## How you talk to it
 
 Read-only plumbing: `git ls-tree`, `git ls-files`, `git status --porcelain`,
-`git hash-object`, and a three-dot diff against a merge base. Nothing in the
+`git hash-object`, `git log`, and a three-dot diff against a merge base. Nothing in the
 system commits, and nothing in it rewrites history.
 
 ## Their chart

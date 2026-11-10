@@ -18,9 +18,10 @@
  * added to one list and not the other is offered a flag it will ignore.
  */
 
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
+import { join, resolve } from 'node:path';
+import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import type { Detach } from './index-follow-ups.js';
 import { writePieces } from '../json-pieces.js';
@@ -205,10 +206,12 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }] = await Promise.all([
+      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }, { uncoveredVerdict }, { lostVerdict }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
         import('./review-text.js'),
+        import('./review-scope.js'),
+        import('./review-coverage.js'),
       ]);
       if (parsed.fromRun !== undefined) {
         const kept = await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root });
@@ -227,7 +230,13 @@ export async function answerConfigless(
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
       await writePieces(reviewPieces(answer, parsed.format), streams);
-      return EXIT_CLEAN;
+      // After every output: the check goes red with the review already written.
+      const verdicts = [
+        ...(parsed.failOnUncovered === true ? [uncoveredVerdict(answer)] : []),
+        ...(parsed.failOnLost === true ? [lostVerdict(answer.coverage ?? [], (file) => existsSync(resolve(parsed.root, file)))] : []),
+      ];
+      for (const line of verdicts.flatMap(({ said }) => said)) streams.err(`${line}\n`);
+      return verdicts.some(({ failed }) => failed) ? EXIT_REVIEW : EXIT_CLEAN;
     }
 
     // `covering`'s reason, for one case instead of one line: a run writes the
@@ -276,7 +285,8 @@ export async function answerConfigless(
     // the runner prints next. `0` either way. An empty skip list is the answer
     // "run everything", which is a correct answer and not a failure.
     case 'select': {
-      const { selectOutput } = await import('./select-command.js');
+      const [{ selectOutput }, { parseAtDistance }] = await Promise.all([import('./select-command.js'), import('./select-leg.js')]);
+      const atDistance = parseAtDistance(parsed.atDistance);
       const said = await selectOutput({
         cwd: process.cwd(),
         format: parsed.format,
@@ -285,7 +295,7 @@ export async function answerConfigless(
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
-        ...(parsed.atDistance === undefined ? {} : { atDistance: parsed.atDistance }),
+        ...(atDistance === undefined ? {} : { atDistance }),
       });
       streams.err(said.err);
       streams.out(said.out);
@@ -295,9 +305,10 @@ export async function answerConfigless(
     // `select`'s reason: asked by a CI job planning the shards a seam's runner
     // splits by, in a repository that may configure this tool for nothing else.
     case 'shards': {
-      const { shardsOutput } = await import('./shards-command.js');
-      const { command: _shards, ...asked } = parsed;
-      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked }));
+      const [{ shardsOutput }, { parseAtDistance }] = await Promise.all([import('./shards-command.js'), import('./select-leg.js')]);
+      const { command: _shards, atDistance: hops, ...asked } = parsed;
+      const atDistance = parseAtDistance(hops);
+      streams.out(await shardsOutput({ cwd: process.cwd(), ...asked, ...(atDistance === undefined ? {} : { atDistance }) }));
       return EXIT_CLEAN;
     }
 

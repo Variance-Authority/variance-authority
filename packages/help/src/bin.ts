@@ -7,6 +7,7 @@ import { caughtUp, foundNothingAnswer, outlived, refusalFooter, snapshotLine } f
 import { readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
+import { containment, containmentOf, formatContainment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted } from './tools.js';
 import { search, searchQuestionOf } from './tools/search.js';
@@ -80,7 +81,7 @@ const USAGE = [
   '',
   '  --root  The workspace to read. Default: the working directory.',
   '  --just-answer  Use the last published generation without inspecting the checkout.',
-  '  --format json  Answer `search` as data rather than text.',
+  '  --format json  Answer `search` or `containment` as data rather than text.',
   '',
   'Or:',
   '  serve  Answer every question above over MCP on stdio. The default with no verb.',
@@ -150,7 +151,7 @@ if (asking(verb) && verb !== undefined) {
     const tool = toolNamed(verb);
     const format = flag(args, 'format') ?? 'text';
     if (format !== 'text' && format !== 'json') throw new Error(`--format must be text or json, not \`${format}\``);
-    if (format === 'json' && tool !== search) throw new Error(`\`${verb}\` answers in text only; \`--format json\` is taken by \`search\``);
+    if (format === 'json' && tool !== search && tool !== containment) throw new Error(`\`${verb}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
     const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
     const justAnswer = args.includes('--just-answer');
     // `search` opens the file published for it rather than the whole value, at
@@ -173,6 +174,11 @@ if (asking(verb) && verb !== undefined) {
       if (tool === discover) {
         const named = await readNamedTree(root, inputFrom(tool, ownArgs));
         return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at: undefined };
+      }
+      // The log and the workspace list answer it, so no workspace value is read.
+      if (tool === containment) {
+        const figures = containmentOf(root, inputFrom(tool, ownArgs));
+        return { answer: () => (format === 'json' ? JSON.stringify(figures, undefined, 2) : formatContainment(figures)), at: undefined };
       }
       if (tool === intersection && namesWanted(inputFrom(tool, ownArgs))) return crossNamed(root, reading, ownArgs);
       const help = await readWorkspaceForAnswer(root, reading);

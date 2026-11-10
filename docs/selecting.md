@@ -186,10 +186,21 @@ finish green: a failed one, and one the run never reached.
 
 `variance carry keep` copies the record a push wrote into a directory that
 `carry save` names, and the host cache saves it under a key only that pull
-request restores, red or green. On the next push `variance carry take` lays
-it over the mainline's record.
+request restores, red or green, with the commits it names that no remote
+holds. On the next push `variance carry take` reads those commits and lays the
+record over the mainline's; a suite whose commits cannot be had reads the
+mainline's record instead, as a first push does. Each other job of the run
+takes the directory the first one handed on, and stops when it cannot take
+what that one took:
+
+```bash
+npx variance carry keep                     # after the tests, red or green
+npx variance carry take                     # next push, before the tests
+npx variance carry take "$RUNNER_TEMP/carried"   # another job, over the handed-on directory
+```
+
 [What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
-has the steps, and how the jobs of one run stand on one record.
+has the cache and artifact steps around them.
 
 The carried record decides what runs, never what your change is compared
 with. `take` prints the path of the mainline's cases: the record it set aside,
@@ -307,8 +318,8 @@ that suite's run, and the run names it declined. A suite can also list globs
 under
 [`ignore`](changes-before-and-beyond.md#what-a-suite-ignores),
 such as a unit suite's stylesheets and images. A changed file that matches
-selects only the tests that declared it, by a precondition or a
-`/// <depends>`, and the run lists it as ignored. Two refusals stand over the
+selects only the tests behind a `/// <depends>` on it, or every test recorded
+when it is a precondition, and the run lists it as ignored. Two refusals stand over the
 record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
@@ -669,7 +680,11 @@ reads it:
 The line can sit anywhere in the file, and the path is relative to the file.
 TypeScript and your runtime read it as a comment. The scan reads it as a
 `depends` edge, so a change to `schema.graphql` reaches every test that loads
-the module. A directive with no `path` is reported as a gap in that file.
+the module. A directive with no `path` is reported as a gap in that file. A suite
+with `"relations": false` declines the graph, this edge with it, so a file its
+tests read goes in its `before`, or in `preconditions` when every test of the run
+rests on it. A file the suite's `ignore` matches keeps the edge, and `before` does
+not move it.
 
 ## A change nothing has been seen rendering
 

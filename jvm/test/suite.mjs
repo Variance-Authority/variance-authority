@@ -5,15 +5,10 @@
 // instead of a `va.out`. The containers mount the work directory at its own
 // path, because the layer is keyed by the checkout's absolute path.
 //
-// Asserts that:
-//   - the agent's layer path is sense's, in the primary checkout, in a worktree
-//     of it, and in a repository that declares no suites;
-//   - a suite the configuration does not declare, no suite once suites are
-//     declared, a suite named while none are, and `va.out` with `va.suite`, each
-//     fail the JVM before a test runs;
-//   - both modules' JVMs write one record, and an edit in either module selects
-//     from it;
-//   - a worktree's first run keeps the base's rows for the classes it did not run.
+// Asserts that the agent's layer path is sense's wherever a record can land;
+// that each misnaming of a suite fails the JVM before a test runs; that both
+// modules' JVMs write one record an edit in either selects from; and that a
+// worktree's first run keeps the base's rows for the classes it did not run.
 //
 // Usage: node suite.mjs <work dir> <agent bin dir>
 // Maven's repository is <agent bin dir>/../m2, where jvm/build.sh leaves it.
@@ -34,6 +29,7 @@ const image = 'maven:3.9-eclipse-temurin-21';
 const primary = join(work, 'modules');
 const worktree = join(work, 'worktree');
 const bare = join(work, 'bare');
+const sole = join(work, 'sole');
 const xdg = join(work, 'xdg');
 // The layer lives under the work directory on both sides of the comparison.
 process.env['VARIANCE_AUTHORITY_CACHE'] = xdg;
@@ -91,6 +87,9 @@ git(primary, '-c', 'user.name=va', '-c', 'user.email=va@example.org', 'commit', 
 git(primary, 'worktree', 'add', '-q', worktree);
 mkdirSync(bare);
 git(bare, 'init', '-q');
+mkdirSync(sole);
+git(sole, 'init', '-q');
+writeFileSync(join(sole, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
 
 // The same derivation on both sides.
 const record = testCoverageFile(primary, { suite: 'unit' });
@@ -100,7 +99,8 @@ const worktreeRecord = testCoverageFile(worktree, { suite: 'unit' });
 assert.match(worktreeRecord, /\/\.work\/[0-9a-f]{32}\/suites\/unit\/coverage\.bin$/);
 assert.equal(agentRecord(worktree, '-Dva.suite=unit'), worktreeRecord);
 assert.equal(agentRecord(bare), testCoverageFile(bare));
-console.log('ok   the agent\'s layer path is sense\'s: primary, module, worktree, no suites');
+assert.equal(agentRecord(sole), testCoverageFile(sole));
+console.log('ok   the agent\'s layer path is sense\'s: primary, module, worktree, no suites, the only suite unnamed');
 
 assert.match(agentRecord(primary, '-Dva.suite=pictures').refused, /the suite "pictures" is not declared in .*"journeys", "unit"/);
 assert.match(agentRecord(primary).refused, /declares the suites "journeys", "unit", and none is named/);

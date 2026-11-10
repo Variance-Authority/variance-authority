@@ -117,5 +117,5 @@ describe('which of the two complete writers this checkout drives', () => {
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.tests.map((test) => [test.file, test.complete]))
       .toEqual([[at('test/hook.throws.ts'), false]]);
-  }, 20_000);
+  });
 });

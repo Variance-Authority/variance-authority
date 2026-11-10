@@ -196,8 +196,7 @@ describe('a line that gave no record a moment ago', () => {
   });
 });
 
-// Each mainline publish here also keeps its record at its commit: a push and a listing more apiece.
-describe('a record fetched earlier, against this checkout\'s merge base with the mainline', { timeout: 15_000 }, () => {
+describe('a record fetched earlier, against this checkout\'s merge base with the mainline', () => {
   it('stands at the merge base a day later, with the line not asked', async () => {
     const { origin, first } = await gitPublished(home);
     const { base, reach, nowhere } = await laptop(origin);
@@ -355,7 +354,7 @@ describe('a record fetched earlier, against this checkout\'s merge base with the
   });
 });
 
-describe('a record fetched earlier from a share that keeps the latest only', { timeout: 15_000 }, () => {
+describe('a record fetched earlier from a share that keeps the latest only', () => {
   it('stands past the merge base, because the line holds nothing nearer it', async () => {
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
     const { dir: ci, origin } = await published(home);

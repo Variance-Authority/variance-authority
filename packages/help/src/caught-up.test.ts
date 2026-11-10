@@ -1,7 +1,8 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { Help } from '@variance-authority/package/help';
+import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
 import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, refusalFooter, snapshotLine } from './caught-up.js';
@@ -9,6 +10,7 @@ import { readWorkspace, readWorkspaceForAnswer, workspaceGeneration } from './re
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
 import { workspaceReadStarted } from './snapshot.js';
 import { FoundNothing } from './tools/find.js';
+import { search } from './tools/search.js';
 import { uses } from './tools/uses.js';
 
 /**
@@ -118,6 +120,18 @@ describe('outlived', () => {
     const root = await fixture.published({ ...BARRELS, 'packages/kit/src/aside.ts': "export { taxOf } from './tax.js';\n" });
     const help = await readWorkspace(root);
     appendFileSync(join(root, 'packages/kit/src/aside.ts'), '// moved\n');
+    expect(await outlived('docs_search', help, { query: 'deepOf' }, { root }, after(help))).toBe(false);
+  });
+
+  it('leaves a `docs_search` answer as it is when a recorded case names a test file gone since the run', async () => {
+    const root = await fixture.published(BARRELS);
+    const at = testCoverageFile(root);
+    mkdirSync(dirname(at), { recursive: true });
+    const [file, name] = ['packages/kit/src/gone.test.ts', 'deepOf reads'];
+    await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, { index: encodeExecutionIndex({ tests: [{ id: `${file} > ${name}`, file, name }], modules: [] }) });
+    const help = await readWorkspace(root);
+
+    expect(search.run(help, { query: 'deepOf' }, { root })).toContain(`deepOf reads [test] — ${file}`);
     expect(await outlived('docs_search', help, { query: 'deepOf' }, { root }, after(help))).toBe(false);
   });
 

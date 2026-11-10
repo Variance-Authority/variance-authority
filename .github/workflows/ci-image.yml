@@ -1,0 +1,71 @@
+name: ci-image
+
+# Publishes `docker/ci.Dockerfile` as the image every containerized job names,
+# tagged with the file's git blob id. `docker/ci.Dockerfile` says why the image
+# exists and what it carries.
+#
+# On a push to any branch that changes the file, not only `main`: a pull request
+# that changes it runs its checks on the image it builds, so the image has to
+# exist before the pull request does. Push the branch, let this finish, then
+# open the pull request. A fork cannot publish, so a fork's change to the file
+# needs a maintainer to push it as a branch here.
+#
+# A tag that already exists is never built again. A rebuild of the same file
+# would install whatever the mirror holds that day, so one tag would name two
+# images, and a check that passed on the first would be judged by the second.
+
+on:
+  push:
+    paths:
+      - docker/ci.Dockerfile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# One publish at a time, so two branches carrying the same file cannot both
+# find the tag absent and both push it. GitHub keeps one waiting run per group:
+# a third push while one waits replaces it, and the replaced branch's image is
+# published by running this workflow on that branch from the Actions tab.
+concurrency:
+  group: ci-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: sign in to the registry
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+
+      # No build context: the file copies nothing from the checkout.
+      - name: build and push, unless the tag is published
+        shell: bash
+        env:
+          REPOSITORY: ghcr.io/variance-authority/ci
+        run: |
+          set -euo pipefail
+          image="$REPOSITORY:$(git hash-object docker/ci.Dockerfile)"
+          # Only an unknown manifest means the tag is free. A rate limit or a
+          # registry error is not an answer, and a build over it could replace
+          # the published image.
+          if answer=$(docker manifest inspect "$image" 2>&1); then
+            echo "$image is published already"
+            exit 0
+          fi
+          case "$answer" in
+            *"manifest unknown"* | *"name unknown"* | *"no such manifest"*) ;;
+            *) echo "$answer" >&2; exit 1 ;;
+          esac
+          docker build --tag "$image" - < docker/ci.Dockerfile
+          docker push "$image"
+          echo "### Published \`$image\`" >> "$GITHUB_STEP_SUMMARY"

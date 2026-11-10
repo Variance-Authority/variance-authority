@@ -2,18 +2,16 @@ import { readFile } from 'node:fs/promises';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import type { FilePhases } from './reported-time.js';
-import { deviationFromView } from './deviation.js';
 import { journeyDivergences, type JourneyDivergence, type JourneyDivergenceOptions, type JourneyRegion } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
 import { withCaseSections, type CaseSections } from './case-record.js';
-import { askCoverageFile } from './coverage-file.js';
 import { NO_BASE } from './record-base.js';
 import type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion } from './at-source.js';
-import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
-import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
 import type { ImporterReason } from './importers.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions, SelectionCause, SelectionReason } from './narrowing.js';
+
+export { deviationOfTests, distanceByExecution, narrowByExecution, selectTestFiles } from './file-readers.js';
 
 export {
   coveringChange,
@@ -121,6 +119,7 @@ export { readOwnLayer, type OwnLayer, type OwnState } from './own-layer.js';
 export { prepareRecord } from './replaced-record.js';
 export {
   cachedRecord, cachedSuite,
+  nearestRecord,
   type PassedOver,
   readableTestCoverage,
   recordFileFor,
@@ -129,6 +128,7 @@ export {
   testCoverageFile,
   writeCoverageBytes,
   type RecordLocationOptions,
+  type RecordOrigin,
 } from './record-location.js';
 export {
   CARRIERS,
@@ -137,6 +137,7 @@ export {
   beforeIn,
   beforeOf,
   declaredSuites,
+  onlySuite,
   parseBefore,
   parseSuites,
   type Carrier,
@@ -195,6 +196,8 @@ export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-r
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { commitRunsIn } from './commit-runs-text.js';
+export { readJobWrites, type JobWrites } from './job-record.js';
+export { recordJob, type JobRun } from './job-recording.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { ago, whatLanded, type WhatLanded } from './landings.js';
@@ -221,7 +224,7 @@ export {
 export { coverageAtDistance, testHops, type CoverageAtDistance, type TestHops } from './coverage-distance.js';
 export { earnedCoverage, type EarnedCount, type EarnedCoverage } from './coverage-earned.js';
 export { coverageFanIn, type FanIn, type FanInFile, type FanInKind } from './coverage-fan-in.js';
-export { coverageByOwner, type OwnedFile } from './coverage-owner.js';
+export { coverageByOwner, NEAR_HOPS, withoutTests, type OwnedFile } from './coverage-owner.js';
 
 /**
  * The lines of the source a region was written on, inclusive — or neither.
@@ -427,57 +430,6 @@ export async function writeTestCoverage(file: string, coverage: TestCoverage, ca
 }
 
 /**
- * Query one persisted coverage snapshot and return whole test-file paths.
- * Only the section index and strings present in the result are decoded.
- *
- * Hand the file graph in through `options.relations` and a changed file no
- * probe can sit in — a stylesheet, an image — is answered by the module that
- * imports it; without it, such a file selects nothing, and only
- * `narrowByExecution` says so.
- */
-export async function selectTestFiles(
-  file: string,
-  diff: string,
-  options: ExecutionNarrowingOptions = {},
-): Promise<readonly string[]> {
-  return askCoverageFile(file, (coverage) => selectTestFilesFromView(coverage, diff, options));
-}
-
-/**
- * The same query, plus the tests the snapshot is entitled to speak for, what it
- * could not answer, and why each selected test is there.
- *
- * Read this rather than `selectTestFiles` whenever the answer will *exclude*
- * something. See `ExecutionNarrowing`.
- */
-export async function narrowByExecution(
-  file: string,
-  diff: string,
-  options: ExecutionNarrowingOptions = {},
-): Promise<ExecutionNarrowing> {
-  return askCoverageFile(file, (coverage) => narrowByExecutionFromView(coverage, diff, options));
-}
-
-/**
- * The same query, and how far the change had to travel to reach each test it
- * selected.
- *
- * One read, because the two answers come off the same columns and a caller that
- * asked twice would decode the snapshot twice to join a reading to the narrowing
- * it was derived from.
- */
-export async function distanceByExecution(
-  file: string,
-  diff: string,
-  options: ExecutionNarrowingOptions & DistanceOptions = {},
-): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly TestDistance[] }> {
-  return askCoverageFile(file, (coverage) => {
-    const narrowing = narrowByExecutionFromView(coverage, diff, options);
-    return { narrowing, distances: distanceFromView(coverage, narrowing, options) };
-  });
-}
-
-/**
  * Read the snapshot and answer which modules its observers crossed differently.
  *
  * The file reader beside {@link journeyDivergences}, which takes the decoded
@@ -489,12 +441,4 @@ export async function journeysApart(
   options: JourneyDivergenceOptions = {},
 ): Promise<readonly JourneyDivergence[]> {
   return journeyDivergences(await readTestCoverage(file), options);
-}
-
-/** Compare per-test execution slices with the static code each test can reach. */
-export async function deviationOfTests(
-  file: string,
-  options: DeviationOptions,
-): Promise<VariationDeviation> {
-  return askCoverageFile(file, (coverage) => deviationFromView(coverage, options));
 }

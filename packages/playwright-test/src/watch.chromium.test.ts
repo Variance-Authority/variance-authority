@@ -122,7 +122,7 @@ chromium_('the in-place watch', () => {
       await text.evaluate((element, back) => (element.textContent = back), was);
       await session.close();
     }
-  }, 60_000);
+  });
 
   it('reads a subject that writes the values it already holds as still', async () => {
     // A timer that sets the same attribute and the same text on every tick
@@ -148,7 +148,7 @@ chromium_('the in-place watch', () => {
     } finally {
       await session.close();
     }
-  }, 60_000);
+  });
 
   it('retries an attempt whose watch could not reach the subject', async () => {
     // Between the read before it and the watch, a subject that is re-rendered
@@ -181,7 +181,7 @@ chromium_('the in-place watch', () => {
     } finally {
       await session.close();
     }
-  }, 60_000);
+  });
 
   it('refuses an attribute set to another value and back between the reads', async () => {
     // The same flicker as the text one, through `characterData`'s sibling: two
@@ -212,5 +212,5 @@ chromium_('the in-place watch', () => {
     } finally {
       await session.close();
     }
-  }, 60_000);
+  });
 });

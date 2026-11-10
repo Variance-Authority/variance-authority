@@ -330,10 +330,10 @@ edit to a test file. It checks that:
 declares its suites, and in a worktree of it. It checks that:
 
 - The agent puts the record where sense's `testCoverageFile` does, in the
-  checkout, in a module of it, in the worktree, and in a repository with no
-  suites.
-- An undeclared suite, no suite, a suite in a repository that declares none,
-  and `va.out` with `va.suite` each fail the JVM.
+  checkout, in a module of it, in the worktree, in a repository with no suites,
+  and in one that declares a single suite and names none.
+- An undeclared suite, no suite among several, a suite in a repository that
+  declares none, and `va.out` with `va.suite` each fail the JVM.
 - Both modules' JVMs write one record, and an edit in either module selects
   from it.
 - The worktree's first run, with `-Dtest=AddTest`, keeps the base's rows for the

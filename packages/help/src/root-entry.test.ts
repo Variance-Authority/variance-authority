@@ -39,6 +39,7 @@ describe('the root entry', () => {
     expect(typeof root.readWorkspace).toBe('function');
     expect(typeof root.serveWorkspace).toBe('function');
     expect(evaluated).toEqual([]);
+    // The import is the entry's whole graph, transformed cold when this file draws first place.
   });
 
   it('evaluates the report server’s served sets once they are asked for', async () => {

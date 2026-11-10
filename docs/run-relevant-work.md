@@ -137,8 +137,8 @@ with no whole observation stays in the run, and so does every test that ran a
 changed region or declared a changed file as a precondition. A changed file
 with no row in the record is answered by the nearest measured files that import
 it. One the file graph does not list either keeps no test in the run and is
-named in the answer: what a suite rests on without importing it is declared on
-the runner integration, not guessed from the diff.
+named in the answer: a file a test reads without importing it is declared by a
+`/// <depends>` in the module that reads it, not guessed from the diff.
 
 ## Running fewer is not owning fewer
 

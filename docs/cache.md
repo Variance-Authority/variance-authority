@@ -134,6 +134,9 @@ directory.
 
 ## In CI
 
+To comment coverage on each pull request as well, the review action carries its
+own record: [review coverage on every pull request](review-coverage.md).
+
 This workflow runs your whole suite on each push to your main branch and saves
 what it recorded. On a pull request it restores that recording and runs only the
 test files the change needs. [Wrap your runner configuration](test-an-edit.md#wrap-once-then-set-one-variable)
@@ -210,16 +213,12 @@ With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
 
-Three things in your repository change what you write:
+Two things in your repository change what you write:
 
-- **A Jest preset.** The wrap gives a configuration with no `transform` of its
-  own Jest's default, so `ts-jest` and any other preset's transformer never runs.
-  Copy the preset's `transform` into the object you wrap, as
-  [the Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) shows.
 - **Declared suites.** Once `variance.config.json` declares
   [`suites`](../packages/sense/README.md#where-the-snapshot-lives-and-when-it-is-rebuilt), a wrap that names none
-  stops before the run starts, so name one:
-  `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
+  records into the only one, and among several stops before the run starts, so
+  name one: `withTestSelection(config, { suite: 'unit' })`. Each suite records on its own
   inside this directory, and the workflow does not change. For a suite that
   declares `"carry": "actions-cache"`,
   [`variance carry`](../packages/cli/README.md#what-the-next-job-reads) can name

@@ -290,14 +290,16 @@ function functionLines(module: ExecutionModule, named: string, placement: Placem
   });
 }
 
-/** A name no recorded function has, and no recorded function is under. */
-function noFunction(file: string, named: string, module: ExecutionModule): OperatorError {
+/** A name no recorded function has, and no recorded function is under. The ones it ends are first: a method asked for by its bare name. */
+export function noFunction(file: string, named: string, module: ExecutionModule): OperatorError {
   const functions = module.blocks
     .filter((block) => block.source && block.kind === 'function')
     .map((block) => block.name);
+  const ends = (name: string) => name.endsWith(`/${named}`);
+  const listed = [...functions.filter(ends), ...functions.filter((name) => !ends(name))];
   return new OperatorError(
     `\`${named}\` is not a recorded function or scope of \`${file}\`. ` +
-      (functions.length === 0 ? 'That file has no recorded functions at all.' : `It has ${functions.join(', ')}.`) +
+      (functions.length === 0 ? 'That file has no recorded functions at all.' : `It has ${listed.join(', ')}.`) +
       ' A declaration that is no function, as a constant or a type, holds no region of its own; ask about its ' +
       'lines with `--line <a>-<b>`.',
   );

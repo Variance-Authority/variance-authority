@@ -15,7 +15,9 @@ interface Resolved {
 }
 
 interface Seam {
-  readonly plugin: { configResolved(config: Resolved): void; transform?: unknown };
+  readonly plugin: { configResolved(config: Resolved): void; configureVitest?(context: object): void; transform?: unknown };
+  /** Vite resolves the configuration, Vitest takes the project into the run, and the run starts with a file of it. */
+  readonly resolved: (config: Resolved) => void;
   readonly finish: () => Promise<readonly string[]>;
 }
 
@@ -50,8 +52,16 @@ function seam(config: UserConfig): Seam {
   const reporter = (configured.test!.reporters as unknown as Array<{
     onFinished(files: readonly unknown[]): Promise<void>;
   }>).at(-1)!;
+  const plugin = (configured.plugins as unknown as Array<Seam['plugin'] & { name: string }>).find(({ name }) => name === 'variance-authority:test-selection' || name === 'variance-authority:test-selection-config')!;
   return {
-    plugin: (configured.plugins as unknown as Array<Seam['plugin'] & { name: string }>).find(({ name }) => name === 'variance-authority:test-selection' || name === 'variance-authority:test-selection-config')!,
+    plugin,
+    resolved: (config) => {
+      plugin.configResolved(config);
+      const project = {};
+      const reporters: Array<{ onTestRunStart(specifications: readonly object[]): void }> = [];
+      plugin.configureVitest?.({ vitest: { config: { reporters } }, project });
+      for (const pushed of reporters) pushed.onTestRunStart([{ project }]);
+    },
     finish: async () => {
       await reporter.onFinished([{ filepath: resolve(root, 'case.test.ts'), tasks: [] }]);
       const [test] = decodeTestCoverage(await readFile(coverageFile)).tests;
@@ -62,11 +72,11 @@ function seam(config: UserConfig): Seam {
 
 describe('the configuration a Vitest run rests on', () => {
   it('is the config file Vite loaded and the local modules it bundled, beside the setup files', async () => {
-    const { plugin, finish } = seam({ test: { setupFiles: ['./setup.ts'] } });
+    const { resolved, finish } = seam({ test: { setupFiles: ['./setup.ts'] } });
 
     // Read from the resolved config, where the seam's own shim sits first and
     // is no precondition of anybody's, and a package is no file of the project's.
-    plugin.configResolved({
+    resolved({
       configFile: resolve(root, 'vitest.config.ts'),
       configFileDependencies: [resolve(root, 'vitest.config.ts'), resolve(root, 'shared.ts')],
       root,
@@ -77,18 +87,18 @@ describe('the configuration a Vitest run rests on', () => {
   });
 
   it('is the file that lists the projects, declared by a plugin that transforms nothing', async () => {
-    const { plugin, finish } = seam({ test: { projects: ['packages/*'] } } as unknown as UserConfig);
+    const { plugin, resolved, finish } = seam({ test: { projects: ['packages/*'] } } as unknown as UserConfig);
 
-    plugin.configResolved({ configFile: resolve(root, 'vitest.config.ts'), configFileDependencies: [] });
+    resolved({ configFile: resolve(root, 'vitest.config.ts'), configFileDependencies: [] });
 
     expect(plugin.transform).toBeUndefined();
     expect(await finish()).toEqual(['case.test.ts', 'vitest.config.ts']);
   });
 
   it('names no file when the configuration was handed over inline', async () => {
-    const { plugin, finish } = seam({});
+    const { resolved, finish } = seam({});
 
-    plugin.configResolved({ configFile: undefined, configFileDependencies: [] });
+    resolved({ configFile: undefined, configFileDependencies: [] });
 
     expect(await finish()).toEqual(['case.test.ts']);
   });

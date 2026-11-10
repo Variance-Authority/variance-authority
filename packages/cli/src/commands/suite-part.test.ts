@@ -9,17 +9,18 @@ import { readSuiteIndex } from '@variance-authority/report/file';
 import { decodeSuiteIndex, encodeSuiteIndex } from '@variance-authority/report/suite-index';
 import { main } from '../bin.fixture.js';
 import type { Config } from '../config.js';
-import { EXIT_OPERATOR } from '../exit.js';
+import { EXIT_OPERATOR, OperatorError } from '../exit.js';
+import { commentMarker } from './comment-marker.js';
 import { composeReports } from './compose.js';
-import { SOURCE, SUITE, instance } from './compose-fixture.js';
+import { SOURCE, SUITE, causedByButton, instance, observation } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
 import { suitePartPath, writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishedLine, suiteIndexPath } from './share.js';
+import { shareOutput } from './share-output.js';
 import {
   composeSuiteIndex,
   encodeSuitePart,
   openSuitePart,
-  shareOutput,
   suitePartOf,
   writeSuitePart,
   type SuitePart,
@@ -194,8 +195,8 @@ describe('share --publish over every shard', () => {
     const reports = await writeShards(true);
 
     expect((await openSuitePart(suitePartPath(reports[0]!)))?.shard).toEqual({ index: 1, total: 2 });
-    expect(await shareOutput(configOf(root), { publish: true, reports: [reports[0]!] })).toContainEqual(
-      expect.stringMatching(/is one shard of a build/),
+    await expect(shareOutput(configOf(root), { publish: true, reports: [reports[0]!] })).rejects.toThrow(
+      new OperatorError('these reports are not one build: shard 2/2 is missing.'),
     );
     expect(await publishedLine(configOf(root), shardReport(1), reports[0])).toMatch(
       /not kept from one shard; its part is .*run\.suite-part\.json, for the merge/,
@@ -246,7 +247,7 @@ describe('share --publish over every shard', () => {
     expect({ code, out, err: err.split('\n')[0] }).toEqual({
       code: EXIT_OPERATOR,
       out: '',
-      err: `nothing published: ${torn} is not a suite part this version reads.`,
+      err: `these reports are not one build: ${torn} is not a suite part this version reads.`,
     });
     expect(await readdir(home)).not.toContain('share');
   });
@@ -278,5 +279,131 @@ describe('a part on disk', () => {
 
     await writeFile(suitePartPath(report), '{"version":');
     expect(await openSuitePart(suitePartPath(report))).toBe(`${suitePartPath(report)} is not JSON`);
+  });
+});
+
+describe('report over the shards it is given', () => {
+  let home: string;
+
+  beforeEach(async () => {
+    home = await mkdtemp(join(tmpdir(), 'variance-suite-part-report-'));
+  });
+
+  afterEach(async () => {
+    await rm(home, { recursive: true, force: true });
+  });
+
+  const IDS = ['story:ds-button--danger', 'story:page--default', 'story:card--default'];
+
+  /** Shard `k` of `n`, beside its part: it observed the subjects it owns and left the rest to theirs. */
+  async function shard(k: number, n: number, changed?: string): Promise<string> {
+    const path = join(home, `shard-${String(k)}-of-${String(n)}`, 'run.json');
+    const owner = (i: number) => (i % n) + 1;
+    const observed = (subject: string) =>
+      subject === changed
+        ? observation({ subject, regions: [causedByButton] })
+        : { subject, verdict: 'unchanged', because: 'nothing moved', regions: [] };
+    await writeCliRunReport(path, {
+      runVersion: 1,
+      at: '2026-09-27T10:00:00.000Z',
+      identity: IDENTITY,
+      retention: 'durable',
+      run: { id: 'build-1', commit: COMMIT },
+      observations: IDS.filter((_, i) => owner(i) === k).map(observed),
+      notObserved: IDS.flatMap((subject, i) =>
+        owner(i) === k ? [] : [{ subject, kind: 'excluded', because: shardOwnedBecause(owner(i), n, 'count') }],
+      ),
+    } as CliRunReport);
+    await writeSuitePart(path, parts(SUITE.slice(0, 3), n, owner)[k - 1]!);
+    return path;
+  }
+
+  async function report(paths: readonly string[], command = 'report', ...flags: string[]): Promise<{ code: number; err: string }> {
+    const config = join(home, 'variance.config.json');
+    await writeFile(
+      config,
+      JSON.stringify({
+        project: 'web',
+        profile: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        retention: 'ephemeral',
+        subjects: { kind: 'list', ids: IDS, collector: './collector.mjs' },
+        fonts: [],
+        report: 'run.json',
+      }),
+    );
+    let err = '';
+    const code = await main([command, ...paths, '--config', config, ...flags], { out: () => {}, err: (text) => (err += text) });
+    return { code, err: err.split('\n')[0]! };
+  }
+
+  it('is the suite when every shard of one count is there', async () => {
+    expect(await report([await shard(1, 3), await shard(2, 3), await shard(3, 3)])).toEqual({ code: 0, err: '' });
+  });
+
+  it("judges a change one shard saw as the suite's, 1, and 0 under --exit-zero-on-changes, as a run does", async () => {
+    const shards = [await shard(1, 3), await shard(2, 3, IDS[1]), await shard(3, 3)];
+    expect(await report(shards)).toEqual({ code: 1, err: '' });
+    expect(await report(shards, 'report', '--exit-zero-on-changes')).toEqual({
+      code: 0,
+      err: 'changes need review; --exit-zero-on-changes exits 0, not 1.',
+    });
+  });
+
+  it("renders one docket for every shard, under the project's marker once, naming the change a shard saw", async () => {
+    const body = join(home, 'docket.md');
+    const shards = [await shard(1, 3), await shard(2, 3, IDS[1]), await shard(3, 3)];
+
+    expect(await report(shards, 'comment', '--body-file', body)).toEqual({ code: 0, err: '' });
+
+    const docket = await readFile(body, 'utf8');
+    expect(docket.split(commentMarker('web'))).toHaveLength(2);
+    expect(docket.startsWith(commentMarker('web'))).toBe(true);
+    expect(docket).toContain(IDS[1]);
+  });
+
+  it('renders an empty docket over every shard of a clean suite, which clears the last one rather than posting', async () => {
+    const body = join(home, 'docket.md');
+    const shards = [await shard(1, 3), await shard(2, 3), await shard(3, 3)];
+
+    expect(await report(shards, 'comment', '--body-file', body)).toEqual({ code: 0, err: '' });
+    expect(await readFile(body, 'utf8')).toBe('');
+  });
+
+  it('refuses a shard that is missing, by its number, with no count given to it', async () => {
+    expect(await report([await shard(1, 3), await shard(2, 3)])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: shard 3/3 is missing.',
+    });
+  });
+
+  it('refuses a missing shard in `comment` as in `report`, since every reader of the shards merges alike', async () => {
+    expect(await report([await shard(1, 3), await shard(2, 3)], 'comment')).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: shard 3/3 is missing.',
+    });
+  });
+
+  it('refuses shards cut two ways, naming both cuts', async () => {
+    expect(await report([await shard(1, 2), await shard(2, 2), await shard(3, 3)])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: the shards were cut 2 ways and 3 ways.',
+    });
+  });
+
+  it('refuses a shard named twice', async () => {
+    const one = await shard(1, 2);
+    expect(await report([one, await shard(2, 2), one])).toEqual({
+      code: EXIT_OPERATOR,
+      err: 'these reports are not one build: shard 1/2 was given twice.',
+    });
+  });
+
+  it('refuses a named report that is not there, by its path, as the run that did not happen', async () => {
+    const absent = join(home, 'shards', '*', 'run.json');
+    expect(await report([await shard(1, 2), absent])).toEqual({
+      code: EXIT_OPERATOR,
+      err: `${absent} is not there: no run wrote it.`,
+    });
   });
 });

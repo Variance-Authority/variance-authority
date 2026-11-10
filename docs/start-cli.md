@@ -196,6 +196,10 @@ on what your config selected, before the first expensive run:
   the process table could not answer. `variance prune` runs that prune now;
 - **history** — configured or none.
 
+A file that names none of `project`, `profile`, `viewport`, `retention` and
+`subjects` opens no renderer: doctor prints `renderer: not checked` and the
+cache, skills and typescript findings, and exits `0`.
+
 Doctor exits `2` for one finding: no renderer could be opened here. Read the
 launch error it prints — usually an uninstalled browser binary or a missing
 system library. A store painted elsewhere is a warning, not a refusal: a run
@@ -300,10 +304,13 @@ Five things take a completed run to `1`:
   subject — a stylesheet served cross-origin and skipped on both sides compares
   clean while the styling was missing from both images.
 
-`--exit-zero-on-changes` turns `1` into `0` on `run` and `report`, for a job
-that reports rather than blocks a merge. It leaves `2` alone, which `|| true`
-does not: a job whose browser never launched observed nothing, and `|| true`
-reports it as passed anyway.
+`--exit-zero-on-changes` turns a change into `0` on `run` and `report`, for a
+job that reports rather than blocks a merge, and says so on stderr. A subject
+the run could not observe, an `error` diagnostic and a report that does not say
+what it skipped still exit `1`: those are holes in what the run says, not
+changes for a reviewer. It leaves `2` alone, which `|| true` does not: a job
+whose browser never launched observed nothing, and `|| true` reports it as
+passed anyway.
 
 ## Go deeper
 

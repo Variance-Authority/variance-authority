@@ -29,10 +29,11 @@ import java.util.regex.Pattern;
  * anything and is not checked against the root {@code variance.config.json}.
  * Without it, the record goes where {@code variance select} reads without
  * flags: {@code <layer>/coverage.bin} in a repository that declares no suites,
- * and {@code <layer>/suites/<va.suite>/coverage.bin} in one that does. A suite
- * the configuration does not declare, no suite once any is declared, and a
- * suite named while none is, each fail the JVM before a test runs, with the
- * refusal sense gives a Node seam. Naming both is refused too: both say where
+ * and {@code <layer>/suites/<va.suite>/coverage.bin} in one that does, where
+ * leaving {@code va.suite} out means the only suite declared. A suite the
+ * configuration does not declare, no suite among several declared, and a suite
+ * named while none is, each fail the JVM before a test runs, with the refusal
+ * sense gives a Node seam. Naming both is refused too: both say where
  * the run records.
  *
  * The rows the JVMs merge from live beside the snapshot, in {@code .jvm}, which
@@ -48,7 +49,7 @@ public final class RecordLocation {
   static final String CONFIG = "variance.config.json";
   private static final Pattern GITDIR = Pattern.compile("(?m)^gitdir:\\s*(.+?)\\s*$");
   private static final Pattern SUITE_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
-  private static final List<String> KINDS = Arrays.asList("unit", "integration", "e2e", "visual");
+  private static final List<String> KINDS = Arrays.asList("unit", "integration", "e2e", "visual", "job");
 
   /** The rows' directory and the snapshot written from it, when this JVM resolved them from the layer. */
   private static volatile Path layerDirectory;
@@ -109,6 +110,7 @@ public final class RecordLocation {
     List<String> declared = declared(suites, file);
     StringBuilder listed = new StringBuilder();
     for (String name : declared) listed.append(listed.length() == 0 ? "" : ", ").append('"').append(name).append('"');
+    if (suite == null && declared.size() == 1) return "suites/" + declared.get(0) + "/coverage.bin";
     if (suite == null) {
       throw new IllegalStateException(file + " declares the suites " + listed + ", and none is named; name the suite this run is with -Dva.suite");
     }
@@ -132,7 +134,7 @@ public final class RecordLocation {
             + "so it is letters, digits, \".\", \"_\" and \"-\", and starts with a letter or a digit");
       }
       if (!(value instanceof Map) || ((Map<?, ?>) value).size() != 1 || !KINDS.contains(((Map<?, ?>) value).get("kind"))) {
-        throw new IllegalStateException(file + ": \"suites." + name + "\" must be { \"kind\": \"unit\" | \"integration\" | \"e2e\" | \"visual\" }");
+        throw new IllegalStateException(file + ": \"suites." + name + "\" must be { \"kind\": \"unit\" | \"integration\" | \"e2e\" | \"visual\" | \"job\" }");
       }
       names.add(name);
     }

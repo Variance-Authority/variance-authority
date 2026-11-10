@@ -121,6 +121,7 @@ describe('a diff that moved what the suite rests on', () => {
     // No test entered the setup, and nothing says the suite rests on it.
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\n');
     expect(said.err).toContain('the suite unit declares nothing before reach');
+    expect(said.err).toContain('name them in `before` in variance.config.json');
   });
 
   it('narrows as before when the diff moved nothing the suite rests on', async () => {

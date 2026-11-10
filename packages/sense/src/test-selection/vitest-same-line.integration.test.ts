@@ -40,7 +40,7 @@ beforeAll(async () => {
   const written = await readFile(coverageFile);
   cases = decodeExecutionIndex(written);
   pick = decodeTestCoverage(written).modules.find((module) => module.file === named('src/pick.ts'));
-}, 30_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

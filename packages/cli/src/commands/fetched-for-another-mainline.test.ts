@@ -285,7 +285,7 @@ describe('a read that fetches nothing', () => {
     expect(answer.out + answer.err).not.toContain('test/total.test.ts');
   });
 
-  it('is not read for `--hops` under `--execution`, which names no suite and is refused one', async () => {
+  it('is not read for `--hops` under `--execution`, which is no declared record', async () => {
     const { recorded } = await fetchedForRelease();
 
     const hops = await ask(['covering', '--execution', recorded, '--file', 'src/total.ts', '--line', '1', '--hops']);

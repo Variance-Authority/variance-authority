@@ -163,7 +163,7 @@ describe('the order one name\'s rows are shown in', () => {
       const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'zebra rides' }).published?.shown;
       return JSON.parse(JSON.stringify(shown?.map((one) => [one.specifier, one.otherPackages, one.summary])).replaceAll(first, '<renamed>'));
     };
-    const expected = [['b-kit', 0, 'The kit for zebra rides.'], ['<renamed>', 1, 'A kit.']];
+    const expected = [['b-kit', 0, 'The kit for zebra rides.'], ['<renamed>', 1, 'It holds zebra rides.']];
     expect(await listed('a-kit')).toEqual(expected);
     expect(await listed('z-kit')).toEqual(expected);
   });

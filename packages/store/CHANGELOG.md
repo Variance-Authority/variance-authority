@@ -1,5 +1,24 @@
 # @variance-authority/store
 
+## 0.29.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.28.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.27.0
+
+### Patch Changes
+
+- 348267a: A git share on GitHub Actions is reached with the step's `GITHUB_TOKEN` when the clone keeps no header for the remote, as a checkout with `persist-credentials: false` leaves it, so `variance share --publish` needs no git header or `GIT_CONFIG_*` variables from the caller: the publish step sets `env: GITHUB_TOKEN: ${{ github.token }}`. The token is offered only on Actions and only to a remote on the host `GITHUB_SERVER_URL` names, reaches git through its environment configuration and is written to no file; a header the clone or the environment already gives git wins. The review action hands its `github-token` to its publish step the same way.
+- 019c6dd: `@variance-authority/store/durable` loads `@variance-authority/png` only when a baseline is written or read, so `variance --version`, `--help`, `index`, `select`, `ask uses`, `ask symbol` and `ask search` no longer load it before they answer. They still load `@variance-authority/raster`, whose error the store refuses a config's `baselines.path` with.
+
+## 0.26.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.25.0
 
 ### Minor Changes

@@ -12,6 +12,7 @@ the answer. Run them from the checkout you are asking about.
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
 | one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
+| a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last two weeks |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
 
@@ -21,6 +22,11 @@ With no files it prints the code map: every package in a few areas, each row
 with its size, its dependency layers, the packages the rest of the repository
 imports most from it, and the areas it imports from. The number at the start of
 a row is the id `--area` takes.
+
+A root package is on the map beside the packages nested in it when its manifest
+has a `name`, it holds source, and it declares no workspaces: no entry in
+`workspaces` and none under `packages:` in a `pnpm-workspace.yaml`. A root that
+declares workspaces only holds them.
 
 ```
 $ variance ask orient
@@ -75,6 +81,23 @@ inferred from what each test ran: a piece runs the same code, which does not
 establish that it checks the same thing, so a test with neither may still check
 something its pieces do not. It reads execution: a mocked module is entered by
 nobody, so a test that mocks its pieces lists none.
+
+## `containment`
+
+How far the commits of a window reached across package boundaries, counted from
+`git log` over the first parents of `HEAD`. Each line is a count over its own
+denominator: the commits that touched one package, the commits that edited a
+test in another package, the same among commits that did and did not edit their
+own tests, and the commits that edited a test in a test-only tree. A commit with
+no parent, from a bot, or with no source in a package is left out, and counted
+by reason.
+`--format json` holds the same figures, with no field that merges them.
+
+The figures say what commits touched together, not what caused it, and nothing
+selects on them. Packages are the ones the workspace lists now that hold source
+now, another package is one the commit changed no source in, and a test-only
+tree is a package or a top folder holding tests and no source. With none listed
+there are no figures.
 
 ## `stack`
 

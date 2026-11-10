@@ -55,13 +55,13 @@ it('tells the copies of a case apart by the project that ran each', async () => 
   ]);
   expect(text).toContain(`greets by name [|compiled| ${test} > greets by name]`);
   expect(text).not.toContain('#1');
-}, 60_000);
+});
 
 it('names a case the same whether the run took every project or one', async () => {
   const answer = await coveringAfter(['--project', 'plain']);
 
   expect(answer.tests?.map((covered) => covered.id)).toEqual([`|plain| ${test} > greets by name`]);
-}, 60_000);
+});
 
 it('names a case by its project when another reporter replaced the seam\'s', async () => {
   const answer = await coveringAfter(['--reporter', 'dot']);
@@ -70,4 +70,4 @@ it('names a case by its project when another reporter replaced the seam\'s', asy
     `|compiled| ${test} > greets by name`,
     `|plain| ${test} > greets by name`,
   ]);
-}, 60_000);
+});

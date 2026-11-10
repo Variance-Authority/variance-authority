@@ -22,7 +22,7 @@ import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineBase, mainlineMissed, mainlineRead, primaryRead, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { recordHeld } from './mainline-selected.js';
-import { namedSuite, onlySuite, recordedSuite } from './suite-record.js';
+import { namedSuite, recordedSuite } from './suite-record.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
 export type SuiteBase =
@@ -58,7 +58,7 @@ export interface SuiteBaseOptions {
 export async function suiteBase(root: string, options: SuiteBaseOptions = {}): Promise<SuiteBase> {
   const selection = await import('@variance-authority/sense/test-selection');
   const suites = selection.declaredSuites(root);
-  const suite = options.suite ?? onlySuite(suites);
+  const suite = options.suite ?? selection.onlySuite(suites);
   const declared = suites?.find((one) => one.name === suite);
   const named = { ...(suite === undefined ? {} : { suite }), ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }) };
   // Asked first so a suite the declaration does not carry, or no suite where
@@ -162,9 +162,9 @@ export async function recordedOrMainline(
  * of a runs record the entry did not carry.
  *
  * A seam lays it on its own before a run lands, so a checkout needs this only
- * when something reads the own layer before the first run: CI's
- * `keep the base record` step copies the base aside before the suite layers
- * the change onto it. Nothing is laid over a record the checkout already has.
+ * when something reads the own layer before the first run: `variance share
+ * --suite` lays it so the suite's run selects from it and the shards a CI run
+ * hands on fold over it. Nothing is laid over a record the checkout already has.
  *
  * `instrumentation` is the probes of the run that lands next. A record written
  * under other probes is passed over and returned as such, because that run

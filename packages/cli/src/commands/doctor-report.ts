@@ -7,9 +7,12 @@ import type {
   FontFinding,
   Partition,
   RenderCacheFinding,
+  RendererFinding,
+  RenderlessDiagnosis,
 } from './doctor.js';
 import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
+import { formatSuites } from './doctor-suites.js';
 import { formatTypescript } from './doctor-typescript.js';
 
 /**
@@ -74,20 +77,12 @@ export function formatBaselines(finding: BaselineFinding): string {
   ].join('\n');
 }
 
-export function formatDiagnosis(diagnosis: Diagnosis): string {
-  const identity = diagnosis.renderer.identity;
+function rendererLines(finding: RendererFinding): readonly string[] {
+  const identity = finding.identity;
 
   return [
-    `profile: ${diagnosis.profile}`,
-    '',
-    `renderer: ${
-      diagnosis.renderer.checked === false
-        ? 'not checked'
-        : diagnosis.renderer.available
-          ? 'available'
-          : 'NOT AVAILABLE'
-    }`,
-    `  ${diagnosis.renderer.because}`,
+    `renderer: ${finding.checked === false ? 'not checked' : finding.available ? 'available' : 'NOT AVAILABLE'}`,
+    `  ${finding.because}`,
     ...(identity !== undefined
       ? [
           `  identity: ${identity.renderer} (${identity.engine}, ${identity.platform}, ` +
@@ -97,6 +92,34 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
           }`,
         ]
       : []),
+  ];
+}
+
+/** The sections both diagnoses end with, read from the repository rather than the machine. */
+function repositoryTail(diagnosis: Pick<Diagnosis, 'skills' | 'typescript' | 'suites'>): readonly string[] {
+  return [
+    ...formatSkills(diagnosis.skills),
+    '',
+    ...formatTypescript(diagnosis.typescript),
+    ...(diagnosis.suites === undefined ? [] : ['', ...formatSuites(diagnosis.suites)]),
+  ];
+}
+
+export function formatRenderless(diagnosis: RenderlessDiagnosis): string {
+  return [
+    ...rendererLines(diagnosis.renderer),
+    '',
+    ...formatCache(diagnosis.cache),
+    '',
+    ...repositoryTail(diagnosis),
+  ].join('\n');
+}
+
+export function formatDiagnosis(diagnosis: Diagnosis): string {
+  return [
+    `profile: ${diagnosis.profile}`,
+    '',
+    ...rendererLines(diagnosis.renderer),
     '',
     `fonts: ${fontHeadline(diagnosis.fonts)}`,
     `  ${diagnosis.fonts.because}`,
@@ -117,9 +140,7 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
     `  ${diagnosis.history.because}`,
     '',
-    ...formatSkills(diagnosis.skills),
-    '',
-    ...formatTypescript(diagnosis.typescript),
+    ...repositoryTail(diagnosis),
   ].join('\n');
 }
 

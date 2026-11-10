@@ -8,7 +8,7 @@ import {
   workspaceGeneration,
   type AnsweringOptions,
 } from './read.js';
-import { HELP, UNCOMPARED_HELP } from './tools.js';
+import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
 
 /**
  * The transport, and one decision that could not go anywhere else.
@@ -34,6 +34,9 @@ export interface WorkspaceOptions extends AnsweringOptions {
   readonly input?: Readable;
   readonly output?: Writable;
 }
+
+/** The subject of a question that reads no workspace: no generation, so nothing dates its answer. */
+const NOTHING_READ: Help = { packages: [], deep: [], unfollowed: [], byPath: [], exported: [], unreadable: [] };
 
 /**
  * Serve one workspace generation over MCP, refreshing it only when permitted.
@@ -115,7 +118,8 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     // reading, held beside the one a changed file asks for, is what ran a large
     // checkout's server out of heap.
     remember: (help: Help) => help,
-    subject: async () => {
+    subject: async (asked) => {
+      if (asked === containment.name) return NOTHING_READ;
       try {
         const at = cached === undefined ? undefined : workspaceGeneration(cached);
         const stale = at === undefined || Date.now() - Date.parse(at) > refreshAfterMs;

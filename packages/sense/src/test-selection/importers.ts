@@ -61,7 +61,7 @@ import type { Disowned } from './shadowed.js';
  * nothing the suite ran — documentation, tooling, a fixture, a configuration.
  * What a harness loads without importing is the seam's to declare: every setup
  * file and every `preconditions` entry is a precondition of every test
- * (`vitest.ts`), and so is a fixture a test reads with `fs`.
+ * (`vitest.ts`). A fixture a test reads is its reader's, as a `/// <depends>`.
  */
 /** One chain of imports from a changed file or a moved package to the file whose row selected a test. */
 export interface ImporterReason {

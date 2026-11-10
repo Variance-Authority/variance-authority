@@ -68,6 +68,7 @@ describe('whose record answers a worktree', () => {
 describe('the suite of a cached record', () => {
   it('is the one its path names, and none for the repository one record', () => {
     expect(cachedSuite('suites/unit/coverage.bin')).toBe('unit');
+    expect(cachedSuite('ran/variance-slice-unit/digest/suites/unit/coverage.bin')).toBe('unit');
     expect(cachedSuite('coverage.bin')).toBeUndefined();
   });
 });

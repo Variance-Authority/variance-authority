@@ -69,6 +69,12 @@ starts any of them, and prints one line to stderr first:
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
+To check the wrap took, run `npx variance doctor --config variance.config.json`
+after one run. For each of the
+[`suites`](../packages/cli/README.md#configuration) the repository's root
+`variance.config.json` declares, it names the record a run left and its file. A
+suite it still calls `not recorded yet` was not run through the wrap.
+
 Set and empty, the variable measures each test file from the commit a run last
 finished it at, which the record keeps per test file: a later run that ran only
 some of its cases does not change it. Set to a ref, such as `origin/main`, it
@@ -131,10 +137,10 @@ runs whole when the record cannot say which of its cases your edit reached:
   that edit touched, which records it complete again: over a loop of edits to
   the same code, every other run of the file is cut;
 - you changed the test file itself;
-- the file was selected for a change the record does not split by case: a
-  fixture it declares as a precondition, a file it reads from disk, or a
-  changed file the record holds no lines for, charged to the tests that ran
-  what imports it;
+- the file was selected for a change the record does not split by case:
+  compiler settings it declares as a precondition, a file it reads from disk,
+  or a changed file the record holds no lines for, charged to the tests that
+  ran what imports it;
 - the changed code ran while a module loaded, such as an import at the top of
   the test file, which every case of the file waits on;
 - the record holds the file as running the changed code, but none of its cases
@@ -252,8 +258,8 @@ A pull request selects from the record your main branch saved, so its CI job
 runs the tests the change needs and leaves the rest out. Your main branch runs
 the whole suite and saves the record to the CI cache, and the pull request
 restores it and sets the variable. [The workflow](cache.md#in-ci) is one file,
-and the page lists what a Jest preset, declared suites and a package per
-configuration change in it.
+and the page lists what declared suites and a package per configuration change
+in it.
 
 ## When it runs everything
 
@@ -261,8 +267,8 @@ A new test file runs until a run records it, and every doubt about the record
 prints `declined:` and runs every file;
 [what a skipped test promises](selection-safety.md) lists each doubt, and the
 changed files that keep no test. If a test reads a fixture with `fs`, name it in
-the seam's `preconditions` option, and from the next recording on a change to it
-runs every test that declared it.
+the module that reads it, as `/// <depends path="…" />`, and a change to it runs
+the tests that load that module.
 
 ## What a selection costs
 

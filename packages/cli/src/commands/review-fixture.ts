@@ -59,6 +59,8 @@ export const git = (at: string, args: readonly string[]): string =>
  */
 export async function changed(options: {
   readonly gone?: boolean;
+  /** The run left `applyDiscount`, which the base's case ran, with no case. */
+  readonly stopped?: boolean;
   readonly suites?: readonly string[];
   readonly text?: string;
   readonly tree?: string;
@@ -110,7 +112,7 @@ export async function changed(options: {
     entered: { applyDiscount: ['test/total.test.ts'], round: extra },
     index: {
       tests: [DISCOUNTS, ROUNDS, ...(extra.length === 0 ? [] : [GONE])],
-      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', ...indexed.applyDiscount, [0]), block('round', ...indexed.round, extra.length === 0 ? [] : [2])] }],
+      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', ...indexed.applyDiscount, options.stopped === true ? [] : [0]), block('round', ...indexed.round, extra.length === 0 ? [] : [2])] }],
     },
   });
   // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
@@ -143,6 +145,15 @@ export async function roundedBy(root: string, first: string, suite: string, text
       tests: [ROUNDS],
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, []), block('round', 5, 7, [0])] }],
     },
+  });
+}
+
+/** A suite's record that holds no row of `src/total.ts`: its run loaded something else. */
+export async function noRowsBy(root: string, first: string, suite: string): Promise<void> {
+  const file = testCoverageFile(root, { suite });
+  await mkdir(dirname(file), { recursive: true });
+  await writeTestCoverage(file, { version: 3, instrumentation: INSTRUMENTATION_ID, commit: first, tests: [], modules: [] }, {
+    index: encodeAsSetExecutionIndex({ tests: [], modules: [] }),
   });
 }
 

@@ -83,13 +83,18 @@ function rg(root: string, pattern: string, files: readonly string[]): Searched {
   return { hits, errors };
 }
 
-/** Every matching line in these files, in ripgrep's order, and what it could not read. */
+/**
+ * Every matching line in these files, in ripgrep's order, and what it could not read.
+ *
+ * Hits are appended one at a time: `push(...hits)` passes each as an argument,
+ * and a query that matches most lines of a wide closure runs out of stack.
+ */
 export function ripgrep(root: string, pattern: string, files: readonly string[]): Searched {
   const hits: Hit[] = [];
   const errors: string[] = [];
   for (const batch of batches(files)) {
     const searched = rg(root, pattern, batch);
-    hits.push(...searched.hits);
+    for (const hit of searched.hits) hits.push(hit);
     errors.push(...searched.errors);
   }
   return { hits, errors };

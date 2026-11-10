@@ -66,8 +66,9 @@ anything runs, and each suite records into its own directory.**
   describe the checkout and not a run. Worktree layering is unchanged: a
   worktree seeds each suite from the same path under the base.
 - **A seam names its suite** with a `suite` option. A name the configuration
-  does not declare fails before the run starts. Once any suite is declared, a
-  seam that names none fails too: it would write a record nobody declared.
+  does not declare fails before the run starts. A seam that names none records
+  into the only declared suite, as a reader does. Among several it fails too:
+  it would be guessing which record to write.
 - **A repository that declares no suites keeps one record** at
   `<layer>/coverage.bin`. That record is one suite with no name and no kind,
   and readers report it that way.
@@ -105,3 +106,13 @@ anything runs, and each suite records into its own directory.**
   which row.
 - A reader that answered from one file now opens one per suite.
 - A new kind is a code change, not a configuration change.
+
+## Amended 2026-11-07 — the only suite needs no name
+
+This ADR refused a seam that names no suite once any suite was declared, because
+it "would write a record nobody declared". With one suite declared the record is
+the declared one, so the refusal covered a case its reason did not reach, and
+the readers below already took the only suite. The decision, that a suite is
+declared and records alone, is unchanged. What it costs: a second runner wrapped
+with no name writes into a sole suite of another kind, until a second suite is
+declared and the refusal returns.

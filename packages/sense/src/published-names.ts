@@ -67,7 +67,7 @@ export async function readPublishedNames(path: string, files: Iterable<string>):
   }
   return {
     path,
-    state: !kept.committed ? 'missing' : kept.dropped === 0 ? 'published' : written === undefined ? 'damaged' : 'other-version',
+    state: !kept.committed ? 'missing' : kept.damaged === 0 ? 'published' : written === undefined ? 'damaged' : 'other-version',
     ...(written === undefined ? {} : { written }),
     names,
   };

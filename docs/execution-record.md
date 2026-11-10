@@ -72,9 +72,9 @@ kind, under `suites` in the `variance.config.json` at the repository root:
 }
 ```
 
-The kind is one of `unit`, `integration`, `e2e` and `visual`. Nothing infers it
-from the runner, because a Playwright suite can be `e2e` or `visual` and only
-you know which one you meant.
+The kind is one of `unit`, `integration`, `e2e`, `visual` and `job`, the last for
+a build that `variance job` records. Nothing infers it from the runner, because a
+Playwright suite can be `e2e` or `visual` and only you know which one you meant.
 
 Each declared suite has its own record, at
 `<repository-digest>/suites/<name>/coverage.bin`, with its runs log beside it. Name the suite in the runner integration with the `suite`
@@ -86,7 +86,7 @@ run. A worktree seeds each suite's record from the same suite in the primary
 checkout, never from another suite's.
 
 Once `suites` is declared, a run stops before it starts when its integration
-names no suite, names one the file does not declare, or names a suite and a
+names no suite among several, names one the file does not declare, or names a suite and a
 `coverageFile` together. A repository that declares no suites keeps the one
 `coverage.bin` described above.
 
@@ -718,7 +718,8 @@ against it is dropped.
 concatenation `name`, `NUL`, `digest`. A test's preconditions are the files
 its answer depended on that the instrument could not see inside: the test
 file itself, configuration, fixtures, and modules that were loaded but not
-instrumented.
+instrumented. This is the record's row for one test, not the seam's
+`preconditions` option, whose entries every test declares.
 
 **Crossing.** `(block, test)`. The record stores presence, not counts: a test
 crossed a block or did not. Counts exist only in the runtime array and are
@@ -868,8 +869,9 @@ below is one stage of that call.
    selects nobody and takes nothing from the name beside it. A path none of
    whose names is read, and a path the caller gives no name at all, is reported
    as unread. It is a report, not a widening: the skip list is still `whole`
-   less `entered`, and a suite that rests on such a file declares it as a
-   precondition, which removes it from `unread`. A name with a row is read even
+   less `entered`. A module that reads such a file names it with a
+   `/// <depends>`, and a file every test rests on is a precondition, which
+   removes it from `unread`. A name with a row is read even
    when no test names it: the row is the measurement.
 
 The whole trace is O(diff length + inserted text + B per changed module + C of charged blocks

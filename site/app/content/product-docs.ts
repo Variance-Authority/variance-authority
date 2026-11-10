@@ -11,12 +11,19 @@ import agentQuestions from "../../../docs/agent-questions.md?raw";
 import agents from "../../../docs/agent-workflows.md?raw";
 import agentWorkspaceApi from "../../../docs/agent-workspace-api.md?raw";
 import attribution from "../../../docs/attribution.md?raw";
+import pathFasterCi from "../../../docs/path-faster-ci.md?raw";
+import pathVisualReview from "../../../docs/path-visual-review.md?raw";
+import pathCodeReview from "../../../docs/path-code-review.md?raw";
+import pathLeanSuite from "../../../docs/path-lean-suite.md?raw";
+import pathAgentOrientation from "../../../docs/path-agent-orientation.md?raw";
+import pathTestFailure from "../../../docs/path-test-failure.md?raw";
 import betterTests from "../../../docs/better-tests.md?raw";
 import cache from "../../../docs/cache.md?raw";
 import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
 import compareCoverage from "../../../docs/compare-coverage.md?raw";
+import reviewCoverage from "../../../docs/review-coverage.md?raw";
 import compareVisualReview from "../../../docs/compare-visual-review.md?raw";
 import composeObservation from "../../../docs/compose-observation.md?raw";
 import composition from "../../../docs/composition.md?raw";
@@ -119,6 +126,12 @@ const documents = [
   ["adjacent-possible", adjacentPossible, "docs/adjacent-possible.md"],
   ["visual-review-cost", visualReviewCost, "docs/visual-review-cost.md"],
   ["extend-what-you-use", extendWhatYouUse, "docs/extend-what-you-use.md"],
+  ["path-faster-ci", pathFasterCi, "docs/path-faster-ci.md"],
+  ["path-visual-review", pathVisualReview, "docs/path-visual-review.md"],
+  ["path-code-review", pathCodeReview, "docs/path-code-review.md"],
+  ["path-lean-suite", pathLeanSuite, "docs/path-lean-suite.md"],
+  ["path-agent-orientation", pathAgentOrientation, "docs/path-agent-orientation.md"],
+  ["path-test-failure", pathTestFailure, "docs/path-test-failure.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
@@ -153,6 +166,7 @@ const documents = [
   ["comparison", comparison, "docs/comparison.md"],
   ["compare-visual-review", compareVisualReview, "docs/compare-visual-review.md"],
   ["compare-coverage", compareCoverage, "docs/compare-coverage.md"],
+  ["review-coverage", reviewCoverage, "docs/review-coverage.md"],
   ["attribution", attribution, "docs/attribution.md"],
   ["ignores", ignores, "docs/ignores.md"],
   ["sensitivity", sensitivity, "docs/sensitivity.md"],

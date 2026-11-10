@@ -10,6 +10,50 @@ is answered from that record instead of by running the whole suite again to find
 out. The record has several readings, and none of them is the centre the others
 depend on.
 
+## Follow a golden path
+
+Came for an outcome rather than a question? Each path takes it in order, one
+step to a page.
+
+<div class="doc-link-grid doc-link-grid--capabilities">
+<a class="doc-link-card doc-link-card--compact" href="path-faster-ci.md">
+<span>CI</span>
+<strong>Make CI faster</strong>
+<p>Split the suite by time, run the tests a change reached, let the next push run what it changed, and give the edit loop the same answer.</p>
+<em>Shard, select, carry, loop →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="path-visual-review.md">
+<span>Visual review</span>
+<strong>Review a visual change</strong>
+<p>Connect the harness you have, keep comparisons steady, read a change down to its line, explain the rest, and gate the build.</p>
+<em>Connect, attribute, gate →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="path-code-review.md">
+<span>Code review</span>
+<strong>Review a pull request</strong>
+<p>Put what the tests ran beside the diff: the cases under each changed function, the part none ran, what CI's run did, the layering, and what blocks the merge.</p>
+<em>Hand over, read, gate →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="path-lean-suite.md">
+<span>Test suite</span>
+<strong>Keep a test suite lean</strong>
+<p>See which tests cover each line and under what state, then delete, merge or shrink a test on evidence.</p>
+<em>Record, compare, shrink →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="path-agent-orientation.md">
+<span>Agents</span>
+<strong>Orient a coding agent</strong>
+<p>Give an agent a way to ask, where to start, what is installed, how the code is layered, and what a change did.</p>
+<em>Ask, orient, review →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="path-test-failure.md">
+<span>Debugging</span>
+<strong>Find out why a test failed or hangs</strong>
+<p>Read what the run kept, the order the test ran its code in, where it parted from a passing one, and stop it where it stands.</p>
+<em>Read, compare, interrogate →</em>
+</a>
+</div>
+
 ## What do you need to do?
 
 <div class="doc-link-grid doc-link-grid--capabilities">

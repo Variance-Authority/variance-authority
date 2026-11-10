@@ -168,7 +168,7 @@ describe('withTestSelection for Jest', () => {
       {
         displayName: 'node',
         rootDir: '/repo/packages/node',
-        transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', runtime: SELECTION_RUNTIME, transformer: 'babel-jest' }] },
+        transform: { '\\.[jt]sx?$': [SELECTION_TRANSFORM, { root: '/repo', rootDir: '/repo/packages/node', runtime: SELECTION_RUNTIME, transformer: 'babel-jest' }] },
         // The sandbox learns its project's name from here, for the case ids.
         globals: { 'variance-authority.project': 'node', 'variance-authority.runtime': { root: '/repo' } },
         setupFiles: [SELECTION_GLOBALS, '<rootDir>/setup.js'],
@@ -394,7 +394,7 @@ describe('the Jest reporter', () => {
     for (const name of ['alpha', 'beta', 'gamma']) await writeFile(resolve(root, `test/${name}.case.js`), `// ${name}\n`);
 
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
-    reporter.onRunStart();
+    reporter.onRunStart({ numTotalTestSuites: 1 });
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     expect(runDirectory).toBeDefined();
     await mkdir(runDirectory, { recursive: true });

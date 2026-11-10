@@ -162,6 +162,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./nearest": {
+          "types": "./dist/nearest.d.ts",
+          "default": "./dist/nearest.js"
+        },
         "./format": {
           "types": "./dist/format/index.d.ts",
           "default": "./dist/format/index.js"
@@ -219,6 +223,10 @@
         "LFS_POINTER_HEAD_BYTES": "const",
         "didYouMean": "function",
         "isLfsPointer": "function",
+        "nearest": "function"
+      },
+      "./nearest": {
+        "didYouMean": "function",
         "nearest": "function"
       },
       "./format": {
@@ -1091,6 +1099,7 @@
         "writePages": "function"
       },
       "./tools": {
+        "Containment": "interface",
         "ExportedMatch": "interface",
         "HELP": "const",
         "HELP_TOOLS": "const",
@@ -1111,10 +1120,13 @@
         "answerSearch": "function",
         "audience": "function",
         "block": "function",
+        "containment": "const",
+        "containmentOf": "function",
         "discover": "const",
         "doorOf": "function",
         "entriesNamed": "function",
         "entrypoint": "const",
+        "formatContainment": "function",
         "formatOrientation": "function",
         "gaps": "const",
         "grep": "const",
@@ -1650,6 +1662,8 @@
         "Reader": "interface",
         "countNames": "function",
         "createReader": "function",
+        "declaresWorkspaces": "const",
+        "members": "function",
         "namesReachedBy": "function",
         "readOfferings": "function",
         "readSurface": "function"
@@ -1686,6 +1700,7 @@
         "UseKind": "type",
         "WorkspaceManifests": "interface",
         "assembleHelp": "function",
+        "boundDeclaration": "function",
         "everyEntry": "function",
         "gatheringUsage": "function",
         "kindOf": "function",
@@ -2692,6 +2707,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./checkout-path": {
+          "types": "./dist/checkout-path.d.ts",
+          "default": "./dist/checkout-path.js"
+        },
         "./read": {
           "types": "./dist/read.d.ts",
           "default": "./dist/read.js"
@@ -2795,6 +2814,7 @@
     "names": {
       ".": {
         "Alias": "interface",
+        "CODE_EXTENSIONS": "const",
         "CapViolation": "interface",
         "CasesEntered": "interface",
         "ChainViolation": "interface",
@@ -2807,6 +2827,8 @@
         "CodeMapRead": "interface",
         "CodeMapRow": "interface",
         "CodeMapShare": "interface",
+        "CommitChange": "interface",
+        "CommitChanges": "interface",
         "ContainerMember": "interface",
         "Decision": "interface",
         "DeclaredName": "interface",
@@ -2886,6 +2908,8 @@
         "RecordCache": "interface",
         "RecordOrigin": "type",
         "RecordedCaseDurations": "type",
+        "RecordedCaseName": "interface",
+        "RecordedCaseNames": "type",
         "RecordedCases": "type",
         "RecordedDurations": "type",
         "RelationRule": "interface",
@@ -2957,6 +2981,7 @@
         "exportedDigest": "function",
         "fileCases": "function",
         "fileSizes": "function",
+        "firstParentChanges": "function",
         "forksBetween": "function",
         "forwardsDigest": "function",
         "gitDigests": "function",
@@ -2965,6 +2990,7 @@
         "inIndexTurn": "function",
         "indexDeclarations": "function",
         "indexTurnPath": "function",
+        "isTestPath": "function",
         "journeyMap": "function",
         "journeyMaps": "function",
         "journeysAmong": "function",
@@ -2980,6 +3006,7 @@
         "memoryRecordCache": "function",
         "mockTaint": "function",
         "moduleCallsTaint": "function",
+        "nameTermsOf": "function",
         "nearOfNative": "function",
         "openParseCache": "function",
         "openRecordCache": "function",
@@ -2987,6 +3014,7 @@
         "orientAround": "function",
         "outsideSourcesOf": "function",
         "packageLayers": "function",
+        "packageOwner": "function",
         "packagesAround": "function",
         "parseTiers": "function",
         "parseTypescript": "function",
@@ -3005,6 +3033,7 @@
         "readSourceRecords": "function",
         "readsMembers": "function",
         "readySourceIndex": "function",
+        "recordedCaseNames": "function",
         "recordedCases": "function",
         "recordedDurations": "function",
         "recordedPaths": "function",
@@ -3029,11 +3058,20 @@
         "tierLabel": "function",
         "tierMoves": "function",
         "tierOf": "function",
+        "trackedFiles": "function",
         "treeShapeOf": "function",
         "tsconfigUse": "function",
         "updateSourceIndex": "function",
         "wordStemsNative": "function",
         "workingTreeChanges": "function"
+      },
+      "./checkout-path": {
+        "CheckoutListing": "type",
+        "CheckoutPath": "type",
+        "checkoutListing": "function",
+        "checkoutPath": "function",
+        "existedAt": "function",
+        "existingAt": "function"
       },
       "./read": {
         "Binding": "interface",
@@ -3175,6 +3213,8 @@
         "ImporterReason": "interface",
         "IndexLock": "class",
         "IndexedCut": "interface",
+        "JobRun": "interface",
+        "JobWrites": "interface",
         "JourneyArtifactResult": "interface",
         "JourneyDivergence": "interface",
         "JourneyDivergenceOptions": "interface",
@@ -3200,6 +3240,7 @@
         "ModuleTexts": "type",
         "MovedRegion": "interface",
         "NAME_BOUNDARY": "const",
+        "NEAR_HOPS": "const",
         "NO_BLOB": "const",
         "NO_DURATION": "const",
         "NameGrammar": "interface",
@@ -3237,6 +3278,7 @@
         "ReachRecord": "type",
         "ReachThrough": "interface",
         "RecordLocationOptions": "interface",
+        "RecordOrigin": "type",
         "RecordStorage": "interface",
         "RecordWithoutCoverage": "class",
         "RecordedEyes": "interface",
@@ -3421,6 +3463,8 @@
         "narrowByExecutionFromView": "function",
         "narrowByJourneys": "function",
         "nearestFirst": "function",
+        "nearestRecord": "function",
+        "onlySuite": "function",
         "openCoverageFile": "function",
         "openSetColumns": "function",
         "openTestCoverage": "function",
@@ -3447,6 +3491,7 @@
         "readCommitRuns": "function",
         "readDistillRecords": "function",
         "readFetchedMainline": "function",
+        "readJobWrites": "function",
         "readJourneyChange": "function",
         "readOwnLayer": "function",
         "readRowlessFromView": "function",
@@ -3461,6 +3506,7 @@
         "recordBase": "function",
         "recordDigestAt": "function",
         "recordFileFor": "function",
+        "recordJob": "function",
         "recordOfCases": "function",
         "recordStorageAt": "function",
         "recordedCases": "function",
@@ -3525,6 +3571,7 @@
         "withIndexLock": "function",
         "withoutCoverage": "function",
         "withoutFiles": "function",
+        "withoutTests": "function",
         "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
         "writeFetchedMainline": "function",

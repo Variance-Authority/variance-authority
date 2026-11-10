@@ -103,7 +103,7 @@ describe('webpackFinal in a real Rspack build', () => {
     const { root, refuses } = await project();
     await built(await webpackFinal(webpackShaped(root, refuses, 'source-map', 'development'), { root, configType: 'DEVELOPMENT' }));
     expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
-  }, 60_000);
+  });
 
   it('hands the loaders maps in a production build that writes none, and still writes no map', async () => {
     const { root, refuses } = await project();
@@ -117,7 +117,7 @@ describe('webpackFinal in a real Rspack build', () => {
     expect(out.page).not.toMatch(/sourceMappingURL/);
     expect(out.page).toMatch(/__va\(\d+\)/);
     expect(out.page).toBe((await written(resolve(mapped.root, 'out'))).page);
-  }, 60_000);
+  });
 });
 
 describe('rsbuildFinal in a real Rsbuild build', () => {
@@ -125,7 +125,7 @@ describe('rsbuildFinal in a real Rsbuild build', () => {
     const { root, refuses } = await project();
     await rsbuilt(await rsbuildFinal(rsbuildShaped(root, refuses, true, 'development'), { root, configType: 'DEVELOPMENT' }), root);
     expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
-  }, 60_000);
+  });
 
   it('hands the loaders maps in a production build that writes none, as `storybook build --test` does, and still writes no map', async () => {
     const { root, refuses } = await project();
@@ -138,7 +138,7 @@ describe('rsbuildFinal in a real Rsbuild build', () => {
     expect(out.page).not.toMatch(/sourceMappingURL/);
     expect(out.page).toMatch(/__va\(\d+\)/);
     expect(out.page).toBe((await written(resolve(mapped.root, 'out'), 'index.js')).page);
-  }, 60_000);
+  });
 });
 
 /** The addon, by the path Storybook loads a preset from. */
@@ -174,7 +174,7 @@ describe('the addon under Storybook, whose project hooks run after it', () => {
     await built(await presets.apply('webpackFinal', { ...shaped, module: { rules: swc } }));
 
     expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
-  }, 60_000);
+  });
 
   it('refuses a `testSelectionRule()` `main.js` adds in its `webpackFinal`, which the addon places', async () => {
     const { root, refuses } = await project();
@@ -185,7 +185,7 @@ describe('the addon under Storybook, whose project hooks run after it', () => {
     const config = await presets.apply('webpackFinal', webpackShaped(root, refuses, false, 'production'));
 
     await expect(built(config)).rejects.toThrow(/remove your testSelectionRule\(\); the addon places it/);
-  }, 60_000);
+  });
 
   it('runs the probes after a post loader `main.js` adds in its `rsbuildFinal`', async () => {
     const { root, refuses } = await project();
@@ -198,7 +198,7 @@ describe('the addon under Storybook, whose project hooks run after it', () => {
     await rsbuilt(await presets.apply('rsbuildFinal', { ...shaped, tools: { ...tools, rspack: [] } }), root);
 
     expect(await emitted(resolve(root, 'out'))).toMatch(/__va\(\d+\)/);
-  }, 60_000);
+  });
 
   it('refuses a `testSelectionProbes()` `main.js` adds in its `viteFinal`, which the addon places', async () => {
     const { root } = await project();
@@ -206,7 +206,7 @@ describe('the addon under Storybook, whose project hooks run after it', () => {
     const config = await presets.apply<InlineConfig>('viteFinal', { root, configFile: false, logLevel: 'silent', plugins: [] });
 
     await expect(resolveConfig(config, 'build')).rejects.toThrow(/remove your testSelectionProbes\(\); the addon places it/);
-  }, 60_000);
+  });
 
   it('adds no second Vite probes plugin where the config holds one before the addon runs, as `vite.config` does', async () => {
     const { root } = await project();
@@ -216,7 +216,7 @@ describe('the addon under Storybook, whose project hooks run after it', () => {
 
     const resolved = await resolveConfig(config, 'build');
     expect(resolved.plugins.filter((plugin) => plugin.name === 'variance-authority:test-selection-probes')).toHaveLength(1);
-  }, 60_000);
+  });
 
   it.each(['@variance-authority/storybook-collector', '@variance-authority/storybook-collector/preset'])(
     'loads the preset by the name `addons` lists, %s, as a project that installed the package does',

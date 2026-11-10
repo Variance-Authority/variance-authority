@@ -1,5 +1,27 @@
 # @variance-authority/mcp
 
+## 0.29.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.28.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.27.0
+
+### Patch Changes
+
+- 7fefcf8: A start point such as `--from packages/help` that names a folder without its
+  trailing slash is read as that folder when no file has that name, instead of
+  answering that the path is not found.
+
+## 0.26.0
+
+### Minor Changes
+
+- ce9c20a: `ask grep` and `ask discover --text` with no start point now say how to name one, the file or folder you are working in, and no longer send you to `rg`. A start point that says the root, as `.`, `./` or its absolute path, is refused as the root, not as a path the tree lacks, and `refusalFor` now takes the tree's root as its second argument.
+
 ## 0.25.0
 
 ### Minor Changes

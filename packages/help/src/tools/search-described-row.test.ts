@@ -222,7 +222,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       { file: 'packages/a-kit/src/index.ts', edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] },
       { file: 'packages/b-kit/src/index.ts' },
     ], root);
-    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'commit text', from: APP }, tree).described;
+    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'kept text', from: APP }, tree).described;
     expect(described?.total).toBe(described?.shown.length);
     expect(described?.shown.map((one) => one.name)).toEqual(['Inner']);
   });
@@ -237,10 +237,10 @@ describe('which row a described name is weighed, ordered and shown through', () 
     const files = [APP, 'packages/z-kit/src/index.ts', 'packages/b-kit/src/index.ts'];
     const tree = treeOf([{ file: APP, edges: files.slice(1).map((to) => ({ to, kind: 'imports' as const })) }, ...files.slice(1).map((file) => ({ file }))], root);
     const index = searchIndexOf(readHelp(root));
-    const reached = reachedBy(index, 'commit text', areaOf(APP, undefined, tree))?.find((one) => one.name === placementOf(index));
+    const reached = reachedBy(index, 'kept text', areaOf(APP, undefined, tree))?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     expect(index.exported(reached?.through?.row as number).at).toBe('packages/z-kit/src/index.ts');
-    const shown = searchNames(index, { query: 'commit text', from: APP }, tree).described?.shown.find((one) => one.name === 'Placement');
+    const shown = searchNames(index, { query: 'kept text', from: APP }, tree).described?.shown.find((one) => one.name === 'Placement');
     expect(shown?.at).toBe('packages/z-kit/src/index.ts');
     expect(shown && 'summary' in shown ? shown.summary : undefined).toBe('Kept with the text it holds.');
   });
@@ -253,7 +253,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       'app': { 'index.ts': "import type { Inner } from '../../a-kit/src/inner.js';\nexport type Used = Inner;\n" },
     }));
     const tree = treeOf([{ file: APP, edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] }, { file: 'packages/a-kit/src/inner.ts' }], root);
-    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text', from: APP }, tree).described;
+    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'placement kept text', from: APP }, tree).described;
     expect(described?.shown.map((one) => one.name)).toEqual(['Inner']);
     expect(described?.total).toBe(1);
   });
@@ -289,7 +289,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
         { file: 'src/beta.ts' },
         ...Object.keys(outside).map((file) => imports(file, ['src/alpha.ts'])),
       ], root);
-      const described = searchNames(searchIndexOf(readHelp(root)), { query: 'cache zebra', from: 'src/app.ts' }, tree).described;
+      const described = searchNames(searchIndexOf(readHelp(root)), { query: 'cache alpha beta', from: 'src/app.ts' }, tree).described;
       return described?.shown.map((one) => one.name) ?? [];
     };
     expect(await order(0)).toEqual(['cacheBeta', 'cacheAlpha']);
@@ -297,10 +297,11 @@ describe('which row a described name is weighed, ordered and shown through', () 
   });
 
   it('weighs a name no doc added a word to by the doc of the row it is shown through, not of its first published row', async () => {
-    // Neither doc holds `text`. `app` imports `b-kit`'s `Placement`, so it is the one shown.
+    // Neither `Placement` doc holds `text`, which `c-kit` makes the commoner word. `app` imports `b-kit`'s `Placement`, so it is the one shown.
     const root = await kits({
       'a-kit': { 'index.ts': '/** Kept for one shard. */\nexport interface Placement {\n  readonly shard: number;\n}\n' },
       'b-kit': { 'index.ts': '/** Kept for one run of the suite, and read once. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
+      'c-kit': { 'index.ts': '/** The text. */\nexport const one = 1;\n/** The text. */\nexport const two = 2;\n' },
       'app': { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" },
     }, { app: ['b-kit'] });
     const index = searchIndexOf(readHelp(root));

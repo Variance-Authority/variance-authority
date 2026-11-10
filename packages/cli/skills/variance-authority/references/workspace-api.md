@@ -101,6 +101,23 @@ one subdirectory, and there `search` is the only verb worth asking, because
 
 ## Names, then relations
 
+Ask by what you hold:
+
+| You hold | Ask |
+|---|---|
+| A name | `symbol`, then `uses` |
+| A meaning, in words | `search`, with each likely spelling |
+| A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
+
+The source is the files the index parses — JavaScript and TypeScript,
+stylesheets, Python, Rust, Java, Kotlin and Swift — and any other file one of
+them imports. `symbol`, `uses` and `search` answer from the declarations in the
+first; `grep` searches both, along the imports from its start point. A YAML,
+JSON, Markdown or shell file nothing imports is outside the source, and an empty
+answer says nothing about it: search it with `rg` or `git grep` alongside
+`variance`, not after `variance` comes back empty.
+
 `search` turns the words you have into candidate names. When the editor, ticket
 or stack trace already gives you a path, pass it on that first search as a start
 point (`--from`, `--to`; see `SKILL.md`). Then ask `symbol` for the chosen
@@ -227,7 +244,11 @@ not read, to the go-to-definition of the language server for `Tree`'s language. 
 a function inside a function by its name, under the function that holds it, and
 a member by its name, by `container.member`, or by the doc above it. They print
 below the other sections, and when something else answered, only a row that is
-the question exactly.
+the question exactly. It also lists the recorded test cases whose full names hold
+every word, as a stem or the start of a word, as `<name> [test] — <file>`: what
+each suite's last run wrote, so a test added since is missing and one removed
+since is still listed until a run of that suite records it, and the answer says
+which suite's cases were not read.
 
 `--package` with the path of one file in a package, such as
 `@acme/lib/src/internal/math`, names the file an import of that specifier
@@ -467,9 +488,10 @@ module, its module in Rust, and any module that spells it in Python; `uses` says
 the same in one line. CommonJS is read on a best-effort basis: the static keys
 of an object literal that `export =` or `module.exports =` assigns at the top
 level are the file's exports when every key is spelled, and a read off a
-default import of it is marked "through `default`". A script or CommonJS file,
-a module that hands itself out with `export =` and a `macro_rules!` are said to
-have no recorded reach: their readers cannot tell how the file hands the name
+default import of it is marked "through `default`". A named function or class
+handed out once that way is declared, and is the module's default export bound
+to that name. A script or CommonJS file, a module that hands out any other value
+with `export =` and a `macro_rules!` are said to have no recorded reach: their readers cannot tell how the file hands the name
 out.
 A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
@@ -483,21 +505,21 @@ matches installed third-party declarations from the same lexicon, which is
 
 Nothing back means nothing matched, not that a ranking left it out. In a
 checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding any of your words
-by stem, in any order, in the name or its doc, whether published, exported,
+follow an empty answer — names and files holding most of your words
+by stem, the rarer words counting for more, in any order, in the name or its doc, whether published, exported,
 declared and not exported, or a file by its name and the doc it opens with, the
 ones holding the most of your words first, then the ones holding more of them
 in the name, then the ones whose doc writes your phrase, every word any of
 them holds held by a row shown; then names your words
-reach loosely, exported or not, which takes a name holding fewer than half your
+reach loosely, exported or not, which takes a name holding less than most of your
 words when it reaches it by every one — are
 suggestions, printed before the installed
 packages: they never change the sections above them, and they do not find a word
 the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.
 
-**A start point removes names; it does not rank them down.** A path the
-checkout does not have is refused by name, so you are never answered about the
+**A start point removes names; it does not rank them down.** A path that
+holds no source file is refused by name, so you are never answered about the
 whole repository without knowing it. An empty answer under a start point is a
 fact about that area; ask again without it for the whole workspace.
 
@@ -506,9 +528,16 @@ counts.
 
 ### `grep`
 
-Use it when there is no name to ask for: a string literal, an error message, a
-comment. It needs `--from` or `--to`, and searches the files that start point
-reaches; for the whole checkout, run `rg`, which must be on `PATH` either way. Lines come grouped by how many imports away from the start point their
+Use it when there is no name to ask for: a local variable, a string literal, an
+error message, a comment. It needs `--from` or `--to`, and searches the files
+that start point names and reaches along the imports, so say the file or folder
+you are working in, or a top folder at the widest. The root is no start point.
+A file outside the source is never searched, and a path that holds only such
+files is refused as not found: run `rg` on it. `rg` must be on `PATH`. The query
+is a ripgrep regular expression: to match a literal, escape each of
+`\.+*?()|[]{}^$` with a backslash, as `--query 'a\(b'` matches `a(b`.
+
+Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`.
 
 ### `discover`

@@ -1,20 +1,22 @@
 import type { Tree } from '@variance-authority/mcp/tools';
-import { opening } from '@variance-authority/package/help';
 import { describedWordsNative, wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
-import { describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type Reached, type RowOrder } from './described.js';
+import { carriedThrough, carriesMost } from './carried.js';
+import { countedOf, describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
-import { aliasMatches, declaredMatches, exactness } from './declared.js';
+import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
+import { saidFor, type Said } from './held-sentence.js';
 import { membersUnreadOf } from './members.js';
 import { docRows, exported, exportedOrder, first } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
 import { docsSaying } from './phrase.js';
+import { recordedTests, suiteCaseNames } from './search-tests.js';
 
 /** Published matches shown before the answer says it stopped. */
 export const CAP = 40;
@@ -114,7 +116,7 @@ const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
  * holds stays the index's to say: counting a row reads the source index, so
  * counting every candidate would cost the question a read per match.
  */
-function published(index: SearchIndex, hits: readonly Hit[], count: number, importingOf?: ImportingOf): Matches<PublishedMatch> {
+function published(index: SearchIndex, hits: readonly Hit[], count: number, said: Said, importingOf?: ImportingOf): Matches<PublishedMatch> {
   const order = surfaceOrder(index);
   const page = first(hits, count, order).map((hit) => {
     const entry = index.published(hit.row);
@@ -131,7 +133,7 @@ function published(index: SearchIndex, hits: readonly Hit[], count: number, impo
       name: entry.name,
       specifier: entry.specifier,
       kind: entry.kind,
-      ...(entry.doc === undefined ? {} : { summary: opening(entry.doc) }),
+      ...(entry.doc === undefined ? {} : { summary: said(entry.doc) }),
       at: entry.at,
       ...(importedIn === undefined ? {} : { importedIn }),
       otherPackages: entry.usedBy.length,
@@ -171,6 +173,7 @@ const publishedOf = (index: SearchIndex, names: Iterable<number>): number[] =>
  */
 function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined) {
   const query = question.query.toLowerCase();
+  const said = saidFor(query);
   const area =
     question.from === undefined && question.to === undefined ? undefined : areaOf(question.from, question.to, tree);
   // A start point that could not be resolved is refused whole. Answering the
@@ -195,8 +198,8 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   // An exported row is reached by its doc as a published one is, and inside an
   // area only through a row whose file is in it.
   const through = docRows(index, saying.exported.rows, within, byName);
-  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, through, saying.exported.openings, exact);
-  return { query, area, within, named, hits, answered, rest } as const;
+  const rest = exported(index, ascending(named, [...through.keys()]), answered, within, said, through, saying.exported.openings, exact);
+  return { query, said, area, within, named, hits, answered, rest } as const;
 }
 
 /**
@@ -239,7 +242,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
 function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, since: number | undefined): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
-  const { query, area, within, named, hits, answered, rest } = found;
+  const { query, said, area, within, named, hits, answered, rest } = found;
 
   const counted: SearchArea | undefined =
     area === undefined
@@ -249,9 +252,11 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
-  const read = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP);
+  const told = declaredTold(root, said, since);
+  const read = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP, told);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
+  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, ELSEWHERE_CAP);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.
   const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
@@ -259,11 +264,12 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const answer: SearchAnswer = {
     query,
     ...(counted === undefined ? {} : { area: counted }),
-    published: published(index, hits, CAP, importingOf),
+    published: published(index, hits, CAP, said, importingOf),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(declared === undefined ? {} : { declared }),
     ...(inside === undefined ? {} : { held: { total: inside.length, shown: inside.slice(0, ELSEWHERE_CAP) } }),
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, ELSEWHERE_CAP) } }),
+    ...(tests === undefined ? {} : { tests }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
   // Installed packages that describe the words never stand in for this repository's
@@ -276,51 +282,56 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // stemmed by the rule packages are.
   // A name its file keeps to itself is in no row: the source index answers for it.
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
-  const reached = describedNames(index, query, within, new Set([...named, ...answered]), shownRowOrder(index, area, within), declarations);
+  const already = new Set([...named, ...answered]);
+  const reached = describedNames(index, query, within, already, shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
-  // Which reading a name both reach is told by is decided by what each holds, never
-  // by how many rows print. A name holding at least half the stems through one row
-  // is the described section's, which prints first, and the loose pass offers none
-  // of them a second time. A name holding fewer is the loose section's when every
-  // word reaches it there, since every word one character off says more than under
-  // half the stems do: held on so few, it would sort past the rows shown.
-  const strong = Math.ceil(describedWordsNative(query).length / 2);
-  const held = (one: Reached): boolean => one.words.length >= strong;
+  // Only what carries most of the question answers it, and a name carrying it is
+  // the described section's, which prints first: the loose pass offers none of
+  // them a second time. What holds less is the loose section's when every word
+  // reaches it there, and otherwise nobody's.
+  const asked = describedWordsNative(query).map(([, word]) => word);
+  // An area narrows what is shown, not what a word weighs: a row carrying the
+  // question everywhere carries it here.
+  const everyDeclaration = area === undefined ? declarations : describedDeclarations(root, query, undefined) ?? [];
+  const everywhere = area === undefined
+    ? described
+    : [...(describedNames(index, query, undefined, already, shownRowOrder(index, undefined, undefined), everyDeclaration) ?? []), ...everyDeclaration];
+  const carries = carriesMost(asked, (everywhere ?? []).map(countedOf), index.nameCount);
+  // Each of a name's rows is asked, not only the row the ranking would show.
+  const carried = described?.flatMap((one) => carriedThrough(one, carries) ?? []);
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
   // substring answered are kept out: a name the caller can already see must
   // not be offered back to them as something else. Whether a name is in the
   // answer is the dictionary's to say; where it sits is not.
-  const claimed = new Set([...named, ...answered, ...(reached ?? []).filter(held).map(({ name }) => name)]);
+  const claimed = new Set([...named, ...answered, ...(carried ?? []).flatMap((one) => ('tied' in one ? [one.name] : []))]);
   const viaDoc = new Map<number, Set<number>>();
   const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
-  const alsoFound = published(index, alsoHits, LOOSE_CAP, importingOf);
-  const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, viaDoc);
+  const alsoFound = published(index, alsoHits, LOOSE_CAP, said, importingOf);
+  const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, said, viaDoc);
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
-  const describedHere = new Set((described ?? []).flatMap((one) => ('match' in one && held(one) ? [declaredKey(one.match)] : [])));
+  const describedHere = new Set((carried ?? []).flatMap((one) => ('match' in one ? [declaredKey(one.match)] : [])));
   const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
-  const keptHere = new Set(kept.map(declaredKey));
-  const left = described?.filter((one) => ('match' in one ? !keptHere.has(declaredKey(one.match)) : 'file' in one || !loose.has(one.name)));
-  const told = described === undefined || left === undefined ? undefined : describedShown(index, query, left, DESCRIBED_CAP, described)
+  const heldRows = described === undefined || carried === undefined ? undefined : describedShown(index, query, carried, DESCRIBED_CAP, described)
     .flatMap((one): DescribedMatch[] => {
-      if ('match' in one) return [{ ...one.match, words: one.words }];
-      if ('file' in one) return [{ ...fileMatch(root, one.file, since), words: one.words }];
+      if ('match' in one) return [{ ...told(one.match), words: one.words }];
+      if ('file' in one) return [{ ...fileMatch(root, one.file, since, said), words: one.words }];
       // The row it was weighed through is the row shown.
       const { through } = one;
       const row = through.kind === 'published'
-        ? published(index, surface(index, [through.row], area, within), 1, importingOf).shown[0]
-        : exported(index, [one.name], new Set(), within, new Map([[one.name, new Set([through.row])]])).head(1)[0];
+        ? published(index, surface(index, [through.row], area, within), 1, said, importingOf).shown[0]
+        : exported(index, [one.name], new Set(), within, said, new Map([[one.name, new Set([through.row])]])).head(1)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(LOOSE_CAP - alsoFound.shown.length)];
-  const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length)];
-  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
+  const shown = [...reachedNames, ...kept.slice(0, LOOSE_CAP - reachedNames.length).map(told)];
+  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 || (tests?.total ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
   const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
-  if (left === undefined || told === undefined) return { answer: loosely, area };
-  return { answer: { ...loosely, described: { total: left.length, shown: told } }, area };
+  if (carried === undefined || heldRows === undefined) return { answer: loosely, area };
+  return { answer: { ...loosely, described: { total: carried.length, shown: heldRows } }, area };
 }
 
 /**

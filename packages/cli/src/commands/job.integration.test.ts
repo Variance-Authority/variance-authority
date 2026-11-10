@@ -1,0 +1,299 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readJobWrites, readTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { runJob } from './job.js';
+import { selectSuite } from './select-command.js';
+
+// `selectSuite` builds its own source index only outside CI, and these checkouts have no pipeline to publish one.
+vi.mock('ci-info', () => ({ isCI: false }));
+
+const git = (root: string, ...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+
+/** A recorder that copies `FAKE_TRACE` to where it was told to write, then runs the command. */
+const RECORDER = `#!/bin/sh
+out=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out=$2; shift 2 ;;
+    --) shift; break ;;
+    *) shift ;;
+  esac
+done
+cp "$FAKE_TRACE" "$out"
+exec "$@"
+`;
+
+const RECORDER_INSTALLED = spawnSync('strace', ['-V']).status === 0;
+
+describe('recording a job', () => {
+  let root: string;
+  let notes: string[];
+  const streams = { err: (text: string) => void notes.push(text) };
+  const job = (...run: string[]) => runJob({ command: 'job', suite: 'build', run }, streams, root);
+  const file = () => testCoverageFile(root, { suite: 'build' });
+
+  function recorder(script: string): void {
+    const bin = mkdtempSync(join(tmpdir(), 'va-job-bin-'));
+    writeFileSync(join(bin, 'strace'), script);
+    chmodSync(join(bin, 'strace'), 0o755);
+    vi.stubEnv('PATH', `${bin}${delimiter}${process.env.PATH ?? ''}`);
+  }
+
+  function traced(...lines: string[]): void {
+    const trace = join(mkdtempSync(join(tmpdir(), 'va-job-trace-')), 'trace');
+    writeFileSync(trace, `${lines.join('\n')}\n`);
+    vi.stubEnv('FAKE_TRACE', trace);
+    recorder(RECORDER);
+  }
+
+  beforeEach(() => {
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'va-job-')));
+    notes = [];
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-job-cache-')));
+    git(root, 'init', '-q');
+    git(root, 'config', 'user.email', 'a@b.c');
+    git(root, 'config', 'user.name', 'a');
+    writeFileSync(join(root, '.gitignore'), 'dist/\n');
+    writeFileSync(join(root, 'read.txt'), 'read\n');
+    writeFileSync(join(root, 'written.txt'), 'written\n');
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { build: { kind: 'job', relations: false }, unit: { kind: 'unit' } } }));
+    git(root, 'add', '.');
+    git(root, 'commit', '-qm', 'one');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('refuses a command that could not be started', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'va-job-outside-'));
+    await expect(runJob({ command: 'job', suite: 'build', run: ['va-no-such-command'] }, streams, outside))
+      .rejects.toThrow('`va-no-such-command` could not be started: no such command');
+  });
+
+  it('records what the command read and wrote, at the commit it ran on', async () => {
+    mkdirSync(join(root, 'dist'));
+    writeFileSync(join(root, 'dist', 'out.js'), 'out');
+    traced(
+      `1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`,
+      `1 openat(AT_FDCWD<${root}>, "dist/out.js", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3<${root}/dist/out.js>`,
+    );
+    expect(await job('sh', '-c', 'exit 0')).toBe(0);
+    const record = await readTestCoverage(file());
+    expect(record.commit).toBe(git(root, 'rev-parse', 'HEAD'));
+    expect(record.tests).toEqual([{
+      file: 'build',
+      complete: true,
+      preconditions: [{ name: 'read.txt', digest: git(root, 'rev-parse', 'HEAD:read.txt') }],
+    }]);
+    expect((await readJobWrites(file()))?.writes).toEqual(['dist/out.js']);
+  });
+
+  it('answers the exit of a command that failed, and holds its record incomplete', async () => {
+    traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+    expect(await job('sh', '-c', 'exit 3')).toBe(3);
+    expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
+  });
+
+  it('holds the record whole on the exit it was told means the command ran whole, and answers that exit', async () => {
+    traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+    expect(await runJob({ command: 'job', suite: 'build', run: ['sh', '-c', 'exit 1'], completeOn: 1 }, streams, root)).toBe(1);
+    expect((await readTestCoverage(file())).tests[0]?.complete).toBe(true);
+  });
+
+  it('runs a command once when the trace holds nothing it can place', async () => {
+    traced('1 execve("./x", ["./x"], 0x0) = 0');
+    expect(await job('sh', '-c', 'echo ran >> ran')).toBe(0);
+    expect(readFileSync(join(root, 'ran'), 'utf8')).toBe('ran\n');
+  });
+
+  it('answers a command ended by a signal as a shell would', async () => {
+    traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+    expect(await job('sh', '-c', 'kill -TERM $$')).toBe(143);
+  });
+
+  it('runs the command unrecorded when the recorder could not start it', async () => {
+    recorder('#!/bin/sh\nexit 1\n');
+    expect(await job('sh', '-c', 'touch ran; exit 4')).toBe(4);
+    expect(existsSync(join(root, 'ran'))).toBe(true);
+    expect((await readTestCoverage(file())).tests).toEqual([{ file: 'build', complete: false, preconditions: [] }]);
+    expect(notes.join('')).toContain('strace could not trace it');
+  });
+
+  it('holds the job incomplete before running a command it could not trace', async () => {
+    recorder('#!/bin/sh\nexit 1\n');
+    vi.stubEnv('RECORD', file());
+    expect(await job('sh', '-c', 'test -f "$RECORD"')).toBe(0);
+  });
+
+  it('holds the job incomplete when a later step could not be traced', async () => {
+    traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+    await job('sh', '-c', 'exit 0');
+    recorder('#!/bin/sh\nexit 1\n');
+    await job('sh', '-c', 'exit 0');
+    expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
+  });
+
+  describe('when a later step has no recorder', () => {
+    function withoutRecorder(): void {
+      const bin = mkdtempSync(join(tmpdir(), 'va-job-bin-'));
+      for (const tool of ['git', 'sh']) symlinkSync(execFileSync('which', [tool], { encoding: 'utf8' }).trim(), join(bin, tool));
+      vi.stubEnv('PATH', bin);
+    }
+
+    it('holds the job incomplete at the commit an earlier step recorded', async () => {
+      traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+      await job('sh', '-c', 'exit 0');
+      withoutRecorder();
+      await job('sh', '-c', 'exit 0');
+      expect((await readTestCoverage(file())).tests[0]?.complete).toBe(false);
+    });
+
+    it('leaves a record standing at another commit, which this run says nothing about', async () => {
+      traced(`1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`);
+      await job('sh', '-c', 'exit 0');
+      git(root, 'commit', '-q', '--allow-empty', '-m', 'two');
+      withoutRecorder();
+      await job('sh', '-c', 'exit 0');
+      expect((await readTestCoverage(file())).tests[0]?.complete).toBe(true);
+    });
+  });
+
+  it('refuses a suite that is not a job, before the command runs', async () => {
+    traced('1 write(1, "x", 1) = 1');
+    await expect(runJob({ command: 'job', suite: 'unit', run: ['touch', 'ran'] }, streams, root))
+      .rejects.toThrow('`unit` is a suite of kind `unit`');
+    expect(existsSync(join(root, 'ran'))).toBe(false);
+    expect(existsSync(testCoverageFile(root, { suite: 'unit' }))).toBe(false);
+  });
+
+  it('runs the command and leaves the record alone when there is no recorder', async () => {
+    const bin = mkdtempSync(join(tmpdir(), 'va-job-bin-'));
+    for (const tool of ['git', 'sh', 'touch']) symlinkSync(execFileSync('which', [tool], { encoding: 'utf8' }).trim(), join(bin, tool));
+    vi.stubEnv('PATH', bin);
+    expect(await job('sh', '-c', 'touch ran')).toBe(0);
+    expect(existsSync(join(root, 'ran'))).toBe(true);
+    expect(notes.join('')).toContain('strace is not installed');
+    expect(existsSync(file())).toBe(false);
+  });
+
+  it.runIf(RECORDER_INSTALLED)('records what a child of the command read and wrote, under the real recorder', async () => {
+    expect(await job('sh', '-c', 'mkdir -p dist && cat read.txt > dist/out.txt && cat dist/out.txt > /dev/null')).toBe(0);
+    expect((await readTestCoverage(file())).tests).toEqual([{
+      file: 'build',
+      complete: true,
+      preconditions: [{ name: 'read.txt', digest: git(root, 'rev-parse', 'HEAD:read.txt') }],
+    }]);
+    expect((await readJobWrites(file()))?.writes).toEqual(['dist/out.txt']);
+  });
+
+  describe('then selecting it', () => {
+    const skipped = async (): Promise<boolean> => [...(await selectSuite({ root, suite: 'build' })).skip].includes('build');
+
+    /** The job read `read.txt` and wrote `written.txt`, and ended on `exit`. */
+    async function recorded(exit = 0): Promise<void> {
+      traced(
+        `1 openat(AT_FDCWD<${root}>, "read.txt", O_RDONLY) = 3<${root}/read.txt>`,
+        `1 openat(AT_FDCWD<${root}>, "written.txt", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3<${root}/written.txt>`,
+      );
+      await job('sh', '-c', `exit ${exit}`);
+    }
+
+    it('selects the job when a file it read changes', async () => {
+      await recorded();
+      writeFileSync(join(root, 'read.txt'), 'changed\n');
+      expect([...(await selectSuite({ root, suite: 'build' })).whole]).toContain('build');
+      expect(await skipped()).toBe(false);
+    });
+
+    it('skips the job when the file changed is one it only wrote', async () => {
+      await recorded();
+      writeFileSync(join(root, 'written.txt'), 'changed\n');
+      expect(await skipped()).toBe(true);
+    });
+
+    it('selects a job whose record is incomplete, whatever changed', async () => {
+      await recorded(1);
+      writeFileSync(join(root, 'written.txt'), 'changed\n');
+      expect(await skipped()).toBe(false);
+    });
+
+    describe('across passes', () => {
+      const commit = (name: string, text: string) => {
+        writeFileSync(join(root, name), text);
+        git(root, 'add', '-A');
+        git(root, 'commit', '-qm', name);
+      };
+      /** The job ran warm: its tool found its output current, read nothing, and exited clean. */
+      async function warm(): Promise<void> {
+        traced(`1 write(1, "up to date", 10) = 10`);
+        await job('sh', '-c', 'exit 0');
+      }
+
+      it('skips on an unread commit and leaves the record where it stood', async () => {
+        await recorded();
+        const at = (await readTestCoverage(file()))?.commit;
+        commit('unread.txt', 'x\n');
+        expect(await skipped()).toBe(true);
+        expect((await readTestCoverage(file()))?.commit).toBe(at);
+      });
+
+      it('selects on a read file after a skipped commit', async () => {
+        await recorded();
+        commit('unread.txt', 'x\n');
+        expect(await skipped()).toBe(true);
+        commit('read.txt', 'changed\n');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('still selects when the read file moved under a commit that followed', async () => {
+        await recorded();
+        commit('read.txt', 'changed\n');
+        commit('unread.txt', 'x\n');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('skips when the read file came back to what the job read', async () => {
+        await recorded();
+        commit('read.txt', 'changed\n');
+        commit('read.txt', 'read\n');
+        expect(await skipped()).toBe(true);
+      });
+
+      it('selects when the record stands at a commit history lost', async () => {
+        commit('unread.txt', 'x\n');
+        await recorded();
+        git(root, 'commit', '-q', '--amend', '-m', 'rewritten');
+        git(root, 'reflog', 'expire', '--expire=now', '--all');
+        git(root, 'gc', '-q', '--prune=now');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('selects on a read file after a warm run that read nothing', async () => {
+        await recorded();
+        commit('unread.txt', 'x\n');
+        await warm();
+        commit('read.txt', 'changed\n');
+        expect(await skipped()).toBe(false);
+      });
+
+      it('selects when a job ran over an edit that is gone again', async () => {
+        writeFileSync(join(root, 'read.txt'), 'edited\n');
+        await recorded();
+        git(root, 'checkout', '--', 'read.txt');
+        expect(await skipped()).toBe(false);
+      });
+    });
+
+    it('selects a job that has no record', async () => {
+      writeFileSync(join(root, 'written.txt'), 'changed\n');
+      expect(await skipped()).toBe(false);
+    });
+  });
+
+  it('runs the command unrecorded outside a checkout', async () => {
+    root = mkdtempSync(join(tmpdir(), 'va-job-bare-'));
+    expect(await job('sh', '-c', 'exit 0')).toBe(0);
+    expect(notes.join('')).toContain('not a git checkout');
+  });
+});

@@ -1,5 +1,111 @@
 # @variance-authority/sense
 
+## 0.29.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.28.0
+
+### Minor Changes
+
+- 5d576bc: `variance doctor` names each suite the root `variance.config.json` declares, with its kind, and says whether a run has recorded it: this checkout's own record, the mainline's as last fetched, or the primary checkout's, with the file. A suite no run has recorded says what writes its first record. The exit code does not change, and nothing is fetched. `@variance-authority/sense/test-selection` exports `nearestRecord`, which says whose record a reader opens.
+
+## 0.27.0
+
+### Minor Changes
+
+- 7e7d00e: `variance` loads a command's modules only when that command runs. `variance --version` now loads 43 modules, down from 440. `comment --marker` loads 432, down from 915, and none of `distill`, `report` or `vantage`. `index --no-git` loads 274, down from 445.
+
+  Two new subpaths let the flag parser load without its package roots: `@variance-authority/core/nearest` exports `didYouMean` and `nearest`, and `@variance-authority/sense/checkout-path` exports `checkoutPath`.
+- 540a584: `variance job --suite <name> -- <command>...` runs a command under `strace` and
+  records what it read and wrote, in any language, for a suite of the new kind `job`.
+  `variance select --suite <name>`
+  selects the whole job from that record: a change to a file it read selects it, and
+  a change to a file it only wrote does not. A job with no record, an incomplete one
+  or a failed command runs. `--complete-on <exit>` names an exit that still means the
+  command ran whole.
+- 7c87f4e: `variance ask containment` counts how far the commits of a window reached across
+  package boundaries: the share that touched one package, and the share that
+  edited a test in another package or in a test-only tree. Each figure is a count
+  over its denominator, and `--format json` holds them all. MCP clients get the
+  same answer as `docs_containment`.
+- 789023a: `variance review --fail-on-lost` exits `1` when a suite no longer runs regions its base ran, so a project can require that a pull request keeps running what its mainline ran. It reads the comparison `--coverage` prints; a suite with no base is said on stderr and does not fail. A file the suite stopped loading counts when the checkout still holds it and the mainline ran it, which `SuiteChange.departed.ran` names.
+
+### Patch Changes
+
+- 9b9a6ee: `variance select` names a file read without importing it as one for a `/// <depends>` in the module that reads it, where it used to send that file to `preconditions`. A `preconditions` entry is declared by every test the run records, so a change to a fixture listed there ran every test. The note on a file the suite's `ignore` matches now says what each declaration runs. The `variance-authority` skill's selection references say the same.
+- c6af945: A Jest run that instruments no module no longer tells you to check `include` or
+  the plugin, which Jest's wrap does not have. The `instrumented 0 modules` warning
+  now sends you to the failures Jest printed above it, and, with no failures, to
+  your `transform` patterns.
+- facbe1c: `withTestSelection` for Jest, Vitest and Rstest refuses an entry in `preconditions` that cannot be read as a file when the run starts, before any test. The refusal names the path each entry resolved to, and says each entry is the path of one file. A glob, a directory or a missing file used to fail the run in the reporter after its tests passed. A command that runs no test, such as `jest --listTests`, `vitest list`, `rstest list` or `vite build`, is not refused, and neither is a run with no test file. A project's entries are read only when a test file of that project is in the run, so a project `--project` left out, or one with no matching test file, blocks no other. What the configuration listing the projects declares is read when any project has a test file in the run. Under Vitest, a command-line `--reporter` replaces the reporter that refuses it, so it is refused through a wrapped project with a test file in the run; a run of no wrapped project records nothing, and reads nothing. Under Rstest it replaces that reporter in any run and in `rstest merge-reports`, which then write no record and refuse nothing. Rstest cannot tell a run with no test file in a page or in a watch session, so it refuses those, and it reads a project's entries in a page or a watch session whether or not it has a test file. Rstest reaches a project through its wrap or by finding it written inline in the wrapped `projects`, so a run of nothing but an unwrapped project named by a path is treated like a merge, and records no coverage either.
+
+  A file only a test writes, absent when the run starts, is refused too, where that run used to pass: write the file before the runner starts. So is a file global setup writes under Vitest, and under Rstest in Node, which announce the first run before that setup; Jest, and Rstest in a page, announce it after global setup and still accept one, and every test declaring that file is recorded incomplete and runs again.
+
+  Under Rstest, `rstest merge-reports` and a run of nothing but an unwrapped project named by a path make no compiler, so nothing can refuse before their tests: each fails when they end, naming an entry those tests rest on that cannot be read, and writes no record without it.
+- 1732eab: `withTestSelection` and `withJourneyCoverage` wrap the `transform` of a Jest
+  preset such as `ts-jest`, merged with the object's as Jest merges them. The
+  wrap's own pattern used to match first, so the preset's transformer never ran and
+  the first run failed on syntax, and a preset's other patterns beside an object's
+  `transform` ran without probes.
+
+  A transformer now loads from the project's `rootDir`, where Jest finds it, so one
+  installed only under a nested package needs no `require.resolve`, and `<rootDir>`
+  in its name is replaced as Jest replaces it.
+
+  A preset Jest awaits, such as one with top-level await or one that exports a
+  promise, is refused at config load, by name, because the wrap is synchronous.
+  Under a relative `rootDir`, a preset spelled as a path, starting with `.` or
+  `<rootDir>`, is refused the same way whether or not it is found, and so is a bare
+  name that is not found. The refusal says to write an absolute `rootDir`: Jest
+  reads a relative one from the config file, whose directory the wrap is never
+  told, so a file found from elsewhere may not be the one Jest runs. Any `preset`,
+  with or without a `transform`, is refused too when `jest-resolve` is not reachable
+  from that directory.
+
+  `transform: undefined` or `transform: null` beside a preset wraps Jest's default,
+  because Jest reads either as shadowing the preset's `transform`.
+- 632bc86: A run with nothing before reach names the file `before` is written in, and the Jest wrap's documentation gives the same answer for its config.
+- a80cf38: `withTestSelection` and `withJourneyCoverage` now run a Jest project in whose
+  process something `import`ed a JSON file, most often Babel 8 under `babel-jest`.
+  Node leaves such a file in `require.cache` as `{ exports, loaded }`, with no
+  `children` and no `filename`, and every test file used to fail before its first
+  test with `Cannot read properties of undefined (reading 'includes')`. A custom
+  environment that requires a file cached this way still counts it as an input,
+  and one that then evicts the file is refused, since nothing is left to name it.
+- d948104: A run that names no suite now records into the only declared suite, as
+  `variance covering` already reads it, and a reader that names none opens it.
+  Among several declared suites both still stop. `onlySuite` is exported from
+  `@variance-authority/sense/test-selection` for readers of their own.
+- 5a19cbe: `ask orient` keeps a root package on the map beside a package nested in it, and its file count covers the root's sources. A root joins when its manifest has a `name`, it holds source, and it declares no workspaces, in `workspaces` or in the `packages:` of a `pnpm-workspace.yaml`. A root that declares workspaces stays out, and that repository's map does not change. `@variance-authority/package` exports `declaresWorkspaces(root)`, which reads what `members` reads and never throws: a declaration `members` refuses counts as declared.
+
+## 0.26.0
+
+### Minor Changes
+
+- 73a2b55: `variance ask search` finds what `ask symbol` finds: a member by its name, by `container.member` or by the doc above it, a function inside a function by its name, and an import's `as` name. A member's doc span is now in the source index, so the index format moves to 40 and rebuilds once. A search that finds nothing says what it read: ``No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `x`.`` A script that matches the old `No name in this repository` sentence matches the new one instead. As JSON, the answer gains `held`, `aliases` and `membersUnread`.
+- 5f412f2: `ask search` lists the recorded test cases whose full names hold every word of the question, as a word, the start of one or its stem, each with its file, so a test is found by its title however it was registered. The list is what each suite's last run wrote, and the answer says which suite's cases were not read and why.
+
+### Patch Changes
+
+- 7040678: `variance carry hand <dir>` reads the share once for a run, and `variance carry receive <dir>` lays that read down in the run's other jobs. Every reader in a job that received answers with that record, however far behind the merge base, and neither the share nor a worktree's primary checkout is asked, so a shard re-run after your mainline moved selects what it selected the first time. `receive` removes the checkout's own record, which would otherwise stand in front of it. `receive` stops the job rather than ask the share when the directory holds no manifest or a record that does not read.
+
+  `readMissedMainline`, `writeMissedMainline` and `MissedMainline` are no longer exported: `carry hand` and `carry receive` move that answer themselves.
+- 7715023: A Vite 8 build no longer stops with "the map back to the file carries a text for it that is not the file on disk" where a plugin ahead of the probes answered `map: null`, as Storybook's globals step does. The text a map carries is compared with your file on the lines your regions sit on, so a step that changed only other lines builds, and one that changed a region's line stops it as before.
+
+  A map column past the end of its line stays on that line, so a line a step made
+  longer than the file charges no region on the line below when the module loads.
+- 439e41e: A named function or class handed out by `export =` or `module.exports =` is read as a declaration and the module's default export, so `ask symbol` and `ask uses` find it.
+- b598133: A Jest run through `withTestSelection` that found test files and selected none of them exits 0, as a Vitest run does, where it exited 1 and failed a pull request that needed no test. A selected run where no project found a test file still fails as Jest fails, so a `testMatch` that matches nothing stays red. A run with no selection, or under `--watch`, `--filter` or `--skipFilter`, keeps Jest's own exit, and `--watch-all` and `--skip-filter` now count as those flags do.
+- 4553d53: Runtime dependencies move to what npm publishes now: `oxc-parser` 0.157,
+  `magic-string` 1.4 and `sharp` 0.35.
+
+  `@variance-authority/sense` treats an exported object whose key holds a lone
+  surrogate as it treats a spread or a computed key: the module's exports are not
+  known, because no importer can spell that name. An import or an export whose
+  specifier holds one is counted on the read as a specifier it cannot read.
+- e9a86ac: A search row prints the sentence of its doc that holds the question, and a comment a blank line parts from a file's first statement is the file's banner, no longer read as that statement's doc.
+
 ## 0.25.0
 
 ### Minor Changes

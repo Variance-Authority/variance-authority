@@ -104,11 +104,11 @@ describe('`variance share --suite unit`', () => {
     ]);
   });
 
-  it("refuses the other form's inputs beside it", () => {
+  it("refuses the project form's inputs beside it, and takes the records its jobs handed on", () => {
     expect(() => parseArgs(['share', '--suite', 'unit', '--config', 'web.json'])).toThrow(
       '`share --suite` reads the suite and its share from the root variance.config.json, so it takes no `--config`',
     );
-    expect(() => parseArgs(['share', '--suite', 'unit', '--publish', 'report.json'])).toThrow(/so it takes no report$/u);
+    expect(parseArgs(['share', '--suite', 'unit', '--publish', 'ran'])).toMatchObject({ command: 'share', suite: 'unit', reports: ['ran'] });
     expect(parseArgs(['share', '--suite', 'unit', '--publish'])).toMatchObject({ command: 'share', suite: 'unit', publish: true });
   });
 });
@@ -148,9 +148,9 @@ describe('a mainline publish counts a whole run against what the runner collects
     expect((await suiteShare(ci, { suite: 'unit', publish: true }, { env: branch })).exit).toBe(EXIT_CLEAN);
   });
 
-  it('refuses `--collected` anywhere but beside `--suite` and `--publish`', () => {
+  it('refuses `--collected` anywhere but beside `--publish`', () => {
     expect(() => parseArgs(['share', '--suite', 'unit', '--collected', 'files.txt'])).toThrow(
-      '`--collected` is for `share --suite <name> --publish`, which counts a whole run against it',
+      '`--collected` is for `share --publish`, which counts a whole run against it',
     );
     expect(parseArgs(['share', '--suite', 'unit', '--publish', '--collected', 'files.txt'])).toMatchObject({ collected: 'files.txt' });
   });

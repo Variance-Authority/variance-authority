@@ -296,7 +296,8 @@ thing. It is a coordinate you already have, so it is matched literally:
   does not name the file under `apps/web` — it names a file at the root, and
   where no file is at the root, nothing is there and the answer is not found.
   Not *found under apps/web*, and not *two candidates, pick one*. Say
-  `apps/web/Badge.tsx` or say `apps/web/`.
+  `apps/web/Badge.tsx` or say `apps/web/`. The root is the one exception: the
+  tree has it, and it is refused as the root.
 - **Nothing is looked for inside a path.** No matching tail, no run of segments
   found somewhere in the middle, no case folding, and no reading one path as
   another because one ends with the other.

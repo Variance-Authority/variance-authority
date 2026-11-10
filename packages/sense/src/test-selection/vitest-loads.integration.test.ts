@@ -56,7 +56,7 @@ describe('the Vitest integration under the loads recipe', () => {
 @@ -${line},1 +${line},1 @@
 -    return 'A';
 +    return 'Alpha';`)).resolves.toEqual([ext('test/alpha.case.ts'), ext('test/beta.case.ts')]);
-  }, 30_000);
+  });
 
   it('records a module for every test file of a shared realm, though the realm evaluated it once', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
@@ -76,5 +76,5 @@ describe('the Vitest integration under the loads recipe', () => {
 @@ -1,1 +1,1 @@
 -x
 +y`)).resolves.toEqual([ext('test/alpha.case.ts'), ext('test/beta.case.ts')]);
-  }, 30_000);
+  });
 });

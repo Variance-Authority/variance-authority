@@ -1,5 +1,21 @@
 # @variance-authority/sense-win32-x64-msvc
 
+## 0.29.0
+
+No changes in this release.
+
+## 0.28.0
+
+No changes in this release.
+
+## 0.27.0
+
+No changes in this release.
+
+## 0.26.0
+
+No changes in this release.
+
 ## 0.25.0
 
 ## 0.24.1

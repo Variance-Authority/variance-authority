@@ -328,4 +328,22 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(out).not.toContain('Tree.Tree');
     expect(out).not.toContain('declares it as a member');
   });
+
+  // #1008: a named function or class a module hands out whole is declared, and is its module's export.
+  it("answers a function `module.exports =` and a class `export =` hand out as their module's export", async () => {
+    checkout({
+      'packages/lib/src/cadence-babel.cjs': 'const lineStarts = [];\nmodule.exports = function cadenceBabel() {\n  return lineStarts;\n};\n',
+      'packages/lib/src/reader.cts': 'export = class Reader {};\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const declared = [['cadenceBabel', 'packages/lib/src/cadence-babel.cjs:2'], ['Reader', 'packages/lib/src/reader.cts:1']] as const;
+    for (const [name, at] of declared) {
+      for (const tool of ['symbol', 'uses']) {
+        const { code, out } = await run(['ask', tool, '--name', name]);
+        expect(code).toBe(EXIT_CLEAN);
+        expect(out).toContain(`exported, without being published, at ${at}`);
+        expect(out).not.toContain('No file in this workspace declares');
+      }
+    }
+  });
 });

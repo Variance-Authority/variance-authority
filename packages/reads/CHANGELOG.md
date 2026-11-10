@@ -1,5 +1,21 @@
 # @variance-authority/reads
 
+## 0.29.0
+
+No changes in this release.
+
+## 0.28.0
+
+No changes in this release.
+
+## 0.27.0
+
+No changes in this release.
+
+## 0.26.0
+
+No changes in this release.
+
 ## 0.25.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

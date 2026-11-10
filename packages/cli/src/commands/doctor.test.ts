@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -261,6 +262,16 @@ describe('formatDiagnosis', () => {
     expect(text).toContain('renders: 0.0 MiB in 0 entries');
     expect(text).toContain('nothing is cached here yet');
     expect(text).not.toContain('cached by identity');
+  });
+
+  it('reads the suites of the repository it is handed, and prints them after the rest', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-doctor-suites-'));
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+
+    const text = formatDiagnosis(await doctor(configOf(), probesWith([]), root));
+
+    expect(text).toMatch(/\n\nsuites: 1 declared in the root variance\.config\.json\n  unit \(unit\): not recorded yet\n/);
   });
 });
 

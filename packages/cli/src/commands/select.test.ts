@@ -71,6 +71,8 @@ describe('what a foreign runner may skip', () => {
     expect(selection.widened).toBeUndefined();
     expect(selection.unread).toEqual(['docs/selecting.md']);
     expect(selection.notes.join('\n')).toContain('the journal records nothing about 1 changed file');
+    expect(selection.notes.join('\n')).toContain('a file read without importing it is named by a `/// <depends>` in the module that reads it');
+    expect(selection.notes.join('\n')).not.toContain('precondition');
     expect(selectionNotes(selection)).toContain('read docs/selecting.md: unread (the record and the file graph hold nothing about it)');
     expect(selectionNotes(selection)).not.toContain('skipping nothing');
   });

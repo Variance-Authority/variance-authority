@@ -1,5 +1,40 @@
 # @variance-authority/package
 
+## 0.29.0
+
+No changes in this release.
+
+## 0.28.0
+
+No changes in this release.
+
+## 0.27.0
+
+### Minor Changes
+
+- 7c87f4e: `variance ask containment` counts how far the commits of a window reached across
+  package boundaries: the share that touched one package, and the share that
+  edited a test in another package or in a test-only tree. Each figure is a count
+  over its denominator, and `--format json` holds them all. MCP clients get the
+  same answer as `docs_containment`.
+
+### Patch Changes
+
+- 5a19cbe: `ask orient` keeps a root package on the map beside a package nested in it, and its file count covers the root's sources. A root joins when its manifest has a `name`, it holds source, and it declares no workspaces, in `workspaces` or in the `packages:` of a `pnpm-workspace.yaml`. A root that declares workspaces stays out, and that repository's map does not change. `@variance-authority/package` exports `declaresWorkspaces(root)`, which reads what `members` reads and never throws: a declaration `members` refuses counts as declared.
+
+## 0.26.0
+
+### Patch Changes
+
+- 4553d53: Runtime dependencies move to what npm publishes now: `oxc-parser` 0.157,
+  `magic-string` 1.4 and `sharp` 0.35.
+
+  `@variance-authority/sense` treats an exported object whose key holds a lone
+  surrogate as it treats a spread or a computed key: the module's exports are not
+  known, because no importer can spell that name. An import or an export whose
+  specifier holds one is counted on the read as a specifier it cannot read.
+- e9a86ac: A search row prints the sentence of its doc that holds the question, and a comment a blank line parts from a file's first statement is the file's banner, no longer read as that statement's doc.
+
 ## 0.25.0
 
 ### Minor Changes

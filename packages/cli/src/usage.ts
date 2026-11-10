@@ -38,6 +38,7 @@ export const COMMANDS = [
   'serve',
   'doctor',
   'prune',
+  'job',
   'share',
   'collect',
   'carry',
@@ -126,6 +127,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--taint-file',
     '--just-answer',
     '--over',
+    '--after',
     '--limit',
     '--offset',
     '--at',
@@ -141,15 +143,16 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--root', '--format'],
   layers: ['--against', '--root', '--format'],
   restrictions: ['--root', '--format'],
-  review: ['--coverage', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
+  review: ['--coverage', '--fail-on-uncovered', '--fail-on-lost', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
   doctor: ['--baselines'],
   prune: [],
+  job: ['--suite', '--complete-on'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
-  carry: ['--config', '--format'],
+  carry: ['--config', '--format', '--head', '--on-conflict', '--expect'],
   comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker', '--cleared'],
 };
 
@@ -160,12 +163,12 @@ export const USAGE = [
   'variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
-  'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json]',
+  'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]',
   'variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]',
   'variance restrictions [--root <path>] [--format text|json]',
-  'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
+  'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
-  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
+  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
   'variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]',
   'variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]',
   'variance watch',
@@ -177,9 +180,10 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
-  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>] | --format text|github] | --purge-older-than <days> [--mainline <branch>]',
+  'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
+  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
-  'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> [--config <path>] [--format text|github]',
+  'variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared',
   '',
   '`--version` prints the version of this tool.',
@@ -189,17 +193,12 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill`, `covering`, `coverage`, `review`, `story`, `index`,
- * `select`, `shards` and `reach` do not read project configuration. One holds a live
- * listener; the next five read evidence a run left behind, named on the command line or found
- * where a run puts it; the last four are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else. `prune` reads the
- * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
- * whether or not a project is configured. `carry` is on the list
- * for the same reason and names `--config` itself: the suites it carries are
- * the repository root's, and a project is read only when one is named.
+ * These read no project configuration: they hold a listener, read evidence a run
+ * left behind, answer a repository whose tests another runner runs, or work from
+ * the repository root, as `prune`, `job` and `carry` do. `carry` still names
+ * `--config`, and reads a project only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
@@ -238,7 +237,8 @@ export function synopsisFor(command: (typeof COMMANDS)[number]): string {
  * command returns `0` when it did what was asked and `2` when it could not, and
  * a help text that offered them `1` would describe an outcome the command has no
  * way to produce — `accept` promotes a baseline or refuses, and a reader waiting
- * for its `1` is waiting for a code that is never coming.
+ * for its `1` is waiting for a code that is never coming. `review` is apart: it
+ * reaches no verdict about the UI, and answers `1` only when a project asked it to.
  */
 const REVIEWS: readonly string[] = ['run', 'report', 'adjudicate'];
 
@@ -276,9 +276,17 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
     ...(flags.includes('--whole-files')
       ? ['--whole-files: walk from every changed file whole, without reading the edit; the list is never shorter.']
       : []),
+    ...(flags.includes('--fail-on-uncovered')
+      ? ['--fail-on-uncovered: exit 1 when a changed function holds code no case ran, and 2 when the record does not hold the change, or source changed and nothing shows a run of it.']
+      : []),
+    ...(flags.includes('--fail-on-lost')
+      ? ['--fail-on-lost: exit 1 when a suite no longer runs regions its base ran, or no longer loads a file the checkout holds and its base ran. It reads `--coverage`; a base that cannot be read is said on stderr and does not fail.']
+      : []),
     REVIEWS.includes(command)
       ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'
-      : 'exit codes: 0 done, 2 operator error.',
+      : command === 'review'
+        ? 'exit codes: 0 done, 1 --fail-on-uncovered counted a changed function no case ran or --fail-on-lost counted a region no longer run, 2 operator error.'
+        : 'exit codes: 0 done, 2 operator error.',
   ].join('\n');
 }
 

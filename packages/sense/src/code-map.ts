@@ -63,9 +63,12 @@ export async function prepareCodeMap(
   const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
   // A manifest's entry lands where the scan that built the index put it.
   const tsconfig = declaredTsconfig(root);
+  // Loaded here: this package is imported by every runner's worker, and only `variance index` folds.
+  const { declaresWorkspaces } = await import('@variance-authority/package');
+  const workspaces = declaresWorkspaces(root);
   const prepared = await (carried !== undefined
-    ? carried(root, index, tsconfig)
-    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null, tsconfig));
+    ? carried(root, index, workspaces, tsconfig)
+    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null, workspaces, tsconfig));
   return prepared === null ? { index } : { index, prepared };
 }
 

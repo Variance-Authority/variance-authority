@@ -27,7 +27,7 @@ vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
   // The fold and the layer are the package's own; only the disk is stood in for.
   ...(await importOriginal<typeof import('@variance-authority/sense/test-selection')>()),
   testCoverageFile: () => CACHED,
-  readableTestCoverage: async () => CACHED,
+  nearestRecord: () => ({ file: CACHED, origin: 'own' }),
   readTestCoverage,
   // A stood-in snapshot keeps no cases, whatever the stand-in left on disk.
   caseSectionsAt: () => ({}),

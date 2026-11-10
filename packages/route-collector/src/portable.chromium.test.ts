@@ -212,7 +212,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a document that can leave the machine', () 
     // this as a closure claim and blocks the network on it.
     expect(document.resources).toBeUndefined();
     expect(Object.keys(document.assets ?? {})).toContain('/logo.png');
-  }, 60_000);
+  });
 
   it('closes over the bytes it was served, keyed by the URL the wire saw', async () => {
     const document = documentOf(await collect({ portable: true }));
@@ -228,7 +228,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a document that can leave the machine', () 
     // The half that makes the other half reachable: `/logo.png` in the markup
     // has to resolve to the key above, and only the base carries that.
     expect(document.baseUrl).toBe(`${base}/page`);
-  }, 60_000);
+  });
 
   it('paints the same pixels from the archive as from the origin', async () => {
     const document = documentOf(await collect({ portable: true }));
@@ -259,7 +259,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a document that can leave the machine', () 
     // — hours later, in someone else's report, with the origin out of reach.
     expect(reading.ok).toBe(false);
     expect(reading.ok === false && reading.because).toContain(`${base}/broken.png`);
-  }, 60_000);
+  });
 
   it('will not pretend to close over a wire nobody is watching', async () => {
     // `network: false` is the option that stops the observer reading bodies, so
@@ -269,7 +269,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a document that can leave the machine', () 
     await expect(collect({ portable: true, network: false })).rejects.toThrow(
       /portable documents need the network observer/,
     );
-  }, 60_000);
+  });
 
   it('still paints after the origin is gone', async () => {
     const document = documentOf(await collect({ portable: true }));

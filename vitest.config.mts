@@ -3,6 +3,7 @@ import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
+import { HANG } from './tools/hang-limit.mjs';
 import { nativeSources } from './tools/native-sources.mjs';
 import { marked, probeable } from './tools/page-side.mjs';
 import { MARKERS, PLACES, excludeOf, includeOf } from './tools/slices.mjs';
@@ -63,7 +64,7 @@ const ROOT = import.meta.dirname;
  * test sits from that module has a path the scanner has actually read.
  */
 const PRODUCT = /[/\\](?:packages|examples|cases)[/\\][^/\\]+[/\\]src[/\\]/;
-const SITE = /[/\\]site[/\\]app[/\\]/;
+const SITE = /[/\\]site[/\\](?:app[/\\]|proxy\.ts$)/;
 const BUILT = /[/\\]packages[/\\][^/\\]+[/\\]dist[/\\]/;
 const MODULE = /\.[cm]?[jt]sx?$/;
 /** A probe in a test file would record the test observing itself. */
@@ -94,7 +95,7 @@ const unprobed = (file: string) => source(file) && marked(ROOT, file);
  * install, which no slice here runs, so a site module importing one of these
  * resolves only to the mock its test declares.
  */
-const SITE_ONLY = ['next/link', 'next/navigation', 'react-markdown', 'rehype-raw', 'remark-gfm'];
+const SITE_ONLY = ['next/link', 'next/navigation', 'next/server', 'react-markdown', 'rehype-raw', 'remark-gfm'];
 
 /**
  * What every slice runs under.
@@ -119,6 +120,9 @@ const shared = defineConfig({
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
     // DOM-free (ADR-0001) and nothing accidentally acquires a `document`.
     environment: 'node',
+    // A limit that calls a test hung, never one that times how fast it is.
+    testTimeout: HANG,
+    hookTimeout: HANG,
     // A cache of the run's own, for the workers only. A test that folds, saves
     // or indexes a fixture it made in a temporary directory otherwise writes a
     // layer keyed by that directory into this machine's cache, and the

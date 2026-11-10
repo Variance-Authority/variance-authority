@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
+  declaredSuites,
   placeInText,
   reachOf,
   readableTestCoverage,
@@ -93,6 +94,7 @@ export async function recordOf(
 export async function snapshotFor(request: CoveringRead): Promise<string | undefined> {
   if (request.record !== undefined) return request.record;
   try {
+    if (request.execution !== undefined && declaredSuites(request.root) !== undefined) return undefined;
     return await readableTestCoverage(request.root, { suite: request.suite });
   } catch {
     return undefined;

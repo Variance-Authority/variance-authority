@@ -51,5 +51,5 @@ describe('the test line that reached each region, under Vitest', () => {
     expect(reaching('decide > takes the alpha branch', 3)).toEqual({ line: 6, ambient: false });
     expect(reaching('decide > takes the gamma branch', 6)).toEqual({ line: 10, ambient: false });
     expect(reaching('decide > falls through to B', 8)).toEqual({ line: 14, ambient: false });
-  }, 20_000);
+  });
 });

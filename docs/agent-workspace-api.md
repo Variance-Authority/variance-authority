@@ -109,12 +109,12 @@ npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspac
 
 Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
 runs on every Node these packages do. It prints a notice that version 1 is
-deprecated, then the answer, which lists these fourteen:
+deprecated, then the answer, which lists these fifteen:
 
 ```text
 docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
 docs_discover docs_intersection docs_orient docs_slowest_tests docs_journey_map
-docs_test_composition docs_stack docs_gaps
+docs_test_composition docs_containment docs_stack docs_gaps
 ```
 
 Then start the client, approve the server if it asks, and have your agent call
@@ -133,8 +133,10 @@ manager runs a local binary:
 
 Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
+`ask search --query <words>` finds a name by what it does. They answer from the
+code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
+them, and an empty answer says nothing about a file they did not search. The
+`variance-authority` skill lists what the index parses, and has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
@@ -161,7 +163,8 @@ search, indexed source search and observed-subject search.
 
 | You need | Start with |
 | --- | --- |
-| An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep`, beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
+| A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
@@ -241,7 +244,12 @@ a member, with the member's `file:line`, and points to `uses`. A dotted name,
 `Tree.has`, asks for the member `has` of `Tree` alone. `ask search` finds a
 member by its name, by `Tree.has` or by the doc above it, and a function inside
 a function by its name; a row that only holds the words stays out of a search
-something else answered. When the workspace also holds Python, Rust, Java, Kotlin or Swift
+something else answered. It also reads the test cases the last run recorded, by
+their full names, so a rule written only as a test is found by the words of its
+title, however the test was registered. A title holds a word as a name does: a
+word of it is that word, starts with it, or shares its stem. The list is each
+suite's last run: a case added since is missing and one removed since is still
+listed, until a run of that suite writes its record. When the workspace also holds Python, Rust, Java, Kotlin or Swift
 files, `ask symbol` ends with a sentence that names those languages, whether or
 not it found a member, and `ask search` says it when nothing answered, and each
 sends you to their language server's workspace symbols. The graph does not record that one
@@ -530,9 +538,10 @@ a best-effort basis: the static keys of an object literal that `export =` or
 `module.exports =` assigns at the top level are the file's exports, and naming
 a declaration there passes it on, which is no use of it. An object with a
 spread or a computed key with no literal name exports nothing, because its
-names cannot be spelled.
-A script or CommonJS file, a module that hands itself out with `export =` and
-a `macro_rules!` hand a name out in ways their readers cannot tell, so the
+names cannot be spelled. A named function or class handed out once that way is
+declared, and is the module's default export bound to that name.
+A script or CommonJS file, a module that hands out any other value with
+`export =` and a `macro_rules!` hand a name out in ways their readers cannot tell, so the
 answer says who can reach it is not recorded. `docs_uses`
 answers with the same kind, file, line and rule in one sentence, before any member
 declared by that name, and after the imports of an export of that name elsewhere.
@@ -629,8 +638,9 @@ So `page sink` finds the doc "installs the page's sink" and not "a page and its
 sink". Where your words land on a
 name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
-after that answer and never inside it. So do the names holding any of your
-words, matched by stem, the ones holding most of them first, each labelled with
+after that answer and never inside it. So do the names holding most of your
+words, matched by stem, a rare word counting for more than a common one, the
+ones holding the most first, each labelled with
 the words it holds; both come
 before any installed package.
 

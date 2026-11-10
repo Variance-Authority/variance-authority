@@ -1,5 +1,47 @@
 # @variance-authority/help
 
+## 0.29.0
+
+### Patch Changes
+
+- 6f9f94a: `ask grep` and `docs_grep` answer a query that matches more than about 120,000 lines, where they had stopped with `Maximum call stack size exceeded`. `ask discover --text` and `ask intersection` answer such a query the same way.
+
+## 0.28.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.27.0
+
+### Minor Changes
+
+- 7c87f4e: `variance ask containment` counts how far the commits of a window reached across
+  package boundaries: the share that touched one package, and the share that
+  edited a test in another package or in a test-only tree. Each figure is a count
+  over its denominator, and `--format json` holds them all. MCP clients get the
+  same answer as `docs_containment`.
+
+### Patch Changes
+
+- 1342d15: `variance ask symbol` no longer calls a name unpublished when its package declares an entry the reading could not follow to a source file, as a build output no tsconfig names. It says whether the name is published is not known.
+
+## 0.26.0
+
+### Minor Changes
+
+- ce9c20a: `ask grep` and `ask discover --text` with no start point now say how to name one, the file or folder you are working in, and no longer send you to `rg`. A start point that says the root, as `.`, `./` or its absolute path, is refused as the root, not as a path the tree lacks, and `refusalFor` now takes the tree's root as its second argument.
+- 73a2b55: `variance ask search` finds what `ask symbol` finds: a member by its name, by `container.member` or by the doc above it, a function inside a function by its name, and an import's `as` name. A member's doc span is now in the source index, so the index format moves to 40 and rebuilds once. A search that finds nothing says what it read: ``No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `x`.`` A script that matches the old `No name in this repository` sentence matches the new one instead. As JSON, the answer gains `held`, `aliases` and `membersUnread`.
+- 5f412f2: `ask search` lists the recorded test cases whose full names hold every word of the question, as a word, the start of one or its stem, each with its file, so a test is found by its title however it was registered. The list is what each suite's last run wrote, and the answer says which suite's cases were not read and why.
+
+### Patch Changes
+
+- dfb146a: `ask search` tells you to leave a word under three letters out of a description, where it has no stem, and to keep it when it spells a name or a phrase.
+- c25f8ca: A search that reaches rows by one common word no longer lists them: a row is shown when the words it holds weigh at least half of the question, the rarer words counting for more, and a question of two words, one of which the repository never writes, is told as a none. Two common words can still outweigh a third word nothing holds.
+- 6e54f50: The `search` tool description, the skill and both READMEs say that `search` lists
+  candidates, not every match, and that `git grep -i <word>` prints every tracked
+  line that writes a word. The skill no longer says that a `search` list with no
+  "more not shown" line is the whole list.
+- e9a86ac: A search row prints the sentence of its doc that holds the question, and a comment a blank line parts from a file's first statement is the file's banner, no longer read as that statement's doc.
+
 ## 0.25.0
 
 ### Minor Changes

@@ -20,8 +20,8 @@ import type { Tree } from './tree.js';
  *
  * ## A path exists or it does not
  *
- * That is the entire rule, and there is deliberately nothing under it. A start
- * point is read from its root down and compared segment for whole segment:
+ * That is the entire rule, and the root is its one exception. A start point is
+ * read from its root down and compared segment for whole segment:
  * `apps/web/Badge.tsx` is that file, `apps/web/` is that directory. Nothing is
  * looked for *inside* a path. `Badge.tsx` names a file at the root, and where
  * no file is at the root there is nothing there and the answer is not found —
@@ -75,7 +75,8 @@ type Width = 'file' | 'under' | 'own';
  * Which width the caller asked for, or nothing when what they wrote is not a
  * path at all.
  *
- * Three forms and no others. `apps/web/Badge.tsx` is that file;
+ * Three forms and no others, and one reading of the first: a bare path that no
+ * file has the name of is read as the folder of that name, in `entryPoints`. `apps/web/Badge.tsx` is that file;
  * `apps/web/` is everything under it at any depth; `apps/web/*` is that
  * directory's own files and nothing deeper. Say nothing about depth and you
  * mean any depth, which is why the folder is the wider of the two and the
@@ -185,9 +186,13 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
     const width = said === undefined ? undefined : widthOf(said);
     let here = false;
     if (said !== undefined && width !== undefined) {
+      // A file-width path that is no file is the folder of that name, said
+      // without its slash. A tree holds no file and folder at one path, so the
+      // one predicate never turns a file into a folder.
       const named = at(said, width);
+      const folder = width === 'file' ? at(`${said}/`, 'under') : undefined;
       for (const file of tree.files) {
-        if (!named(file)) continue;
+        if (!named(file) && !folder?.(file)) continue;
         files.add(file);
         here = true;
       }
@@ -198,16 +203,25 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
   return { found, unmatched, files };
 }
 
+/** Whether a path says the root itself, in any spelling of it. */
+function isRoot(term: string, root: string): boolean {
+  const said = underRoot(term, root);
+  return said !== undefined && segmentsOf(said).every((segment) => segment === '.');
+}
+
 /**
  * Why a set of paths cannot be answered from, or nothing when it can.
  *
- * Not found is a rejection, not an empty result, and it is the only failure
- * there is. The caller handed over a coordinate; the tree does not have it.
- * Saying so is a different fact from saying the place exists and holds nothing,
- * and it is the difference between fixing a typo and looking somewhere else.
+ * Not found is a rejection, not an empty result. The caller handed over a
+ * coordinate; the tree does not have it. Saying so is a different fact from
+ * saying the place exists and holds nothing, and it is the difference between
+ * fixing a typo and looking somewhere else. The root is the one other failure:
+ * the tree has it, and it is no place to start from.
  */
-export function refusalFor(unmatched: readonly string[]): string | undefined {
+export function refusalFor(unmatched: readonly string[], root: string): string | undefined {
   if (unmatched.length === 0) return undefined;
+  const whole = unmatched.find((term) => isRoot(term, root));
+  if (whole !== undefined) return `\`${whole}\` is the root, and a start point is a place in it: name a file or folder, or a top folder at the widest`;
   const named = unmatched.map((term) => `\`${term}\``).join(', ');
   return `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — the source tree holds no file at that path`;
 }
@@ -241,8 +255,8 @@ export function startPointArg(
  * argument for it. A path is read from the root down, whole segment for whole
  * segment, case included, against the files the repository holds; nothing is
  * looked for inside it, so `Badge.tsx` is a file at the root and not the one
- * under `apps/web`, and a path that is not there is rejected as not found
- * (`refusalFor`). A `*` anywhere but the last segment is a pattern and is
+ * under `apps/web`, a path that is not there is rejected as not found, and the
+ * root is rejected as the root (`refusalFor`). A `*` anywhere but the last segment is a pattern and is
  * refused. One string is one path, spaces and all; an array is several entry
  * points taken together. Nothing outside the closure is answered from.
  */
@@ -251,7 +265,7 @@ export const START_POINT_SCHEMA = {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
       'Optional. Repo-relative path, or an array of them: `app/dispatch/page.tsx` a file, ' +
-      "`app/dispatch/*` that folder's own files, `app/dispatch/` everything under it. Exact " +
+      "`app/dispatch/*` that folder's own files, `app/dispatch/` everything under it (a bare folder name no file has is the folder). Exact " +
       'case, from the root, no other globs; a path the repository does not hold is rejected. ' +
       'Scope: everything it imports, transitively. `to` is the other direction.',
   },

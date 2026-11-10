@@ -95,7 +95,7 @@ describe('the selection the environment asks for', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  }, 30_000);
+  });
 
   it('resolves the cli from the configuration\'s directory, where a package installed it as its own', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-environment-'));
@@ -109,7 +109,7 @@ describe('the selection the environment asks for', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  }, 30_000);
+  });
 });
 
 describe('the times a shard is placed by', () => {

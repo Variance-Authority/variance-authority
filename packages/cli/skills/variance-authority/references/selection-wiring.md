@@ -89,6 +89,28 @@ normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
 scan has no reader for.
 
+## Record a build as one job
+
+A build is selected whole, by what it touched, rather than by a list of its
+inputs. Declare a suite of kind `job` with `"relations": false`, and wrap every
+command of the job with `variance job --suite <name> -- <command>...` on Linux with
+`strace`. On a Mac, record in a Docker container rather than waiting for CI: a
+clean clone of the commit at the primary checkout's path, with the cache mounted,
+as the `job` section of the CLI reference describes.
+`variance select --suite <name>` then runs the job when a file it read changes. A
+changed file it only wrote does not run it.
+
+A job is atomic and its recording reproducible: it builds from nothing, with no
+cache of its own, and every skip happens before it or through `variance select`. A
+step that finds its output current reads nothing.
+
+The record is of access, not use: a file opened counts, which only over-selects. It
+cannot see a new file it has never read, a daemon it left running, anything outside
+the repository, or what it read through `git`, `watchman` or `variance`, so name
+those under `before`. A job with no record, an
+incomplete one or a failed command always runs; `--complete-on <exit>` names an
+exit that still means the command ran whole.
+
 ## Declare what a suite ignores
 
 A suite can import a file that cannot change any of its results. A unit suite
@@ -97,9 +119,9 @@ nothing. Without an `ignore`, the graph sends a changed `.css` to every test
 that imports the component. Give such a suite `"ignore": ["**/*.css", "**/*.png"]`,
 with globs from the repository root that match dotfiles; a `!` pattern takes a
 file back out. A matching changed file loses its regions, its import and asset
-edges and its `before`, and `select` lists it under `ignored`. A test that
-declares it, as a precondition or through a `/// <depends>` in the module it
-tests, still runs when the record saw it enter that module; a declaring module
+edges and its `before`, and `select` lists it under `ignored`. A test still runs
+when the record saw it enter a module with a `/// <depends>` on the file, and a
+`preconditions` entry still runs every test; a declaring module
 the record holds nothing for goes where any unmeasured file goes, to its
 importers or, with `relations: false`, to `declined`. Each suite uses only its own list, so a visual suite over the
 same components still selects on the stylesheet. `variance run --since` reads the
@@ -162,6 +184,59 @@ replaces the record in the cache and says so in one line. A run fails rather
 than lay itself over a `coverageFile` made under another `mode`: give it a new
 one, or delete the old record.
 
+## Publish the mainline's record
+
+A suite given `"carry": "share"` is read from the record its mainline
+published. The publish job checks out with `persist-credentials: false`, and
+its publish step holds the token itself:
+
+```yaml
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+```
+
+`share` hands that token to git for the remote on `GITHUB_SERVER_URL`'s host
+and writes it to no file; write no git header and no `GIT_CONFIG_*` for it.
+[Sharing](https://variance-authority.dev/docs/sharing) has the whole job.
+
+## Measure a pull request from the record's commit
+
+A host checks a pull request out as its head merged into the base tip, and the
+mainline's record was made at an older commit, so the diff `select` measures
+holds what the base gained since too. Merge the head with the record's commit
+instead, before the install:
+
+```bash
+npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+```
+
+`$COMMIT` is the `commit=` that `variance share --suite <name> --format github`
+or `variance carry hand <dir>` printed. The head comes from the pull request's
+event, or from `--head <sha>`. The step prints `merged=true` and
+`checkout=<sha>`, or `merged=false` when the commit is empty or the head
+conflicts with it under `stay`; install again after a merge. Every clone makes
+the same merge, and another job of the run passes `--expect <checkout>` to fail
+when its own differs.
+
+The merge is on no remote, and the record a pull request's push keeps for its
+next push names it. Keep and take that record with `carry`, which carries the
+merge with it:
+
+```bash
+npx variance carry keep                                 # after the run: the records, and the commits no remote holds
+npx variance carry take --format github >> "$GITHUB_OUTPUT"   # next push, before the run
+npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"   # each other job, over the directory the first take handed on
+```
+
+`keep` writes `commits.bundle` beside the records, holding the commits they
+name that `origin/<base>` lacks, and `take` reads it before fetching the rest
+by name; the bundle reads only in a clone that holds `origin/<base>`, so check
+out with `fetch-depth: 0`. `take` removes the suites it left from the directory and names the
+ones it took; a later `take` over that directory exits 2 when it leaves one of
+them. `carry save` and `carry restore` print the cache path and key, as
+[What the next job reads](https://variance-authority.dev/reference/packages/cli#what-the-next-job-reads) shows.
+
 ## What selection refuses to narrow
 
 Selection over-includes on purpose, because skipping a test that should have run
@@ -177,8 +252,9 @@ produces a green report over work nothing checked, and silently. Expect these:
   it: `before` in `variance.config.json`, and a precondition for the test
   integrations. The Vitest integration declares the config file Vite loaded,
   the local modules it imports and the configured setup files; all three
-  integrations take further files in `preconditions`, and Jest and Rstest need
-  the config named there. Undeclared, a config edited beside a component file is
+  integrations take further files in `preconditions`, each entry the path of
+  one file that exists before any test starts, and Jest and Rstest need the
+  config named there. Undeclared, a config edited beside a component file is
   invisible.
 - A file below a declared entry point, such as a setup module or a fixture only
   that setup imports, does not narrow either, and neither does a package the
@@ -205,8 +281,8 @@ Absence is the other direction, and it widens nothing. A changed path the
 recording has no row for is looked up in the import graph when one is passed,
 and the nearest measured files that import it select their tests. One the graph
 does not list, such as a README or a fixture, appears under `unread` and selects
-nothing: if the suite reads that file without importing it, declare it as a
-precondition. One it lists whose importers include nothing measured selects
+nothing: if a test reads that file without importing it, name it by a
+`/// <depends>` in the module that reads it. One it lists whose importers include nothing measured selects
 nothing and is not reported. A bumped package selects the tests of its measured
 importers; one with none selects nothing and is not reported. In a suite with
 `"relations": false` the graph is not asked: an unmeasured path selects nothing

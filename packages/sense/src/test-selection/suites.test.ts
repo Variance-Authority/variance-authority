@@ -60,7 +60,7 @@ describe('the suites a repository declares', () => {
     [{}, '"suites" declares no suite'],
     [{ '../up': { kind: 'unit' } }, '"suites.../up" is not a suite name'],
     [{ '.work': { kind: 'unit' } }, '"suites..work" is not a suite name'],
-    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, "precision"?: "file" | "symbol" | "file-use" | "function-use" | "region-use" }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual" | "job", "carry"?: "actions-cache" | "share", "before"?: [paths], "ignore"?: [globs], "relations"?: boolean, "precision"?: "file" | "symbol" | "file-use" | "function-use" | "region-use" }, not {"kind":"smoke"}'],
     [{ e2e: { kind: 'e2e', relations: 'no' } }, '"suites.e2e" must be { "kind"'],
     [{ unit: { kind: 'unit', carry: 'artifact' } }, '"suites.unit" must be { "kind"'],
     [{ unit: { kind: 'unit', precision: 'package' } }, '"suites.unit" must be { "kind"'],
@@ -164,10 +164,28 @@ describe('where a suite records', () => {
     );
   });
 
+  test('a name the only declared suite does not answer to is refused', async () => {
+    const at = await repository({ suites: { unit: { kind: 'unit' } } });
+
+    expect(() => testCoverageFile(at, { suite: 'units' })).toThrow('the suite "units" is not declared');
+  });
+
+  test('the only declared suite brings its own `before` to a reader that names none', async () => {
+    const at = await repository({ before: ['.nvmrc'], suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } } });
+
+    expect(beforeOf(at, undefined)).toEqual(['.nvmrc', 'vitest.config.ts']);
+  });
+
   test('once any suite is declared, naming none is refused', async () => {
     const at = await repository(SUITES);
 
     expect(() => testCoverageFile(at)).toThrow('declares the suites "stories", "unit", and none is named');
+  });
+
+  test('the only declared suite is the one a run that names none records into', async () => {
+    const at = await repository({ suites: { unit: { kind: 'unit' } } });
+
+    expect(testCoverageFile(at)).toBe(testCoverageFile(at, { suite: 'unit' }));
   });
 
   test('naming a suite in a repository that declares none is refused', async () => {

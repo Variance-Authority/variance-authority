@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/core",
-  "version": "0.25.0",
+  "version": "0.29.0",
   "description": "The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.",
   "keywords": [
     "variance-authority",
@@ -26,6 +26,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./nearest": {
+      "types": "./dist/nearest.d.ts",
+      "default": "./dist/nearest.js"
     },
     "./format": {
       "types": "./dist/format/index.d.ts",

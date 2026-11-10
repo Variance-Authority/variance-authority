@@ -8,6 +8,8 @@ recorded and as your diff leaves it before it selects a test. On an unmodified
 Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
 rerunning every file that loads the changed module selects 197.
 
+It is a step in [Make CI faster](path-faster-ci.md).
+
 This page compares that approach with other selectors: what each one records,
 where each one widens, and what each one costs to run on every change.
 [Running less of the suite](selecting.md) is the exact contract.
@@ -61,11 +63,15 @@ Some of them already ignore edits a test cannot observe. pytest-testmon
 compares syntax trees, so a comment or whitespace change selects nothing.
 Teamscale documents the same for comments, whitespace and renames.
 
-The selectors built into your tools work from the import graph instead:
-`jest --changedSince` and `vitest --changed` decide by file, and `nx affected`
-and `turbo --affected` decide by project. Google's TAP and Meta's predictive
-test selection both considered per-test coverage for their monorepos and
-decided against it. The [TAP
+The selectors built into your tools keep nothing below the file:
+`jest --changedSince` and `vitest --changed` walk the import graph and decide
+by file, and `nx affected` and `turbo --affected` decide by project or task.
+Nx's [Ultracache](https://nx.dev/docs/features/ci-features/remote-cache#ultracache-and-affected)
+records the files a task read, and `nx affected` selects from them in CI;
+[`variance job`](https://variance-authority.dev/reference/packages/cli#job-record-what-a-build-read)
+records a build the same way, under the job rather than on Nx's agents.
+Google's TAP and Meta's predictive test selection both considered per-test
+coverage for their monorepos and decided against it. The [TAP
 paper](https://huang.isis.vanderbilt.edu/cs8395/paper/google-testing-icse-seip-17.pdf)
 names the overhead of instrumentation and how quickly churn makes a coverage
 report obsolete. The [Meta paper](https://arxiv.org/abs/1810.05286) calls
@@ -276,7 +282,9 @@ two ways. Ekstazi compares a class by a checksum that leaves out debug
 information, so an edit to a comment selects nothing; under `loads` any change
 to a file's text selects every test file that loaded it. Ekstazi also records
 the resource files a test opens, where `loads` sees only what the run transforms; a file
-read with `fs` is a [precondition](execution-record.md) you declare.
+read with `fs` is one you name by a
+[`/// <depends>`](selecting.md#where-sourcedirs-starts-the-answer) in the module
+that reads it.
 
 **It records blocks, and names them by position in the tree.** A region is a
 function, a branch arm, a loop body or a handler, and its identity is its

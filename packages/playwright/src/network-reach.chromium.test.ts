@@ -116,7 +116,7 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${port}`;
   otherSite = `http://localhost:${port}`;
   browser = await chromium.launch({ headless: true, args: ['--site-per-process'] });
-}, 60_000);
+});
 
 afterAll(async () => {
   await browser?.close();
@@ -164,7 +164,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a frame another site serves', () => {
       frozen: routed.frozen,
       blanked: routed.blanked,
     });
-  }, 60_000);
+  });
 
   it('lets go of a request it holds when the frame is removed, and the next settle reads', async () => {
     const page = await browser!.newPage({ viewport: { width: 400, height: 300 } });
@@ -187,7 +187,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a frame another site serves', () => {
     } finally {
       await page.close();
     }
-  }, 60_000);
+  });
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('a dedicated worker the page starts', () => {
@@ -214,7 +214,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('a dedicated worker the page starts', () => 
     expect(routed.assets[`${base}/worker/face.woff2`]).toMatch(/^v1:[0-9a-f]{32}$/);
     expect(held.assets).toEqual(routed.assets);
     expect(held.diagnostics).toEqual([]);
-  }, 60_000);
+  });
 
   it('says it could not read a request that fails, as routing does, and settles', async () => {
     const routed = await observed(false, '/worker/broken.woff2');
@@ -224,5 +224,5 @@ describe.skipIf(!BROWSER_AVAILABLE)('a dedicated worker the page starts', () => 
     expect(codes(routed)).toEqual(['asset-not-observed']);
     expect(codes(held)).toEqual(codes(routed));
     expect(held.assets).toEqual({});
-  }, 60_000);
+  });
 });

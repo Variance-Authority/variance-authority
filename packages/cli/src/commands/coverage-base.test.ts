@@ -183,6 +183,18 @@ describe('coverage against a base, with the records made at a commit before the 
   });
 });
 
+describe('review with coverage against a base', () => {
+  it('compares the only declared suite with the base when no --suite names it', async () => {
+    const named = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'json']);
+    const answer = await ask(['review', '--root', repo, '--since', 'HEAD', '--coverage', '--against', base, '--format', 'json']);
+
+    expect(answer.code, answer.err).toBe(0);
+    const reading = (JSON.parse(answer.out) as { readonly coverage: readonly Coverage[] }).coverage[0]!.suites[0]!;
+    expect(reading.base).toBeDefined();
+    expect(reading.base).toEqual((JSON.parse(named.out) as Coverage).suites[0]!.base);
+  });
+});
+
 describe('coverage against a base whose commit it cannot diff from', () => {
   it('refuses a base recorded at a commit this clone does not have, and names how to fetch it', async () => {
     const absent = 'f'.repeat(40);

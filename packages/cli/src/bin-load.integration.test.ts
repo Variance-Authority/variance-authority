@@ -24,9 +24,10 @@ import { awaitFollowUps } from './commands/index-follow-ups.js';
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
-/** The packages a run of the built program loaded, by name, each once; the run must answer with 0. */
-async function packagesLoaded(args: readonly string[]): Promise<string[]> {
+/** The modules a run of the built program loaded, as URLs; the run must answer with 0. */
+async function modulesLoaded(args: readonly string[], config?: object): Promise<string[]> {
   const at = realpathSync(mkdtempSync(join(tmpdir(), 'va-bin-load-')));
+  if (config !== undefined) writeFileSync(join(at, 'variance.config.json'), JSON.stringify(config));
   const hook = join(at, 'hook.mjs');
   const loaded = join(at, 'loaded.txt');
   writeFileSync(
@@ -53,14 +54,19 @@ async function packagesLoaded(args: readonly string[]): Promise<string[]> {
   } finally {
     rmSync(at, { recursive: true, force: true });
   }
-  const names = urls
+  return urls;
+}
+
+/** The packages a run of the built program loaded, by name, each once. */
+async function packagesLoaded(args: readonly string[], config?: object): Promise<string[]> {
+  const names = (await modulesLoaded(args, config))
     .map((url) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(url)?.[1] ?? /\/packages\/([^/]+)\/dist\//.exec(url)?.[1])
     .filter((name) => name !== undefined);
   return [...new Set(names)].sort();
 }
 
 /** Packages that hold pixels, Storybook, MCP, history or the help, none of which these commands call. */
-const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'raster', 'remote', 'renderer', 'storybook'];
+const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'remote', 'renderer', 'storybook'];
 
 describe('what the program loads before it answers', () => {
   it.each([['--version'], ['--help'], ['index', '--no-git'], ['select', '--format', 'vitest']])('loads no pixel, Storybook, MCP, history or help package for `%s`', async (...args) => {
@@ -74,14 +80,36 @@ describe('what the program loads before it answers', () => {
   it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x']])('loads no pixel package for `%s %s %s %s`', async (...args) => {
     const loaded = await packagesLoaded(args);
     expect(loaded).toContain('cli');
-    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
   it('loads no pixel package for `ask search --query x`', async () => {
     const loaded = await packagesLoaded(['ask', 'search', '--query', 'x']);
-    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'raster', 'renderer', 'storybook'].includes(name))).toEqual([]);
+    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
-  // FIXME: parsing `--at-distance` loads `@variance-authority/sense/test-selection` whole, about 30 ms, for `distanceRange`.
-  it.todo('loads no package outside the CLI to print its version — needs `distanceRange` reachable without the selection barrel');
+  // `ci-info` is read before any command, to know whether the program may leave work running; the
+  // flag table refuses a mistyped flag and a path outside the checkout with one module each.
+  it('loads no package root outside the CLI to print its version', async () => {
+    const outside = (await modulesLoaded(['--version'])).filter((url) => url.startsWith('file:') && !url.includes('/packages/cli/'));
+    expect(outside.filter((url) => !url.includes('/node_modules/ci-info/')).map((url) => /\/packages\/(.+)$/.exec(url)?.[1] ?? url)).toEqual([
+      'core/dist/nearest.js',
+      'sense/dist/checkout-path.js',
+    ]);
+  });
+
+  // A command the config-reading half answers loads its own modules, not every command's.
+  it('loads no other command\'s package for `comment --marker`', async () => {
+    const config = {
+      project: 'shop',
+      profile: 'chromium',
+      viewport: { width: 1280, height: 800 },
+      retention: 'ephemeral',
+      subjects: { kind: 'list', ids: ['cart/empty'], collector: './collector.mjs' },
+      fonts: [],
+    };
+    const loaded = await packagesLoaded(['comment', '--marker'], config);
+    expect(loaded).toContain('cli');
+    expect(loaded.filter((name) => [...UNCALLED, 'distill', 'report', 'vantage'].includes(name))).toEqual([]);
+  });
 });

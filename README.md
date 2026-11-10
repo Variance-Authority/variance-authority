@@ -287,10 +287,14 @@ Two questions meet in this repository — *what did this change look like* and
   graph can](docs/selecting.md#what-a-record-shows-that-no-graph-can) is where a
   record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
-  [**Bazel**](https://bazel.build/) — selection at the project or target grain,
-  from dependencies you declare rather than executions anyone observed. Coarse,
-  correct, and orthogonal: they decide which packages to build, and the record
+  [**Bazel**](https://bazel.build/) — selection of whole tasks or targets, from
+  a dependency graph and task inputs or, with Nx's
+  [Ultracache](https://nx.dev/docs/features/ci-features/remote-cache#ultracache-and-affected),
+  from the files a task read in CI. Coarse and orthogonal: they decide which tasks run, and the record
   decides which tests inside one of them had a reason to run.
+  [`variance job`](https://variance-authority.dev/reference/packages/cli#job-record-what-a-build-read) records
+  the files a build read on your own CI, and says whether one of them changed;
+  nothing here orders tasks or restores their outputs yet.
 - [**TraceDecay**](https://github.com/ScriptedAlchemy/tracedecay) — source
   extraction across some sixty languages into one graph. The same appetite for
   reading a whole polyglot repository that

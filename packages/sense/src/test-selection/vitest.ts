@@ -11,7 +11,7 @@ import { writeCut } from './case-cut.js';
 import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { declareConfig } from './governing-config.js';
-import { selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
+import { refusal, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
 import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor, recordsAlone } from './record-location.js';
 import { testFilesAt } from './test-files.js';
@@ -34,8 +34,8 @@ export interface TestSelectionOptions {
   readonly coverageFile?: string;
   /**
    * The suite this run is, as the root `variance.config.json` declares it under
-   * `suites`. Required once any suite is declared, and refused beside
-   * `coverageFile`.
+   * `suites`. Required once several are declared, the only one when one is,
+   * and refused beside `coverageFile`.
    */
   readonly suite?: string;
   /** Decide which transformed modules are product source. */
@@ -51,8 +51,10 @@ export interface TestSelectionOptions {
    * Files whose contents are preconditions of every test observation, beside
    * the ones the seam declares on its own: the config file Vite loaded, the
    * local modules it bundled into it, and the configured setup files. Name a
-   * file the runner reads without Vite knowing — compiler settings, a fixture
-   * read with `fs`.
+   * file every test rests on that the runner reads without Vite knowing, such
+   * as compiler settings. A fixture a test reads is a `/// <depends>` instead.
+   * Each entry is the path of one file that exists before the run starts; any
+   * other entry fails the run before any test starts.
    */
   readonly preconditions?: readonly string[];
   /**
@@ -180,13 +182,10 @@ export function withTestSelection(
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
 
   // A configuration that names projects describes the run rather than a suite:
-  // nothing is transformed under it, and it is the only place a reporter is
-  // read from. The instrumenting plugin and the setup file would sit on a
-  // config that loads no test file; what it carries is its own file, which
-  // governs every project it lists.
-  // `projects` is Vitest 3 and 4's name for it; Vitest 2 called the same idea
-  // `workspace`. Read structurally, because the seam is built against one of
-  // them and run against whichever the project installed.
+  // nothing is transformed under it, it is the only place a reporter is read
+  // from, and it carries its own file, which governs every project it lists.
+  // `projects` is Vitest 3 and 4's name; Vitest 2 called it `workspace`. Read
+  // structurally: the seam runs against whichever the project installed.
   const describesProjects = (config.test as { projects?: unknown } | undefined)?.projects !== undefined;
   if (describesProjects) {
     return {
@@ -195,7 +194,9 @@ export function withTestSelection(
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
-      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, reporter] },
+      // Any test file of the run answers for this config, and a reporter refuses
+      // for it: Vitest 4 calls no `configureVitest` of a config that lists projects.
+      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, refusal(() => true, () => declared), reporter] },
     };
   }
 

@@ -61,13 +61,14 @@ export interface RecordingOptions {
   readonly coverageFile?: string;
   /**
    * The suite this run is, as the root `variance.config.json` declares it under
-   * `suites`. Required once any suite is declared, and refused beside
-   * `coverageFile`.
+   * `suites`. Required once several are declared, the only one when one is,
+   * and refused beside `coverageFile`.
    */
   readonly suite?: string;
   /**
-   * Files every test's outcome depends on that no transform sees: a config the
-   * runner reads, a fixture read with `fs`. A change to one selects every test.
+   * Files every test's outcome depends on that no transform sees, such as a
+   * config the runner reads. A change to one selects every test.
+   * `startRecording` refuses no entry: #1093.
    */
   readonly preconditions?: readonly string[];
   /** The probe recipe; `'presence'` when absent. */

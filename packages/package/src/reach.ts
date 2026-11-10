@@ -7,10 +7,12 @@ import {
   around,
   declarationOf,
   declarationsIn,
+  everyBindingIn,
   parseFile,
 } from './declare.js';
 import { headOf } from './doc.js';
 import { requested } from './manifest.js';
+import { boundDeclaration } from './use.js';
 
 /**
  * Every name an entrypoint publishes, followed through its re-exports.
@@ -118,6 +120,7 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
   const at = relative(reader.root, file);
   const source = parseFile(reader.parses, file, at);
   const local = declarationsIn(source);
+  const bindings = everyBindingIn(source);
 
   for (const statement of source.parsed.module.staticExports) {
     // A name this file does not declare is still written *somewhere*, and the
@@ -153,7 +156,9 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       }
 
       if (specifier === undefined) {
-        const declaration = local.get(entry.localName.name ?? name);
+        const bound = entry.localName.name ?? name;
+        // `default` is no binding: the file's own map holds what it hands out.
+        const declaration = boundDeclaration(bindings.get(bound) ?? [], context.line) ?? local.get(bound);
         if (declaration === undefined) {
           throw new Error(`${at} exports \`${name}\`, and no declaration there says what it is`);
         }

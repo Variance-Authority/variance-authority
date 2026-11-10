@@ -76,8 +76,9 @@ file a Node seam naming `suite: 'unit'` writes, and the one a reader of that
 suite opens. In a worktree it is the worktree's own directory, and the first run
 there starts from the rows the primary checkout recorded. If your repository
 declares no suites, leave `-Dva.suite` out and the record is the checkout's one
-`coverage.bin`. A suite your configuration does not declare fails the JVM
-before a test runs, and so does no suite once you declare any.
+`coverage.bin`. If it declares one suite, `-Dva.suite` can stay out too: the
+record goes to that suite. A suite your configuration does not declare fails the
+JVM before a test runs, and so does no suite once you declare several.
 
 Each top-level test class becomes one row. Every module and fork of the build
 records into the same suite, and the last JVM to finish writes the whole suite,
@@ -90,7 +91,7 @@ until it is recorded again.
 | --- | --- | --- | --- |
 | `includes` | agent option | the checkout's own classes | Colon-separated class-name globs, with `*` and `?`, as JaCoCo's. |
 | `sources` | agent option | `src/main/java:src/test/java:src/main/kotlin:src/test/kotlin` | Colon-separated source roots, relative to the test JVM's working directory. |
-| `va.suite` | system property | none | The declared suite this JVM records into. |
+| `va.suite` | system property | the only declared suite | The declared suite this JVM records into. |
 | `va.out` | system property | the suite's directory in the cache | A directory of your own for `record.jsonl`, `coverage.va` and `events.tsv`, read with `variance select --execution <va.out>/coverage.va`. It is not checked against your configuration, and naming it with `va.suite` fails the JVM. |
 | `va.commit` | system property | none | The commit `coverage.va` names as its baseline. |
 | `va.parts` | system property | `VARIANCE_AUTHORITY_PARTS` | A service's parts directory. See [a service a Jest case calls](#record-a-service-a-jest-case-calls). |

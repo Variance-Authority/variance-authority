@@ -86,7 +86,7 @@ chromium_('the additive Playwright path', () => {
     });
     expect(changed.signals?.accessibility?.before?.roots[0]).toContain('Pay now');
     expect(changed.signals?.accessibility?.after?.roots[0]).toContain('Submit payment');
-  }, 60_000);
+  });
 
   it('observes through the Page and TestInfo the suite already owns', async () => {
     await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
@@ -110,7 +110,7 @@ chromium_('the additive Playwright path', () => {
     });
     expect(() => assertUnchanged(unchanged)).not.toThrow();
     expect(unchanged.verdict).toBe('unchanged');
-  }, 60_000);
+  });
 
   it('writes the baseline where `baselinePath` names it', async () => {
     await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
@@ -123,7 +123,7 @@ chromium_('the additive Playwright path', () => {
 
     const written = (await readdir(placed, { recursive: true })).filter((name) => name.endsWith('.webp'));
     expect(written).toEqual(['__baselines__/cart-chromium.webp']);
-  }, 60_000);
+  });
 
   it('captures in place without calling an injected renderer', async () => {
     let rendererCalls = 0;
@@ -193,7 +193,7 @@ chromium_('the additive Playwright path', () => {
     } finally {
       await changedIdentity.close();
     }
-  }, 60_000);
+  });
 
   it('names a font the host did not have, captured in place', async () => {
     // The deferred renderer has probed for substituted families since it
@@ -224,7 +224,7 @@ chromium_('the additive Playwright path', () => {
     } finally {
       await own.close();
     }
-  }, 60_000);
+  });
 
   it('hands back the three images a reviewer asks to see', async () => {
     // The verdict sentence names the components and counts the pixels, and a
@@ -287,7 +287,7 @@ chromium_('the additive Playwright path', () => {
       await rm(directory, { recursive: true, force: true });
       await own.close();
     }
-  }, 60_000);
+  });
 
   it('absorbs a band the subject is not asserted on, and says whose declaration did it', async () => {
     // What a threshold is usually reached for, done by name. The recolour below
@@ -346,7 +346,7 @@ chromium_('the additive Playwright path', () => {
     } finally {
       await own.close();
     }
-  }, 60_000);
+  });
 
   it('refuses an in-place image that changes between stability reads', async () => {
     const target = page!.locator('#cart');
@@ -388,7 +388,7 @@ chromium_('the additive Playwright path', () => {
       });
       await session.close();
     }
-  }, 60_000);
+  });
 
   it('lets a subject that moved once during acquisition settle', async () => {
     const target = page!.locator('#cart');
@@ -434,7 +434,7 @@ chromium_('the additive Playwright path', () => {
       });
       await session.close();
     }
-  }, 60_000);
+  });
 
   it('uses the acquisition animation hold for both semantics and pixels', async () => {
     const target = page!.locator('#cart');
@@ -467,5 +467,5 @@ chromium_('the additive Playwright path', () => {
       });
       await session.close();
     }
-  }, 60_000);
+  });
 });

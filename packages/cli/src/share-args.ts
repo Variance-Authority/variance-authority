@@ -12,25 +12,32 @@ export interface ParsedShare {
   /** Publish the report's suite index and subject costs rather than fetch mainline's. */
   readonly publish: boolean;
   /**
-   * The reports to publish from; `config.report` when nothing is named. More
-   * than one is the shards of one build, merged, and publishes their costs.
+   * The project form: the reports to publish from, `config.report` when
+   * nothing is named; more than one is the shards of one build, merged, and
+   * publishes their costs. The root config's form: the records its suites'
+   * jobs handed on, files or directories holding `suites/<suite>/coverage.bin`,
+   * folded over the mainline's base before it is read or published.
    */
   readonly reports: readonly string[];
   /**
    * The root config's suite whose record alone is read or published, with no
-   * project config and no report: `share --suite <name>`.
+   * project config: `share --suite <name>`. Every suite the root config gives
+   * to the share when absent and no project is configured.
    */
   readonly suite?: string;
   /**
    * A file listing the test files the suite's runner collects at this commit,
    * one per line, as `vitest list --filesOnly` prints them: what a mainline
-   * publish of `--suite` counts a whole run against.
+   * publish counts a whole run against. A directory holds one `<suite>.txt`
+   * per suite, for a publish of several.
    */
   readonly collected?: string;
   /**
    * `github` prints `commit=<sha>`, the commit of the record `--suite` reads,
    * for `$GITHUB_OUTPUT`: what a workflow merges a pull request with before it
-   * selects. Empty when the mainline holds none.
+   * selects, empty when the mainline holds none; and `based=true` when the
+   * record laid carries its cases. Read for several suites, each output is
+   * keyed by its suite, `commit-<suite>=`.
    */
   readonly format?: 'text' | 'github';
   /** Remove what is kept by commit, written more than this many days ago, rather than read or publish. */
@@ -47,21 +54,14 @@ export interface ParsedShare {
 export function parseShareArgs(flags: Flags, config: string): ParsedShare {
   const mainline = flags.values.get('--mainline');
   const publish = flags.present.has('--publish');
-  if (flags.positionals.length > 0 && !publish) {
-    // A report is only an input to the publishing direction. Accepting one
-    // while fetching would read as "look this up as of that run", which is
-    // not what the mainline is read from and never will be.
-    throw new OperatorError('`share <report>` is for `--publish`; a lookup takes `--mainline`');
-  }
   const suite = flags.values.get('--suite');
   if (suite !== undefined) {
     // `--suite` reads the root config, which declares the suite and the share
-    // it is published to. A project config, a report and a mainline to read
-    // are the other form's inputs, and naming one beside it asks for both.
+    // it is published to. A project config and a mainline to read are the
+    // other form's inputs, and naming one beside it asks for both.
     const other = [
       ...(flags.values.has('--config') ? ['`--config`'] : []),
       ...(mainline !== undefined ? ['`--mainline`'] : []),
-      ...(flags.positionals.length > 0 ? ['report'] : []),
     ];
     if (other.length > 0) {
       throw new OperatorError(
@@ -70,17 +70,16 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     }
   }
   const collected = flags.values.get('--collected');
-  if (collected !== undefined && (suite === undefined || !publish)) {
-    // The list is what a whole run is counted against, and only the suite's
-    // own publish counts one.
-    throw new OperatorError('`--collected` is for `share --suite <name> --publish`, which counts a whole run against it');
+  if (collected !== undefined && !publish) {
+    // The list is what a whole run is counted against, and only a publish counts one.
+    throw new OperatorError('`--collected` is for `share --publish`, which counts a whole run against it');
   }
   const format = flags.values.get('--format');
   if (format !== undefined && format !== 'text' && format !== 'github') {
     throw new OperatorError(`--format must be text or github, not \`${format}\``);
   }
-  if (format !== undefined && (suite === undefined || publish)) {
-    throw new OperatorError('`--format` shapes what `share --suite <name>` reads from the mainline; a publish prints what it wrote');
+  if (format !== undefined && (publish || mainline !== undefined || flags.values.has('--config'))) {
+    throw new OperatorError("`--format` shapes what `share` reads for the root config's suites; a publish prints what it wrote");
   }
   const purge = flags.values.get('--purge-older-than');
   if (purge !== undefined && !/^\d+$/u.test(purge)) {

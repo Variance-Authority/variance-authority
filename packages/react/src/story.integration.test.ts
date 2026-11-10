@@ -68,7 +68,7 @@ async function storiesOf(runner: Runner): Promise<Map<string, Written>> {
 beforeAll(async () => {
   directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-react-story-'));
   for (const runner of Object.keys(runners) as Runner[]) routes.set(runner, await storiesOf(runner));
-}, 60_000);
+});
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

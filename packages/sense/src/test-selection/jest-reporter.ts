@@ -61,6 +61,7 @@ import {
 } from './index.js';
 import { recordsAlone } from './record-location.js';
 import { prepareRecord } from './replaced-record.js';
+import { refuseUnreadable } from './precondition-entries.js';
 
 /**
  * Set beside the case directory to the checkout the record names files against,
@@ -154,7 +155,21 @@ class JestCoverageReporter {
     this.#governing.set(test.path, own);
   }
 
-  onRunStart(): void {
+  /** A refused run reaches no `onRunComplete`, which is what takes the filter's cut off. */
+  #refuseUnreadable(files: readonly string[]): void {
+    try {
+      refuseUnreadable(files);
+    } catch (refusal) {
+      removeCut(process.env[CUT_VARIABLE]);
+      delete process.env[CUT_VARIABLE];
+      throw refusal;
+    }
+  }
+
+  onRunStart(results: { readonly numTotalTestSuites: number }): void {
+    // Jest announces a run after its global setup, so a file that setup writes
+    // passes here, where Vitest and Rstest in Node refuse it. A run with no test file is no run.
+    if (!('journeyFile' in this.#config) && results.numTotalTestSuites > 0) this.#refuseUnreadable(this.#config.declared ?? []);
     this.#startedAt = Date.now();
     const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
     this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
@@ -279,17 +294,22 @@ class JestCoverageReporter {
       await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });
-    // A run that finished test files and placed no module at all is a seam that
-    // never engaged — a `transform` the configuration overwrote, an `include`
-    // that matched nothing — and the snapshot it just wrote says every one of
-    // those files may be skipped. Said once, where the run ends. A run the lock
-    // refused wrote no snapshot, and the busy warning is the whole story.
-    if (merged.held) noteAnEmptyRecord(results.testResults.length, modules.size);
+    // A run that finished test files and placed no module at all failed before
+    // any source loaded, imports none, or has no `transform` pattern for it, and the
+    // snapshot it just wrote says every one of those files may be skipped. Said once, where
+    // the run ends. A run the lock refused wrote no snapshot, and the busy warning
+    // is the whole story.
+    if (merged.held) noteAnEmptyRecord(results.testResults.length, modules.size, UNREACHED);
     else noteABusyIndex(coverageFile);
     if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
     await rm(runDirectory, { recursive: true, force: true });
   }
 }
+
+/** What a Jest run that placed no module has to look at: Jest has no `include` and no plugin. */
+const UNREACHED =
+  'A test file that fails before it imports product source records nothing, so read the failures above. ' +
+  'With no failures, check that a `transform` pattern matches the product source the test files import.';
 
 /** Jest's case statuses in the words `statusesComplete` reads; any other is not an outcome. */
 const jestOutcomes: Readonly<Record<string, string>> = { passed: 'pass', pending: 'skip', todo: 'todo' };

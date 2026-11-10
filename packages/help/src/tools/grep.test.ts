@@ -16,6 +16,9 @@ import { grep } from './grep.js';
  * so an answer holding both was a folder search, not a closure.
  */
 
+/** More matching lines in one file than a call can take as arguments. */
+const CROWDED = 200_000;
+
 /** Paths long enough that the closure cannot go to `rg` as one command line. */
 const MANY = 3000;
 const leaf = (at: number): string => `src/leaves/${'deep-folder-name/'.repeat(5)}leaf-${String(at).padStart(5, '0')}.ts`;
@@ -38,6 +41,7 @@ beforeAll(() => {
   write('src/far.ts', 'export const needle = 1;\n');
   write('src/outside.ts', 'export const needle = 2;\n');
   write('src/leaves.ts', '');
+  write('src/crowded.ts', 'crowd\n'.repeat(CROWDED));
   const leaves = Array.from({ length: MANY }, (_, at) => leaf(at));
   for (const [at, file] of leaves.entries()) write(file, `export const leaf${at} = ${at === MANY - 1 ? "'haystack'" : at};\n`);
   tree = treeOf(
@@ -46,6 +50,7 @@ beforeAll(() => {
       reads('src/near.ts', 'src/far.ts', 'src/leaves.ts'),
       reads('src/far.ts'),
       reads('src/outside.ts'),
+      reads('src/crowded.ts'),
       reads('src/leaves.ts', ...leaves),
       ...leaves.map((file) => reads(file)),
     ],
@@ -58,8 +63,16 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 const ask = (input: Record<string, unknown>): string => grep.run(undefined, input, { tree });
 
 describe('grep refuses without a closure', () => {
-  it('names the command that answers the whole checkout', () => {
-    expect(() => grep.run(undefined, { query: 'needle' })).toThrow('run `rg "needle"`');
+  it('teaches a start point, and sends nobody to another command', () => {
+    const refusal = (): string => grep.run(undefined, { query: 'needle' }, { tree, shell: 'variance ask' });
+    expect(refusal).toThrow('Pass `--from` or `--to` with the file or folder you are working in');
+    expect(refusal).not.toThrow('rg');
+  });
+
+  it.each(['.', './'])('refuses %s as the root, not as a path the tree lacks', (path) => {
+    const refusal = (): string => ask({ query: 'needle', from: path });
+    expect(refusal).toThrow(`\`${path}\` is the root, and a start point is a place in it`);
+    expect(refusal).not.toThrow('not found');
   });
 
   it('refuses a path the tree does not hold', () => {
@@ -87,6 +100,10 @@ describe.skipIf(!RIPGREP_ON_PATH)('grep over a closure', () => {
     const text = ask({ query: 'haystack', from: 'src/entry.ts' });
     expect(text).toContain(`${leaf(MANY - 1)}:1:`);
     expect(text).toContain('3 imports away:');
+  });
+
+  it('answers a file that matches on more lines than a call takes as arguments', () => {
+    expect(ask({ query: 'crowd', from: 'src/crowded.ts' })).toContain(`${CROWDED} matching lines in 1 file, nearest first.`);
   });
 
   it('counts what the limit leaves out', () => {

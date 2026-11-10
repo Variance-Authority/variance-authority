@@ -30,6 +30,7 @@ import {
   sharedPreconditions,
   testCoverageFile,
   testHops,
+  withoutTests,
   type CountedSuite,
   type CoverageCount,
   type DeclaredSuite,
@@ -43,9 +44,10 @@ import {
 import type { ParsedCoverage } from '../coverage-args.js';
 import { OperatorError } from '../exit.js';
 import { selectedRecord } from './mainline-selected.js';
+import { parseAtDistance } from './select-leg.js';
 import { carriedOver, diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
-import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
+import { coverageSource, harnessReach, readSource, within, type CoverageSource, type EntryReading, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
 import type { textOver } from './coverage-over-text.js';
@@ -141,6 +143,7 @@ export interface CoverageEntry {
  * it counts what ran, never over which text, which is `variance coverage`'s.
  */
 export async function coverage(request: ParsedCoverage, over: typeof textOver | undefined): Promise<Coverage> {
+  const band = parseAtDistance(request.atDistance);
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
   if (request.suite !== undefined) asOperator(() => testCoverageFile(request.root, { suite: request.suite }));
@@ -228,13 +231,16 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   const walked: TestHops | undefined = relations === undefined ? undefined : testHops(now.map((one) => one.index), { relations });
   // In and out are a distance split of their own: out is any other test, so they count every crossing, band or not.
   const unbanded = [...now];
-  const narrowed = request.atDistance === undefined || walked === undefined
+  const narrowed = band === undefined || walked === undefined
     ? { indexes: now.map((one) => one.index), unplaced: [], unmeasured: 0 }
-    : coverageAtDistance(now.map((one) => one.index), request.atDistance, walked);
+    : coverageAtDistance(now.map((one) => one.index), band, walked);
   narrowed.indexes.forEach((index, at) => (now[at] = { ...now[at]!, index }));
   const at = await head(request.root);
   const count = countCoverage(now);
   const indexes = now.map((one) => one.index);
+  // A test file is the test, not the package's code: each package's own and uses count leave it out.
+  const sources = withoutTests(now);
+  const tests = new Set(now.flatMap((one) => one.index.tests.map((test) => test.file)));
   const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
   for (const entry of harness) loaded.add(entry);
   const unloadedChange = await changeNoSuiteLoads(request.root, suites, loaded);
@@ -245,10 +251,10 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
     ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
-    ...(request.atDistance === undefined ? {} : {
+    ...(band === undefined ? {} : {
       atDistance: {
-        from: request.atDistance.from,
-        ...(request.atDistance.to === Number.MAX_SAFE_INTEGER ? {} : { to: request.atDistance.to }),
+        from: band.from,
+        ...(band.to === Number.MAX_SAFE_INTEGER ? {} : { to: band.to }),
         unplaced: narrowed.unplaced,
         unmeasured: narrowed.unmeasured,
       },
@@ -261,18 +267,31 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
             entries: reading.entries.map((entry) => {
               if ('missed' in entry) return entry;
               const counted = (part: Scoped) => {
-                const narrowed = now.map((one) => ({ ...one, index: within(one.index, part.scope) }));
-                return coverageSource(part, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
+                const narrowed = sources.map((one) => ({ ...one, index: within(one.index, part.scope) }));
+                // A file a suite runs as a test is no source the package failed to load, whatever its name.
+                const sized = { ...part, sizes: part.sizes.filter((size) => !tests.has(size.file)) };
+                return coverageSource(sized, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
               };
               return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
             }),
             ...(reading.ownerOf === undefined ? {} : {
-              ownership: coverageByOwner(now, reading.ownerOf),
+              // Under a band the band is the distance: the hop columns would only repeat it.
+              ownership: ownScoped(coverageByOwner(now, reading.ownerOf, band === undefined ? walked : undefined), reading.entries),
               ...(walked === undefined ? {} : { earned: earnedCoverage(unbanded, reading.ownerOf, walked) }),
             }),
           }),
         }),
   };
+}
+
+/**
+ * The files each package's own count holds: a file outside its owner's scope
+ * is in no row's regions, so its parts would add to a row that does not count it.
+ */
+function ownScoped(ownership: readonly OwnedFile[], entries: readonly (EntryReading | MissedEntry)[]): readonly OwnedFile[] {
+  const scopes = new Map<string, ReadonlySet<string> | undefined>();
+  for (const entry of entries) if (!('missed' in entry)) scopes.set(entry.from, entry.own.scope);
+  return ownership.filter((file) => scopes.get(file.owner)?.has(file.file) ?? true);
 }
 
 /**

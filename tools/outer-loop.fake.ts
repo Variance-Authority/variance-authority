@@ -1,13 +1,15 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { ACCEPT_LABEL, DOCKET_MARKER, FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
+import { box as tickBox, ticked } from '../.github/actions/variance/tick/box.mjs';
+import { FLOWS, NEEDS_REVIEW } from '../.github/scripts/outer-loop/flows.mjs';
 
 /**
  * A local GitHub holding one example repository, and the review deployment
  * beside it, that answer the outer loop the way the example's workflow does:
  * a pull request gets its checks and comments as it opens, its build lands on
- * the deployment, the label starts a run. The deployment answers reads only.
+ * the deployment, a tick or a dispatch starts a run. The deployment answers
+ * reads only.
  * `this repository`'s issues live here too, under `o/r`.
  *
  * Every reaction is immediate, so a wait ends on its first probe. What a
@@ -19,8 +21,12 @@ export interface Behaviour {
   changeGate?: string;
   /** No check run ever appears. */
   silent?: boolean;
-  /** The label's run commits the images back, but the commit gets no check. */
+  /** The dispatched run commits the images back, but the commit gets no check. */
   unchecked?: boolean;
+  /** The docket carries no box: the workflow does not set `tick-to-accept`. */
+  boxless?: boolean;
+  /** A tick starts no run, as when a bot's token made the edit. */
+  untouched?: boolean;
   /** The token may not see the example: every request for it is a 404. */
   denied?: boolean;
   /** The deployment records no build for the pull request's run. */
@@ -36,6 +42,10 @@ export interface Fake {
   refs: Map<string, string>;
   issues: Json[];
   labels: string[];
+  /** The pull requests whose docket box was ticked. */
+  ticked: number[];
+  /** Every workflow dispatch, with its ref and inputs. */
+  dispatched: Json[];
 }
 
 const HOME = 'o/r';
@@ -57,6 +67,8 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     refs: new Map([['main', BASE]]),
     issues: [],
     labels: [],
+    ticked: [],
+    dispatched: [],
   };
   const commits = new Map<string, Json>();
   const runs = new Map<string, Json[]>();
@@ -73,19 +85,22 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     runs.set(sha, [...(runs.get(sha) ?? []), { id, name: check, status: 'completed', conclusion, head_sha: sha }]);
     return id;
   };
-  const comment = (pull: number, body: string) => comments.set(pull, [...(comments.get(pull) ?? []), { body }]);
+  const comment = (pull: number, body: string) =>
+    comments.set(pull, [...(comments.get(pull) ?? []), { id: next++, body }]);
+  const box = (sha: string, job: number) =>
+    behaviour.boxless ? '' : `\n**To accept** check the report, then tick the box below\n\n${tickBox(sha, job)}\n`;
 
   const opened = (pull: Json) => {
     const change = pull.head.ref.includes('/change-');
     const sha = pull.head.sha;
     if (behaviour.silent) return;
     const gate = change ? (behaviour.changeGate ?? 'failure') : 'success';
-    check(sha, flow.gate, gate, gate === 'failure' ? [`${NEEDS_REVIEW}; the docket is in the pull request comment at https://github.test/o/r/pull/${pull.number}#issuecomment-1`] : []);
+    const job = check(sha, flow.gate, gate, gate === 'failure' ? [`${NEEDS_REVIEW}; the docket is in the pull request comment at https://github.test/o/r/pull/${pull.number}#issuecomment-1`] : []);
     comment(
       pull.number,
       change && gate === 'failure'
-        ? `${DOCKET_MARKER}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\n${flow.docket.map((d: string) => `\`${d}\``).join(' ')}\n`
-        : `${DOCKET_MARKER}\n## Visual variance in project \`case\` — nothing needs review\n`,
+        ? `${flow.marker}\n## Visual variance in project \`case\` — 1 subject(s) need review\n\n${flow.docket.map((d: string) => `\`${d}\``).join(' ')}\n${flow.accept === 'tick' ? box(sha, job) : ''}`
+        : `${flow.marker}\n## Visual variance in project \`case\` — nothing needs review\n`,
     );
     if (flow.unit !== undefined) {
       const unit = flow.unit;
@@ -109,13 +124,20 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     }
   };
 
-  const labelled = (pull: Json) => {
-    pull.labels = pull.labels.filter((l: Json) => l.name !== ACCEPT_LABEL);
+  // The example's tick workflow: the box ticked, and nothing else edited, runs
+  // the check again, and the run accepts.
+  const edited = (pull: number, comment: Json, body: string) => {
+    const tick = body === ticked(comment.body) && body !== comment.body;
+    comment.body = body;
+    if (!tick) return;
+    state.ticked.push(pull);
+    if (!behaviour.untouched) check(state.pulls.get(pull)!.head.sha, flow.gate, 'success');
+  };
+
+  // A dispatch with `accept` on the branch commits the images back, and its
+  // own run stays red on the change it committed.
+  const dispatched = (pull: Json) => {
     const sha = pull.head.sha;
-    if (flow.accept === 'label') {
-      check(sha, flow.gate, 'success');
-      return;
-    }
     check(sha, flow.gate, 'failure', [`${NEEDS_REVIEW}; the docket is in the pull request comment at https://github.test/o/r/pull/${pull.number}#issuecomment-1`]);
     const back = `${'c'.repeat(39)}${++shas}`;
     const digest = '0123456789abcdef'.repeat(2);
@@ -124,7 +146,12 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
       author: { login: flow.commit.author },
       commit: { message: `${flow.commit.message}\n\nVariance-Run: 1` },
       parents: [{ sha }],
-      files: [{ filename: `baselines/v1-${digest}/pricing.png` }, { filename: `baselines/v1-${digest}/pricing.json` }],
+      files: [
+        { filename: 'baselines/pricing-chromium.webp' },
+        { filename: 'baselines/pricing-chromium.json' },
+        { filename: `baselines/v1-${digest}/pricing.png` },
+        { filename: `baselines/v1-${digest}/pricing.json` },
+      ],
     });
     pull.head.sha = back;
     state.refs.set(pull.head.ref, back);
@@ -188,13 +215,21 @@ export async function fake(name: keyof typeof FLOWS, behaviour: Behaviour, serve
     if (method === 'GET' && (m = r('/commits/([0-9a-f]+)'))) return reply(200, commits.get(m[1]));
     if (method === 'GET' && (m = r('/check-runs/(\\d+)/annotations'))) return reply(200, annotations.get(Number(m[1])) ?? []);
     if (method === 'GET' && (m = r('/issues/(\\d+)/comments'))) return reply(200, comments.get(Number(m[1])) ?? []);
-    if ((m = r('/issues/(\\d+)/labels'))) {
-      const pull = state.pulls.get(Number(m[1]))!;
-      if (method === 'POST') {
-        pull.labels.push(...body.labels.map((name: string) => ({ name })));
-        labelled(pull);
+    if (method === 'PATCH' && (m = r('/issues/comments/(\\d+)'))) {
+      for (const [pull, list] of comments) {
+        const found = list.find((c) => c.id === Number(m![1]));
+        if (found !== undefined) {
+          edited(pull, found, body.body);
+          return reply(200, found);
+        }
       }
-      return reply(200, pull.labels);
+      return reply(404, { message: 'Not Found' });
+    }
+    if (method === 'POST' && (m = r('/actions/workflows/([^/]+)/dispatches'))) {
+      state.dispatched.push({ workflow: m[1], ref: body.ref, inputs: body.inputs });
+      const pull = [...state.pulls.values()].find((p) => p.head.ref === body.ref);
+      if (pull !== undefined && m[1] === flow.dispatch?.workflow && body.inputs?.accept === 'true') dispatched(pull);
+      return reply(204);
     }
     if (method === 'GET' && (m = r('/actions/jobs/(\\d+)/logs'))) return reply(200, logs.get(Number(m[1])) ?? '');
     if (method === 'GET' && (m = r('/git/matching-refs/heads/(.+)'))) {

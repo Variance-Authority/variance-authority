@@ -198,6 +198,16 @@ describe('the calls some of the cases placed', () => {
     expect(peeks?.outside).toEqual([9]);
     expect(journeysAmong(root, [0], 'no such suite')).toBeUndefined();
   });
+
+  it('answer for the only declared suite when none is named', async () => {
+    write('variance.config.json', JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    await updateSourceIndex(root);
+    record(recording());
+    await prepareJourneys(root);
+
+    expect(journeysAmong(root, [0])?.calls.map((placed) => placed.to.name).sort()).toEqual(['get', 'put']);
+    expect(pathsThrough(root, { file: 'src/api.ts', line: 2 })).toBeDefined();
+  });
 });
 
 describe('journeys read as masks', () => {

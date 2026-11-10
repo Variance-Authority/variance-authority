@@ -27,7 +27,11 @@ for every user agent that names itself. Each page names the index in its head as
 `rel="describedby"`; an article also names its own Markdown as `rel="alternate"`,
 and every response — page, `robots.txt`, Markdown
 — names the index again in a `Link:` header, so a reader that fetches a URL
-without rendering it is told where the source starts.
+without rendering it is told where the source starts. A reader that sends
+`Accept: text/markdown` gets that Markdown at the page's own address: `proxy.ts`
+rewrites to `<path>/index.md`, and the home to `/llms.txt`.
+A page with no Markdown stays HTML. `robots.txt` carries a `Content-Signal`
+line.
 
 Run every command below from `site/`, in a checkout of the repository:
 
@@ -38,6 +42,10 @@ yarn build       # vinext build, into dist/
 yarn start       # wrangler dev against dist/server/wrangler.json; build first
 yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 ```
+
+A release deploys the site itself, from the commit it published: the `site`
+job in [`release.yml`](../.github/workflows/release.yml), which needs
+`CLOUDFLARE_API_TOKEN` on the `site` environment.
 
 ## What the visual review watches
 
@@ -56,8 +64,8 @@ way, start the server and, from the repository root, run the line below.
 node packages/cli/dist/bin.js run --config site/variance.config.json
 ```
 
-A change it finds is accepted on the pull request with the `variance: accept
-site` label.
+A change it finds is accepted on the pull request by ticking the box in its
+comment.
 
 A pull request that changes nothing the site is built from or photographed
 with does not run it: nothing here, nothing a page here reaches, nothing the
@@ -80,6 +88,12 @@ render. Give a new route the same declaration.
 route is answered `public, max-age=0, must-revalidate` with no CDN policy
 beside it, whatever it declares, so the edge revalidates it against the worker
 on every request.
+
+The proxy runs ahead of that cache, so a stored page cannot answer a reader of
+Markdown, whose answer `wrangler dev` shows rendered per request and not stored.
+`Vary: Accept` comes from the proxy and not from `next.config.ts` for a reason:
+the CDN adapter will not store a tagged page whose own response varies on a
+field outside the framework's.
 
 ## To add or change a page
 

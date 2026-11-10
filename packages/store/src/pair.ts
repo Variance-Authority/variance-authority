@@ -3,7 +3,6 @@
 import { readFile, rm, rmdir, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
-import { imageFormat, isLosslessWebp } from '@variance-authority/png/header';
 import { REFUSAL, RasterStoreError, messageOf, sidecarFrom } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { placedForIn, type PlacedFor } from './claims.js';
@@ -147,7 +146,7 @@ export async function readRaster(
   // Absent here as well: the image was there a moment ago, and removed since.
   const bytes = await orAbsent(() => readImage(image), image);
   if (bytes === null) throw halfAPair(places, `${places.record}.json`, image);
-  refuseMislabelled(image, as, bytes);
+  await refuseMislabelled(image, as, bytes);
   return { ...found.record, bytes: bytes.toString('base64') };
 }
 
@@ -284,7 +283,9 @@ function parseSidecar(text: string, path: string): { record: Read<Omit<Raster, '
  * record decides which file is read and the header which decoder reads it, so a
  * disagreement is caught here, on the read that has the bytes, as damage.
  */
-function refuseMislabelled(image: string, as: KeptAs, bytes: Buffer): void {
+async function refuseMislabelled(image: string, as: KeptAs, bytes: Buffer): Promise<void> {
+  // Loaded by the read that has the bytes, so a reader of the config never loads the codec's package.
+  const { imageFormat, isLosslessWebp } = await import('@variance-authority/png/header');
   const format = imageFormat(bytes);
   if (format === as && (as !== 'webp' || isLosslessWebp(bytes))) return;
   refuseAPointerImage(bytes, image);

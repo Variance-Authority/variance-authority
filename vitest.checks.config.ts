@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { HANG } from './tools/hang-limit.mjs';
 
 /**
  * Repository checks: is this checkout in a legal state?
@@ -19,5 +20,7 @@ export default defineConfig({
   test: {
     include: ['tools/**/*.check.ts'],
     environment: 'node',
+    testTimeout: HANG,
+    hookTimeout: HANG,
   },
 });

@@ -7,7 +7,7 @@ import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, Searched, SearchQuestion } from './search-matches.js';
+import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, RecordedTests, Searched, SearchQuestion, TestMatch } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { unreadStop } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
@@ -120,7 +120,7 @@ function importedLine(match: PublishedMatch): string {
   return byPublishedPath(match.otherImports, match.otherPackages);
 }
 
-/** One published match: where it is published, what it is, who imports it, and what its doc says first. */
+/** One published match: where it is published, what it is, who imports it, and the sentence of its doc that holds the question. */
 function publishedLine(match: PublishedMatch): string {
   const { inArea } = match;
   const said = match.summary ?? 'UNDOCUMENTED';
@@ -143,6 +143,15 @@ function exportedLine(match: ExportedMatch): string {
 /** One described file: the path, who holds it, and what the doc it opens with says first. */
 function fileLine(match: FileMatch): string {
   return `${match.at} [file] — ${match.package ?? 'the repository'}${match.summary === undefined ? '' : ` — ${match.summary}`}`;
+}
+
+/** One recorded case: the name it ran under and the test file that holds it. */
+const testLine = (match: TestMatch): string => `${match.name} [test] — ${match.at}`;
+
+/** What was left unread of the recorded cases, a line to each record, whatever else the answer holds. */
+function casesUnder(tests: RecordedTests | undefined): readonly string[] {
+  const left = (tests?.unread ?? []).map(({ suite, why }) => `No recorded case${suite === undefined ? '' : ` of \`${suite}\``} was read: ${why}.`);
+  return left.length === 0 ? [] : ['', ...left];
 }
 
 const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
@@ -239,8 +248,8 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} words of \`${query}\`, ` +
-            'read by stem as the packages are, best first: the words held, each counted by how few of these hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row holding each word is shown however it sorts.',
+          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} most of \`${query}\`, ` +
+            'the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
           ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
@@ -264,9 +273,11 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const aliases = answer.aliases ?? { total: 0, shown: [] };
   const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
   const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
-  const declaredSection = [...namesSection, ...insideSection, ...aliasSection];
+  const tests = answer.tests ?? { total: 0, shown: [] };
+  const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine);
+  const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests), ...aliasSection];
 
-  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
+  if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
     // is in no index, a closure's doc is its holder's, and the doc a file opens
     // with is read only for the words, so a file may still write the phrase.
@@ -349,7 +360,7 @@ export const search: Tool<Help> = {
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them, then names a file ' +
     'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
-    'functions inside a function under what holds them, and the imports that bind the name as a local one. Installed third-party ' +
+    'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
     'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
@@ -367,7 +378,10 @@ export const search: Tool<Help> = {
     'answer is a fact about the area. Names match the words you typed and nothing else — no ' +
     'synonyms, no model — so a repository that calls sign-in `CredentialGate` is not reached by ' +
     '`auth`. Supplying the likely vocabulary is your half: when a query matches nothing, ask again ' +
-    'with another candidate word rather than a longer description of the same idea.',
+    'with another candidate word rather than a longer description of the same idea. A word under three ' +
+    'letters has no stem, so the reading of a description only keeps its place: ask `session store`, ' +
+    'not `session id store`. It still counts as written, so keep it when it spells a name or a phrase: ' +
+    '`node id` finds `NodeId`.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -424,7 +438,9 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  * The files of the rows `run` prints, and the entries and barrels that make a
  * row published, which the count of that row walked already. `search.files` is
  * every match, a set another question crosses; a row past the cap is no part of
- * this answer, so the count printed above the rows stays the generation's.
+ * this answer, so the count printed above the rows stays the generation's. A
+ * recorded case is none of them: it rests on the last run, not the generation,
+ * so a test file gone since then says nothing about the generation's age.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
   const { answer, publishing = [] } = searchedOnce(help, input, invocation);

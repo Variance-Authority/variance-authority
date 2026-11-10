@@ -155,7 +155,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
     await page.setContent(document_(`width:420px;height:${MAX_CAPTURE_PIXELS}px`));
     const { box } = await captureSubject(page, VIEWPORT, SHOT);
     expect(box?.height).toBe(MAX_CAPTURE_PIXELS);
-  }, 30_000);
+  });
 
 });
 

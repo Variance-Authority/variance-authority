@@ -1,5 +1,5 @@
 import { OperatorError } from './exit.js';
-import { didYouMean } from '@variance-authority/core';
+import { didYouMean } from '@variance-authority/core/nearest';
 
 /**
  * The flag lexer: hyphens, `=`, `--`, and nothing about what any command means.
@@ -70,6 +70,8 @@ export const BOOLEAN = new Set([
   '--embed-images',
   '--packages',
   '--coverage',
+  '--fail-on-uncovered',
+  '--fail-on-lost',
   '--fan-in',
 ]);
 
@@ -188,6 +190,16 @@ export function noPositionals(positionals: readonly string[], command: string): 
     throw new OperatorError(
       `\`variance ${command}\` takes no positional arguments, and got ${positionals.join(', ')}`,
     );
+  }
+}
+
+/**
+ * Refuse `--suite` beside a flag that names the record by path: both say which
+ * record, and honouring one would read or write where the operator did not look.
+ */
+export function oneRecord(suite: string | undefined, path: string | undefined, flag: string): void {
+  if (suite !== undefined && path !== undefined) {
+    throw new OperatorError(`\`--suite\` and \`${flag}\` both name the record; pass one`);
   }
 }
 

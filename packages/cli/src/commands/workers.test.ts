@@ -434,6 +434,20 @@ describe('--shard', () => {
     expect(whole.written.parts).toEqual([]);
   });
 
+  it('writes its part when it owns every file, so the merge counts it as a shard', async () => {
+    const plan = planOf(1, 1);
+    const owner = await runWith(configOf(), workingCollector(plan).collector, storeAnswering(null), {
+      shard: { index: 1, total: 2 },
+    });
+    const idle = await runWith(configOf(), workingCollector(plan).collector, storeAnswering(null), {
+      shard: { index: 2, total: 2 },
+    });
+
+    expect(owner.report.observations).toHaveLength(1);
+    expect(owner.written.parts).toMatchObject([{ shard: { index: 1, total: 2 }, planned: 1 }]);
+    expect(idle.written.parts).toMatchObject([{ shard: { index: 2, total: 2 } }]);
+  });
+
   it('balances on the costs it is given, and names their commit', async () => {
     const plan = planOf(4, 1);
     const costs = new Map(plan.subjects.map((planned, i) => [planned.subject.id, (i + 1) * 100]));

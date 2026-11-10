@@ -1,5 +1,33 @@
 # @variance-authority/playwright-test
 
+## 0.29.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.28.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.27.0
+
+### Patch Changes
+
+- 9b9a6ee: `variance select` names a file read without importing it as one for a `/// <depends>` in the module that reads it, where it used to send that file to `preconditions`. A `preconditions` entry is declared by every test the run records, so a change to a fixture listed there ran every test. The note on a file the suite's `ignore` matches now says what each declaration runs. The `variance-authority` skill's selection references say the same.
+
+## 0.26.0
+
+### Minor Changes
+
+- 0b201a2: Playwright 1.55 is the oldest release these packages take, where it was 1.49. A
+  version is supported while its projects would adopt, and 1.49 is two years old:
+  3.3% of a week's downloads of stable `@playwright/test` were older than 1.55.
+  `cases/playwright-oldest-case` runs `@variance-authority/playwright-test` on
+  1.55.0.
+
+### Patch Changes
+
+- 4553d53: Under `withTestSelection`, each case records the spec line that reached a region on Playwright 1.63 and newer again. Playwright stopped reading `babelPlugins` at 1.63, so the wrapper now hands its plugin to the `PW_TEST_SOURCE_TRANSFORM` environment variables there. Playwright takes one transform there, so a value of your own is refused: unset it, or pass `cadence: false` to keep it and record no spec lines. Older versions keep `babelPlugins`.
+
 ## 0.25.0
 
 ### Patch Changes

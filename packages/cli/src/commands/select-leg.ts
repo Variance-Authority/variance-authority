@@ -55,10 +55,32 @@
  * the one a reader expects in the near leg and finds in the end leg.
  */
 
-import { atDistance, groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
+import { atDistance, distanceRange, groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { many } from './prose-counts.js';
 import type { SelectInput, TestSelection } from './select.js';
+
+/**
+ * Read `--at-distance`, or say what it should have been.
+ *
+ * The same spelling `atDistance` ranges over — `0-3`, `2`, `3-` — because the
+ * flag is named after the quantity and the quantity is hop counts. A typo is
+ * refused rather than read as one distance: `0-e` narrowing silently to zero
+ * hops would answer *nothing is near* about a line six tests reach. Read here
+ * rather than by the parser, so only the commands that take the flag load the
+ * selection library that owns the spelling.
+ */
+export function parseAtDistance(raw: string | undefined): { readonly from: number; readonly to: number } | undefined {
+  if (raw === undefined) return undefined;
+  const range = distanceRange(raw);
+  if (range === undefined) {
+    throw new OperatorError(
+      `--at-distance takes hop counts — \`0-3\`, \`2\`, or \`3-\` for three and beyond — not ` +
+        `\`${raw}\`.`,
+    );
+  }
+  return range;
+}
 
 /** The hops `--at-distance` asked for. An open end is `Number.MAX_SAFE_INTEGER`, as `distanceRange` reads it. */
 export interface Leg {

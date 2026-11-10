@@ -221,7 +221,7 @@ pub(crate) fn read(
         if test[at] {
             let mut seen: HashSet<u32> = HashSet::new();
             for &b in targets[at].iter().flatten() {
-                if b != a && !packages[b as usize].directory.is_empty() && seen.insert(b) {
+                if b != a && seen.insert(b) {
                     tested[b as usize] += 1;
                 }
             }

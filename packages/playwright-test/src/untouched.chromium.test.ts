@@ -139,7 +139,7 @@ beforeAll(async () => {
   browser = await chromium.launch({ headless: true, args: [...CHROMIUM_RASTER_ARGS] });
   renderer = await createPlaywrightRenderer();
   bundle = await bundlePageAgent();
-}, 60_000);
+});
 
 afterAll(async () => {
   await renderer?.close();
@@ -195,7 +195,7 @@ chromium_('a page the variance fixture hands a test', () => {
     } finally {
       await context.close();
     }
-  }, 60_000);
+  });
 
   it('leaves `page.clock` to the test, so a clock the test installs is the one its page reads', async () => {
     // The fixture drives the page before the test body, so a test's own
@@ -220,7 +220,7 @@ chromium_('a page the variance fixture hands a test', () => {
     } finally {
       await context.close();
     }
-  }, 60_000);
+  });
 
   it('records the clock and the motion preference it set, so a reading without them names them as its cause', async () => {
     const context = await browser!.newContext({ viewport: { width: 400, height: 200 } });

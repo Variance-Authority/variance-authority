@@ -90,6 +90,9 @@ it. `--from` keeps the names the code at your path already depends on. To
 change it, you need the declaration's `file:line` and the code that depends on
 it. `--to` keeps the names in that code.
 
+It also lists the recorded test cases whose names hold your words, so a test is
+found by its title. Those come from each suite's last run, not from the source.
+
 It answers in two sections: the names a manifest publishes, then the names
 the source exports without publishing. Several words also match a name
 written in them, each word by its start or its stem, so `instrumenting
@@ -98,7 +101,7 @@ words comes before a doc that opens with them, and that before a doc that
 says them further down; the published names are then ranked by how many
 packages import them. When neither holds your words as written, two more
 follow, each labelled as the reading it is and both before any installed
-package: the names and files holding any of your words, matched by
+package: the names and files holding most of your words, matched by
 stem, a file by its name and the doc it opens with, ranked by how many of
 your words each holds — in its name over its doc, and its doc over the
 parameters and types its signature writes, which add to a name your words
@@ -435,8 +438,8 @@ mkdir -p .claude/skills && for s in variance-authority variance-testing; do ln -
 Without the package, or for an agent these directories do not reach, `npx skills
 add https://variance-authority.dev` installs both from the site's skills index,
 `/.well-known/agent-skills/index.json`.
-Those are the copies from the site's latest deploy: they can run ahead of the
-released CLI, and they do not follow the version you have installed.
+Those are the copies from the site's latest deploy: they do not follow the
+version you have installed.
 `variance-testing` links into `variance-authority`, so install the two together.
 
 An agent opens a skill only when its description matches the task, and it reads
@@ -445,8 +448,9 @@ searches the code are in [finding code through the workspace index](agent-worksp
 
 With a `variance.config.json`, `variance doctor` lists which skills your agent
 can find, reports whether each is a link or a copy that has fallen behind, and
-prints the link for any it cannot find. It never writes the link for you. With no
-config it exits 2.
+prints the link for any it cannot find. It never writes the link for you. A file
+that names none of the five render settings is enough: doctor says `renderer:
+not checked` and answers the cache, the skills and TypeScript. With no config it exits 2.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

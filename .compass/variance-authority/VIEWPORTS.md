@@ -624,8 +624,8 @@ flowchart TB
   than an operator's decision.
 - Shard fold — `coverageOf` in `packages/cli/src/commands/merge.ts` returns `{}`
   — absent, not empty — when any shard omitted its coverage list; a **subject**
-  carrying only shard-filter exclusions and no observation anywhere is rewritten
-  to `{ kind: 'failed' }`, and a **subject** both observed and reported not
+  carrying only shard-filter exclusions and no observation anywhere, at any of
+  its widths, is rewritten to `{ kind: 'failed' }`, and a **subject** both observed and reported not
   observed raises `OperatorError` naming both shards.
 - Artifact to integer — `ReviewableReport` in `packages/cli/src/exit.ts`
   restates the fields structurally rather than importing `RunReport`, so the

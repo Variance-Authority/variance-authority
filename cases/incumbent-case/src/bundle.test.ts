@@ -185,5 +185,5 @@ describe('the writer and the reader agree', () => {
     } finally {
       process.chdir(previous);
     }
-  }, 30_000);
+  });
 });

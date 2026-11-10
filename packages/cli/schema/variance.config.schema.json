@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://variance-authority.dev/schema/variance.config.schema.json",
   "title": "Variance Authority configuration",
-  "description": "Everything a run is configured by, in one file in the operator's repository. Nothing here is inferred from the network, discovered by probing, or downloaded at run time. Every object is closed: an unknown key is a refusal, not a value the run ignores. A file that renders names all five of `project`, `profile`, `viewport`, `retention` and `subjects`; a file the configless commands alone read, such as one declaring only `suites`, names none of them.",
+  "description": "Everything a run is configured by, in one file in the operator's repository. Nothing here is inferred from the network, discovered by probing, or downloaded at run time. Every object is closed: an unknown key is a refusal, not a value the run ignores. A file that renders names all five of `project`, `profile`, `viewport`, `retention` and `subjects`; a file that renders nothing, read by the configless commands and `doctor`, such as one declaring only `suites`, names none of them.",
   "type": "object",
   "additionalProperties": false,
   "dependentRequired": {
@@ -146,8 +146,8 @@
         "required": ["kind"],
         "properties": {
           "kind": {
-            "enum": ["unit", "integration", "e2e", "visual"],
-            "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide."
+            "enum": ["unit", "integration", "e2e", "visual", "job"],
+            "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide. A job suite holds what `variance job` recorded, and only `variance job` writes it."
           },
           "carry": {
             "$ref": "#/$defs/carry",
@@ -161,7 +161,7 @@
             "type": "array",
             "minItems": 1,
             "items": { "type": "string", "minLength": 1 },
-            "description": "Globs, from the repository root and matching dotfiles, of changed files whose regions, import and asset edges and before select none of this suite's tests; a `!` glob takes a file back out. A test that declares a matching file, as a precondition or through a `/// <depends>`, still runs, and the selection names the file as ignored. A unit suite under jsdom paints nothing, so it can ignore stylesheets and images. Without it, nothing is ignored."
+            "description": "Globs, from the repository root and matching dotfiles, of changed files whose regions, import and asset edges and before select none of this suite's tests; a `!` glob takes a file back out. A test behind a `/// <depends>` on a matching file still runs, as does every test when the file is a precondition, and the selection names the file as ignored. A unit suite under jsdom paints nothing, so it can ignore stylesheets and images. Without it, nothing is ignored."
           },
           "precision": {
             "enum": ["file", "symbol", "file-use", "function-use", "region-use"],

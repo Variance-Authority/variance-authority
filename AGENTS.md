@@ -73,7 +73,9 @@ checkout, which lags it: an instruction read there may already be replaced.
 The primary checkout — the first row of `git worktree list` — is shared: people
 commit on `main` in it while you work, and anything you stage there lands in
 their next commit. Never stage in it. Work in a worktree on a branch cut from
-`origin/main`, and give the worktree its own `yarn install && yarn build`.
+`origin/main`, and give the worktree its own `yarn install && yarn build`. Run
+nothing there until both have finished: a command started earlier answered from
+a half-built checkout, and is run again.
 
 ## Ask before you grep
 
@@ -86,13 +88,32 @@ line happens to spell:
 yarn variance ask symbol --name <name>     # what it is and where it is declared
 yarn variance ask uses --name <name>       # who imports it
 yarn variance ask search --query <words>   # find a name by what it does
+yarn variance ask grep --query <pattern> --from <path>   # a local name, a string or a pattern in code
 yarn variance covering --file <path>       # which tests entered a file
 ```
 
-Text is `rg`'s: prose, configuration, workflows, logs, session transcripts,
-string literals, and a line in a file you already have open. So is a code
-question `variance` could not answer, and that miss is a defect in `variance`:
-name it in your report.
+Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
+local name, a string or a pattern to `grep`, from the file or folder you are
+working in, or a top folder such as `packages/` or `tools/` at the widest.
+
+Read an answer whole: widen it with `--limit` where it says rows were not
+shown, and never cut it with `head` or `tail`, whose dropped rows read later as
+a defect `variance` does not have.
+
+`symbol`, `uses` and `search` answer from the files the index parses: JavaScript
+and TypeScript, stylesheets, Python, Rust, Java, Kotlin and Swift. Those files
+and what they import are the source. `grep` searches the source files its start
+point names and what they import, and its answer counts them; a path that holds
+no source file is refused. A file outside the source — most often YAML, JSON,
+Markdown, shell, a workflow, an action's `action.yml`, a log or a session
+transcript — is text, and text is `rg`'s and `git grep`'s, as is a line in a
+file you already have open. Run them beside `variance` whenever the answer may
+sit in such a file, not after `variance` comes back empty: its empty answer says
+nothing about a file it did not search.
+
+A miss is a defect in `variance` only on a file of a kind its index parses: a
+code question about such a file that it could not answer, a wrong refusal or a
+crash. Name that one in your report, and take the answer from `rg` meanwhile.
 
 A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the
@@ -178,7 +199,11 @@ Look around:
   `docs/` — gets its structure from
   [content flow](.agents/references/content-flow.md) before it is outlined: a
   brief, then a spine read cold by the `content-flow` reviewer. Detail goes to
-  the skill reference or the JSDoc that owns it.
+  the skill reference or the JSDoc that owns it. Documentation is what an end
+  user receives and finds: the skill, the site — the top-level `docs/*.md` and
+  the package READMEs it publishes — and the JSDoc. What exists only locally, such as a spec, an ADR,
+  a journal entry, a `.compass/` README or an `.agents/` reference, is a
+  by-product of development, and a subject only it covers is undocumented.
   [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
   published sentence: a README, `docs/`, the site, CLI output or an error
   message.

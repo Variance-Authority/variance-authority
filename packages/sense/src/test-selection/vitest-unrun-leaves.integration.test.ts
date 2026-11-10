@@ -60,14 +60,14 @@ describe('a file whose runnable tests all passed beside a test the runner never 
       [ext('test/gated.only.ts'), true],
       [ext('test/todo.only.ts'), true],
     ]);
-  }, 20_000);
+  });
 
   it('is recorded whole from the tree a worker writes when `--reporter` replaced the reporter', async () => {
     expect(await record(['--reporter', 'dot'])).toEqual([
       [ext('test/gated.only.ts'), true],
       [ext('test/todo.only.ts'), true],
     ]);
-  }, 20_000);
+  });
 });
 
 describe('a file the runner cut on its own', () => {
@@ -81,18 +81,18 @@ describe('a file the runner cut on its own', () => {
 
   it('is recorded whole when nothing filtered it, so the filter is what refuses it', async () => {
     expect(await cut(['test/filtered.cut.ts'])).toEqual([[ext('test/filtered.cut.ts'), true]]);
-  }, 20_000);
+  });
 
   it('is not recorded whole under a name filter', async () => {
     expect(await cut(filtered)).toEqual([[ext('test/filtered.cut.ts'), false]]);
     expect(await cut(['--reporter', 'dot', ...filtered])).toEqual([[ext('test/filtered.cut.ts'), false]]);
-  }, 20_000);
+  });
 
   it('is not recorded whole when the run was cancelled part-way through it', async () => {
     const expected = [[ext('test/bails.cut.ts'), false], [ext('test/cancelled.cut.ts'), false]];
     expect(await cut(cancelled)).toEqual(expected);
     expect(await cut(['--reporter', 'dot', ...cancelled])).toEqual(expected);
-  }, 20_000);
+  });
 
   it('was cut between its two tests, so the cancel is what refuses it', async () => {
     // The first test ran and entered `alpha`'s branch; the cancel cut the
@@ -102,5 +102,5 @@ describe('a file the runner cut on its own', () => {
     const reached = (path: string) => decide?.blocks.find((block) => block.path === path)?.testFiles;
     expect(reached('if#0/then')).toContain(ext('test/cancelled.cut.ts'));
     expect(reached('if#1/then')).toEqual([]);
-  }, 20_000);
+  });
 });

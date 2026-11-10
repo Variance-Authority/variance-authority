@@ -31,7 +31,7 @@ import { openTestCoverage } from './format-view.js';
 import type { IndexLock } from './index-lock.js';
 import { writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
-import { declaredSuites } from './suites.js';
+import { declaredSuites, onlySuite } from './suites.js';
 
 /** The file a fetch names the mainline's record in, beside the commit directories it keeps. */
 export const FETCHED_MAINLINE = 'fetched.json';
@@ -109,7 +109,7 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
   if (selected === null) return undefined;
   const declared = declaredSuites(root);
-  const name = suite ?? (declared?.length === 1 ? declared[0]!.name : undefined);
+  const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   let newest: LastFetched | undefined;
   for (const cache of fetchCaches(root, cacheRoot, name)) {

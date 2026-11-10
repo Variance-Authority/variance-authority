@@ -323,8 +323,11 @@ export interface SuiteChange {
   readonly deleted: RegionTally;
   /** Modules only the current record holds: the suite loads them now and did not. */
   readonly arrived: RegionTally & { readonly files: readonly string[] };
-  /** Modules only the base holds: the suite loaded them and does not now. */
-  readonly departed: RegionTally & { readonly files: readonly string[] };
+  /**
+   * Modules only the base holds: the suite loaded them and does not now. `ran`
+   * is those of `files` with a region run at the base.
+   */
+  readonly departed: RegionTally & { readonly files: readonly string[]; readonly ran: readonly string[] };
   /** Every test file whose reach changed, as the motion names them. */
   readonly testFiles: readonly TestFileMotion[];
 }
@@ -341,7 +344,7 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
   const written = { regions: 0, run: 0 };
   const deleted = { regions: 0, run: 0 };
   const arrived = { regions: 0, run: 0, files: [] as string[] };
-  const departed = { regions: 0, run: 0, files: [] as string[] };
+  const departed = { regions: 0, run: 0, files: [] as string[], ran: [] as string[] };
   const tally = (into: { regions: number; run: number }, blocks: Iterable<ExecutionBlock>) => {
     for (const block of blocks) {
       if (!block.source) continue;
@@ -354,7 +357,9 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
     const module = current.get(was.file);
     if (module === undefined) {
       departed.files.push(was.file);
+      const before = departed.run;
       tally(departed, was.blocks);
+      if (departed.run > before) departed.ran.push(was.file);
       continue;
     }
     // A mismatched row is not compared, so it counts as neither deleted nor written.
@@ -379,7 +384,7 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
     written,
     deleted,
     arrived: { ...arrived, files: arrived.files.sort() },
-    departed: { ...departed, files: departed.files.sort() },
+    departed: { ...departed, files: departed.files.sort(), ran: departed.ran.sort() },
     testFiles: motion.testFiles,
   };
 }

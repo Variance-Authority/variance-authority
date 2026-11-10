@@ -21,7 +21,7 @@
 import { builtinModules, isBuiltin } from 'node:module';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Digest } from './digest.js';
-import { carriesCode, languageOf, READABLE } from './language.js';
+import { CODE_EXTENSIONS } from './language.js';
 import type { NativeGitTree } from './native.js';
 import type { Aliases } from './witness.js';
 
@@ -81,12 +81,6 @@ export interface IndexGraphRequest {
  */
 export const BUILTINS = [...new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)])]
   .filter((name) => isBuiltin(name));
-
-/** Every extension `kindFor` keeps a request's kind for: the ones whose language is code. */
-export const CODE_EXTENSIONS = [...READABLE].filter((suffix) => {
-  const language = languageOf(suffix);
-  return language !== undefined && carriesCode(language);
-});
 
 /**
  * The closure of `seeds`, held by the addon. A failure to build it is a

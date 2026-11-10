@@ -11,6 +11,7 @@
  */
 
 import { heardSplit, valued } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
 import { outermostOf } from './covering-frame.js';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 import { notKnown } from './review-words.js';
@@ -76,6 +77,99 @@ export function uncoveredFunctions(review: Review): { readonly total: number; re
   return { total: all.size, names: named(names), overwritten: named([...lost].filter((key) => !names.has(key))) };
 }
 
+/** What `--fail-on-uncovered` found: whether the check goes red, and what the log says about it. */
+export interface UncoveredVerdict {
+  readonly failed: boolean;
+  readonly said: readonly string[];
+}
+
+/** A count of changed functions as every sentence opens: `1 of 2 changed functions has`. */
+export function countOf(count: number, total: number): string {
+  return `${count} of ${total} changed function${total === 1 ? '' : 's'} ${count === 1 ? 'has' : 'have'}`;
+}
+
+/** A second count, after `first` functions a sentence before it named. */
+export function countAfter(first: number, count: number, total: number): string {
+  return first === 0 ? countOf(count, total) : `${count} more ${count === 1 ? 'has' : 'have'}`;
+}
+
+/** Neither a module the record holds a row for nor a test file it holds cases of. */
+function outsideRecord(review: Pick<Review, 'files'>): readonly ReviewFile[] {
+  return review.files.filter((file) => file.recorded === false && file.cases === undefined && file.holdsCases !== true);
+}
+
+/** Code: what the module reader claims, and what the source index reads in any language. */
+function isSource(file: ReviewFile): boolean {
+  return file.verdict !== undefined || file.unread !== undefined || file.indexed === true;
+}
+
+/** The changed files the record holds nothing of, source or not: a file the change created is named whatever it holds. */
+export function unrecordedFiles(review: Pick<Review, 'files'>): readonly string[] {
+  return outsideRecord(review).filter((file) => isSource(file) || file.created === true).map((file) => file.file);
+}
+
+/** The changed source files the record holds nothing of, in any language a reader here reads: no function in them can be named. */
+export function unrecordedSources(review: Pick<Review, 'files'>): readonly string[] {
+  return outsideRecord(review).filter(isSource).map((file) => file.file);
+}
+
+const RUN_FIRST = 'Run the tests under the recorder before the review.';
+
+/** Whether a run of this change is shown: the runs of a suite the review read name the commit under review and the tree holds nothing on top of it. A file that ran as the tree holds it shows none: an earlier push may have left that row. */
+function ranHere({ runs, ranCommits, head }: Pick<Review, 'runs' | 'ranCommits' | 'head'>): boolean {
+  if (head === undefined || head.dirty === true) return false;
+  return runs?.commit === head.commit || ranCommits?.includes(head.commit) === true;
+}
+
+/** The changed files the record holds that no suite the review read ran as the tree holds them: a change that added or deleted code meets no row, so a row is no test of it. */
+function staleFiles(review: Pick<Review, 'files'>): readonly ReviewFile[] {
+  return review.files.filter((file) => file.ran !== true && file.recorded === true);
+}
+
+/** Whether the review's regions say what this change did: the named suite ran it, or, file by file, the suites it read did. */
+export function ranThisChange(review: Pick<Review, 'record' | 'files'>): boolean {
+  return review.record === 'ran' || (review.files.some((file) => file.ran === true) && staleFiles(review).length === 0);
+}
+
+/** Refuses a review that holds no run of this change, file by file across the suites it read. */
+function refuseWithoutRun(review: Review): void {
+  const stale = staleFiles(review);
+  if (stale.length > 0) {
+    throw new OperatorError(`--fail-on-uncovered reads a run of this change, and the record does not hold this change in ${namedList(stale.map((file) => file.file))}, so which changed functions ran is not known. ${RUN_FIRST}`);
+  }
+  const outside = unrecordedSources(review);
+  if (outside.length > 0 && !ranHere(review)) {
+    throw new OperatorError(`--fail-on-uncovered reads a run of this change, and nothing shows a run of this change, so whether one loaded ${namedList(outside)} is not known. ${RUN_FIRST}`);
+  }
+}
+
+/**
+ * The count the review prints, read as an exit: code in `hole`, `unwalked` and
+ * `unknown` regions. A record from before the change says neither way, so a
+ * file no suite ran as the tree holds it is refused, and so is source outside
+ * the record when nothing shows a run. A changed file a run of this change did
+ * not load has no answer, which is not the same as no case running it: a build
+ * script is one, and a required check red on those would be turned off. It is
+ * named, never counted, and so is code no case is known to have run.
+ */
+export function uncoveredVerdict(review: Review): UncoveredVerdict {
+  refuseWithoutRun(review);
+  const { total, names, overwritten } = uncoveredFunctions(review);
+  return {
+    failed: names.length > 0,
+    said: [
+      ...(names.length === 0 ? [] : [`${countOf(names.length, total)} code no case ran: ${namedList(names)}.`]),
+      ...(overwritten.length === 0 ? [] : [`${countAfter(names.length, overwritten.length, total)} code ${notKnown(true)}: ${namedList(overwritten)}.`]),
+      ...leftOutOfCount(review),
+    ],
+  };
+}
+
+/** A sentence for each changed source file the count says nothing of, the same on the log and in the comment. */
+export function leftOutOfCount(review: Pick<Review, 'files'>): readonly string[] {
+  return unrecordedSources(review).map((file) => `\`${file}\` changed and no run loaded it, so the count says nothing of it.`);
+}
+
 /** The named functions as a sentence's tail: the first few, and the rest counted. */
 export function namedList(names: readonly string[]): string {
   const said = names.slice(0, CALLOUT).map((name) => (name === TOP_LEVEL ? name : `\`${name}\``));
@@ -84,7 +178,7 @@ export function namedList(names: readonly string[]): string {
 
 /** Every location no case ran, then every one no case is known to have run, each folded under how many there are. */
 export function uncoveredMarkdown(review: Review, mark: (region: ReviewRegion) => string): readonly string[] {
-  const ran = review.record === 'ran';
+  const ran = ranThisChange(review);
   return [
     ...placesMarkdown(review, located(review).filter(([, region]) => uncovered(region)), ran ? 'no case ran' : 'no case in the record', mark),
     ...placesMarkdown(review, located(review).filter(([, region]) => overwritten(region)), notKnown(ran), mark),
@@ -116,7 +210,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => test.id))).size;
   const tests = new Set(rows.flatMap(([, region]) => region.tests)).size;
   const counted = cases === 0 ? '' : ` — ${cases} case${cases === 1 ? '' : 's'} in ${tests} test file${tests === 1 ? '' : 's'}`;
-  const lines = ['', `<details><summary>🧪 ${review.record === 'ran' ? 'What ran' : 'What the record ran for'} ${rows.length} changed function${
+  const lines = ['', `<details><summary>🧪 ${ranThisChange(review) ? 'What ran' : 'What the record ran for'} ${rows.length} changed function${
     rows.length === 1 ? '' : 's'
   }${counted}</summary>`, '', ...unheardMarkdown(rows.flatMap(([, region]) => region.called))];
   lines.push('| | Function | Edit | Where | Cases entered | Ran a changed line | Test files |', '|---|---|---|---|--:|--:|---|');

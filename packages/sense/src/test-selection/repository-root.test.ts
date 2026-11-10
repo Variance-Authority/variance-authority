@@ -69,7 +69,7 @@ describe('a Jest configuration whose rootDir is a package', () => {
 
     expect(configured.rootDir).toBe(rootDir);
     expect(configured.transform).toEqual({
-      '\\.tsx?$': [SELECTION_TRANSFORM, { root: repository, runtime: SELECTION_RUNTIME, transformer: '@swc/jest' }],
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: repository, rootDir, runtime: SELECTION_RUNTIME, transformer: '@swc/jest' }],
     });
     expect(configured.reporters?.at(-1)).toEqual([
       SELECTION_REPORTER,

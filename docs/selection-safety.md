@@ -117,7 +117,7 @@ look like a clean one:
 When a suite declares nothing in `before`, every run says so:
 
 ```text
-the suite unit declares nothing before reach, so a change to its runner config or the setup it loads is read like any other file; name them in `before` to run the whole suite when they change.
+the suite unit declares nothing before reach, so a change to its runner config or the setup it loads is read like any other file; name them in `before` in variance.config.json to run the whole suite when they change.
 ```
 
 Read that line as a to-do. Until your runner configuration and global setup are
@@ -141,26 +141,31 @@ it is deliberate: a README, a changeset or a design note would
 otherwise run your whole suite on every edit. The run names every such file:
 
 ```text
-the journal records nothing about 5 changed files, so they keep no test in the run; a file the suite reads without importing it is declared as a precondition.
+the journal records nothing about 5 changed files, so they keep no test in the run; a file read without importing it is named by a `/// <depends>` in the module that reads it.
 read .changeset/mainline-owned-tests.md: unread (the record and the file graph hold nothing about it) — it keeps no test in the run
 ```
 
 If a test does depend on that file — a fixture it reads with `fs`, a schema it
-loads by path — declare the dependency, and from the next recording on a
-change to the file runs every test that declared it:
+loads by path — declare the dependency:
 
-- in the test file, `/// <depends path="…" />`;
-- on the seam, its `preconditions` option, or a
-  [case precondition](case-preconditions.md) recorded where the test arranges
-  its state;
-- in `before`, when every test in the suite rests on it.
+- in the module that reads it, `/// <depends path="…" />`: a change to the file
+  runs the tests that load that module;
+- in `before`, when every test in the suite rests on it;
+- on the seam, its `preconditions` option, when every test of the run rests on
+  it, such as compiler settings: from the next recording on, a change to the
+  file runs every test.
+
+A suite with `"relations": false` declines the graph, so a `/// <depends>` reaches
+none of its tests: there the file goes in `before` or `preconditions`. A file the
+suite's `ignore` matches is the exception: the declaration still selects its
+readers, and `before` does not.
 
 Two settings narrow on purpose, and print a line when they do:
 
 | Setting | What the output says |
 |---|---|
 | `relations: false`: the suite asks the file graph nothing | `the suite declines relations, so N changed files its record did not measure keep no test in the run; a file the suite rests on is declared in its \`before\`` |
-| `ignore` globs | `the suite ignores N changed files by its \`ignore\`, so only a test that declares one, as a precondition or by a \`/// <depends>\`, runs for them` |
+| `ignore` globs | `the suite ignores N changed files by its \`ignore\`, so only a \`/// <depends>\` on one runs a test for them, or a \`preconditions\` entry, which runs every test of its run` |
 
 In the JSON answer these files are under `unread`, `declined` and `ignored`.
 

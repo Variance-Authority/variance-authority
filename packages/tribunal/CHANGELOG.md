@@ -1,5 +1,39 @@
 # @variance-authority/tribunal
 
+## 0.29.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.28.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.27.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.26.0
+
+### Minor Changes
+
+- 6b21cfe: A tribunal says who it recognizes, and one command deploys one
+
+  `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS` declare who a deployment recognizes, and every deployment runs that one policy. Reviewers sign in with GitHub, those who can write to `GITHUB_REPOSITORY` decide, and a decision carries the login that signed in; a body naming somebody else is refused. Workflows in `GITHUB_ACTIONS_REPOSITORIES` push with the token the runner issues, which `baselines.token` asks for with `{ "github-actions": { "audience": … } }`, so CI stores no secret. `VIEW=public` opens reading to an anonymous visitor and nothing else. `access` remains for Cloudflare Access and any SSO behind it. `REVIEW_TOKEN` is gone, and a script no longer decides: move a deployment to `github` or `access` before upgrading. `createTribunal` takes a `policy` in place of its two tokens, and `createTribunalRoutes` and `serveTribunal` take no `authorize`, `tokens` or `reviewer`: the policy replaces them. `Capability`, `authorizeFor` and `REVIEW_TOKEN_VARIABLE` are gone with them.
+
+  `GITHUB_ACTIONS_BASELINE_REF` is required with `github-actions`: it names the one ref whose workflows move a baseline, and every other ref still pushes builds and reads the render cache, and writes neither a baseline nor the cache. The packaged Worker sweeps on a schedule; add `triggers.crons` to a `wrangler.jsonc` that predates it. The Node service takes `VARIANCE_TRIBUNAL_ORIGIN` behind a proxy.
+
+  `variance-authority-tribunal-provision` now takes a repository to a serving deployment: it writes `wrangler.jsonc` when there is none, registers the GitHub App from a manifest, so you confirm one page and install it, and deploys. A run refuses a repository the deployment does not already name, and `--rotate` is how a token goes to a repository that holds none. `--repository` and `--mount` place it, and `--skip-deploy` leaves publishing to a deployment with its own build. The review bundle and fonts are laid out in `dist/public`, so a Worker's `assets` directory points into the package, and the packaged Worker serves the review page. The `token` of a history or remote client may be a function, asked on each use. `./testing` adds `bearerPolicy`, `signer` and `Signer`.
+
+### Patch Changes
+
+- 0360384: A deployment no longer takes a write a browser sent from another site on a reviewer's credential, which Access's cookie allowed by default, whichever policy it runs, a host's own included; a bearer still crosses origins. On `loopback` a caller who came by a name that is not this machine's, or the host of `VARIANCE_TRIBUNAL_ORIGIN`, decides nothing, which closes the same forgery through a name pointed at this machine. A concern is raised at `POST /review/concerns/raise`, so every reviewer write can sit behind Access while machines read `GET /review/concerns`; `POST /review/concerns` answers 405 and the service's API is 8. The tribunal README says how to put a company's SSO in front of a deployment through Cloudflare Access, and the deploy skill hands those steps to the person.
+- c07ccfc: *Approve* and *Reject* move to the top right of a render. A render whose image the
+  run did not keep offers neither and says why, and an image with no document behind
+  it can be rejected, not approved. The build overview opens on the same count as the
+  header, so a changed render no component is named for reads as a render to review.
+  Cards with nothing to say are not drawn, and what nobody measured gets one line
+  under *Not measured*.
+
 ## 0.25.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

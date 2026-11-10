@@ -47,7 +47,7 @@ beforeAll(async () => {
     at: new Date().toISOString(),
     miss: { kind: 'unreadable', detail: 'not asked here' },
   });
-}, 60_000);
+});
 
 afterAll(async () => {
   if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -150,7 +150,7 @@ describe('import hops beside a run of lines or a scope', () => {
     expect(hops?.length).toBeGreaterThan(0);
     expect(hops?.every(([, distance]) => typeof distance === 'number')).toBe(true);
     expect(hops).toEqual(await hopsOf('--line', '1'));
-  }, 60_000);
+  });
 
   it('measures a scope from the file', async () => {
     // Line 1 opens `decide`, so it also lists the file's loaders: the scope lists fewer files, at the same hops.
@@ -162,5 +162,5 @@ describe('import hops beside a run of lines or a scope', () => {
       expect(typeof distance).toBe('number');
       expect(distance).toBe(fromLine.get(file));
     }
-  }, 60_000);
+  });
 });
