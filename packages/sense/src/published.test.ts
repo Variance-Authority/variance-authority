@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
-import { openImmutableLog, readImmutableLog } from './immutable-log.js';
+import { openImmutableLog } from './immutable-log.js';
 import {
   publishedSources,
   readPublishedSources,
@@ -280,7 +280,7 @@ describe('the published source index', () => {
     await updateSourceIndex(root, { index: current });
     // 0.14.0 wrote 15, a number as wide as this reader's, so the header keeps its length.
     const written = `"version":${SOURCE_INDEX_VERSION},`;
-    const older = readImmutableLog(current).map((segment) => {
+    const older = (await openImmutableLog(current)).segments.map((segment) => {
       const header = segment.indexOf(written);
       expect(header).toBeGreaterThan(0);
       expect(header).toBeLessThan(4 + segment.readUInt32LE(0));
