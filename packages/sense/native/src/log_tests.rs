@@ -20,7 +20,7 @@ fn segments_land_under_their_digest_and_the_manifest_names_them() {
     assert_eq!(
         json,
         format!(
-            r#"{{"format":"variance-authority-immutable-log","version":1,"segments":[{{"digest":"{digest}","length":3}},{{"digest":"{}","length":6}}]}}"#,
+            r#"{{"format":"variance-authority-immutable-log","version":1,"segments":[{{"digest":"{digest}","length":3}},{{"digest":"{}","length":6}}],"generation":1}}"#,
             crate::digest::of_sha256(Sha256::digest(b"second").as_slice())
         )
     );

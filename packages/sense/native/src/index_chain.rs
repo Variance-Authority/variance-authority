@@ -214,6 +214,35 @@ mod tests {
     }
 
     #[test]
+    fn a_republish_of_the_manifest_a_reader_held_is_late_not_damaged() {
+        use crate::log::{written, LogSegment, Over};
+        let directory = std::env::temp_dir().join(format!("va-chain-republish-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("index.bin");
+        let path = path.to_str().unwrap();
+        let named = |bytes: &[u8]| LogSegment {
+            digest: crate::digest::of_sha256(Sha256::digest(bytes).as_slice()),
+            length: bytes.len() as i64,
+        };
+        assert!(written(path, Over::Nothing, &[], &[b"a"], &[], 0).unwrap());
+        let held = std::fs::read(path).unwrap();
+        // Writer B replaces segment a, then writer A publishes a again: the
+        // manifest names what the reader held, and a is back where it was.
+        assert!(written(path, Over::Published(&held), &[], &[b"b"], &[named(b"a")], 0).unwrap());
+        let between = std::fs::read(path).unwrap();
+        assert!(written(path, Over::Published(&between), &[], &[b"a"], &[named(b"b")], 0).unwrap());
+        // The reader read the held manifest before B, and found a gone.
+        let mut first = true;
+        let read = follow(
+            || if std::mem::take(&mut first) { Ok(Some(Chain { segments: Vec::new(), ..chain(&held, 1) })) } else { read_chain_once(path) },
+            || Ok(std::fs::read(path).ok()),
+        ).unwrap().unwrap();
+        assert_eq!((read.damaged(), read.segments), (0, vec![b"a".to_vec()]));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn a_moved_read_that_kept_nothing_is_damage() {
         let mut generation = 0u8;
         let read = follow(
