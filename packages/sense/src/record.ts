@@ -47,6 +47,8 @@ export interface BuiltRecord {
   readonly targets?: readonly (string | undefined)[];
   /** What the bytes said, absent when the file could not be read. */
   readonly read?: Parsed;
+  /** The bytes were parsed by this call: neither a cache nor a store held them. */
+  readonly parsed?: true;
 }
 
 /** Read, parse and resolve one file through the implementation of record. */
@@ -71,6 +73,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   // A digest from git names a cache entry before the file is opened; only a
   // miss falls through to I/O.
   let digest = subject.digest;
+  let parsed = false;
   let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
   // A parse is kept whatever limit read it, so one over this scan's is read again, to be declined.
   if (read !== undefined && (read.size?.bytes ?? (await sized(absolute)) ?? 0) > largestFile) read = undefined;
@@ -108,6 +111,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     read = cache.get(keyFor(digest, way));
     if (read === undefined) {
       read = parsedFrom(file, contents, way, language);
+      parsed = true;
       cache.set(keyFor(digest, way), read);
     }
   }
@@ -179,6 +183,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
     },
     read,
+    ...(parsed ? { parsed: true as const } : {}),
     targets,
     witnesses: subject.remembering
       ? witnessesOf({

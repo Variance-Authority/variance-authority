@@ -81,7 +81,8 @@ impl Stores {
     }
 
     /// Add `rows` to the first store, as one segment; the store as one when it
-    /// has grown past [`SEGMENTS`] or lost a segment to damage, which heals it.
+    /// has grown past [`SEGMENTS`], lost a segment to damage or holds one that
+    /// does not open, which heals it.
     /// `false`, and nothing written, when another
     /// writer published between the read and here.
     pub(crate) fn append<P: ParseRow>(&self, rows: &[(&str, &P)]) -> std::io::Result<bool> {
@@ -98,12 +99,14 @@ impl Stores {
             Held::Unreadable(bytes) => return written(path, Over::Published(bytes), &[], &[&segment], &[], 0),
         };
         let references = references(chain);
-        // A damaged store is written whole from what reads: appending past the gap would add
-        // what no reader reaches, and every root after would parse it again.
-        if chain.damaged() == 0 && (references.len() < SEGMENTS || chain.dropped > 0) {
+        // A store that is damaged, or holds a layer this build cannot open, is written whole from
+        // what reads: appending past the gap would add what no reader reaches, and every root
+        // after would parse it again.
+        let readable = opened(chain).len();
+        if chain.damaged() == 0 && readable == chain.segments.len() && (references.len() < SEGMENTS || chain.dropped > 0) {
             return written(path, Over::Published(chain.published()), &references, &[&segment], &[], 0);
         }
-        let mut layers: Vec<&[u8]> = chain.segments.iter().take(opened(chain).len()).map(Vec::as_slice).collect();
+        let mut layers: Vec<&[u8]> = chain.segments.iter().take(readable).map(Vec::as_slice).collect();
         layers.push(&segment);
         let whole = compacted(&layers).map_err(std::io::Error::other)?;
         let oldest = oldest(path, &chain.references);

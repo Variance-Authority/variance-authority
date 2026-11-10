@@ -3,11 +3,14 @@ import { appendFile, cp, mkdtemp, mkdir, readdir, rm, symlink, utimes, writeFile
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { native } from './addon.js';
+import { openImmutableLog } from './immutable-log.js';
 import { parseStorePath, pruneParseStore } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { scanRelations } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
+import { encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { openSourceIndex, sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 
@@ -218,6 +221,26 @@ describe('the parse store a cache keeps', () => {
     expect(after.parsed).toBe(0);
   });
 
+  it('heals a store holding a segment of another format version on the next write, so the root after it parses nothing', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/a'));
+    // A whole segment, its digest good, that this build's reader refuses to open.
+    const current = encodeSourceIndex({ config: '', parses: new Map(), records: new Map(), directories: new Map() });
+    const other = Buffer.from(current.toString('latin1').replace(`"version":${SOURCE_INDEX_VERSION}`, `"version":${SOURCE_INDEX_VERSION - 1}`), 'latin1');
+    expect(other.equals(current)).toBe(false);
+    const store = parseStorePath(cache);
+    const held = await openImmutableLog(store);
+    await rm(store);
+    // Written as a base, which is never opened on the way in.
+    expect(native()!.appendSourceIndex(store, [], false, [...held.segments, other])).toBeNull();
+    expect((await openImmutableLog(store)).segments).toHaveLength(held.segments.length + 1);
+
+    expect((await updateSourceIndex(join(root, 'packages/b'))).parsed).toBeGreaterThan(0);
+    const after = await updateSourceIndex(join(root, 'packages'));
+    expect(after.files).toBeGreaterThan(0);
+    expect(after.parsed).toBe(0);
+  });
+
   it('writes over a store whose manifest cannot be read, so the root after it parses nothing', async () => {
     const root = await checkout();
     await updateSourceIndex(join(root, 'packages/a'));
@@ -291,6 +314,16 @@ describe('the parse store a cache keeps', () => {
     await updateSourceIndex(await plain());
     const second = await plain();
     expect(await entryRecord(second, { stored: true, largestFile: 1 })).toEqual(await entryRecord(second, { stored: false, largestFile: 1 }));
+  });
+
+  it('counts a file a reader other than the module one parses cold, and not when the store answers it', async () => {
+    const root = await checkout();
+    await write(root, 'packages/c/package.json', '{ "name": "@fixture/c" }');
+    await write(root, 'packages/c/src/only.css', 'c { color: green; }\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '--quiet', '-m', 'style');
+    expect((await updateSourceIndex(join(root, 'packages/c'))).parsed).toBe(1);
+    expect((await updateSourceIndex(join(root, 'packages'))).parsed).toBe(4);
   });
 
   it('keeps every parse through a compaction, and reclaims one no root names once it is old', async () => {
