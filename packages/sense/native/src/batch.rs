@@ -10,7 +10,7 @@ use napi_derive::napi;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
-use crate::acquire::{read_all, read_git, Answer, Outcome};
+use crate::acquire::{read_all, read_git, Answer, Outcome, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::read::Kind;
@@ -309,11 +309,11 @@ fn read_kept(
             let read = kept(&identity, file)?;
             // A parse is kept whatever limit read it, so one over this scan's is read again, to be
             // declined; a reader that measured nothing leaves the size to the file on disk, and a
-            // size neither tells is read again from Git, which declines by the blob's.
-            let over = largest_file.is_some_and(|limit| {
-                let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
-                bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > u64::from(limit))
-            });
+            // size neither tells is read again from Git, which declines by the blob's. No limit is
+            // the default a fresh read applies (`acquire.rs`), not none.
+            let limit = u64::from(largest_file.unwrap_or(LARGEST_FILE));
+            let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
+            let over = bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > limit);
             (!over).then_some((read, identity))
         })
         .collect();

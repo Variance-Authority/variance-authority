@@ -382,6 +382,28 @@ describe('the parse store a cache keeps', () => {
     expect(await entryRecord(second, { stored: true, ...limit }, entry)).toEqual(fresh);
   });
 
+  it('declines a module over the default limit when a scan names no limit and the store holds its parse from a larger one', async () => {
+    const big = async () => {
+      const root = await checkout();
+      await write(root, 'packages/a/src/big.ts', `export const big = '${'x'.repeat(LARGEST_FILE)}';\n`);
+      git(root, 'add', '.');
+      git(root, 'commit', '--quiet', '-m', 'big');
+      return root;
+    };
+    const path = join(await temporary('variance-parse-store-index-'), 'index.bin');
+    const source = await openSourceIndex(path);
+    await scanRelations({ root: await big(), dirs: ['packages/a'], cache: source.cache, largestFile: 2 * LARGEST_FILE });
+    await source.save();
+    fillParseStore([parseStorePath(cache)], path);
+    const second = await big();
+    const scan = (largestFile?: number) => {
+      const batch = gitTreeOf(second, ['packages/a']).then((tree) => tree!.native!.scanGraph(second, ['packages/a/src/big.ts'], largestFile, 1, false, undefined, false, [parseStorePath(cache)]));
+      return batch.then(({ files, kept }) => kept[files.indexOf('packages/a/src/big.ts')]);
+    };
+    expect(await scan(2 * LARGEST_FILE)).toBe(1);
+    expect(await scan()).toBe(0);
+  });
+
   it('publishes the parse of every module a store answered, when another root appended it after the index was opened', async () => {
     const root = await checkout();
     const stores = [parseStorePath(cache)];
