@@ -10,7 +10,7 @@ npm install --save-dev @variance-authority/tribunal wrangler
 ```
 
 ```bash
-npx variance-authority-tribunal-provision --config deploy/wrangler.jsonc
+variance-authority-tribunal-provision --config deploy/wrangler.jsonc
 ```
 
 Do not ask the person for an id, a token, a client id or a secret. The command

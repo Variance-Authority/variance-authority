@@ -63,7 +63,7 @@ Its own suite runs against React 19.
 
 Reading the recorded location back is `@variance-authority/react`'s job. You do
 not install that to make this package work: a **collector** — the module
-`npx variance run` loads to plan subjects and render them, such as
+`variance run` loads to plan subjects and render them, such as
 `@variance-authority/storybook-collector` — already depends on it. Install it
 directly only to run the check below yourself:
 

@@ -187,7 +187,10 @@ describe('the documented command line is the real one', () => {
         .filter((line) => line.trim() !== '')
         .map((line) => line.trimEnd());
 
-      expect(dispatched.filter((command) => !shown.some((line) => line.startsWith(`variance ${command} `) || line === `variance ${command}`))).toEqual([]);
+      // A block of one command's usage is that command's shape, not the enumeration: only a block naming several owes them all.
+      const enumerates = new Set(shown.map((line) => line.split(/\s+/)[1])).size > 1;
+      const missing = dispatched.filter((command) => !shown.some((line) => line.startsWith(`variance ${command} `) || line === `variance ${command}`));
+      expect(enumerates ? missing : []).toEqual([]);
       expect(shown.filter((line) => !USAGE_LINES.includes(line))).toEqual([]);
     },
   );

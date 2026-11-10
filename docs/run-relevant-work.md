@@ -10,7 +10,7 @@ page that owns each. New here? Start with [your first run](start.md).
 
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id like `story:checkout--empty`.
-`npx variance run --since origin/main` narrows a run to the subjects a source
+`variance run --since origin/main` narrows a run to the subjects a source
 change could plausibly reach, instead of capturing and comparing every subject
 in the suite. The CLI is a devDependency:
 
@@ -102,7 +102,7 @@ VARIANCE_AUTHORITY_SINCE= npx vitest run
 ```
 
 [Run the tests an edit needs](test-an-edit.md) owns that loop.
-`npx variance select --format json` prints the same reading for a runner the
+`variance select --format json` prints the same reading for a runner the
 integration does not wrap, or a program that decides for itself. `select` prints a **skip** list, never a run list: stdout is paths and
 nothing else, and an empty answer runs your whole suite rather than none of it.
 It needs no `variance.config.json`, so a repository that uses Variance Authority

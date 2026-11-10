@@ -46,11 +46,11 @@ npm install --save-dev @variance-authority/report @variance-authority/cli
 
 The CLI is here because it is what writes the report the examples below read.
 It is a devDependency, so every command on this page is run as
-`npx variance <command>`.
+`variance <command>`.
 
 ## Turn a run into a review plan
 
-`npx variance run` writes its report to `.variance/report.json` unless your
+`variance run` writes its report to `.variance/report.json` unless your
 `variance.config.json` names another path. This reads that file and prints what
 one reviewer actually has to decide:
 
@@ -76,7 +76,7 @@ for (const change of clustering.changes) {
   // `settles` is the set where this shape is the *whole* difference, so one
   // approval promotes nothing unreviewed alongside it.
   if (change.settles.length > 0) {
-    console.log(`  npx variance accept --shape ${change.fingerprint}`);
+    console.log(`  variance accept --shape ${change.fingerprint}`);
   }
 }
 
@@ -103,11 +103,11 @@ checkout route, and spacing moved `Card` on that same route:
 ```
 3 subject(s) changed, and they are 2 distinct change(s) — 1 of which can be decided in one action
 Button: 3 subject(s) touched, 2 settled by one decision
-  npx variance accept --shape v1:9f2c41ab8d0e5573
+  variance accept --shape v1:9f2c41ab8d0e5573
 Card: 1 subject(s) touched, 0 settled by one decision
 ```
 
-`npx variance accept` promotes the images that run already produced; it never
+`variance accept` promotes the images that run already produced; it never
 re-renders. It takes subject ids, `--all`, or `--shape <fingerprint>` as printed
 above, and it refuses by name any subject where something the shape does not
 account for also moved — which is why the checkout route is in `subjects` and
@@ -329,7 +329,7 @@ import {
 import { readRunReport } from '@variance-authority/report/file';
 
 const report = await readRunReport('.variance/report.json');
-// What `npx variance accept --shape <fingerprint>` would have promoted for every
+// What `variance accept --shape <fingerprint>` would have promoted for every
 // shape in the run: the subjects each shape settles on its own.
 const accepted = clusterChanges(report.observations).changes.flatMap(
   (change) => change.settles,

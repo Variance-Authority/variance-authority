@@ -255,9 +255,9 @@ case axis — so whatever reads it in CI does not change.
 **Ask.** From a shell, about a place:
 
 ```bash
-npx variance covering --file src/cart/total.ts --line 14
-npx variance covering --file src/cart/total.ts --function applyDiscount
-npx variance covering --since main
+variance covering --file src/cart/total.ts --line 14
+variance covering --file src/cart/total.ts --function applyDiscount
+variance covering --since main
 ```
 
 **Re-record when the tree moves.** A region is a range of lines in the text the

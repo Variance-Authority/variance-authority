@@ -86,7 +86,7 @@ the suite — replace the host with your proxy's:
 ```
 
 ```bash
-npx variance run
+variance run
 ```
 
 `renderer` is mutually exclusive with `browser`: a config naming both is
@@ -186,7 +186,7 @@ defaults to absent, which means the socket is the only gate.
 Approval writes through the same endpoint, so no baseline commit is involved:
 
 ```bash
-npx variance accept Button/primary
+variance accept Button/primary
 ```
 
 ### Connecting by hand
@@ -316,7 +316,7 @@ saving is spent again as one request per subject.
 up. The client then fetches all of their descriptions for one identity from
 `/baseline/working-set` in a single request and answers `describe` out of it.
 
-`npx variance run` calls it for you, after it has narrowed the run, so a run
+`variance run` calls it for you, after it has narrowed the run, so a run
 scoped by `--since` does not fetch what it will not consult. Calling it by hand
 looks like this:
 

@@ -143,8 +143,8 @@ export default captureCollector({ directory: CAPTURES });
 
 ```bash
 npx rstest run
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 The suite passes as it did, having written one capture per subject. The first
@@ -152,9 +152,9 @@ durable run exits `0` and reports `button/save` as `new` — nothing moved, and
 an image nobody has approved is not a pass either. Look at the candidate, then approve it by id:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
-npx variance accept --config variance.config.json button/save
-npx variance run --config variance.config.json
+variance report --config variance.config.json --format html > .variance/report.html
+variance accept --config variance.config.json button/save
+variance run --config variance.config.json
 ```
 
 The rerun exits `0` and reports `unchanged`. `accept` promotes the image that

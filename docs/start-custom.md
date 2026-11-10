@@ -39,7 +39,7 @@ In practice that rules out, inside the rendered output:
   renderer paints in `UTC` and `en-US`, or in the `timezoneId` and `locale` your
   config declares. Your collector runs inside `variance run`, so a date it
   formats reads the host's timezone and language unless you pin it to the same
-  pair: start the run as `TZ=UTC npx variance run`, and pass `'en-US'` and
+  pair: start the run as `TZ=UTC variance run`, and pass `'en-US'` and
   `timeZone: 'UTC'` wherever the collector formats, as in
   `date.toLocaleString('en-US', { timeZone: 'UTC' })`.
 
@@ -374,8 +374,8 @@ A `--save-dev` install puts `variance` in `node_modules/.bin`, so run it through
 `npx` or from a package script.
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `doctor` reports what this machine can do and guesses at nothing: it opens the
@@ -387,7 +387,7 @@ moved, and an image nobody has approved is not a pass either. Write the HTML rep
 because the image links inside it are relative to the report:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 Open it in a browser. Each subject opens on what changed at its own size, and
@@ -399,9 +399,9 @@ template is supposed to look like.
 It is, so approve them by id:
 
 ```bash
-npx variance accept --config variance.config.json receipt/empty
-npx variance accept --config variance.config.json receipt/one-item
-npx variance run --config variance.config.json
+variance accept --config variance.config.json receipt/empty
+variance accept --config variance.config.json receipt/one-item
+variance run --config variance.config.json
 ```
 
 `accept` promotes the image that run already produced. It renders nothing, so

@@ -129,10 +129,10 @@ pull request alone:
   if: github.event_name == 'pull_request'
   env:
     COMMIT: ${{ steps.record.outputs.commit }}
-  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+  run: npx --no-install variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
 ```
 
-`steps.record` is a step that ran `npx variance share --suite <name> --format
+`steps.record` is a step that ran `npx --no-install variance share --suite <name> --format
 github`. The merge prints `merged=true` and `checkout=<sha>`, or `merged=false`
 when there was no commit or the head conflicts with it.
 [Sharing](https://variance-authority.dev/docs/sharing#a-pull-request-that-runs-the-mainlines-changes-too)
