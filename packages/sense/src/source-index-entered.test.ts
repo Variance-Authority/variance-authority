@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -27,6 +27,15 @@ describe('a source index entered from elsewhere in its repository', () => {
     await write('app/index.ts', "import { unit } from '../lib/unit.js';\nexport const app = unit;\n");
     await write('lib/unit.ts', 'export const unit = 1;\n');
     await write('lib/alone.ts', 'export const alone = 2;\n');
+    // A workspace package nobody built: its export names `dist/`, which only
+    // its `tsconfig` maps back to `src/`.
+    await write('packages/lib/package.json', '{ "name": "@acme/lib", "exports": "./dist/index.js" }');
+    await write('packages/lib/tsconfig.json', '{ "compilerOptions": { "rootDir": "src", "outDir": "dist" } }');
+    await write('packages/lib/src/index.ts', 'export const lib = 1;\n');
+    await write('packages/app/package.json', '{ "name": "@acme/app", "dependencies": { "@acme/lib": "*" } }');
+    await write('packages/app/src/main.ts', "import { lib } from '@acme/lib';\nexport const main = lib;\n");
+    await mkdir(join(root, 'node_modules/@acme'), { recursive: true });
+    await symlink(join(root, 'packages/lib'), join(root, 'node_modules/@acme/lib'));
     git('init', '--quiet');
     git('add', '.');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture');
@@ -83,4 +92,15 @@ describe('a source index entered from elsewhere in its repository', () => {
     }
   });
 
+  it('resolves a held parse as a fresh scan does, through an unbuilt workspace package', async () => {
+    await updateSourceIndex(root);
+    const packages = join(root, 'packages');
+
+    const entered = await updateSourceIndex(packages);
+    expect(entered).toMatchObject({ was: 'missing', reread: 0 });
+    const records = (await readPublishedSources(entered.path)).records;
+    expect(records.find((record) => record.file === 'app/src/main.ts'))
+      .toMatchObject({ edges: [{ to: 'lib/src/index.ts' }] });
+    expect(records).toEqual(await scanRelations({ root: packages, dirs: ['.'] }));
+  });
 });

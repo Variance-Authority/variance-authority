@@ -67,6 +67,15 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     tsconfig?: string | false,
     conditionNames?: string[],
   ): NativeScanBatch;
+  /** Where held parses' requests land, as `scanBatch` resolves them: `native/src/batch.rs`. */
+  resolveHeld(
+    root: string,
+    files: string[],
+    counts: number[],
+    values: string[],
+    tsconfig?: string | false,
+    conditionNames?: string[],
+  ): string[];
   scanGraph(
     root: string,
     seeds: string[],
@@ -198,6 +207,16 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     conditionNames?: string[],
     listed?: string[],
   ): NativeScanBatch;
+  /** `resolveHeld` for files no tree lists; `listed` as `scanBatch` takes it. */
+  resolveHeldBatch(
+    root: string,
+    files: string[],
+    counts: number[],
+    values: string[],
+    tsconfig?: string | false,
+    conditionNames?: string[],
+    listed?: string[],
+  ): string[];
   /** The kind names, indexed by the codes a batch's `kinds` carries. */
   kinds(): EdgeKind[];
   /**
@@ -382,9 +401,49 @@ export function nativeGraph(
   };
 }
 
+/**
+ * The records of files whose parse the cache already holds, resolved by the
+ * resolver `nativeFrontier` reads with, so a held parse answers what reading
+ * the file would have, without reading it.
+ */
+export function nativeHeld(options: NativeFrontierOptions, parses: readonly Parsed[]): readonly NativeBuilt[] {
+  const codes = new Map(options.addon.kinds().map((kind, code) => [kind, code]));
+  const counts = parses.map((read) => read.requests.length);
+  const values = parses.flatMap((read) => read.requests.map((asked) => asked.value));
+  const conditionNames = options.conditionNames === undefined ? undefined : [...options.conditionNames];
+  const targets = options.tree === undefined
+    ? options.addon.resolveHeldBatch(
+      options.root,
+      [...options.files],
+      counts,
+      values,
+      options.tsconfig,
+      conditionNames,
+      options.listed === undefined ? undefined : [...options.listed],
+    )
+    : options.tree.resolveHeld(options.root, [...options.files], counts, values, options.tsconfig, conditionNames);
+  const batch: NativeScanBatch = {
+    files: [...options.files],
+    parseSegment: Buffer.alloc(0),
+    targets,
+    counts: Uint32Array.from(counts),
+    digests: options.digests.map((digest) => digest ?? ''),
+    unknown: parses.map((read) => read.unknown ?? ''),
+    values,
+    kinds: Buffer.from(parses.flatMap((read) => read.requests.map((asked) => codes.get(asked.kind) ?? 255))),
+    parses: [],
+    parsed: Buffer.alloc(parses.length, 1),
+    declined: Buffer.alloc(parses.length),
+    declareCounts: Uint32Array.from(parses, (read) => read.declares?.length ?? 0),
+    declares: parses.flatMap((read) => read.declares ?? []),
+  };
+  return builtFromBatch(options, batch, parses);
+}
+
 function builtFromBatch(
   options: NativeFrontierOptions,
   batch: NativeScanBatch,
+  held?: readonly Parsed[],
 ): readonly NativeBuilt[] {
   const kinds = options.addon.kinds();
   const built: NativeBuilt[] = [];
@@ -416,7 +475,7 @@ function builtFromBatch(
     }
     const digest = options.digests[index] ?? asDigest(batch.digests[index]);
 
-    const read = encoded === '' ? undefined : JSON.parse(encoded) as Parsed;
+    const read = held?.[index] ?? (encoded === '' ? undefined : JSON.parse(encoded) as Parsed);
     const edges: FileEdge[] = [];
     const packages: PackageEdge[] = [];
     const unresolved: string[] = [];

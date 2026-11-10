@@ -51,7 +51,7 @@ import type { Digest } from './digest.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt, type NativeGitTree } from './native.js';
+import { native, nativeFrontier, nativeGraph, nativeHeld, nativeRefusal, type NativeBuilt, type NativeGitTree } from './native.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
@@ -383,6 +383,9 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
     const pending: string[] = [];
     const pendingDigests: (Digest | undefined)[] = [];
     const pendingSet = new Set<string>();
+    const heldFiles: string[] = [];
+    const heldDigests: Digest[] = [];
+    const heldParses: Parsed[] = [];
     for (; head < end; head += 1) {
       const file = queue[head]!;
       if (built.has(file) || graph?.has(file) || pendingSet.has(file)) continue;
@@ -398,12 +401,20 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
       }
       // A parse is keyed by the bytes it came from, so one held from another
       // path, scan root or checkout is resolved here without reading the file.
-      const parsed = digest !== undefined && cache.get(keyFor(digest, way)) !== undefined;
+      const parse = digest === undefined ? undefined : cache.get(keyFor(digest, way));
       // The native side reads modules and nothing else, so what it is handed is
       // named positively rather than as everything that is not a stylesheet: a
       // language it has never heard of must go to `recordFor`, not be passed to
-      // it because it failed to be CSS.
-      if (languageFor(way) === 'module' && !parsed) {
+      // it because it failed to be CSS. A held module parse still resolves
+      // there, where a read one would: `nativeHeld`.
+      if (languageFor(way) === 'module' && parse !== undefined && digest !== undefined) {
+        heldFiles.push(file);
+        heldDigests.push(digest);
+        heldParses.push(parse);
+        pendingSet.add(file);
+        continue;
+      }
+      if (languageFor(way) === 'module') {
         pending.push(file);
         pendingDigests.push(digest);
         pendingSet.add(file);
@@ -421,8 +432,27 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         remembering: reuse !== undefined,
         ...(digest === undefined ? {} : { digest }),
       });
-      if (parsed) held += 1;
+      if (parse !== undefined) held += 1;
       accept(file, way, fresh);
+    }
+
+    if (heldFiles.length > 0) {
+      const answers = nativeHeld({
+        addon,
+        ...(packed === undefined ? {} : { tree: packed }),
+        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
+        root,
+        files: heldFiles,
+        largestFile,
+        digests: heldDigests,
+        aliases: shape?.aliases,
+        directories: shape?.shape.directories ?? new Map(),
+        remembering: reuse !== undefined,
+        ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
+        ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
+      }, heldParses);
+      held += heldFiles.length;
+      for (const [index, file] of heldFiles.entries()) accept(file, parseWay(file), answers[index]!);
     }
 
     if (pending.length > 0) {
