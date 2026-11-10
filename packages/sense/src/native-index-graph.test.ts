@@ -9,12 +9,15 @@ import type { Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
 import { native, nativeAvailable, nativeGraph, type NativeGitTree } from './native.js';
 import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
+import { parseStorePath } from './parse-store.js';
+import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
 import { memoryParseCache } from './cache.js';
 import { LARGEST_FILE, scanCount } from './scan.js';
 import { openSourceIndexFile, type IndexedRecord, type StoredSourceIndex } from './source-index-file.js';
 import { decodeSourceIndex } from './source-index-format.js';
+import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';
 
 /**
@@ -164,11 +167,13 @@ describe('a cold closure held by the addon', () => {
   });
 
   // Ten thousand modules is where a scan hands its closure to the addon to hold.
-  it.runIf(available)('counts, through a scan, every module the closure holds and only the ones it parsed', async () => {
+  const closureSize = 10_000;
+
+  /** A committed checkout of `closureSize` small modules and one over the size limit. */
+  async function many(): Promise<string> {
     const directory = await mkdtemp(join(tmpdir(), 'variance-scan-count-'));
     await mkdir(join(directory, 'src'));
-    const modules = 10_000;
-    for (let at = 0; at < modules; at += 500) {
+    for (let at = 0; at < closureSize; at += 500) {
       await Promise.all(Array.from({ length: 500 }, (_, each) =>
         writeFile(join(directory, 'src', `m${String(at + each)}.ts`), `export const m = ${String(at + each)};\n`)));
     }
@@ -176,10 +181,27 @@ describe('a cold closure held by the addon', () => {
     await run('git', ['init', '--quiet'], { cwd: directory });
     await run('git', ['add', '.'], { cwd: directory });
     await run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'many'], { cwd: directory });
+    return directory;
+  }
 
-    const counted = await scanCount({ root: directory, dirs: ['src'], cache: memoryParseCache() });
-    expect(counted).toMatchObject({ files: modules + 1, parsed: modules });
+  it.runIf(available)('counts, through a scan, every module the closure holds and only the ones it parsed', async () => {
+    const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache() });
+    expect(counted).toMatchObject({ files: closureSize + 1, parsed: closureSize });
   }, 120_000);
+
+  it.runIf(available)('parses none of a closure it holds whose modules a store kept from another root', async () => {
+    const before = process.env[CACHE_VARIABLE];
+    const cache = await mkdtemp(join(tmpdir(), 'variance-scan-store-'));
+    process.env[CACHE_VARIABLE] = cache;
+    try {
+      await updateSourceIndex(await many());
+      const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache(), stores: [parseStorePath(cache)] });
+      expect(counted).toMatchObject({ files: closureSize + 1, parsed: 0 });
+    } finally {
+      if (before === undefined) delete process.env[CACHE_VARIABLE];
+      else process.env[CACHE_VARIABLE] = before;
+    }
+  }, 240_000);
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {
     const tree = {

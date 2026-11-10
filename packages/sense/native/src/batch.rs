@@ -203,25 +203,16 @@ pub(crate) struct Walked {
     pub kept: Vec<bool>,
 }
 
-/// The walk itself, shared by the batch that crosses as columns and the graph
-/// that stays on this side (`graph_index.rs`), so the two cannot reach
-/// different closures.
-pub(crate) fn walk(
-    options: GraphOptions,
-    at: &HashMap<String, u32>,
-    tree_oids: &[Oid],
-    listing: Arc<Listing>,
-) -> Walked {
-    walk_beyond(options, at, tree_oids, listing, &|_| false, &|_, _| None)
-}
-
 /// A parse the caller keeps for a file, by Git's name for its content and its path.
 pub(crate) type Kept<'k> = &'k dyn Fn(&str, &str) -> Option<crate::read::Read>;
 
-/// `walk`, not entering a target `held` names: the seeds are read whatever
-/// they are, and the files the caller already holds a record for are the
-/// boundary of what a warm update has to open (`source_update.rs`). A file
-/// whose content `kept` answers is not opened: its parse is the kept one.
+/// The walk itself, shared by the batch that crosses as columns, the graph
+/// that stays on this side (`graph_index.rs`) and a warm update, so none can
+/// reach a different closure. It does not enter a target `held` names: the
+/// seeds are read whatever they are, and the files the caller already holds a
+/// record for are the boundary of what a warm update has to open
+/// (`source_update.rs`). A file whose content `kept` answers is not opened:
+/// its parse is the kept one.
 pub(crate) fn walk_beyond(
     options: GraphOptions,
     at: &HashMap<String, u32>,

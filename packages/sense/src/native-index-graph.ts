@@ -39,6 +39,8 @@ export interface NativeIndexGraphOptions {
   readonly builtins: string[];
   readonly codeExtensions: string[];
   readonly directories: string[];
+  /** The parse stores a module's parse is looked up in before it is read. */
+  readonly stores?: string[];
 }
 
 /** `IndexGraph` in `native/src/graph_index.rs`. */
@@ -75,6 +77,7 @@ export interface IndexGraphRequest {
   readonly remembering: boolean;
   readonly aliases: Aliases | undefined;
   readonly directories: ReadonlyMap<string, Digest>;
+  readonly stores?: readonly string[];
 }
 
 /**
@@ -100,6 +103,7 @@ export function nativeIndexGraph(tree: NativeGitTree, request: IndexGraphRequest
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     directories: [...request.directories.keys()],
+    ...(request.stores === undefined ? {} : { stores: [...request.stores] }),
   });
 }
 

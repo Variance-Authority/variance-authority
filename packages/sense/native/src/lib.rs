@@ -404,8 +404,10 @@ impl GitTree {
     /// Walk the module closure of `seeds` and keep it here as records and a
     /// parse layer, for a cold build that publishes from this side.
     #[napi(catch_unwind)]
-    pub fn index_graph(&self, options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing())
+    pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
+        let stores = self.stores(options.stores.take());
+        let opened = stores.as_deref().map(parse_store::Stores::open);
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref())
     }
 
     /// Bring the source index at `options.index` up to this tree, on this

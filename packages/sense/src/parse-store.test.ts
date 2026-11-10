@@ -360,11 +360,13 @@ describe('the parse store a cache keeps', () => {
     expect(await entryRecord(second, { stored: true, largestFile: 1 })).toEqual(await entryRecord(second, { stored: false, largestFile: 1 }));
   });
 
-  it('reads again, as a fresh scan does, a module over the size limit whose parse the store holds and whose file is not on disk', async () => {
-    const entry = 'packages/a/src/entry.ts';
+  it.each([
+    ['a module over the size limit', 'packages/a/src/entry.ts', `export const entry = '${'x'.repeat(64)}';\n`, 16],
+    ['a stylesheet, whose parse carries no size', 'packages/a/src/entry.css', 'a { color: red; }\n', undefined],
+  ])('reads again, as a fresh scan does, %s, when the store holds its parse and its file is not on disk', async (_, entry, text, largestFile) => {
     const sparse = async () => {
       const root = await checkout();
-      await write(root, entry, `export const entry = '${'x'.repeat(64)}';\n`);
+      await write(root, entry, text);
       git(root, 'add', '.');
       git(root, 'commit', '--quiet', '-m', 'entry');
       return root;
@@ -374,9 +376,10 @@ describe('the parse store a cache keeps', () => {
     const second = await sparse();
     git(second, 'update-index', '--skip-worktree', entry);
     await rm(join(second, entry));
-    const fresh = await entryRecord(second, { stored: false, largestFile: 16 }, entry);
+    const limit = largestFile === undefined ? {} : { largestFile };
+    const fresh = await entryRecord(second, { stored: false, ...limit }, entry);
     expect(fresh).toMatchObject({ unknown: expect.any(String) });
-    expect(await entryRecord(second, { stored: true, largestFile: 16 }, entry)).toEqual(fresh);
+    expect(await entryRecord(second, { stored: true, ...limit }, entry)).toEqual(fresh);
   });
 
   it('publishes the parse of every module a store answered, when another root appended it after the index was opened', async () => {

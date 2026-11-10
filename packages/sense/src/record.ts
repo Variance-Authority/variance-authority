@@ -74,8 +74,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   // miss falls through to I/O.
   let digest = subject.digest;
   let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
-  // A parse is kept whatever limit read it, so one over this scan's is read again, to be declined.
-  if (read !== undefined && (read.size?.bytes ?? (await sized(absolute)) ?? 0) > largestFile) read = undefined;
+  if (read !== undefined && !heldUnder(read, absolute, largestFile)) read = undefined;
 
   if (read === undefined) {
     const size = await sized(absolute);
@@ -219,10 +218,9 @@ export function parsedOnce(input: {
   if (language === undefined) return undefined;
   const held = input.digest === undefined ? undefined : cache?.get(keyFor(input.digest, way));
   let contents: string;
+  if (held !== undefined) return largestFile === undefined || heldUnder(held, join(root, file), largestFile) ? held : undefined;
   try {
-    // A held parse answers only under this limit, which is not the one that read it.
-    if (largestFile !== undefined && (held?.size?.bytes ?? statSync(join(root, file)).size) > largestFile) return undefined;
-    if (held !== undefined) return held;
+    if (largestFile !== undefined && statSync(join(root, file)).size > largestFile) return undefined;
     contents = readFileSync(join(root, file), 'utf8');
   } catch {
     return undefined;
@@ -235,6 +233,25 @@ export function parsedOnce(input: {
   }
   cache?.set(key, read);
   return read;
+}
+
+/**
+ * Whether a held parse answers under `largestFile`, which is not the limit that
+ * read it: by the size it was measured at, else by the file's as checked out.
+ * A size neither knows, such as a stylesheet's absent from a sparse checkout,
+ * answers nothing, so the file is read again and says why it could not be.
+ * `read_kept` in `batch.rs` keeps the same rule for the addon.
+ */
+function heldUnder(held: Parsed, absolute: string, largestFile: number): boolean {
+  let bytes = held.size?.bytes;
+  if (bytes === undefined) {
+    try {
+      bytes = statSync(absolute).size;
+    } catch {
+      return false;
+    }
+  }
+  return bytes <= largestFile;
 }
 
 /** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */
