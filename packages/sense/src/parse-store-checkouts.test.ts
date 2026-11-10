@@ -99,12 +99,22 @@ describe('the checkouts a parse store answers', () => {
   });
 
   it("takes no parse of another checkout's line endings that `core.eol=crlf` writes out of one blob", async () => {
-    // `text=auto` keeps LF in the blob; `core.eol=crlf` writes the crlf
-    // checkout's files with CRLF once git checks them out again.
+    await expectOwnLineEndings('core.eol', 'crlf');
+  });
+
+  // Git reads any nonzero number as true, so each of these writes CRLF.
+  it.each(['2', '-1', '01'])("takes no parse of another checkout's line endings that `core.autocrlf=%s` writes out of one blob", async (value) => {
+    await expectOwnLineEndings('core.autocrlf', value);
+  });
+
+  /** An LF checkout fills a shared store, then a checkout git writes with CRLF under `key=value` reads as it reads alone. */
+  async function expectOwnLineEndings(key: string, value: string): Promise<void> {
+    // `text=auto` keeps LF in the blob; the setting writes the crlf checkout's
+    // files with CRLF once git checks them out again.
     const text = async (root: string) => write(root, '.gitattributes', '* text=auto\n');
     const lf = await checkout('left', text);
     const crlf = await checkout('left', text);
-    git(crlf, 'config', 'core.eol', 'crlf');
+    git(crlf, 'config', key, value);
     git(crlf, 'rm', '--quiet', '--cached', '-r', '.');
     git(crlf, 'reset', '--quiet', '--hard');
 
@@ -116,5 +126,5 @@ describe('the checkouts a parse store answers', () => {
     await updateSourceIndex(lf);
     await updateSourceIndex(crlf);
     expect(await records(crlf)).toBe(alone);
-  });
+  }
 });

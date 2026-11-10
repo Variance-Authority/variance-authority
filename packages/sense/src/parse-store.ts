@@ -56,7 +56,8 @@ function rewritesParsed(repository: string): boolean {
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   const config = new Map<string, string>();
   try {
-    for (const line of git('config', '--get-regexp', '^core\\.(autocrlf|eol)$').split('\n')) {
+    // Git spells a boolean `true` however it was set (`yes`, `2`, a bare key) and keeps `input` and `crlf` as they are.
+    for (const line of git('config', '--type=bool-or-str', '--get-regexp', '^core\\.(autocrlf|eol)$').split('\n')) {
       const [key, value = ''] = line.trim().toLowerCase().split(/\s+/);
       if (key) config.set(key, value);
     }
@@ -64,7 +65,7 @@ function rewritesParsed(repository: string): boolean {
     // neither is set
   }
   const autocrlf = config.get('core.autocrlf');
-  if (autocrlf !== undefined && ['', 'true', 'yes', 'on', '1'].includes(autocrlf)) return true;
+  if (autocrlf === 'true') return true;
   const eol = config.get('core.eol') ?? 'native';
   const crlf = autocrlf !== 'input' && (eol === 'crlf' || (eol === 'native' && process.platform === 'win32'));
   try {
