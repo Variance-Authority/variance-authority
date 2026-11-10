@@ -2,17 +2,20 @@ import { execFileSync } from 'node:child_process';
 import { appendFile, cp, mkdtemp, mkdir, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
-import { parseStorePath, pruneParseStore } from './parse-store.js';
+import { fillParseStore, parseStorePath, pruneParseStore } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { nativeGraph } from './native.js';
+import { shapeOf } from './reuse.js';
+import { LARGEST_FILE, scanRelations } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
-import { encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
+import { decodeSourceIndex, encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { openSourceIndex, sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
+import { gitTreeOf } from './tree.js';
 
 /**
  * A parse is a function of the bytes and the way they are read, so one read
@@ -173,6 +176,43 @@ describe('the parse store a cache keeps', () => {
     expect(swept.dropped).toBe(all.length - named.size);
     expect(new Set(await storedKeys())).toEqual(named);
   });
+  it('keeps the parses of a root whose chain cannot be read, which says nothing of what it names', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/a'));
+    await updateSourceIndex(join(root, 'packages/b'));
+    const all = await storedKeys();
+    // The header names a length the manifest no longer has.
+    await appendFile(sourceIndexPath(join(root, 'packages/b')), 'x');
+
+    expect((await pruneParseStore(cache, { graceMs: 0 })).dropped).toBe(0);
+    expect(await storedKeys()).toEqual(all);
+  });
+
+  it('fills nothing from a chain it cannot read, and does not throw: the next root parses what it would have held', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/a'));
+    const chain = sourceIndexPath(join(root, 'packages/a'));
+    await appendFile(chain, 'x');
+    expect(fillParseStore([parseStorePath(cache)], chain)).toBe(0);
+  });
+
+  it('leaves the store as it is without the addon, which is all that reads or writes it', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/a'));
+    const all = await storedKeys();
+    vi.resetModules();
+    vi.doMock('./addon.js', () => ({ native: () => undefined }));
+    try {
+      const without = await import('./parse-store.js');
+      expect(await without.pruneParseStore(cache, { graceMs: 0 })).toEqual({ dropped: 0 });
+      expect(without.fillParseStore([parseStorePath(cache)], sourceIndexPath(join(root, 'packages/a')))).toBe(0);
+    } finally {
+      vi.doUnmock('./addon.js');
+      vi.resetModules();
+    }
+    expect(await storedKeys()).toEqual(all);
+  });
+
   it('parses nothing again for a directory whose checkout names its own index', async () => {
     const root = await checkout();
     await updateSourceIndex(root);
@@ -288,7 +328,11 @@ describe('the parse store a cache keeps', () => {
   }
 
   /** What a scan answers for `entry.css`, reading the cache's store or, with none, fresh. */
-  async function entryRecord(root: string, options: { readonly stored: boolean; readonly largestFile?: number }): Promise<unknown> {
+  async function entryRecord(
+    root: string,
+    options: { readonly stored: boolean; readonly largestFile?: number },
+    file = 'packages/a/src/entry.css',
+  ): Promise<unknown> {
     const stores = options.stored ? [parseStorePath(cache)] : [];
     const source = await openSourceIndex(join(await temporary('variance-parse-store-index-'), 'index.bin'), { stores });
     const found = await scanRelations({
@@ -298,7 +342,7 @@ describe('the parse store a cache keeps', () => {
       stores,
       ...(options.largestFile === undefined ? {} : { largestFile: options.largestFile }),
     });
-    const { digest: _digest, ...record } = found.find((record) => record.file === 'packages/a/src/entry.css') ?? { file: 'none' };
+    const { digest: _digest, ...record } = found.find((record) => record.file === file) ?? { file: 'none' };
     return record;
   }
 
@@ -316,6 +360,25 @@ describe('the parse store a cache keeps', () => {
     expect(await entryRecord(second, { stored: true, largestFile: 1 })).toEqual(await entryRecord(second, { stored: false, largestFile: 1 }));
   });
 
+  it('reads again, as a fresh scan does, a module over the size limit whose parse the store holds and whose file is not on disk', async () => {
+    const entry = 'packages/a/src/entry.ts';
+    const sparse = async () => {
+      const root = await checkout();
+      await write(root, entry, `export const entry = '${'x'.repeat(64)}';\n`);
+      git(root, 'add', '.');
+      git(root, 'commit', '--quiet', '-m', 'entry');
+      return root;
+    };
+    await updateSourceIndex(await sparse());
+    // Tracked, and absent from the working tree, as a sparse checkout leaves it.
+    const second = await sparse();
+    git(second, 'update-index', '--skip-worktree', entry);
+    await rm(join(second, entry));
+    const fresh = await entryRecord(second, { stored: false, largestFile: 16 }, entry);
+    expect(fresh).toMatchObject({ unknown: expect.any(String) });
+    expect(await entryRecord(second, { stored: true, largestFile: 16 }, entry)).toEqual(fresh);
+  });
+
   it('publishes the parse of every module a store answered, when another root appended it after the index was opened', async () => {
     const root = await checkout();
     const stores = [parseStorePath(cache)];
@@ -330,6 +393,32 @@ describe('the parse store a cache keeps', () => {
     const parses = (await openSourceIndexFile(path)).stored.parses;
     expect(found.filter((record) => record.digest !== undefined).map((record) => record.file)).toHaveLength(parses.size);
     expect(parses.size).toBeGreaterThan(0);
+  });
+
+  it('names in the parse layer it hands over only the parses it made, not the ones a store kept', async () => {
+    const root = await checkout();
+    await updateSourceIndex(root);
+    await write(root, 'packages/a/src/fresh.ts', 'export const fresh = 4;\n');
+    git(root, 'add', '.');
+    git(root, 'commit', '--quiet', '-m', 'fresh');
+    const tree = (await gitTreeOf(root, ['packages/a']))!;
+    const { shape, aliases } = await shapeOf({ root, tree });
+    const files = ['packages/a/src/fresh.ts', 'packages/a/src/index.ts', 'packages/a/src/lens.ts'];
+    const { built, parseLayer } = nativeGraph({
+      addon: native()!,
+      tree: tree.native!,
+      root,
+      files,
+      digests: files.map(() => undefined),
+      largestFile: LARGEST_FILE,
+      remembering: true,
+      aliases,
+      directories: shape.directories,
+      stores: [parseStorePath(cache)],
+    }, true);
+    expect(built.filter((answer) => answer.kept === true).map((answer) => answer.record.file)).toEqual(files.slice(1));
+    expect([...parseLayer!.keys]).toEqual([...decodeSourceIndex(parseLayer!.bytes).parses.keys()]);
+    expect(parseLayer!.keys.size).toBe(1);
   });
 
   it('counts a file a reader other than the module one parses cold, and not when the store answers it', async () => {

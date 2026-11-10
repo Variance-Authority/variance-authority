@@ -317,10 +317,11 @@ fn read_kept(
             let identity = git::spell(oid.as_ref()?);
             let read = kept(&identity, file)?;
             // A parse is kept whatever limit read it, so one over this scan's is read again, to be
-            // declined; a reader that measured nothing leaves the size to the file on disk.
+            // declined; a reader that measured nothing leaves the size to the file on disk, and a
+            // size neither tells is read again from Git, which declines by the blob's.
             let over = largest_file.is_some_and(|limit| {
                 let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
-                bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_some_and(|bytes| bytes > u64::from(limit))
+                bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > u64::from(limit))
             });
             (!over).then_some((read, identity))
         })

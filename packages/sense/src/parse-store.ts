@@ -42,7 +42,6 @@ export function parseStoresFor(root: string): readonly string[] {
  * else, so it is not an error here.
  */
 export function fillParseStore(stores: readonly string[], chain: string): number {
-  if (stores.length === 0) return 0;
   try {
     return addon()?.fillParseStore([...stores], chain) ?? 0;
   } catch {

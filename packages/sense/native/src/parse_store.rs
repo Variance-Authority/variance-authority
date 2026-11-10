@@ -235,10 +235,14 @@ pub(crate) fn key(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
 }
 
-/// The parse keys the chain at `path` holds, as `(digest, way)`.
-fn named(path: &str) -> HashSet<(String, String)> {
-    let Ok(Some(chain)) = read_chain(path) else { return HashSet::new() };
-    folded(&opened(&chain)).into_keys().map(|(digest, way)| (digest.to_owned(), way.to_owned())).collect()
+/// The parse keys the chain at `path` holds, as `(digest, way)`; `None` when it
+/// cannot be read, which says nothing of what it names. No chain names nothing.
+fn named(path: &str) -> Option<HashSet<(String, String)>> {
+    match read_chain(path) {
+        Ok(Some(chain)) => Some(folded(&opened(&chain)).into_keys().map(|(digest, way)| (digest.to_owned(), way.to_owned())).collect()),
+        Ok(None) => Some(HashSet::new()),
+        Err(_) => None,
+    }
 }
 
 /// Add to the first of `stores` every parse the chain at `chain` holds and no
@@ -272,10 +276,17 @@ pub fn fill_parse_store(stores: Vec<String>, chain: String) -> napi::Result<u32>
 pub fn prune_parse_store(store: String, chains: Vec<String>, grace_ms: f64) -> napi::Result<u32> {
     let fail = |error: String| napi::Error::from_reason(format!("the parse store at {store} was not pruned: {error}"));
     let Some(chain) = read_chain(&store).map_err(fail)? else { return Ok(0) };
-    let live: HashSet<(String, String)> = chains.par_iter().map(|path| named(path)).reduce(HashSet::new, |mut all, one| {
-        all.extend(one);
-        all
-    });
+    // A chain that cannot be read may name any key, so nothing is dropped on its word.
+    let Some(live) = chains.par_iter().map(|path| named(path)).reduce(
+        || Some(HashSet::new()),
+        |all, one| {
+            let (mut all, one) = (all?, one?);
+            all.extend(one);
+            Some(all)
+        },
+    ) else {
+        return Ok(0);
+    };
     let grace = Duration::from_millis(grace_ms.max(0.0) as u64);
     let now = SystemTime::now();
     let layers = opened(&chain);

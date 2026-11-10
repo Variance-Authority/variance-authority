@@ -62,6 +62,7 @@ impl<'s, 'a> ParseView<'s, 'a> {
             requests,
             declares: self.declares().map(|at| stored.text(columns.declare_name.at(at)).to_owned()).collect(),
             unknown: self.unknown().map(str::to_owned),
+            size: self.size(),
             ..Read::default()
         })
     }

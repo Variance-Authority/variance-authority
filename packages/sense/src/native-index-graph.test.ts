@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -11,7 +11,8 @@ import { native, nativeAvailable, nativeGraph, type NativeGitTree } from './nati
 import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
-import { LARGEST_FILE } from './scan.js';
+import { memoryParseCache } from './cache.js';
+import { LARGEST_FILE, scanCount } from './scan.js';
 import { openSourceIndexFile, type IndexedRecord, type StoredSourceIndex } from './source-index-file.js';
 import { decodeSourceIndex } from './source-index-format.js';
 import { gitTreeOf } from './tree.js';
@@ -161,6 +162,24 @@ describe('a cold closure held by the addon', () => {
     const read = closure(LARGEST_FILE);
     expect(read.parsed).toBe(decodeSourceIndex(read.parseSegment()).parses.size);
   });
+
+  // Ten thousand modules is where a scan hands its closure to the addon to hold.
+  it.runIf(available)('counts, through a scan, every module the closure holds and only the ones it parsed', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-scan-count-'));
+    await mkdir(join(directory, 'src'));
+    const modules = 10_000;
+    for (let at = 0; at < modules; at += 500) {
+      await Promise.all(Array.from({ length: 500 }, (_, each) =>
+        writeFile(join(directory, 'src', `m${String(at + each)}.ts`), `export const m = ${String(at + each)};\n`)));
+    }
+    await writeFile(join(directory, 'src', 'wide.ts'), `export const wide = '${'x'.repeat(LARGEST_FILE)}';\n`);
+    await run('git', ['init', '--quiet'], { cwd: directory });
+    await run('git', ['add', '.'], { cwd: directory });
+    await run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'many'], { cwd: directory });
+
+    const counted = await scanCount({ root: directory, dirs: ['src'], cache: memoryParseCache() });
+    expect(counted).toMatchObject({ files: modules + 1, parsed: modules });
+  }, 120_000);
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {
     const tree = {
