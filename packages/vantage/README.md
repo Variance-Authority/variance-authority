@@ -46,7 +46,7 @@ npm install --save-dev @variance-authority/cli @variance-authority/playwright-te
 
 | Package | Why it is here |
 | --- | --- |
-| `@variance-authority/cli` | `npx variance watch` starts a watcher; `npx variance ask` reads one |
+| `@variance-authority/cli` | `variance watch` starts a watcher; `variance ask` reads one |
 | `@variance-authority/playwright-test` | `varianceFixtures`, which report your run to the watcher |
 | `@playwright/test` | the runner those fixtures extend (`>=1.55 <2`) |
 | `@variance-authority/event` | only if your application code announces — see *Announcements*, below |
@@ -67,7 +67,7 @@ you copy.
 **1. Start the watcher and leave it up.**
 
 ```bash
-npx variance watch
+variance watch
 ```
 
 ```
@@ -107,15 +107,15 @@ costs one environment read per worker and reports nothing.
 **3. Ask, from a third shell or the second one**, with that same address:
 
 ```bash
-npx variance ask run-signals --at http://127.0.0.1:53393
+variance ask run-signals --at http://127.0.0.1:53393
 ```
 
-`npx variance ask` reads `variance.config.json` from the working directory before
+`variance ask` reads `variance.config.json` from the working directory before
 it answers anything, live questions included, so run it from your project root.
 
 ### What you get
 
-`npx variance ask run-signals --at <address>`, against a run in flight:
+`variance ask run-signals --at <address>`, against a run in flight:
 
 ```
 2 test(s) at http://127.0.0.1:53393 — 1 running, 1 passed.
@@ -125,7 +125,7 @@ it answers anything, live questions included, so run it from your project root.
   passed      cart › adds an item — tests/cart.spec.ts — project chromium — worker 0 — heard 0
 ```
 
-`npx variance ask test-signals --test f8a1c2d3e4b5 --at <address>`, for the one
+`variance ask test-signals --test f8a1c2d3e4b5 --at <address>`, for the one
 that is stuck:
 
 ```
@@ -296,7 +296,7 @@ when it goes on it has exactly the time it had before.
 Find and release stopped tests:
 
 ```bash
-npx variance ask waiting --at http://127.0.0.1:53393
+variance ask waiting --at http://127.0.0.1:53393
 ```
 
 ```
@@ -479,7 +479,7 @@ over stdio for an agent, and answers from the same snapshot:
 | `variance_diff` | what changed between this reading and the one before it |
 | `variance_continue` | let one stopped test go on, or all of them |
 
-`npx variance ask` answers all but the last from a shell — `self`,
+`variance ask` answers all but the last from a shell — `self`,
 `run-signals`, `test-signals`, `waiting`, `diff` — against a watcher named with
 `--at <address>`. `variance_continue` has no `ask` equivalent, for the reason
 above.

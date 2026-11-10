@@ -177,7 +177,7 @@ npm install --save-dev @variance-authority/cli
 ```
 
 ```bash
-npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 ```
 
 `accept` promotes an image the run already produced — it re-renders nothing, so
@@ -188,7 +188,7 @@ subject the change reached. `--message-file` writes the explanation out for the
 commit that adds the images:
 
 ```bash
-npx variance accept --all --message-file .variance/commit-message.txt
+variance accept --all --message-file .variance/commit-message.txt
 git add -- .variance/baselines
 git commit -F .variance/commit-message.txt
 ```
@@ -380,7 +380,7 @@ the pointer, which the lookup refuses naming the install, and
 `tracking.diagnostics` says so at open. `describe` reads the `.json`
 sidecar and fetches nothing. A sidecar is a pointer only where `.gitattributes`
 sends the store's `.json` files to LFS too, and then the lookup refuses it as one, so on such a checkout a
-subject whose document did not move passes. `npx variance doctor --baselines`
+subject whose document did not move passes. `variance doctor --baselines`
 reads the head of every image in the root and, where git-lfs is not set up in
 its work tree, counts the pointers, names the first and exits 2 before any run;
 the composite action asks it before every run. `isLfsPointer(head)`, from
@@ -431,7 +431,7 @@ and a file deleted mid-walk all come back as counts rather than an exception.
 
 ## Read why a baseline changed
 
-Where baselines are commits, `npx variance accept --message-file` has already
+Where baselines are commits, `variance accept --message-file` has already
 written the explanation into the commit message: prose for whoever scrolls
 `git log`, and below it versioned **trailers** — `Key: value` lines appended
 after the body, for a parser rather than a person. A baseline commit looks like

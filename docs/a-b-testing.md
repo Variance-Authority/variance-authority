@@ -144,7 +144,7 @@ on the page changes, and that is the review nobody has done yet. An arm that
 renders exactly like its control is reported as identical, which is a finding
 when the arm was meant to change something.
 
-Read it later with `npx variance report --config variance.config.json`, or ask
+Read it later with `variance report --config variance.config.json`, or ask
 for it from an agent with `variance_variations`.
 
 ## What a pair compares

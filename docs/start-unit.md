@@ -244,8 +244,8 @@ A `--save-dev` install puts `variance` in `node_modules/.bin`, so run it through
 
 ```bash
 npx vitest run
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `doctor` reports what this machine can do: it opens the browser that will
@@ -262,7 +262,7 @@ Write the HTML report beside the JSON one, because the image links inside it are
 relative to the report:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 Open `.variance/report.html` in a browser. It is one self-contained file that
@@ -282,8 +282,8 @@ component is supposed to look like.
 It is, so approve it:
 
 ```bash
-npx variance accept --config variance.config.json button/save
-npx variance run --config variance.config.json
+variance accept --config variance.config.json button/save
+variance run --config variance.config.json
 ```
 
 `accept` promotes the image this run already produced; it never renders one, so

@@ -177,7 +177,7 @@ to be set in the environment — this package cannot set it for you.
 
 ## With the CLI
 
-`npx variance run` picks the decoder for you. The top-level `decoder` key in
+`variance run` picks the decoder for you. The top-level `decoder` key in
 your config takes three values:
 
 - **`auto`** (the default) loads this package and silently keeps `pngjs` when

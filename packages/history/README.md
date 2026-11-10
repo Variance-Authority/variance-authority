@@ -192,7 +192,7 @@ npm install --save-dev @variance-authority/server
 VARIANCE_HISTORY_TOKEN=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))") \
 VARIANCE_HISTORY_DB=/srv/variance/history.db \
 VARIANCE_HISTORY_PORT=7788 \
-npx variance-authority-server
+variance-authority-server
 ```
 
 The bearer token is the one you generate here and nothing else: the service has
@@ -201,7 +201,7 @@ refuses one shorter than 16 characters. `VARIANCE_HISTORY_PORT` defaults to
 `7788` and `VARIANCE_HISTORY_HOST` to `127.0.0.1`.
 
 **2. Point the CLI at it.** The CLI is a devDependency, which is why every
-command below is `npx variance`:
+command below is `variance`:
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -227,7 +227,7 @@ the config's own `project`.
 nothing can ask about, so `variance run` writes nothing until it can name itself:
 
 ```bash
-npx variance run --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
+variance run --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
 ```
 
 Inside GitHub Actions, GitLab CI or Bitbucket Pipelines you can leave both flags
@@ -236,8 +236,8 @@ export, as a pair or not at all. Anywhere else, supply them. A run with a store
 and no identity records nothing and prints that in its warnings; no id is
 invented for you.
 
-With that in place, `npx variance run` records the run, its observations and its
-resolved token values, and `npx variance accept <subject>` records the approval —
+With that in place, `variance run` records the run, its observations and its
+resolved token values, and `variance accept <subject>` records the approval —
 which is what makes the change countable, since drift sums approved changes only.
 
 ## Call the service from your own code

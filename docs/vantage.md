@@ -21,7 +21,7 @@ Start the watcher first, in its own terminal:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/playwright-test
-npx variance watch
+variance watch
 ```
 
 It takes an ephemeral port and prints the one line the suite needs:
@@ -51,11 +51,11 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 npx playwright test
 ```
 
 ```bash
-npx variance ask run-signals --at http://127.0.0.1:53393
-npx variance ask test-signals --test f8a1c2d3e4b5 --at http://127.0.0.1:53393
+variance ask run-signals --at http://127.0.0.1:53393
+variance ask test-signals --test f8a1c2d3e4b5 --at http://127.0.0.1:53393
 ```
 
-`npx variance ask` reads `variance.config.json` from the working directory before
+`variance ask` reads `variance.config.json` from the working directory before
 it answers, so run it from your project root. With
 `VARIANCE_AUTHORITY_VANTAGE` unset, `varianceFixtures` costs one environment read
 per worker and reports nothing, so the fixtures stay in place in CI.
@@ -189,7 +189,7 @@ While a test stands still the runner's clock is stopped, and when it goes on it
 has exactly the time it had before. Find the stopped tests from a shell:
 
 ```bash
-npx variance ask waiting --at http://127.0.0.1:53393
+variance ask waiting --at http://127.0.0.1:53393
 ```
 
 Releasing is the one thing a one-shot shell command cannot do, because the run

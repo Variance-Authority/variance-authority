@@ -12,7 +12,7 @@ not pending anywhere React can report, so the run records the placeholder and
 says nothing. This page shows both kinds on one component, and how to turn the
 second kind into the first. None of the ways is a sleep.
 
-A run here is one execution of `npx variance run`, or one observation in your
+A run here is one execution of `variance run`, or one observation in your
 test. A subject is what one screenshot is of: a route, a story, or the element
 your test names. New here? Start with [your first run](start.md).
 

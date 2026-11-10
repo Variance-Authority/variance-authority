@@ -48,7 +48,7 @@ export VARIANCE_HISTORY_TOKEN=$(node -e "console.log(require('node:crypto').rand
 
 VARIANCE_HISTORY_DB=/srv/variance/history.db \
 VARIANCE_HISTORY_PORT=7788 \
-npx variance-authority-server
+variance-authority-server
 ```
 
 It prints what it bound, what it opened, and not the token:
@@ -129,7 +129,7 @@ curl -sS -X POST -H "Authorization: Bearer $VARIANCE_HISTORY_TOKEN" \
   -d '{"approvals":[{"project":"shop","subject":"checkout","run":"run-2","at":"2026-03-02T10:00:00.000Z","approver":"marina"}]}'
 ```
 
-In a pipeline, `npx variance accept <subject>` posts that for you.
+In a pipeline, `variance accept <subject>` posts that for you.
 
 ## The words in the answers
 
@@ -147,7 +147,7 @@ and it is why `style` and `geometry` are scoped: asking about them across tiers
 returns a change caused by the CI configuration rather than by an edit.
 
 **Sweep** — a run that read *every* subject twice rather than only the ones that
-changed, which `npx variance run --flakes` does. It is the only honest denominator
+changed, which `variance run --flakes` does. It is the only honest denominator
 for flakiness: an ordinary run reads a subject a second time only after finding
 it changed, so a green subject's silence in that run is not
 evidence.
@@ -488,7 +488,7 @@ and its observations when the config includes a `history` block:
 
 and when **the run can name itself**, which means a run id and a commit SHA
 arriving together from one source. Either you pass both —
-`npx variance run --run <id> --commit <sha>` — or the run reads a pair whole
+`variance run --run <id> --commit <sha>` — or the run reads a pair whole
 from the CI environment it is already inside:
 
 | CI | run id | commit |

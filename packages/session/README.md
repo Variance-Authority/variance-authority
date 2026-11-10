@@ -385,7 +385,7 @@ changes, and a leak the probe never saw is reported as nothing at all.
 Both limits at once give you a subject that is stably wrong: its pixels differ
 from the baseline, nothing in its own code changed, and no finding explains it.
 Catching that means varying the world instead — collecting the subject in a
-session nothing else has touched. That is what `npx variance run` — the `run`
+session nothing else has touched. That is what `variance run` — the `run`
 command in `@variance-authority/cli` — requests from its collector when a
 subject's pixels change.
 

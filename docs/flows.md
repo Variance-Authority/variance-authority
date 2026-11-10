@@ -8,7 +8,7 @@ kept, who reviews a change, and which machine paints the images.
 
 ```bash
 npm install --save-dev @variance-authority/cli
-npx variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 A **subject** is one named UI state you asked for and can ask for again,
@@ -97,7 +97,7 @@ Directory retention keeps approved baselines in an ordinary writable path:
 ```
 
 Choose it for a persistent worker, a single-machine workflow, or a repository
-that accepts ordinary image blobs. `npx variance accept` writes the approved
+that accepts ordinary image blobs. `variance accept` writes the approved
 candidate to the configured root. That root must be present for the next run; an
 empty or discarded path means the next run sees no approved baseline and reports
 `new`.
@@ -124,7 +124,7 @@ pull`, with exit 2, so an unfetched pointer reads as a setup failure rather than
 as a changed image. The refusal comes only at the first subject whose document
 changed since its baseline: an unchanged subject is settled from its `.json`
 sidecar without its image being read, so on such a checkout a run where nothing
-changed passes. `npx variance doctor --baselines` reads the head of every image
+changed passes. `variance doctor --baselines` reads the head of every image
 in the root, opens no browser and, where git-lfs is not set up in the root's
 work tree, counts the pointers, names the first and exits 2.
 The composite action runs it before every run over a store in the checkout, so a
@@ -153,7 +153,7 @@ subject and identity, and to save an approved one:
 ```
 
 Choose it when bot commits, LFS bandwidth, or repository size make a tracked
-corpus the wrong place to keep the images. `npx variance accept` writes through
+corpus the wrong place to keep the images. `variance accept` writes through
 the same endpoint, so approval no longer requires a baseline commit.
 
 An endpoint the run cannot call, a refused token, or an invalid response stops
@@ -197,7 +197,7 @@ build log may be able to read the ingest token, and that capability must not be
 able to approve a regression. Every decision is recorded under the name of the
 person who made it.
 
-Point `npx variance push` at the deployment with an ingest credential. Here that
+Point `variance push` at the deployment with an ingest credential. Here that
 is a token; on GitHub Actions it can be the token the runner signs, which stores
 no secret:
 
@@ -211,7 +211,7 @@ no secret:
 ```
 
 ```bash
-npx variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
+variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
 ```
 
 `push` stays separate from `run`, so several shard reports can become one build
@@ -252,11 +252,11 @@ produced them. Supported CI environments provide that pair; elsewhere pass it
 explicitly:
 
 ```bash
-npx variance run --config variance.config.json --run "$RUN_ID" --commit "$COMMIT_SHA"
+variance run --config variance.config.json --run "$RUN_ID" --commit "$COMMIT_SHA"
 ```
 
 Runs in which nothing changed are recorded too, because churn and flake rates
-need a denominator. `npx variance accept` records approval separately, so a
+need a denominator. `variance accept` records approval separately, so a
 change you rejected does not count as product churn. The answers are written
 into the run report, so the summary, the review comment, and the agent tools read
 them without reopening the history service.

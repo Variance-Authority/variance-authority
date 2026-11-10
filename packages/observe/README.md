@@ -180,7 +180,7 @@ promotion is a command in the CLI package, and it moves an image the run already
 produced rather than re-rendering:
 
 ```bash
-npx variance accept story:checkout--empty
+variance accept story:checkout--empty
 ```
 
 It also takes `--all`, or `--shape <fingerprint>` to promote every subject

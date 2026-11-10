@@ -275,7 +275,7 @@ checks are all read from it.
 
 ## Publishing
 
-Every `npx variance run` keeps its suite index in [your cache](cache.md), under
+Every `variance run` keeps its suite index in [your cache](cache.md), under
 the commit the run report names, and prints where:
 
 ```text
@@ -290,7 +290,7 @@ names a commit. You publish after the run, from each job whose entries the line
 should include:
 
 ```bash
-npx variance share --publish
+variance share --publish
 ```
 
 It reads the run report `report` names, or the path you give as the last
@@ -368,10 +368,10 @@ left out 2 image(s) the report names and this machine could not read, the first 
 ```
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
-collect, under the same commit. `npx variance run --shard k/n` reads it back
+collect, under the same commit. `variance run --shard k/n` reads it back
 from the mainline to split the suite evenly, and a run reads it to give its
 slowest files to its [workers](../packages/cli#configuration) first.
-`npx variance ask costs` reads the same line to show you, or an agent, which
+`variance ask costs` reads the same line to show you, or an agent, which
 files and subjects the suite spends its time on;
 see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
@@ -410,7 +410,7 @@ census, the same lexicon, counted across every shard — keeps it, and publishes
 it with the costs of the merged run report:
 
 ```bash
-npx variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
+variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
 
 ```text
@@ -430,7 +430,7 @@ not shard publishes from its own run and needs no extra job.
 ## Looking up mainline's record
 
 ```bash
-npx variance share
+variance share
 ```
 
 reads the suite index of the mainline your checkout is measured against:
@@ -733,7 +733,7 @@ record](#a-suite-your-checkout-has-not-recorded).
 
 Apart from those last two cases, `variance share` exits 0 on a miss, so a publish
 that stopped working does not turn CI red.
-Watch the distance `npx variance share` prints: a mainline record forty commits
+Watch the distance `variance share` prints: a mainline record forty commits
 behind your merge base is one nothing has published to since.
 
 ## Configuring one
@@ -946,7 +946,7 @@ On a laptop, then read CI's latest run on your mainline, as
 [looking up mainline's record](#looking-up-mainlines-record) describes:
 
 ```bash
-npx variance share
+variance share
 ```
 
 It prints `mainline <name> evaluated at <commit>…`, or a line that says why it
@@ -954,7 +954,7 @@ found nothing. Then read what review settled, which only the share token and a
 signed-in reviewer can do. Your machine reads with the share token:
 
 ```bash
-npx variance ask decisions --subject cart/empty
+variance ask decisions --subject cart/empty
 ```
 
 Name any subject your project reviews. The command reads the deployment that
@@ -967,11 +967,11 @@ subject, a line saying there are none, or why the deployment refused: a 403 that
 names the ingest token when the variable holds CI's token, or a 404 when the
 deployment serves an API older than 5.
 
-`npx variance ask concerns --build <id>` reads, the same way, which renders
+`variance ask concerns --build <id>` reads, the same way, which renders
 reviewers flagged as suspect on the subjects that build showed:
 
 ```bash
-npx variance ask concerns --build ci-42
+variance ask concerns --build ci-42
 ```
 
 ```text
@@ -1026,8 +1026,8 @@ jobs:
       - run: npm ci
       - run: npx storybook build
       - run: npx playwright install --with-deps chromium
-      - run: npx variance run
-      - run: npx variance share --publish
+      - run: variance run
+      - run: variance share --publish
         if: always()
 ```
 
@@ -1121,7 +1121,7 @@ jobs:
       - name: publish the records
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+        run: variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 ```text
@@ -1226,12 +1226,12 @@ received.
       - run: npm ci
       - id: record
         if: github.event_name == 'pull_request'
-        run: npx variance share --suite unit --format github >> "$GITHUB_OUTPUT"
+        run: variance share --suite unit --format github >> "$GITHUB_OUTPUT"
       - id: merge
         if: github.event_name == 'pull_request'
         env:
           COMMIT: ${{ steps.record.outputs.commit }}
-        run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+        run: variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
       - if: steps.merge.outputs.merged == 'true'
         run: npm ci
       - run: npx vitest run
@@ -1271,8 +1271,8 @@ a directory share with it:
 
 ```yaml
       - run: aws s3 sync s3://example-variance/share .variance-share
-      - run: npx variance run
-      - run: npx variance share --publish
+      - run: variance run
+      - run: variance share --publish
         if: always()
       - run: aws s3 sync .variance-share s3://example-variance/share
         if: always()
@@ -1307,11 +1307,11 @@ A lookup on your checkout needs only the config CI uses:
   deployment](#a-tribunal-deployment), the share token. The share token cannot
   publish, so the publish below needs a store your machine may write to.
 
-`npx variance share --publish` from a branch writes that branch's line, and a
+`variance share --publish` from a branch writes that branch's line, and a
 colleague's `variance ask` on the same branch reads it when their checkout has
 no run report of its own. Off CI, the run report needs a commit:
 
 ```bash
-npx variance run --run local-1 --commit "$(git rev-parse HEAD)"
-npx variance share --publish
+variance run --run local-1 --commit "$(git rev-parse HEAD)"
+variance share --publish
 ```

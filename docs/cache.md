@@ -169,7 +169,7 @@ jobs:
             variance-${{ runner.os }}-${{ runner.arch }}-
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            npx variance index
+            variance index
             export VARIANCE_AUTHORITY_SINCE=
           fi
           npx vitest run
@@ -200,7 +200,7 @@ things in the workflow decide that line:
   this directory is inside it.
 - **A pull request builds the source index.** Selection reads the
   [source index](source-index.md), and in CI a run that finds none fails and names
-  the missing step. `npx variance index` builds it after the restore.
+  the missing step. `variance index` builds it after the restore.
 - **Only a pull request sets the variable.** `VARIANCE_AUTHORITY_SINCE` selects
   whenever it is set, even empty, so the shell exports it for a pull request and
   your main branch runs the whole suite.

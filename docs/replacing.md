@@ -128,7 +128,7 @@ test('save button', async () => {
 
 The unit process launches no browser, produces no screenshot and decides no
 verdict. It writes the markup, the CSS that applies to it, and the bytes of
-every resource it references. A later `npx variance run` reads that directory
+every resource it references. A later `variance run` reads that directory
 through `captureCollector`, opens Chromium once, paints every capture the suite
 produced, and compares each image against the one you approved.
 
@@ -185,7 +185,7 @@ export default routeCollector({
 });
 ```
 
-With your application already running, `npx variance run --config
+With your application already running, `variance run --config
 variance.config.json` navigates each URL, waits for the configured ready state,
 reads the first `roots` selector that matches, and compares what it read.
 

@@ -16,11 +16,11 @@ exercises before keeping the change.
 ```bash
 npm install --save-dev @variance-authority/cli
 npx playwright install chromium
-npx variance ask
+variance ask
 ```
 
-The CLI installs as a devDependency, so every invocation is `npx variance`.
-`npx variance ask` with no question lists each question a finished run can be
+The CLI installs as a devDependency, so every invocation is `variance`.
+`variance ask` with no question lists each question a finished run can be
 asked, the arguments it takes, and what it answers; it reads no configuration,
 so it works before any run exists. Producing the run those questions read is
 [your first run](start.md).
@@ -44,7 +44,7 @@ different path.
 
 | Your question | What the agent reads | Guide |
 | --- | --- | --- |
-| What changed in my UI on the last run, and what changed it? | The report `npx variance run` wrote, read from a shell | [Ask a run from the command line](agent-cli.md) |
+| What changed in my UI on the last run, and what changed it? | The report `variance run` wrote, read from a shell | [Ask a run from the command line](agent-cli.md) |
 | What does a report I did not produce say — a CI artifact, an archive, a colleague's run? | A report handed to the server, plus any [execution record](execution-record.md) — the file a run writes naming which source each test covered — or archive supplied with it | [Ask about a finished run over MCP](agent-mcp.md) |
 | My suite is running now and one test is not finishing — what is it waiting on? | A watcher process tracking what each test has opened and announced, in memory only | [Inspect a suite while it is running](agent-live-run.md) |
 | What is on the page at this exact line of my test, while it is still up? | A test stopped at a call its author wrote into the spec, and what it sent from there | [Interrogate a test where it stands](agent-interrogate.md) |

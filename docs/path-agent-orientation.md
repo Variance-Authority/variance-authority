@@ -13,7 +13,7 @@ the page that owns each one.
 
 ## 1. Give the agent a way to ask
 
-Install the CLI as a devDependency and the agent asks with `npx variance ask`;
+Install the CLI as a devDependency and the agent asks with `variance ask`;
 an agent that speaks MCP gets a second package. With no question, `ask` lists
 every question it can answer and works before anything has run. Questions about
 the source answer from the checkout alone; questions about what the tests did
