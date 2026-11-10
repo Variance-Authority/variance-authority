@@ -12,6 +12,9 @@
 
 import { join } from 'node:path';
 import { native as addon } from './addon.js';
+import type { ParseCache, Parsed } from './cache.js';
+import type { NativeBuilt, NativeGitTree } from './native.js';
+import { decodeSourceIndex } from './source-index-format.js';
 import { cacheRootFor, directoriesIn, primaryCacheRoot, workDirectory } from './test-selection/cache-layers.js';
 
 /** A day: longer than any update takes between adding to the store and publishing the root that names what it added. */
@@ -70,4 +73,35 @@ async function rootChains(selection: string): Promise<string[]> {
     for (const worktree of await directoriesIn(workDirectory(base))) chains.push(join(workDirectory(base), worktree, 'source-index.bin'));
   }
   return chains;
+}
+
+/** A row the scan answered as kept whose parse the cache did not find. */
+export interface Unheld {
+  readonly file: string;
+  readonly key: string;
+  readonly fresh: NativeBuilt;
+}
+
+/**
+ * Put in `cache` the parse of each row the scan of `tree` kept, and hand it on.
+ *
+ * The cache read the stores before the scan did, and another root may have
+ * published them between the two: the parse comes from the tree's own reading,
+ * the one the scan answered `kept` from, so a record is never published without it.
+ */
+export function handOverKept(
+  tree: NativeGitTree,
+  stores: readonly string[] | undefined,
+  cache: ParseCache,
+  rows: readonly Unheld[],
+  handOver: (file: string, read: Parsed | undefined, key: string, targets?: readonly (string | undefined)[]) => void,
+): void {
+  if (rows.length === 0 || stores === undefined) return;
+  const digests = rows.map((row) => row.fresh.record.digest!);
+  const parses = decodeSourceIndex(tree.keptParses([...stores], rows.map((row) => row.file), digests)).parses;
+  for (const { file, key, fresh } of rows) {
+    const parse = parses.get(key);
+    if (parse !== undefined) cache.set(key, parse);
+    handOver(file, parse, key, fresh.targets);
+  }
 }

@@ -163,6 +163,17 @@ impl<'c> Opened<'c> {
         Some(ParseView::of(&self.layers[layer], row))
     }
 
+    /// The rows held under each `(digest, way)` of `wanted`, as one parse-only
+    /// segment keyed as `keyFor` spells it; a key no store holds is left out.
+    pub(crate) fn segment(&self, wanted: impl Iterator<Item = (String, String)>) -> Vec<u8> {
+        let mut rows: Vec<(String, ParseView)> =
+            wanted.filter_map(|(digest, way)| Some((key(&digest, &way), self.view(&digest, &way)?))).collect();
+        rows.sort_by(|left, right| code_unit(&left.0, &right.0));
+        rows.dedup_by(|left, right| left.0 == right.0);
+        let rows: Vec<(&str, &ParseView)> = rows.iter().map(|(key, view)| (key.as_str(), view)).collect();
+        parses_only(&rows)
+    }
+
     pub(crate) fn holds(&self, digest: &str, way: &str) -> bool {
         self.keys.contains_key(&(digest, way))
     }

@@ -219,7 +219,7 @@ pub fn git_tree(root: String) -> Option<GitTree> {
 #[napi(catch_unwind)]
 pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
-    let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
+    let seeds = seed::seeds_of(&root, &dirs, &snapshot);
     Some(tree_from_snapshot(snapshot, seeds))
 }
 
@@ -352,6 +352,16 @@ impl GitTree {
             Some(self.listing()),
             &kept,
         )
+    }
+
+    /// The parses the stores at `stores` hold for `files` at `digests`, from the
+    /// reading the scan answered `kept` from, so a row it kept is handed over
+    /// even when another root has published the stores since.
+    #[napi]
+    pub fn kept_parses(&self, stores: Vec<String>, files: Vec<String>, digests: Vec<String>) -> napi::bindgen_prelude::Buffer {
+        let Some(stores) = self.stores(Some(stores)) else { return Vec::new().into() };
+        let wanted = digests.into_iter().zip(&files).map(|(digest, file)| (digest, index::way(file)));
+        stores.open().segment(wanted).into()
     }
 
     /// Follow every module reachable from `seeds` in one native operation.

@@ -55,6 +55,7 @@ import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt, t
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
+import { handOverKept, type Unheld } from './parse-store.js';
 import {
   READABLE,
   keyFor,
@@ -342,6 +343,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   let nativeGraphUsed = false;
   let graph: NativeIndexGraph | undefined;
   let parsed = 0;
+  const unheld: Unheld[] = []; // kept by the scan, after the cache read the stores without it
 
   const follow = (record: FileRecord): void => {
     for (const edge of record.edges ?? []) {
@@ -366,7 +368,8 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
     if (fresh.read !== undefined && key !== undefined) cache.set(key, fresh.read);
     // A kept parse crossed as what its record needs; the whole one is the store's.
     if (fresh.kept === true && key !== undefined) cache.keep?.(key);
-    handOver(file, fresh.read, fresh.kept === true ? key : undefined, fresh.targets);
+    if (fresh.kept === true && key !== undefined && cache.keep !== undefined && cache.get(key) === undefined) unheld.push({ file, key, fresh });
+    else handOver(file, fresh.read, fresh.kept === true ? key : undefined, fresh.targets);
     follow(fresh.record);
   };
 
@@ -474,6 +477,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
       for (const [index, file] of answeredFiles.entries()) {
         accept(file, parseWay(file), answers[index]!);
       }
+      if (packed !== undefined) handOverKept(packed, options.stores, cache, unheld.splice(0), handOver);
       if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
         process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
       }

@@ -316,6 +316,22 @@ describe('the parse store a cache keeps', () => {
     expect(await entryRecord(second, { stored: true, largestFile: 1 })).toEqual(await entryRecord(second, { stored: false, largestFile: 1 }));
   });
 
+  it('publishes the parse of every module a store answered, when another root appended it after the index was opened', async () => {
+    const root = await checkout();
+    const stores = [parseStorePath(cache)];
+    const path = join(await temporary('variance-parse-store-index-'), 'index.bin');
+    const source = await openSourceIndex(path, { stores });
+    // Another root fills the store between the index's read of it and the scan's.
+    await updateSourceIndex(root);
+
+    const found = await scanRelations({ root, dirs: ['packages/a'], cache: source.cache, stores });
+    await source.save();
+
+    const parses = (await openSourceIndexFile(path)).stored.parses;
+    expect(found.filter((record) => record.digest !== undefined).map((record) => record.file)).toHaveLength(parses.size);
+    expect(parses.size).toBeGreaterThan(0);
+  });
+
   it('counts a file a reader other than the module one parses cold, and not when the store answers it', async () => {
     const root = await checkout();
     await write(root, 'packages/c/package.json', '{ "name": "@fixture/c" }');

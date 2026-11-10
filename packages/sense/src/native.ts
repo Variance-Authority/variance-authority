@@ -59,6 +59,8 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
   has(path: string): boolean;
   digest(path: string): string | null;
   digestsFor(paths: string[]): string[];
+  /** The parses the `stores` a scan read hold for `files` at `digests`, as a parse-only segment. */
+  keptParses(stores: string[], files: string[], digests: string[]): Uint8Array;
   scanBatch(
     root: string,
     files: string[],
