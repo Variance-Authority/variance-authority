@@ -39,7 +39,8 @@ import { execFile } from 'node:child_process';
 import { realpathSync, existsSync } from 'node:fs';
 import { lstat, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { checkoutKey, readCheckoutMarker, workDirectory } from './cache-layers.js';
+import { pruneParseStore } from '../parse-store.js';
+import { checkoutKey, directoriesIn, readCheckoutMarker, workDirectory } from './cache-layers.js';
 
 /** How long a dead run's scratch waits, in case its process id was reused. */
 export const RUN_FLOOR_MS = 60 * 60 * 1000;
@@ -249,7 +250,10 @@ export async function pruneWhenDue(
     if (!existsSync(join(cacheRoot, 'test-selection'))) return undefined;
     await writeFile(stamp, '');
     await utimes(stamp, owners.now / 1000, owners.now / 1000);
-    return await applyPrune(await planPrune(cacheRoot, owners));
+    const pruned = await applyPrune(await planPrune(cacheRoot, owners));
+    // After the chains go, so the parses only they named go with them.
+    await pruneParseStore(cacheRoot).catch(() => undefined);
+    return pruned;
   } catch {
     return undefined;
   }
@@ -428,15 +432,6 @@ async function mtimeOf(path: string): Promise<number | undefined> {
 async function namesIn(directory: string): Promise<readonly string[]> {
   try {
     return await readdir(directory);
-  } catch {
-    return [];
-  }
-}
-
-async function directoriesIn(directory: string): Promise<readonly string[]> {
-  try {
-    const found = await readdir(directory, { withFileTypes: true });
-    return found.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name);
   } catch {
     return [];
   }

@@ -137,6 +137,7 @@ mod package_flows;
 mod package_graph;
 mod package_owners;
 mod parse_columns;
+mod parse_store;
 mod path;
 mod promisor;
 mod read;
@@ -246,6 +247,8 @@ pub struct GitTree {
     /// The package manifests and `tsconfig*.json` files in each directory, made
     /// the first time a scan asks where built output comes from.
     listing: OnceLock<Arc<emitted::Listing>>,
+    /// The parse stores the last scan named, read once for every frontier of it.
+    stores: std::sync::Mutex<Option<(Vec<String>, Arc<parse_store::Stores>)>>,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     change: Option<held_listing::Change>,
@@ -283,6 +286,21 @@ impl GitTree {
         };
         Arc::clone(self.listing.get_or_init(made))
     }
+
+    /// The stores at `paths`, read the first time a scan names them: a scan
+    /// asks once per frontier, and what it adds is published after it.
+    fn stores(&self, paths: Option<Vec<String>>) -> Option<Arc<parse_store::Stores>> {
+        let paths = paths.filter(|paths| !paths.is_empty())?;
+        let mut held = self.stores.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((named, stores)) = held.as_ref() {
+            if *named == paths {
+                return Some(Arc::clone(stores));
+            }
+        }
+        let stores = Arc::new(parse_store::Stores::read(&paths));
+        *held = Some((paths, Arc::clone(&stores)));
+        Some(stores)
+    }
 }
 
 fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
@@ -299,6 +317,7 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         unhashed: snapshot.unhashed,
         seeds,
         listing: OnceLock::new(),
+        stores: std::sync::Mutex::new(None),
         #[cfg(unix)]
         change: None,
     }
@@ -359,11 +378,15 @@ impl GitTree {
         readers: Option<u32>,
         tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
+        stores: Option<Vec<String>>,
     ) -> batch::ScanBatch {
         let oids = files
             .iter()
             .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
             .collect();
+        let stores = self.stores(stores);
+        let opened = stores.as_deref().map(parse_store::Stores::open);
+        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
         batch::scan_batch_with_oids(
             batch::ScanOptions {
                 root,
@@ -377,6 +400,7 @@ impl GitTree {
             Some(oids),
             Some(self.at.as_ref()),
             Some(self.listing()),
+            &kept,
         )
     }
 
@@ -395,7 +419,11 @@ impl GitTree {
         tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
+        stores: Option<Vec<String>>,
     ) -> batch::ScanBatch {
+        let stores = self.stores(stores);
+        let opened = stores.as_deref().map(parse_store::Stores::open);
+        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
         batch::scan_graph_with_tree(
             batch::GraphOptions {
                 root,
@@ -409,6 +437,7 @@ impl GitTree {
             &self.at,
             &self.oids,
             self.listing(),
+            &kept,
         )
     }
 

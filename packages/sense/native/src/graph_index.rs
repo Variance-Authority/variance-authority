@@ -81,7 +81,7 @@ pub(crate) fn index_graph(
     let builtins: HashSet<String> = options.builtins.into_iter().collect();
     let code: HashSet<String> = options.code_extensions.into_iter().collect();
     let directories: HashSet<String> = options.directories.into_iter().collect();
-    let Walked { files, identities, read, targets } = walk(
+    let Walked { files, identities, read, targets, .. } = walk(
         GraphOptions {
             root: options.root,
             seeds: options.seeds,
@@ -95,7 +95,7 @@ pub(crate) fn index_graph(
         tree_oids,
         listing,
     );
-    let segment = parse_segment(&files, &identities, &read);
+    let segment = parse_segment(&files, &identities, &read, &[]);
     let settling = Settling {
         builtins: &builtins,
         code: &code,

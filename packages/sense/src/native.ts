@@ -66,6 +66,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     readers?: number,
     tsconfig?: string | false,
     conditionNames?: string[],
+    stores?: string[],
   ): NativeScanBatch;
   scanGraph(
     root: string,
@@ -75,6 +76,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     tsconfig?: string | false,
     conditionNames?: string[],
     includeParses?: boolean,
+    stores?: string[],
   ): NativeScanBatch;
   /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
   indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
@@ -121,6 +123,12 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly parseSegment: Buffer;
   /** Repository-relative target per request, or an empty string when unresolved. */
   readonly targets: string[];
+  /**
+   * One when the parse came from the cache's parse store rather than from the
+   * bytes: the file was not opened, and its `parses` row is empty because the
+   * store holds the parse whole ([`parse-store.ts`](./parse-store.ts)).
+   */
+  readonly kept: Buffer;
 }
 
 export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts {
@@ -163,6 +171,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
   /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
   seedSourceIndex(path: string, from: string): boolean;
+  /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
+  pruneParseStore(store: string, chains: string[], graceMs: number): number;
+  /** Add to the first of `stores` every parse the chain at `chain` holds and no store does; how many went in. */
+  fillParseStore(stores: string[], chain: string): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
@@ -282,6 +294,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
 export interface NativeFrontierOptions extends ResolveOptions {
   readonly addon: NativeScanner;
   readonly tree?: NativeGitTree;
+  /** The parse stores a tracked file is looked up in before it is opened; only a `tree` reads them. */
+  readonly stores?: readonly string[];
   /** Without `tree`, the files the listing holds under a tracked `build/`. */
   readonly listed?: readonly string[];
   readonly root: string;
@@ -298,6 +312,10 @@ export interface NativeBuilt {
   readonly witnesses: readonly string[];
   readonly targets?: readonly (string | undefined)[];
   readonly read?: Parsed;
+  /** The bytes were parsed by this call, rather than kept or declined. */
+  readonly parsed?: true;
+  /** The parse is the parse store's, and not in `read`: the cache keeps it from there. */
+  readonly kept?: true;
 }
 
 /**
@@ -332,6 +350,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
       undefined,
       options.tsconfig,
       conditionNames,
+      options.stores === undefined ? undefined : [...options.stores],
     );
   if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
     process.stderr.write(`sense native scan: ${(performance.now() - started).toFixed(1)} ms\n`);
@@ -363,6 +382,7 @@ export function nativeGraph(
     options.tsconfig,
     options.conditionNames === undefined ? undefined : [...options.conditionNames],
     includeParses,
+    options.stores === undefined ? undefined : [...options.stores],
   );
   const digests = options.tree
     .digestsFor(batch.files)
@@ -370,7 +390,8 @@ export function nativeGraph(
   const built = builtFromBatch({ ...options, files: batch.files, digests }, batch);
   const keys = new Set<string>();
   for (const [index, file] of batch.files.entries()) {
-    if (batch.parsed[index] !== 1) continue;
+    // A kept row is not in the segment: the store holds its parse.
+    if (batch.parsed[index] !== 1 || batch.kept[index] === 1) continue;
     const digest = digests[index] ?? asDigest(batch.digests[index]);
     if (digest !== undefined) keys.add(keyFor(digest, parseWay(file)));
   }
@@ -472,7 +493,14 @@ function builtFromBatch(
         aliases: options.aliases,
       })
       : [];
-    built.push({ record, ...(read === undefined ? {} : { read }), targets, witnesses });
+    const kept = batch.kept[index] === 1;
+    built.push({
+      record,
+      ...(read === undefined ? {} : { read }),
+      targets,
+      witnesses,
+      ...(kept ? { kept: true as const } : { parsed: true as const }),
+    });
   }
 
   return built;

@@ -31,7 +31,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
-use crate::compact::{merged, Layer};
+use crate::compact::{merged, Layer, ParseView};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::git::Oid;
@@ -40,6 +40,9 @@ use crate::index_chain::read_chain;
 use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
 use crate::package_graph::{fold, names_object, At};
+use crate::parse_columns::{ParseColumns, ParseRow, Span};
+use crate::parse_store::Stores;
+use crate::segment::{Collected, Strings};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};
 use crate::witness::AliasTable;
@@ -61,6 +64,10 @@ pub struct UpdateOptions {
     pub code_extensions: Vec<String>,
     /// `READABLE`: the extensions an edge is followed for.
     pub readable: Vec<String>,
+    /// The parse stores a file is looked up in before it is opened, the first
+    /// the one this update adds its parses to (`parse_store.rs`). With them, an
+    /// index that does not exist yet is started here.
+    pub stores: Option<Vec<String>>,
 }
 
 /// What an update did.
@@ -70,6 +77,8 @@ pub struct Updated {
     pub files: u32,
     /// Files opened to make it.
     pub reread: u32,
+    /// Modules parsed to make it: the files opened that no store answered.
+    pub parsed: u32,
     /// Whether records were published; an unchanged tree publishes none, and writes only a listing it carries.
     pub published: bool,
     /// What the file system refused, when it did: the index is then as it was.
@@ -96,6 +105,34 @@ struct Row {
     identity: String,
     read: Read,
     parsed: bool,
+    /// Answered by a store rather than read.
+    kept: bool,
+}
+
+/// A parse an update writes into the index: read now, or copied from a store as it lies there.
+enum Parse<'r, 's, 'a> {
+    Read(&'r Read),
+    Kept(ParseView<'s, 'a>),
+}
+
+macro_rules! either {
+    ($self:ident, $row:ident => $body:expr) => {
+        match $self {
+            Parse::Read($row) => $body,
+            Parse::Kept($row) => $body,
+        }
+    };
+}
+
+impl ParseRow for Parse<'_, '_, '_> {
+    fn strings<'s>(&'s self, into: &mut Collected<'s>) { either!(self, row => row.strings(into)) }
+    fn write(&self, strings: &Strings, into: &mut ParseColumns) { either!(self, row => row.write(strings, into)) }
+    fn exports_present(&self) -> bool { either!(self, row => row.exports_present()) }
+    fn declares_present(&self) -> bool { either!(self, row => row.declares_present()) }
+    fn unknown(&self) -> Option<&str> { either!(self, row => row.unknown()) }
+    fn harvested(&self) -> bool { either!(self, row => row.harvested()) }
+    fn size(&self) -> Option<crate::source_size::Size> { either!(self, row => row.size()) }
+    fn doc(&self) -> Span { either!(self, row => row.doc()) }
 }
 
 /// The files the index reaches from its seeds over the records it holds and
@@ -191,16 +228,25 @@ fn joined(digest: &str, way: &str) -> String {
 pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Updated>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
     // A chain that cannot be read is the JavaScript update's to describe, which is where its refusals are worded.
-    let Ok(Some(chain)) = read_chain(&o.index) else { return Ok(None) };
-    if chain.dropped > 0 || chain.references.is_empty() || chain.references.len() != chain.segments.len() {
+    // No chain is started here when the caller names the stores to answer it from; anything else unreadable is JavaScript's.
+    let chain = match read_chain(&o.index) {
+        Ok(Some(chain)) => Some(chain),
+        Ok(None) if o.stores.is_some() => None,
+        _ => return Ok(None),
+    };
+    if chain.as_ref().is_some_and(|chain| chain.dropped > 0 || chain.references.is_empty() || chain.references.len() != chain.segments.len()) {
         return Ok(None);
     }
-    let Ok(layers) = chain.segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>() else {
+    let segments: &[Vec<u8>] = chain.as_ref().map_or(&[], |chain| &chain.segments);
+    let Ok(layers) = segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>() else {
         return Ok(None);
     };
-    if layers.last().and_then(|layer| layer.config) != Some(o.config.as_str()) {
+    if chain.is_some() && layers.last().and_then(|layer| layer.config) != Some(o.config.as_str()) {
         return Ok(None);
     }
+    let stores = Stores::read(o.stores.as_deref().unwrap_or_default());
+    let store = stores.open();
+    let kept = |identity: &str, file: &str| store.view(identity, &way(file))?.read();
     let aliases = match o.aliases.as_deref().map(serde_json::from_str::<AliasTable>).transpose() {
         Ok(aliases) => aliases,
         Err(_) => return Ok(None),
@@ -265,7 +311,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
                 directories.keys().cloned().collect(),
             )
         });
-        let Walked { files, identities, read, targets } = walk_beyond(
+        let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
             GraphOptions {
                 root: o.root.clone(),
                 seeds: need.clone(),
@@ -279,6 +325,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             tree.oids,
             Arc::clone(&tree.listing),
             &|file| valid.contains_key(file) || walked.contains_key(file),
+            &kept,
         );
         let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
         let before = walked.len();
@@ -287,9 +334,10 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             .zip(identities.into_par_iter())
             .zip(read.into_par_iter())
             .zip(targets.par_iter())
-            .map(|(((file, identity), (read, _, outcome)), targets)| {
+            .zip(answered.into_par_iter())
+            .map(|((((file, identity), (read, _, outcome)), targets), kept)| {
                 let indexed = built(file, &identity, &read, outcome, targets, &settling);
-                Row { indexed, identity, read, parsed: outcome.parsed() }
+                Row { indexed, identity, read, parsed: outcome.parsed(), kept }
             })
             .collect();
         walked.extend(files.into_iter().zip(rows));
@@ -302,6 +350,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
 
     let files = (reached.old.len() + reached.new.len()) as u32;
     let reread = reached.new.len() as u32;
+    let parsed = reached.new.iter().filter(|file| walked[file.as_str()].parsed && !walked[file.as_str()].kept).count() as u32;
 
     // Records: what the walk built and the index does not already say, and what nothing reaches.
     let mut puts: Vec<(&str, &Indexed)> = Vec::new();
@@ -334,13 +383,32 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
 
     // Parses: a key is kept while some reached record names it. Only the digests
     // that moved can have lost their last user, so those are the ones looked at.
-    let fresh: Vec<(String, &Read)> = reached
+    let fresh: Vec<(String, Parse)> = reached
         .new
         .iter()
         .map(|file| (file, &walked[file.as_str()]))
         .filter(|(_, row)| row.parsed && !row.identity.is_empty())
-        .map(|(file, row)| (joined(&row.identity, &way(file)), &row.read))
+        .filter_map(|(file, row)| {
+            let way = way(file);
+            let parse = if row.kept { Parse::Kept(store.view(&row.identity, &way)?) } else { Parse::Read(&row.read) };
+            Some((joined(&row.identity, &way), parse))
+        })
         .collect();
+    // What this update parsed that no store holds, for every root after it.
+    let mut stored: Vec<(String, &Read)> = reached
+        .new
+        .iter()
+        .map(|file| (file, &walked[file.as_str()]))
+        .filter(|(_, row)| row.parsed && !row.kept && !row.identity.is_empty())
+        .map(|(file, row)| (way(file), row))
+        .filter(|(way, row)| !store.holds(&row.identity, way))
+        .map(|(way, row)| (joined(&row.identity, &way), &row.read))
+        .collect();
+    stored.sort_by(|left, right| code_unit(&left.0, &right.0));
+    stored.dedup_by(|left, right| left.0 == right.0);
+    let stored: Vec<(&str, &Read)> = stored.iter().map(|(key, read)| (key.as_str(), *read)).collect();
+    // A store not written costs the next root a parse, never an answer.
+    let _ = stores.append(&stored);
     let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
     interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
     let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };
@@ -368,7 +436,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             held.contains(&(digest.to_owned(), way.to_owned())) && !users.contains(key)
         })
         .collect();
-    let mut parses: Vec<(String, &Read)> = fresh
+    let mut parses: Vec<(String, Parse)> = fresh
         .into_iter()
         .filter(|(key, _)| {
             let (digest, way) = crate::generation::key_parts(key);
@@ -384,7 +452,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     let mut deleted_directories: Vec<String> =
         held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
 
-    let unchanged = puts.is_empty()
+    let unchanged = chain.is_some()
+        && puts.is_empty()
         && deleted_records.is_empty()
         && parses.is_empty()
         && deleted_parses.is_empty()
@@ -406,31 +475,30 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         let _ = &listing;
         Ok(segment)
     };
-    let references: Vec<LogSegment> = chain
-        .references
-        .iter()
-        .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
-        .collect();
+    let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match &chain {
+        Some(chain) => (chain.references.iter().map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 }).collect(), Over::Published(chain.published()), chain.working),
+        None => (Vec::new(), Over::Nothing, 0),
+    };
     // The working layer and this delta become the next working layer: an update
     // rewrites what changed since the index was readied, and never the base.
-    let base = references.len() - chain.working;
-    let beneath: Vec<&[u8]> = chain.segments[..base].iter().map(Vec::as_slice).collect();
+    let base = references.len() - working_count;
+    let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
     if unchanged {
         let Some(listing) = listing else {
-            return Ok(Some(Updated { files, reread, published: false, refused: None }));
+            return Ok(Some(Updated { files, reread, parsed, published: false, refused: None }));
         };
         // Nothing to publish, and a listing to carry: the working layer is
         // written again with it, so the next update can ask Watchman from here.
-        let working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
+        let working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
         let working = match working.as_slice() {
             [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
             [only] => only.to_vec(),
             _ => merged(&beneath, &working).map_err(fail)?,
         };
         let working = carried(working, Some(listing)).map_err(fail)?;
-        return match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
-            Ok(_) => Ok(Some(Updated { files, reread, published: false, refused: None })),
-            Err(error) => Ok(Some(Updated { files, reread, published: false, refused: Some(format!("{}: {error}", o.index)) })),
+        return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
+            Ok(_) => Ok(Some(Updated { files, reread, parsed, published: false, refused: None })),
+            Err(error) => Ok(Some(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)) })),
         };
     }
 
@@ -442,7 +510,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         keys.sort_by(|left, right| code_unit(left, right));
         keys.dedup();
     }
-    let parse_rows: Vec<(&str, &Read)> = parses.iter().map(|(key, read)| (key.as_str(), *read)).collect();
+    let parse_rows: Vec<(&str, &Parse)> = parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
     let delta = encode_generation(&Generation {
         config: Some(&o.config),
         directories: &put_directories,
@@ -451,15 +519,15 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
     });
 
-    let mut working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
+    let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
     working.push(&delta);
     let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
     let working = carried(working, listing).map_err(fail)?;
     // Another writer between the read and here: its chain is not the one this delta is against.
-    let refused = match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
+    let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
         Ok(false) => return Ok(None),
         Ok(true) => None,
         Err(error) => Some(format!("{}: {error}", o.index)),
     };
-    Ok(Some(Updated { files, reread, published: refused.is_none(), refused }))
+    Ok(Some(Updated { files, reread, parsed, published: refused.is_none(), refused }))
 }
