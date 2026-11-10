@@ -287,7 +287,7 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
         records: folded.len() as u32,
         stale,
         unread,
-        dropped: chain.dropped,
+        dropped: chain.damaged(),
     })
 }
 

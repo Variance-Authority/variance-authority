@@ -289,7 +289,7 @@ async function load(read: ImmutableLog): Promise<Opened> {
   const config = decoded.at(-1)?.config;
   return {
     log,
-    state: !log.committed ? 'missing' : log.dropped === 0 ? 'published' : written === undefined ? 'damaged' : 'other-version',
+    state: !log.committed ? 'missing' : log.dropped === 0 || log.moved ? 'published' : written === undefined ? 'damaged' : 'other-version',
     ...(written === undefined ? {} : { written }),
     stored: {
       parses: orderedMap(parseLayers),

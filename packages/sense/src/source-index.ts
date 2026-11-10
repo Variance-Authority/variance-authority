@@ -7,13 +7,12 @@
  * never existed together.
  */
 
-import { join, relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
-import { cacheLayers, checkoutKey } from './test-selection/cache-layers.js';
-import { repositoryRoot } from './test-selection/repository-root.js';
+import { cacheLayers } from './test-selection/cache-layers.js';
 import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import {
@@ -50,52 +49,32 @@ export interface PersistentSourceIndex {
 }
 
 /**
- * Where a checkout keeps its source index: one path every tool agrees on, in
- * the cache layer of the repository `root` is in, so a subdirectory or a
- * worktree never splits the cache ([`cache-layers.ts`](./test-selection/cache-layers.ts)).
- * A scan root below the checkout keeps its own index there, since its records
- * are spelled from that root.
+ * Where a checkout keeps its source index.
+ *
+ * Named here rather than chosen by each caller, because the saving is only real
+ * if two callers agree: a tool that picks its own path re-scans a repository
+ * another tool already scanned, and both of them report a cold start as normal.
+ * The directory is the checkout's own cache layer, so a worktree writes beside
+ * the primary checkout rather than into it ([`cache-layers.ts`](./test-selection/cache-layers.ts)).
+ * Keyed by the root the scan itself reads from, links followed: a checkout
+ * reached through `/var` and through `/private/var` is one checkout, and a
+ * key spelled from the caller's argument would give it two indexes and let the
+ * one nobody updated answer.
  */
 export function sourceIndexPath(root: string, cacheRoot?: string): string {
-  const { checkout, within } = scanOf(root);
-  return resolve(cacheLayers(checkout, cacheRoot).top, within, 'source-index.bin');
+  return resolve(cacheLayers(realPath(resolve(root)), cacheRoot).top, 'source-index.bin');
 }
 
 /**
- * The primary checkout's source index for the same scan root, when `root` is in
- * a worktree cut from it.
+ * The primary checkout's source index, when `root` is a worktree cut from it.
  *
  * A worktree's own index starts where the primary checkout's last update left
  * off, so its first update reads only what differs between the two checkouts.
  * `undefined` in the primary checkout itself, which has no other layer to start from.
  */
 export function primarySourceIndexPath(root: string, cacheRoot?: string): string | undefined {
-  const { checkout, within } = scanOf(root);
-  const layers = cacheLayers(checkout, cacheRoot);
-  return layers.top === layers.base ? undefined : resolve(layers.base, within, 'source-index.bin');
-}
-
-/**
- * The indexes a missing one at `root` may start from, nearest first: the
- * primary checkout's index of the same scan root, then the checkout's whole
- * index, then the primary checkout's. A parse is keyed by its bytes, and a
- * record is checked against the tree before it is used, so a donor's parses
- * serve any scan root within its repository.
- */
-export function sourceIndexDonors(root: string, cacheRoot?: string): readonly string[] {
-  const { checkout } = scanOf(root);
-  return [
-    primarySourceIndexPath(root, cacheRoot),
-    sourceIndexPath(checkout, cacheRoot),
-    primarySourceIndexPath(checkout, cacheRoot),
-  ].filter((path): path is string => path !== undefined);
-}
-
-function scanOf(root: string): { readonly checkout: string; readonly within: string } {
-  const scan = realPath(resolve(root));
-  const checkout = repositoryRoot(scan);
-  const path = relative(checkout, scan).split(sep).join('/');
-  return { checkout, within: path === '' ? '.' : join('scans', checkoutKey(path)) };
+  const layers = cacheLayers(realPath(resolve(root)), cacheRoot);
+  return layers.top === layers.base ? undefined : resolve(layers.base, 'source-index.bin');
 }
 
 /**

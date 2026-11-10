@@ -44,6 +44,10 @@ pub(crate) struct Chain {
     pub segments: Vec<Vec<u8>>,
     /// Segments the manifest names past the first one that could not be used.
     pub dropped: u32,
+    /// Whether the manifest moved under every read: `dropped` then counts
+    /// segments writers replaced, and the prefix is an older whole generation,
+    /// not damage.
+    pub moved: bool,
     /// The manifest as read, when the file is one; a legacy file is its own
     /// single segment.
     manifest: Option<Vec<u8>>,
@@ -56,6 +60,12 @@ pub(crate) struct Chain {
 }
 
 impl Chain {
+    /// Segments lost to damage: a manifest that held still while one it named
+    /// was missing. A read that lost the race to writers lost none.
+    pub(crate) fn damaged(&self) -> u32 {
+        if self.moved { 0 } else { self.dropped }
+    }
+
     /// The bytes published at the chain's path, read once with the segments
     /// they name, so a digest of them describes exactly this chain.
     pub(crate) fn published(&self) -> &[u8] {
@@ -69,14 +79,28 @@ const MOVED_ATTEMPTS: usize = 8;
 
 /// The chain at `path`, or `None` when nothing was ever published there. A
 /// segment missing because a writer published past it is read again from the
-/// manifest that writer left, so only damage costs segments.
+/// manifest that writer left, so only damage costs segments; a read the
+/// manifest moved under on every attempt keeps its prefix as `moved`.
 pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
+    follow(|| read_chain_once(path), || std::fs::read(path).ok())
+}
+
+/// `read_chain`'s retry, over a reader of the chain and of the manifest's
+/// current bytes.
+fn follow(
+    mut read: impl FnMut() -> Result<Option<Chain>, String>,
+    mut current: impl FnMut() -> Option<Vec<u8>>,
+) -> Result<Option<Chain>, String> {
     let mut attempt = 1;
     loop {
-        let chain = read_chain_once(path)?;
-        let Some(read) = &chain else { return Ok(chain) };
-        if read.dropped == 0 || attempt == MOVED_ATTEMPTS { return Ok(chain) }
-        if std::fs::read(path).ok().as_deref() == read.manifest.as_deref() { return Ok(chain) }
+        let Some(mut chain) = read()? else { return Ok(None) };
+        if chain.dropped == 0 || current().as_deref() == chain.manifest.as_deref() {
+            return Ok(Some(chain));
+        }
+        if attempt == MOVED_ATTEMPTS {
+            chain.moved = true;
+            return Ok(Some(chain));
+        }
         attempt += 1;
     }
 }
@@ -88,7 +112,7 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
         Err(error) => return Err(format!("{path}: {error}")),
     };
     if !bytes.starts_with(MAGIC) {
-        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, manifest: None, references: Vec::new(), working: 0 }));
+        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, moved: false, manifest: None, references: Vec::new(), working: 0 }));
     }
     let (references, working) = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
@@ -105,7 +129,7 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
     let dropped = (references.len() - count) as u32;
     let segments = read.into_iter().take(count).map(Option::unwrap).collect();
-    Ok(Some(Chain { segments, dropped, manifest: Some(bytes), references, working }))
+    Ok(Some(Chain { segments, dropped, moved: false, manifest: Some(bytes), references, working }))
 }
 
 /// `decodeManifest` and `manifestIsValid`: the header's length is the rest of
@@ -147,4 +171,40 @@ pub(crate) fn read_tail(path: &str, chain: &[String], known: usize) -> Option<Ve
         let segment = std::fs::read(format!("{directory}/{}.bin", digest.replacen(':', "-", 1))).ok()?;
         (crate::digest::of_sha256(Sha256::digest(&segment).as_slice()) == *digest).then_some(segment)
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn chain(manifest: &[u8], dropped: u32) -> Chain {
+        Chain { segments: Vec::new(), dropped, moved: false, manifest: Some(manifest.to_vec()), references: Vec::new(), working: 0 }
+    }
+
+    #[test]
+    fn a_manifest_moving_under_every_read_is_late_not_damaged() {
+        let mut generation = 0u8;
+        let read = follow(
+            || { generation += 1; Ok(Some(chain(&[generation], 1))) },
+            || Some(vec![u8::MAX]),
+        ).unwrap().unwrap();
+        assert_eq!((read.moved, read.dropped, read.damaged()), (true, 1, 0));
+    }
+
+    #[test]
+    fn a_missing_segment_under_a_manifest_that_held_still_is_damage() {
+        let mut reads = 0;
+        let read = follow(|| { reads += 1; Ok(Some(chain(b"m", 1))) }, || Some(b"m".to_vec())).unwrap().unwrap();
+        assert_eq!((reads, read.moved, read.damaged()), (1, false, 1));
+    }
+
+    #[test]
+    fn a_read_after_the_manifest_settles_is_whole() {
+        let mut reads = 0u32;
+        let read = follow(
+            || { reads += 1; Ok(Some(chain(b"m", if reads < 3 { 1 } else { 0 }))) },
+            || Some(b"next".to_vec()),
+        ).unwrap().unwrap();
+        assert_eq!((reads, read.moved, read.damaged()), (3, false, 0));
+    }
 }

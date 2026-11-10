@@ -14,7 +14,6 @@
  * that layer into the base before work (`native/src/ready_index.rs`).
  */
 
-import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { digestBytes, type Digest } from './digest.js';
@@ -22,7 +21,7 @@ import { digestBytes, type Digest } from './digest.js';
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;
 const HEADER_BYTES = MAGIC.length + 4;
-/** How many manifests a reader follows while writers keep moving it, before it keeps what it read. */
+/** How many manifests a reader follows while writers keep moving it, before it keeps the prefix it read as `moved`. */
 const MOVED_ATTEMPTS = 8;
 
 interface SegmentReference {
@@ -50,6 +49,12 @@ export interface ImmutableLog {
    * one that was published, and a reader that answers from it is answering late.
    */
   readonly dropped: number;
+  /**
+   * Whether the manifest moved under every read: `dropped` then counts segments
+   * writers replaced, not damage. Only a manifest that held still while one of
+   * its segments was missing is damaged.
+   */
+  readonly moved: boolean;
   /** The same chain cut to its first `count` segments, for a caller that rejects one further on. */
   keep(count: number): ImmutableLog;
 }
@@ -90,7 +95,8 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
     // A writer removes the segments its manifest stopped naming, so a segment
     // missing under a manifest that has since moved is a read that lost the
     // race, not a damaged chain.
-    if (valid !== -1 && attempt < MOVED_ATTEMPTS && await moved(path, bytes)) continue;
+    const raced = valid !== -1 && await moved(path, bytes);
+    if (raced && attempt < MOVED_ATTEMPTS) continue;
     const count = valid === -1 ? read.length : valid;
     return logAt(
       path,
@@ -99,45 +105,8 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
       false,
       true,
       references.length - count,
+      raced,
     );
-  }
-}
-
-/**
- * The committed segments, read where waiting is not available.
- *
- * A transform hook is the caller: it is handed a module, it must return the
- * transformed text, and there is no point in it at which anything may be
- * awaited. Reading is the half of the log that can answer under that
- * constraint — a base and at most one working layer over it, each file
- * checked against the length and digest the manifest published for it, and none
- * of them held open by a writer.
- */
-export function readImmutableLog(path: string): readonly Buffer[] {
-  named(path);
-  for (let attempt = 1; ; attempt += 1) {
-    let bytes: Buffer;
-    try {
-      bytes = readFileSync(path);
-    } catch (error) {
-      if (!missing(error)) throw error;
-      return [];
-    }
-    if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) return [bytes];
-
-    const directory = segmentDirectory(path);
-    try {
-      return decodeManifest(bytes).map((reference) => {
-        const segment = readFileSync(join(directory, fileName(reference.digest)));
-        if (segment.length !== reference.length || digestBytes(segment) !== reference.digest) {
-          throw new Error('invalid immutable log segment');
-        }
-        return segment;
-      });
-    } catch (error) {
-      if (attempt < MOVED_ATTEMPTS && movedSync(path, bytes)) continue;
-      throw error;
-    }
   }
 }
 
@@ -154,6 +123,7 @@ function logAt(
   legacy: boolean,
   committed: boolean,
   dropped = 0,
+  raced = false,
 ): ImmutableLog {
   return {
     path,
@@ -162,8 +132,9 @@ function logAt(
     legacy,
     committed,
     dropped,
+    moved: raced,
     keep: (count) => count >= segments.length
-      ? logAt(path, references, segments, legacy, committed, dropped)
+      ? logAt(path, references, segments, legacy, committed, dropped, raced)
       : logAt(
           path,
           references.slice(0, count),
@@ -171,6 +142,7 @@ function logAt(
           legacy,
           committed,
           dropped + segments.length - count,
+          raced,
         ),
   };
 }
@@ -233,15 +205,6 @@ function named(path: string): void {
 async function moved(path: string, read: Buffer): Promise<boolean> {
   try {
     return !(await readFile(path)).equals(read);
-  } catch (error) {
-    if (!missing(error)) throw error;
-    return true;
-  }
-}
-
-function movedSync(path: string, read: Buffer): boolean {
-  try {
-    return !readFileSync(path).equals(read);
   } catch (error) {
     if (!missing(error)) throw error;
     return true;

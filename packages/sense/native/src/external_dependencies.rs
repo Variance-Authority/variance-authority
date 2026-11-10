@@ -263,7 +263,7 @@ fn inspect(
     dependencies.truncate(row_limit);
     Ok(ExternalOrientation {
         dependencies, more, reached: distance.len() as u32, unread, stale, missing,
-        declared_only, more_declared_only, dropped: chain.dropped,
+        declared_only, more_declared_only, dropped: chain.damaged(),
     })
 }
 

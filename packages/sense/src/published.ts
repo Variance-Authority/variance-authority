@@ -30,10 +30,9 @@ import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
 import { placesOf, stepped, type Progress } from './progress.js';
-import { openSourceIndex, sourceIndexDonors, sourceIndexPath } from './source-index.js';
+import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
-import { repositoryRoot } from './test-selection/repository-root.js';
 import { openSourceIndexFile, seedSourceIndex, type SourceIndexState } from './source-index-file.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { usesOf } from './uses.js';
@@ -125,7 +124,8 @@ export interface SourceUpdateOptions {
    */
   readonly dirs?: readonly string[];
   /**
-   * The generation a missing `index` tries first, before `sourceIndexDonors`.
+   * The generation a missing `index` starts from, when it names one of its own.
+   * The primary checkout's, from `primarySourceIndexPath`, when `index` is absent.
    */
   readonly primary?: string;
 }
@@ -144,10 +144,7 @@ export interface SourceUpdate {
   readonly refused?: string;
   /** Files the published generation holds. */
   readonly files: number;
-  /**
-   * Files whose bytes this update read again, because neither a published record
-   * nor a parse of the same bytes, held under any path, described them.
-   */
+  /** Files whose record this update rebuilt, because the published one no longer described them. */
   readonly reread: number;
   /**
    * When this update began, before it read anything of the checkout: what it
@@ -156,8 +153,8 @@ export interface SourceUpdate {
    */
   readonly readStartedAt: string;
   /**
-   * The index this one started from, when it had none of its own: the nearest
-   * of `sourceIndexDonors` that held a chain.
+   * The primary checkout's index this one started from, when this checkout is a
+   * worktree that had none of its own.
    */
   readonly from?: string;
   /**
@@ -189,7 +186,7 @@ export async function updateSourceIndex(
   const dirs = options.dirs ?? ['.'];
   const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path, options.progress, dirs);
   if (natively !== undefined) {
-    if (options.index === undefined) markCheckout(repositoryRoot(realPath(where)));
+    if (options.index === undefined) markCheckout(realPath(where));
     return {
       path,
       was: 'published',
@@ -205,11 +202,12 @@ export async function updateSourceIndex(
   let source = await openSourceIndex(path);
   const was = source.state;
   const written = source.written;
-  // An index with no chain starts from the nearest one that has one, and pays
-  // only for what differs: parses are keyed by content, never by where.
-  const donors = was !== 'missing' ? [] : [options.primary, ...sourceIndexDonors(where)]
-    .filter((donor): donor is string => donor !== undefined && donor !== path);
-  const from = donors.find((donor) => seedSourceIndex(path, donor));
+  // A worktree's first update starts from the primary checkout's generation and
+  // pays only for what differs between the two checkouts.
+  const primary = was !== 'missing' ? undefined : options.index === undefined
+    ? primarySourceIndexPath(where)
+    : options.primary;
+  const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
   if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there
@@ -244,7 +242,7 @@ export async function updateSourceIndex(
   // Counted rather than collected: the update publishes the records through
   // `reuse` and reports how many, and a cold closure the addon holds is never
   // turned into objects for either.
-  const { files, held, listing } = await stepped(options.progress, `reading every file of ${placesOf(where, dirs)}, ${
+  const { files, listing } = await stepped(options.progress, `reading every file of ${placesOf(where, dirs)}, ${
     was === 'missing' ? 'because there is no index to update' : 'because the index could not be updated in place'
   }`, () => scanCount({
     root: where,
@@ -255,14 +253,14 @@ export async function updateSourceIndex(
   }));
   const refused = await source.save();
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
-  if (options.index === undefined) markCheckout(repositoryRoot(realPath(where)));
+  if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was,
     ...(written === undefined ? {} : { written }),
     ...(refused === undefined ? {} : { refused }),
     files,
-    reread: files - reused.size - held,
+    reread: files - reused.size,
     readStartedAt,
     ...(from === undefined ? {} : { from }),
     ...(listing === undefined ? {} : { listing }),

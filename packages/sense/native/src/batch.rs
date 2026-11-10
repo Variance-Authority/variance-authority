@@ -328,53 +328,6 @@ fn resolve_all(
     }
 }
 
-/// Where the requests of files whose parse the caller already holds land, by
-/// the resolver `scan_batch` resolves with, so a held parse answers what a read
-/// would have: `counts` says how many of `values` each file asked, in order.
-pub(crate) fn resolve_held(
-    options: ScanOptions,
-    counts: &[u32],
-    values: &[String],
-    known: Option<&HashMap<String, u32>>,
-    listing: Option<Arc<Listing>>,
-) -> Vec<String> {
-    let root = Path::new(&options.root);
-    let resolvers = Resolvers::over(options.tsconfig, options.condition_names, Emitted::listed(root, listing));
-    let mut targets = Vec::with_capacity(values.len());
-    let mut at = 0;
-    for (file, count) in options.files.iter().zip(counts) {
-        let from = root.join(file);
-        let asked = values.get(at..at + *count as usize).unwrap_or_default();
-        at += *count as usize;
-        targets.extend(asked.iter().map(|value| resolvers.resolve(root, &from, value, known).unwrap_or_default()));
-    }
-    targets
-}
-
-/// `resolve_held` for files no tree lists; `listed` as `scan_batch` takes it.
-#[napi(catch_unwind)]
-pub fn resolve_held_batch(
-    root: String,
-    files: Vec<String>,
-    counts: Vec<u32>,
-    values: Vec<String>,
-    tsconfig: Option<Either<String, bool>>,
-    condition_names: Option<Vec<String>>,
-    listed: Option<Vec<String>>,
-) -> Vec<String> {
-    let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
-    let options = ScanOptions {
-        root,
-        files,
-        largest_file: None,
-        digests: None,
-        readers: None,
-        tsconfig: Tsconfig::from_js(tsconfig),
-        condition_names,
-    };
-    resolve_held(options, &counts, &values, listed.as_ref(), None)
-}
-
 fn scan_columns(
     files: Vec<String>,
     parse_segment: Vec<u8>,

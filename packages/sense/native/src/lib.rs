@@ -380,34 +380,6 @@ impl GitTree {
         )
     }
 
-    /// Where held parses' requests land, as `scan_batch` would resolve them.
-    #[napi]
-    pub fn resolve_held(
-        &self,
-        root: String,
-        files: Vec<String>,
-        counts: Vec<u32>,
-        values: Vec<String>,
-        tsconfig: Option<napi::Either<String, bool>>,
-        condition_names: Option<Vec<String>>,
-    ) -> Vec<String> {
-        batch::resolve_held(
-            batch::ScanOptions {
-                root,
-                files,
-                largest_file: None,
-                digests: None,
-                readers: None,
-                tsconfig: crate::resolve::Tsconfig::from_js(tsconfig),
-                condition_names,
-            },
-            &counts,
-            &values,
-            Some(self.at.as_ref()),
-            Some(self.listing()),
-        )
-    }
-
     /// Follow every module reachable from `seeds` in one native operation.
     #[napi]
     #[allow(
