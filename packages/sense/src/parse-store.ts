@@ -10,12 +10,15 @@
 
 // compass: variance-authority.reach.source-index
 
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { extname, join } from 'node:path';
 import { native as addon } from './addon.js';
 import type { ParseCache, Parsed } from './cache.js';
+import { READABLE } from './language.js';
 import type { NativeBuilt, NativeGitTree } from './native.js';
 import { decodeSourceIndex } from './source-index-format.js';
 import { cacheRootFor, directoriesIn, primaryCacheRoot, workDirectory } from './test-selection/cache-layers.js';
+import { repositoryRoot } from './test-selection/repository-root.js';
 
 /** A day: longer than any update takes between adding to the store and publishing the root that names what it added. */
 export const PARSE_STORE_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -27,12 +30,53 @@ export function parseStorePath(cacheRoot: string): string {
 
 /**
  * The stores an update of `root` reads: its own cache's first, which it adds
- * to, then the primary checkout's when that cache is another one.
+ * to, then the primary checkout's when that cache is another one. None where
+ * git rewrites the bytes of a file the store parses.
  */
-export function parseStoresFor(root: string): readonly string[] {
-  const own = cacheRootFor(root);
-  const primary = primaryCacheRoot(root);
+export function parseStoresFor(root: string): readonly string[] | undefined {
+  // The top, not `root`: only it holds the `.git` that names a worktree's primary.
+  const repository = repositoryRoot(root);
+  if (rewritesParsed(repository)) return undefined;
+  const own = cacheRootFor(repository);
+  const primary = primaryCacheRoot(repository);
   return primary === own ? [parseStorePath(own)] : [parseStorePath(own), parseStorePath(primary)];
+}
+
+/**
+ * Whether git writes a file the store would parse as other bytes than its blob:
+ * a filter, `ident` or `working-tree-encoding` on it, `eol=crlf`,
+ * `core.autocrlf=true`, or a `text` (or legacy `crlf`) file under `core.eol=crlf` (`native` on
+ * Windows). A parse is kept under the blob's name and read off the disk, so
+ * there two checkouts holding one blob can hold different modules, and one
+ * would answer the other. A git that cannot answer is taken to rewrite. The
+ * `FIXME` in `scan.ts` is the same question for one checkout's own index: a fix
+ * keyed by the bytes read replaces this gate.
+ */
+function rewritesParsed(repository: string): boolean {
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const config = new Map<string, string>();
+  try {
+    // Git spells a boolean `true` however it was set (`yes`, `2`, a bare key) and keeps `input` and `crlf` as they are.
+    for (const line of git('config', '--type=bool-or-str', '--get-regexp', '^core\\.(autocrlf|eol)$').split('\n')) {
+      const [key, value = ''] = line.trim().toLowerCase().split(/\s+/);
+      if (key) config.set(key, value);
+    }
+  } catch {
+    // neither is set
+  }
+  const autocrlf = config.get('core.autocrlf');
+  if (autocrlf === 'true') return true;
+  const eol = config.get('core.eol') ?? 'native';
+  const crlf = autocrlf !== 'input' && (eol === 'crlf' || (eol === 'native' && process.platform === 'win32'));
+  try {
+    const rewritten = [
+      git('ls-files', '-z', '--', ':(top,attr:eol=crlf)', ...(crlf ? [':(top,attr:text)', ':(top,attr:text=auto)', ':(top,attr:crlf)'] : [])),
+      git('ls-files', '-z', '--', ':(top)', ':(top,exclude,attr:!filter !ident !working-tree-encoding)'),
+    ];
+    return rewritten.join('\0').split('\0').some((file) => READABLE.has(extname(file)));
+  } catch {
+    return true;
+  }
 }
 
 /**
