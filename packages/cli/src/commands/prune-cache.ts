@@ -29,10 +29,9 @@ import {
   applyPrune,
   bytesUnder,
   directoriesIn,
-  machineOwners,
-  planPrune,
   prunedLine,
   readFetchedMainline,
+  pruneSelection,
   pruneWhenDue,
   PRUNE_EVERY_MS,
   STORY_AGE_MS,
@@ -214,7 +213,7 @@ export interface BothPruned {
 export async function pruneNow(config: Pick<Config, 'cacheRoot'>): Promise<BothPruned> {
   const root = cacheOf(config);
   return {
-    selection: existsSync(join(root, 'test-selection')) ? await applyPrune(await planPrune(root, machineOwners())) : undefined,
+    selection: existsSync(join(root, 'test-selection')) ? await pruneSelection(root) : undefined,
     commits: existsSync(root) ? await applyPrune(await planCachePrune(config, checkoutOwners())) : undefined,
   };
 }

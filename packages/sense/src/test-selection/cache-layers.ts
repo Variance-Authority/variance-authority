@@ -197,11 +197,6 @@ export interface CacheLayers {
   readonly base: string;
 }
 
-/**
- * The `.work` directory of a repository's directory in a cache. In `base` it
- * holds the index turn. A worktree's layer is in the one in its own cache, which
- * is this one only under `VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`.
- */
 /** The directories directly in `directory` that are not dot directories, or none when it cannot be read. */
 export async function directoriesIn(directory: string): Promise<readonly string[]> {
   try {
@@ -212,6 +207,11 @@ export async function directoriesIn(directory: string): Promise<readonly string[
   }
 }
 
+/**
+ * The `.work` directory of a repository's directory in a cache. In `base` it
+ * holds the index turn. A worktree's layer is in the one in its own cache, which
+ * is this one only under `VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`.
+ */
 export function workDirectory(base: string): string {
   return resolve(base, '.work');
 }

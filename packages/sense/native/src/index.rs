@@ -35,7 +35,7 @@ pub fn parse_segment(
         .zip(reads)
         .enumerate()
         .filter(|(index, (_, (_, _, outcome)))| outcome.parsed() && !kept.get(*index).copied().unwrap_or(false))
-        .map(|(index, ((file, digest), _))| (format!("{digest}\0{}", way(file)), index))
+        .map(|(index, ((file, digest), _))| (crate::parse_store::key(digest, &way(file)), index))
         .collect();
     rows.sort_unstable_by(|left, right| order::code_unit(&left.0, &right.0));
     rows.dedup_by(|left, right| left.0 == right.0);

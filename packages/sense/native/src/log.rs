@@ -58,7 +58,7 @@ fn scratch(path: &str) -> String {
     format!("{path}.{}.{at}.tmp", std::process::id())
 }
 
-fn file_name(directory: &str, digest: &str) -> String {
+pub(crate) fn file_name(directory: &str, digest: &str) -> String {
     format!("{directory}/{}.bin", digest.replacen(':', "-", 1))
 }
 

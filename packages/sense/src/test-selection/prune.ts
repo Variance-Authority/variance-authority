@@ -228,6 +228,13 @@ export async function applyPrune<Reason extends string>(plan: PrunePlan<Reason>)
   return { root: plan.root, removed, unremoved, freed: removed.reduce((total, entry) => total + entry.bytes, 0) };
 }
 
+/** Prune the selection half of the cache at `cacheRoot` now: the chains first, then the parses only they named. */
+export async function pruneSelection(cacheRoot: string, owners: PruneOwners = machineOwners()): Promise<Pruned> {
+  const pruned = await applyPrune(await planPrune(cacheRoot, owners));
+  await pruneParseStore(cacheRoot).catch(() => undefined);
+  return pruned;
+}
+
 /**
  * Prune, when the last prune of this cache was more than a day ago.
  *
@@ -250,10 +257,7 @@ export async function pruneWhenDue(
     if (!existsSync(join(cacheRoot, 'test-selection'))) return undefined;
     await writeFile(stamp, '');
     await utimes(stamp, owners.now / 1000, owners.now / 1000);
-    const pruned = await applyPrune(await planPrune(cacheRoot, owners));
-    // After the chains go, so the parses only they named go with them.
-    await pruneParseStore(cacheRoot).catch(() => undefined);
-    return pruned;
+    return await pruneSelection(cacheRoot, owners);
   } catch {
     return undefined;
   }

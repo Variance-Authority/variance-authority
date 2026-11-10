@@ -3482,6 +3482,7 @@
         "planPrune": "function",
         "prepareRecord": "function",
         "projectJourneyFile": "function",
+        "pruneSelection": "function",
         "pruneWhenDue": "function",
         "prunedLine": "function",
         "ranOver": "function",

@@ -155,6 +155,7 @@ export {
   counted,
   machineOwners,
   planPrune,
+  pruneSelection,
   mib,
   prunedLine,
   pruneWhenDue,

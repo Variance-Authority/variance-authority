@@ -198,8 +198,8 @@ export async function updateSourceIndex(
     ? primarySourceIndexPath(where)
     : options.primary;
   const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
-  // The checkout's own index reads the cache's parse store before it opens a file, and starts from it when there is none.
-  const stores = options.index === undefined ? parseStoresFor(where) : undefined;
+  // The checkout's own index, however its caller spells the path, reads the cache's parse store before it opens a file.
+  const stores = path === sourceIndexPath(where) ? parseStoresFor(where) : undefined;
   const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
   const natively = options.packs === false
     ? undefined

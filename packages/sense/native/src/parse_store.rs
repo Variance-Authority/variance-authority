@@ -26,13 +26,14 @@ use std::time::{Duration, SystemTime};
 use napi_derive::napi;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
+use sha2::{Digest, Sha256};
 
-use crate::compact::{merged, Layer, ParseView};
+use crate::compact::{compacted, Layer, ParseView};
 use crate::read::Read;
 use crate::segment::{Collected, Strings};
 use crate::index::parses_only;
 use crate::index_chain::{read_chain, Chain};
-use crate::log::{written, LogSegment, Over};
+use crate::log::{file_name, written, LogSegment, Over};
 use crate::order::code_unit;
 use crate::parse_columns::{ParseColumns, ParseRow, Span};
 
@@ -67,25 +68,30 @@ impl Stores {
     }
 
     /// Add `rows` to the first store, as one segment; the store as one when it
-    /// has grown past [`SEGMENTS`]. Nothing, and no error, when another writer
-    /// published between the read and here.
-    pub(crate) fn append<P: ParseRow>(&self, rows: &[(&str, &P)]) -> std::io::Result<()> {
-        let Some((path, chain)) = self.chains.first() else { return Ok(()) };
+    /// has grown past [`SEGMENTS`]. `false`, and nothing written, when another
+    /// writer published between the read and here.
+    pub(crate) fn append<P: ParseRow>(&self, rows: &[(&str, &P)]) -> std::io::Result<bool> {
+        let Some((path, chain)) = self.chains.first() else { return Ok(false) };
         if rows.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
         let segment = parses_only(rows);
         let Some(chain) = chain else {
-            return written(path, Over::Nothing, &[], &[&segment], &[], 0).map(drop);
+            return written(path, Over::Nothing, &[], &[&segment], &[], 0);
         };
         let references = references(chain);
         if references.len() < SEGMENTS || chain.dropped > 0 {
-            return written(path, Over::Published(chain.published()), &references, &[&segment], &[], 0).map(drop);
+            return written(path, Over::Published(chain.published()), &references, &[&segment], &[], 0);
         }
-        let mut layers: Vec<&[u8]> = chain.segments[1..].iter().map(Vec::as_slice).collect();
+        let mut layers: Vec<&[u8]> = chain.segments.iter().map(Vec::as_slice).collect();
         layers.push(&segment);
-        let whole = merged(&[&chain.segments[0]], &layers).map_err(std::io::Error::other)?;
-        written(path, Over::Published(chain.published()), &[], &[&whole], &references, 0).map(drop)
+        let whole = compacted(&layers).map_err(std::io::Error::other)?;
+        let oldest = oldest(path, &chain.references);
+        let wrote = written(path, Over::Published(chain.published()), &[], &[&whole], &references, 0)?;
+        if wrote {
+            aged(path, &whole, oldest);
+        }
+        Ok(wrote)
     }
 
     /// Add to the first store each of `read`, as `(digest, way, parse)`, that
@@ -165,6 +171,31 @@ fn folded<'c>(layers: &[Layer<'c>]) -> FxHashMap<(&'c str, &'c str), (usize, usi
     keys
 }
 
+/// When the segment named `digest` of the store at `path` was written.
+fn written_at(path: &str, digest: &str) -> Option<SystemTime> {
+    std::fs::metadata(file_name(&format!("{path}.segments"), digest)).and_then(|meta| meta.modified()).ok()
+}
+
+/// When the oldest of `references` in the store at `path` was written, read
+/// before a rewrite removes them.
+fn oldest(path: &str, references: &[crate::index_chain::Reference]) -> Option<SystemTime> {
+    references.iter().filter_map(|reference| written_at(path, &reference.digest)).min()
+}
+
+/// Date the segment `bytes` just written to the store at `path` as `oldest`,
+/// the oldest of the segments it replaced: a key's age runs from when it was
+/// added, and a rewrite that reset it would keep a busy store from ever passing
+/// the grace. A key added since reads as older than it is, which costs at most
+/// a parse dropped before its root is published, and a reparse.
+fn aged(path: &str, bytes: &[u8], oldest: Option<SystemTime>) {
+    let Some(oldest) = oldest else { return };
+    let digest = crate::digest::of_sha256(Sha256::digest(bytes).as_slice());
+    let name = file_name(&format!("{path}.segments"), &digest);
+    if let Ok(file) = std::fs::File::options().write(true).open(name) {
+        let _ = file.set_modified(oldest);
+    }
+}
+
 /// The row key the encoder writes for `digest` and `way`.
 pub(crate) fn key(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
@@ -196,8 +227,8 @@ pub fn fill_parse_store(stores: Vec<String>, chain: String) -> napi::Result<u32>
     }
     rows.sort_by(|left, right| code_unit(&left.0, &right.0));
     let rows: Vec<(&str, &ParseView)> = rows.iter().map(|(key, view)| (key.as_str(), view)).collect();
-    held.append(&rows).map_err(|error| fail(error.to_string()))?;
-    Ok(rows.len() as u32)
+    let wrote = held.append(&rows).map_err(|error| fail(error.to_string()))?;
+    Ok(if wrote { rows.len() as u32 } else { 0 })
 }
 
 /// Drop from the store at `store` every key no chain in `chains` names, unless
@@ -213,17 +244,12 @@ pub fn prune_parse_store(store: String, chains: Vec<String>, grace_ms: f64) -> n
     });
     let grace = Duration::from_millis(grace_ms.max(0.0) as u64);
     let now = SystemTime::now();
-    let directory = format!("{store}.segments");
     let layers = opened(&chain);
     let young: Vec<bool> = chain
         .references
         .iter()
         .take(layers.len())
-        .map(|reference| {
-            let name = format!("{directory}/{}.bin", reference.digest.replacen(':', "-", 1));
-            let written_at = std::fs::metadata(name).and_then(|meta| meta.modified()).unwrap_or(now);
-            now.duration_since(written_at).unwrap_or_default() < grace
-        })
+        .map(|reference| now.duration_since(written_at(&store, &reference.digest).unwrap_or(now)).unwrap_or_default() < grace)
         .collect();
     let keys = folded(&layers);
     let mut kept: Vec<(String, ParseView)> = Vec::new();
@@ -239,8 +265,12 @@ pub fn prune_parse_store(store: String, chains: Vec<String>, grace_ms: f64) -> n
     kept.sort_by(|left, right| code_unit(&left.0, &right.0));
     let rows: Vec<(&str, &ParseView)> = kept.iter().map(|(key, view)| (key.as_str(), view)).collect();
     let whole = parses_only(&rows);
+    let oldest = oldest(&store, &chain.references);
     match written(&store, Over::Published(chain.published()), &[], &[&whole], &references(&chain), 0) {
-        Ok(true) => Ok(dropped),
+        Ok(true) => {
+            aged(&store, &whole, oldest);
+            Ok(dropped)
+        }
         // Another writer appended meanwhile; the next prune sees what it added.
         Ok(false) => Ok(0),
         Err(error) => Err(fail(error.to_string())),

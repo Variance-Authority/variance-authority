@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -168,5 +168,61 @@ describe('the parse store a cache keeps', () => {
     const swept = await pruneParseStore(cache, { graceMs: 0 });
     expect(swept.dropped).toBe(all.length - named.size);
     expect(new Set(await storedKeys())).toEqual(named);
+  });
+  it('parses nothing again for a directory whose checkout names its own index', async () => {
+    const root = await checkout();
+    await updateSourceIndex(root);
+
+    const part = join(root, 'packages/a');
+    const named = await updateSourceIndex(part, { index: sourceIndexPath(part) });
+    expect(named.files).toBeGreaterThan(0);
+    expect(named.parsed).toBe(0);
+  });
+
+  it('parses nothing again for a copy of a checkout at another path', async () => {
+    const root = await checkout();
+    await updateSourceIndex(root);
+    const copy = join(await temporary('variance-parse-store-copy-'), 'copy');
+    await cp(root, copy, { recursive: true, filter: (from) => !from.includes('node_modules') });
+
+    const again = await updateSourceIndex(copy);
+    expect(again.files).toBeGreaterThan(0);
+    expect(again.parsed).toBe(0);
+  });
+
+  it('reads back whole after two roots add to it at once', async () => {
+    const root = await checkout();
+    const [a, b] = await Promise.all([updateSourceIndex(join(root, 'packages/a')), updateSourceIndex(join(root, 'packages/b'))]);
+    expect(a.parsed! + b.parsed!).toBeGreaterThan(0);
+
+    // A writer the other moved the store under skips its append; what it parsed is added by the next root that parses it.
+    expect((await storedKeys()).length).toBeGreaterThan(0);
+    await updateSourceIndex(root);
+    const whole = await updateSourceIndex(join(root, 'packages'));
+    expect(whole.parsed).toBe(0);
+  });
+
+  it('keeps every parse through a compaction, and reclaims one no root names once it is old', async () => {
+    const root = await checkout();
+    await updateSourceIndex(join(root, 'packages/b'));
+    await rm(dirname(sourceIndexPath(join(root, 'packages/b'))), { recursive: true, force: true });
+    // Enough roots, each adding a parse of its own, to bring the store past the segments it keeps apart.
+    for (let at = 0; at < 16; at += 1) {
+      await write(root, `packages/many${String(at)}/index.ts`, `export const many = ${String(at)};\n`);
+    }
+    git(root, 'add', '.');
+    git(root, 'commit', '--quiet', '-m', 'many');
+    const segments = `${parseStorePath(cache)}.segments`;
+    for (let at = 0; at < 15; at += 1) await updateSourceIndex(join(root, `packages/many${String(at)}`));
+    const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    for (const name of await readdir(segments)) await utimes(join(segments, name), old, old);
+    const before = await storedKeys();
+    // This append compacts the store into one segment, which holds every parse the segments did.
+    await updateSourceIndex(join(root, 'packages/many15'));
+    expect((await readdir(segments)).length).toBe(1);
+    expect((await storedKeys()).length).toBe(before.length + 1);
+
+    const swept = await pruneParseStore(cache, { graceMs: 60 * 60 * 1000 });
+    expect(swept.dropped).toBeGreaterThan(0);
   });
 });
