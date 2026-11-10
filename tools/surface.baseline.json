@@ -3395,6 +3395,7 @@
         "defaultInclude": "function",
         "dependsReachFromView": "function",
         "deviationOfTests": "function",
+        "directoriesIn": "function",
         "distanceByExecution": "function",
         "distanceFromView": "function",
         "distanceRange": "function",

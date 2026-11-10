@@ -28,11 +28,13 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 use crate::compact::{merged, Layer, ParseView};
+use crate::read::Read;
+use crate::segment::{Collected, Strings};
 use crate::index::parses_only;
 use crate::index_chain::{read_chain, Chain};
 use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
-use crate::parse_columns::ParseRow;
+use crate::parse_columns::{ParseColumns, ParseRow, Span};
 
 /// Past this many segments an append writes the store as one.
 const SEGMENTS: usize = 16;
@@ -85,6 +87,44 @@ impl Stores {
         let whole = merged(&[&chain.segments[0]], &layers).map_err(std::io::Error::other)?;
         written(path, Over::Published(chain.published()), &[], &[&whole], &references, 0).map(drop)
     }
+
+    /// Add to the first store each of `read`, as `(digest, way, parse)`, that
+    /// none of the stores holds. A store not written costs the next root a
+    /// parse, never an answer, so a failed write is dropped.
+    pub(crate) fn add_unheld<'r>(&self, opened: &Opened, read: impl Iterator<Item = (&'r str, String, &'r Read)>) {
+        let mut rows: Vec<(String, &Read)> =
+            read.filter(|(digest, way, _)| !opened.holds(digest, way)).map(|(digest, way, read)| (key(digest, &way), read)).collect();
+        rows.sort_by(|left, right| code_unit(&left.0, &right.0));
+        rows.dedup_by(|left, right| left.0 == right.0);
+        let rows: Vec<(&str, &Read)> = rows.iter().map(|(key, read)| (key.as_str(), *read)).collect();
+        let _ = self.append(&rows);
+    }
+}
+
+/// A parse an update writes into the index: read now, or copied from a store as it lies there.
+pub(crate) enum Parse<'r, 's, 'a> {
+    Read(&'r Read),
+    Kept(ParseView<'s, 'a>),
+}
+
+macro_rules! either {
+    ($self:ident, $row:ident => $body:expr) => {
+        match $self {
+            Parse::Read($row) => $body,
+            Parse::Kept($row) => $body,
+        }
+    };
+}
+
+impl ParseRow for Parse<'_, '_, '_> {
+    fn strings<'s>(&'s self, into: &mut Collected<'s>) { either!(self, row => row.strings(into)) }
+    fn write(&self, strings: &Strings, into: &mut ParseColumns) { either!(self, row => row.write(strings, into)) }
+    fn exports_present(&self) -> bool { either!(self, row => row.exports_present()) }
+    fn declares_present(&self) -> bool { either!(self, row => row.declares_present()) }
+    fn unknown(&self) -> Option<&str> { either!(self, row => row.unknown()) }
+    fn harvested(&self) -> bool { either!(self, row => row.harvested()) }
+    fn size(&self) -> Option<crate::source_size::Size> { either!(self, row => row.size()) }
+    fn doc(&self) -> Span { either!(self, row => row.doc()) }
 }
 
 impl<'c> Opened<'c> {
@@ -126,7 +166,7 @@ fn folded<'c>(layers: &[Layer<'c>]) -> FxHashMap<(&'c str, &'c str), (usize, usi
 }
 
 /// The row key the encoder writes for `digest` and `way`.
-fn key(digest: &str, way: &str) -> String {
+pub(crate) fn key(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
 }
 

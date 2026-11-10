@@ -98,6 +98,7 @@ export {
   CACHE_CONFIG,
   cacheLayers,
   cacheRootFor,
+  directoriesIn,
   layeredFiles,
   repositoryLayers,
   rootConfig,

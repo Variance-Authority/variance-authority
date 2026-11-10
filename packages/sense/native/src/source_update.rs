@@ -31,7 +31,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
-use crate::compact::{merged, Layer, ParseView};
+use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::git::Oid;
@@ -40,9 +40,7 @@ use crate::index_chain::read_chain;
 use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
 use crate::package_graph::{fold, names_object, At};
-use crate::parse_columns::{ParseColumns, ParseRow, Span};
-use crate::parse_store::Stores;
-use crate::segment::{Collected, Strings};
+use crate::parse_store::{self, Parse, Stores};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};
 use crate::witness::AliasTable;
@@ -107,32 +105,6 @@ struct Row {
     parsed: bool,
     /// Answered by a store rather than read.
     kept: bool,
-}
-
-/// A parse an update writes into the index: read now, or copied from a store as it lies there.
-enum Parse<'r, 's, 'a> {
-    Read(&'r Read),
-    Kept(ParseView<'s, 'a>),
-}
-
-macro_rules! either {
-    ($self:ident, $row:ident => $body:expr) => {
-        match $self {
-            Parse::Read($row) => $body,
-            Parse::Kept($row) => $body,
-        }
-    };
-}
-
-impl ParseRow for Parse<'_, '_, '_> {
-    fn strings<'s>(&'s self, into: &mut Collected<'s>) { either!(self, row => row.strings(into)) }
-    fn write(&self, strings: &Strings, into: &mut ParseColumns) { either!(self, row => row.write(strings, into)) }
-    fn exports_present(&self) -> bool { either!(self, row => row.exports_present()) }
-    fn declares_present(&self) -> bool { either!(self, row => row.declares_present()) }
-    fn unknown(&self) -> Option<&str> { either!(self, row => row.unknown()) }
-    fn harvested(&self) -> bool { either!(self, row => row.harvested()) }
-    fn size(&self) -> Option<crate::source_size::Size> { either!(self, row => row.size()) }
-    fn doc(&self) -> Span { either!(self, row => row.doc()) }
 }
 
 /// The files the index reaches from its seeds over the records it holds and
@@ -221,10 +193,6 @@ fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, St
 }
 
 /// The key a parse is stored under: `joinedKey` in `source-index-format.ts`.
-fn joined(digest: &str, way: &str) -> String {
-    if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
-}
-
 pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Updated>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
     // A chain that cannot be read is the JavaScript update's to describe, which is where its refusals are worded.
@@ -391,24 +359,13 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         .filter_map(|(file, row)| {
             let way = way(file);
             let parse = if row.kept { Parse::Kept(store.view(&row.identity, &way)?) } else { Parse::Read(&row.read) };
-            Some((joined(&row.identity, &way), parse))
+            Some((parse_store::key(&row.identity, &way), parse))
         })
         .collect();
     // What this update parsed that no store holds, for every root after it.
-    let mut stored: Vec<(String, &Read)> = reached
-        .new
-        .iter()
-        .map(|file| (file, &walked[file.as_str()]))
-        .filter(|(_, row)| row.parsed && !row.kept && !row.identity.is_empty())
-        .map(|(file, row)| (way(file), row))
-        .filter(|(way, row)| !store.holds(&row.identity, way))
-        .map(|(way, row)| (joined(&row.identity, &way), &row.read))
-        .collect();
-    stored.sort_by(|left, right| code_unit(&left.0, &right.0));
-    stored.dedup_by(|left, right| left.0 == right.0);
-    let stored: Vec<(&str, &Read)> = stored.iter().map(|(key, read)| (key.as_str(), *read)).collect();
-    // A store not written costs the next root a parse, never an answer.
-    let _ = stores.append(&stored);
+    let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
+    let parsed_here = parsed_here.filter(|(_, row)| row.parsed && !row.kept && !row.identity.is_empty());
+    stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read)));
     let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
     interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
     let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };
@@ -422,7 +379,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             .filter_map(|(file, &(layer, at))| {
                 let (stored, records) = (&layers[layer].stored, &layers[layer].records);
                 let digest = stored.optional(records.digest.at(at))?;
-                wanted.contains(digest).then(|| joined(digest, &way(file)))
+                wanted.contains(digest).then(|| parse_store::key(digest, &way(file)))
             })
             .collect();
         users.extend(fresh.iter().map(|(key, _)| key.clone()));
@@ -430,7 +387,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     };
     let mut deleted_parses: Vec<String> = retired
         .iter()
-        .filter_map(|(file, digest)| Some(joined((*digest)?, &way(file))))
+        .filter_map(|(file, digest)| Some(parse_store::key((*digest)?, &way(file))))
         .filter(|key| {
             let (digest, way) = crate::generation::key_parts(key);
             held.contains(&(digest.to_owned(), way.to_owned())) && !users.contains(key)

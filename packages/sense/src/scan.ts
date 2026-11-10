@@ -343,50 +343,38 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   let graph: NativeIndexGraph | undefined;
   let parsed = 0;
 
+  const follow = (record: FileRecord): void => {
+    for (const edge of record.edges ?? []) {
+      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
+    }
+  };
+  // A parse the cache holds and the answer does not — a reused record's, or one
+  // a store kept — is read back only for a caller that asked to be handed it.
+  const handOver = (file: string, read: Parsed | undefined, key: string | undefined, targets?: readonly (string | undefined)[]): void => {
+    const asked = options.parsed !== undefined || options.indexed !== undefined;
+    const parse = read ?? (key !== undefined && asked ? cache.get(key) : undefined);
+    if (parse === undefined) return;
+    options.parsed?.(file, parse);
+    if (targets !== undefined) options.indexed?.(file, parse, targets);
+  };
+
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
     reuse?.set(fresh.record, fresh.witnesses, fresh.targets);
     if (fresh.parsed === true) parsed += 1;
-    const heldDigest = fresh.record.digest;
-    if (fresh.read !== undefined && heldDigest !== undefined) {
-      cache.set(keyFor(heldDigest, way), fresh.read);
-    }
+    const key = fresh.record.digest === undefined ? undefined : keyFor(fresh.record.digest, way);
+    if (fresh.read !== undefined && key !== undefined) cache.set(key, fresh.read);
     // A kept parse crossed as what its record needs; the whole one is the store's.
-    if (fresh.kept === true && heldDigest !== undefined) cache.keep?.(keyFor(heldDigest, way));
-    const read = fresh.read ?? (fresh.kept === true && heldDigest !== undefined && (options.parsed !== undefined || options.indexed !== undefined)
-      ? cache.get(keyFor(heldDigest, way))
-      : undefined);
-    if (read !== undefined) options.parsed?.(file, read);
-    if (read !== undefined && fresh.targets !== undefined) {
-      options.indexed?.(file, read, fresh.targets);
-    }
-    for (const edge of fresh.record.edges ?? []) {
-      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
-    }
+    if (fresh.kept === true && key !== undefined) cache.keep?.(key);
+    handOver(file, fresh.read, fresh.kept === true ? key : undefined, fresh.targets);
+    follow(fresh.record);
   };
 
-  const acceptRemembered = (
-    file: string,
-    digest: Digest,
-    way: ParseWay,
-    held: IndexedRecord,
-  ): void => {
-    const record = held.record;
-    built.set(file, record);
+  const acceptRemembered = (file: string, digest: Digest, way: ParseWay, held: IndexedRecord): void => {
+    built.set(file, held.record);
     cache.keep?.(keyFor(digest, way));
-    if (options.parsed !== undefined) {
-      const read = cache.get(keyFor(digest, way));
-      if (read !== undefined) {
-        options.parsed(file, read);
-        if (held.targets !== undefined) options.indexed?.(file, read, held.targets);
-      }
-    } else if (options.indexed !== undefined) {
-      const read = cache.get(keyFor(digest, way));
-      if (read !== undefined && held.targets !== undefined) options.indexed(file, read, held.targets);
-    }
-    for (const edge of record.edges ?? []) {
-      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
-    }
+    handOver(file, undefined, keyFor(digest, way), held.targets);
+    follow(held.record);
   };
 
   // One frontier per call: every file currently known is parsed and resolved on

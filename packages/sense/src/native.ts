@@ -29,6 +29,7 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
+import type { NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
@@ -131,7 +132,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly kept: Buffer;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -156,27 +157,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * cannot be read.
    */
   aliasesIn(root: string, paths: string[]): AliasTable | null;
-  /**
-   * A source-index generation as bytes, from the JSON documents
-   * `sourceIndexDocuments` writes of it. The only encoder of the format.
-   */
-  encodeSourceIndex(documents: string[]): Buffer;
-  /**
-   * Write a save's `layers` over the source-index chain at `path`, as the save
-   * read it: the first `read.length` segments its manifest names, or the legacy
-   * single-segment file when `legacy`. The addon decides what the next manifest
-   * names (`native/src/append_index.rs`) and is the only writer of the chain.
-   * Why the layers were not written, or `null` when they are.
-   */
-  appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
-  /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
-  seedSourceIndex(path: string, from: string): boolean;
-  /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
-  pruneParseStore(store: string, chains: string[], graceMs: number): number;
-  /** Add to the first of `stores` every parse the chain at `chain` holds and no store does; how many went in. */
-  fillParseStore(stores: string[], chain: string): number;
-  /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
-  takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
@@ -493,14 +473,8 @@ function builtFromBatch(
         aliases: options.aliases,
       })
       : [];
-    const kept = batch.kept[index] === 1;
-    built.push({
-      record,
-      ...(read === undefined ? {} : { read }),
-      targets,
-      witnesses,
-      ...(kept ? { kept: true as const } : { parsed: true as const }),
-    });
+    const crossed = batch.kept[index] === 1 ? { kept: true as const } : { parsed: true as const };
+    built.push({ record, ...(read === undefined ? {} : { read }), targets, witnesses, ...crossed });
   }
 
   return built;

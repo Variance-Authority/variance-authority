@@ -28,6 +28,7 @@ import { join } from 'node:path';
 import {
   applyPrune,
   bytesUnder,
+  directoriesIn,
   machineOwners,
   planPrune,
   prunedLine,
@@ -198,15 +199,6 @@ async function mtimeOf(path: string): Promise<number | undefined> {
 async function namesIn(directory: string): Promise<readonly string[]> {
   try {
     return await readdir(directory);
-  } catch {
-    return [];
-  }
-}
-
-async function directoriesIn(directory: string): Promise<readonly string[]> {
-  try {
-    const found = await readdir(directory, { withFileTypes: true });
-    return found.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name);
   } catch {
     return [];
   }
