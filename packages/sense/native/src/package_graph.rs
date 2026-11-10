@@ -69,7 +69,9 @@ pub struct Orientation {
     /// Records the answer reads — crossing into or out of an asked package, or
     /// into a package one takes from — whose parse could not be joined to them.
     pub unread: u32,
-    /// Segments the manifest names past the first one that could not be used.
+    /// Segments lost to damage: those the manifest names past the first one
+    /// that could not be used, or none when writers kept moving the manifest
+    /// and the read kept a prefix — that answer is late, not damaged.
     pub dropped: u32,
 }
 

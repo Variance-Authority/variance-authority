@@ -53,6 +53,8 @@ pub struct ExternalOrientation {
     pub missing: Vec<String>,
     pub declared_only: Vec<String>,
     pub more_declared_only: u32,
+    /// Segments lost to damage, as `Orientation.dropped` counts them: none
+    /// when writers kept moving the manifest and the read kept a prefix.
     pub dropped: u32,
 }
 
