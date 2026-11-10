@@ -39,6 +39,8 @@ export interface RecordSubject {
   readonly remembering: boolean;
   /** This file's content digest, when it was known without opening the file. */
   readonly digest?: Digest;
+  /** Told of each parse this record's read makes, where it makes it. */
+  readonly counted?: () => void;
 }
 
 export interface BuiltRecord {
@@ -72,6 +74,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   // miss falls through to I/O.
   let digest = subject.digest;
   let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
+  if (read !== undefined && !heldUnder(read, absolute, largestFile)) read = undefined;
 
   if (read === undefined) {
     const size = await sized(absolute);
@@ -106,6 +109,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     read = cache.get(keyFor(digest, way));
     if (read === undefined) {
       read = parsedFrom(file, contents, way, language);
+      subject.counted?.();
       cache.set(keyFor(digest, way), read);
     }
   }
@@ -205,14 +209,16 @@ export function parsedOnce(input: {
   readonly cache?: ParseCache;
   readonly digest?: Digest | undefined;
   readonly largestFile?: number;
+  /** Told of each parse made here, where it is made. */
+  readonly counted?: () => void;
 }): Parsed | undefined {
   const { root, file, cache, largestFile } = input;
   const way = parseWay(file);
   const language = languageFor(way);
   if (language === undefined) return undefined;
   const held = input.digest === undefined ? undefined : cache?.get(keyFor(input.digest, way));
-  if (held !== undefined) return held;
   let contents: string;
+  if (held !== undefined) return largestFile === undefined || heldUnder(held, join(root, file), largestFile) ? held : undefined;
   try {
     if (largestFile !== undefined && statSync(join(root, file)).size > largestFile) return undefined;
     contents = readFileSync(join(root, file), 'utf8');
@@ -220,9 +226,32 @@ export function parsedOnce(input: {
     return undefined;
   }
   const key = keyFor(input.digest ?? digestString(contents), way);
-  const read = cache?.get(key) ?? parsedFrom(file, contents, way, language);
+  let read = cache?.get(key);
+  if (read === undefined) {
+    read = parsedFrom(file, contents, way, language);
+    input.counted?.();
+  }
   cache?.set(key, read);
   return read;
+}
+
+/**
+ * Whether a held parse answers under `largestFile`, which is not the limit that
+ * read it: by the size it was measured at, else by the file's as checked out.
+ * A size neither knows, such as a stylesheet's absent from a sparse checkout,
+ * answers nothing, so the file is read again and says why it could not be.
+ * `read_kept` in `batch.rs` keeps the same rule for the addon.
+ */
+function heldUnder(held: Parsed, absolute: string, largestFile: number): boolean {
+  let bytes = held.size?.bytes;
+  if (bytes === undefined) {
+    try {
+      bytes = statSync(absolute).size;
+    } catch {
+      return false;
+    }
+  }
+  return bytes <= largestFile;
 }
 
 /** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */

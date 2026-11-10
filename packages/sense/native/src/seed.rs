@@ -43,6 +43,19 @@ pub(crate) fn seed_paths(root: &str, dirs: &[String], paths: &[String]) -> Vec<S
         .collect()
 }
 
+/// The seeds of a snapshot: the paths git named a digest for, and the ones it
+/// could not, such as a tracked link to nothing. What cannot be read is
+/// charged as unknown by the scan that tries, never dropped from it.
+pub(crate) fn seeds_of(root: &str, dirs: &[String], snapshot: &crate::git::Snapshot) -> Vec<String> {
+    let mut seeds = seed_paths(root, dirs, &snapshot.paths);
+    let unhashed = seed_paths(root, dirs, &snapshot.unhashed);
+    if !unhashed.is_empty() {
+        seeds.extend(unhashed);
+        seeds.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    }
+    seeds
+}
+
 fn readable(path: &str) -> bool {
     Path::new(path)
         .extension()

@@ -14,7 +14,7 @@ pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<Git
     #[cfg(unix)]
     {
         let (snapshot, change) = crate::held_listing::change_tree(&root, &index, &dirs)?;
-        let seeds = crate::seed::seed_paths(&root, &dirs, &snapshot.paths);
+        let seeds = crate::seed::seeds_of(&root, &dirs, &snapshot);
         let mut tree = crate::tree_from_snapshot(snapshot, seeds);
         tree.change = change;
         Some(tree)
@@ -48,7 +48,7 @@ pub(crate) fn carry(change: &Option<crate::held_listing::Change>, config: &str, 
     use crate::held_listing::Change;
     match change {
         Some(Change::Vouched(meta, manifest)) if meta.config.as_deref() == Some(config) && std::fs::read(index).is_ok_and(|now| now == *manifest) => {
-            Err(crate::source_update::Updated { files: meta.files, reread: 0, published: false, refused: None })
+            Err(crate::source_update::Updated { files: meta.files, reread: 0, parsed: 0, published: false, refused: None })
         }
         Some(Change::Vouched(meta, _) | Change::Listed(meta)) => Ok(Some(meta.clone())),
         None => Ok(None),

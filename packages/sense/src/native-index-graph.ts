@@ -39,12 +39,16 @@ export interface NativeIndexGraphOptions {
   readonly builtins: string[];
   readonly codeExtensions: string[];
   readonly directories: string[];
+  /** The parse stores a module's parse is looked up in before it is read. */
+  readonly stores?: string[];
 }
 
 /** `IndexGraph` in `native/src/graph_index.rs`. */
 export interface NativeIndexGraph {
   /** How many files the closure holds. */
   readonly size: number;
+  /** How many of them it parsed: a module declined for its bytes holds a record and no parse. */
+  readonly parsed: number;
   has(file: string): boolean;
   /** Every file an edge reaches that the closure does not hold, sorted by code unit. */
   following(): string[];
@@ -73,6 +77,7 @@ export interface IndexGraphRequest {
   readonly remembering: boolean;
   readonly aliases: Aliases | undefined;
   readonly directories: ReadonlyMap<string, Digest>;
+  readonly stores?: readonly string[];
 }
 
 /**
@@ -98,6 +103,7 @@ export function nativeIndexGraph(tree: NativeGitTree, request: IndexGraphRequest
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     directories: [...request.directories.keys()],
+    ...(request.stores === undefined ? {} : { stores: [...request.stores] }),
   });
 }
 

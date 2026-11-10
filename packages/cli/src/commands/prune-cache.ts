@@ -28,10 +28,10 @@ import { join } from 'node:path';
 import {
   applyPrune,
   bytesUnder,
-  machineOwners,
-  planPrune,
+  directoriesIn,
   prunedLine,
   readFetchedMainline,
+  pruneSelection,
   pruneWhenDue,
   PRUNE_EVERY_MS,
   STORY_AGE_MS,
@@ -203,15 +203,6 @@ async function namesIn(directory: string): Promise<readonly string[]> {
   }
 }
 
-async function directoriesIn(directory: string): Promise<readonly string[]> {
-  try {
-    const found = await readdir(directory, { withFileTypes: true });
-    return found.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name);
-  } catch {
-    return [];
-  }
-}
-
 /** Both halves of a prune, as applied. */
 export interface BothPruned {
   readonly selection: Pruned | undefined;
@@ -222,7 +213,7 @@ export interface BothPruned {
 export async function pruneNow(config: Pick<Config, 'cacheRoot'>): Promise<BothPruned> {
   const root = cacheOf(config);
   return {
-    selection: existsSync(join(root, 'test-selection')) ? await applyPrune(await planPrune(root, machineOwners())) : undefined,
+    selection: existsSync(join(root, 'test-selection')) ? await pruneSelection(root) : undefined,
     commits: existsSync(root) ? await applyPrune(await planCachePrune(config, checkoutOwners())) : undefined,
   };
 }

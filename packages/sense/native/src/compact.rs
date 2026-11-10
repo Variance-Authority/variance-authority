@@ -256,7 +256,7 @@ use parses::Parses;
 
 #[path = "compact_parse_view.rs"]
 mod parse_view;
-use parse_view::ParseView;
+pub(crate) use parse_view::ParseView;
 
 #[path = "compact_records.rs"]
 mod records;

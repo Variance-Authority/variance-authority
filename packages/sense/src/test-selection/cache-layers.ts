@@ -45,6 +45,7 @@
 // compass: variance-authority.reach
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { repositoryRoot } from './repository-root.js';
@@ -194,6 +195,16 @@ export interface CacheLayers {
   readonly top: string;
   /** The repository's shared directory. Equal to {@link top} in the primary checkout. */
   readonly base: string;
+}
+
+/** The directories directly in `directory` that are not dot directories, or none when it cannot be read. */
+export async function directoriesIn(directory: string): Promise<readonly string[]> {
+  try {
+    const found = await readdir(directory, { withFileTypes: true });
+    return found.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name);
+  } catch {
+    return [];
+  }
 }
 
 /**

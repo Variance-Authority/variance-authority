@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -9,11 +9,15 @@ import type { Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
 import { native, nativeAvailable, nativeGraph, type NativeGitTree } from './native.js';
 import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
+import { parseStorePath } from './parse-store.js';
+import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
-import { LARGEST_FILE } from './scan.js';
+import { memoryParseCache } from './cache.js';
+import { LARGEST_FILE, scanCount } from './scan.js';
 import { openSourceIndexFile, type IndexedRecord, type StoredSourceIndex } from './source-index-file.js';
 import { decodeSourceIndex } from './source-index-format.js';
+import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';
 
 /**
@@ -145,6 +149,59 @@ describe('a cold closure held by the addon', () => {
     expect(parses.size).toBeGreaterThan(seeds.length);
     expect([...parses.values()].filter((each) => each.harvested !== true)).toEqual([]);
   });
+
+  // `scanCount` reports what the closure parsed: a module it declined for its
+  // size holds a record but was never parsed.
+  it.runIf(available)('counts the modules it parsed, not the ones it declined', async () => {
+    const seeds = ['packages/sense/src/source-index.ts'];
+    const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
+    const { shape, aliases } = await shapeOf({ root, tree });
+    const closure = (largestFile: number) => nativeIndexGraph(tree.native!, {
+      root, seeds, largestFile, remembering: true, aliases, directories: shape.directories,
+    })!;
+    const declined = closure(1);
+    expect(declined.size).toBe(1);
+    expect(declined.parsed).toBe(0);
+    const read = closure(LARGEST_FILE);
+    expect(read.parsed).toBe(decodeSourceIndex(read.parseSegment()).parses.size);
+  });
+
+  // Ten thousand modules is where a scan hands its closure to the addon to hold.
+  const closureSize = 10_000;
+
+  /** A committed checkout of `closureSize` small modules and one over the size limit. */
+  async function many(): Promise<string> {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-scan-count-'));
+    await mkdir(join(directory, 'src'));
+    for (let at = 0; at < closureSize; at += 500) {
+      await Promise.all(Array.from({ length: 500 }, (_, each) =>
+        writeFile(join(directory, 'src', `m${String(at + each)}.ts`), `export const m = ${String(at + each)};\n`)));
+    }
+    await writeFile(join(directory, 'src', 'wide.ts'), `export const wide = '${'x'.repeat(LARGEST_FILE)}';\n`);
+    await run('git', ['init', '--quiet'], { cwd: directory });
+    await run('git', ['add', '.'], { cwd: directory });
+    await run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'many'], { cwd: directory });
+    return directory;
+  }
+
+  it.runIf(available)('counts, through a scan, every module the closure holds and only the ones it parsed', async () => {
+    const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache() });
+    expect(counted).toMatchObject({ files: closureSize + 1, parsed: closureSize });
+  }, 120_000);
+
+  it.runIf(available)('parses none of a closure it holds whose modules a store kept from another root', async () => {
+    const before = process.env[CACHE_VARIABLE];
+    const cache = await mkdtemp(join(tmpdir(), 'variance-scan-store-'));
+    process.env[CACHE_VARIABLE] = cache;
+    try {
+      await updateSourceIndex(await many());
+      const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache(), stores: [parseStorePath(cache)] });
+      expect(counted).toMatchObject({ files: closureSize + 1, parsed: 0 });
+    } finally {
+      if (before === undefined) delete process.env[CACHE_VARIABLE];
+      else process.env[CACHE_VARIABLE] = before;
+    }
+  }, 240_000);
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {
     const tree = {

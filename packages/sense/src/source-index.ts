@@ -77,16 +77,27 @@ export function primarySourceIndexPath(root: string, cacheRoot?: string): string
   return layers.top === layers.base ? undefined : resolve(layers.base, 'source-index.bin');
 }
 
+/** What {@link openSourceIndex} reads beside the chain itself. */
+export interface SourceIndexOptions {
+  /**
+   * The cache's parse stores ([`parse-store.ts`](./parse-store.ts)): a parse
+   * the chain does not hold is kept from the first that does, so a scan handed
+   * the same stores need not read the module.
+   */
+  readonly stores?: readonly string[];
+}
+
 /**
  * Open one versioned binary source-index generation from its immutable segments.
  *
  * A missing or incompatible chain behaves as an empty cache, and an incomplete
  * or corrupt one as the segments before the first bad one. Either can make this
- * scan slower and neither can change the resulting graph.
+ * scan slower and neither can change the resulting graph. A store reads the same way.
  */
-export async function openSourceIndex(path: string): Promise<PersistentSourceIndex> {
+export async function openSourceIndex(path: string, options: SourceIndexOptions = {}): Promise<PersistentSourceIndex> {
   const file = await openSourceIndexFile(path);
   const stored = file.stored;
+  const kept = await Promise.all((options.stores ?? []).map(async (store) => (await openSourceIndexFile(store)).stored.parses));
   const available = new Map(stored.records);
   const held: TreeShape | undefined = stored.config === undefined
     ? undefined
@@ -110,9 +121,20 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     return decodedNative.get(key);
   };
 
+  // A parse the chain lacks comes from a store, and the chain is written again to hold it.
+  const fromStore = (key: ParseKey): Parsed | undefined => {
+    for (const parses of kept) {
+      const parsed = parses.get(key);
+      if (parsed === undefined) continue;
+      dirty = true;
+      return parsed;
+    }
+    return undefined;
+  };
+
   const cache: ParseCache = {
     get(key) {
-      const parsed = parses.get(key) ?? fromNative(key) ?? stored.parses.get(key);
+      const parsed = parses.get(key) ?? fromNative(key) ?? stored.parses.get(key) ?? fromStore(key);
       if (parsed !== undefined) parses.set(key, parsed);
       return parsed;
     },
@@ -127,7 +149,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       parses.set(key, parsed);
     },
     keep(key) {
-      const parsed = fromNative(key) ?? stored.parses.get(key);
+      const parsed = fromNative(key) ?? stored.parses.get(key) ?? fromStore(key);
       if (parsed !== undefined) parses.set(key, parsed);
     },
   };

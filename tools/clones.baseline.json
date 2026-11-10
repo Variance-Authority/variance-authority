@@ -43,13 +43,6 @@
   },
   {
     "files": [
-      "packages/cli/src/commands/prune-cache.ts",
-      "packages/sense/src/test-selection/prune.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/cli/src/commands/report-html-subjects.ts",
       "packages/mcp/src/presentation.ts"
     ],

@@ -202,6 +202,17 @@ describe('the native tree against the JavaScript one', () => {
     expect(nativeRecords.map((record) => record.file)).not.toContain('src/generated/built.ts');
   });
 
+  it.runIf(native)('charges a tracked link to nothing as unknown, rather than dropping it', async () => {
+    const root = await repository();
+    await symlink('missing.ts', join(root, 'src/entry.ts'));
+    await git(root, ['add', '.']);
+    await git(root, ['commit', '--quiet', '-m', 'link']);
+
+    const entry = (await scanRelations({ root, dirs: ['src'] })).find((record) => record.file === 'src/entry.ts');
+
+    expect(entry?.unknown).toContain('src/entry.ts could not be read');
+  });
+
   it.runIf(native)('agrees on a tree whose only configuration is gone', async () => {
     const root = await repository();
     await unlink(join(root, 'tsconfig.json'));

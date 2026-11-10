@@ -26,11 +26,12 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::batch::{walk, GraphOptions, Walked};
+use crate::batch::{walk_beyond, GraphOptions, Walked};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Delta, Generation};
 use crate::git::Oid;
-use crate::index::{parse_segment, way};
+use crate::index::{parses_only, way};
+use crate::parse_store::{Opened, Parse};
 use crate::order::code_unit;
 use crate::record::{built, Indexed, Settling};
 use crate::witness::AliasTable;
@@ -54,6 +55,8 @@ pub struct IndexGraphOptions {
     pub code_extensions: Vec<String>,
     /// Every directory of the tree shape a witness is checked against.
     pub directories: Vec<String>,
+    /// The parse stores a module's parse is looked up in before it is read.
+    pub stores: Option<Vec<String>>,
 }
 
 #[napi]
@@ -64,6 +67,7 @@ pub struct IndexGraph {
     parse_segment: Vec<u8>,
     keys: HashSet<String>,
     following: Vec<String>,
+    parsed: u32,
 }
 
 pub(crate) fn index_graph(
@@ -71,6 +75,7 @@ pub(crate) fn index_graph(
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
+    store: Option<&Opened>,
 ) -> napi::Result<IndexGraph> {
     let aliases = options
         .aliases
@@ -81,7 +86,10 @@ pub(crate) fn index_graph(
     let builtins: HashSet<String> = options.builtins.into_iter().collect();
     let code: HashSet<String> = options.code_extensions.into_iter().collect();
     let directories: HashSet<String> = options.directories.into_iter().collect();
-    let Walked { files, identities, read, targets } = walk(
+    // A module a store holds is answered from it, under the size and link rules
+    // every walk keeps (`read_kept`), rather than read again.
+    let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
+    let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
         GraphOptions {
             root: options.root,
             seeds: options.seeds,
@@ -94,8 +102,20 @@ pub(crate) fn index_graph(
         at,
         tree_oids,
         listing,
+        &|_| false,
+        &kept,
     );
-    let segment = parse_segment(&files, &identities, &read);
+    // The closure publishes its own index, so a kept row's parse goes into it
+    // whole, from the store, as a warm update writes one (`source_update.rs`).
+    let mut rows: Vec<(String, Parse)> = (0..files.len())
+        .filter(|&index| read[index].2.parsed() && !identities[index].is_empty())
+        .filter_map(|index| Parse::of(store, &identities[index], &files[index], answered[index], &read[index].0))
+        .collect();
+    rows.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
+    rows.dedup_by(|left, right| left.0 == right.0);
+    let segment = parses_only(&rows.iter().map(|(key, parse)| (key.as_str(), parse)).collect::<Vec<_>>());
+    let keys = rows.into_iter().map(|(key, _)| key).collect();
+    let parsed = read.iter().zip(&answered).filter(|((_, _, outcome), kept)| outcome.parsed() && !**kept).count() as u32;
     let settling = Settling {
         builtins: &builtins,
         code: &code,
@@ -109,13 +129,6 @@ pub(crate) fn index_graph(
             let (held, _, outcome) = &read[index];
             built(&files[index], &identities[index], held, *outcome, &targets[index], &settling)
         })
-        .collect();
-    let keys = files
-        .iter()
-        .zip(&identities)
-        .zip(&read)
-        .filter(|((_, identity), (_, _, outcome))| outcome.parsed() && !identity.is_empty())
-        .map(|((file, identity), _)| format!("{identity}\0{}", way(file)))
         .collect();
     drop(read);
     drop(targets);
@@ -136,7 +149,7 @@ pub(crate) fn index_graph(
         .into_iter()
         .collect();
     following.sort_by(|left, right| code_unit(left, right));
-    Ok(IndexGraph { records, at: held, parse_segment: segment, keys, following })
+    Ok(IndexGraph { records, at: held, parse_segment: segment, keys, following, parsed })
 }
 
 #[napi]
@@ -145,6 +158,12 @@ impl IndexGraph {
     #[napi(getter, catch_unwind)]
     pub fn size(&self) -> u32 {
         self.records.len() as u32
+    }
+
+    /// How many of its files the closure parsed: one declined for its bytes was not.
+    #[napi(getter, catch_unwind)]
+    pub fn parsed(&self) -> u32 {
+        self.parsed
     }
 
     /// Whether the closure holds this file.

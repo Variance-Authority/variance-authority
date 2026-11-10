@@ -36,11 +36,14 @@ export interface NativeUpdateOptions {
   readonly builtins: string[];
   readonly codeExtensions: string[];
   readonly readable: string[];
+  /** The parse stores read before a file is opened, the first written: `parseStoresFor`. */
+  readonly stores?: string[];
 }
 /** `Updated` in `native/src/source_update.rs`. */
 export interface NativeUpdated {
   readonly files: number;
   readonly reread: number;
+  readonly parsed: number;
   readonly published: boolean;
   readonly refused?: string;
 }
@@ -48,16 +51,22 @@ export interface NativeUpdated {
 export interface NativelyUpdated {
   readonly files: number;
   readonly reread: number;
+  readonly parsed: number;
   readonly refused?: string;
   readonly listing: NativeGitTree;
 }
 
-/** Update the index at `index` over `dirs` of the checkout at `root` in the addon, or `undefined` when the JavaScript update has to. */
+/**
+ * Update the index at `index` over `dirs` of the checkout at `root` in the addon, or `undefined` when the JavaScript update has to.
+ * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
+ */
 export async function updateNatively(
   root: string,
   index: string,
   progress?: Progress,
   dirs: readonly string[] = ['.'],
+  stores?: readonly string[],
+  reading = 'reading the files that changed since the last index',
 ): Promise<NativelyUpdated | undefined> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const held = tree?.native;
@@ -67,7 +76,7 @@ export async function updateNatively(
   // it compares against the chain is the one that scan wrote.
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
   const { config, aliases } = await configOf({ root, tree, options: tsconfig === undefined ? {} : { tsconfig } });
-  const done = await stepped(progress, 'reading the files that changed since the last index', () => held.updateIndex!({
+  const done = await stepped(progress, reading, () => held.updateIndex!({
     root,
     index,
     config,
@@ -77,11 +86,13 @@ export async function updateNatively(
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     readable: [...READABLE],
+    ...(stores === undefined ? {} : { stores: [...stores] }),
   }));
   if (done === null) return undefined;
   return {
     files: done.files,
     reread: done.reread,
+    parsed: done.parsed,
     ...(done.refused === undefined || done.refused === null ? {} : { refused: done.refused }),
     listing: held,
   };

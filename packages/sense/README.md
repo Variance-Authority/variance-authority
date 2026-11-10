@@ -1604,6 +1604,7 @@ never touch a disk.
 | `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
 | `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
+| `stores` | absent | naming parse stores to look a tracked module up in before it is read; pass the same list to `openSourceIndex`, whose `cache` holds what a store answered |
 | `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded `unknown` instead of parsed |
 | `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
 
@@ -1726,7 +1727,10 @@ await source.save();
 ```
 
 `sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
-root, cached in CI the same way. See [the source index](https://variance-authority.dev/docs/source-index)
+root, cached in CI the same way. `variance index` also keeps one parse store per
+cache, keyed by a module's bytes and how they are read, so a directory or a
+worktree does not parse again what another root in the same cache has read; the
+cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
 for the on-disk layout and the cache recipe. The parse section is keyed by
 content digest; the record section additionally by the repository path layout
 and resolution settings, because resolution can change while file bytes stay the
