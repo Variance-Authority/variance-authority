@@ -103,7 +103,9 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
  * side's tip, so both diffs are read, cut to the files the side changed. The
  * record predates the pull request's own imports, so the files the side's
  * code reaches through HEAD's import graph are added: HEAD holds both sides'
- * edges, which only adds tests.
+ * edges, which only adds tests. A module reached that way joins with the tests
+ * the record saw execute it, which the graph alone cannot reach when a test
+ * loads it by a name it builds.
  */
 async function reachOf(
   git: Git,
@@ -127,6 +129,15 @@ async function reachOf(
   if (blind !== undefined) return { whole: `it reaches ${blind}, whose imports the graph could not all read` };
   const code = new Set(walked.filter((file) => asked.recorded.has(file)));
   const install = new Set<string>();
+  // The graph cannot follow a load by a built name back to its test, but the record saw the test run what it loaded:
+  // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
+  const past = walked.filter((file) => !own.has(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
+  if (past.length > 0) {
+    const reading = await read(readOf(asked, selection.standDiff((...args) => git(...args, '--', ...past), record, EMPTY_TREE)));
+    if (reading.declined !== undefined) return { whole: reading.declined };
+    if (reading.reading.ground !== 'read') return { whole: 'and its record could not be read' };
+    for (const test of reading.whole) if (!reading.skip.has(test)) code.add(test);
+  }
   for (const to of new Set([fork, end])) {
     if (to === record) continue;
     const all = names(record, to);
@@ -137,14 +148,7 @@ async function reachOf(
       if (files.length === 0) continue;
       const keep = new Set(files);
       const change = selection.withoutFiles(text, all.filter((file) => !keep.has(file)));
-      const reading = await read({
-        root: asked.root,
-        ...(asked.suite === undefined ? {} : { suite: asked.suite }),
-        ...(asked.noGit === undefined ? {} : { noGit: asked.noGit }),
-        record: asked.at,
-        relations: asked.relations,
-        change,
-      });
+      const reading = await read(readOf(asked, change));
       if (reading.declined !== undefined) return { whole: reading.declined };
       if (reading.reading.ground !== 'read') return { whole: 'and its record could not be read' };
       if (reading.reading.unread.length > 0) return { whole: `the record holds nothing about ${reading.reading.unread.join(', ')}` };
@@ -155,4 +159,19 @@ async function reachOf(
     }
   }
   return { code, install };
+}
+
+/** git's tree with no file in it: a diff to it removes every line of the files it names. */
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+
+/** The ordinary selection's request for one change, read on the record and HEAD's graph. */
+function readOf(asked: TestedRequest & { readonly at: string; readonly relations: Relations }, change: string): SuiteRequest {
+  return {
+    root: asked.root,
+    ...(asked.suite === undefined ? {} : { suite: asked.suite }),
+    ...(asked.noGit === undefined ? {} : { noGit: asked.noGit }),
+    record: asked.at,
+    relations: asked.relations,
+    change,
+  };
 }

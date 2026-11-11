@@ -104,4 +104,18 @@ describe('`variance select --tested` where the graph is blind', () => {
     expect(here.out).toBe(whole.out);
     expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: read alone, the pull request's change selects every test file (the merge holds its change to src/rate.ts under another path)`);
   });
+  it('runs a test the record says executed a module the pull request makes import what the mainline changed', async () => {
+    const LOADED = "it('others', async () => {\n  const name = '../src/' + 'other';\n  const { other } = await import(name);\n  other(1);\n});\n";
+    const queue = await queued(home(), {
+      start: { 'test/other.test.ts': LOADED },
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': "import { total } from './total';\n" + OTHER.replace('+ 1', '+ total(1)') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // HEAD's graph stops at `other`, which `other.test` loads by a name it builds; the record says it ran `other`.
+    expect(here.out).toBe('test/total.test.ts\n');
+  });
 });
