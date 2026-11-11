@@ -1,5 +1,11 @@
 # @variance-authority/ioc
 
+## 0.30.0
+
+### Patch Changes
+
+- edc6d7d: The README and the skill print `variance`, the command a package manager runs from the install, where they printed a runner that fetches another package when the install is missing.
+
 ## 0.29.0
 
 No changes in this release.
