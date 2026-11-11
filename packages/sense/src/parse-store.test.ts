@@ -10,7 +10,7 @@ import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { nativeGraph } from './native.js';
 import { shapeOf } from './reuse.js';
-import { LARGEST_FILE, scanRelations } from './scan.js';
+import { LARGEST_FILE, scanCount, scanRelations } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { decodeSourceIndex, encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { openSourceIndex, sourceIndexPath } from './source-index.js';
@@ -193,7 +193,7 @@ describe('the parse store a cache keeps', () => {
     await updateSourceIndex(join(root, 'packages/a'));
     const chain = sourceIndexPath(join(root, 'packages/a'));
     await appendFile(chain, 'x');
-    expect(fillParseStore([parseStorePath(cache)], chain)).toBe(0);
+    expect(fillParseStore((await gitTreeOf(root, ['packages/a']))!.native, [parseStorePath(cache)], chain)).toBe(0);
   });
 
   it('leaves the store as it is without the addon, which is all that reads or writes it', async () => {
@@ -205,7 +205,7 @@ describe('the parse store a cache keeps', () => {
     try {
       const without = await import('./parse-store.js');
       expect(await without.pruneParseStore(cache, { graceMs: 0 })).toEqual({ dropped: 0 });
-      expect(without.fillParseStore([parseStorePath(cache)], sourceIndexPath(join(root, 'packages/a')))).toBe(0);
+      expect(without.fillParseStore(undefined, [parseStorePath(cache)], sourceIndexPath(join(root, 'packages/a')))).toBe(0);
     } finally {
       vi.doUnmock('./addon.js');
       vi.resetModules();
@@ -396,9 +396,9 @@ describe('the parse store a cache keeps', () => {
     };
     const path = join(await temporary('variance-parse-store-index-'), 'index.bin');
     const source = await openSourceIndex(path);
-    await scanRelations({ root: await committed(), dirs: ['packages/a'], cache: source.cache, largestFile: 2 * LARGEST_FILE });
+    const { listing } = await scanCount({ root: await committed(), dirs: ['packages/a'], cache: source.cache, largestFile: 2 * LARGEST_FILE });
     await source.save();
-    fillParseStore([parseStorePath(cache)], path);
+    fillParseStore(listing, [parseStorePath(cache)], path);
     const second = await committed();
     const scan = async (largestFile?: number) => {
       const { files, kept } = (await gitTreeOf(second, ['packages/a']))!.native!.scanGraph(second, [file], largestFile, 1, false, undefined, false, [parseStorePath(cache)]);

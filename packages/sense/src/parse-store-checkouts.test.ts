@@ -98,6 +98,33 @@ describe('the checkouts a parse store answers', () => {
     expect(await records(right)).toBe(alone);
   });
 
+  it('parses nothing again for a checkout of blobs another read off the disk, as `packs: false` reads them', async () => {
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(await checkout('left'), { packs: false });
+    const second = await updateSourceIndex(await checkout('left'));
+    expect(second.files).toBeGreaterThan(0);
+    expect(second.parsed).toBe(0);
+  });
+
+  // `packs: false` is the update made in JavaScript, which fills the store from the index it wrote.
+  it.each([{}, { packs: false }])('takes no parse another checkout made of bytes it edited after git named them, updating with %o', async (options) => {
+    // `edited` holds bytes git still names by the committed blob. Git was told not to
+    // look for the edit, as it has not looked for one made after it listed the tree.
+    const edited = await checkout('left');
+    const clean = await checkout('left');
+    git(edited, 'update-index', '--assume-unchanged', 'packages/a/src/entry.ts');
+    await write(edited, 'packages/a/src/entry.ts', "import { side } from './right.js';\nexport const entry = side;\n");
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(clean);
+    const alone = await records(clean);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(edited, options);
+    await updateSourceIndex(clean);
+    expect(await records(clean)).toBe(alone);
+  });
+
   it("takes no parse of another checkout's line endings that `core.eol=crlf` writes out of one blob", async () => {
     await expectOwnLineEndings('core.eol', 'crlf');
   });

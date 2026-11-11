@@ -29,7 +29,7 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
-import type { NativeSourceIndexes } from './native-source-index.js';
+import type { NativeParseOrigins, NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
@@ -51,7 +51,7 @@ import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict }
 export type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict };
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
-export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
+export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins<NativeScanner['scanBatch']> {
   readonly size: number;
   /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
   readonly vouched: boolean;
@@ -280,6 +280,7 @@ export interface NativeFrontierOptions extends ResolveOptions {
   readonly stores?: readonly string[];
   /** Without `tree`, the files the listing holds under a tracked `build/`. */
   readonly listed?: readonly string[];
+  readonly named?: NativeGitTree; // without `tree`, the listing that names the blob of each file read off the disk
   readonly root: string;
   readonly files: readonly string[];
   readonly largestFile: number;
@@ -314,7 +315,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
   // A tree the addon built resolves with its own listing; only the free batch
   // is told which `build/` files are listed.
   const batch = options.tree === undefined
-    ? options.addon.scanBatch(
+    ? (options.named?.scanDisk.bind(options.named) ?? options.addon.scanBatch)(
       options.root,
       [...options.files],
       options.largestFile,

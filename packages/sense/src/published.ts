@@ -267,7 +267,7 @@ export async function updateSourceIndex(
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   }));
   const refused = await source.save();
-  if (refused === undefined && stores !== undefined) fillParseStore(stores, path);
+  if (refused === undefined && stores !== undefined) fillParseStore(listing, stores, path);
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
   if (options.index === undefined) markCheckout(realPath(where));
   return {

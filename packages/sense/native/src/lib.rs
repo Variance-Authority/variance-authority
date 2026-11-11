@@ -137,6 +137,7 @@ mod package_flows;
 mod package_graph;
 mod package_owners;
 mod parse_columns;
+mod parse_origin;
 mod parse_store;
 mod path;
 mod promisor;
@@ -199,6 +200,8 @@ pub struct GitTree {
     listing: OnceLock<Arc<emitted::Listing>>,
     /// The parse stores the last scan named, read once for every frontier of it.
     stores: std::sync::Mutex<Option<(Vec<String>, Arc<parse_store::Stores>)>>,
+    /// The parses this tree's reads made from the blob each is kept under.
+    from_blob: parse_origin::FromBlob,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     change: Option<held_listing::Change>,
@@ -268,6 +271,7 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         seeds,
         listing: OnceLock::new(),
         stores: std::sync::Mutex::new(None),
+        from_blob: parse_origin::FromBlob::default(),
         #[cfg(unix)]
         change: None,
     }
@@ -351,6 +355,8 @@ impl GitTree {
             Some(self.at.as_ref()),
             Some(self.listing()),
             &kept,
+            &[],
+            &self.from_blob,
         )
     }
 
@@ -398,6 +404,7 @@ impl GitTree {
             &self.oids,
             self.listing(),
             &kept,
+            &self.from_blob,
         )
     }
 
@@ -407,7 +414,7 @@ impl GitTree {
     pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
         let stores = self.stores(options.stores.take());
         let opened = stores.as_deref().map(parse_store::Stores::open);
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref())
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob)
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
@@ -426,6 +433,7 @@ impl GitTree {
                 listing: self.listing(),
                 regular: &self.regular,
                 unhashed: &self.unhashed,
+                from_blob: &self.from_blob,
                 #[cfg(unix)]
                 carry,
             },

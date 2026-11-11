@@ -1729,8 +1729,9 @@ await source.save();
 `sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
 root, cached in CI the same way. `variance index` also keeps one parse store per
 cache, keyed by a module's bytes and how they are read, so a directory or a
-worktree does not parse again what another root in the same cache has read; the
-cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
+worktree does not parse again what another root in the same cache has read. A
+parse of a tracked file is offered to other roots only when the bytes read are
+the blob git named for it; the cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
 for the on-disk layout and the cache recipe. The parse section is keyed by
 content digest; the record section additionally by the repository path layout
 and resolution settings, because resolution can change while file bytes stay the
