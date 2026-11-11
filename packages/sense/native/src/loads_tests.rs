@@ -79,6 +79,14 @@ fn a_function_made_for_another_file_loads_what_this_cannot_place() {
 }
 
 #[test]
+fn a_function_made_inside_parentheses_or_an_assertion_is_still_read() {
+    let source = format!("{IMPORT}const load = (createRequire(import.meta.url) as NodeRequire);\nload('./a.cjs');\n(createRequire(import.meta.url))('./b.cjs');\n");
+    let read = read_module("a.mts", &source, &Allocator::default(), false);
+    let values: Vec<(String, u32)> = read.requests.into_iter().map(|request| (request.value, request.line)).collect();
+    assert_eq!((values, read.unknown), (found(&[("node:module", 1), ("./a.cjs", 3), ("./b.cjs", 4)]), None));
+}
+
+#[test]
 fn a_function_made_for_another_file_is_counted_unread_when_it_is_named_require() {
     let source = format!("{IMPORT}const require = createRequire(require.resolve('@playwright/test'));\nrequire('playwright/lib/util');\n");
     assert_eq!(loaded(&source), (found(&[("node:module", 1)]), Some("1 `require()` call(s) with a specifier this cannot read".to_owned())));

@@ -178,9 +178,10 @@ impl Requires {
 
     /// Whether a call's callee loads a module, and where its specifier resolves
     /// from: a function this module's `createRequire` made, whatever its name,
-    /// or else one [`requires`] answers for.
+    /// or else one [`requires`] answers for. Parentheses and TypeScript's
+    /// assertions around either are looked through.
     pub(crate) fn load(&self, callee: &Expression) -> Option<Base> {
-        let made = match callee {
+        let made = match callee.get_inner_expression() {
             Expression::Identifier(it) => it.reference_id.get().and_then(|id| self.made.get(&id).copied()),
             Expression::CallExpression(call) => self.makes(call),
             _ => None,
@@ -221,7 +222,7 @@ impl<'a> Visit<'a> for Bound<'_, '_> {
     fn visit_variable_declaration(&mut self, it: &VariableDeclaration<'a>) {
         if it.kind == VariableDeclarationKind::Const {
             for declarator in &it.declarations {
-                let Some(Expression::CallExpression(call)) = &declarator.init else { continue };
+                let Some(Expression::CallExpression(call)) = declarator.init.as_ref().map(Expression::get_inner_expression) else { continue };
                 let (Some(base), BindingPattern::BindingIdentifier(id)) = (self.requires.makes(call), &declarator.id) else { continue };
                 if let Some(symbol) = id.symbol_id.get() {
                     self.requires.made.extend(self.scoping.get_resolved_reference_ids(symbol).iter().map(|&reference| (reference, base)));
