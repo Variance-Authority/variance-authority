@@ -167,13 +167,15 @@ describe('the owners reader', () => {
     ]);
   });
 
-  it("leaves a resolve, a local function named require, and a CommonJS file's literal imports", () => {
+  it("leaves a resolve, a local function named require, a type-only import and a CommonJS file's literal imports", () => {
     const resolve = "import { createRequire } from 'node:module';\nexport const at = createRequire(import.meta.url).resolve('x');";
     const local = "const require = (at: string): void => {};\nrequire('x');";
+    const typeOnly = "import type types = require('./types.cjs');\nexport type T = types.T;";
     const commonjs = "import path = require('node:path');\nconst y = require('./y.cjs');\nexport = { path, y };";
 
     expect(idioms('packages/cli/src/a.ts', resolve)).toEqual([]);
     expect(idioms('packages/cli/src/b.ts', local)).toEqual([]);
+    expect(idioms('packages/cli/src/e.ts', typeOnly)).toEqual([]);
     expect(idioms('packages/cli/src/c.cts', commonjs)).toEqual([]);
     expect(idioms('packages/cli/src/d.cts', 'export const own = (file: string) => require(file);')).toEqual(['commonjs-load own']);
   });

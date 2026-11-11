@@ -236,7 +236,8 @@ function commonjsLoads(file, program) {
   const literal = (node) => node?.type === 'Literal' && typeof node.value === 'string';
   return (node) => {
     if (node.type === 'TSImportEqualsDeclaration') {
-      return node.moduleReference.type === 'TSExternalModuleReference' && !commonjs;
+      // `import type x = require(…)` is erased: it loads nothing.
+      return node.moduleReference.type === 'TSExternalModuleReference' && node.importKind !== 'type' && !commonjs;
     }
     if (node.type !== 'CallExpression') return false;
     const { callee } = node;
