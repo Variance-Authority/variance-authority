@@ -2463,8 +2463,9 @@ nothing else can still ask.
 
 #### Selecting a merge queue's group of one
 
-`--tested <commit>` names the commit a pull request passed at, which a merge
-queue merged onto `--since`. A test file only one side's change reaches is
+`--tested <commit>` names the commit whose run a pull request passed at, which
+a merge queue merged onto `--since`, the mainline commit whose run passed too;
+nothing checks either run, so name only commits that passed. A test file only one side's change reaches is
 skipped, a file both reach runs, and a lockfile change on either side runs what
 it reaches. Each skip is named with the side that ran it. Anything but the clean
 merge of that one pull request at HEAD selects as without `--tested`, with a

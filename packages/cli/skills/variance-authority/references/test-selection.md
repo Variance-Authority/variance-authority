@@ -138,7 +138,8 @@ variance reach --since origin/main              # files a diff reaches over impo
   instead of the record, and `--diff <patch>|-` hands it the change; `--diff`
   needs `--execution` and is refused beside `--since`. `--tested <commit>`,
   beside `--since`, names the commit a merge queue's one pull request passed
-  at: a test file only one side of the merge reaches is skipped and named with
+  at, and `--since` must name the mainline commit that passed, not a stacked
+  queue base; nothing checks either. A test file only one side of the merge reaches is skipped and named with
   that side, and anything but that clean merge at HEAD selects as without it,
   with a note why. `--no-git` reads file
   contents from the working tree, not git's object store. `--at-distance <hops>`

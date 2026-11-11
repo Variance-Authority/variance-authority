@@ -7,8 +7,9 @@ import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/t
 import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
 import { PUSH, cloneOf, git, publishTo, shareConfig } from './mainline-fixture.js';
-import { selectOutput } from './select-command.js';
+import { selectOutput, selectSuite } from './select-command.js';
 import { npmLock } from './select-install-fixture.js';
+import { testedSuite } from './select-tested.js';
 
 /**
  * `variance select --tested <tree>` in a merge queue: a pull request tested at
@@ -55,6 +56,8 @@ interface Queue {
   readonly prs: readonly Files[];
   /** Where the mainline published its record: at the fork, or at the base. */
   readonly recordAt: 'fork' | 'base';
+  /** What the tested pull request pushes past its tested commit, before the queue merges it. */
+  readonly past?: Files;
 }
 
 /**
@@ -87,6 +90,11 @@ async function queued(queue: Queue): Promise<{ dir: string; base: string; tested
     await git(ci, 'add', '-A');
     await git(ci, ...DEV, 'commit', '--quiet', '-m', `pr ${index}`);
     tips.push(await git(ci, 'rev-parse', 'HEAD'));
+    if (queue.past !== undefined && index === queue.prs.length - 1) {
+      await written(ci, queue.past);
+      await git(ci, 'add', '-A');
+      await git(ci, ...DEV, 'commit', '--quiet', '-m', `pr ${index} past its test`);
+    }
     await git(ci, 'push', '--quiet', 'origin', `pr-${index}`);
   }
   await git(ci, 'checkout', '--quiet', 'main');
@@ -103,7 +111,7 @@ async function queued(queue: Queue): Promise<{ dir: string; base: string; tested
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'queue-cache'));
   await git(dir, 'fetch', '--quiet', 'origin', ...queue.prs.map((_, index) => `pr-${index}`));
   await git(dir, 'checkout', '--quiet', '-b', 'gh-readonly-queue/main/pr-1', base);
-  for (const tip of tips) await git(dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', tip);
+  for (const index of tips.keys()) await git(dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', `origin/pr-${index}`);
   return { dir, base, tested: tips.at(-1)!, fork };
 }
 
@@ -189,9 +197,9 @@ describe('`variance select --tested` in a merge queue', () => {
       // Plain output is what to skip: both test files.
       expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
       expect(here.err).toContain('the pull request and the mainline it meets reach no test in common');
-      expect(here.err).toContain(`test/other.test.ts: only the pull request reaches it, and it passed at the tested tree ${queue.tested.slice(0, 12)}`);
+      expect(here.err).toContain(`test/other.test.ts: only the pull request reaches it; \`--tested\` names its tree ${queue.tested.slice(0, 12)} as tested`);
       if (recordAt === 'fork') {
-        expect(here.err).toContain(`test/total.test.ts: only the mainline reaches it, and it passed at ${queue.base.slice(0, 12)}`);
+        expect(here.err).toContain(`test/total.test.ts: only the mainline reaches it; \`--since\` names its tree ${queue.base.slice(0, 12)} as tested`);
       }
     },
   );
@@ -230,6 +238,71 @@ describe('`variance select --tested` in a merge queue', () => {
     const here = await selected(queue.dir, queue.base, queue.tested);
 
     expect(here.out).toBe('test/other.test.ts\n');
+  });
+
+  it('runs a test the pull request reaches through an import it adds to a module the mainline changed', async () => {
+    const queue = await queued({
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      // At the fork `other` does not import `total`, so the record's lines alone miss the new edge.
+      prs: [{ 'src/other.ts': "import { total } from './total';\nexport function other(price: number): number {\n  return total(price) + 1;\n}\n" }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `other` now calls the `total` the mainline changed: both sides reach it, so it runs.
+    expect(here.out).toBe('test/total.test.ts\n');
+  });
+
+  it('selects as without `--tested` when a side changes a file the record cannot place', async () => {
+    const READS = "import { readFileSync } from 'node:fs';\nexport function other(price: number): number {\n  return price + Number(readFileSync('src/rate.txt', 'utf8'));\n}\n";
+    const queue = await queued({
+      start: { 'src/other.ts': READS, 'src/rate.txt': '1\n' },
+      base: { 'src/rate.txt': '5\n' },
+      prs: [{ 'src/other.ts': READS.replace('price +', 'price * 2 +') }],
+      recordAt: 'fork',
+    });
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // Nothing says which test reads `rate.txt`, so `other` may meet the mainline's rate there.
+    expect(here.out).not.toContain('test/other.test.ts');
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: read alone, the mainline's change`);
+  });
+
+  it('selects as without `--tested` when reading a side fails', async () => {
+    const queue = await queued({
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    process.chdir(queue.dir);
+    await indexOutput({ cwd: queue.dir });
+    const full = await selectSuite({ root: queue.dir, since: queue.base });
+    const fails = () => Promise.reject(new Error('the record went away'));
+
+    const here = await testedSuite({ root: queue.dir, since: queue.base, tested: queue.tested }, full, fails);
+
+    expect(here.skip).toEqual(full.skip);
+    expect(here.notes.at(-1)).toBe(`\`--tested ${queue.tested}\` selects as without it: the record could not read a side of the merge (the record went away)`);
+  });
+
+  it('selects as without `--tested` when the pull request pushed past the tested commit', async () => {
+    const queue = await queued({
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      past: { 'src/other.ts': OTHER.replace('+ 1', '+ 3') },
+      recordAt: 'fork',
+    });
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // The commit merged is not the one tested, so its last change to `other` never ran.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: HEAD is not ${queue.base.slice(0, 12)} with one pull request merged onto it`);
   });
 
   it('selects as without `--tested` when the tested tree is not merged into the checkout', async () => {

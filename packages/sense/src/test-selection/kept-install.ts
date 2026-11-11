@@ -42,7 +42,7 @@ export type KeptInstall = Readonly<Record<string, string | null>>;
 const INSTALL_FILES: ReadonlySet<string> = new Set([...LOCKFILES, 'package.json']);
 
 /** Whether the install comparison reads `path`: a lockfile, or a manifest. */
-function readByInstall(path: string): boolean {
+export function readByInstall(path: string): boolean {
   return INSTALL_FILES.has(path.slice(path.lastIndexOf('/') + 1));
 }
 

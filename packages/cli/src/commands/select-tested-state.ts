@@ -1,15 +1,17 @@
+// compass: variance-authority.reach
 /**
  * The reconciliation machine of `variance select --tested`: pure, so every
  * answer it gives can be read off one table.
  *
  * Open states ask for one input each: `asked` the selection without
  * `--tested` (`selected`), `selecting` the merge HEAD holds (`merge`),
- * `merged` what each side's change reaches (`sides`). Every other state is
- * final and keeps whatever it is handed.
+ * `merged` what each side's change reaches (`sides`). Any open state may
+ * instead be told its input could not be read (`failed`). Every other state
+ * is final and keeps whatever it is handed.
  *
  * Invariants: an unsafe or unknown input — HEAD not that merge, a dirty
- * tree, a side that alone selects every test, git that cannot answer, an
- * input the state did not ask for — lands on `widened`, which selects as
+ * tree, a side that alone selects every test, a read that failed, an input
+ * the state did not ask for — lands on `widened`, which selects as
  * without `--tested`. Only `merged` narrows, and only by adding to the
  * skip list. The answer is read from the final state alone; an open state
  * answers as without `--tested`.
@@ -46,7 +48,8 @@ export type SideAnswer = Reach | { readonly whole: string };
 export type TestedInput =
   | { readonly kind: 'selected'; readonly full: SuiteReading }
   | { readonly kind: 'merge'; readonly answer: MergeAnswer }
-  | { readonly kind: 'sides'; readonly pull: SideAnswer; readonly main: SideAnswer };
+  | { readonly kind: 'sides'; readonly pull: SideAnswer; readonly main: SideAnswer }
+  | { readonly kind: 'failed'; readonly why: string };
 
 /** A test file one side alone reaches, and that side. */
 export interface Dropped {
@@ -60,8 +63,8 @@ export type TestedState =
   | { readonly kind: 'merged'; readonly tested: string; readonly runs: readonly string[]; readonly merge: Merge }
   | { readonly kind: 'declined'; readonly tested: string }
   | { readonly kind: 'current'; readonly tested: string }
-  | { readonly kind: 'widened'; readonly tested: string; readonly cause: 'apart' | 'dirty' | 'global' | 'unknown'; readonly why: string }
-  | { readonly kind: 'kept'; readonly tested: string; readonly merge: Merge }
+  | { readonly kind: 'widened'; readonly tested: string; readonly why: string }
+  | { readonly kind: 'kept'; readonly tested: string; readonly merge: Merge; readonly runs: number }
   | { readonly kind: 'narrowed' | 'empty'; readonly tested: string; readonly merge: Merge; readonly dropped: readonly Dropped[] };
 
 /** The machine before anything is read: `tested` is the commit as asked. */
@@ -77,7 +80,8 @@ export function isOpen(state: TestedState): state is Extract<TestedState, { kind
 /** The state `input` moves `state` to. A final state keeps any input. */
 export function transition(state: TestedState, input: TestedInput): TestedState {
   const { tested } = state;
-  const unexpected: TestedState = { kind: 'widened', tested, cause: 'unknown', why: `it did not expect a ${input.kind} answer while ${state.kind}` };
+  const unexpected: TestedState = { kind: 'widened', tested, why: `it did not expect a ${input.kind} answer while ${state.kind}` };
+  if (isOpen(state) && input.kind === 'failed') return { kind: 'widened', tested, why: input.why };
   switch (state.kind) {
     case 'asked': {
       if (input.kind !== 'selected') return unexpected;
@@ -110,9 +114,9 @@ function fromMerge(state: Extract<TestedState, { kind: 'selecting' }>, answer: M
       return { kind: 'current', tested };
     case 'apart':
     case 'unknown':
-      return { kind: 'widened', tested, cause: answer.is, why: answer.why };
+      return { kind: 'widened', tested, why: answer.why };
     case 'dirty':
-      return { kind: 'widened', tested, cause: 'dirty', why: 'the working tree changes files HEAD holds' };
+      return { kind: 'widened', tested, why: 'the working tree changes files HEAD holds' };
     default:
       return unreachable(answer);
   }
@@ -121,14 +125,14 @@ function fromMerge(state: Extract<TestedState, { kind: 'selecting' }>, answer: M
 function fromSides(state: Extract<TestedState, { kind: 'merged' }>, pull: SideAnswer, main: SideAnswer): TestedState {
   const { tested, runs, merge } = state;
   for (const [name, side] of [['pull request', pull], ['mainline', main]] as const) {
-    if ('whole' in side) return { kind: 'widened', tested, cause: 'global', why: `read alone, the ${name}'s change selects every test file (${side.whole})` };
+    if ('whole' in side) return { kind: 'widened', tested, why: `read alone, the ${name}'s change selects every test file (${side.whole})` };
   }
   const [p, m] = [pull as Reach, main as Reach];
   // An install reaches a test whatever the other side's code does; a test neither side reaches is kept.
   const dropped = runs
     .filter((test) => !p.install.has(test) && !m.install.has(test) && p.code.has(test) !== m.code.has(test))
     .map((test): Dropped => ({ test, side: p.code.has(test) ? 'pull request' : 'mainline' }));
-  if (dropped.length === 0) return { kind: 'kept', tested, merge };
+  if (dropped.length === 0) return { kind: 'kept', tested, merge, runs: runs.length };
   return { kind: dropped.length === runs.length ? 'empty' : 'narrowed', tested, merge, dropped };
 }
 
@@ -150,7 +154,11 @@ export function selectionOf(state: TestedState, without: SuiteReading): SuiteRea
     case 'widened':
       return as(state.why);
     case 'kept':
-      return withNotes(without, [`\`--tested ${state.tested}\` skips nothing more: both sides of the merge reach every test file that runs`]);
+      return withNotes(without, [
+        state.runs === 0
+          ? `\`--tested ${state.tested}\` skips nothing more: no test file runs without it`
+          : `\`--tested ${state.tested}\` skips nothing more: every test file that runs is reached by both sides of the merge, or by neither`,
+      ]);
     case 'empty':
     case 'narrowed':
       return narrowed(state, without);
@@ -167,8 +175,8 @@ function narrowed(state: Extract<TestedState, { kind: 'empty' | 'narrowed' }>, w
     ...(state.kind === 'empty' ? ['the pull request and the mainline it meets reach no test in common, so no test file runs'] : []),
     ...dropped.map(({ test, side }) =>
       side === 'pull request'
-        ? `${test}: only the pull request reaches it, and it passed at the tested tree ${t12}`
-        : `${test}: only the mainline reaches it, and it passed at ${m12}`,
+        ? `${test}: only the pull request reaches it; \`--tested\` names its tree ${t12} as tested`
+        : `${test}: only the mainline reaches it; \`--since\` names its tree ${m12} as tested`,
     ),
   ];
   const skip = [...new Set([...without.reading.skip, ...dropped.map(({ test }) => test)])].sort(codeUnitOrder);

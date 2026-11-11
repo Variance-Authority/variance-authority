@@ -45,9 +45,12 @@ describe('the `--tested` reconciliation machine', () => {
     ['git that cannot answer widens', selecting, { kind: 'merge', answer: { is: 'unknown', why: 'git could not read it' } }, 'widened', [], 'git could not read it'],
     ['a pull request that declines alone widens', merged, { kind: 'sides', pull: { whole: 'before moved' }, main: reach([A]) }, 'widened', [], "read alone, the pull request's change selects every test file (before moved)"],
     ['a mainline that declines alone widens', merged, { kind: 'sides', pull: reach([A]), main: { whole: 'no install' } }, 'widened', [], "read alone, the mainline's change selects every test file (no install)"],
-    ['both sides reaching every running test keep it', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A, B]) }, 'kept', [], 'both sides of the merge reach every test file'],
-    ['an install on either side keeps what it reaches', merged, { kind: 'sides', pull: reach([A], [B]), main: reach([A]) }, 'kept', [], 'both sides of the merge reach every test file'],
-    ['a test only one side reaches is skipped', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A]) }, 'narrowed', [B], `${B}: only the pull request reaches it, and it passed at the tested tree ${TESTED.slice(0, 12)}`],
+    ['a side that could not be read widens', merged, { kind: 'failed', why: 'the record could not read a side' }, 'widened', [], 'selects as without it: the record could not read a side'],
+    ['a merge that could not be read widens', selecting, { kind: 'failed', why: 'git went away' }, 'widened', [], 'selects as without it: git went away'],
+    ['both sides reaching every running test keep it', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A, B]) }, 'kept', [], 'reached by both sides of the merge, or by neither'],
+    ['an install on either side keeps what it reaches', merged, { kind: 'sides', pull: reach([A], [B]), main: reach([A]) }, 'kept', [], 'reached by both sides of the merge, or by neither'],
+    ['a merge where nothing runs keeps nothing', { ...merged, runs: [] }, { kind: 'sides', pull: reach([A]), main: reach([B]) }, 'kept', [], 'skips nothing more: no test file runs without it'],
+    ['a test only one side reaches is skipped', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A]) }, 'narrowed', [B], `${B}: only the pull request reaches it; \`--tested\` names its tree ${TESTED.slice(0, 12)} as tested`],
     ['disjoint sides skip every running test', merged, { kind: 'sides', pull: reach([B]), main: reach([A]) }, 'empty', [A, B], 'the pull request and the mainline it meets reach no test in common'],
     ['an input the open state does not expect widens', selecting, { kind: 'sides', pull: reach([B]), main: reach([A]) }, 'widened', [], 'did not expect'],
     ['an input before the selection widens', asked, { kind: 'merge', answer: { is: 'known', merge } }, 'widened', [], 'did not expect'],
@@ -64,15 +67,17 @@ describe('the `--tested` reconciliation machine', () => {
 
     expect(state.kind).toBe('empty');
     expect([...selectionOf(state, full([A])).skip]).toEqual([A, B]);
-    expect(selectionOf(state, full([A])).notes.join('\n')).toContain(`${B}: only the mainline reaches it, and it passed at ${MAINLINE.slice(0, 12)}`);
+    expect(selectionOf(state, full([A])).notes.join('\n')).toContain(`${B}: only the mainline reaches it; \`--since\` names its tree ${MAINLINE.slice(0, 12)} as tested`);
   });
 
   it.each<TestedState>([
     { kind: 'declined', tested: TESTED },
     { kind: 'current', tested: TESTED },
-    { kind: 'widened', tested: TESTED, cause: 'unknown', why: 'unknown' },
+    { kind: 'widened', tested: TESTED, why: 'unknown' },
+    { kind: 'kept', tested: TESTED, merge, runs: 2 },
   ])('stays at the final state $kind whatever it is handed', (final) => {
     expect(transition(final, { kind: 'merge', answer: { is: 'known', merge } })).toBe(final);
+    expect(transition(final, { kind: 'failed', why: 'late' })).toBe(final);
   });
 
   it('answers an open state as without `--tested`', () => {
