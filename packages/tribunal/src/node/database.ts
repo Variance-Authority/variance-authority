@@ -34,6 +34,8 @@ import { INITIAL_VERSION, MIGRATIONS, SCHEMA_VERSION, applySchema } from '../sch
  * downgrade quietly writes rows the newer build then misreads.
  */
 
+// Loaded at run time: `node:sqlite` is not in `module.builtinModules` yet, so a
+// static import is bundled as a package; `server`'s `backend-sqlite.ts` says why.
 const { DatabaseSync: Database } = createRequire(import.meta.url)('node:sqlite') as {
   DatabaseSync: new (path: string) => DatabaseSync;
 };

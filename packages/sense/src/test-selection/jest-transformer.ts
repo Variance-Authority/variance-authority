@@ -130,7 +130,8 @@ async function load(root: string, name: string, options: Record<string, unknown>
     // value is a transformer or a factory. Jira's Babel transformer uses that
     // contract: `module.exports` is the Promise returned by its asynchronous
     // configuration load. Inspecting the Promise itself reports that a valid
-    // transformer has neither `process` nor `createTransformer`.
+    // transformer has neither `process` nor `createTransformer`. The project's
+    // transformer is CommonJS at a computed path, loaded as Jest loads it.
     loaded = (await createRequire(path)(path)) as TransformerModule;
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? error.code : undefined;

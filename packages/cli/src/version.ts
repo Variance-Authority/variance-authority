@@ -32,7 +32,7 @@ import type { BaselinesConfig } from './config-baselines.js';
 export const NEEDS_API = 8;
 
 /** This package's own version, from the manifest rather than from a copy of it. */
-export const CLI_VERSION: string = (manifest as { version?: string }).version ?? '0.0.0-unpublished';
+export const CLI_VERSION: string = manifest.version;
 
 /** What a deployment answered `GET /version` with, as much of it as this reads. */
 export interface ServiceVersion {

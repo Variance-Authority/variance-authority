@@ -25,6 +25,7 @@ function resolver(preset: string, rootDir: string): { readonly find: FindNodeMod
       { cause },
     );
   }
+  // The project's Jest resolver, at the path found above and loaded as Jest loads it.
   const load = createRequire(file);
   return { find: (load(file) as { default: { findNodeModule: FindNodeModule } }).default.findNodeModule, load };
 }

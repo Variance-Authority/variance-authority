@@ -124,6 +124,7 @@ export async function createTransformer(
   const root = resolve(config.root);
   // Jest loads this in a worker before it loads any environment, and loads the
   // environment through it: the worker's root is in place for the environment's probes.
+  // Synchronous, at the path the configuration carries: no `import` is both.
   if (config.runtime !== undefined) {
     (createRequire(import.meta.url)(config.runtime) as { preload(mark: typeof markEnvironmentInput): void })
       .preload(markEnvironmentInput);
