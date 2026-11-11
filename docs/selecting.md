@@ -207,6 +207,36 @@ with. `take` prints the path of the mainline's cases: the record it set aside,
 or the share's. `variance review --against` that path compares your change's
 cases with the mainline's, not with the last push's.
 
+## A pull request in the merge queue
+
+A merge queue tests a pull request again on top of the mainline it will land
+on. Both sides already passed: the pull request at its tested commit, the
+mainline at its tip. A test file only one side's change reaches ran on that
+side's tree with the other side's change out of its reach, so the queue need
+not run it again. A test file both sides reach is where the two changes meet,
+and it runs:
+
+```bash
+variance select --since <mainline> --tested <tested-commit>
+```
+
+```text
+one pull request, tested at 3f2a9c1e0b7d, meets the mainline at 8e41d07a5c22, so 2 test files only one side reaches are skipped
+test/cart.test.ts: only the pull request reaches it, and it passed at the tested tree 3f2a9c1e0b7d
+test/total.test.ts: only the mainline reaches it, and it passed at 8e41d07a5c22
+```
+
+A lockfile or `package.json` change on either side runs every test it reaches,
+whatever the other side did. When the two sides reach no test in common, no
+test file runs, and the report says so.
+
+The narrowing holds only for a group of one: HEAD must be exactly the clean
+merge of the tested commit onto `--since`, with nothing changed on top of it.
+Anything else — a group of two, a merge resolved by hand, an edited working
+tree, a side whose change alone selects the whole suite, a git that cannot
+answer — selects as without `--tested`, and a note names the reason. These are
+among the [places selection widens](#where-selection-widens).
+
 ## What a change to a module's top level runs
 
 A line at a module's top level sits in no function, so by its lines alone it is

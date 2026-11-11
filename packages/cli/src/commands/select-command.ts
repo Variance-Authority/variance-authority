@@ -50,6 +50,7 @@ import { withCases } from './select-cases.js';
 import { handedChange, isHanded, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
+import { testedSuite } from './select-tested.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
@@ -81,6 +82,8 @@ export interface SelectRequest {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, by import hops from the change. */
   readonly atDistance?: Leg;
+  /** `--tested <commit>`: the pull request's tested tree, which a merge queue merged onto `since`. */
+  readonly tested?: string;
 }
 
 /**
@@ -99,8 +102,12 @@ export interface SelectOutput {
 
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
-  const { cwd, format, ...asked } = request;
-  const { reading } = await selectSuite({ root: cwd, ...asked });
+  const { cwd, format, tested, ...asked } = request;
+  const full = await selectSuite({ root: cwd, ...asked });
+  const { reading } =
+    tested === undefined || asked.since === undefined
+      ? full
+      : await testedSuite({ root: cwd, since: asked.since, tested, suite: asked.suite, noGit: asked.noGit }, full, selectSuite);
   return { out: formatSelection(reading, format, cwd), err: deprecated(format) + selectionNotes(reading) };
 }
 

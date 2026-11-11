@@ -1248,7 +1248,10 @@ runs again after a merge, because the merge can take a different lockfile.
   date before it merges: the merge queue, the required up-to-date branch or the
   rebase. A merge queue checks it only as far as the tests it runs; one that runs
   part of the suite leaves the rest to the whole run on the mainline after the
-  merge.
+  merge. For a group of one, `variance select --tested <commit>` runs only the
+  tests both sides reach, as
+  [a pull request in the merge queue](selecting.md#a-pull-request-in-the-merge-queue)
+  explains.
 - **A head that conflicts with the record's commit stays on GitHub's merge**
   under `--on-conflict stay`, and the run measures what the mainline gained
   since the record as well. Without it, a conflict fails the step. A merge

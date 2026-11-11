@@ -296,6 +296,7 @@ export async function answerConfigless(
         cwd: process.cwd(),
         format: parsed.format,
         ...(parsed.since === undefined ? {} : { since: parsed.since }),
+        ...(parsed.tested === undefined ? {} : { tested: parsed.tested }),
         ...(parsed.noGit ? { noGit: true } : {}),
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
