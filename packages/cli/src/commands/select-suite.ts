@@ -71,7 +71,8 @@ export interface SuiteReading extends SuiteSelection {
 /** The reading, fallen to `fell` when it widened and one is given, cut to the leg asked for, as sets. */
 export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: LocalAnswer): SuiteReading {
   const read = skippableTests(input);
-  const reading = inLeg(fell === undefined || read.widened === undefined ? read : fellTo(read, fell), input, atDistance);
+  const base = fell === undefined || read.widened === undefined ? read : fellTo(read, fell);
+  const reading = inLeg(base, input, atDistance);
   const left = reading.fell?.left ?? reading.left ?? [];
   const whole = input.ground.kind === 'read' ? input.ground.narrowing.whole : [];
   return {
@@ -80,6 +81,8 @@ export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: 
     ...(reading.widened === undefined ? {} : { declined: reading.widened }),
     ...(left.length === 0 ? {} : { left: new Set(left) }),
     ...(reading.only === undefined ? {} : { only: new Set(reading.only) }),
+    // The waves of one shard read one selection, and place it as one.
+    ...(atDistance?.partition === true ? { skipEveryWave: new Set(base.skip) } : {}),
     notes: reading.notes,
     reading,
   };

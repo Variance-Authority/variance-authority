@@ -256,7 +256,9 @@ from that same record, beneath what its earlier passes ran, and each pass lands
 over the last, so the shard's one record holds what all of them ran. A later
 pass runs only the files the record placed in its range: a test new since the
 recording, and every file of a selection that declined to narrow, run in the
-first pass alone, so no file runs twice or lands in two shards. A pull
+first pass alone, so no file runs twice or lands in two shards. Every pass
+places the files of all of them as one, and runs its own of that shard's part,
+so a shard's passes together take the one part the plan priced. A pull
 request's shards then fold over the record they selected from, and a test file
 or case no shard ran keeps the row it had. A shard killed before it lands
 leaves no record and fails the build; the others' still fold. A Playwright
