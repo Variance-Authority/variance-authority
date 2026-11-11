@@ -139,7 +139,9 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // file.
   // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
   // The waves of one shard read one record, so each runs only what it placed in them.
-  const leg = request.atDistance !== undefined && request.beneath === true ? { ...request.atDistance, partition: true as const } : request.atDistance;
+  const leg = request.atDistance !== undefined && request.beneath === true
+    ? { ...request.atDistance, partition: true as const, ...(request.placeAtDistance === undefined ? {} : { placing: request.placeAtDistance }) }
+    : request.atDistance;
   const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
     const narrowed = suiteOf(input, leg);
     return request.local === true && narrowed.declined !== undefined

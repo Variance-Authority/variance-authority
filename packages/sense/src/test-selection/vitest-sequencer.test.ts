@@ -236,7 +236,7 @@ describe('the sequencer under --shard', () => {
     // shard 1 takes `a` and `c`, 12 s against 6 s. Placed together, it takes
     // `a` alone, 9 s against 9 s, as the plan priced it.
     const part = async (index: number, skip: readonly string[]) => {
-      const wave = selection(skip, { skipEveryWave: new Set() });
+      const wave = selection(skip, { placing: { skip: new Set() } });
       const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, selection: async () => wave, times, say: () => {} });
       return names(await new Sequencer(context({ shard: { index, count: 2 } })).shard(files.map(spec)));
     };

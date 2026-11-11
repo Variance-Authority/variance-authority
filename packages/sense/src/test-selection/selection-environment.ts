@@ -54,6 +54,8 @@ interface Selector {
     readonly since?: string;
     readonly suite?: string;
     readonly atDistance?: { readonly from: number; readonly to: number; readonly by?: 'environment' };
+    /** Absent from a cli older than placing a shard's waves as one. */
+    readonly placeAtDistance?: { readonly from: number; readonly to: number };
     readonly grain?: 'case';
     readonly local?: boolean;
     readonly beneath?: boolean;
@@ -100,6 +102,15 @@ export function selectionFrom(
         'write `0-2` for everything within two imports, `2` for exactly two, or `3-` for the rest',
     );
   }
+  // The hops of every wave the shard runs, which each wave places as one; read only beside a distance.
+  const placing = env['VARIANCE_AUTHORITY_PLACE_AT_DISTANCE'];
+  const span = placing === undefined ? undefined : distanceRange(placing);
+  if (placing !== undefined && span === undefined) {
+    throw new Error(
+      `VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=${placing} is not a range of hop counts: ` +
+        'write the hops of every wave the shard runs, such as `0-` for a near and a far wave',
+    );
+  }
   return async () => {
     const { selectSuite } = await selector(request.from ?? request.root);
     return selectSuite({
@@ -107,6 +118,7 @@ export function selectionFrom(
       ...(since === '' ? {} : { since }),
       ...(request.suite === undefined ? {} : { suite: request.suite }),
       ...(leg === undefined ? {} : { atDistance: { ...leg, by: 'environment' } }),
+      ...(leg === undefined || span === undefined ? {} : { placeAtDistance: span }),
       ...(grain === 'case' ? { grain } : {}),
       ...(local === '1' ? { local: true } : {}),
       ...(request.beneath === true ? { beneath: true } : {}),

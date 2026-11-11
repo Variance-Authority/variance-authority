@@ -125,7 +125,7 @@ describe('the Jest sequencer under --shard', () => {
 
   it('places the waves of one shard as one selection, so its waves together take one part', async () => {
     const part = async (index: number, skip: readonly string[]) => {
-      const wave = { whole: new Set(files), skip: new Set(skip), skipEveryWave: new Set<string>(), notes: [] };
+      const wave = { whole: new Set(files), skip: new Set(skip), placing: { skip: new Set<string>() }, notes: [] };
       selectingFilter({}, { root, rootDir, selection: async () => wave, argv: ['jest'], say: () => {} });
       placingSequencer({}, { root, rootDir, times, say: () => {}, argv: ['jest', '--shard=1/2'] });
       const { filtered } = await filter(files.map((file) => resolve(root, file)));

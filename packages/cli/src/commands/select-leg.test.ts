@@ -471,14 +471,21 @@ describe('one leg of the selection', () => {
       expect(far).toEqual([FAR, GHOST, PARTIAL]);
     });
 
-    it('places the same files in every wave, so a shard places its waves as the one selection the plan priced', () => {
+    it('places the same files in every wave it was told the shard runs, so its waves take the one part the plan priced', () => {
       const input = read(DISTANCES, [PARTIAL]);
+      const placing = { from: 0, to: Number.MAX_SAFE_INTEGER };
       const [near, far] = [{ from: 0, to: 2 }, { from: 3, to: Number.MAX_SAFE_INTEGER }].map((leg) =>
-        placed(suiteOf(input, { ...leg, partition: true }), discovered),
+        placed(suiteOf(input, { ...leg, partition: true, placing }), discovered),
       );
 
       expect(near).toEqual(far);
       expect([...near!].sort()).toEqual(waves(input).flat().sort());
+    });
+
+    it('places a wave alone when the shard was not told which waves it runs, as a plan that priced that wave alone placed it', () => {
+      const input = read(DISTANCES, [PARTIAL]);
+
+      expect(placed(suiteOf(input, { from: 0, to: 2, partition: true }), discovered)).toEqual(waves(input)[0]);
     });
   });
 

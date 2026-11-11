@@ -44,10 +44,10 @@ export interface SuiteSelection {
    */
   readonly only?: ReadonlySet<string>;
   /**
-   * The test files no wave of one shard runs, when this selection is one of its
-   * waves. Absent, a shard places the files this selection keeps.
+   * Every wave the shard runs, as one selection, when this is one of them and
+   * the run named them. Absent, a shard places the files this selection keeps.
    */
-  readonly skipEveryWave?: ReadonlySet<string>;
+  readonly placing?: Pick<SuiteSelection, 'skip' | 'only'>;
   /** What a person reads after the count. Never parsed. */
   readonly notes: readonly string[];
 }
@@ -88,19 +88,21 @@ export function kept<File = string>(
 }
 
 /**
- * The test files a seam under `--shard` places: those it keeps, or, for a wave
- * of one shard, every file the runner discovered that some wave runs. Each wave
- * then keeps its own files of one placement, so a shard's waves together take
- * the part the plan priced, rather than the heaviest part of each wave.
+ * The test files a seam under `--shard` places: those it keeps, and, for a
+ * wave of a shard whose run named its waves (`placing`), those any of them
+ * runs. Each wave then keeps its own files of one placement, so the waves
+ * together take the part the plan priced, rather than the heaviest part of each.
  */
 export function placed<File = string>(
   selection: SuiteSelection,
   discovered: readonly File[],
   name: (file: File) => string = String,
 ): readonly File[] {
-  const every = selection.skipEveryWave;
-  if (every === undefined) return kept(selection, discovered, name);
-  return [...new Set(discovered)].filter((file) => !every.has(name(file)));
+  const { placing } = selection;
+  if (placing === undefined) return kept(selection, discovered, name);
+  const own = new Set(kept(selection, discovered, name));
+  const waves = new Set(kept({ ...placing, whole: selection.whole, notes: [] }, discovered, name));
+  return [...new Set(discovered)].filter((file) => own.has(file) || waves.has(file));
 }
 
 /**

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { nearestRecord, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperatorError } from '../exit.js';
@@ -77,6 +78,8 @@ describe('a shard takes the last push as its base', () => {
     const shard = await job(origin, 'shard');
     await receiveBase(shard, handed);
     await takePushed(shard, carried, { asBase: true });
+    // What the shard's `variance index` step publishes before its waves; under CI, selection refuses to build it itself.
+    await updateSourceIndex(shard);
     const handedRecord = nearestRecord(shard, { suite: 'unit' }).file;
     // The near wave landed: the shard's own layer now holds only what it ran.
     await recordIn(shard, await git(shard, 'rev-parse', 'HEAD'), ['test/total.test.ts'], [DISCOUNTS]);

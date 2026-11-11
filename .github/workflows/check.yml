@@ -657,8 +657,8 @@ jobs:
           echo "into=$into" >> "$GITHUB_OUTPUT"
           if [ "$SELECT" = true ]; then
             yarn variance index
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
           else
             yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
           fi

@@ -105,7 +105,7 @@ export function selectingFilter(
     for (const line of told ? lines.slice(0, 1) : lines) say(line);
     told = true;
     const filtered = [...kept(selection, found, (path) => projectPath(options.root, path))];
-    if (selection.skipEveryWave !== undefined) (placing ??= []).push(...placed(selection, found, (path) => projectPath(options.root, path)));
+    if (selection.placing !== undefined) (placing ??= []).push(...placed(selection, found, (path) => projectPath(options.root, path)));
     // Called once per project: what each keeps is added to the one cut, which
     // is on disk, and named in the environment, before any worker forks.
     const cases = options.cutFile === undefined ? new Map() : cutOf(selection, filtered, options.root);

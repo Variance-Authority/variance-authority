@@ -51,6 +51,12 @@ export interface Leg {
    * in two waves (`TestSelection.only`).
    */
   readonly partition?: true;
+  /**
+   * The hops every wave of this shard runs, as the run's orchestrator priced
+   * them: each wave places their files as one and keeps its own, so the waves
+   * together take one part. Absent, a wave is placed alone.
+   */
+  readonly placing?: { readonly from: number; readonly to: number };
 }
 
 /**
