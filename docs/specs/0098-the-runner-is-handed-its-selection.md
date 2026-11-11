@@ -1,19 +1,11 @@
 # Spec 0098 — the runner is handed its selection
 
 **Missing:** the argv formats' removal, a drop point for Rstest, and the
-acceptance run. The hand-off itself landed in ebff21a4f, items 1 to 5:
-`selectSuite` composes the selection once, the Jest seam drops through
-`filter`, the Vitest seam through the sequencer and Playwright through
-`testIgnore`, each prints `selected N of M` or why it declined, and this
-repository's `test:since` and verify waves run through the seams with
-`VARIANCE_AUTHORITY_SINCE` set. What is left: `--format vitest` and
-`--format jest` still print runner arguments behind a deprecation whose one
-minor release (item 6) ended long ago — it shipped in 0.15.0 and the CLI is at
-0.30.0; Rstest has no drop point named, so it records and does not select
-(question 6); and no run has handed twenty-five thousand test files to Jest
-and Vitest on macOS and Windows, which is the acceptance below. The argv
-ceilings that motivated this — 1 MiB on macOS, 8,191 characters in Windows
-`cmd` — are why the formats go rather than stay as a convenience.
+acceptance run. `--format vitest` and `--format jest` still print runner
+arguments, past the one minor release item 6 gave their deprecation. Rstest has
+no drop point (question 6), so it records and does not select. No run has
+handed twenty-five thousand test files to Jest and Vitest on macOS and Windows,
+which is the acceptance below.
 **Built on:** the recording seams in `@variance-authority/sense` — `./vitest`,
 `./jest`, `./rstest` and `./runner` — each a `withTestSelection` that wraps the
 project's configuration and contributes without replacing anything

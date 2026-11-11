@@ -147,20 +147,3 @@ selector, verdict or exit code reads it.**
 - The scan now walks every JavaScript and TypeScript parse a second time to
   count its regions, and the source index grew three columns (format version
   14), so every existing index is rebuilt once.
-
-## Accepted 2026-11-12 — `variance coverage` counts it this way
-
-The eight points above are built as written.
-[`coverage.ts`](../../../packages/cli/src/commands/coverage.ts), over
-`countCoverage` and `coverageChange` in
-[`coverage-count.ts`](../../../packages/sense/src/test-selection/coverage-count.ts),
-prints the regions any suite loaded with *ran only at load* on a line of its
-own, each declared suite's ratio over that one denominator, `unrecorded` for a
-suite with no record, the overlap by kind, the regions that did not join across
-suites, and each suite's change against its base as the regions that changed.
-Under them it counts the source no suite recorded, with what runs before reach,
-on the second ratio, one line per declared directory, or per workspace with
-`--packages`. That command is the only source that imports either counter, so
-nothing reads the ratio back. Keeping a trend and writing the job summary are
-what [spec 0080](../../specs/0080-coverage-is-counted-per-kind.md) has left,
-and neither changes what is decided here.

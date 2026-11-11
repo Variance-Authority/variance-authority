@@ -1,22 +1,15 @@
 # Spec 0081 — the tech stack is read from the code
 
 **Missing:** the project's stack, and what each package is used through.
-Items 3 to 7 landed, closed with [#588](https://github.com/Variance-Authority/variance-authority/issues/588)
-to [#593](https://github.com/Variance-Authority/variance-authority/issues/593), and so did the third-party
-half of item 2. `variance ask stack --from <path>` lists every package the
-owning manifest of the path declares, imported here apart from declared and
-not imported, each with its role, declaration kind, installed version, import
-count and first site. Graph-scoped `search` says *usable here* only under the
-owning manifest, and it finds an installed package by the words the package
-publishes, held by `invented-jobs.measure.ts`. `symbol --from` answers at a
-location, and `dependency-scale.measure.ts` times the questions on Kibana and
-seven copies of MUI. What no answer says is what the whole project builds on
-and builds with: `stack` takes `--from` and answers for one owning manifest.
-Nothing follows a local abstraction to the package it wraps, or reports a file
-that imports a package past one. Nothing calls a first-party area such as a
-design system a foundation rather than an application. A stack row is not
-paired with its declaration provider either: `@types/react` is a row of its
-own, listed as not imported.
+`variance ask stack` refuses without `--from`, so nothing lists what the whole
+project builds on and builds with (item 1). With `--from`, it answers for the
+owning manifest of the path, not for what the code there uses (item 2). Nothing
+follows a local abstraction to the package it wraps, reports a file that imports
+a package past one, or names the abstraction in `ask symbol --from` (items 1, 2
+and 6). Nothing calls a first-party area such as a design system a foundation,
+and no foundation area is indexed (items 1 and 5). A stack row is not paired
+with its declaration provider: `@types/react` is a row of its own, listed as not
+imported (item 4). Item 7 has no timing for item 1.
 **Built on:** [ADR-0082](../context/adr/0082-the-tech-stack-is-what-the-code-builds-on-and-with.md)
 (the terms, and the rule each item below implements),
 [spec 0041](0041-orientation-is-the-first-five-minutes.md) (orientation is held
@@ -105,5 +98,5 @@ install reuses every catalogue entry and says so.
 
 When all seven are on main: the public [tech stack page](../tech-stack.md)
 documents the stack, the concepts registry in
-`tools/docs-entrypoints.check.ts` gets an owner for *tech stack*, ADR-0082
-becomes `accepted`, the checkpoint is updated, and this file is deleted.
+`tools/docs-entrypoints.check.ts` gets an owner for *tech stack*, the
+checkpoint is updated, and this file is deleted.

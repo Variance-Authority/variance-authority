@@ -36,8 +36,6 @@ That would be a tidiness complaint if the three agreed. They do not:
   the same diff against the same snapshot yields two different skip lists
   depending on which command asked. Without the walk a changed stylesheet is
   `unread` rather than answered by its measured importers, and selects nothing.
-- No caller supplies `knownAs`: the deleted script was the only one, and the
-  CLI's reader passes `sourceAt` and `relations` and nothing else.
 - A seam acts only on the files its runner collected, so a skip that names a
   deleted test drops nothing. `variance select` subtracts from `whole` directly —
   so deleted tests, renamed tests, and tests belonging to another project or
@@ -83,16 +81,7 @@ own answer, each widens as it must, and each produces advice an operator can
 act on. `readDiff` is guarded rather than letting every escape be misreported
 as a corrupt snapshot with destructive advice.
 
-**4. One translation between names and paths.** The frame check is one unit,
-`frameOf`, asked under every name `knownAs` gives a file, and a built twin's
-rows are in frame when the source's are. What is missing is the translation:
-the deleted script rewrote a diff with `inSnapshotCoordinates` before the
-library saw it, and the CLI's reader supplies no `knownAs` at all, so nothing
-translates now.
-The name a row carries and the path a diff carries are two coordinate systems,
-and the translation between them belongs beside the check, once.
-
-**5. The record's own precision is used.** Per-region digests exist in the
+**4. The record's own precision is used.** Per-region digests exist in the
 format and selection reads none of them: the frame check is whole-module and
 all-or-nothing. A precondition's recorded digest is never compared at query
 time, so a file answered only by a declaration is never frame-checked.
@@ -110,7 +99,7 @@ the relation is interned per test, scanned, and never stored inverted. Narrowing
 there would be inventing evidence the record does not hold. Say so where the
 widening happens, so the next reader does not file it as a missed optimization.
 
-**6. The query re-asks what the write path already guards.** The
+**5. The query re-asks what the write path already guards.** The
 `instrumentation` recipe on the snapshot is never checked at query time, so a
 record made under a coarser mode is believed exactly as a branch-level one.
 Nothing distinguishes a snapshot whose `whole` set predates the diff base from
@@ -124,12 +113,12 @@ record carries nothing the query could compare it against. Generations guard the
 write path
 ([0044](0044-many-writers-one-record.md) item 3); the read path does not ask.
 
-**7. A narrowing that is truncated says so.** `--at-distance` cuts the run to a
+**6. A narrowing that is truncated says so.** `--at-distance` cuts the run to a
 hop band and drops tests the snapshot positively says the diff reached. That may
 be what an operator wants, and it is not a skip list — it is a selection *over*
 one, and the two must not be reported by the same channel or the same exit code.
 
-**8. The holes are marked at the site.** `bindsOnly` has a self-documented
+**7. The holes are marked at the site.** `bindsOnly` has a self-documented
 residual — added text is parsed with no frame, so a line inside a template
 literal that happens to parse as an erased construct charges nobody — and it is
 applied to added text only, so a *removal* of an erased construct still charges
@@ -138,7 +127,7 @@ carries an `it.todo` or a `// FIXME`, which is how this repository is supposed
 to say a thing is unfinished, and the answer stage has no row in
 `docs/instruments.md` at all.
 
-**9. The frame is checked against the frame the diff is in.** `frameOf`
+**8. The frame is checked against the frame the diff is in.** `frameOf`
 asks `sourceAt(name, coverage.commit)` (`packages/sense/src/test-selection/reading.ts:97`) — the
 text as of the *snapshot's* commit. The hunks it is deciding about are line
 ranges in the *diff base's* coordinates. The two coincide only while the

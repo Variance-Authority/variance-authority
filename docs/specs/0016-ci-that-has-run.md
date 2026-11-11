@@ -1,21 +1,7 @@
 # Spec 0016 — CI that has run
 
-**Missing:** a check red because stories changed, the commit-back's refusals,
-and the Bitbucket recipe. The workflow and the composite action have fired on
-real pull requests since [#7](https://github.com/Variance-Authority/variance-authority/pull/7):
-`variance comment` posts one docket per project under its marker, and the next
-push updates it in place. On [#1179](https://github.com/Variance-Authority/variance-authority/pull/1179)
-the `site` docket was posted at 07:37 and updated at 08:23 to say a later run
-found nothing to review. A clean run posts nothing: the `tribunal` job on
-[#1186](https://github.com/Variance-Authority/variance-authority/pull/1186) logged
-`nothing needs review and there is no previous comment; nothing was posted`.
-The commit-back has landed on a contributor's branch three times, twice on
-[#340](https://github.com/Variance-Authority/variance-authority/pull/340) and once on
-[#528](https://github.com/Variance-Authority/variance-authority/pull/528), each a
-`chore(variance): regenerate baselines` commit by the workflow. The red runs on
-pull requests read so far failed on a subject they could not observe, not on a
-change. None of the commit-back's three refusals has been met, and the
-Bitbucket recipe has not run.
+**Missing:** a check red because stories changed, the commit-back's three
+refusals, and the Bitbucket recipe.
 **Built on:** [ADR-0019](../context/adr/0019-one-comment-that-leads-with-causes.md),
 `variance comment` and its marker, `--exit-zero-on-changes`, and the commit-back
 that is built and off by default.
@@ -24,16 +10,12 @@ that is built and off by default.
 
 The exit code is the whole gate, so a CI that can run a command already has the
 verdict. What CI adds is delivery — a comment a reviewer reads, and baselines
-that come back to the branch — and delivery is the half only a real pull request shows. The
-docket has been rendered against a real report, and
-[`.github/workflows/variance.yml`](../../.github/workflows/variance.yml) and
-[`.github/actions/variance`](../../.github/actions/variance) have posted it on
-this repository's pull requests, as **Missing** records.
+that come back to the branch — and delivery is the half only a real pull
+request shows.
 
-The gap is narrow and it is the kind that only closes by running: token scopes,
-the permissions block, the marker survived through GitHub's own markdown
-rendering, and what a merge-ref checkout does to the commit-back's branch
-detection.
+What is left closes only by running: a check that goes red for the reason it
+exists, and the commit-back's refusals, among them what a merge-ref checkout
+does to its branch detection.
 
 ## What would discharge it
 

@@ -132,13 +132,3 @@ as Jest fails. Under Vitest the line stands above the
 runner's rather than after it, because the seam says it when the selection is
 made. The exit 0 of such a run means lint and the compiler passed and no test
 ran, and the verdict's words are what tell it from a run whose tests passed.
-
-## Amended 2026-11-12 — the line as it stands
-
-With the three amendments above, the script line is
-`oxlint && tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run "$@" && node tools/needs.mjs`,
-and [`loop.check.ts`](../../../tools/loop.check.ts) holds its leg, its
-arguments and its first step. Since lint went first, `node tools/needs.mjs` is
-the fourth step, not the third: it runs after lint, the compiler and the
-runner. The two of those that `docs/test-an-edit.md` publishes are still the
-compiler and the runner.

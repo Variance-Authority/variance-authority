@@ -1,18 +1,10 @@
 # Spec 0027 — a test is selected by what it executed
 
-**Missing:** the readings that decide whether it ships. The capability exists:
-every host records what its tests executed into
-[the execution record](../execution-record.md#what-each-host-records), a diff
-is traced through it to the files to run
-([tracing a diff](../execution-record.md#tracing-a-diff-to-tests)), and a
-skip list is bounded by what the record witnessed
-([ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md)).
-Its three parts were specs 0028, 0029 and 0030, now discharged. Of the bars in
-[What decides whether this ships](#what-decides-whether-this-ships) only `o`
-has a reading — 1.00 against 1.35, on a suite whose wall clock is browser I/O,
-which [journal 0027](../context/journal/0027-what-instrumentation-costs.md)
-calls a weak bound — and `f`, `w`, `s` and the twenty-run volatility floor have
-none. [0047](0047-a-skip-list-is-worth-what-it-skips.md) is the spec that
+**Missing:** the readings that decide whether it ships. Of the bars in
+[What decides whether this ships](#what-decides-whether-this-ships), `f`, `w`,
+`s` and the twenty-run volatility floor have no reading, and `o` has one, which
+[journal 0027](../context/journal/0027-what-instrumentation-costs.md) calls a
+weak bound. [0047](0047-a-skip-list-is-worth-what-it-skips.md) is the spec that
 produces them.
 
 **Built on:** [`selecting.md`](../selecting.md) (the static selector this
@@ -243,10 +235,10 @@ selection names the probes and the regions they leave unanswered.
 **A module-scope edit degrades to the module.** A four-hundred-line file of
 top-level constants has one initialization block, so editing any of them selects
 every test that loaded the file. That stratum should be reported as a near-tie
-with the static selector, not folded into a headline. Since
-[ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md) a
-moved top-level value is charged to its lexical readers one file deep, so the
-degradation is to the readers of the value rather than to the module.
+with the static selector, not folded into a headline. A moved top-level value
+is narrower:
+[ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md)
+charges it to its lexical readers one file deep.
 
 **The index is a cache and never an input to correctness.** Missing, stale,
 foreign or corrupt, it costs a full run and can never cost a skipped test. This
