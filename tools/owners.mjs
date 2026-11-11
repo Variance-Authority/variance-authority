@@ -71,8 +71,8 @@ export const IDIOMS = {
   'commonjs-load': {
     owner:
       "a static `import`, and `import … with { type: 'json' }` for a JSON file: a reader following imports does " +
-      'not see a `require`, and `variance` reads no call through a `createRequire` result unless it is named ' +
-      "`require`. A load no import can carry, such as a native addon or the project's own file at a computed path, " +
+      'not see a `require`, and `variance` reads a `createRequire(import.meta.url)` result only bound to a `const` ' +
+      "or called where it is made. A load no import can carry, such as a native addon or the project's own file at a computed path, " +
       'says why at the site',
     owns: [],
   },

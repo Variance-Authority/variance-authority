@@ -3,8 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { originalPositionFor, parseSourceMap } from '@variance-authority/core/attribute';
 import { describe, expect, it } from 'vitest';
 
-/** Playwright's compile, the one every spec goes through with the plugin it is handed. */
-const { babelTransform } = createRequire(import.meta.url)('playwright/lib/transform/babelBundle') as {
+/**
+ * Playwright's compile, the one every spec goes through with the plugin it is
+ * handed, loaded from where `@playwright/test` finds it: `playwright` is that
+ * package's dependency, not this one's.
+ */
+const playwright = createRequire(createRequire(import.meta.url).resolve('@playwright/test'));
+const { babelTransform } = playwright('playwright/lib/transform/babelBundle') as {
   babelTransform: (
     code: string,
     filename: string,
