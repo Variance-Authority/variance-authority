@@ -16,24 +16,13 @@ import { diffPoint, diffSince } from './since.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 
 /**
- * `--execution`: read a journey file against a change the caller hands in.
- *
- * A journey file names no commit, so it never looks for its own change: it is
- * given one, as a patch, on stdin, or as whatever `--since` measures. Each
- * changed line goes to the regions `variance covering --line` names for it —
- * the innermost holding it, and the one around it when the line opens a region
- * — and only the cases that entered them run. Each changed file is read first from both of its
- * texts, the old one from the blob the patch names, so a comment or a new
- * function between two declarations is not charged to the module's importers.
- * A list of paths is refused: it carries no line, so
- * the only answer it can have is the import graph's, and that is `reach`.
- *
- * The lockfile is read as an install, not as a changed file. A handed-in patch
- * names both ends of it by blob, and the packages that moved between them are
- * walked back through the install to every file that imports them.
- *
- * Each reading goes through `fall`, which under `--local` answers one that
- * cannot narrow from the changed files it is handed.
+ * `--execution`: read a journey file against a change the caller hands in — a
+ * patch, stdin, or what `--since` measures — since a journey names no commit.
+ * Each changed line, read from both of its texts, goes to the regions
+ * `variance covering --line` names for it, and only the cases that entered them
+ * run. A list of paths is refused: only the import graph, `reach`, answers it.
+ * The lockfile is read as an install, walked back to every file importing what
+ * moved. Each reading goes through `fall`, which `--local` answers.
  */
 export async function journeyReading(
   request: SuiteRequest & { readonly execution: string },
