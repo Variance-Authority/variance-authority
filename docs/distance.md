@@ -84,7 +84,8 @@ tests, files another host owns, and files absent from the snapshot. `unread` is
 a report, not an input to the join: it lists a README, a fixture a test reads
 with `fs`, a script a test spawns. When a test depends on one of those, name it
 in the module that reads it, as `/// <depends path="…" />`; it then selects the
-tests that load that module and leaves `unread`. The integration's
+tests that load that module and leaves `unread`. For a spawned script, the
+declaration also covers every module that script loads. The integration's
 `preconditions` option names files too, and
 [a change to one selects every test of the run](changes-before-and-beyond.md#how-a-change-before-reach-is-declared).
 The state a test ran under, such as what a mock returns, is recorded as a [case

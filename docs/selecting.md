@@ -686,6 +686,17 @@ tests read goes in its `before`, or in `preconditions` when every test of the ru
 rests on it. A file the suite's `ignore` matches keeps the edge, and `before` does
 not move it.
 
+A test that runs a program in another process names the program's entry the same
+way, because the record sees only the process the test runs in:
+
+```ts
+/// <depends path="../src/bin.ts" />
+```
+
+The declaration covers what the named file loads, at any depth, whatever the
+record holds about those files: a change to a module `bin.ts` imports selects the
+test as surely as a change to `bin.ts` does.
+
 ## A change nothing has been seen rendering
 
 `RootLayout` renders every page in the app and appears in no client fiber tree,

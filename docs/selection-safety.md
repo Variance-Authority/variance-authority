@@ -148,7 +148,8 @@ read .changeset/mainline-owned-tests.md: unread (the record and the file graph h
 If a test does depend on that file — a fixture it reads with `fs`, a schema it
 loads by path — declare the dependency:
 
-- in the module that reads it, `/// <depends path="…" />`: a change to the file
+- in the module that reads it, `/// <depends path="…" />`: a change to the file,
+  or to any module it loads when it is a program a test runs in another process,
   runs the tests that load that module;
 - in `before`, when every test in the suite rests on it;
 - on the seam, its `preconditions` option, when every test of the run rests on
