@@ -29,6 +29,12 @@ describe('a surface is told by what its comment is attached to', () => {
     expect(surfacesOf('x.mjs', text)).toEqual([{ kind: 'overview', scope: '', line: 4, lines: 6 }]);
   });
 
+  it('reads a `/// <depends>` line as no comment, so the overview under the imports keeps its slot', () => {
+    const text = `/// <depends path="./bin.ts" />\nimport { a } from 'a';\n\n/**\n${lines(6)}\n */\n\nexport const b = a;\n`;
+
+    expect(surfacesOf('x.ts', text)).toEqual([{ kind: 'overview', scope: '', line: 4, lines: 6 }]);
+  });
+
   it('reads a docblock on the first export as that docblock, not an overview', () => {
     const text = `import { a } from 'a';\n\n/**\n${lines(11)}\n */\nexport function settle() {\n  return a;\n}\n`;
 

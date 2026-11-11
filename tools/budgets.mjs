@@ -25,7 +25,7 @@ export const BASELINE = join(ROOT, 'tools/budgets.baseline.json');
 export const BUDGET = { overview: 15, docblock: 10, block: 5, lead: 15 };
 
 const PRAGMA =
-  /^\s*(?:compass:|eslint-|oxlint-|@ts-|biome-ignore|prettier-ignore|c8 |v8 |istanbul |@vitest-environment|@jsx|#region|#endregion|<reference)/;
+  /^\s*(?:compass:|eslint-|oxlint-|@ts-|biome-ignore|prettier-ignore|c8 |v8 |istanbul |@vitest-environment|@jsx|#region|#endregion|<reference|<depends)/;
 const TAG = /^(?:@\w+(?:\s+\S+)?|\{@link\s+[^}]*\})$/;
 /** What a docblock documents: a declaration, a member or a property, never a statement. */
 const DECLARATION = /(?:Declaration|Definition|Signature|^TSEnumMember|^Property|^AccessorProperty)$/;
