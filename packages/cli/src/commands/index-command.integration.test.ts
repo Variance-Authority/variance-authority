@@ -1,3 +1,5 @@
+/// <depends path="../bin.ts" />
+/// <depends path="../../../sense/src/index-turn.ts" />
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

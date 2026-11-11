@@ -1,3 +1,4 @@
+/// <depends path="./bin.ts" />
 import { execFile, execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';

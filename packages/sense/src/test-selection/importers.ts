@@ -1,7 +1,8 @@
 import {
-  EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, idOf, nodeAt, trailOf, type NodeId, type Relations,
+  EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, idOf, nodeAt, trailOf, type EdgeKind, type NodeId, type Relations,
 } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { declaredBehind, declaredBehindFiles } from './declared.js';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
 import type { ExecutionNarrowingOptions } from './narrowing.js';
@@ -149,7 +150,7 @@ export function answerByImporters(
   const { relations } = options;
   // A suite that declines relations still follows what a module declares it reads of an ignored file.
   const declines = options.unmeasured === 'nothing';
-  if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignoring.size === 0)) {
+  if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignoring.size === 0 && declaredBehindFiles(relations, changed).length === 0)) {
     return { selected: new Map(), unread: changed.filter((file) => !ignoring.has(file)), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map(), unheld: [] };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
@@ -215,33 +216,49 @@ export function answerByImporters(
     mask: new Uint8Array(relations.names.length),
     via: new Int32Array(relations.names.length).fill(-1),
   };
+  /**
+   * Reads each file that declares it reads `from` (`/// <depends>`), or, `through` an
+   * asset edge as well, imports it as one. A declarer no row holds, for a file nothing
+   * else can answer for (`unheld`), goes where any unmeasured file goes: on to its
+   * importers, or named.
+   */
+  const declarers = (from: NodeId, through: readonly EdgeKind[], seed: readonly string[], lead: readonly string[], unheld: boolean): void => {
+    const traversal = dependentsOf(relations, [from], { through });
+    for (const other of traversal.nodes) {
+      // The file itself, and an asset something imports: a step to the module that carries it, walked through.
+      if (other === from || importedAsAsset(relations, other)) continue;
+      const trail = [...lead, ...trailOf(traversal, other).map((step) => relations.names[step]!)];
+      if (read(other, trail, seed, undefined) || !unheld || answers.get(other)?.governs.length !== 0) continue;
+      const name = relations.names[other]!;
+      for (const known of knownAs(name)) governing.set(known, [...(governing.get(known) ?? []), { reason: { kind: 'importer', trail }, seed, from: undefined }]);
+      if (declines && !readers.includes(name)) readers.push(name);
+      else if (!declines) importersUntil(relations, other, walk, (next, rest) => read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, name));
+    }
+  };
   for (const file of changed) {
     const id = idOf(relations, 'file', file);
     const ignored = ignoring.has(file);
-    if (id === undefined || (declines && !ignored)) {
+    const behind = id === undefined ? [] : declaredBehind(relations, id);
+    if (id === undefined || (declines && !ignored && behind.length === 0)) {
       if (!ignored) unread.push(file);
       continue;
     }
     const seed = knownAs(file);
-    if (ignored || importedAsAsset(relations, id)) {
-      // A module that declares it reads the file is a step to it as much as one that
-      // imports it, and the one step an ignored file keeps: nothing else names it.
-      const traversal = dependentsOf(relations, [id], { through: ignored ? ['depends'] : ['asset', 'depends'] });
-      for (const other of traversal.nodes) {
-        // The file itself, and an asset something imports: a step to the module that carries it, walked through.
-        if (other === id || importedAsAsset(relations, other)) continue;
-        const trail = trailOf(traversal, other).map((step) => relations.names[step]!);
-        if (read(other, trail, seed, undefined) || !ignored || answers.get(other)?.governs.length !== 0) continue;
-        // A reader of an ignored file no row holds goes where any unmeasured file goes: on to its importers, or named.
-        const name = relations.names[other]!;
-        for (const known of knownAs(name)) governing.set(known, [...(governing.get(known) ?? []), { reason: { kind: 'importer', trail }, seed, from: undefined }]);
-        if (declines && !readers.includes(name)) readers.push(name);
-        else if (!declines) importersUntil(relations, other, walk, (next, rest) => read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, name));
-      }
-    } else if (!seed.some((name) => rowed.has(name))) {
+    const asset = !ignored && !declines && importedAsAsset(relations, id);
+    // A module that declares it reads the file is a step to it as much as one that
+    // imports it, and the one step an ignored file keeps: nothing else names it.
+    if (ignored || asset) declarers(id, ignored ? ['depends'] : ['asset', 'depends'], seed, [], ignored);
+    else if (declines) unread.push(file);
+    else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>
         read(other, trail.map((step) => relations.names[step]!), seed, file),
       );
+    }
+    // A declaration charges its declarer for what the declared file loads, at any
+    // depth and whatever answered the change above: the run it names left no row.
+    for (const target of behind) {
+      if (target === id && (ignored || asset)) continue;
+      declarers(target, ['depends'], seed, target === id ? [] : [file], true);
     }
   }
   // A file answered whole is its own first step: a test that holds it, or a row

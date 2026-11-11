@@ -19,6 +19,12 @@ import { narrowByExecution } from './index.js';
  * and names it with a `/// <depends>` directive. `audit.ts` does the same with
  * `fee.ts`, and is a source file with a row of its own, which `audit.test.js`
  * loads.
+ *
+ * `spawn.test.js` declares `entry.ts` and loads none of it, as a test that runs
+ * the program in a child process does: the record never sees it enter `entry.ts`
+ * or what `entry.ts` loads, `step.ts` and then `deep.ts`. `entry.test.js` loads
+ * them in its own process, so each has a row. `table.test.js` declares a JSON
+ * file nothing loads.
  */
 
 const execute = promisify(execFile);
@@ -30,6 +36,8 @@ const named = (path: string): string => `${relative(repository, fixture)}/${path
 const tests = (...names: string[]): string[] => names.map((name) => named(`test/${name}.test.js`));
 const rate = named('src/rate.ts');
 const fee = named('src/fee.ts');
+const entry = named('src/entry.ts');
+const deep = named('src/deep.ts');
 
 let directory: string;
 let coverageFile: string;
@@ -80,7 +88,7 @@ describe('a file that declares it reads a module', () => {
     expect(narrowing.entered).toEqual(tests('charge', 'source'));
   });
 
-  it('charges the tests that loaded its row, by the row, when it has one', async () => {
+  it('charges the tests that loaded its row, by the row and by the declaration, when it has one', async () => {
     const narrowing = await narrowByExecution(coverageFile, await edit(fee, 'FEE = 2', 'FEE = 3'), {
       relations,
       sourceAt,
@@ -89,6 +97,25 @@ describe('a file that declares it reads a module', () => {
     expect(narrowing.entered).toEqual(tests('audit', 'fee'));
     expect(narrowing.because[0]!.via).toEqual([
       expect.objectContaining({ reader: audit, region: expect.objectContaining({ file: audit, path: 'module' }) }),
+      { kind: 'importer', trail: [fee, audit] },
     ]);
+  });
+});
+
+describe('a test that declares a program it runs in another process', () => {
+  it('is reached by a change to a module the program loads two hops away', async () => {
+    const narrowing = await narrowByExecution(coverageFile, await edit(deep, 'return 1;', 'return 2;'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.entered).toEqual(tests('entry', 'spawn'));
+  });
+
+  it('is reached by a change to the program that moves none of its names', async () => {
+    const narrowing = await narrowByExecution(coverageFile, await edit(entry, 'return step();', 'return step() * 1;'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.entered).toEqual(tests('entry', 'spawn'));
   });
 });

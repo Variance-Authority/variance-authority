@@ -40,6 +40,7 @@
 import { RUNTIME_EDGES, affectedBy, dependentsOf, idOf, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { blocksChargedAt } from './blocks-around.js';
+import { declaredBehindFiles } from './declared.js';
 import type { LineRange } from './diff-lines.js';
 import type { ExecutionIndex, ExecutionModule } from './reverse.js';
 import type { ExecutionNarrowing } from './narrowing.js';
@@ -100,7 +101,7 @@ export function narrowByJourneys(
   const everyEntrant = (module: ExecutionModule): void => enterEvery(index, module, owned, entered);
 
   const ignored = ignoredBy(options.ignore, changed.keys());
-  const declared = declaredReach(index, relations, ignored, options.unmeasured);
+  const declared = declaredReach(index, relations, ignored, options.unmeasured, declaredBehindFiles(relations, changed.keys()));
   for (const test of declared.entered) entered.add(test);
   // A declaring file the record holds nothing for is named as any unread path is, or declined with them.
   (options.unmeasured === 'nothing' ? declined : unread).push(...declared.unread);
@@ -158,11 +159,11 @@ export function narrowByJourneys(
   };
 }
 
-/** The modules that declare they read an ignored file (`/// <depends>`), by name. */
-export function dependsReaders(relations: Relations | undefined, ignored: readonly string[]): readonly string[] {
+/** The modules that declare they read any of these files (`/// <depends>`), by name. */
+export function dependsReaders(relations: Relations | undefined, files: readonly string[]): readonly string[] {
   if (relations === undefined) return [];
   // Each file on its own: a reader the suite ignores as well still declared it reads another.
-  const readers = ignored.flatMap((file) => {
+  const readers = files.flatMap((file) => {
     const id = idOf(relations, 'file', file);
     return id === undefined ? [] : [...dependentsOf(relations, [id], { through: ['depends'] }).nodes].filter((other) => other !== id);
   });
@@ -178,6 +179,9 @@ export function dependsReaders(relations: Relations | undefined, ignored: readon
  * unmeasured file goes: to the tests the graph says import it, or, in a suite
  * that declines relations or a graph that cannot answer, to `unread`.
  *
+ * The same holds for each `declared` file a change sits in the runtime closure of
+ * (`declared.ts`): its declarer runs it in a process the record never saw.
+ *
  * `index` holds the readers' modules: the whole journey, or its projection onto them.
  */
 export function declaredReach(
@@ -185,12 +189,13 @@ export function declaredReach(
   relations: Relations | undefined,
   ignored: readonly string[],
   unmeasured?: Unmeasured,
+  declared: readonly string[] = [],
 ): { readonly entered: readonly string[]; readonly unread: readonly string[] } {
   const held = new Set(index.tests.map((test) => test.file));
   const owned = shadowedFor(relations);
   const entered = new Set(ignored.filter((file) => held.has(file)));
   const unread: string[] = [];
-  for (const reader of dependsReaders(relations, ignored)) {
+  for (const reader of dependsReaders(relations, [...ignored, ...declared])) {
     const module = index.modules.find((candidate) => candidate.file === reader);
     if (held.has(reader)) entered.add(reader);
     if (module !== undefined) enterEvery(index, module, owned, entered);
