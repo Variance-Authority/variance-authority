@@ -119,7 +119,7 @@ export async function queued(home: string, queue: Queue): Promise<Queued> {
       await git(dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', `origin/pr-${index}`);
       continue;
     }
-    await git(dir, 'merge', '--quiet', '--squash', `origin/pr-${index}`);
+    await git(dir, ...DEV, 'merge', '--quiet', '--squash', `origin/pr-${index}`);
     await git(dir, ...DEV, 'commit', '--quiet', '-m', `pr ${index}, squashed`);
   }
   return { dir, base, tested: tips.at(-1)!, fork };
