@@ -175,3 +175,20 @@ manifests and the resolver decide what is usable and installed.**
   answer shows both.
 - A package whose authors wrote no description, keywords or JSDoc cannot be
   found by a job, only by its name.
+
+## Amended 2026-11-12 — what landed, and why this stays proposed
+
+Points 4, 5 and 7 are built, and so are points 1 and 6 for third-party
+packages ([#588](https://github.com/Variance-Authority/variance-authority/issues/588)
+to [#593](https://github.com/Variance-Authority/variance-authority/issues/593)).
+`variance ask stack --from <path>` lists the packages the owning manifest of
+the path declares, those imported here apart from those declared and not
+imported, each with its role, declaration kind, installed version, import count
+and first site. Graph-scoped `search` says *usable here* only under the owning
+manifest, and finds an installed package by the words it publishes. Point 2 is
+not built, nor the shadowing abstraction point 6 shows: nothing follows a local
+abstraction to the package it wraps. Point 3 is not built, nor the first-party
+half of point 1: no area is told apart as a foundation, and no answer covers the
+project's whole stack rather than one manifest's.
+[Spec 0081](../../specs/0081-the-tech-stack-is-read-from-the-code.md) holds
+what is left.

@@ -1,6 +1,6 @@
 # ADR-0084 — every base is main's record, and the primary checkout is the offline fallback
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-09-30
 **Amends:** [ADR-0077](0077-the-config-says-where-an-artifact-lives.md) (the
 config says where an artifact lives), in three places named below; ADR-0077 is
@@ -178,3 +178,22 @@ fetched here, and a reader that asks `suiteBase` says so.**
 - A developer who never runs `variance share --suite <name>`, `test:since`,
   `select` or `covering` has never fetched, and their seams lay the primary checkout's
   record. They are told so each time.
+
+## Accepted 2026-11-12 — every reader takes this order, and `test:since` is a plain run
+
+The order is `suiteBase` in
+[`suite-base.ts`](../../../packages/cli/src/commands/suite-base.ts):
+`covering` and `select` reach it through `recordedOrMainline`, and `carry`
+through `carry-pushed.ts`. A seam reads the name `lastFetchedMainline` gives,
+lays that record with `layFetchedMainline` and says which with `noteSeeded`,
+and a miss stands for `MISS_STANDS_MS`. `check.yml` hands the records to the
+publish job with `upload-artifact`, loops over the `shared-suites` that
+`variance carry` prints, and passes what `vitest list --filesOnly` collected to
+`share --publish --collected`.
+
+One reader named above is no longer a reader of its own. `yarn test:since` was
+a script under `tools/` when this was written. Since `ebff21a4f` (2026-10-07)
+it is `variance index` followed by `yarn test`, so it asks `suiteBase`
+nothing: the seam lays its base, as it does for a plain `yarn test`. The
+first bullet's *`test:since`, `select` and `covering` ask it* holds for
+`select` and `covering`.

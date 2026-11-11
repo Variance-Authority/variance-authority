@@ -5,8 +5,8 @@ out of many writers. Three fan-ins exist — worker to run, shard to index, run 
 index — and they share no vocabulary: one of them takes a lock, the other two do
 not; nothing numbers a snapshot, so no two can be ordered; and every merge
 computes how much it dropped and then discards the number.
-**Built on:** [0029](0029-what-a-run-remembers.md) (the union-within-a-generation
-rule this is the missing half of),
+**Built on:** [ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md) (the completeness half of spec 0029's
+union-within-a-generation rule; the generation is the half this adds),
 [0043](0043-a-record-costs-what-the-run-cost.md) (the fold whose memory this
 must also bound),
 [ADR-0059](../context/adr/0059-a-record-is-invalidated-by-what-could-have-answered-it.md)
@@ -14,7 +14,7 @@ must also bound),
 
 ## Purpose
 
-[0029](0029-what-a-run-remembers.md) settled what a row means when two runs
+Spec 0029 settled what a row means when two runs
 disagree about it. It did not settle what happens when two runs *write at the
 same time*, and the code has since answered that question three different ways
 without anyone choosing between them:

@@ -2,8 +2,8 @@
 
 **Missing:** an enforced contract between the record and its answer. The rule
 that keeps a skip list safe — subtract `entered` from `whole` and from nothing
-else, and never trust a row whose text has changed — is written four times, in
-four dialects, across four callers, and the library that owns the record
+else, and never trust a row whose text has changed — is written three times, in
+three dialects, across three callers, and the library that owns the record
 disclaims it. Two of its exported functions hand out `entered` with no `whole`
 beside it, which is the one shape from which a caller can build an unsafe
 answer without noticing.
@@ -22,12 +22,13 @@ little. This one is about the moment the record is believed.
 `entered`, and `unread` names the changed paths the record says nothing about,
 which select nothing and are reported. The library computes all four correctly and
 then leaves the subtraction to its callers, who have each written it
-themselves: `variance select`, `variance run --since`, tools/test-since.mjs,
-and the README (`packages/sense/README.md:717`). A fourth exported surface
-hands out `entered` alone. **The sentence the entire feature rests on is not a
+themselves: `variance select`, whose `selectSuite` the runner seams also read,
+`variance run --since`, and the README (`packages/sense/README.md:717`). The
+repository's own selection script was a fourth until ebff21a4f deleted it for
+the seams. Another exported surface hands out `entered` alone. **The sentence the entire feature rests on is not a
 line of shipped code anywhere.**
 
-That would be a tidiness complaint if the four agreed. They do not:
+That would be a tidiness complaint if the three agreed. They do not:
 
 - `variance select` always scans and passes `relations`; `variance run
   --since` passes them only when `source.relations` is set. Two callers of one
@@ -35,20 +36,20 @@ That would be a tidiness complaint if the four agreed. They do not:
   the same diff against the same snapshot yields two different skip lists
   depending on which command asked. Without the walk a changed stylesheet is
   `unread` rather than answered by its measured importers, and selects nothing.
-- `knownAs` is supplied only by tools/test-since.mjs. The CLI's reader passes
-  `sourceAt` and `relations` and nothing else.
-- Only tools/test-since.mjs intersects `whole` with the suite that was
-  actually collected. `variance select` subtracts from `whole` directly — so
-  deleted tests, renamed tests, and tests belonging to another project or
-  another config are all in the answer.
+- No caller supplies `knownAs`: the deleted script was the only one, and the
+  CLI's reader passes `sourceAt` and `relations` and nothing else.
+- A seam acts only on the files its runner collected, so a skip that names a
+  deleted test drops nothing. `variance select` subtracts from `whole` directly —
+  so deleted tests, renamed tests, and tests belonging to another project or
+  another config are all in the answer it prints.
 
 And the frame check contradicts its own documentation in the direction that
 misleads an operator. `textAtRecording` returns `undefined` when the snapshot
 names no commit, with a docblock at `packages/sense/src/test-selection/recorded-text.ts:111-113` saying this
 avoids "reporting every module stale". `frameOf` at
 `packages/sense/src/test-selection/reading.ts:107` reads `undefined` under every name as
-disagreement and answers `stale`. tools/test-since.mjs withholds `sourceAt`
-from a commitless snapshot; the CLI does not. **Through `variance select` and
+disagreement and answers `stale`. The deleted script withheld `sourceAt` from
+a commitless snapshot; the CLI does not. **Through `variance select` and
 `variance run --since`, a commitless snapshot therefore reports exactly every
 changed module stale** — the widening is safe,
 and the operator is told N modules "were recorded from a different text" and
@@ -84,9 +85,10 @@ as a corrupt snapshot with destructive advice.
 
 **4. One translation between names and paths.** The frame check is one unit,
 `frameOf`, asked under every name `knownAs` gives a file, and a built twin's
-rows are in frame when the source's are. What is still written twice is the
-translation: tools/test-since.mjs rewrites a diff with `inSnapshotCoordinates`
-before the library sees it, and the CLI's reader supplies no `knownAs` at all.
+rows are in frame when the source's are. What is missing is the translation:
+the deleted script rewrote a diff with `inSnapshotCoordinates` before the
+library saw it, and the CLI's reader supplies no `knownAs` at all, so nothing
+translates now.
 The name a row carries and the path a diff carries are two coordinate systems,
 and the translation between them belongs beside the check, once.
 
@@ -177,4 +179,4 @@ instrument is not a stale module.
 
 **Ranking is not selection.** `loadedBy`, hop distance and ordering explain and
 prioritize a run. Nothing in this spec permits any of them to remove a test from
-one ([the module-level rule](0029-what-a-run-remembers.md) is unchanged).
+one ([the module-level rule](../context/adr/0072-a-change-is-read-before-it-is-charged.md) is unchanged).

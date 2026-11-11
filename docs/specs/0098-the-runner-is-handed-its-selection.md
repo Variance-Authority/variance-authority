@@ -1,16 +1,19 @@
 # Spec 0098 — the runner is handed its selection
 
-**Missing:** a way for a runner to receive the selection other than through its
-command line. `variance select --format vitest` and `--format jest` print the
-selection as runner arguments, and the documented loop substitutes them into the
-runner's argv. That breaks at the scale the product is for. macOS stops a
-command line at 1 MiB, which is about seven thousand absolute `--exclude=` paths
-of this repository's length. Windows `cmd` stops at 8,191 characters, about
-sixty. A private-corpus suite has about twenty-five thousand test files, and one
-change to a hub reaches most of them. The format is also where runner knowledge
-leaked into the selector: `select.ts` writes Vitest's absolute `--exclude` paths
-and Jest's escaped ignore patterns, so how a runner matches a path is decided in
-the one place that should not know which runner is asking.
+**Missing:** the argv formats' removal, a drop point for Rstest, and the
+acceptance run. The hand-off itself landed in ebff21a4f, items 1 to 5:
+`selectSuite` composes the selection once, the Jest seam drops through
+`filter`, the Vitest seam through the sequencer and Playwright through
+`testIgnore`, each prints `selected N of M` or why it declined, and this
+repository's `test:since` and verify waves run through the seams with
+`VARIANCE_AUTHORITY_SINCE` set. What is left: `--format vitest` and
+`--format jest` still print runner arguments behind a deprecation whose one
+minor release (item 6) ended long ago — it shipped in 0.15.0 and the CLI is at
+0.30.0; Rstest has no drop point named, so it records and does not select
+(question 6); and no run has handed twenty-five thousand test files to Jest
+and Vitest on macOS and Windows, which is the acceptance below. The argv
+ceilings that motivated this — 1 MiB on macOS, 8,191 characters in Windows
+`cmd` — are why the formats go rather than stay as a convenience.
 **Built on:** the recording seams in `@variance-authority/sense` — `./vitest`,
 `./jest`, `./rstest` and `./runner` — each a `withTestSelection` that wraps the
 project's configuration and contributes without replacing anything

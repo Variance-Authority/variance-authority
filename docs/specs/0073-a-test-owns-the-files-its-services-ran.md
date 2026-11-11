@@ -6,7 +6,8 @@ divides one probe store at top-level test-class boundaries, and splits a
 service's work by journey only as far as its concurrent windows allow; it does
 not record individual test methods.
 **Built on:** [0036](0036-a-journey-crosses-processes.md) (the observed request
-edge and the second hop), [0029](0029-what-a-run-remembers.md) (an incomplete
+edge and the second hop),
+[ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md) (an incomplete
 observation cannot justify a skip), and
 [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) (presence,
 not a count or a trace), and [changes before and beyond](../changes-before-and-beyond.md)
@@ -216,7 +217,7 @@ report, a missing build inventory, a lost report, a request that left the lane,
 or a still-running async tail makes the affected observation incomplete. Absence of a file from such a row
 cannot justify skipping that test. The report distinguishes a complete empty
 file set from no file set, and tells the operator which boundary prevented a
-narrower selection. This follows [0029](0029-what-a-run-remembers.md), rather
+narrower selection. This follows [ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md), rather
 than treating a timeout as zero coverage.
 
 **6. Cost is measured, not assumed.** The measurements keep comparing

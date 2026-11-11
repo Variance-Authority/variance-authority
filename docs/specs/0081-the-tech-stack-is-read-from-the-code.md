@@ -1,14 +1,22 @@
 # Spec 0081 — the tech stack is read from the code
 
-**Missing:** the stack itself. The code map, the imports along a file and the
-catalogue of installed APIs are published. No answer says what this project
-builds on and builds with. Nothing tells a package the code uses from one that
-is only declared. Nothing follows a local abstraction to the package it wraps.
-Nothing calls a first-party area such as a design system a foundation rather
-than an application. Graph-scoped `search` offers what any imported workspace
-declares. A hit names no manifest, kind or local use. No package is found by
-the job it does, `symbol` takes no location, and nothing is timed beyond this
-repository.
+**Missing:** the project's stack, and what each package is used through.
+Items 3 to 7 landed, closed with [#588](https://github.com/Variance-Authority/variance-authority/issues/588)
+to [#593](https://github.com/Variance-Authority/variance-authority/issues/593), and so did the third-party
+half of item 2. `variance ask stack --from <path>` lists every package the
+owning manifest of the path declares, imported here apart from declared and
+not imported, each with its role, declaration kind, installed version, import
+count and first site. Graph-scoped `search` says *usable here* only under the
+owning manifest, and it finds an installed package by the words the package
+publishes, held by `invented-jobs.measure.ts`. `symbol --from` answers at a
+location, and `dependency-scale.measure.ts` times the questions on Kibana and
+seven copies of MUI. What no answer says is what the whole project builds on
+and builds with: `stack` takes `--from` and answers for one owning manifest.
+Nothing follows a local abstraction to the package it wraps, or reports a file
+that imports a package past one. Nothing calls a first-party area such as a
+design system a foundation rather than an application. A stack row is not
+paired with its declaration provider either: `@types/react` is a row of its
+own, listed as not imported.
 **Built on:** [ADR-0082](../context/adr/0082-the-tech-stack-is-what-the-code-builds-on-and-with.md)
 (the terms, and the rule each item below implements),
 [spec 0041](0041-orientation-is-the-first-five-minutes.md) (orientation is held

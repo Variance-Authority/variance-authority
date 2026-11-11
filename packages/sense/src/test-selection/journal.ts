@@ -1,8 +1,8 @@
 /**
  * `@variance-authority/sense/journal` — the same instrument, over a wire.
  *
- * [Spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states the rule this
- * file discharges: *a browser needs a different transport, not a different
+ * Every host in [the execution record](https://variance-authority.dev/docs/execution-record#what-each-host-records) keeps
+ * the rule this file discharges: *a browser needs a different transport, not a different
  * instrument.* A browser is the case that exists, and not the boundary this
  * draws. What the Vitest seam has and this does not is a recorder that ran the
  * instrumentation itself: there, the transform, the counters and the runner's
