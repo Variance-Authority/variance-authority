@@ -178,8 +178,8 @@ these.
   has no budget and no exemption list. A documented export nothing names is
   answered with a test or with a deletion.
 - **A module is reached by `import`.** A reader following imports does not see
-  a `require`, and `variance` reads no call through a `createRequire` result
-  unless it is named `require`, so our modules and JSON files are static
+  a `require`, and `variance` reads a `createRequire(import.meta.url)` result
+  only bound to a `const` or called where it is made, so our modules and JSON files are static
   imports. A load no import can carry — a native addon, the project's own file
   at a computed path — says why at the site, and the `commonjs-load` idiom in
   `yarn owners` refuses a new one until `yarn owners --write` records it.

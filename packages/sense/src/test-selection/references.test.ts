@@ -92,12 +92,19 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
     });
   });
 
-  // A require is the one the module reader loads: `require` or `module.require`,
-  // never another object's method of that name.
+  // A require is the one the module reader loads: `require`, `module.require`
+  // or a function `createRequire` made, never another object's method of that name.
   it.each([
     ['a bare `require`', "export const late = () => require('./c');", true],
     ['`module.require`', "export const late = () => module.require('./c');", true],
     ['another object\'s `require`', "export const late = () => loader.require('./c');", false],
+    [
+      'a `createRequire` result bound to any name',
+      "import { createRequire } from 'node:module';\nconst load = createRequire(import.meta.url);\nexport const late = () => load('./c');",
+      true,
+    ],
+    ['a `createRequire` result called inline', "import { createRequire } from 'module';\nexport const late = () => createRequire(import.meta.url)('./c');", true],
+    ['a function named `load` no `createRequire` made', "const load = (path: string) => path;\nexport const late = () => load('./c');", false],
     ['an import whose specifier no text holds', String.raw`import { a } from '\uD800';`, true],
     ['a re-export whose specifier no text holds', String.raw`export { a } from '\uD800';`, true],
     ['a star whose specifier no text holds', String.raw`export * from '\uD800';`, true],

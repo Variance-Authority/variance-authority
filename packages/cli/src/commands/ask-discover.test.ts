@@ -44,6 +44,12 @@ beforeAll(() => {
   write('src/Deep.ts', "import { greet } from './lib/all';\nexport const deep = greet;\n");
   write('src/Waver.ts', "import { wave } from './lib';\nexport const waver = wave;\n");
   write('src/Page.ts', "import { hello } from './Hello';\nexport const page = hello;\n");
+  // An ES module loads CommonJS through what `createRequire` made, whatever its name.
+  write('src/legacy.cjs', 'exports.size = 1;\n');
+  const made = "import { createRequire } from 'node:module';\n";
+  write('src/Required.mts', `${made}const require = createRequire(import.meta.url);\nexport const { size } = require('./legacy.cjs');\n`);
+  write('src/Loaded.mts', `${made}const load = createRequire(import.meta.url);\nexport const { size } = load('./legacy.cjs');\n`);
+  write('src/Inline.mts', `${made}export const { size } = createRequire(import.meta.url)('./legacy.cjs');\n`);
   const commit = (...args: string[]): void => void execFileSync('git', ['-C', root, ...args]);
   commit('init', '--quiet');
   commit('add', '.');
@@ -89,6 +95,13 @@ describe('ask discover over a checkout', () => {
     expect(text).toContain('2 imports to src/lib/greet.ts#greet: src/Page.ts → src/Hello.ts:1 imports greet from ./lib');
     expect(text).not.toContain('src/Waver.ts');
     expect(text).not.toContain('src/lib/index.ts');
+  });
+
+  it('finds a module that loads a file through a function `createRequire` made, bound to any name or called inline', async () => {
+    const text = await ask({ to: 'src/legacy.cjs' });
+    expect(text).toMatch(/^src\/Required\.mts$/m);
+    expect(text).toMatch(/^src\/Loaded\.mts$/m);
+    expect(text).toMatch(/^src\/Inline\.mts$/m);
   });
 
   it('crosses paths alone, with no names to read', async () => {
