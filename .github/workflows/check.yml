@@ -619,9 +619,9 @@ jobs:
       # a selection runs one wave: the selection drops what it skips before
       # Vitest cuts the shard, and the shard records as a shard of a whole run
       # does, below, so `record` folds the parts over the base and every test
-      # file no part ran keeps the row it had. It takes what the last push ran
-      # into its own cache too, so it selects from the record `plan` priced and
-      # `record` folds over.
+      # file no part ran keeps the row it had. It selects from the mainline's
+      # record alone: a layer taken into the shard cache would stay in the
+      # shard's record, and two shards holding the same rows cannot fold.
       #
       # A push to `main` and a dispatch run every file. That is the gate a
       # selection is a smaller claim than, and on a push it is what the record
@@ -643,14 +643,12 @@ jobs:
           SELECT: ${{ matrix.mode == 'selected' && steps.base.outputs.based == 'true' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
-          CARRIED: ${{ needs.base.outputs.carried }}
         run: |
           if [ -n "$SHARD" ]; then
             echo "into=shard" >> "$GITHUB_OUTPUT"
             export VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record"
             node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
             if [ "$SELECT" = true ]; then
-              if [ "$CARRIED" = true ]; then node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried"; fi
               yarn variance index
               VARIANCE_AUTHORITY_SINCE='' yarn "test:$SUITE" --shard "$SHARD"
             else
