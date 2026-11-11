@@ -316,8 +316,8 @@ and `sourceIndexPath(root)` the source index beside it. A git worktree gets
 `.work/<its own digest>/` in its own cache, which is inside the worktree at the
 default location. Its coverage reads both layers and writes only its own, so a
 worktree cut this morning inherits what the repository already recorded. Its source index is its own too,
-and the first update in it starts from a copy of the primary checkout's and reads
-only the files that differ between the two. Pass `coverageFile` in the options to put
+and the first update in it builds that index from nothing: it reads every file and
+parses only those whose parse the cache's parse store does not hold. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
 needs that.
 
@@ -1686,9 +1686,10 @@ again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
 Pass `dirs` for an index that covers some directories of the checkout and what
-they import, rather than all of it, and `primary` to name the index a missing
-one starts from. Without `index`, a worktree's index starts from the primary
-checkout's. `progress` is told each step's name as it starts, the git listing
+they import, rather than all of it. A missing index is built from nothing, in a
+worktree too: no record is copied from another checkout's index, and the parse
+store is what a second checkout reuses. An `index` you name in the checkout's
+own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.
 
@@ -1729,8 +1730,9 @@ await source.save();
 `sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
 root, cached in CI the same way. `variance index` also keeps one parse store per
 cache, keyed by a module's bytes and how they are read, so a directory or a
-worktree does not parse again what another root in the same cache has read; the
-cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
+worktree does not parse again what another root in the same cache has read. A
+parse of a tracked file is offered to other roots only when the bytes read are
+the blob git named for it; the cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
 for the on-disk layout and the cache recipe. The parse section is keyed by
 content digest; the record section additionally by the repository path layout
 and resolution settings, because resolution can change while file bytes stay the

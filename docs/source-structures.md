@@ -59,8 +59,8 @@ the checkout path:
 Deleting the index and its `source-index.bin.segments/` directory, then running
 `variance index`, is how you force the first row deliberately. A git worktree
 has a directory of its own there, so it gets an index of its own. Its
-first update starts from a copy of the index of the checkout it was cut from,
-and pays for the files that differ between the two, not the first row.
+first update builds that index from nothing: it reads every file and parses
+only the ones the cache's parse store, shared by the checkouts, does not hold.
 
 ## What a change rebuilds
 

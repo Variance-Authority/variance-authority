@@ -11,6 +11,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use crate::acquire::{read_all, read_git, Answer, Outcome, LARGEST_FILE};
+use crate::parse_origin::FromBlob;
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::read::Kind;
@@ -132,6 +133,7 @@ pub fn scan_batch(
         listed.as_ref(),
         None,
         &|_, _| None,
+        &FromBlob::default(),
     )
 }
 
@@ -141,6 +143,7 @@ pub(crate) fn scan_batch_with_oids(
     known: Option<&HashMap<String, u32>>,
     listing: Option<Arc<Listing>>,
     kept: Kept,
+    from_blob: &FromBlob,
 ) -> ScanBatch {
     let ScanOptions {
         root,
@@ -154,7 +157,7 @@ pub(crate) fn scan_batch_with_oids(
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let (read, answered) = match oids {
-        Some(oids) => read_kept(&root, &files, oids, largest_file, digests, readers, kept),
+        Some(oids) => read_kept(&root, &files, oids, largest_file, digests, readers, kept, from_blob),
         None => (
             read_all(
                 root.clone(),
@@ -179,10 +182,11 @@ pub(crate) fn scan_graph_with_tree(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
     kept: Kept,
+    from_blob: &FromBlob,
 ) -> ScanBatch {
     let include_parses = options.include_parses;
     let Walked { files, identities, read, targets, kept: answered } =
-        walk_beyond(options, at, tree_oids, listing, &|_| false, kept);
+        walk_beyond(options, at, tree_oids, listing, &|_| false, kept, from_blob);
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
@@ -220,6 +224,7 @@ pub(crate) fn walk_beyond(
     listing: Arc<Listing>,
     held: &dyn Fn(&str) -> bool,
     kept: Kept,
+    from_blob: &FromBlob,
 ) -> Walked {
     let GraphOptions {
         root,
@@ -269,7 +274,7 @@ pub(crate) fn walk_beyond(
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
         let (opened, wave_kept) =
-            read_kept(&root, &wave, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept);
+            read_kept(&root, &wave, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob);
         answered.extend(wave_kept);
         let resolved = resolve_all(root_path, &wave, &opened, &resolvers, Some(at));
         for target in resolved.iter().flatten() {
@@ -292,6 +297,8 @@ pub(crate) fn walk_beyond(
 
 /// Read `files` from Git, answering from `kept` every tracked one whose
 /// content it holds rather than opening it; with each answer, whether `kept` gave it.
+/// `from_blob` is told of every tracked file read, and whether its bytes were the blob named.
+#[allow(clippy::too_many_arguments)]
 fn read_kept(
     root: &str,
     files: &[String],
@@ -300,6 +307,7 @@ fn read_kept(
     digests: Option<bool>,
     readers: Option<u32>,
     kept: Kept,
+    from_blob: &FromBlob,
 ) -> (Vec<Answer>, Vec<bool>) {
     let hits: Vec<Option<(crate::read::Read, String)>> = files
         .iter()
@@ -324,12 +332,17 @@ fn read_kept(
         .filter(|(_, hit)| hit.is_none())
         .map(|((file, oid), _)| (file.clone(), oid))
         .unzip();
-    let mut fresh = if unread.is_empty() {
-        Vec::new()
+    let (fresh, named) = if unread.is_empty() {
+        (Vec::new(), Vec::new())
     } else {
-        read_git(root.to_owned(), unread, unread_oids, largest_file, digests, readers, true)
+        read_git(root.to_owned(), unread.clone(), unread_oids.clone(), largest_file, digests, readers, true)
+    };
+    for ((file, oid), named) in unread.iter().zip(&unread_oids).zip(named) {
+        if let Some(oid) = oid {
+            from_blob.saw(oid, file, named);
+        }
     }
-    .into_iter();
+    let mut fresh = fresh.into_iter();
     let mut read = Vec::with_capacity(files.len());
     let mut answered = Vec::with_capacity(files.len());
     for hit in hits {

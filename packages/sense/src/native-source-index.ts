@@ -20,12 +20,16 @@ export interface NativeSourceIndexes {
    * Why the layers were not written, or `null` when they are.
    */
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
-  /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
-  seedSourceIndex(path: string, from: string): boolean;
   /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
   pruneParseStore(store: string, chains: string[], graceMs: number): number;
-  /** Add to the first of `stores` every parse the chain at `chain` holds and no store does; how many went in. */
-  fillParseStore(stores: string[], chain: string): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
+}
+
+/** What a listing of a checkout knows of the parses its reads made: which were of the blob git names the file by (`native/src/parse_origin.rs`). */
+export interface NativeParseOrigins {
+  /** Tell the listing of a parse made in JavaScript of `file`, from `contents`. */
+  parsedFrom(file: string, contents: string): void;
+  /** Add to the first of `stores` every parse the chain at `chain` holds, no store does, and this listing read only as that blob; how many went in. */
+  fillParseStore(stores: string[], chain: string): number;
 }

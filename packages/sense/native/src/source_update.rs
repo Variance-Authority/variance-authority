@@ -92,6 +92,8 @@ pub(crate) struct Tree<'t> {
     pub listing: Arc<Listing>,
     pub regular: &'t [bool],
     pub unhashed: &'t [String],
+    /// Told of each tracked file read, and asked which parses may be shared.
+    pub from_blob: &'t crate::parse_origin::FromBlob,
     /// What makes this tree carried by the segment the update writes, when a watch covers it.
     #[cfg(unix)]
     pub carry: Option<crate::held_listing::Meta>,
@@ -294,6 +296,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             Arc::clone(&tree.listing),
             &|file| valid.contains_key(file) || walked.contains_key(file),
             &kept,
+            tree.from_blob,
         );
         let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
         let before = walked.len();
@@ -358,9 +361,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         .filter(|(_, row)| row.parsed && !row.identity.is_empty())
         .filter_map(|(file, row)| Parse::of(Some(&store), &row.identity, file, row.kept, &row.read))
         .collect();
-    // What this update parsed that no store holds, for every root after it.
+    // What this update parsed of the blob it is named by that no store holds, for every root after it.
     let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
-    let parsed_here = parsed_here.filter(|(_, row)| row.parsed && !row.kept && !row.identity.is_empty());
+    let parsed_here = parsed_here.filter(|(file, row)| row.parsed && !row.kept && !row.identity.is_empty() && tree.from_blob.shares(&row.identity, &way(file)));
     stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read)));
     let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
     interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));

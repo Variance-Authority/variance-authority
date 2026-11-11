@@ -65,18 +65,6 @@ export function sourceIndexPath(root: string, cacheRoot?: string): string {
   return resolve(cacheLayers(realPath(resolve(root)), cacheRoot).top, 'source-index.bin');
 }
 
-/**
- * The primary checkout's source index, when `root` is a worktree cut from it.
- *
- * A worktree's own index starts where the primary checkout's last update left
- * off, so its first update reads only what differs between the two checkouts.
- * `undefined` in the primary checkout itself, which has no other layer to start from.
- */
-export function primarySourceIndexPath(root: string, cacheRoot?: string): string | undefined {
-  const layers = cacheLayers(realPath(resolve(root)), cacheRoot);
-  return layers.top === layers.base ? undefined : resolve(layers.base, 'source-index.bin');
-}
-
 /** What {@link openSourceIndex} reads beside the chain itself. */
 export interface SourceIndexOptions {
   /**

@@ -29,7 +29,7 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
-import type { NativeSourceIndexes } from './native-source-index.js';
+import type { NativeParseOrigins, NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
@@ -51,7 +51,7 @@ import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict }
 export type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict };
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
-export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
+export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins {
   readonly size: number;
   /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
   readonly vouched: boolean;

@@ -297,7 +297,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // scan already holds the answer for every path it knows, and every parse.
   const largestFile = options.largestFile ?? LARGEST_FILE;
   let parsed = 0; // counted where JavaScript parses, whichever of a resolver and the scan asks first
-  const counted = (): void => { parsed += 1; };
+  const counted = (file: string, contents: string): void => { parsed += 1; tree?.native?.parsedFrom(file, contents); };
   const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, counted, digest: tree?.getAll([file])[0] });
   const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;

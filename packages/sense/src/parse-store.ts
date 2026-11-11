@@ -48,9 +48,11 @@ export function parseStoresFor(root: string): readonly string[] | undefined {
  * `core.autocrlf=true`, or a `text` (or legacy `crlf`) file under `core.eol=crlf` (`native` on
  * Windows). A parse is kept under the blob's name and read off the disk, so
  * there two checkouts holding one blob can hold different modules, and one
- * would answer the other. A git that cannot answer is taken to rewrite. The
- * `FIXME` in `scan.ts` is the same question for one checkout's own index: a fix
- * keyed by the bytes read replaces this gate.
+ * would answer the other. A git that cannot answer is taken to rewrite. A
+ * parse leaves its checkout only when the bytes read are the blob
+ * (`native/src/parse_origin.rs`), which covers what such a checkout writes;
+ * this gate still guards the reading side, where it would take a parse of the
+ * blob for bytes git rewrote. The `FIXME` in `scan.ts` asks the same of one index.
  */
 function rewritesParsed(repository: string): boolean {
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -80,14 +82,16 @@ function rewritesParsed(repository: string): boolean {
 }
 
 /**
- * Add to the first of `stores` what the published chain at `chain` holds and no
- * store does: what a scan parsed in JavaScript reaches the other roots this way.
- * A store that cannot be written costs a later root its reparse and nothing
- * else, so it is not an error here.
+ * Add to the first of `stores` what the published chain at `chain` holds, no
+ * store does, and `listing` read only as the blob git names it by. A parse of
+ * other bytes — a file edited under `--assume-unchanged`, or after the
+ * listing — stays in its own index, and so does a module read under
+ * `packs: false`, whose bytes the listing never saw. A store that cannot be
+ * written costs a later root its reparse and nothing else, so it is not an error here.
  */
-export function fillParseStore(stores: readonly string[], chain: string): number {
+export function fillParseStore(listing: NativeGitTree | undefined, stores: readonly string[], chain: string): number {
   try {
-    return addon()?.fillParseStore([...stores], chain) ?? 0;
+    return listing?.fillParseStore([...stores], chain) ?? 0;
   } catch {
     return 0;
   }

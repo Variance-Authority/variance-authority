@@ -396,7 +396,7 @@ fn trim(line: &[u8]) -> &[u8] {
     &line[..end]
 }
 
-fn parse_oid(hex: &[u8]) -> Option<Oid> {
+pub(crate) fn parse_oid(hex: &[u8]) -> Option<Oid> {
     if hex.len() != 40 {
         return None;
     }

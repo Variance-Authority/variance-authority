@@ -300,9 +300,7 @@ function describe(update: SourceUpdate): string {
   const files = `${update.files} ${update.files === 1 ? 'file' : 'files'}`;
   const reread = `${update.reread} read again`;
   switch (update.was) {
-    case 'missing': return update.from === undefined
-      ? `source index built: ${files}, at ${update.path}`
-      : `source index built on ${update.from}: ${files}, ${reread}, at ${update.path}`;
+    case 'missing': return `source index built: ${files}, at ${update.path}`;
     case 'damaged': return `source index repaired: ${files}, ${reread}, at ${update.path}`;
     case 'other-version': return `source index rebuilt over one written in format version ${String(update.written)}: ${files}, ${reread}, at ${update.path}`;
     case 'published': return `source index updated: ${files}, ${reread}, at ${update.path}`;

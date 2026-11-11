@@ -15,8 +15,7 @@ import { dependencyStack, queryDependencyLexicon, refreshDependencyLexicon } fro
  * A source edit that asks for nothing the catalogue does not hold leaves the catalogue's bytes as they were
  * and appends the edited files' rows to the sites file: a refresh that rewrites either whole is the whole
  * lexicon's cost each time an agent saves a file. A file written back to bytes the index's base holds has its
- * parse there, and an index can be replaced by one over the same base with another working layer, as a
- * worktree seeded from another checkout's index is.
+ * parse there, and an index can be replaced by one over the same base with another working layer.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];

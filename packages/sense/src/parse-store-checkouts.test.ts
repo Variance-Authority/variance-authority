@@ -98,6 +98,87 @@ describe('the checkouts a parse store answers', () => {
     expect(await records(right)).toBe(alone);
   });
 
+  // A wave this small is read off the disk, and each file's bytes are told from its blob as they are read.
+  it('parses nothing again for a checkout of blobs another read off the disk', async () => {
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(await checkout('left'));
+    const second = await updateSourceIndex(await checkout('left'));
+    expect(second.files).toBeGreaterThan(0);
+    expect(second.parsed).toBe(0);
+  });
+
+  // `packs: false` is the update made in JavaScript, which fills the store from the index it wrote.
+  it.each([{}, { packs: false }])('takes no parse another checkout made of bytes it edited after git named them, updating with %o', async (options) => {
+    // `edited` holds bytes git still names by the committed blob. Git was told not to
+    // look for the edit, as it has not looked for one made after it listed the tree.
+    const edited = await checkout('left');
+    const clean = await checkout('left');
+    git(edited, 'update-index', '--assume-unchanged', 'packages/a/src/entry.ts');
+    await write(edited, 'packages/a/src/entry.ts', "import { side } from './right.js';\nexport const entry = side;\n");
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(clean);
+    const alone = await records(clean);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(edited, options);
+    await updateSourceIndex(clean);
+    expect(await records(clean)).toBe(alone);
+  });
+
+  // An index over part of a checkout is kept beside the checkout's own, as `variance docs` keeps a workspace's.
+  it("parses nothing again for an index a worktree keeps beside its own, over what its primary checkout's read", async () => {
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    const primary = await checkout('left');
+    await updateSourceIndex(primary);
+    const worktree = join(await temporary('variance-parse-store-worktree-'), 'second');
+    git(primary, 'worktree', 'add', '--quiet', worktree);
+
+    const part = await updateSourceIndex(worktree, { index: `${sourceIndexPath(worktree)}.workspace.bin`, dirs: ['packages/a'] });
+    expect(part.files).toBeGreaterThan(0);
+    expect(part.parsed).toBe(0);
+  });
+
+  // A worktree's index is its own: no row of its primary checkout's arrives in it unread.
+  it('takes no record its primary checkout read of bytes it edited after git named them', async () => {
+    const primary = await checkout('left');
+    git(primary, 'update-index', '--assume-unchanged', 'packages/a/src/entry.ts');
+    await write(primary, 'packages/a/src/entry.ts', "import { side } from './right.js';\nexport const entry = side;\n");
+    const worktree = join(await temporary('variance-parse-store-worktree-'), 'second');
+    git(primary, 'worktree', 'add', '--quiet', worktree);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(worktree);
+    const alone = await records(worktree);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(primary);
+    await updateSourceIndex(worktree);
+    expect(await records(worktree)).toBe(alone);
+  });
+
+  // Paths of one blob share one parse key, so a clean read of one must not vouch for the others.
+  it.each(['first', 'last'] as const)('takes no parse of an edited file whose blob another path holds unedited, the %s one', async (unedited) => {
+    const twins = Array.from({ length: 40 }, (_, at) => `packages/a/src/twin-${String(at).padStart(2, '0')}.ts`);
+    const text = (target: string) => `import { side } from './${target}.js';\nexport const twin = side;\n`;
+    const twinned = async (root: string) => { for (const twin of twins) await write(root, twin, text('left')); };
+    const edited = await checkout('left', twinned);
+    const clean = await checkout('left', twinned);
+    for (const twin of unedited === 'first' ? twins.slice(1) : twins.slice(0, -1)) {
+      git(edited, 'update-index', '--assume-unchanged', twin);
+      await write(edited, twin, text('right'));
+    }
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(clean);
+    const alone = await records(clean);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(edited);
+    await updateSourceIndex(clean);
+    expect(await records(clean)).toBe(alone);
+  });
+
   it("takes no parse of another checkout's line endings that `core.eol=crlf` writes out of one blob", async () => {
     await expectOwnLineEndings('core.eol', 'crlf');
   });

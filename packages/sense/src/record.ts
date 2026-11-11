@@ -39,8 +39,8 @@ export interface RecordSubject {
   readonly remembering: boolean;
   /** This file's content digest, when it was known without opening the file. */
   readonly digest?: Digest;
-  /** Told of each parse this record's read makes, where it makes it. */
-  readonly counted?: () => void;
+  /** Told of each parse this record's read makes, where it makes it, and of the bytes it parsed. */
+  readonly counted?: (file: string, contents: string) => void;
 }
 
 export interface BuiltRecord {
@@ -109,7 +109,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     read = cache.get(keyFor(digest, way));
     if (read === undefined) {
       read = parsedFrom(file, contents, way, language);
-      subject.counted?.();
+      subject.counted?.(file, contents);
       cache.set(keyFor(digest, way), read);
     }
   }
@@ -209,8 +209,8 @@ export function parsedOnce(input: {
   readonly cache?: ParseCache;
   readonly digest?: Digest | undefined;
   readonly largestFile?: number;
-  /** Told of each parse made here, where it is made. */
-  readonly counted?: () => void;
+  /** Told of each parse made here, where it is made, and of the bytes it parsed. */
+  readonly counted?: (file: string, contents: string) => void;
 }): Parsed | undefined {
   const { root, file, cache, largestFile } = input;
   const way = parseWay(file);
@@ -229,7 +229,7 @@ export function parsedOnce(input: {
   let read = cache?.get(key);
   if (read === undefined) {
     read = parsedFrom(file, contents, way, language);
-    input.counted?.();
+    input.counted?.(file, contents);
   }
   cache?.set(key, read);
   return read;
