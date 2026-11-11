@@ -55,6 +55,12 @@ export interface SuiteRequest {
    * Asked by name: a gate never sets it.
    */
   readonly local?: boolean;
+  /**
+   * Read the record under this checkout's own, as one shard of a run does: it
+   * selects from the record it was handed, never from what it or an earlier
+   * wave of it ran, so every shard and wave cut the same selection.
+   */
+  readonly beneath?: boolean;
 }
 
 /** The selection, with the whole reading it was cut from, for a caller that prints it. */

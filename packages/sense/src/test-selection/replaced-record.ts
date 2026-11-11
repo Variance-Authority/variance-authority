@@ -67,15 +67,10 @@ export async function prepareRecord(
 async function replaceForeign(file: string, run: string | undefined): Promise<string | undefined> {
   const written = foreignAt(file, run);
   if (written === undefined) return undefined;
-  await removeRecord(file);
-  return written;
-}
-
-/** Delete the record at `file` with the files beside it, the record last: a crash leaves a record to delete again. */
-async function removeRecord(file: string): Promise<void> {
   await rm(commitRunsFile(file), { force: true });
   await rm(ownLayerFile(file), { force: true });
   await rm(file, { force: true });
+  return written;
 }
 
 /** {@link foreignProbes} of the record at `file`, read from its header. Nothing for one that is gone. */

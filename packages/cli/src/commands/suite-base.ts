@@ -21,7 +21,7 @@ import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/tes
 import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineBase, mainlineMissed, mainlineRead, primaryRead, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
-import { recordHeld } from './mainline-selected.js';
+import { recordHeld, selectedRecordOf } from './mainline-selected.js';
 import { namedSuite, recordedSuite } from './suite-record.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
@@ -46,6 +46,8 @@ export interface SuiteBaseOptions {
   readonly env?: Env;
   /** See {@link MainlineAsk.fetch}. Under `'never'` a checkout's own record is not repinned either. */
   readonly fetch?: MainlineAsk['fetch'];
+  /** Pass over this checkout's own record, as one shard of a run does: see sense's `RecordLocationOptions.beneath`. */
+  readonly beneath?: boolean;
 }
 
 /**
@@ -70,7 +72,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
     ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
   };
-  if (await recordHeld(own)) {
+  if (options.beneath !== true && (await recordHeld(own))) {
     // The milestone under the checkout moves forward when the mainline's
     // newest record is one HEAD contains: see `repinOwnLayer`. A read that
     // fetches nothing can be killed mid-way, so it rewrites nothing either.
@@ -89,7 +91,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   // A miss names the mainline selected, so nothing fetched for another answers,
   // and a share section that does not parse names none, so nothing fetched does.
   const selected = read?.miss.kind === 'unconfigured' ? null : read?.mainline;
-  const nearest = await selection.readableTestCoverage(root, { ...named, selected });
+  const nearest = await selection.readableTestCoverage(root, { ...named, selected, beneath: options.beneath });
   if (nearest !== own && (await recordHeld(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
 }
@@ -129,16 +131,20 @@ export interface FoundRecord {
  * they answer differently and a list alone does not say which.
  */
 export async function recordedOrMainline(
-  request: { readonly root: string; readonly suite?: string },
+  request: { readonly root: string; readonly suite?: string; readonly beneath?: boolean },
   options: Pick<SuiteBaseOptions, 'fetch'> = {},
 ): Promise<FoundRecord> {
-  const { declared } = await namedSuite(request.root, request.suite);
+  const { name, declared } = await namedSuite(request.root, request.suite);
   if (declared?.carry !== 'share') {
+    if (request.beneath === true) {
+      const { file, origin } = await selectedRecordOf(request.root, name, declared, { beneath: true });
+      return { at: file, held: origin !== undefined };
+    }
     const { file } = await recordedSuite(request.root, request.suite);
     return { at: file, held: await recordHeld(file) };
   }
   const suite = declared.name;
-  const base = await suiteBase(request.root, { suite, ...options });
+  const base = await suiteBase(request.root, { suite, ...options, ...(request.beneath === true ? { beneath: true } : {}) });
   if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
   if (base.from === 'mainline') {
     const read = base.mainline;

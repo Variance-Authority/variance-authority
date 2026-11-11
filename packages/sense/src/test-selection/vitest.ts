@@ -170,7 +170,8 @@ export function withTestSelection(
   // governs, which for the one that describes the run is every test.
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
-  const suite = options.suite === undefined ? {} : { suite: options.suite };
+  // One shard reads the record it was handed, beneath what it or its earlier wave ran.
+  const suite = { ...(options.suite === undefined ? {} : { suite: options.suite }), ...(shardArgument(process.argv) === undefined ? {} : { beneath: true }) };
   const selection = askedSelection(options.selection, () => coverageFile, { root, from: configRoot, ...suite });
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   // Asked of the mode, not of `run.cases`: a page clears that on the run, and

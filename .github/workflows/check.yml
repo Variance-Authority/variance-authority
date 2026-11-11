@@ -627,26 +627,23 @@ jobs:
       # wave spends minutes saying less. The near wave records over the base,
       # so the far wave reads the tests it ran as run at this commit.
       #
-      # A shard runs the same waves, each in a copy of this checkout's cache:
-      # every leg selects from the record the steps above laid where the read
-      # sits, the one `plan` priced, and Vitest cuts the selected files the
-      # same way in every leg. A run under `--shard` records alone: its own
-      # layer starts empty and keeps only what it ran, so `record` folds the
-      # parts over that same record, and every file and case no part ran keeps
-      # the row it had. The far wave reads the same record, not the near
-      # wave's part; the two select disjoint files, so neither needs the
-      # other's rows.
+      # A shard runs the same waves: every wave of every leg selects and places
+      # from the record the steps above laid where the read sits, the one
+      # `plan` priced, beneath whatever this shard has already run, and Vitest
+      # cuts the selected files the same way in every leg. A run under
+      # `--shard` records alone: its own layer starts empty and keeps only what
+      # its waves ran, the far wave landing over the near one, so `record`
+      # folds the parts over that same record, and every file and case no part
+      # ran keeps the row it had. A shard killed before it lands hands nothing
+      # on, and the build fails with it.
       #
       # A push to `main` and a dispatch run every file. That is the gate a
       # selection is a smaller claim than, and on a push it is what the record
       # `main` publishes is cut from: every file observed at `main`'s own
       # commit, so the next pull request selects from rows no older than its
-      # base. Its shards record alone, as a selection's do. The copies sit in
-      # the runner's temporary directory, named by `VARIANCE_AUTHORITY_CACHE`,
-      # out of the checkout: a shard runs on the clean tree a pull request runs
-      # on, and a test that asks git what changed records the answer a pull
-      # request will read. Every shard places its files by the times the same
-      # record holds, and none asks the line.
+      # base. Its shards record alone, as a selection's do, and every shard
+      # places its files by the times the same record holds; none asks the
+      # line.
       - name: test
         id: test
         shell: bash
@@ -657,17 +654,12 @@ jobs:
         run: |
           if [ -n "$SHARD" ]; then
             echo "into=shard" >> "$GITHUB_OUTPUT"
-            wave() {
-              cp -R node_modules/.cache/variance-authority "$RUNNER_TEMP/shard-record/$1"
-              VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record/$1" "${@:2}" yarn "test:$SUITE" --shard "$SHARD"
-            }
-            mkdir -p "$RUNNER_TEMP/shard-record"
             if [ "$SELECT" = true ]; then
               yarn variance index
-              wave near env VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2
-              wave far env VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3-
+              VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" --shard "$SHARD"
+              VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE" --shard "$SHARD"
             else
-              wave whole env
+              yarn "test:$SUITE" --shard "$SHARD"
             fi
           elif [ "$SELECT" = true ]; then
             echo "into=slice" >> "$GITHUB_OUTPUT"
@@ -679,8 +671,8 @@ jobs:
             yarn "test:$SUITE"
           fi
 
-      # What this job recorded, for `record` to fold: a shard's own cache, or
-      # the whole slice's record as it stands in this checkout's layer, under
+      # What this job recorded, for `record` to fold: the part a shard ran, or
+      # the whole slice's record, each as it stands in this checkout's layer, under
       # the `suites/<suite>/` that says whose record it is. A red
       # run still recorded what it ran, and the review is where a reviewer
       # reads why. A shard job that stopped before the test uploads nothing.
@@ -689,7 +681,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
-          path: ${{ runner.temp }}/shard-record/*/test-selection/*/suites/${{ matrix.suite }}
+          path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ matrix.suite }}
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30

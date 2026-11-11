@@ -250,10 +250,15 @@ Keep both off the push to your mainline: that build runs the whole suite, so
 its shards' records fold into the one the next build is placed by. Under Vitest
 and Jest, a shard, selected or not, records the files it ran and nothing else:
 it selects from the record it was handed, lays none under its own run, and a
-shard that runs no file leaves no record. A pull request's shards then fold over
-the record they selected from, and a test file or case no shard ran keeps the
-row it had. A Playwright shard still lands over the record it read, so keep a
-pull request's Playwright shards out of the share.
+shard that runs no file leaves no record. A shard that runs in more than one
+pass, near tests first and the far ones after, selects and places every pass
+from that same record, beneath what its earlier passes ran, and each pass lands
+over the last, so the shard's one record holds what all of them ran. A pull
+request's shards then fold over the record they selected from, and a test file
+or case no shard ran keeps the row it had. A shard killed before it lands
+leaves no record and fails the build; the others' still fold. A Playwright
+shard still lands over the record it read, so keep a pull request's Playwright
+shards out of the share. Rstest takes no `--shard` placement from variance.
 
 A pull request that [carries its last push](selecting.md#a-pull-requests-next-push)
 hands that record to its shards too: after `carry receive`, each shard runs

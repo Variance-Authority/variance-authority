@@ -3492,7 +3492,10 @@ prints `kept=<suite> <suite>`; the lines saying why go to stderr.
 took there, in `taken.json`, so one job can take the last push and hand the
 directory to the run's other jobs as an artifact. Each of them runs
 `variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
-the first job took, so no job reads another record than the rest. The bundle
+the first job took, so no job reads another record than the rest. A shard runs
+`variance carry take <dir> --as-base` after `carry receive` instead: it lays the
+last push where the received read sits, so the shard selects from the record the
+plan read, and its own record holds only what it runs. The bundle
 reads only in a clone that holds `origin/<base>` where `keep` cut it, so check
 out with `fetch-depth: 0`; elsewhere `take` says it did not read and fetches by
 name:

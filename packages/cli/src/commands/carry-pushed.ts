@@ -22,20 +22,18 @@ import {
   declaredSuites,
   foreignProbes,
   keepsCases,
-  lastFetchedMainline,
   mainlineHanded,
   mainlineReadRoot,
   namedCommits,
   readCommitRuns,
   readFetchedMainline,
   testCoverageFile,
-  writeFetchedMainline,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { BUNDLE, git, holds, keepCommits, succeeds, takeCommits, type KeptCommits } from './carry-bundle.js';
-import { readMissedMainline } from './mainline-base.js';
+import { readMissedMainline, standOnHanded } from './mainline-base.js';
 import { suiteBase } from './suite-base.js';
 
 /** Where `carry` keeps and takes the pushed records, under the checkout. */
@@ -250,10 +248,12 @@ async function layAsRead(root: string, suite: string, from: string): Promise<voi
   if (commit === undefined) throw new OperatorError(`the last push's record of "${suite}" names no commit it was recorded at.`);
   await rm(readRoot, { recursive: true, force: true });
   await cp(from, join(readRoot, commit), { recursive: true });
-  await writeFetchedMainline(cacheRoot, suite, { mainline, commit, fetched: new Date().toISOString(), handed: true });
-  if (lastFetchedMainline(root, suite, cacheRoot, mainline)?.commit !== commit) {
-    throw new OperatorError(`the last push's record of "${suite}", made at ${commit}, does not read in this build. Stopping rather than select from another record than the run's.`);
-  }
+  await standOnHanded(
+    root,
+    suite,
+    { mainline, commit, fetched: new Date().toISOString() },
+    `the last push's record of "${suite}", made at ${commit}, does not read in this build. Stopping rather than select from another record than the run's.`,
+  );
 }
 
 /** The suites an earlier take over `dir` took, or absent when none took from it. */

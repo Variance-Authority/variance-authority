@@ -8,6 +8,8 @@ import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { handBase, receiveBase } from './carry-handed.js';
 import { keepPushed, takePushed } from './carry-pushed.js';
+import { selectSuite } from './select-command.js';
+import { suiteTimes } from './suite-times.js';
 import { DISCOUNTS, git, gitPublished, ranWhole, recordIn } from './mainline-fixture.js';
 
 /**
@@ -68,6 +70,20 @@ describe('a shard takes the last push as its base', () => {
     expect(nearest.origin).toBe('mainline');
     expect(await readFile(nearest.file)).toEqual(pushed);
     expect(existsSync(testCoverageFile(shard, { suite: 'unit' }))).toBe(false);
+  });
+
+  it('selects and places its later wave from that record, not from what its earlier wave ran', async () => {
+    const { origin } = await orchestrated();
+    const shard = await job(origin, 'shard');
+    await receiveBase(shard, handed);
+    await takePushed(shard, carried, { asBase: true });
+    const handedRecord = nearestRecord(shard, { suite: 'unit' }).file;
+    // The near wave landed: the shard's own layer now holds only what it ran.
+    await recordIn(shard, await git(shard, 'rev-parse', 'HEAD'), ['test/total.test.ts'], [DISCOUNTS]);
+
+    const asked = { root: shard, suite: 'unit', beneath: true } as const;
+    expect((await selectSuite(asked)).read).toEqual((await selectSuite({ root: shard, suite: 'unit', record: handedRecord })).read);
+    expect((await suiteTimes(asked)).recording).toBe(handedRecord);
   });
 
   it('reads the handed record when the last push kept nothing', async () => {

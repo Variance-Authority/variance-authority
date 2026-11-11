@@ -39,6 +39,12 @@ export interface SelectionRequest {
    * it. The checkout when absent.
    */
   readonly from?: string;
+  /**
+   * One shard of a run: read the record under the checkout's own, the one the
+   * run was handed, never what this shard or an earlier wave of it ran, so
+   * every shard and wave select and place from the same record.
+   */
+  readonly beneath?: boolean;
 }
 
 /** What `@variance-authority/cli` is asked for; its own types stay on its side of the cycle. */
@@ -50,9 +56,10 @@ interface Selector {
     readonly atDistance?: { readonly from: number; readonly to: number; readonly by?: 'environment' };
     readonly grain?: 'case';
     readonly local?: boolean;
+    readonly beneath?: boolean;
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
-  suiteTimes?(request: { readonly root: string; readonly suite?: string }): Promise<SuiteTimes>;
+  suiteTimes?(request: { readonly root: string; readonly suite?: string; readonly beneath?: boolean }): Promise<SuiteTimes>;
 }
 
 const CLI = '@variance-authority/cli';
@@ -102,6 +109,7 @@ export function selectionFrom(
       ...(leg === undefined ? {} : { atDistance: { ...leg, by: 'environment' } }),
       ...(grain === 'case' ? { grain } : {}),
       ...(local === '1' ? { local: true } : {}),
+      ...(request.beneath === true ? { beneath: true } : {}),
     });
   };
 }
@@ -144,7 +152,11 @@ export function timesFrom(request: SelectionRequest & { readonly recording?: str
         const why = cli === undefined ? `which ${from} does not resolve` : 'and the one installed predates them';
         return { unread: `the times are read by ${CLI}, ${why}` };
       }
-      return await cli.suiteTimes({ root: request.root, ...(request.suite === undefined ? {} : { suite: request.suite }) });
+      return await cli.suiteTimes({
+        root: request.root,
+        ...(request.suite === undefined ? {} : { suite: request.suite }),
+        ...(request.beneath === true ? { beneath: true } : {}),
+      });
     } catch (error) {
       throw new Error(
         'variance-authority: the times this shard is placed by could not be read, and a shard placed without them ' +

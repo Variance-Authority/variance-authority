@@ -23,16 +23,14 @@ import {
   cacheRootFor,
   declaredSuites,
   FETCHED_MAINLINE,
-  lastFetchedMainline,
   mainlineReadRoot,
   readFetchedMainline,
   testCoverageFile,
-  writeFetchedMainline,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { OperatorError, type ExitCode } from '../exit.js';
 import { printMoved } from './carry-pushed.js';
-import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, writeMissedMainline, type MainlineAsk } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, standOnHanded, writeMissedMainline, type MainlineAsk } from './mainline-base.js';
 
 /** What `hand` writes first, naming the suites it holds a read of. */
 const HANDED_MANIFEST = 'handed.json';
@@ -140,12 +138,12 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
     await rm(readRoot, { recursive: true, force: true });
     await cp(from, readRoot, { recursive: true });
     if (pointer !== undefined) {
-      await writeFetchedMainline(cacheRoot, suite, { ...pointer, handed: true });
-      if (lastFetchedMainline(root, suite, cacheRoot, pointer.mainline)?.commit !== pointer.commit) {
-        throw new OperatorError(
-          `the record of "${suite}" handed in ${dir}, made at ${pointer.commit}, is missing or this build does not read it. Stopping rather than ask the line on its own.`,
-        );
-      }
+      await standOnHanded(
+        root,
+        suite,
+        pointer,
+        `the record of "${suite}" handed in ${dir}, made at ${pointer.commit}, is missing or this build does not read it. Stopping rather than ask the line on its own.`,
+      );
       lines.push(`${suite} stands on the record ${pointer.mainline} published at ${pointer.commit}, as this run read it.`);
     } else if (missed !== undefined) {
       await writeMissedMainline(readRoot, { ...missed, handed: true });
