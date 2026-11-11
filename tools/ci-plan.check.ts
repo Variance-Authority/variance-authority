@@ -5,7 +5,14 @@ const full = { by: 'recorded', shards: 3, matrix: ['1/3', '2/3', '3/3'], wall: 2
 const selected = (wall: number, files = 80) => ({ by: 'recorded', shards: 1, matrix: ['1/1'], wall, files });
 
 describe('CI chooses a suite run by recorded wall time', () => {
-  it('uses the sharded full suite when a broad selection takes longer', () => {
+  it('shards a broad selection rather than running the whole suite', () => {
+    const broad = { by: 'recorded', shards: 2, matrix: ['1/2', '2/2'], wall: 180_000, files: 80 };
+    expect(suitePlan('chromium', full, broad)).toEqual([
+      { suite: 'chromium', mode: 'selected', shard: '1/2' },
+      { suite: 'chromium', mode: 'selected', shard: '2/2' },
+    ]);
+  });
+  it('uses the sharded full suite when even a sharded selection takes longer', () => {
     expect(suitePlan('chromium', full, selected(460_000))).toEqual([
       { suite: 'chromium', mode: 'whole', shard: '1/3' },
       { suite: 'chromium', mode: 'whole', shard: '2/3' },

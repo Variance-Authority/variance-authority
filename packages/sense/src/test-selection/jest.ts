@@ -226,8 +226,6 @@ export interface SelectionReporterConfig {
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
   readonly continuations?: boolean;
-  /** Whether the run drops what a selection skips. A shard of a run that does not records alone. */
-  readonly selected?: true;
 }
 
 /** What the reporter is handed when it records journeys and nothing else. */
@@ -366,10 +364,7 @@ export function withTestSelection(
     ...(selection === undefined ? {} : selectingFilter(config, {
       root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
     })),
-    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
-      ...reporter,
-      ...(selection === undefined ? {} : { selected: true }),
-    }]],
+    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
 }
 

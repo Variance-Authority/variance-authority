@@ -46,7 +46,7 @@ for (const [suite, config, unrecorded] of [
     summary.push(`| ${suite} | ${selected.files ?? 'unknown'} / ${total} | near | ${selected.shards} | ${selected.wall === undefined ? 'unrecorded' : `${Math.round(selected.wall / 1000)} s`} |`);
   } else {
     const full = answer([], fullEnv);
-    const selected = pull ? answer(['--since', since, '--max', '1']) : undefined;
+    const selected = pull ? answer(['--since', since]) : undefined;
     const planned = suitePlan(suite, full, selected);
     legs.push(...planned);
     const chosen = planned[0].mode === 'selected' ? selected : full;

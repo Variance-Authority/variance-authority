@@ -127,7 +127,7 @@ class JestCoverageReporter {
    */
   readonly #governing = new Map<string, Set<string>>();
 
-  /** Whether this run is one shard of a run that selects nothing — see `recordsAlone`. */
+  /** Whether this run is one shard of a run, selected or not — see `recordsAlone`. */
   readonly #alone: boolean;
 
   /**
@@ -146,7 +146,7 @@ class JestCoverageReporter {
   ) {
     this.#config = config;
     this.#named = (globalConfig?.testNamePattern ?? '') !== '';
-    this.#alone = recordsAlone(globalConfig?.shard != null, 'selected' in config && config.selected === true);
+    this.#alone = recordsAlone(globalConfig?.shard != null);
   }
 
   onTestFileResult(test: JestTest): void {

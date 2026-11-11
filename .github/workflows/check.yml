@@ -602,8 +602,8 @@ jobs:
         run: node packages/cli/dist/bin.js share --suite "$SUITE" --format github >> "$GITHUB_OUTPUT"
 
       # A pull request runs its selection when its predicted wall time is no
-      # greater than a sharded whole run's. Otherwise it runs the whole suite:
-      # broad selections keep their parallelism without folding inherited rows.
+      # greater than a sharded whole run's, and shards it when one job would
+      # take longer than the budget. Otherwise it runs the whole suite.
       # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
       # config is wrapped in: it reads the mainline's record the step above
       # laid, diffs each test from the commit it last ran at, which for a record
@@ -615,7 +615,13 @@ jobs:
       # `verify:far` run on a laptop: the tests within two imports of the
       # change, then the rest. A red near wave ends the step before the far
       # wave spends minutes saying less. The near wave records over the base,
-      # so the far wave reads the tests it ran as run at this commit.
+      # so the far wave reads the tests it ran as run at this commit. A shard of
+      # a selection runs one wave: the selection drops what it skips before
+      # Vitest cuts the shard, and the shard records as a shard of a whole run
+      # does, below, so `record` folds the parts over the base and every test
+      # file no part ran keeps the row it had. It takes what the last push ran
+      # into its own cache too, so it selects from the record `plan` priced and
+      # `record` folds over.
       #
       # A push to `main` and a dispatch run every file. That is the gate a
       # selection is a smaller claim than, and on a push it is what the record
@@ -637,16 +643,24 @@ jobs:
           SELECT: ${{ matrix.mode == 'selected' && steps.base.outputs.based == 'true' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
+          CARRIED: ${{ needs.base.outputs.carried }}
         run: |
-          if [ "$SELECT" = true ]; then
+          if [ -n "$SHARD" ]; then
+            echo "into=shard" >> "$GITHUB_OUTPUT"
+            export VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record"
+            node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
+            if [ "$SELECT" = true ]; then
+              if [ "$CARRIED" = true ]; then node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried"; fi
+              yarn variance index
+              VARIANCE_AUTHORITY_SINCE='' yarn "test:$SUITE" --shard "$SHARD"
+            else
+              yarn "test:$SUITE" --shard "$SHARD"
+            fi
+          elif [ "$SELECT" = true ]; then
             echo "into=slice" >> "$GITHUB_OUTPUT"
             yarn variance index
             VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE"
             VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
-          elif [ -n "$SHARD" ]; then
-            echo "into=shard" >> "$GITHUB_OUTPUT"
-            VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
-            VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" yarn "test:$SUITE" --shard "$SHARD"
           else
             echo "into=slice" >> "$GITHUB_OUTPUT"
             yarn "test:$SUITE"

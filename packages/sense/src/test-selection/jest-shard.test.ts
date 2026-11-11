@@ -25,7 +25,7 @@ afterEach(async () => {
  * recording into a cache of its own that holds a fetched mainline: what reading
  * the suite's times through the cli leaves there. It ran this file alone.
  */
-async function shard(selected: boolean): Promise<readonly string[]> {
+async function shard(): Promise<readonly string[]> {
   const cache = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-shard-'));
   temporary.push(cache);
   process.env[CACHE_VARIABLE] = cache;
@@ -46,7 +46,6 @@ async function shard(selected: boolean): Promise<readonly string[]> {
     root: repository,
     coverageFile,
     preconditions: [],
-    ...(selected ? { selected: true } : {}),
   });
   reporter.onRunStart({ numTotalTestSuites: 1 });
   await reporter.onRunComplete([], {
@@ -55,10 +54,6 @@ async function shard(selected: boolean): Promise<readonly string[]> {
   return decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort();
 }
 
-it('records the files a Jest shard ran and nothing else when its run selects nothing', async () => {
-  expect(await shard(false)).toEqual(['packages/sense/src/test-selection/jest-shard.test.ts']);
-});
-
-it('records a selected Jest shard over the mainline it was laid on', async () => {
-  expect(await shard(true)).toContain('elsewhere/only.test.ts');
+it('records the files a Jest shard ran and nothing else, selected or not, so its parts fold over the base', async () => {
+  expect(await shard()).toEqual(['packages/sense/src/test-selection/jest-shard.test.ts']);
 });

@@ -274,7 +274,7 @@ function selecting(
   const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
-    sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined); },
+    sharded: (asked) => { run.alone = recordsAlone(asked); },
     cut: (cases) => {
       for (const [file, names] of cases) run.cut.set(file, names);
       writeCut(run.cutFile, run.cut);

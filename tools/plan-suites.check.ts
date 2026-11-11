@@ -43,7 +43,9 @@ if (args[1]==='shards') {
     const read = readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     expect(read).toContainEqual({ args: ['packages/cli/dist/bin.js', 'carry', 'receive', join(root, 'frozen')], cache: join(root, 'whole-plan') });
     for (const call of read.filter((call) => call.args[1] === 'shards')) {
-      expect(call.cache).toBe(join(root, call.args.includes('--max') ? 'carried' : 'whole-plan'));
+      expect(call.cache).toBe(join(root, call.args.includes('--since') ? 'carried' : 'whole-plan'));
     }
+    // A pull request's selection is sized like a whole run: no one-job cap.
+    expect(read.find((call) => call.args.includes('--since'))?.args).not.toContain('--max');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

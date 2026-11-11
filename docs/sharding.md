@@ -248,8 +248,9 @@ adds.
 
 Keep both off the push to your mainline: that build runs the whole suite, so
 its shards' records fold into the one the next build is placed by. A selected
-shard's record does not fold with another's, so a pull request's shards record
-for themselves, not for the share.
+shard records the files it ran and nothing else, as a whole run's shard does, so
+a pull request's shards fold over the record they selected from, and a test file
+no shard ran keeps the row it had.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for
