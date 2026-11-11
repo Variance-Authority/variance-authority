@@ -273,13 +273,11 @@ function passedOver(file: string, bytes: Uint8Array | undefined, instrumentation
  * shard of a run, selected or not.
  *
  * Such a shard is a part of one run, and the fan-in folds the parts over the
- * base, refusing a test file two parts both hold. A shard placed by recorded
- * time has read the suite's times, and a selected one has read the record its
- * selection was cut from: both sit in the shard's cache, where
- * {@link seedTestCoverage} would lay them under the shard's run. Every part
- * would then carry every row of the base. The shard removes that record before
- * it lands instead, and the fold lays the parts over the base, keeping the rows
- * of every test file and case no part ran.
+ * base, refusing a test file two parts both hold. The record a shard read its
+ * times or its selection from sits in its cache, where {@link seedTestCoverage}
+ * would lay it under the run, and every part would carry every row of the base.
+ * The shard removes it before it lands instead, and the fold lays the parts
+ * over the base, keeping the rows of every test file and case no part ran.
  */
 export function recordsAlone(sharded: boolean): boolean {
   return sharded;
