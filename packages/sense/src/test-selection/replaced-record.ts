@@ -27,13 +27,6 @@ import { cachedRecord, noteSeeded, seedTestCoverage } from './record-location.js
  * and replaces nothing. `selected` is the name of the mainline a caller worked
  * out, which judges the base it lays.
  *
- * `alone` lays no base: the run is one shard of a run, selected or not, and
- * records the files it ran and nothing else. The fan-in folds the parts over
- * the record the shards selected from, keeping the rows of every test file and
- * case no part ran, and refuses a test file two parts both hold, which a base
- * laid under every part would make of every row. The shard selects from the
- * read its workflow laid, never from its own layer, so it finds that empty.
- *
  * Inside the hold the run lands in, so no other writer's run can land between
  * the record going and the base arriving, and be copied over.
  */
@@ -41,7 +34,18 @@ export async function prepareRecord(
   lock: IndexLock,
   root: string,
   instrumentation: string | undefined,
-  options: { readonly alone?: boolean; readonly cacheRoot?: string | undefined; readonly selected?: string | null | undefined } = {},
+  options: {
+    /**
+     * One shard of a run, selected or not: lay no base, so the record holds the
+     * files it ran and nothing else. The fan-in folds the parts over the record
+     * the shards selected from, the read their workflow laid, and refuses a file
+     * two parts both hold, which a base laid under every part would make of
+     * every row.
+     */
+    readonly alone?: boolean;
+    readonly cacheRoot?: string | undefined;
+    readonly selected?: string | null | undefined;
+  } = {},
 ): Promise<void> {
   const { file } = lock;
   if (cachedRecord(file, root, options.cacheRoot) === undefined) return;

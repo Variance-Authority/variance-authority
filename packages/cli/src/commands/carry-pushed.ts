@@ -121,15 +121,16 @@ async function setAside(root: string, suite: string): Promise<string | undefined
  * run's next (`foreignProbes`); `undefined` takes any probes. The left are
  * removed from `dir` and the taken named there; a take over a directory an
  * earlier take named stops when it leaves one of those.
- *
- * `asBase` lays each suite as the read `carry receive` laid instead, and sets
- * nothing aside: a shard selects from it, and its own record holds only what
- * it runs, for the fold to lay over the same record.
  */
 export async function takePushed(
   root: string,
   dir: string,
-  options: { readonly env?: Env; readonly instrumentation?: string; readonly asBase?: boolean } = {},
+  options: {
+    readonly env?: Env;
+    readonly instrumentation?: string;
+    /** Lay each suite where `carry receive` laid the read, and set nothing aside: a shard selects from it, and its own record holds only what it runs. */
+    readonly asBase?: boolean;
+  } = {},
 ): Promise<PushedTaken> {
   let entries: Dirent[];
   try {
