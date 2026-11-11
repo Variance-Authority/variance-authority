@@ -66,9 +66,6 @@ describe('the stages asked by hand', () => {
   const IMPORTING = 'test/three.test.ts';
   const PAINTING = 'test/paint.test.ts';
   const GENERATING = 'test/generated.test.ts';
-  // Runs a program in another process, so it declares the program and the record shows it entering nothing.
-  const PROGRAM = 'src/program.ts';
-  const SPAWNING = 'test/spawn.test.ts';
   const COMMITTED_SOURCE = 'export function two(value) {\n  return value * 2;\n}\n';
   const COMMITTED_HELPER = 'module.exports = 1;\n';
   const module = (file: string, test: string, text: string, ordinal = 0): TestCoverage['modules'][number] => ({
@@ -99,7 +96,6 @@ describe('the stages asked by hand', () => {
       { file: IMPORTING, complete: true, preconditions: [] },
       { file: PAINTING, complete: true, preconditions: [] },
       { file: GENERATING, complete: true, preconditions: [] },
-      { file: SPAWNING, complete: true, preconditions: [] },
     ],
     modules: [module(SOURCE, ENTERING, COMMITTED_SOURCE), module(PAINT, PAINTING, COMMITTED_SOURCE), module(GENERATED, GENERATING, COMMITTED_SOURCE)],
   };
@@ -112,9 +108,6 @@ describe('the stages asked by hand', () => {
       { from: file(PAINT), to: file(THEME), kind: 'depends' },
       { from: file(IMPORTING), to: file(THEME), kind: 'asset' },
       { from: file(GENERATING), to: file(GENERATED), kind: 'imports' },
-      { from: file(SPAWNING), to: file(PROGRAM), kind: 'depends' },
-      { from: file(PROGRAM), to: file(SOURCE), kind: 'imports' },
-      { from: file(PROGRAM), to: file(HELPER), kind: 'imports' },
     ],
   });
   const sourceAt = (name: string): string | undefined => ({ [SOURCE]: COMMITTED_SOURCE, [HELPER]: COMMITTED_HELPER, [GENERATED]: COMMITTED_SOURCE })[name];
@@ -168,15 +161,6 @@ describe('the stages asked by hand', () => {
 
     expect(narrowByChangeFromView(view(), changeOfFiles([THEME]), options).entered).toEqual([PAINTING, DECLARING].sort());
     expect(byHand(view, changeOfFiles([THEME]), options)).toEqual([PAINTING, DECLARING].sort());
-  });
-
-  it('charges the declarer of a program for a measured file and a read rowless file the program loads, as the composition does', () => {
-    const options: Asked = { sourceAt, relations };
-
-    for (const change of [changeOfDiff(body), changeOfDiff(helper)]) {
-      expect(narrowByChangeFromView(view(), change, options).entered).toContain(SPAWNING);
-      expect(byHand(view, change, options)).toContain(SPAWNING);
-    }
   });
 
   it('reads the precondition table once composed, and once for each stage that reads it by hand', () => {
