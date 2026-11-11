@@ -2048,7 +2048,9 @@ first. `nearestRecord(root, options)` finds the same one and says whose it is:
 `own`, `mainline` or `primary`. A record fetched for another mainline is no
 layer: a reader that knows the selected mainline passes it as `selected`, here
 and to `lastFetchedMainline` and `prepareRecord`. A caller with none to pass, such
-as a runner seam, takes what was fetched.
+as a runner seam, takes what was fetched. A shard passes `beneath`: the
+checkout's own record is passed over, so every pass of the shard selects from
+the record it was handed, not from what an earlier pass of it ran.
 
 ### Read where the loads drift from the walk
 
